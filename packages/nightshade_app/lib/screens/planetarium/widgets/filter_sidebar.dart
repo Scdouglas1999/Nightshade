@@ -21,8 +21,8 @@ class FilterSidebar extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.grey[900]?.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          bottomLeft: Radius.circular(12),
+          topLeft: Radius.circular(8),
+          bottomLeft: Radius.circular(8),
         ),
       ),
       child: isExpanded ? _buildExpandedContent(ref) : _buildCollapsedContent(),
@@ -99,6 +99,20 @@ class FilterSidebar extends ConsumerWidget {
                 onChanged: (_) => ref
                     .read(skyRenderConfigProvider.notifier)
                     .toggleConstellationLines(),
+              ),
+              _FilterToggle(
+                label: 'Boundaries',
+                value: config.showConstellationBoundaries,
+                onChanged: (_) => ref
+                    .read(skyRenderConfigProvider.notifier)
+                    .toggleConstellationBoundaries(),
+              ),
+              _FilterToggle(
+                label: 'Constellation Art',
+                value: config.showConstellationArt,
+                onChanged: (_) => ref
+                    .read(skyRenderConfigProvider.notifier)
+                    .toggleConstellationArt(),
               ),
               _FilterToggle(
                 label: 'Ground',

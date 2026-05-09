@@ -11,10 +11,12 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
   EquipmentProfilesDao(NightshadeDatabase db) : super(db);
 
   /// Get all equipment profiles
-  Future<List<EquipmentProfile>> getAllProfiles() => select(equipmentProfiles).get();
+  Future<List<EquipmentProfile>> getAllProfiles() =>
+      select(equipmentProfiles).get();
 
   /// Watch all equipment profiles
-  Stream<List<EquipmentProfile>> watchAllProfiles() => select(equipmentProfiles).watch();
+  Stream<List<EquipmentProfile>> watchAllProfiles() =>
+      select(equipmentProfiles).watch();
 
   /// Get the active profile
   Future<EquipmentProfile?> getActiveProfile() {
@@ -34,32 +36,126 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
         .getSingleOrNull();
   }
 
-  /// Create a new profile
-  Future<int> createProfile(EquipmentProfilesCompanion profile) {
-    return into(equipmentProfiles).insert(profile);
+  /// Get the default profile.
+  Future<EquipmentProfile?> getDefaultProfile() {
+    return (select(equipmentProfiles)..where((p) => p.isDefault.equals(true)))
+        .getSingleOrNull();
   }
 
-  /// Update a profile
-  Future<bool> updateProfile(EquipmentProfile profile) {
+  /// Create a new profile.
+  ///
+  /// The first profile becomes both the default and the active profile so the
+  /// rest of the app always has a coherent startup target.
+  Future<int> createProfile(EquipmentProfilesCompanion profile) async {
+    return transaction(() async {
+      final countExpression = equipmentProfiles.id.count();
+      final existingCount = await (selectOnly(equipmentProfiles)
+            ..addColumns([countExpression]))
+          .map((row) => row.read(countExpression) ?? 0)
+          .getSingle();
+      final isFirstProfile = existingCount == 0;
+
+      final id = await into(equipmentProfiles).insert(
+        profile.copyWith(
+          isDefault: Value(isFirstProfile),
+          isActive: Value(isFirstProfile),
+        ),
+      );
+
+      if (isFirstProfile) {
+        await setDefaultProfile(id, makeActive: true);
+      }
+
+      return id;
+    });
+  }
+
+  /// Update a profile in place.
+  Future<bool> updateProfile(EquipmentProfile profile) async {
     return update(equipmentProfiles).replace(profile);
   }
 
-  /// Delete a profile
-  Future<int> deleteProfile(int id) {
-    return (delete(equipmentProfiles)..where((p) => p.id.equals(id))).go();
+  /// Delete a profile and preserve a coherent default/active selection.
+  Future<int> deleteProfile(int id) async {
+    return transaction(() async {
+      final deletedProfile = await getProfileById(id);
+      final rows =
+          await (delete(equipmentProfiles)..where((p) => p.id.equals(id))).go();
+
+      if (rows == 0) {
+        return 0;
+      }
+
+      final remaining = await (select(equipmentProfiles)
+            ..orderBy([
+              (p) => OrderingTerm.asc(p.sortOrder),
+              (p) => OrderingTerm.asc(p.id),
+            ]))
+          .get();
+
+      if (remaining.isEmpty) {
+        return rows;
+      }
+
+      final activeProfile = remaining
+          .cast<EquipmentProfile?>()
+          .firstWhere((p) => p!.isActive, orElse: () => null);
+      final defaultProfile = remaining
+          .cast<EquipmentProfile?>()
+          .firstWhere((p) => p!.isDefault, orElse: () => null);
+
+      if (deletedProfile?.isDefault == true || defaultProfile == null) {
+        final replacement = activeProfile ?? remaining.first;
+        await setDefaultProfile(replacement.id,
+            makeActive: activeProfile == null);
+      } else if (deletedProfile?.isActive == true || activeProfile == null) {
+        await setActiveProfile(defaultProfile.id);
+      }
+
+      return rows;
+    });
   }
 
-  /// Set a profile as active (and deactivate others)
+  /// Set a profile as active (and deactivate others) without changing the
+  /// persisted startup/default profile.
   Future<void> setActiveProfile(int profileId) async {
     await transaction(() async {
-      // Deactivate all profiles
       await update(equipmentProfiles).write(
         const EquipmentProfilesCompanion(isActive: Value(false)),
       );
-      // Activate the selected profile
       await (update(equipmentProfiles)..where((p) => p.id.equals(profileId)))
           .write(const EquipmentProfilesCompanion(isActive: Value(true)));
     });
+  }
+
+  /// Set a profile as the default startup profile.
+  ///
+  /// When [makeActive] is true, the default profile also becomes the current
+  /// active profile so the UI and startup behavior remain aligned.
+  Future<void> setDefaultProfile(int profileId,
+      {bool makeActive = true}) async {
+    await transaction(() async {
+      await update(equipmentProfiles).write(
+        const EquipmentProfilesCompanion(isDefault: Value(false)),
+      );
+      await (update(equipmentProfiles)..where((p) => p.id.equals(profileId)))
+          .write(EquipmentProfilesCompanion(
+        isDefault: const Value(true),
+        isActive: const Value.absent(),
+      ));
+
+      if (makeActive) {
+        await setActiveProfile(profileId);
+      }
+    });
+  }
+
+  /// Clear the persisted default profile without changing the current active
+  /// selection.
+  Future<void> clearDefaultProfile() async {
+    await update(equipmentProfiles).write(
+      const EquipmentProfilesCompanion(isDefault: Value(false)),
+    );
   }
 
   /// Duplicate a profile
@@ -90,15 +186,24 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
         defaultBinX: Value(source.defaultBinX),
         defaultBinY: Value(source.defaultBinY),
         defaultCoolingTemp: Value(source.defaultCoolingTemp),
+        coolOnConnect: Value(source.coolOnConnect),
+        defaultCenteringExposure: Value(source.defaultCenteringExposure),
         filterNames: Value(source.filterNames),
         filterFocusOffsets: Value(source.filterFocusOffsets),
         meridianFlipOverrides: Value(source.meridianFlipOverrides),
+        cameraName: Value(source.cameraName),
+        mountName: Value(source.mountName),
+        focuserName: Value(source.focuserName),
+        filterWheelName: Value(source.filterWheelName),
+        guiderName: Value(source.guiderName),
+        rotatorName: Value(source.rotatorName),
+        telescopeName: Value(source.telescopeName),
+        telescopeFocalLength: Value(source.telescopeFocalLength),
+        telescopeAperture: Value(source.telescopeAperture),
+        profileIcon: Value(source.profileIcon),
+        profileColor: Value(source.profileColor),
+        sortOrder: Value(source.sortOrder),
       ),
     );
   }
 }
-
-
-
-
-

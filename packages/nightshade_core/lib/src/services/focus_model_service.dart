@@ -1,5 +1,6 @@
 // ignore_for_file: unused_local_variable
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -9,7 +10,9 @@ import 'package:path_provider/path_provider.dart';
 
 /// Provider for the focus model service
 final focusModelServiceProvider = Provider<FocusModelService>((ref) {
-  return FocusModelService();
+  final service = FocusModelService();
+  unawaited(service.initialize());
+  return service;
 });
 
 /// A single focus data point
@@ -182,13 +185,22 @@ class ProfileFocusData {
 class FocusModelService {
   final Map<String, ProfileFocusData> _profileData = {};
   String? _storageDir;
+  Future<void>? _initializeFuture;
+  bool _isInitialized = false;
 
   /// Initialize storage directory
   Future<void> initialize() async {
+    if (_isInitialized) return;
+    _initializeFuture ??= _initializeInternal();
+    await _initializeFuture;
+  }
+
+  Future<void> _initializeInternal() async {
     final appDir = await getApplicationDocumentsDirectory();
     _storageDir = '${appDir.path}/Nightshade/focus_models';
     await Directory(_storageDir!).create(recursive: true);
     await _loadAllProfiles();
+    _isInitialized = true;
   }
 
   /// Get focus data for a profile
@@ -204,6 +216,7 @@ class FocusModelService {
     required double hfr,
     String? filterName,
   }) async {
+    await initialize();
     final point = FocusDataPoint(
       timestamp: DateTime.now(),
       temperatureCelsius: temperatureCelsius,
@@ -227,6 +240,8 @@ class FocusModelService {
     final model = _calculateTemperatureModel(newPoints);
     if (model != null) {
       data = data.copyWith(temperatureModel: model);
+    } else {
+      data = data.copyWith(temperatureModel: null);
     }
 
     // Update filter offsets if we have a reference filter
@@ -275,7 +290,17 @@ class FocusModelService {
       sumY2 += y * y;
     }
 
-    final slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    final denominator = n * sumX2 - sumX * sumX;
+    if (denominator.abs() < 1e-9) {
+      return null;
+    }
+
+    final slope = (n * sumXY - sumX * sumY) / denominator;
+    if (slope.abs() > 500) {
+      debugPrint(
+          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C');
+      return null;
+    }
     final intercept = (sumY - slope * sumX) / n;
 
     // Calculate R-squared
@@ -416,6 +441,7 @@ class FocusModelService {
 
   /// Set the reference filter for offset calculations
   Future<void> setReferenceFilter(String profileId, String filterName) async {
+    await initialize();
     var data = _profileData[profileId];
     if (data == null) return;
 
@@ -438,6 +464,7 @@ class FocusModelService {
     Map<String, FilterOffset> offsets, {
     String? referenceFilter,
   }) async {
+    await initialize();
     var data =
         _profileData[profileId] ?? ProfileFocusData(profileId: profileId);
 
@@ -452,6 +479,7 @@ class FocusModelService {
 
   /// Clear focus data for a profile
   Future<void> clearProfileData(String profileId) async {
+    await initialize();
     _profileData.remove(profileId);
     if (_storageDir != null) {
       final file = File('$_storageDir/$profileId.json');
@@ -470,6 +498,7 @@ class FocusModelService {
 
   /// Import focus data
   Future<void> importData(String profileId, String jsonData) async {
+    await initialize();
     final json = jsonDecode(jsonData) as Map<String, dynamic>;
     final data = ProfileFocusData.fromJson(json);
     _profileData[profileId] = data;

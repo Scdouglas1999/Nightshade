@@ -6,7 +6,7 @@ import 'dart:io';
 class CatalogEntry {
   final String id;
   final String name;
-  final double ra;  // Right ascension in degrees
+  final double ra; // Right ascension in degrees
   final double dec; // Declination in degrees
   final double? magnitude;
   final String? type;
@@ -58,7 +58,6 @@ class CatalogService {
         .openRead()
         .transform(systemEncoding.decoder)
         .transform(const LineSplitter())) {
-
       // Skip header
       if (offset == 0) {
         offset++;
@@ -132,7 +131,6 @@ class CatalogService {
         .openRead()
         .transform(systemEncoding.decoder)
         .transform(const LineSplitter())) {
-
       // Skip header
       if (lineNum == 0) {
         lineNum++;
@@ -185,8 +183,12 @@ class CatalogService {
     double? maxMagnitude,
     String? typeFilter,
   }) async {
+    if (limit <= 0) {
+      return const [];
+    }
+
     final results = <CatalogEntry>[];
-    int currentOffset = 0;
+    int remainingOffset = offset;
 
     await for (final page in streamCatalogSearch(
       query: query,
@@ -194,28 +196,17 @@ class CatalogService {
       maxMagnitude: maxMagnitude,
       typeFilter: typeFilter,
     )) {
-      // Skip until we reach the desired offset
-      if (currentOffset < offset) {
-        final skip = offset - currentOffset;
-        if (skip >= page.length) {
-          currentOffset += page.length;
-          continue;
-        } else {
-          // Partial page
-          final remaining = page.skip(skip).toList();
-          results.addAll(remaining);
-          currentOffset += page.length;
-        }
-      } else {
-        results.addAll(page);
+      if (remainingOffset >= page.length) {
+        remainingOffset -= page.length;
+        continue;
       }
 
-      // Stop when we have enough results
+      results.addAll(page.skip(remainingOffset).take(limit - results.length));
+      remainingOffset = 0;
+
       if (results.length >= limit) {
-        return results.take(limit).toList();
+        break;
       }
-
-      currentOffset += page.length;
     }
 
     return results;
@@ -361,7 +352,8 @@ class DsoCatalogService extends CatalogService {
       final ra = _parseRa(parts.length > 2 ? parts[2] : '');
       final dec = _parseDec(parts.length > 3 ? parts[3] : '');
       final magnitude = parts.length > 9 ? double.tryParse(parts[9]) : null;
-      final messier = parts.length > 18 && parts[18].isNotEmpty ? 'M${parts[18]}' : null;
+      final messier =
+          parts.length > 18 && parts[18].isNotEmpty ? 'M${parts[18]}' : null;
       final commonNames = parts.length > 23 ? parts[23] : '';
 
       // Determine display name

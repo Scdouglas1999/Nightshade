@@ -14,7 +14,8 @@ class CatalogSettingsScreen extends ConsumerStatefulWidget {
   const CatalogSettingsScreen({super.key, this.isMobile = false});
 
   @override
-  ConsumerState<CatalogSettingsScreen> createState() => _CatalogSettingsScreenState();
+  ConsumerState<CatalogSettingsScreen> createState() =>
+      _CatalogSettingsScreenState();
 }
 
 class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
@@ -41,7 +42,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     try {
       final starStatus = await CatalogManager.instance.getStarCatalogStatus();
       final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
-      final annotationStatus = await CatalogManager.instance.getAnnotationCatalogStatus();
+      final annotationStatus =
+          await CatalogManager.instance.getAnnotationCatalogStatus();
 
       if (mounted) {
         setState(() {
@@ -74,15 +76,15 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         _currentDownload = 'HYG Star Database';
         _downloadStatus = 'Downloading star catalog...';
       });
-      
+
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
         package: _selectedPackage,
         onProgress: (progress) {
           if (mounted) {
             setState(() {
               _downloadProgress = progress.progress * 0.5; // First half
-              _downloadStatus = progress.error ?? 
-                'Downloading stars: ${(progress.progress * 100).toStringAsFixed(0)}%';
+              _downloadStatus = progress.error ??
+                  'Downloading stars: ${(progress.progress * 100).toStringAsFixed(0)}%';
             });
           }
         },
@@ -97,15 +99,16 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         _currentDownload = 'OpenNGC';
         _downloadStatus = 'Downloading DSO catalog...';
       });
-      
+
       final dsoSuccess = await CatalogManager.instance.downloadDsoCatalog(
         package: _selectedPackage,
         onProgress: (progress) {
           if (mounted) {
             setState(() {
-              _downloadProgress = 0.5 + (progress.progress * 0.5); // Second half
-              _downloadStatus = progress.error ?? 
-                'Downloading DSOs: ${(progress.progress * 100).toStringAsFixed(0)}%';
+              _downloadProgress =
+                  0.5 + (progress.progress * 0.5); // Second half
+              _downloadStatus = progress.error ??
+                  'Downloading DSOs: ${(progress.progress * 100).toStringAsFixed(0)}%';
             });
           }
         },
@@ -142,7 +145,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       label: 'CSV files',
       extensions: ['csv'],
     );
-    
+
     final result = await openFile(
       acceptedTypeGroups: [csvGroup],
       confirmButtonText: 'Select',
@@ -245,15 +248,15 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           Text(
             'Astronomical Catalogs',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: colors.textPrimary,
-            ),
+                  color: colors.textPrimary,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             'Download star and deep sky object catalogs to enable full planetarium functionality.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: colors.textSecondary,
-            ),
+                  color: colors.textSecondary,
+                ),
           ),
           const SizedBox(height: 32),
         ],
@@ -268,7 +271,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         _buildCatalogCard(
           colors: colors,
           title: 'HYG Star Database',
-          description: 'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
+          description:
+              'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
           sourceUrl: 'github.com/astronexus/HYG-Database',
           status: _starStatus,
           type: 'stars',
@@ -280,7 +284,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         _buildCatalogCard(
           colors: colors,
           title: 'OpenNGC',
-          description: 'Open source NGC/IC deep sky catalog with ~13,000 objects',
+          description:
+              'Open source NGC/IC deep sky catalog with ~13,000 objects',
           sourceUrl: 'github.com/mattiaverga/OpenNGC',
           status: _dsoStatus,
           type: 'dso',
@@ -307,7 +312,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -371,11 +376,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isInstalled
-              ? Colors.green.withValues(alpha: 0.3)
-              : colors.border,
+          color:
+              isInstalled ? Colors.green.withValues(alpha: 0.3) : colors.border,
         ),
       ),
       child: Column(
@@ -414,13 +418,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.2),
+                              color: colors.success.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Installed',
                               style: TextStyle(
-                                color: Colors.green,
+                                color: colors.success,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -543,7 +547,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,14 +570,16 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ),
           const SizedBox(height: 16),
           ...CatalogPackage.values.map((package) => _buildPackageOption(
-            colors: colors,
-            package: package,
-          )),
+                colors: colors,
+                package: package,
+              )),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: _isDownloading ? 'Downloading...' : 'Download Selected Package',
+              label: _isDownloading
+                  ? 'Downloading...'
+                  : 'Download Selected Package',
               icon: Icons.download,
               variant: ButtonVariant.primary,
               onPressed: _isDownloading ? null : _downloadCatalogs,
@@ -591,9 +597,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     final isSelected = _selectedPackage == package;
 
     return GestureDetector(
-      onTap: _isDownloading ? null : () {
-        setState(() => _selectedPackage = package);
-      },
+      onTap: _isDownloading
+          ? null
+          : () {
+              setState(() => _selectedPackage = package);
+            },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(16),
@@ -675,7 +683,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
 
   Widget _buildActionsSection(NightshadeColors colors) {
     final hasInstalledCatalogs = (_starStatus?.isInstalled ?? false) ||
-                                  (_dsoStatus?.isInstalled ?? false);
+        (_dsoStatus?.isInstalled ?? false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -739,7 +747,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isInstalled
               ? Colors.green.withValues(alpha: 0.3)
@@ -757,7 +765,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                   color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.label_outline, color: colors.primary, size: 24),
+                child:
+                    Icon(Icons.label_outline, color: colors.primary, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -782,13 +791,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.2),
+                              color: colors.success.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Installed',
                               style: TextStyle(
-                                color: Colors.green,
+                                color: colors.success,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -830,12 +839,15 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                       _buildStatusChip(
                         colors: colors,
                         label: 'Objects',
-                        value: _annotationStatus!.objectCount?.toString() ?? 'Unknown',
+                        value: _annotationStatus!.objectCount?.toString() ??
+                            'Unknown',
                       ),
                       _buildStatusChip(
                         colors: colors,
                         label: 'Package',
-                        value: _annotationStatus!.installedPackage?.displayName ?? 'Custom',
+                        value:
+                            _annotationStatus!.installedPackage?.displayName ??
+                                'Custom',
                       ),
                       if (_annotationStatus!.installedDate != null)
                         _buildStatusChip(
@@ -850,13 +862,16 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                       _buildStatusChip(
                         colors: colors,
                         label: 'Objects',
-                        value: _annotationStatus!.objectCount?.toString() ?? 'Unknown',
+                        value: _annotationStatus!.objectCount?.toString() ??
+                            'Unknown',
                       ),
                       const SizedBox(width: 16),
                       _buildStatusChip(
                         colors: colors,
                         label: 'Package',
-                        value: _annotationStatus!.installedPackage?.displayName ?? 'Custom',
+                        value:
+                            _annotationStatus!.installedPackage?.displayName ??
+                                'Custom',
                       ),
                       const SizedBox(width: 16),
                       if (_annotationStatus!.installedDate != null)
@@ -879,15 +894,17 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            ...AnnotationPackage.values.map((package) => _buildAnnotationPackageOption(
-              colors: colors,
-              package: package,
-            )),
+            ...AnnotationPackage.values
+                .map((package) => _buildAnnotationPackageOption(
+                      colors: colors,
+                      package: package,
+                    )),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                label: 'Download ${_selectedAnnotationPackage.displayName} (~${_selectedAnnotationPackage.approximateSizeMB} MB)',
+                label:
+                    'Download ${_selectedAnnotationPackage.displayName} (~${_selectedAnnotationPackage.approximateSizeMB} MB)',
                 icon: Icons.download,
                 variant: ButtonVariant.primary,
                 onPressed: _isDownloading ? null : _downloadAnnotationCatalog,
@@ -927,9 +944,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     final isSelected = _selectedAnnotationPackage == package;
 
     return GestureDetector(
-      onTap: _isDownloading ? null : () {
-        setState(() => _selectedAnnotationPackage = package);
-      },
+      onTap: _isDownloading
+          ? null
+          : () {
+              setState(() => _selectedAnnotationPackage = package);
+            },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
@@ -1066,13 +1085,15 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       try {
         final success = await CatalogManager.instance.importAnnotationCatalog(
           sourcePath: result.path,
-          package: AnnotationPackage.standard, // Default package for manual imports
+          package:
+              AnnotationPackage.standard, // Default package for manual imports
         );
 
         if (success) {
           await _loadCatalogStatus();
           if (mounted) {
-            context.showSuccessSnackBar('GLADE+ catalog imported successfully!');
+            context
+                .showSuccessSnackBar('GLADE+ catalog imported successfully!');
           }
         } else {
           _showError('Failed to import annotation catalog');
@@ -1113,4 +1134,3 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }
-

@@ -182,7 +182,13 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
     let width = header
         .get_int("NAXIS1")
         .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))? as u32;
-    let height = header.get_int("NAXIS2").unwrap_or(1) as u32;
+    let height = if naxis >= 2 {
+        header
+            .get_int("NAXIS2")
+            .ok_or_else(|| FitsError::MissingKeyword("NAXIS2".to_string()))? as u32
+    } else {
+        1
+    };
     let depth = if naxis >= 3 {
         header.get_int("NAXIS3").unwrap_or(1) as u32
     } else {
@@ -282,9 +288,17 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
 pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsError> {
     let mut header = FitsHeader::new();
     let mut buffer = [0u8; 80];
+    let mut total_records: usize = 0;
+    const MAX_HEADER_RECORDS: usize = 65_536;
 
     loop {
         reader.read_exact(&mut buffer)?;
+        total_records += 1;
+        if total_records > MAX_HEADER_RECORDS {
+            return Err(FitsError::InvalidFormat(
+                "FITS header exceeds maximum supported size or is missing END".to_string(),
+            ));
+        }
 
         let record = String::from_utf8_lossy(&buffer);
         let keyword = record[..8].trim();
@@ -297,12 +311,21 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
             continue; // Blank or comment
         }
 
+        if !is_valid_keyword(keyword) && keyword != "COMMENT" && keyword != "HISTORY" {
+            return Err(FitsError::InvalidFormat(format!(
+                "Invalid FITS keyword: {}",
+                keyword
+            )));
+        }
+
         // Parse the value
         if record.len() > 10 && &record[8..10] == "= " {
             let value_str = record[10..].trim();
-            let value = parse_fits_value(value_str);
+            let value = parse_fits_value(value_str)?;
             header.keywords.insert(keyword.to_string(), value);
-            header.keyword_order.push(keyword.to_string());
+            if !header.keyword_order.contains(&keyword.to_string()) {
+                header.keyword_order.push(keyword.to_string());
+            }
         } else if keyword == "COMMENT" || keyword == "HISTORY" {
             let comment = record[8..].trim().to_string();
             header.keywords.insert(
@@ -314,9 +337,9 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
 
     // Skip to next 2880-byte boundary
     // The header is padded with spaces to a multiple of 2880 bytes
-    // We've been reading in 80-byte chunks, so calculate remaining
-    let header_records = header.keyword_order.len() + 1; // +1 for END
-    let header_bytes = header_records * 80;
+    // Use total_records (which counts every 80-byte record including
+    // COMMENT, HISTORY, blanks, and END) for accurate padding calculation.
+    let header_bytes = total_records * 80;
     let padding = (2880 - (header_bytes % 2880)) % 2880;
     if padding > 0 {
         let mut skip = vec![0u8; padding];
@@ -327,34 +350,31 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
 }
 
 /// Parse a FITS value from string
-fn parse_fits_value(s: &str) -> FitsValue {
+fn parse_fits_value(s: &str) -> Result<FitsValue, FitsError> {
     let s = s.trim();
+    let (value_part, _) = split_value_and_comment(s);
 
     // Check for string (enclosed in single quotes)
-    if s.starts_with('\'') {
-        if let Some(end) = s[1..].find('\'') {
-            return FitsValue::String(s[1..end + 1].trim().to_string());
+    if value_part.starts_with('\'') {
+        if let Some(end) = value_part[1..].find('\'') {
+            return Ok(FitsValue::String(value_part[1..end + 1].trim().to_string()));
         }
+        return Err(FitsError::InvalidFormat(
+            "Unterminated FITS string literal".to_string(),
+        ));
     }
 
     // Check for boolean
-    if s.starts_with('T') {
-        return FitsValue::Boolean(true);
+    if value_part == "T" {
+        return Ok(FitsValue::Boolean(true));
     }
-    if s.starts_with('F') {
-        return FitsValue::Boolean(false);
+    if value_part == "F" {
+        return Ok(FitsValue::Boolean(false));
     }
-
-    // Check for comment after value
-    let value_part = if let Some(idx) = s.find('/') {
-        s[..idx].trim()
-    } else {
-        s
-    };
 
     // Try to parse as integer
     if let Ok(i) = value_part.parse::<i64>() {
-        return FitsValue::Integer(i);
+        return Ok(FitsValue::Integer(i));
     }
 
     // Try to parse as float
@@ -363,11 +383,31 @@ fn parse_fits_value(s: &str) -> FitsValue {
         .replace('d', "e")
         .parse::<f64>()
     {
-        return FitsValue::Float(f);
+        return Ok(FitsValue::Float(f));
     }
 
     // Default to string
-    FitsValue::String(value_part.to_string())
+    Ok(FitsValue::String(value_part.to_string()))
+}
+
+fn split_value_and_comment(s: &str) -> (&str, Option<&str>) {
+    let mut in_string = false;
+    for (idx, ch) in s.char_indices() {
+        match ch {
+            '\'' => in_string = !in_string,
+            '/' if !in_string => return (s[..idx].trim(), Some(s[idx + 1..].trim())),
+            _ => {}
+        }
+    }
+    (s.trim(), None)
+}
+
+fn is_valid_keyword(keyword: &str) -> bool {
+    !keyword.is_empty()
+        && keyword.len() <= 8
+        && keyword.bytes().all(|byte| {
+            byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
+        })
 }
 
 /// Read unsigned 8-bit data
@@ -582,6 +622,13 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
 
 /// Write a single keyword record
 fn write_keyword<W: Write>(writer: &mut W, keyword: &str, value: &str) -> Result<(), FitsError> {
+    if !is_valid_keyword(keyword) && keyword != "END" {
+        return Err(FitsError::InvalidFormat(format!(
+            "Invalid FITS keyword for write: {}",
+            keyword
+        )));
+    }
+
     let mut record = [b' '; 80];
 
     // Write keyword (8 chars, left-justified)
@@ -597,12 +644,30 @@ fn write_keyword<W: Write>(writer: &mut W, keyword: &str, value: &str) -> Result
         // Write value (right-justified for numbers, left for strings)
         let value_bytes = value.as_bytes();
         let start = if value.starts_with('\'') {
+            if value_bytes.len() > 70 {
+                return Err(FitsError::InvalidFormat(format!(
+                    "FITS string value too long for {}",
+                    keyword
+                )));
+            }
             10 // Strings start at position 10
         } else {
+            if value_bytes.len() > 70 {
+                return Err(FitsError::InvalidFormat(format!(
+                    "FITS value too long for {}",
+                    keyword
+                )));
+            }
             // Numbers are right-justified ending at position 30
             30_usize.saturating_sub(value_bytes.len())
         };
         let value_len = value_bytes.len().min(70);
+        if start + value_len > record.len() {
+            return Err(FitsError::InvalidFormat(format!(
+                "FITS value overflows 80-byte card for {}",
+                keyword
+            )));
+        }
         record[start..start + value_len].copy_from_slice(&value_bytes[..value_len]);
     }
 
@@ -1333,6 +1398,7 @@ pub fn calculate_quality_score(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn test_calculate_airmass_zenith() {
@@ -1557,7 +1623,7 @@ mod tests {
         let width = 10;
         let height = 10;
         let data: Vec<u16> = (0..100).collect();
-        let image = ImageData::from_u16(width, height, 1, &data);
+        let _image = ImageData::from_u16(width, height, 1, &data);
 
         // Create header
         let mut header = FitsHeader::new();
@@ -1579,6 +1645,11 @@ mod tests {
     fn test_fits_complete_metadata() {
         // Create header with all astrophotography metadata
         let mut header = FitsHeader::new();
+        header.set_bool("SIMPLE", true);
+        header.set_int("BITPIX", 16);
+        header.set_int("NAXIS", 2);
+        header.set_int("NAXIS1", 3008);
+        header.set_int("NAXIS2", 3008);
 
         // Core metadata
         header.set_string("DATE-OBS", "2025-01-15T22:30:45.123");
@@ -1639,29 +1710,24 @@ mod tests {
 
     #[test]
     fn test_fits_round_trip() {
-        use std::io::Cursor;
-
         // Create test image
         let width = 100;
         let height = 100;
         let data: Vec<u16> = (0..10000).map(|i| (i % 65535) as u16).collect();
-        let image = ImageData::from_u16(width, height, 1, &data);
+        let _image = ImageData::from_u16(width, height, 1, &data);
 
         // Create header with metadata
         let mut header = FitsHeader::new();
+        header.set_bool("SIMPLE", true);
+        header.set_int("BITPIX", 16);
+        header.set_int("NAXIS", 2);
+        header.set_int("NAXIS1", width as i64);
+        header.set_int("NAXIS2", height as i64);
         header.set_string("OBJECT", "M31");
         header.set_float("EXPTIME", 180.0);
         header.set_string("DATE-OBS", "2025-01-15T22:30:45");
         header.set_string("IMAGETYP", "Light");
         header.set_float("AIRMASS", 1.2);
-
-        // Write to memory
-        let mut buffer: Vec<u8> = Vec::new();
-        {
-            let mut cursor = Cursor::new(&mut buffer);
-            // We can't use write_fits directly with Cursor easily without Path,
-            // but we can test the header validation
-        }
 
         // Validate the header
         let validation = validate_fits_header(&header);
@@ -1697,5 +1763,112 @@ mod tests {
             score > 90.0,
             "Perfect image (HFR=1.5, stars=200, CV=0.05) should score > 90"
         );
+    }
+
+    #[test]
+    fn test_parse_fits_value_requires_exact_boolean_tokens() {
+        assert!(matches!(
+            parse_fits_value("F / false").unwrap(),
+            FitsValue::Boolean(false)
+        ));
+        assert!(matches!(
+            parse_fits_value("FLAT / image type").unwrap(),
+            FitsValue::String(value) if value == "FLAT"
+        ));
+    }
+
+    #[test]
+    fn test_parse_fits_value_preserves_slash_inside_string() {
+        assert!(matches!(
+            parse_fits_value("'L-eXtreme / Duo' / filter").unwrap(),
+            FitsValue::String(value) if value == "L-eXtreme / Duo"
+        ));
+    }
+
+    #[test]
+    fn test_read_header_rejects_invalid_keyword() {
+        let mut bytes = vec![b' '; 2880];
+        bytes[..80].copy_from_slice(
+            b"BAD*KEY =                    1                                                  ",
+        );
+        bytes[80..160].copy_from_slice(
+            b"END                                                                             ",
+        );
+
+        let err = read_header(&mut Cursor::new(bytes)).unwrap_err();
+        assert!(matches!(err, FitsError::InvalidFormat(_)));
+    }
+
+    #[test]
+    fn test_write_keyword_rejects_overflowing_string() {
+        let mut out = Vec::new();
+        let value = format!("'{}'", "A".repeat(71));
+        let err = write_keyword(&mut out, "OBJECT", &value).unwrap_err();
+        assert!(matches!(err, FitsError::InvalidFormat(_)));
+    }
+
+    #[test]
+    fn test_read_fits_requires_naxis2_for_2d_images() {
+        let mut bytes = vec![b' '; 2880];
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                   10",
+            "END",
+        ];
+
+        for (idx, card) in cards.iter().enumerate() {
+            let offset = idx * 80;
+            let mut card_bytes = [b' '; 80];
+            let raw = card.as_bytes();
+            card_bytes[..raw.len()].copy_from_slice(raw);
+            bytes[offset..offset + 80].copy_from_slice(&card_bytes);
+        }
+
+        let err = read_fits_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FitsError::MissingKeyword(keyword) if keyword == "NAXIS2"));
+    }
+
+    #[test]
+    fn test_duplicate_keywords_do_not_write_twice() {
+        let image = ImageData::from_u16(2, 1, 1, &[1, 2]);
+        let mut fits_bytes = Vec::new();
+        let raw_header = concat!(
+            "SIMPLE  =                    T                                                  ",
+            "BITPIX  =                   16                                                  ",
+            "NAXIS   =                    2                                                  ",
+            "NAXIS1  =                    2                                                  ",
+            "NAXIS2  =                    1                                                  ",
+            "OBJECT  = 'M31     '                                                            ",
+            "OBJECT  = 'M42     '                                                            ",
+            "END                                                                             "
+        );
+        fits_bytes.extend_from_slice(raw_header.as_bytes());
+        fits_bytes.resize(2880, b' ');
+        fits_bytes.extend_from_slice(&[0, 1, 0, 2]);
+        fits_bytes.resize(5760, 0);
+
+        let (_, header) = read_fits_from_bytes(&fits_bytes).expect("header should parse");
+
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_duplicate_keyword_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image, &header).expect("write should succeed");
+        let output = std::fs::read(&path).expect("fits bytes should be readable");
+        let _ = std::fs::remove_file(&path);
+
+        let header_text = String::from_utf8_lossy(&output[..2880.min(output.len())]);
+        assert_eq!(header_text.matches("OBJECT").count(), 1);
+        assert_eq!(header.get_string("OBJECT"), Some("M42"));
+    }
+
+    #[test]
+    fn test_write_keyword_rejects_overflowing_numeric_value() {
+        let mut out = Vec::new();
+        let value = "1".repeat(71);
+        let err = write_keyword(&mut out, "EXPTIME", &value).unwrap_err();
+        assert!(matches!(err, FitsError::InvalidFormat(_)));
     }
 }

@@ -8,6 +8,31 @@ The web server runs on port 8080 by default and provides both REST API endpoints
 
 **Base URL:** `http://localhost:8080`
 
+## WebSocket Heartbeat
+
+Remote clients connect to `/events` or `/api/ws` for real-time updates. Clients
+send JSON heartbeat messages periodically:
+
+```json
+{
+  "type": "ping",
+  "timestamp": "2026-05-05T00:00:00Z"
+}
+```
+
+The server replies:
+
+```json
+{
+  "type": "pong",
+  "timestamp": "2026-05-05T00:00:00Z"
+}
+```
+
+Mobile and network clients treat a socket as stale when no WebSocket message,
+including `pong`, arrives before the heartbeat timeout. A stale socket is closed
+and the normal reconnect backoff starts.
+
 ## Server Information
 
 ### GET /api/info
@@ -22,9 +47,32 @@ Get server information and capabilities.
   "apiOnlyMode": true,
   "webUIAvailable": false,
   "timestamp": "2025-11-30T12:00:00Z",
+  "platformCapabilities": {
+    "platform": "windows",
+    "drivers": [
+      {
+        "backend": "ascom",
+        "label": "ASCOM COM",
+        "status": "available",
+        "supportedPlatforms": ["windows"],
+        "unsupportedReason": null,
+        "deviceCoverage": "Camera, mount, focuser, filter wheel, rotator, dome, weather, safety monitor, switch, cover/calibrator"
+      },
+      {
+        "backend": "native",
+        "label": "Native SDK",
+        "status": "capability-gated",
+        "supportedPlatforms": ["windows", "linux", "macos"],
+        "unsupportedReason": null,
+        "deviceCoverage": "Vendor cameras and native mount protocols where SDKs are installed."
+      }
+    ]
+  },
   "endpoints": [
     "GET /api/info",
     "GET /api/status",
+    "GET /api/self-test",
+    "GET /api/openapi.json",
     "GET /api/devices",
     "POST /api/devices/connect",
     "POST /api/devices/disconnect",
@@ -39,6 +87,29 @@ Get server information and capabilities.
 }
 ```
 
+## Version Compatibility
+
+Remote clients use `/api/info.version` for API compatibility checks before
+switching into network-control mode. The current client accepts Nightshade
+server API versions `2.0.0` and newer within major version `2`. Servers older
+than `2.0.0`, servers with an unknown/malformed version, and servers with a
+newer major API version are rejected with user-facing "server too old/new"
+guidance.
+
+## Authentication Scopes
+
+When authentication is enabled, tokens can be scoped:
+
+| Scope | Access |
+| --- | --- |
+| `view` | Ordinary read endpoints and WebSocket event subscriptions. |
+| `control` | View access plus imaging and device-control routes. |
+| `admin` | Full protected API access, including settings, self-test, file browsing, and backup/restore. |
+
+The legacy `--auth-token` and `NIGHTSHADE_AUTH_TOKEN` values are admin tokens.
+Optional `NIGHTSHADE_VIEW_TOKEN`, `NIGHTSHADE_CONTROL_TOKEN`, `--view-token`,
+and `--control-token` values can grant narrower access.
+
 ### GET /api/status
 
 Get server status.
@@ -49,6 +120,98 @@ Get server status.
   "status": "running",
   "version": "2.0.0",
   "timestamp": "2025-11-30T12:00:00Z"
+}
+```
+
+### GET /api/self-test
+
+Run a non-invasive headless runtime self-test. This endpoint is authenticated
+whenever the server requires authentication. It reports platform details, auth
+and bind mode, backend type, driver availability, storage path writability, and
+API route count without connecting to hardware.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-05-05T00:00:00Z",
+  "platform": {
+    "operatingSystem": "windows",
+    "operatingSystemVersion": "Windows 10 ...",
+    "executable": "C:\\Program Files\\Nightshade\\nightshade_desktop.exe"
+  },
+  "server": {
+    "port": 8080,
+    "bindMode": "loopback",
+    "authMode": "token",
+    "authRequired": true,
+    "dashboardAvailable": true
+  },
+  "backend": {
+    "type": "FfiBackend",
+    "connectedDevices": {
+      "status": "ok",
+      "count": 0,
+      "devices": []
+    }
+  },
+  "deviceDrivers": {
+    "platform": "windows",
+    "drivers": [
+      {
+        "backend": "ascom",
+        "label": "ASCOM COM",
+        "status": "available",
+        "supportedPlatforms": ["windows"],
+        "unsupportedReason": null
+      }
+    ]
+  },
+  "storagePaths": [
+    {
+      "name": "applicationDocuments",
+      "status": "ok",
+      "path": "C:\\Users\\user\\Documents",
+      "exists": true,
+      "writable": true
+    }
+  ],
+  "database": {
+    "name": "driftDatabase",
+    "status": "ok"
+  },
+  "api": {
+    "endpointCount": 120,
+    "selfTestEndpoint": "GET /api/self-test"
+  }
+}
+```
+
+### GET /api/openapi.json
+
+Return a minimal OpenAPI 3.0 document generated from the server route table.
+The generated spec includes every HTTP route returned by `/api/info.endpoints`
+and excludes WebSocket-only routes.
+
+**Response:**
+```json
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Nightshade Headless API",
+    "version": "2.5.0"
+  },
+  "servers": [
+    {"url": "http://localhost:8080"}
+  ],
+  "paths": {
+    "/api/info": {
+      "get": {
+        "summary": "GET /api/info",
+        "tags": ["core"]
+      }
+    }
+  }
 }
 ```
 
@@ -137,6 +300,41 @@ Get list of currently connected devices.
       "driverType": "native"
     }
   ]
+}
+```
+
+## Equipment Capabilities
+
+These endpoints expose per-device capability responses for connected hardware or
+simulator-backed devices. The top-level `/api/info.platformCapabilities` matrix
+reports platform/backend availability for ASCOM COM, Alpaca, INDI, native SDK,
+and simulator backends; each equipment capability response is device-specific
+and should be used by clients to disable unsupported controls or parameter
+ranges after a device is selected.
+
+Available capability endpoints:
+
+- `GET /api/equipment/camera/capabilities?deviceId=<id>`
+- `GET /api/equipment/mount/capabilities?deviceId=<id>`
+- `GET /api/equipment/focuser/capabilities?deviceId=<id>`
+- `GET /api/equipment/filter-wheel/capabilities?deviceId=<id>`
+- `GET /api/equipment/rotator/capabilities?deviceId=<id>`
+
+If a device is missing or capabilities are unavailable, the endpoint returns a
+JSON error. Clients should treat that as capability unknown and keep controls
+disabled until a successful capability response is available.
+
+**Example camera response:**
+```json
+{
+  "deviceId": "camera-1",
+  "maxWidth": 4144,
+  "maxHeight": 2822,
+  "pixelSizeX": 4.63,
+  "pixelSizeY": 4.63,
+  "canCool": true,
+  "hasShutter": false,
+  "supportedBinning": ["1x1", "2x2"]
 }
 ```
 
@@ -296,8 +494,38 @@ All endpoints may return error responses:
 - `200 OK` - Success
 - `400 Bad Request` - Invalid request
 - `404 Not Found` - Endpoint not found
+- `413 Payload Too Large` - Request body exceeds the endpoint limit
+- `429 Too Many Requests` - Per-endpoint control rate limit exceeded
 - `500 Internal Server Error` - Server error
 - `501 Not Implemented` - Handler not registered
+
+## Request Body Limits
+
+The server rejects oversized requests before handlers read the body when the
+client supplies a `Content-Length` header.
+
+| Endpoint class | Limit |
+| --- | --- |
+| Default control/API requests | 1 MiB |
+| Image-processing JSON endpoints (`/api/imaging/stats`, `/api/imaging/stretch`, `/api/imaging/debayer`, `/api/imaging/save-fits`) | 64 MiB |
+| Backup restore upload (`/api/backup/upload-restore`) | 256 MiB |
+
+## Control Rate Limits
+
+Mutation endpoints under device, camera, mount, focuser, filter wheel, rotator,
+guiding, sequencer, framing, dome, safety, switch, cover, backup, and remote
+filesystem APIs are rate limited per client and endpoint. High-risk actions
+such as slew, park/unpark, device connect/disconnect, sequence start/stop, dome
+movement, and backup restore are limited more tightly. A rejected request
+returns `429` with a `Retry-After` header.
+
+## Audit Logging
+
+High-risk remote commands are logged through `HeadlessApiAudit` with the request
+ID, client key, method, path, action name, and completion status. Audited actions
+include device connect/disconnect, mount/framing slew, park/unpark, dome
+movement, backup restore/upload-restore, sequence start/stop/resume, and remote
+file browsing.
 
 ## CORS
 

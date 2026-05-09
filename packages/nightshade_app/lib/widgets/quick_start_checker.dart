@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'quick_start_dialog.dart';
 import 'session_recovery_dialog.dart';
@@ -43,7 +44,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
 
     try {
       // First priority: Check for crashed/interrupted sessions
-      final incompleteSessions = await ref.read(incompleteSessionsProvider.future);
+      final incompleteSessions =
+          await ref.read(incompleteSessionsProvider.future);
+
+      if (!mounted) return;
 
       if (incompleteSessions.isNotEmpty && mounted) {
         // Show recovery dialog for interrupted sessions (takes priority)
@@ -62,7 +66,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       }
 
       // Second priority: Check for quick start opportunity
-      final quickStartContext = await ref.read(quickStartContextProvider.future);
+      final quickStartContext =
+          await ref.read(quickStartContextProvider.future);
+
+      if (!mounted) return;
 
       if (quickStartContext != null && quickStartContext.isRecent && mounted) {
         // Show quick start dialog
@@ -88,7 +95,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
   }
 
   Future<void> _handleStartFresh(QuickStartContext context) async {
-    debugPrint('[QuickStart] Starting fresh with context: ${context.displayDescription}');
+    debugPrint(
+        '[QuickStart] Starting fresh with context: ${context.displayDescription}');
 
     try {
       // Load the equipment profile
@@ -101,12 +109,14 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       // Load the sequence (reset to beginning)
       if (context.sequenceId != null) {
         final sequencesDao = ref.read(sequencesDaoProvider);
-        final sequence = await sequencesDao.getSequenceById(context.sequenceId!);
+        final sequence =
+            await sequencesDao.getSequenceById(context.sequenceId!);
         if (sequence != null) {
           // Reset sequence checkpoint to start from beginning
           final checkpointsDao = ref.read(sequenceCheckpointsDaoProvider);
           await checkpointsDao.deleteCheckpoint(context.sequenceId!);
-          debugPrint('[QuickStart] Loaded sequence ${context.sequenceId}, reset to frame 1');
+          debugPrint(
+              '[QuickStart] Loaded sequence ${context.sequenceId}, reset to frame 1');
         }
       }
 
@@ -114,20 +124,23 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       await _applyEquipmentSnapshot(context.equipmentSnapshot);
 
       if (mounted) {
+        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
-            content: Text('Starting fresh session for ${context.targetName ?? "previous target"}'),
-            backgroundColor: Colors.green,
+            content: Text(
+                'Starting fresh session for ${context.targetName ?? "previous target"}'),
+            backgroundColor: colors.success,
           ),
         );
       }
     } catch (e) {
       debugPrint('[QuickStart] Error starting fresh: $e');
       if (mounted) {
+        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text('Failed to start fresh: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: colors.error,
           ),
         );
       }
@@ -135,7 +148,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
   }
 
   Future<void> _handleResumeProgress(QuickStartContext context) async {
-    debugPrint('[QuickStart] Resuming progress with context: ${context.displayDescription}');
+    debugPrint(
+        '[QuickStart] Resuming progress with context: ${context.displayDescription}');
 
     try {
       // Load the equipment profile
@@ -148,7 +162,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       // Load the sequence (keep checkpoint for resumption)
       if (context.sequenceId != null) {
         final sequencesDao = ref.read(sequencesDaoProvider);
-        final sequence = await sequencesDao.getSequenceById(context.sequenceId!);
+        final sequence =
+            await sequencesDao.getSequenceById(context.sequenceId!);
         if (sequence != null) {
           debugPrint('[QuickStart] Loaded sequence ${context.sequenceId}, '
               'resuming from frame ${context.completedFrames}');
@@ -159,21 +174,24 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       await _applyEquipmentSnapshot(context.equipmentSnapshot);
 
       if (mounted) {
+        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
-            content: Text('Resuming session for ${context.targetName ?? "previous target"} '
+            content: Text(
+                'Resuming session for ${context.targetName ?? "previous target"} '
                 'from frame ${context.completedFrames}'),
-            backgroundColor: Colors.green,
+            backgroundColor: colors.success,
           ),
         );
       }
     } catch (e) {
       debugPrint('[QuickStart] Error resuming progress: $e');
       if (mounted) {
+        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text('Failed to resume progress: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: colors.error,
           ),
         );
       }
@@ -192,7 +210,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     final cameraNotifier = ref.read(cameraStateProvider.notifier);
     if (snapshot.coolerTargetTemp != null) {
       cameraNotifier.setTargetTemp(snapshot.coolerTargetTemp!);
-      debugPrint('[QuickStart] Set cooler target temp to ${snapshot.coolerTargetTemp}');
+      debugPrint(
+          '[QuickStart] Set cooler target temp to ${snapshot.coolerTargetTemp}');
     }
 
     // Note: gain/offset/binning are typically applied when starting an exposure,
@@ -205,7 +224,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.setFilterWheelPosition(snapshot.filterPosition!);
-          debugPrint('[QuickStart] Moved filter wheel to position ${snapshot.filterPosition}');
+          debugPrint(
+              '[QuickStart] Moved filter wheel to position ${snapshot.filterPosition}');
         } catch (e) {
           debugPrint('[QuickStart] Failed to move filter wheel: $e');
         }
@@ -219,7 +239,8 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.moveFocuserTo(snapshot.focuserPosition!);
-          debugPrint('[QuickStart] Moved focuser to position ${snapshot.focuserPosition}');
+          debugPrint(
+              '[QuickStart] Moved focuser to position ${snapshot.focuserPosition}');
         } catch (e) {
           debugPrint('[QuickStart] Failed to move focuser: $e');
         }

@@ -140,11 +140,6 @@ final subscription = context.eventBus.on('app.ready').listen((data) {
   print('App ready: $data');
 });
 
-// Subscribe to all events
-context.eventBus.onAny().listen((event) {
-  print('Event ${event.name}: ${event.data}');
-});
-
 // Cancel subscription
 await subscription.cancel();
 ```
@@ -258,6 +253,10 @@ Unregistration:
    }
    ```
 
+7. **Global event access is sandboxed**: `eventBus.onAny()` is blocked by
+   default. Prefer `eventBus.on('<specific.event>')` subscriptions unless the
+   host explicitly grants broader access.
+
 ## Testing
 
 Test plugins in isolation:
@@ -297,12 +296,29 @@ void main() {
 
 ## Example Plugins
 
-See `lib/src/example_plugin.dart` for complete working examples:
+See `lib/src/example_plugin.dart` for basic examples and `lib/examples/` for more complete implementations:
 
+### Basic Examples (`lib/src/example_plugin.dart`)
 - **ExamplePlugin** - Basic plugin with storage and events
 - **ExampleUiPlugin** - UI extension points
 - **ExampleDevicePlugin** - Device support
 - **ExampleSequencePlugin** - Custom sequence nodes
+
+### Working Examples (`lib/examples/`)
+- **WeatherLoggerPlugin** - Logs weather data to persistent storage, demonstrates events + storage
+- **CustomNotificationPlugin** - Sends notifications based on configurable event conditions
+- **SequenceDelayPlugin** - Intelligent delay sequence nodes (conditional, cooldown, twilight)
+
+## Full Documentation
+
+See `docs/plugin_sdk/` for comprehensive SDK documentation:
+
+- [Getting Started](../../docs/plugin_sdk/README.md)
+- [API Reference](../../docs/plugin_sdk/api_reference.md)
+- [Plugin Types](../../docs/plugin_sdk/plugin_types.md)
+- [Events](../../docs/plugin_sdk/events.md)
+- [Storage](../../docs/plugin_sdk/storage.md)
+- [Best Practices](../../docs/plugin_sdk/best_practices.md)
 
 ## Plugin Discovery
 

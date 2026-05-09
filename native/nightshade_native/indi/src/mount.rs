@@ -17,6 +17,45 @@ pub struct IndiMount {
 }
 
 impl IndiMount {
+    async fn current_on_coord_set_mode(
+        client: &IndiClient,
+        device_name: &str,
+    ) -> Option<&'static str> {
+        let slew = client.get_switch(device_name, ON_COORD_SET, "SLEW").await;
+        let sync = client.get_switch(device_name, ON_COORD_SET, "SYNC").await;
+        let track = client.get_switch(device_name, ON_COORD_SET, "TRACK").await;
+
+        if slew == Some(true) {
+            Some("SLEW")
+        } else if sync == Some(true) {
+            Some("SYNC")
+        } else if track.is_some() {
+            Some("TRACK")
+        } else {
+            None
+        }
+    }
+
+    async fn restore_on_coord_set_mode(
+        client: &mut IndiClient,
+        device_name: &str,
+        previous_mode: Option<&'static str>,
+    ) {
+        if let Some(mode) = previous_mode {
+            if let Err(error) = client
+                .set_switch(device_name, ON_COORD_SET, mode, true)
+                .await
+            {
+                tracing::warn!(
+                    "Failed to restore ON_COORD_SET mode '{}' for {} after slew error: {}",
+                    mode,
+                    device_name,
+                    error
+                );
+            }
+        }
+    }
+
     /// Create a new INDI mount wrapper
     pub fn new(client: Arc<RwLock<IndiClient>>, device_name: &str) -> Self {
         Self {
@@ -75,6 +114,7 @@ impl IndiMount {
     /// Slew to coordinates (RA in hours, Dec in degrees)
     pub async fn slew_to_coordinates(&self, ra_hours: f64, dec_degrees: f64) -> IndiResult<()> {
         let mut client = self.client.write().await;
+        let previous_mode = Self::current_on_coord_set_mode(&client, &self.device_name).await;
 
         // Set coordinate mode to SLEW
         client
@@ -82,13 +122,19 @@ impl IndiMount {
             .await?;
 
         // Set target coordinates
-        client
+        if let Err(error) = client
             .set_numbers(
                 &self.device_name,
                 EQUATORIAL_EOD_COORD,
                 &[(RA, ra_hours), (DEC, dec_degrees)],
             )
             .await
+        {
+            Self::restore_on_coord_set_mode(&mut client, &self.device_name, previous_mode).await;
+            return Err(error);
+        }
+
+        Ok(())
     }
 
     /// Slew to coordinates with timeout (RA in hours, Dec in degrees)
@@ -109,16 +155,22 @@ impl IndiMount {
         // Start the slew
         {
             let mut client = self.client.write().await;
+            let previous_mode = Self::current_on_coord_set_mode(&client, &self.device_name).await;
             client
                 .set_switch(&self.device_name, ON_COORD_SET, "SLEW", true)
                 .await?;
-            client
+            if let Err(error) = client
                 .set_numbers(
                     &self.device_name,
                     EQUATORIAL_EOD_COORD,
                     &[(RA, ra_hours), (DEC, dec_degrees)],
                 )
-                .await?;
+                .await
+            {
+                Self::restore_on_coord_set_mode(&mut client, &self.device_name, previous_mode)
+                    .await;
+                return Err(error.to_string());
+            }
         }
 
         // Wait for slew to complete
@@ -285,6 +337,35 @@ impl IndiMount {
         let mode = format!("SLEW{}", rate);
         client
             .set_switch(&self.device_name, "SLEWMODE", &mode, true)
+            .await
+    }
+
+    /// Slew to horizontal coordinates (Alt/Az)
+    ///
+    /// INDI mounts that support HORIZONTAL_COORD can be slewed in alt/az mode
+    /// by writing to the HORIZONTAL_COORD number property.
+    pub async fn slew_to_alt_az(&self, altitude: f64, azimuth: f64) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+
+        // Set target horizontal coordinates - the INDI driver handles the
+        // coordinate transformation and slew internally
+        client
+            .set_numbers(
+                &self.device_name,
+                HORIZONTAL_COORD,
+                &[(ALT, altitude), (AZ, azimuth)],
+            )
+            .await
+    }
+
+    /// Find mount home position
+    ///
+    /// Sets the TELESCOPE_HOME switch to "GO" which commands the mount to
+    /// find its home position. Not all INDI mounts support this property.
+    pub async fn find_home(&self) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_switch(&self.device_name, TELESCOPE_HOME, "GO", true)
             .await
     }
 

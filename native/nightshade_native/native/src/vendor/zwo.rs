@@ -222,6 +222,66 @@ struct AsiSdk {
 static ASI_SDK: OnceLock<Option<AsiSdk>> = OnceLock::new();
 
 impl AsiSdk {
+    fn load_symbol<T: Copy>(lib: &libloading::Library, name: &[u8], name_str: &str) -> Option<T> {
+        match unsafe { lib.get::<T>(name) } {
+            Ok(sym) => Some(*sym),
+            Err(e) => {
+                tracing::error!("Failed to load ASI function '{}': {}", name_str, e);
+                None
+            }
+        }
+    }
+
+    unsafe fn load_from_library(lib: libloading::Library, source: &str) -> Option<Self> {
+        let get_num_cameras = Self::load_symbol(
+            &lib,
+            b"ASIGetNumOfConnectedCameras\0",
+            "ASIGetNumOfConnectedCameras",
+        )?;
+        let get_camera_property =
+            Self::load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
+        let open_camera = Self::load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
+        let init_camera = Self::load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
+        let close_camera = Self::load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
+        let get_control_value =
+            Self::load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
+        let set_control_value =
+            Self::load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
+        let set_roi_format = Self::load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
+        let set_start_pos = Self::load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
+        let get_roi_format = Self::load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
+        let start_exposure = Self::load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
+        let stop_exposure = Self::load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
+        let get_exp_status = Self::load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
+        let get_data_after_exp =
+            Self::load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
+        let get_num_controls =
+            Self::load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
+        let get_control_caps =
+            Self::load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
+
+        tracing::info!("Successfully loaded all ASI SDK functions from: {}", source);
+        Some(Self {
+            get_num_cameras,
+            get_camera_property,
+            open_camera,
+            init_camera,
+            close_camera,
+            get_control_value,
+            set_control_value,
+            set_roi_format,
+            set_start_pos,
+            get_roi_format,
+            start_exposure,
+            stop_exposure,
+            get_exp_status,
+            get_data_after_exp,
+            get_num_controls,
+            get_control_caps,
+            lib,
+        })
+    }
+
     /// Load the ASI SDK library
     fn load() -> Option<Self> {
         // Build list of paths to search, starting with most likely locations
@@ -236,9 +296,6 @@ impl AsiSdk {
             lib_paths.push(
                 "C:\\Program Files (x86)\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string(),
             );
-            // User workspace path
-            lib_paths.push("C:\\Users\\scdou\\Documents\\Nightshade2\\SDKs\\ZWO\\ASI_Camera_SDK\\ASI_Windows_SDK_V1.40\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string());
-
             // Get executable directory and try paths relative to it
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
@@ -300,82 +357,7 @@ impl AsiSdk {
                 match libloading::Library::new(path) {
                     Ok(lib) => {
                         tracing::info!("Found ASI SDK at: {}", path);
-
-                        // Helper to load and log function pointer failures
-                        fn load_symbol<T: Copy>(
-                            lib: &libloading::Library,
-                            name: &[u8],
-                            name_str: &str,
-                        ) -> Option<T> {
-                            match unsafe { lib.get::<T>(name) } {
-                                Ok(sym) => Some(*sym),
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Failed to load ASI function '{}': {}",
-                                        name_str,
-                                        e
-                                    );
-                                    None
-                                }
-                            }
-                        }
-
-                        let get_num_cameras = load_symbol(
-                            &lib,
-                            b"ASIGetNumOfConnectedCameras\0",
-                            "ASIGetNumOfConnectedCameras",
-                        )?;
-                        let get_camera_property =
-                            load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
-                        let open_camera = load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
-                        let init_camera = load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
-                        let close_camera =
-                            load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
-                        let get_control_value =
-                            load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
-                        let set_control_value =
-                            load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
-                        let set_roi_format =
-                            load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
-                        let set_start_pos =
-                            load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
-                        let get_roi_format =
-                            load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
-                        let start_exposure =
-                            load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
-                        let stop_exposure =
-                            load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
-                        let get_exp_status =
-                            load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
-                        let get_data_after_exp =
-                            load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
-                        let get_num_controls =
-                            load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
-                        let get_control_caps =
-                            load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
-
-                        let sdk_result = Self {
-                            get_num_cameras,
-                            get_camera_property,
-                            open_camera,
-                            init_camera,
-                            close_camera,
-                            get_control_value,
-                            set_control_value,
-                            set_roi_format,
-                            set_start_pos,
-                            get_roi_format,
-                            start_exposure,
-                            stop_exposure,
-                            get_exp_status,
-                            get_data_after_exp,
-                            get_num_controls,
-                            get_control_caps,
-                            lib,
-                        };
-
-                        tracing::info!("Successfully loaded all ASI SDK functions from: {}", path);
-                        return Some(sdk_result);
+                        return Self::load_from_library(lib, path);
                     }
                     Err(e) => {
                         // Always log DLL load failures so users can diagnose issues
@@ -393,83 +375,7 @@ impl AsiSdk {
                 match libloading::Library::new("ASICamera2.dll") {
                     Ok(lib) => {
                         tracing::info!("Found ASI SDK via system PATH");
-
-                        // Helper to load and log function pointer failures
-                        fn load_symbol<T: Copy>(
-                            lib: &libloading::Library,
-                            name: &[u8],
-                            name_str: &str,
-                        ) -> Option<T> {
-                            match unsafe { lib.get::<T>(name) } {
-                                Ok(sym) => Some(*sym),
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Failed to load ASI function '{}': {}",
-                                        name_str,
-                                        e
-                                    );
-                                    None
-                                }
-                            }
-                        }
-
-                        let get_num_cameras = load_symbol(
-                            &lib,
-                            b"ASIGetNumOfConnectedCameras\0",
-                            "ASIGetNumOfConnectedCameras",
-                        )?;
-                        let get_camera_property =
-                            load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
-                        let open_camera = load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
-                        let init_camera = load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
-                        let close_camera =
-                            load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
-                        let get_control_value =
-                            load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
-                        let set_control_value =
-                            load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
-                        let set_roi_format =
-                            load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
-                        let set_start_pos =
-                            load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
-                        let get_roi_format =
-                            load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
-                        let start_exposure =
-                            load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
-                        let stop_exposure =
-                            load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
-                        let get_exp_status =
-                            load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
-                        let get_data_after_exp =
-                            load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
-                        let get_num_controls =
-                            load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
-                        let get_control_caps =
-                            load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
-
-                        let sdk = Self {
-                            get_num_cameras,
-                            get_camera_property,
-                            open_camera,
-                            init_camera,
-                            close_camera,
-                            get_control_value,
-                            set_control_value,
-                            set_roi_format,
-                            set_start_pos,
-                            get_roi_format,
-                            start_exposure,
-                            stop_exposure,
-                            get_exp_status,
-                            get_data_after_exp,
-                            get_num_controls,
-                            get_control_caps,
-                            lib,
-                        };
-                        tracing::info!(
-                            "Successfully loaded all ASI SDK functions from system PATH"
-                        );
-                        return Some(sdk);
+                        return Self::load_from_library(lib, "system PATH");
                     }
                     Err(e) => {
                         tracing::debug!("ASI SDK not found in system PATH: {}", e);
@@ -478,8 +384,8 @@ impl AsiSdk {
             }
         }
 
-        tracing::error!("ZWO ASI SDK (ASICamera2.dll) not found! Checked {} locations. Native ZWO camera support will be unavailable.", lib_paths.len());
-        tracing::error!("To use native ZWO drivers, install the ASI SDK from https://astronomy-imaging-camera.com/software-drivers or place ASICamera2.dll in the application directory.");
+        tracing::debug!("ZWO ASI SDK (ASICamera2.dll) not found after checking {} locations. Native ZWO camera support will be unavailable.", lib_paths.len());
+        tracing::debug!("To use native ZWO drivers, install the ASI SDK from https://astronomy-imaging-camera.com/software-drivers or place ASICamera2.dll in the application directory.");
         None
     }
 
@@ -1470,7 +1376,7 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
         Some(sdk) => sdk,
         None => {
             // Log prominently so users know why discovery returned nothing
-            tracing::warn!("ZWO native camera discovery skipped: ASI SDK not loaded. If you have ZWO cameras, either install the ASI SDK or use ASCOM/Alpaca drivers.");
+            tracing::debug!("ZWO native camera discovery skipped: ASI SDK not loaded");
             return Ok(Vec::new());
         }
     };
@@ -1478,9 +1384,9 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
     // Acquire mutex for SDK discovery operations
     let _lock = zwo_camera_mutex().lock().await;
 
-    tracing::info!("Discovering ZWO cameras via native ASI SDK...");
+    tracing::debug!("Discovering ZWO cameras via native ASI SDK...");
     let num_cameras = unsafe { (sdk.get_num_cameras)() };
-    tracing::info!("ASI SDK reports {} connected camera(s)", num_cameras);
+    tracing::debug!("ASI SDK reports {} connected camera(s)", num_cameras);
 
     let mut cameras = Vec::new();
     let mut failed_count = 0;
@@ -2006,7 +1912,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     let sdk = match EafSdk::get() {
         Some(sdk) => sdk,
         None => {
-            tracing::warn!("ZWO EAF discovery skipped: EAF SDK not loaded");
+            tracing::debug!("ZWO EAF discovery skipped: EAF SDK not loaded");
             return Ok(Vec::new());
         }
     };
@@ -2014,7 +1920,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     // Acquire mutex for EAF SDK discovery operations
     let _lock = zwo_eaf_mutex().lock().await;
 
-    tracing::info!("Discovering ZWO EAF focusers via native SDK...");
+    tracing::debug!("Discovering ZWO EAF focusers via native SDK...");
     let num_focusers = unsafe { (sdk.get_num)() };
     tracing::info!("EAF SDK reports {} connected focuser(s)", num_focusers);
 
@@ -2499,7 +2405,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     let sdk = match EfwSdk::get() {
         Some(sdk) => sdk,
         None => {
-            tracing::warn!("ZWO EFW discovery skipped: EFW SDK not loaded");
+            tracing::debug!("ZWO EFW discovery skipped: EFW SDK not loaded");
             return Ok(Vec::new());
         }
     };
@@ -2507,7 +2413,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     // Acquire mutex for EFW SDK discovery operations
     let _lock = zwo_efw_mutex().lock().await;
 
-    tracing::info!("Discovering ZWO EFW filter wheels via native SDK...");
+    tracing::debug!("Discovering ZWO EFW filter wheels via native SDK...");
     let num_wheels = unsafe { (sdk.get_num)() };
     tracing::info!("EFW SDK reports {} connected filter wheel(s)", num_wheels);
 

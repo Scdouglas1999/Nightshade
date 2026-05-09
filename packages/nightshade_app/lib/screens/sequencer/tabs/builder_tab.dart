@@ -40,52 +40,73 @@ class BuilderTab extends ConsumerWidget {
                     _InstructionCategory(
                       title: 'Target',
                       instructions: [
-                        _Instruction(icon: LucideIcons.target, name: 'Set Target'),
-                        _Instruction(icon: LucideIcons.navigation, name: 'Slew to Coordinates'),
+                        _Instruction(
+                            icon: LucideIcons.target, name: 'Set Target'),
+                        _Instruction(
+                            icon: LucideIcons.navigation,
+                            name: 'Slew to Coordinates'),
                       ],
                     ),
                     SizedBox(height: 16),
                     _InstructionCategory(
                       title: 'Imaging',
                       instructions: [
-                        _Instruction(icon: LucideIcons.camera, name: 'Capture Exposures'),
-                        _Instruction(icon: LucideIcons.sparkles, name: 'Smart Exposure'),
+                        _Instruction(
+                            icon: LucideIcons.camera,
+                            name: 'Capture Exposures'),
+                        _Instruction(
+                            icon: LucideIcons.sparkles, name: 'Smart Exposure'),
                       ],
                     ),
                     SizedBox(height: 16),
                     _InstructionCategory(
                       title: 'Mount',
                       instructions: [
-                        _Instruction(icon: LucideIcons.crosshair, name: 'Slew & Center'),
-                        _Instruction(icon: LucideIcons.parkingCircle, name: 'Park Mount'),
-                        _Instruction(icon: LucideIcons.flipHorizontal, name: 'Meridian Flip'),
+                        _Instruction(
+                            icon: LucideIcons.crosshair, name: 'Slew & Center'),
+                        _Instruction(
+                            icon: LucideIcons.parkingCircle,
+                            name: 'Park Mount'),
+                        _Instruction(
+                            icon: LucideIcons.flipHorizontal,
+                            name: 'Meridian Flip'),
                       ],
                     ),
                     SizedBox(height: 16),
                     _InstructionCategory(
                       title: 'Focus',
                       instructions: [
-                        _Instruction(icon: LucideIcons.focus, name: 'Autofocus'),
-                        _Instruction(icon: LucideIcons.move, name: 'Move Focuser'),
+                        _Instruction(
+                            icon: LucideIcons.focus, name: 'Autofocus'),
+                        _Instruction(
+                            icon: LucideIcons.move, name: 'Move Focuser'),
                       ],
                     ),
                     SizedBox(height: 16),
                     _InstructionCategory(
                       title: 'Conditions',
                       instructions: [
-                        _Instruction(icon: LucideIcons.clock, name: 'Wait for Time'),
-                        _Instruction(icon: LucideIcons.mountain, name: 'Wait for Altitude'),
-                        _Instruction(icon: LucideIcons.cloudSun, name: 'Weather Check'),
-                        _Instruction(icon: LucideIcons.repeat, name: 'Loop / Repeat'),
+                        _Instruction(
+                            icon: LucideIcons.clock, name: 'Wait for Time'),
+                        _Instruction(
+                            icon: LucideIcons.mountain,
+                            name: 'Wait for Altitude'),
+                        _Instruction(
+                            icon: LucideIcons.cloudSun, name: 'Weather Check'),
+                        _Instruction(
+                            icon: LucideIcons.repeat, name: 'Loop / Repeat'),
                       ],
                     ),
                     SizedBox(height: 16),
                     _InstructionCategory(
                       title: 'Utilities',
                       instructions: [
-                        _Instruction(icon: LucideIcons.code, name: 'Run Script'),
-                        _Instruction(icon: LucideIcons.bell, name: 'Send Notification'),
-                        _Instruction(icon: LucideIcons.pause, name: 'Pause Sequence'),
+                        _Instruction(
+                            icon: LucideIcons.code, name: 'Run Script'),
+                        _Instruction(
+                            icon: LucideIcons.bell, name: 'Send Notification'),
+                        _Instruction(
+                            icon: LucideIcons.pause, name: 'Pause Sequence'),
                       ],
                     ),
                     SizedBox(height: 24),
@@ -238,7 +259,9 @@ class _InstructionCategoryState extends State<_InstructionCategory> {
           child: Row(
             children: [
               Icon(
-                _isExpanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                _isExpanded
+                    ? LucideIcons.chevronDown
+                    : LucideIcons.chevronRight,
                 size: 14,
                 color: colors.textSecondary,
               ),
@@ -257,9 +280,9 @@ class _InstructionCategoryState extends State<_InstructionCategory> {
         if (_isExpanded) ...[
           const SizedBox(height: 8),
           ...widget.instructions.map((instruction) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: _InstructionItem(instruction: instruction),
-          )),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: _InstructionItem(instruction: instruction),
+              )),
         ],
       ],
     );
@@ -288,6 +311,7 @@ class _InstructionItemState extends State<_InstructionItem> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -306,13 +330,13 @@ class _InstructionItemState extends State<_InstructionItem> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.instruction.icon, size: 14, color: Colors.white),
+                Icon(widget.instruction.icon, size: 14, color: onPrimary),
                 const SizedBox(width: 8),
                 Text(
                   widget.instruction.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white,
+                    color: onPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -349,6 +373,3 @@ class _InstructionItemState extends State<_InstructionItem> {
     );
   }
 }
-
-
-

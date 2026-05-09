@@ -9,27 +9,46 @@ import '../celestial_object.dart';
 import '../rendering/sky_renderer.dart';
 import '../providers/performance_providers.dart';
 import '../providers/planetarium_providers.dart';
+import '../providers/satellite_providers.dart';
+import '../providers/variable_star_providers.dart';
+import '../providers/minor_planet_providers.dart';
 
 /// Interactive sky view widget with pan, zoom, and object selection
 class InteractiveSkyView extends ConsumerStatefulWidget {
   /// Callback when an object is selected
   final ValueChanged<CelestialObject?>? onObjectSelected;
-  
+
   /// Callback when coordinates are tapped
   final ValueChanged<CelestialCoordinate>? onCoordinateTapped;
-  
+
   /// Callback when an object is tapped with position info for popup display
-  final void Function(CelestialObject? object, CelestialCoordinate coordinates, Offset screenPosition)? onObjectTapped;
-  
+  final void Function(CelestialObject? object, CelestialCoordinate coordinates,
+      Offset screenPosition)? onObjectTapped;
+
   /// Whether to show the FOV indicator
   final bool showFOV;
-  
+
   /// Custom FOV rectangle (if not using equipment provider)
   final (double width, double height)? customFOV;
-  
+
   /// FOV center coordinate (if different from view center)
   final CelestialCoordinate? fovCenter;
-  
+
+  /// Set of catalog IDs/names for objects that have been observed.
+  /// A small green indicator is drawn on matching DSOs in the sky view.
+  final Set<String> observedObjectIds;
+
+  /// Set of catalog IDs/names for objects in user observing lists.
+  /// A small amber bookmark is drawn on matching DSOs in the sky view.
+  final Set<String> listedObjectIds;
+
+  /// Bortle dark-sky scale (1-9). Controls light pollution dome intensity.
+  final int bortleClass;
+
+  /// Pre-computed horizon altitudes for each degree of azimuth (0-359).
+  /// When non-null, the ground plane follows this custom horizon profile.
+  final List<double>? horizonAltitudes;
+
   const InteractiveSkyView({
     super.key,
     this.onObjectSelected,
@@ -38,6 +57,10 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
     this.showFOV = false,
     this.customFOV,
     this.fovCenter,
+    this.observedObjectIds = const {},
+    this.listedObjectIds = const {},
+    this.bortleClass = 5,
+    this.horizonAltitudes,
   });
 
   @override
@@ -78,9 +101,13 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   // Parallax effect - tracks current pan delta for dim star offset
   Offset _currentPanDelta = Offset.zero;
 
-  // Combined listenable for all painting-related animations
-  // This allows us to rebuild only the painter, not the entire widget tree
-  late Listenable _paintAnimations;
+  // Separate listenables for different animation categories.
+  // Twinkle is isolated because it runs continuously at ~20Hz and should not
+  // force full widget rebuilds. The constellation/Milky Way Picture caches
+  // handle the actual rendering optimization, but separating the listenable
+  // avoids unnecessary ListenableBuilder rebuilds when only twinkle changes.
+  late Listenable _twinkleListenable;
+  late Listenable _otherAnimations;
 
   @override
   void initState() {
@@ -127,10 +154,11 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     );
     // No setState listener - value read directly via ListenableBuilder
 
-    // Create merged listenable for all painting animations
-    // This triggers rebuilds only for the CustomPaint, not the entire widget
-    _paintAnimations = Listenable.merge([
-      _twinkleController!,
+    // Twinkle runs continuously and only affects star brightness - isolate it
+    // so it doesn't force the same rebuild path as selection/pop-in animations.
+    _twinkleListenable = _twinkleController!;
+    // Selection/pop-in animations are transient and infrequent
+    _otherAnimations = Listenable.merge([
       _selectionController,
       _popinController,
       _dsoPopinController,
@@ -158,7 +186,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       final buildMs = timing.buildDuration.inMicroseconds / 1000;
       final rasterMs = timing.rasterDuration.inMicroseconds / 1000;
       final vsyncStart = timing.timestampInMicroseconds(FramePhase.vsyncStart);
-      final rasterFinish = timing.timestampInMicroseconds(FramePhase.rasterFinish);
+      final rasterFinish =
+          timing.timestampInMicroseconds(FramePhase.rasterFinish);
       final totalMs = rasterFinish > vsyncStart
           ? (rasterFinish - vsyncStart) / 1000
           : buildMs + rasterMs;
@@ -176,7 +205,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       ref.read(skyViewStateProvider.notifier).setFieldOfView(newFOV);
 
       // Trigger star pop-in animation when zooming reveals fainter stars
-      final qualityConfig = ref.read(renderQualityProvider);
+      final qualityConfig = ref.read(fovAdaptiveQualityProvider);
       if (qualityConfig.enableStarPopin) {
         // Estimate new magnitude limit based on FOV
         // Wider FOV = lower mag limit, narrower FOV = higher mag limit
@@ -234,7 +263,11 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // Calculate average velocity from recent samples
     var totalVelocity = Offset.zero;
     for (var i = 1; i < recent.length; i++) {
-      final dt = recent[i].time.difference(recent[i - 1].time).inMilliseconds.toDouble();
+      final dt = recent[i]
+          .time
+          .difference(recent[i - 1].time)
+          .inMilliseconds
+          .toDouble();
       if (dt > 0) {
         final delta = recent[i].position - recent[i - 1].position;
         totalVelocity += delta / dt * 1000; // pixels per second
@@ -291,7 +324,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final moonIllumination = ref.watch(moonInfoProvider);
     final planets = ref.watch(planetPositionsProvider);
     final milkyWayPoints = ref.watch(milkyWayPointsProvider);
-    final qualityConfig = ref.watch(renderQualityProvider);
+    final qualityConfig = ref.watch(fovAdaptiveQualityProvider);
     final densityHotspots = ref.watch(densityHotspotsProvider);
 
     // Handle selection animation
@@ -360,10 +393,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                 );
                 _lastFocalPoint = details.focalPoint;
 
-                // Track pan delta for parallax effect (decays over time)
-                setState(() {
-                  _currentPanDelta = delta;
-                });
+                // Track pan delta for parallax effect (decays over time).
+                // No setState needed: the viewState change from pan() above
+                // already triggers a rebuild via ref.watch(skyViewStateProvider).
+                _currentPanDelta = delta;
 
                 // Track pan samples for momentum calculation
                 _panSamples.add(_PanSample(details.focalPoint, DateTime.now()));
@@ -376,7 +409,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               // Handle zoom
               if (_lastScale != null && details.scale != 1.0) {
                 final scaleDelta = _lastScale! / details.scale;
-                final newFOV = (viewState.fieldOfView * scaleDelta).clamp(1.0, 180.0);
+                final newFOV =
+                    (viewState.fieldOfView * scaleDelta).clamp(1.0, 180.0);
                 viewNotifier.setFieldOfView(newFOV);
                 _lastScale = details.scale;
               }
@@ -389,67 +423,102 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                 _momentumController.forward(from: 0.0);
               }
 
-              // Reset parallax delta
-              setState(() {
-                _currentPanDelta = Offset.zero;
-              });
+              // Reset parallax delta. No setState needed: momentum animation
+              // or next user interaction will trigger rebuilds.
+              _currentPanDelta = Offset.zero;
 
               _lastFocalPoint = null;
               _lastScale = null;
               _panSamples.clear();
             },
-            onDoubleTap: () {
-              // Reset view with animation
-              _animateZoom(60);
+            onDoubleTapDown: (details) {
+              // Zoom in 2x centered on the double-tap position
+              _handleDoubleTapZoom(details.localPosition,
+                  Size(constraints.maxWidth, constraints.maxHeight));
             },
             onTapUp: (details) {
-              _handleTap(details.localPosition, Size(constraints.maxWidth, constraints.maxHeight));
+              _handleTap(details.localPosition,
+                  Size(constraints.maxWidth, constraints.maxHeight));
             },
-            // ListenableBuilder isolates animation-driven rebuilds to just the painter
-            // This avoids rebuilding the entire widget tree on every animation frame
+            // Two nested ListenableBuilders isolate animation categories:
+            // - Outer: selection/pop-in (infrequent, transient)
+            // - Inner: twinkle (continuous, only affects star brightness)
+            // This prevents twinkle from triggering unnecessary work in the
+            // outer builder path. Constellation/Milky Way Picture caches
+            // further reduce actual rendering cost per repaint.
             child: ListenableBuilder(
-              listenable: _paintAnimations,
+              listenable: _otherAnimations,
               builder: (context, child) {
-                return RepaintBoundary(
-                  child: ClipRect(
-                    child: CustomPaint(
-                      painter: SkyCanvasPainter(
-                        viewState: viewState,
-                        config: renderConfig,
-                        qualityConfig: qualityConfig,
-                        stars: stars.valueOrNull ?? [],
-                        dsos: dsos.valueOrNull ?? [],
-                        constellations: constellations,
-                        observationTime: observationMinute,
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        selectedObject: selectedObject.coordinates,
-                        mountPosition: mountPosition.coordinates,
-                        mountStatus: _mapMountStatus(mountPosition.status),
-                        sunPosition: sunPos,
-                        moonPosition: (moonPos.$1, moonPos.$2, moonIllumination.illumination),
-                        planets: planets,
-                        milkyWayPoints: milkyWayPoints,
-                        // Read animation values directly from controllers
-                        animationPhase: qualityConfig.animateStarTwinkle ? _twinkleController?.value : null,
-                        selectionAnimationPhase: qualityConfig.enableSelectionAnimation ? _selectionController.value : null,
-                        popinAnimationPhase: qualityConfig.enableStarPopin ? _popinController.value : null,
-                        dsoPopinAnimationPhase: qualityConfig.enableDsoPopin ? _dsoPopinController.value : null,
-                        parallaxPanDelta: qualityConfig.enableParallax ? _currentPanDelta : null,
-                        densityHotspots: densityHotspots,
+                return ListenableBuilder(
+                  listenable: _twinkleListenable,
+                  builder: (context, child) {
+                    return RepaintBoundary(
+                      child: ClipRect(
+                        child: CustomPaint(
+                          painter: SkyCanvasPainter(
+                            viewState: viewState,
+                            config: renderConfig,
+                            qualityConfig: qualityConfig,
+                            stars: stars.valueOrNull ?? [],
+                            dsos: dsos.valueOrNull ?? [],
+                            constellations: constellations,
+                            observationTime: observationMinute,
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            selectedObject: selectedObject.coordinates,
+                            mountPosition: mountPosition.coordinates,
+                            mountStatus: _mapMountStatus(mountPosition.status),
+                            sunPosition: sunPos,
+                            moonPosition: (
+                              moonPos.$1,
+                              moonPos.$2,
+                              moonIllumination.illumination
+                            ),
+                            planets: planets,
+                            satellites: ref.watch(currentSatellitesProvider),
+                            variableStars: ref.watch(variableStarDataProvider),
+                            minorPlanets:
+                                ref.watch(currentMinorPlanetsProvider),
+                            milkyWayPoints: milkyWayPoints,
+                            // Read animation values directly from controllers
+                            animationPhase: qualityConfig.animateStarTwinkle
+                                ? _twinkleController?.value
+                                : null,
+                            selectionAnimationPhase:
+                                qualityConfig.enableSelectionAnimation
+                                    ? _selectionController.value
+                                    : null,
+                            popinAnimationPhase: qualityConfig.enableStarPopin
+                                ? _popinController.value
+                                : null,
+                            dsoPopinAnimationPhase: qualityConfig.enableDsoPopin
+                                ? _dsoPopinController.value
+                                : null,
+                            parallaxPanDelta: qualityConfig.enableParallax
+                                ? _currentPanDelta
+                                : null,
+                            densityHotspots: densityHotspots,
+                            observedObjectIds: widget.observedObjectIds,
+                            listedObjectIds: widget.listedObjectIds,
+                            bortleClass: widget.bortleClass,
+                            horizonAltitudes: widget.horizonAltitudes,
+                          ),
+                          foregroundPainter: widget.showFOV
+                              ? _FOVOverlayPainter(
+                                  viewState: viewState,
+                                  fovWidth: widget.customFOV?.$1 ??
+                                      equipmentFOV.fov?.$1,
+                                  fovHeight: widget.customFOV?.$2 ??
+                                      equipmentFOV.fov?.$2,
+                                  fovCenter: widget.fovCenter,
+                                  rotation: equipmentFOV.rotation,
+                                )
+                              : null,
+                          size: Size.infinite,
+                        ),
                       ),
-                      foregroundPainter: widget.showFOV
-                          ? _FOVOverlayPainter(
-                              viewState: viewState,
-                              fovWidth: widget.customFOV?.$1 ?? equipmentFOV.fov?.$1,
-                              fovHeight: widget.customFOV?.$2 ?? equipmentFOV.fov?.$2,
-                              fovCenter: widget.fovCenter,
-                              rotation: equipmentFOV.rotation,
-                            )
-                          : null,
-                      size: Size.infinite,
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),
@@ -458,7 +527,21 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       },
     );
   }
-  
+
+  /// Handle double-tap: reset the view to the default 60 degree field of view.
+  void _handleDoubleTapZoom(Offset position, Size size) {
+    final viewState = ref.read(skyViewStateProvider);
+
+    // Convert tap position to celestial coordinates
+    final coord = _screenToCelestial(position, size, viewState);
+    if (coord == null) return;
+
+    // Re-center the view on the tapped coordinate
+    ref.read(skyViewStateProvider.notifier).setCenter(coord.ra, coord.dec);
+
+    _animateZoom(60.0);
+  }
+
   void _handleTap(Offset position, Size size) {
     final viewState = ref.read(skyViewStateProvider);
 
@@ -480,7 +563,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     const double minHitRadiusPixels = 8.0;
 
     // Calculate scale factor for converting degrees to screen pixels
-    final scale = math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
+    final scale =
+        math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
 
     // Convert min hit radius from pixels to degrees for angular comparison
     final minHitRadiusDegrees = minHitRadiusPixels / scale;
@@ -494,7 +578,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
       // Base radius scales with brightness: mag -1 = 3x, mag 0 = 2.5x, mag 2 = 2x, mag 6 = 1x
       final brightnessMultiplier = math.max(1.0, 2.5 - (starMag / 4.0));
-      final hitRadiusDegrees = math.max(minHitRadiusDegrees, minHitRadiusDegrees * brightnessMultiplier);
+      final hitRadiusDegrees = math.max(
+          minHitRadiusDegrees, minHitRadiusDegrees * brightnessMultiplier);
 
       if (distance < hitRadiusDegrees && distance < nearestDistance) {
         nearestDistance = distance;
@@ -523,6 +608,52 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       }
     }
 
+    // Hit-test satellites: check if the tap landed near a rendered satellite
+    final satellites = ref.read(currentSatellitesProvider);
+    // Satellites are rendered as small dots (radius ~2.5-4px), use generous hit area
+    const double satelliteHitRadiusPixels = 12.0;
+    final satelliteHitRadiusDegrees = satelliteHitRadiusPixels / scale;
+
+    for (final sat in satellites) {
+      final satCoord = CelestialCoordinate(ra: sat.ra, dec: sat.dec);
+      final distance = _angularDistance(coord, satCoord);
+
+      if (distance < satelliteHitRadiusDegrees && distance < nearestDistance) {
+        nearestDistance = distance;
+        // Create a CelestialObject for the satellite so it can be displayed
+        // in the popup. We use a Star object as the closest match since satellites
+        // are point sources. The name, coordinates, and magnitude are the key fields.
+        nearestObject = Star(
+          id: 'SAT_${sat.catalogNumber}',
+          name: sat.name,
+          coordinates: satCoord,
+          magnitude: null, // Satellites don't have a fixed magnitude
+          spectralType: null,
+        );
+      }
+    }
+
+    // Hit-test planets: check if the tap landed near a rendered planet
+    final planets = ref.read(planetPositionsProvider);
+    const double planetHitRadiusPixels = 14.0;
+    final planetHitRadiusDegrees = planetHitRadiusPixels / scale;
+
+    for (final planet in planets) {
+      final planetCoord = CelestialCoordinate(ra: planet.ra, dec: planet.dec);
+      final distance = _angularDistance(coord, planetCoord);
+
+      if (distance < planetHitRadiusDegrees && distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestObject = Star(
+          id: 'PLANET_${planet.name}',
+          name: planet.name,
+          coordinates: planetCoord,
+          magnitude: planet.magnitude,
+          spectralType: null,
+        );
+      }
+    }
+
     if (nearestObject != null) {
       ref.read(selectedObjectProvider.notifier).selectObject(nearestObject);
       widget.onObjectSelected?.call(nearestObject);
@@ -534,63 +665,69 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // Always call the position callback for popup handling
     widget.onObjectTapped?.call(nearestObject, coord, position);
   }
-  
-  CelestialCoordinate? _screenToCelestial(Offset position, Size size, SkyViewState viewState) {
+
+  CelestialCoordinate? _screenToCelestial(
+      Offset position, Size size, SkyViewState viewState) {
     final center = Offset(size.width / 2, size.height / 2);
-    final scale = math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
-    
+    final scale =
+        math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
+
     // Offset from center in screen pixels
     final dx = -(position.dx - center.dx) / scale;
     final dy = -(position.dy - center.dy) / scale;
-    
+
     // Reverse rotation
     final rotRad = -viewState.rotation * math.pi / 180;
     final x = dx * math.cos(rotRad) - dy * math.sin(rotRad);
     final y = dx * math.sin(rotRad) + dy * math.cos(rotRad);
-    
+
     // Convert to RA/Dec (inverse of stereographic projection)
     final centerRaDeg = viewState.centerRA * 15;
     final centerDecDeg = viewState.centerDec;
-    
+
     final xRad = x * math.pi / 180;
     final yRad = y * math.pi / 180;
     final centerRaRad = centerRaDeg * math.pi / 180;
     final centerDecRad = centerDecDeg * math.pi / 180;
-    
+
     final rho = math.sqrt(xRad * xRad + yRad * yRad);
     if (rho < 0.0001) {
-      return CelestialCoordinate(ra: viewState.centerRA, dec: viewState.centerDec);
+      return CelestialCoordinate(
+          ra: viewState.centerRA, dec: viewState.centerDec);
     }
-    
+
     final c = 2 * math.atan(rho / 2);
-    
+
     final sinc = math.sin(c);
     final cosc = math.cos(c);
-    
-    final dec = math.asin(cosc * math.sin(centerDecRad) + yRad * sinc * math.cos(centerDecRad) / rho);
-    final ra = centerRaRad + math.atan2(
-      xRad * sinc,
-      rho * math.cos(centerDecRad) * cosc - yRad * math.sin(centerDecRad) * sinc,
-    );
-    
+
+    final dec = math.asin(cosc * math.sin(centerDecRad) +
+        yRad * sinc * math.cos(centerDecRad) / rho);
+    final ra = centerRaRad +
+        math.atan2(
+          xRad * sinc,
+          rho * math.cos(centerDecRad) * cosc -
+              yRad * math.sin(centerDecRad) * sinc,
+        );
+
     var raHours = ra * 180 / math.pi / 15;
     if (raHours < 0) raHours += 24;
     if (raHours >= 24) raHours -= 24;
-    
+
     final decDeg = dec * 180 / math.pi;
-    
+
     return CelestialCoordinate(ra: raHours, dec: decDeg.clamp(-90, 90));
   }
-  
+
   double _angularDistance(CelestialCoordinate a, CelestialCoordinate b) {
     final ra1 = a.ra * 15 * math.pi / 180;
     final dec1 = a.dec * math.pi / 180;
     final ra2 = b.ra * 15 * math.pi / 180;
     final dec2 = b.dec * math.pi / 180;
-    
+
     final cosSep = math.sin(dec1) * math.sin(dec2) +
-                   math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
-    
+        math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
+
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;
   }
 }
@@ -602,7 +739,7 @@ class _FOVOverlayPainter extends CustomPainter {
   final double? fovHeight;
   final CelestialCoordinate? fovCenter;
   final double rotation;
-  
+
   _FOVOverlayPainter({
     required this.viewState,
     this.fovWidth,
@@ -610,61 +747,65 @@ class _FOVOverlayPainter extends CustomPainter {
     this.fovCenter,
     this.rotation = 0,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     if (fovWidth == null || fovHeight == null) return;
-    
+
     final center = Offset(size.width / 2, size.height / 2);
-    final scale = math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
-    
+    final scale =
+        math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
+
     // Convert FOV to screen pixels
     final rectWidth = fovWidth! * scale;
     final rectHeight = fovHeight! * scale;
-    
+
     // Calculate offset if FOV center is different from view center
     Offset rectCenter = center;
     if (fovCenter != null) {
       // Calculate angular difference between view center and FOV center
       // RA is in hours, convert to degrees. Apply cos(dec) correction for RA.
       final viewCenterDecRad = viewState.centerDec * math.pi / 180;
-      final deltaRA = (fovCenter!.ra - viewState.centerRA) * 15 * math.cos(viewCenterDecRad);
+      final deltaRA = (fovCenter!.ra - viewState.centerRA) *
+          15 *
+          math.cos(viewCenterDecRad);
       final deltaDec = fovCenter!.dec - viewState.centerDec;
 
       // Convert angular offset (degrees) to screen pixels
       // Positive deltaRA moves right, positive deltaDec moves up (screen Y is inverted)
       final offsetX = deltaRA * scale;
-      final offsetY = -deltaDec * scale; // Negative because screen Y increases downward
+      final offsetY =
+          -deltaDec * scale; // Negative because screen Y increases downward
 
       rectCenter = Offset(center.dx + offsetX, center.dy + offsetY);
     }
-    
+
     // Draw FOV rectangle
     canvas.save();
     canvas.translate(rectCenter.dx, rectCenter.dy);
     canvas.rotate((rotation + viewState.rotation) * math.pi / 180);
-    
+
     final rect = Rect.fromCenter(
       center: Offset.zero,
       width: rectWidth,
       height: rectHeight,
     );
-    
+
     // Draw border
     final borderPaint = Paint()
       ..color = const Color(0xFF00E676)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
-    
+
     canvas.drawRect(rect, borderPaint);
-    
+
     // Draw corner brackets
     final bracketLength = math.min(rectWidth, rectHeight) * 0.1;
     final bracketPaint = Paint()
       ..color = const Color(0xFF00E676)
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
-    
+
     // Top-left
     canvas.drawLine(
       Offset(-rectWidth / 2, -rectHeight / 2 + bracketLength),
@@ -676,7 +817,7 @@ class _FOVOverlayPainter extends CustomPainter {
       Offset(-rectWidth / 2 + bracketLength, -rectHeight / 2),
       bracketPaint,
     );
-    
+
     // Top-right
     canvas.drawLine(
       Offset(rectWidth / 2 - bracketLength, -rectHeight / 2),
@@ -688,7 +829,7 @@ class _FOVOverlayPainter extends CustomPainter {
       Offset(rectWidth / 2, -rectHeight / 2 + bracketLength),
       bracketPaint,
     );
-    
+
     // Bottom-right
     canvas.drawLine(
       Offset(rectWidth / 2, rectHeight / 2 - bracketLength),
@@ -700,7 +841,7 @@ class _FOVOverlayPainter extends CustomPainter {
       Offset(rectWidth / 2 - bracketLength, rectHeight / 2),
       bracketPaint,
     );
-    
+
     // Bottom-left
     canvas.drawLine(
       Offset(-rectWidth / 2 + bracketLength, rectHeight / 2),
@@ -712,12 +853,12 @@ class _FOVOverlayPainter extends CustomPainter {
       Offset(-rectWidth / 2, rectHeight / 2 - bracketLength),
       bracketPaint,
     );
-    
+
     // Draw center crosshair
     final crosshairPaint = Paint()
       ..color = const Color(0xFF00E676).withValues(alpha: 0.5)
       ..strokeWidth = 1;
-    
+
     canvas.drawLine(
       Offset(-15, 0),
       Offset(15, 0),
@@ -728,7 +869,7 @@ class _FOVOverlayPainter extends CustomPainter {
       Offset(0, 15),
       crosshairPaint,
     );
-    
+
     // Draw rotation indicator
     if (rotation != 0) {
       canvas.drawLine(
@@ -737,11 +878,12 @@ class _FOVOverlayPainter extends CustomPainter {
         borderPaint,
       );
     }
-    
+
     canvas.restore();
-    
+
     // Draw FOV dimensions label
-    final fovText = '${fovWidth!.toStringAsFixed(2)}° × ${fovHeight!.toStringAsFixed(2)}°';
+    final fovText =
+        '${fovWidth!.toStringAsFixed(2)}° × ${fovHeight!.toStringAsFixed(2)}°';
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
@@ -762,13 +904,13 @@ class _FOVOverlayPainter extends CustomPainter {
       ),
     );
   }
-  
+
   @override
   bool shouldRepaint(covariant _FOVOverlayPainter oldDelegate) {
     return viewState != oldDelegate.viewState ||
-           fovWidth != oldDelegate.fovWidth ||
-           fovHeight != oldDelegate.fovHeight ||
-           rotation != oldDelegate.rotation;
+        fovWidth != oldDelegate.fovWidth ||
+        fovHeight != oldDelegate.fovHeight ||
+        rotation != oldDelegate.rotation;
   }
 }
 
@@ -821,6 +963,11 @@ class SkyViewToolbar extends ConsumerWidget {
           isActive: config.showEcliptic,
           onTap: configNotifier.toggleEcliptic,
         ),
+        _ToolbarToggle(
+          label: 'Galactic',
+          isActive: config.showGalacticPlane,
+          onTap: configNotifier.toggleGalacticPlane,
+        ),
         if (showExtendedOptions) ...[
           _ToolbarToggle(
             label: 'Milky Way',
@@ -852,13 +999,13 @@ class _ToolbarToggle extends StatelessWidget {
   final String label;
   final bool isActive;
   final VoidCallback onTap;
-  
+
   const _ToolbarToggle({
     required this.label,
     required this.isActive,
     required this.onTap,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -896,4 +1043,3 @@ class _PanSample {
 
   _PanSample(this.position, this.time);
 }
-

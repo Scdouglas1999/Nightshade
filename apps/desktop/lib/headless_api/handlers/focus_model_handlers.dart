@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for focus model endpoints
 ///
 /// These endpoints provide access to focus temperature compensation and filter offsets:
@@ -53,23 +55,18 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
       final profileData = service.getProfileData(profileId);
       if (profileData == null) {
-        return Response.ok(
-          jsonEncode({
-            "profileId": profileId,
-            "dataPoints": [],
-            "count": 0,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "profileId": profileId,
+          "dataPoints": [],
+          "count": 0,
+        });
       }
 
       final dataPoints = profileData.dataPoints
@@ -83,21 +80,15 @@ class FocusModelHandlers {
               })
           .toList();
 
-      return Response.ok(
-        jsonEncode({
-          "profileId": profileId,
-          "dataPoints": dataPoints,
-          "count": dataPoints.length,
-          "referenceFilter": profileData.referenceFilter,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "profileId": profileId,
+        "dataPoints": dataPoints,
+        "count": dataPoints.length,
+        "referenceFilter": profileData.referenceFilter,
+      });
     } catch (e) {
       _logError('[API] Get focus data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -114,10 +105,8 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
@@ -129,10 +118,8 @@ class FocusModelHandlers {
       final hfr = payload['hfr'];
 
       if (temperature == null || position == null || hfr == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "Missing required fields: temperature, position, hfr"}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "Missing required fields: temperature, position, hfr"},
         );
       }
 
@@ -153,22 +140,16 @@ class FocusModelHandlers {
       // Get updated profile data
       final profileData = service.getProfileData(profileId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "ok",
-          "profileId": profileId,
-          "dataPointCount": profileData?.dataPoints.length ?? 0,
-          "hasModel": profileData?.temperatureModel != null,
-          "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "ok",
+        "profileId": profileId,
+        "dataPointCount": profileData?.dataPoints.length ?? 0,
+        "hasModel": profileData?.temperatureModel != null,
+        "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
+      });
     } catch (e) {
       _logError('[API] Add focus point error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -185,29 +166,21 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
       await service.clearProfileData(profileId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "ok",
-          "profileId": profileId,
-          "message": "Focus data cleared",
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "ok",
+        "profileId": profileId,
+        "message": "Focus data cleared",
+      });
     } catch (e) {
       _logError('[API] Clear focus data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -224,10 +197,8 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
@@ -235,41 +206,32 @@ class FocusModelHandlers {
       final model = profileData?.temperatureModel;
 
       if (model == null) {
-        return Response.ok(
-          jsonEncode({
-            "profileId": profileId,
-            "hasModel": false,
-            "message":
-                "Not enough data points to build model. Need at least 3 data points.",
-            "dataPointCount": profileData?.dataPoints.length ?? 0,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "profileId": profileId,
+          "hasModel": false,
+          "message":
+              "Not enough data points to build model. Need at least 3 data points.",
+          "dataPointCount": profileData?.dataPoints.length ?? 0,
+        });
       }
 
-      return Response.ok(
-        jsonEncode({
-          "profileId": profileId,
-          "hasModel": true,
-          "model": {
-            "slope": model.slope,
-            "intercept": model.intercept,
-            "rSquared": model.rSquared,
-            "dataPointCount": model.dataPointCount,
-            "lastUpdated": model.lastUpdated.toIso8601String(),
-            "lastUpdatedEpoch": model.lastUpdated.millisecondsSinceEpoch,
-            "isReliable": model.isReliable,
-          },
-          "description": _getModelDescription(model),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "profileId": profileId,
+        "hasModel": true,
+        "model": {
+          "slope": model.slope,
+          "intercept": model.intercept,
+          "rSquared": model.rSquared,
+          "dataPointCount": model.dataPointCount,
+          "lastUpdated": model.lastUpdated.toIso8601String(),
+          "lastUpdatedEpoch": model.lastUpdated.millisecondsSinceEpoch,
+          "isReliable": model.isReliable,
+        },
+        "description": _getModelDescription(model),
+      });
     } catch (e) {
       _logError('[API] Get focus model error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -298,29 +260,22 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
       // Parse temperature
       final tempParam = request.url.queryParameters['temperature'];
       if (tempParam == null) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "Missing required parameter: temperature"}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "Missing required parameter: temperature"},
         );
       }
 
       final temperature = double.tryParse(tempParam);
       if (temperature == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid temperature value"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid temperature value"});
       }
 
       // Optional filter
@@ -333,41 +288,32 @@ class FocusModelHandlers {
       );
 
       if (prediction == null) {
-        return Response.ok(
-          jsonEncode({
-            "profileId": profileId,
-            "temperature": temperature,
-            "filter": filter,
-            "canPredict": false,
-            "message":
-                "Cannot make prediction. Model not available or not reliable enough.",
-          }),
-          headers: {'content-type': 'application/json'},
-        );
-      }
-
-      return Response.ok(
-        jsonEncode({
+        return jsonOk({
           "profileId": profileId,
           "temperature": temperature,
           "filter": filter,
-          "canPredict": true,
-          "prediction": {
-            "position": prediction.position,
-            "confidence": prediction.confidence,
-            "confidenceDescription": prediction.confidenceDescription,
-            "basedOnTemperature": prediction.basedOnTemperature,
-            "filterOffset": prediction.filterOffset,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+          "canPredict": false,
+          "message":
+              "Cannot make prediction. Model not available or not reliable enough.",
+        });
+      }
+
+      return jsonOk({
+        "profileId": profileId,
+        "temperature": temperature,
+        "filter": filter,
+        "canPredict": true,
+        "prediction": {
+          "position": prediction.position,
+          "confidence": prediction.confidence,
+          "confidenceDescription": prediction.confidenceDescription,
+          "basedOnTemperature": prediction.basedOnTemperature,
+          "filterOffset": prediction.filterOffset,
+        },
+      });
     } catch (e) {
       _logError('[API] Predict focus error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -384,23 +330,18 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
       final profileData = service.getProfileData(profileId);
       if (profileData == null) {
-        return Response.ok(
-          jsonEncode({
-            "profileId": profileId,
-            "referenceFilter": null,
-            "offsets": {},
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "profileId": profileId,
+          "referenceFilter": null,
+          "offsets": {},
+        });
       }
 
       final offsets = <String, dynamic>{};
@@ -415,20 +356,14 @@ class FocusModelHandlers {
         };
       }
 
-      return Response.ok(
-        jsonEncode({
-          "profileId": profileId,
-          "referenceFilter": profileData.referenceFilter,
-          "offsets": offsets,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "profileId": profileId,
+        "referenceFilter": profileData.referenceFilter,
+        "offsets": offsets,
+      });
     } catch (e) {
       _logError('[API] Get filter offsets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -445,10 +380,8 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
@@ -492,21 +425,15 @@ class FocusModelHandlers {
       // Get updated profile data
       final updatedData = service.getProfileData(profileId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "ok",
-          "profileId": profileId,
-          "referenceFilter": updatedData?.referenceFilter,
-          "offsetCount": updatedData?.filterOffsets.length ?? 0,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "ok",
+        "profileId": profileId,
+        "referenceFilter": updatedData?.referenceFilter,
+        "offsetCount": updatedData?.filterOffsets.length ?? 0,
+      });
     } catch (e) {
       _logError('[API] Set filter offsets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -523,10 +450,8 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
@@ -536,12 +461,9 @@ class FocusModelHandlers {
       final maxDriftParam = request.url.queryParameters['maxDriftSteps'];
 
       if (currentTempParam == null || lastFocusTempParam == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error": "Missing required parameters: currentTemp, lastFocusTemp"
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error": "Missing required parameters: currentTemp, lastFocusTemp"
+        });
       }
 
       final currentTemp = double.tryParse(currentTempParam);
@@ -549,10 +471,7 @@ class FocusModelHandlers {
       final maxDriftSteps = double.tryParse(maxDriftParam ?? '50') ?? 50.0;
 
       if (currentTemp == null || lastFocusTemp == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid temperature values"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid temperature values"});
       }
 
       final shouldRefocus = service.shouldRefocus(
@@ -570,26 +489,20 @@ class FocusModelHandlers {
         expectedDrift = (currentTemp - lastFocusTemp).abs() * model.slope.abs();
       }
 
-      return Response.ok(
-        jsonEncode({
-          "profileId": profileId,
-          "currentTemp": currentTemp,
-          "lastFocusTemp": lastFocusTemp,
-          "tempDelta": (currentTemp - lastFocusTemp).abs(),
-          "maxDriftSteps": maxDriftSteps,
-          "expectedDrift": expectedDrift,
-          "shouldRefocus": shouldRefocus,
-          "hasModel": model != null,
-          "modelIsReliable": model?.isReliable ?? false,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "profileId": profileId,
+        "currentTemp": currentTemp,
+        "lastFocusTemp": lastFocusTemp,
+        "tempDelta": (currentTemp - lastFocusTemp).abs(),
+        "maxDriftSteps": maxDriftSteps,
+        "expectedDrift": expectedDrift,
+        "shouldRefocus": shouldRefocus,
+        "hasModel": model != null,
+        "modelIsReliable": model?.isReliable ?? false,
+      });
     } catch (e) {
       _logError('[API] Should refocus error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -606,29 +519,21 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
       final exportJson = service.exportData(profileId);
 
-      return Response.ok(
+      return attachmentResponse(
         exportJson,
-        headers: {
-          'content-type': 'application/json',
-          'content-disposition':
-              'attachment; filename="focus_model_$profileId.json"',
-        },
+        fileName: 'focus_model_$profileId.json',
+        contentType: jsonContentType,
       );
     } catch (e) {
       _logError('[API] Export focus data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -645,10 +550,8 @@ class FocusModelHandlers {
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
-        return Response.badRequest(
-          body: jsonEncode(
-              {"error": "No active equipment profile. Load a profile first."}),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No active equipment profile. Load a profile first."},
         );
       }
 
@@ -658,10 +561,7 @@ class FocusModelHandlers {
       try {
         jsonDecode(jsonData);
       } catch (_) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid JSON data"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid JSON data"});
       }
 
       await service.importData(profileId, jsonData);
@@ -669,22 +569,16 @@ class FocusModelHandlers {
       // Get updated profile data
       final profileData = service.getProfileData(profileId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "ok",
-          "profileId": profileId,
-          "dataPointCount": profileData?.dataPoints.length ?? 0,
-          "hasModel": profileData?.temperatureModel != null,
-          "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "ok",
+        "profileId": profileId,
+        "dataPointCount": profileData?.dataPoints.length ?? 0,
+        "hasModel": profileData?.temperatureModel != null,
+        "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
+      });
     } catch (e) {
       _logError('[API] Import focus data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

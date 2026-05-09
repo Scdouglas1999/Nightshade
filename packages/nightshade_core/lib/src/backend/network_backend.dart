@@ -12,10 +12,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 // Import pure Dart types from backend_types for return types
-import '../models/backend/device_capabilities.dart';
-import '../models/backend/device_status.dart';
-import '../models/backend/autofocus_result.dart';
-import '../models/backend/fits_header.dart';
 import '../models/errors/nightshade_error.dart' as dart_error;
 
 /// Backend connection state
@@ -25,20 +21,92 @@ enum BackendConnectionState {
   disconnected,
 }
 
+class RemoteDirectoryEntry {
+  final String name;
+  final String path;
+
+  const RemoteDirectoryEntry({
+    required this.name,
+    required this.path,
+  });
+
+  factory RemoteDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    return RemoteDirectoryEntry(
+      name: json['name'] as String? ?? '',
+      path: json['path'] as String? ?? '',
+    );
+  }
+}
+
+class RemoteDirectoryListing {
+  final String? currentPath;
+  final String? parentPath;
+  final List<RemoteDirectoryEntry> directories;
+
+  const RemoteDirectoryListing({
+    required this.currentPath,
+    required this.parentPath,
+    required this.directories,
+  });
+
+  factory RemoteDirectoryListing.fromJson(Map<String, dynamic> json) {
+    final directories = (json['directories'] as List? ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map(RemoteDirectoryEntry.fromJson)
+        .toList();
+    return RemoteDirectoryListing(
+      currentPath: json['currentPath'] as String?,
+      parentPath: json['parentPath'] as String?,
+      directories: directories,
+    );
+  }
+}
+
+class RemoteScienceBundle {
+  final List<PhotometryMeasurementRow> photometry;
+  final List<FramePhotometricCalibrationRow> calibrations;
+  final List<TransparencySampleRow> transparency;
+  final List<PsfFieldTileRow> psfTiles;
+  final List<ScienceFrameQualityMetricsRow> frameQuality;
+  final List<ScienceTileMetricRow> tileMetrics;
+  final List<AstrometryResidualVectorRow> residuals;
+  final List<MovingObjectCandidateRow> movingObjects;
+  final List<LineRatioProductRow> lineRatios;
+
+  const RemoteScienceBundle({
+    required this.photometry,
+    required this.calibrations,
+    required this.transparency,
+    required this.psfTiles,
+    required this.frameQuality,
+    required this.tileMetrics,
+    required this.residuals,
+    required this.movingObjects,
+    required this.lineRatios,
+  });
+}
+
 /// Network backend implementation that communicates with a headless server
 ///
 /// This backend uses HTTP REST API and WebSocket for real-time events
 /// and is used by the Mobile app to control a remote Desktop/Headless instance.
 class NetworkBackend implements NightshadeBackend {
+  static const _requestIdHeader = 'x-request-id';
+
   final String serverHost;
   final int serverPort;
   final int webSocketPort;
   final String? authToken;
+  final Duration webSocketHeartbeatInterval;
+  final Duration webSocketHeartbeatTimeout;
 
   WebSocketChannel? _wsChannel;
   StreamSubscription? _wsSubscription;
+  Timer? _webSocketHeartbeatTimer;
   final StreamController<NightshadeEvent> _eventController =
       StreamController<NightshadeEvent>.broadcast();
+  final StreamController<Map<String, dynamic>> _pushNotificationController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   /// Persistent HTTP client for connection reuse.
   /// Using a single client avoids TCP connection churn and enables
@@ -51,6 +119,9 @@ class NetworkBackend implements NightshadeBackend {
       StreamController<BackendConnectionState>.broadcast();
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
+  DateTime? _lastWebSocketMessageAt;
+  bool _disposed = false;
+  int _requestCounter = 0;
   static const int _maxReconnectDelay = 30; // Max 30 seconds
 
   NetworkBackend({
@@ -58,6 +129,8 @@ class NetworkBackend implements NightshadeBackend {
     this.serverPort = 8080,
     this.webSocketPort = 8080, // WebSocket is on same port as HTTP
     this.authToken,
+    this.webSocketHeartbeatInterval = const Duration(seconds: 15),
+    this.webSocketHeartbeatTimeout = const Duration(seconds: 45),
   }) {
     // Initialize persistent HTTP client with connection pooling
     _httpClient = HttpClient()
@@ -86,34 +159,106 @@ class NetworkBackend implements NightshadeBackend {
   /// Test connectivity to server
   Future<bool> testConnection() async {
     try {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
-      final request =
-          await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
-      final response =
-          await request.close().timeout(const Duration(seconds: 3));
-      return response.statusCode == 200;
+      final compatibility = await _checkServerCompatibility();
+      if (!compatibility.isCompatible) {
+        debugPrint('Connection rejected: ${compatibility.message}');
+        return false;
+      }
+
+      return true;
     } catch (e) {
       debugPrint('Connection test failed: $e');
       return false;
     }
   }
 
+  Future<RemoteApiCompatibilityResult> _checkServerCompatibility() async {
+    final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
+    final request =
+        await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
+    request.headers.set(
+      RemoteApiCompatibility.apiVersionHeader,
+      RemoteApiCompatibility.clientApiVersion.format(),
+    );
+    request.headers.set(_requestIdHeader, _nextRequestId('compat'));
+    final response = await request.close().timeout(const Duration(seconds: 3));
+    if (response.statusCode != 200) {
+      throw HttpException(
+        'GET /api/info failed with HTTP ${response.statusCode}',
+        uri: uri,
+      );
+    }
+
+    final responseBody = await response.transform(utf8.decoder).join();
+    final info = jsonDecode(responseBody) as Map<String, dynamic>;
+    return RemoteApiCompatibility.check(info['version'] as String?);
+  }
+
   /// Initialize the WebSocket connection for real-time events
   Future<void> connect() async {
     _reconnectTimer?.cancel();
+    if (_disposed) {
+      return;
+    }
 
     try {
+      _stopWebSocketHeartbeat();
       _updateConnectionState(BackendConnectionState.reconnecting);
 
-      final wsUri = Uri.parse('ws://$serverHost:$webSocketPort/events');
+      final compatibility = await _checkServerCompatibility();
+      if (!compatibility.isCompatible) {
+        debugPrint('Connection rejected: ${compatibility.message}');
+        _updateConnectionState(BackendConnectionState.disconnected);
+        return;
+      }
+
+      final queryParameters = <String, String>{};
+      if (authToken != null && authToken!.isNotEmpty) {
+        queryParameters['token'] = authToken!;
+      }
+      queryParameters['apiVersion'] =
+          RemoteApiCompatibility.clientApiVersion.format();
+      final wsUri = Uri(
+        scheme: 'ws',
+        host: serverHost,
+        port: webSocketPort,
+        path: '/events',
+        queryParameters: queryParameters.isEmpty ? null : queryParameters,
+      );
       _wsChannel = IOWebSocketChannel.connect(wsUri);
+      _lastWebSocketMessageAt = DateTime.now();
 
       // Cancel any existing subscription before creating a new one
       await _wsSubscription?.cancel();
       _wsSubscription = _wsChannel!.stream.listen(
         (message) {
           try {
+            _lastWebSocketMessageAt = DateTime.now();
             final json = jsonDecode(message as String) as Map<String, dynamic>;
+            final type = json['type'] as String?;
+
+            if (type == 'pong') {
+              return;
+            }
+
+            if (type == 'ping') {
+              _wsChannel?.sink.add(jsonEncode({
+                'type': 'pong',
+                'timestamp': DateTime.now().toUtc().toIso8601String(),
+              }));
+              return;
+            }
+
+            if (type == 'collaboration_state') {
+              return;
+            }
+
+            // Route push notifications to the dedicated stream
+            if (type == 'push_notification') {
+              _pushNotificationController.add(json);
+              return;
+            }
+
             final event = _eventFromJson(json);
             _eventController.add(event);
 
@@ -138,8 +283,24 @@ class NetworkBackend implements NightshadeBackend {
 
       // Connection successful
       _updateConnectionState(BackendConnectionState.connected);
+      final wasReconnect = _reconnectAttempt > 0;
       _reconnectAttempt = 0; // Reset reconnect counter on success
       debugPrint('[NetworkBackend] WebSocket connected successfully');
+      _startWebSocketHeartbeat();
+
+      // After a reconnect (not the initial connect), emit a synthetic event
+      // so downstream providers know the connection is back and can refresh
+      // their cached state. Events that occurred while disconnected are lost,
+      // so UI components watching this stream should re-fetch latest state.
+      if (wasReconnect) {
+        _eventController.add(NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          category: EventCategory.system,
+          eventType: 'BackendReconnected',
+          severity: EventSeverity.info,
+          data: const {'message': 'WebSocket reconnected'},
+        ));
+      }
     } catch (e) {
       debugPrint('Failed to connect WebSocket: $e');
       _handleConnectionFailure();
@@ -148,6 +309,14 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Handle connection failures with exponential backoff
   void _handleConnectionFailure() {
+    if (_disposed) {
+      return;
+    }
+    _stopWebSocketHeartbeat();
+    if (_connectionState == BackendConnectionState.disconnected &&
+        _reconnectTimer != null) {
+      return;
+    }
     _updateConnectionState(BackendConnectionState.disconnected);
 
     // Calculate exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
@@ -174,10 +343,48 @@ class NetworkBackend implements NightshadeBackend {
     });
   }
 
+  void _startWebSocketHeartbeat() {
+    _stopWebSocketHeartbeat();
+    if (webSocketHeartbeatInterval <= Duration.zero) {
+      return;
+    }
+
+    _webSocketHeartbeatTimer = Timer.periodic(webSocketHeartbeatInterval, (_) {
+      final lastMessageAt = _lastWebSocketMessageAt;
+      if (lastMessageAt != null &&
+          DateTime.now().difference(lastMessageAt) >
+              webSocketHeartbeatTimeout) {
+        debugPrint('[NetworkBackend] WebSocket heartbeat timed out');
+        _wsSubscription?.cancel();
+        _wsSubscription = null;
+        _wsChannel?.sink.close();
+        _wsChannel = null;
+        _handleConnectionFailure();
+        return;
+      }
+
+      try {
+        _wsChannel?.sink.add(jsonEncode({
+          'type': 'ping',
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+        }));
+      } catch (e) {
+        debugPrint('[NetworkBackend] Failed to send WebSocket heartbeat: $e');
+        _handleConnectionFailure();
+      }
+    });
+  }
+
+  void _stopWebSocketHeartbeat() {
+    _webSocketHeartbeatTimer?.cancel();
+    _webSocketHeartbeatTimer = null;
+  }
+
   /// Disconnect from the server
   Future<void> disconnect() async {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _stopWebSocketHeartbeat();
     await _wsSubscription?.cancel();
     _wsSubscription = null;
     await _wsChannel?.sink.close();
@@ -188,24 +395,51 @@ class NetworkBackend implements NightshadeBackend {
   /// Dispose resources
   @override
   void dispose() {
+    _disposed = true;
     _reconnectTimer?.cancel();
+    _stopWebSocketHeartbeat();
     _wsSubscription?.cancel();
     _wsChannel?.sink.close();
     _httpClient.close(force: true);
     _eventController.close();
     _connectionStateController.close();
     _polarAlignController.close();
+    _pushNotificationController.close();
   }
 
   @override
   Stream<NightshadeEvent> get eventStream => _eventController.stream;
 
+  /// Stream of push notifications received from the desktop server.
+  ///
+  /// Each map contains 'title', 'body', 'priority', 'eventType', 'category',
+  /// and 'timestamp' fields as sent by PushNotificationService.
+  Stream<Map<String, dynamic>> get pushNotificationStream =>
+      _pushNotificationController.stream;
+
   // =========================================================================
   // HTTP Helper Methods
   // =========================================================================
 
-  /// Add authentication headers to HTTP requests
-  Map<String, String> _addAuthHeaders(Map<String, String> headers) {
+  String _nextRequestId(String endpoint) {
+    _requestCounter = (_requestCounter + 1) % 0xFFFFF;
+    final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final seq = _requestCounter.toRadixString(36);
+    final safeEndpoint = endpoint
+        .replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '')
+        .toLowerCase();
+    return 'nb-$ts-$seq-${safeEndpoint.isEmpty ? 'request' : safeEndpoint}';
+  }
+
+  /// Add authentication, compatibility, and trace headers to HTTP requests.
+  Map<String, String> _addAuthHeaders(
+    Map<String, String> headers, {
+    required String endpoint,
+  }) {
+    headers[RemoteApiCompatibility.apiVersionHeader] =
+        RemoteApiCompatibility.clientApiVersion.format();
+    headers[_requestIdHeader] = _nextRequestId(endpoint);
     if (authToken != null) {
       headers['Authorization'] = 'Bearer $authToken';
     }
@@ -350,15 +584,18 @@ class NetworkBackend implements NightshadeBackend {
   Future<Map<String, dynamic>> _get(String endpoint,
       [Map<String, dynamic>? queryParams]) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint')
-          .replace(
-              queryParameters:
-                  queryParams?.map((k, v) => MapEntry(k, v.toString())) ?? {});
+      final baseUri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final uri = queryParams == null
+          ? baseUri
+          : baseUri.replace(queryParameters: {
+              ...baseUri.queryParameters,
+              ...queryParams.map((k, v) => MapEntry(k, v.toString())),
+            });
 
       final request = await _httpClient.getUrl(uri);
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -384,7 +621,7 @@ class NetworkBackend implements NightshadeBackend {
       request.headers.contentType = ContentType.json;
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -412,7 +649,7 @@ class NetworkBackend implements NightshadeBackend {
       final request = await _httpClient.deleteUrl(uri);
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -436,7 +673,7 @@ class NetworkBackend implements NightshadeBackend {
       request.headers.contentType = ContentType.json;
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -455,6 +692,100 @@ class NetworkBackend implements NightshadeBackend {
 
       return jsonDecode(responseBody) as Map<String, dynamic>;
     });
+  }
+
+  Future<Uint8List> _downloadBytes(String endpoint) async {
+    return _retryableRequest(() async {
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final request = await _httpClient.getUrl(uri);
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'GET', endpoint);
+      }
+
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      return Uint8List.fromList(bytes);
+    });
+  }
+
+  Future<Map<String, dynamic>> _postRaw(
+    String endpoint,
+    Map<String, dynamic> queryParams,
+    Uint8List bytes, {
+    String contentType = 'application/octet-stream',
+  }) async {
+    return _retryableRequest(() async {
+      final uri =
+          Uri.parse('http://$serverHost:$serverPort/api/$endpoint').replace(
+        queryParameters:
+            queryParams.map((key, value) => MapEntry(key, value.toString())),
+      );
+      final request = await _httpClient.postUrl(uri);
+      request.headers.contentType = ContentType.parse(contentType);
+
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      request.add(bytes);
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode != 200) {
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'POST', endpoint);
+      }
+
+      return jsonDecode(responseBody) as Map<String, dynamic>;
+    });
+  }
+
+  Future<Uint8List> _postRawBytes(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    return _retryableRequest(() async {
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final request = await _httpClient.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+
+      final headers = _addAuthHeaders({}, endpoint: endpoint);
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      request.write(jsonEncode(body));
+
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'POST', endpoint);
+      }
+
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      return Uint8List.fromList(bytes);
+    });
+  }
+
+  List<T> _rowsFromJson<T>(
+    Object? source,
+    T Function(Map<String, dynamic>) decoder,
+  ) {
+    final rows = source as List? ?? const [];
+    return rows
+        .whereType<Map>()
+        .map((row) => decoder(row.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   // =========================================================================
@@ -497,13 +828,12 @@ class NetworkBackend implements NightshadeBackend {
     // Filter by requested type and convert
     final filtered = deviceList
         .where((d) {
-          final typeStr = (d['type'] as String).toLowerCase();
-          final requestedTypeStr = deviceType.name.toLowerCase();
-          // Handle filterwheel vs filterWheel naming
-          if (requestedTypeStr == 'filterwheel') {
-            return typeStr == 'filterwheel' || typeStr == 'filterwheel';
+          final typeValue = d['deviceType'] ?? d['type'];
+          if (typeValue is! String) {
+            return false;
           }
-          return typeStr == requestedTypeStr;
+          return _normalizeDeviceType(typeValue) ==
+              _normalizeDeviceType(deviceType.name);
         })
         .map((d) => DeviceInfo(
               id: d['id'] as String,
@@ -518,6 +848,10 @@ class NetworkBackend implements NightshadeBackend {
     debugPrint(
         '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices');
     return filtered;
+  }
+
+  String _normalizeDeviceType(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
   Future<List<Map<String, dynamic>>> _fetchDevicesFromServer() async {
@@ -542,7 +876,7 @@ class NetworkBackend implements NightshadeBackend {
       'port': port.toString(),
     });
 
-    final devices = response as List<dynamic>? ?? [];
+    final devices = (response['devices'] as List?) ?? const [];
     return devices
         .map((d) => DeviceInfo(
               id: d['id'] as String? ?? '',
@@ -569,7 +903,7 @@ class NetworkBackend implements NightshadeBackend {
       'port': port.toString(),
     });
 
-    final devices = response as List<dynamic>? ?? [];
+    final devices = (response['devices'] as List?) ?? const [];
     return devices
         .map((d) => DeviceInfo(
               id: d['id'] as String? ?? '',
@@ -661,7 +995,7 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
-    final response = await _get('camera/last-image?deviceId=$deviceId');
+    final response = await _get('camera/last-image', {'deviceId': deviceId});
     if (response['image'] == null) return null;
 
     final img = response['image'] as Map<String, dynamic>;
@@ -696,6 +1030,14 @@ class NetworkBackend implements NightshadeBackend {
       'deviceId': deviceId,
       'enabled': enabled,
       if (targetTemp != null) 'targetTemp': targetTemp,
+    });
+  }
+
+  @override
+  Future<void> cameraSetReadoutMode(String deviceId, int modeIndex) async {
+    await _post('camera/readoutMode', {
+      'deviceId': deviceId,
+      'modeIndex': modeIndex,
     });
   }
 
@@ -796,6 +1138,21 @@ class NetworkBackend implements NightshadeBackend {
     });
   }
 
+  @override
+  Future<void> mountSlewAltAz(
+      String deviceId, double altitude, double azimuth) async {
+    await _post('mount/slew-alt-az', {
+      'deviceId': deviceId,
+      'altitude': altitude,
+      'azimuth': azimuth,
+    });
+  }
+
+  @override
+  Future<void> mountFindHome(String deviceId) async {
+    await _post('mount/find-home', {'deviceId': deviceId});
+  }
+
   // =========================================================================
   // Focuser Control
   // =========================================================================
@@ -830,6 +1187,17 @@ class NetworkBackend implements NightshadeBackend {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    String curveFitting = 'Hyperbolic',
+    int numberOfAttempts = 1,
+    int exposuresPerPoint = 1,
+    double rSquaredThreshold = 0.7,
+    double outerCropRatio = 1.0,
+    double innerCropRatio = 0.0,
+    int useBrightestNStars = 0,
+    int focuserSettleTimeMs = 500,
+    String backlashCompMethod = 'Overshoot',
+    int backlashIn = 350,
+    int backlashOut = 0,
   }) async {
     final response = await _post('focuser/autofocus/start', {
       'deviceId': deviceId,
@@ -839,6 +1207,17 @@ class NetworkBackend implements NightshadeBackend {
       'stepsOut': stepsOut,
       'method': method,
       'binning': binning,
+      'curveFitting': curveFitting,
+      'numberOfAttempts': numberOfAttempts,
+      'exposuresPerPoint': exposuresPerPoint,
+      'rSquaredThreshold': rSquaredThreshold,
+      'outerCropRatio': outerCropRatio,
+      'innerCropRatio': innerCropRatio,
+      'useBrightestNStars': useBrightestNStars,
+      'focuserSettleTimeMs': focuserSettleTimeMs,
+      'backlashCompMethod': backlashCompMethod,
+      'backlashIn': backlashIn,
+      'backlashOut': backlashOut,
     });
 
     // Parse using pure Dart types from JSON
@@ -978,7 +1357,7 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
-    final response = await _get('phd2/star-image?size=$size');
+    final response = await _get('phd2/star-image', {'size': size});
     // Decode pixels from base64
     final pixelsBase64 = response['pixels'] as String;
     final pixels = base64Decode(pixelsBase64);
@@ -994,7 +1373,7 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<List<String>> phd2GetAlgoParamNames({required String axis}) async {
-    final response = await _get('phd2/algo-params?axis=$axis');
+    final response = await _get('phd2/algo-params', {'axis': axis});
     final params = response['params'] as List<dynamic>;
     return params.map((e) => e as String).toList();
   }
@@ -1004,8 +1383,8 @@ class NetworkBackend implements NightshadeBackend {
     required String axis,
     required String name,
   }) async {
-    final response = await _get(
-        'phd2/algo-param?axis=$axis&name=${Uri.encodeComponent(name)}');
+    final response =
+        await _get('phd2/algo-param', {'axis': axis, 'name': name});
     return (response['value'] as num).toDouble();
   }
 
@@ -1095,31 +1474,17 @@ class NetworkBackend implements NightshadeBackend {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    // Route to appropriate guider implementation based on device ID
-    if (deviceId == 'phd2_guider') {
-      await phd2StartGuiding(
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported in the network backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await _post('guider/start-guiding', {
+      'deviceId': deviceId,
+      'settlePixels': settlePixels,
+      'settleTime': settleTime,
+      'settleTimeout': settleTimeout,
+    });
   }
 
   @override
   Future<void> guiderStopGuiding({required String deviceId}) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2StopGuiding();
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported in the network backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await _post('guider/stop-guiding', {'deviceId': deviceId});
   }
 
   @override
@@ -1131,20 +1496,88 @@ class NetworkBackend implements NightshadeBackend {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2Dither(
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported for dithering in the network backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await _post('guider/dither', {
+      'deviceId': deviceId,
+      'amount': amount,
+      'raOnly': raOnly,
+      'settlePixels': settlePixels,
+      'settleTime': settleTime,
+      'settleTimeout': settleTimeout,
+    });
+  }
+
+  @override
+  Future<void> guiderLoop({required String deviceId}) async {
+    await _post('guider/loop', {'deviceId': deviceId});
+  }
+
+  @override
+  Future<(double, double)> guiderFindStar({required String deviceId}) async {
+    final response = await _post('guider/find-star', {'deviceId': deviceId});
+    return (
+      (response['x'] as num).toDouble(),
+      (response['y'] as num).toDouble(),
+    );
+  }
+
+  @override
+  Future<void> guiderSetLockPosition({
+    required String deviceId,
+    required double x,
+    required double y,
+    bool exact = false,
+  }) async {
+    await _post('guider/set-lock-position', {
+      'deviceId': deviceId,
+      'x': x,
+      'y': y,
+      'exact': exact,
+    });
+  }
+
+  @override
+  Future<(double, double)> guiderGetLockPosition(
+      {required String deviceId}) async {
+    final response = await _get(
+        'guider/lock-position?deviceId=${Uri.encodeQueryComponent(deviceId)}');
+    return (
+      (response['x'] as num).toDouble(),
+      (response['y'] as num).toDouble(),
+    );
+  }
+
+  @override
+  Future<void> guiderDeselectStar({required String deviceId}) async {
+    await _post('guider/deselect-star', {'deviceId': deviceId});
+  }
+
+  @override
+  Future<Phd2StarImage> guiderGetStarImage({
+    required String deviceId,
+    int size = 50,
+  }) async {
+    final response = await _get(
+      'guider/star-image?deviceId=${Uri.encodeQueryComponent(deviceId)}&size=$size',
+    );
+    return Phd2StarImage(
+      frame: response['frame'] as int,
+      width: response['width'] as int,
+      height: response['height'] as int,
+      starX: (response['starX'] as num).toDouble(),
+      starY: (response['starY'] as num).toDouble(),
+      pixels: base64Decode(response['pixels'] as String),
+    );
+  }
+
+  @override
+  Future<BuiltinGuiderConfig> builtinGuiderGetConfig() async {
+    final response = await _get('builtin-guider/config');
+    return BuiltinGuiderConfig.fromJson(response);
+  }
+
+  @override
+  Future<void> builtinGuiderSetConfig(BuiltinGuiderConfig config) async {
+    await _post('builtin-guider/config', config.toJson());
   }
 
   // =========================================================================
@@ -1254,6 +1687,39 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerUpdateDitherConfig({
+    required double pixels,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+    required bool raOnly,
+  }) async {
+    await _post('sequencer/update-dither-config', {
+      'pixels': pixels,
+      'settlePixels': settlePixels,
+      'settleTime': settleTime,
+      'settleTimeout': settleTimeout,
+      'raOnly': raOnly,
+    });
+  }
+
+  @override
+  Future<void> sequencerUpdateLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    await _post('sequencer/update-location', {
+      'latitude': latitude,
+      'longitude': longitude,
+    });
+  }
+
+  @override
+  Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets) async {
+    await _post('sequencer/update-filter-offsets', {'offsets': offsets});
+  }
+
+  @override
   Future<SequencerStatus> sequencerGetStatus() async {
     final response = await _get('sequencer/status');
     return SequencerStatus(
@@ -1318,32 +1784,36 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<CameraStatus> getCameraStatus(String deviceId) async {
-    final response = await _get('equipment/camera/status?deviceId=$deviceId');
+    final response =
+        await _get('equipment/camera/status', {'deviceId': deviceId});
     return CameraStatus.fromJson(response);
   }
 
   @override
   Future<MountStatus> getMountStatus(String deviceId) async {
-    final response = await _get('equipment/mount/status?deviceId=$deviceId');
+    final response =
+        await _get('equipment/mount/status', {'deviceId': deviceId});
     return MountStatus.fromJson(response);
   }
 
   @override
   Future<FocuserStatus> getFocuserStatus(String deviceId) async {
-    final response = await _get('equipment/focuser/status?deviceId=$deviceId');
+    final response =
+        await _get('equipment/focuser/status', {'deviceId': deviceId});
     return FocuserStatus.fromJson(response);
   }
 
   @override
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
     final response =
-        await _get('equipment/filter-wheel/status?deviceId=$deviceId');
+        await _get('equipment/filter-wheel/status', {'deviceId': deviceId});
     return FilterWheelStatus.fromJson(response);
   }
 
   @override
   Future<RotatorStatus> getRotatorStatus(String deviceId) async {
-    final response = await _get('equipment/rotator/status?deviceId=$deviceId');
+    final response =
+        await _get('equipment/rotator/status', {'deviceId': deviceId});
     return RotatorStatus.fromJson(response);
   }
 
@@ -1355,7 +1825,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
       final response =
-          await _get('equipment/camera/capabilities?deviceId=$deviceId');
+          await _get('equipment/camera/capabilities', {'deviceId': deviceId});
       return CameraCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get camera capabilities: $e');
@@ -1367,7 +1837,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
     try {
       final response =
-          await _get('equipment/mount/capabilities?deviceId=$deviceId');
+          await _get('equipment/mount/capabilities', {'deviceId': deviceId});
       return MountCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get mount capabilities: $e');
@@ -1379,7 +1849,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
     try {
       final response =
-          await _get('equipment/focuser/capabilities?deviceId=$deviceId');
+          await _get('equipment/focuser/capabilities', {'deviceId': deviceId});
       return FocuserCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get focuser capabilities: $e');
@@ -1391,8 +1861,8 @@ class NetworkBackend implements NightshadeBackend {
   Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
       String deviceId) async {
     try {
-      final response =
-          await _get('equipment/filter-wheel/capabilities?deviceId=$deviceId');
+      final response = await _get(
+          'equipment/filter-wheel/capabilities', {'deviceId': deviceId});
       return FilterWheelCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get filter wheel capabilities: $e');
@@ -1404,7 +1874,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     try {
       final response =
-          await _get('equipment/rotator/capabilities?deviceId=$deviceId');
+          await _get('equipment/rotator/capabilities', {'deviceId': deviceId});
       return RotatorCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get rotator capabilities: $e');
@@ -1609,8 +2079,10 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
       {int maxCrops = 5}) async {
-    final response =
-        await _get('imaging/star-crops?deviceId=$deviceId&maxCrops=$maxCrops');
+    final response = await _get('imaging/star-crops', {
+      'deviceId': deviceId,
+      'maxCrops': maxCrops,
+    });
     final crops = response['crops'] as List<dynamic>;
     return crops
         .map((crop) => StarCrop.fromJson(crop as Map<String, dynamic>))
@@ -1684,8 +2156,7 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
-    final response = await _get('sessions/$sessionId/images');
-    final imagesList = (response['images'] as List?) ?? [];
+    final imagesList = await getSessionImageRows(sessionId);
 
     return imagesList.map((img) {
       return CapturedImage(
@@ -1712,6 +2183,24 @@ class NetworkBackend implements NightshadeBackend {
         format: _parseImageFormat(img['file_format'] as String),
       );
     }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getSessionImageRows(int sessionId) async {
+    final response = await _get('sessions/$sessionId/images');
+    final images = response['images'] as List? ?? [];
+    return images.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getAllImageRows() async {
+    final response = await _get('images');
+    final images = response['images'] as List? ?? [];
+    return images.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getStandaloneImageRows() async {
+    final response = await _get('images/standalone');
+    final images = response['images'] as List? ?? [];
+    return images.cast<Map<String, dynamic>>();
   }
 
   @override
@@ -1850,7 +2339,7 @@ class NetworkBackend implements NightshadeBackend {
       final request = await _httpClient.getUrl(uri);
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: 'imaging/raw-data');
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -1890,7 +2379,7 @@ class NetworkBackend implements NightshadeBackend {
       request.headers.contentType = ContentType.json;
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders({}, endpoint: 'imaging/save-fits');
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -1940,7 +2429,10 @@ class NetworkBackend implements NightshadeBackend {
       request.headers.contentType = ContentType.json;
 
       // Add authentication headers
-      final headers = _addAuthHeaders({});
+      final headers = _addAuthHeaders(
+        {},
+        endpoint: 'imaging/save-fits-from-capture',
+      );
       headers.forEach((key, value) {
         request.headers.set(key, value);
       });
@@ -2296,6 +2788,30 @@ class NetworkBackend implements NightshadeBackend {
     return response['stats'] as Map<String, dynamic>? ?? {};
   }
 
+  Future<Uint8List> downloadSessionExport(int sessionId, String format) async {
+    return _downloadBytes('sessions/$sessionId/export/$format');
+  }
+
+  Future<List<PsfFieldTileRow>> getSessionPsfTiles(int sessionId) async {
+    final response = await _get('sessions/$sessionId/psf-tiles');
+    final tiles = response['psfTiles'] as List? ?? [];
+    return tiles
+        .cast<Map<String, dynamic>>()
+        .map(_psfFieldTileFromJson)
+        .toList();
+  }
+
+  Future<List<AstrometryResidualVectorRow>> getSessionResidualVectors(
+    int sessionId,
+  ) async {
+    final response = await _get('sessions/$sessionId/residuals');
+    final residuals = response['residuals'] as List? ?? [];
+    return residuals
+        .cast<Map<String, dynamic>>()
+        .map(_residualVectorFromJson)
+        .toList();
+  }
+
   /// Get analytics summary
   Future<Map<String, dynamic>> getAnalyticsSummary(
       {DateTime? startDate, DateTime? endDate}) async {
@@ -2485,27 +3001,249 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Download backup file bytes
   Future<Uint8List> downloadBackup(String backupId) async {
-    return _retryableRequest(() async {
-      final uri = Uri.parse(
-          'http://$serverHost:$serverPort/api/backup/$backupId/download');
+    return _downloadBytes('backup/$backupId/download');
+  }
 
-      final request = await _httpClient.getUrl(uri);
+  Future<Map<String, dynamic>> uploadBackupAndRestore(
+    Uint8List bytes,
+    String fileName, {
+    bool replaceExisting = false,
+  }) async {
+    return _postRaw(
+      'backup/upload-restore',
+      {
+        'fileName': fileName,
+        'replaceExisting': replaceExisting,
+      },
+      bytes,
+      contentType: 'application/octet-stream',
+    );
+  }
 
-      // Add authentication headers
-      final headers = _addAuthHeaders({});
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+  Future<RemoteScienceBundle> getScienceSessionBundle(int sessionId) async {
+    final response = await _get('science/session/$sessionId/bundle');
+    return RemoteScienceBundle(
+      photometry: _rowsFromJson<PhotometryMeasurementRow>(
+        response['photometry'],
+        PhotometryMeasurementRow.fromJson,
+      ),
+      calibrations: _rowsFromJson<FramePhotometricCalibrationRow>(
+        response['calibrations'],
+        FramePhotometricCalibrationRow.fromJson,
+      ),
+      transparency: _rowsFromJson<TransparencySampleRow>(
+        response['transparency'],
+        TransparencySampleRow.fromJson,
+      ),
+      psfTiles: _rowsFromJson<PsfFieldTileRow>(
+        response['psfTiles'],
+        PsfFieldTileRow.fromJson,
+      ),
+      frameQuality: _rowsFromJson<ScienceFrameQualityMetricsRow>(
+        response['frameQuality'],
+        ScienceFrameQualityMetricsRow.fromJson,
+      ),
+      tileMetrics: _rowsFromJson<ScienceTileMetricRow>(
+        response['tileMetrics'],
+        ScienceTileMetricRow.fromJson,
+      ),
+      residuals: _rowsFromJson<AstrometryResidualVectorRow>(
+        response['residuals'],
+        AstrometryResidualVectorRow.fromJson,
+      ),
+      movingObjects: _rowsFromJson<MovingObjectCandidateRow>(
+        response['movingObjects'],
+        MovingObjectCandidateRow.fromJson,
+      ),
+      lineRatios: _rowsFromJson<LineRatioProductRow>(
+        response['lineRatios'],
+        LineRatioProductRow.fromJson,
+      ),
+    );
+  }
 
-      final response = await request.close();
+  Future<RemoteScienceBundle> getSessionlessScienceBundle() async {
+    final response = await _get('science/sessionless/recent');
+    return RemoteScienceBundle(
+      photometry: _rowsFromJson<PhotometryMeasurementRow>(
+        response['photometry'],
+        PhotometryMeasurementRow.fromJson,
+      ),
+      calibrations: _rowsFromJson<FramePhotometricCalibrationRow>(
+        response['calibrations'],
+        FramePhotometricCalibrationRow.fromJson,
+      ),
+      transparency: _rowsFromJson<TransparencySampleRow>(
+        response['transparency'],
+        TransparencySampleRow.fromJson,
+      ),
+      psfTiles: _rowsFromJson<PsfFieldTileRow>(
+        response['psfTiles'],
+        PsfFieldTileRow.fromJson,
+      ),
+      frameQuality: _rowsFromJson<ScienceFrameQualityMetricsRow>(
+        response['frameQuality'],
+        ScienceFrameQualityMetricsRow.fromJson,
+      ),
+      tileMetrics: _rowsFromJson<ScienceTileMetricRow>(
+        response['tileMetrics'],
+        ScienceTileMetricRow.fromJson,
+      ),
+      residuals: _rowsFromJson<AstrometryResidualVectorRow>(
+        response['residuals'],
+        AstrometryResidualVectorRow.fromJson,
+      ),
+      movingObjects: _rowsFromJson<MovingObjectCandidateRow>(
+        response['movingObjects'],
+        MovingObjectCandidateRow.fromJson,
+      ),
+      lineRatios: _rowsFromJson<LineRatioProductRow>(
+        response['lineRatios'],
+        LineRatioProductRow.fromJson,
+      ),
+    );
+  }
 
-      if (response.statusCode != 200) {
-        throw Exception(
-            'HTTP ${response.statusCode}: Failed to download backup');
-      }
+  Future<List<PhotometricTransformRow>> getPhotometricTransforms({
+    int? profileId,
+  }) async {
+    final response = await _get(
+      'science/transforms',
+      profileId == null ? null : {'profileId': profileId.toString()},
+    );
+    return _rowsFromJson<PhotometricTransformRow>(
+      response['transforms'],
+      PhotometricTransformRow.fromJson,
+    );
+  }
 
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      return Uint8List.fromList(bytes);
+  Future<List<CatalogStarMatch>> matchPhotometricCalibrationStars(
+    int imageId,
+  ) async {
+    final response = await _post(
+      'science/calibration/image/$imageId/match-stars',
+      const {},
+    );
+    return _rowsFromJson<CatalogStarMatch>(
+      response['starMatches'],
+      CatalogStarMatch.fromJson,
+    );
+  }
+
+  Future<PhotometricTransformCoefficients?> computePhotometricTransform({
+    required List<CatalogStarMatch> starMatches,
+    required String filterName,
+    int? equipmentProfileId,
+  }) async {
+    final response = await _post(
+      'science/calibration/compute-transform',
+      {
+        'starMatches': starMatches.map((match) => match.toJson()).toList(),
+        'filterName': filterName,
+        if (equipmentProfileId != null)
+          'equipmentProfileId': equipmentProfileId,
+      },
+    );
+    final coefficients = response['coefficients'];
+    if (coefficients is Map<String, dynamic>) {
+      return PhotometricTransformCoefficients.fromJson(coefficients);
+    }
+    if (coefficients is Map) {
+      return PhotometricTransformCoefficients.fromJson(
+        coefficients.cast<String, dynamic>(),
+      );
+    }
+    return null;
+  }
+
+  Future<int> savePhotometricTransform(
+    PhotometricTransformCoefficients coefficients,
+  ) async {
+    final response = await _post(
+      'science/calibration/save-transform',
+      {'coefficients': coefficients.toJson()},
+    );
+    return (response['id'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<Map<String, dynamic>> generateSessionLineRatios(int sessionId) async {
+    return _post('science/session/$sessionId/generate-line-ratios', {});
+  }
+
+  Future<Map<String, String>> getScienceSettings() async {
+    final response = await _get('science/settings');
+    return (response['settings'] as Map? ?? const {})
+        .cast<String, dynamic>()
+        .map((key, value) => MapEntry(key, value.toString()));
+  }
+
+  Future<void> updateScienceSettings(Map<String, String> settings) async {
+    await _post('science/settings', {'settings': settings});
+  }
+
+  Future<ScienceSessionConfig?> getScienceSessionConfig(int sessionId) async {
+    final response = await _get('science/session/$sessionId/config');
+    final config = response['config'];
+    if (config is Map<String, dynamic>) {
+      return ScienceSessionConfig.fromJson(config);
+    }
+    if (config is Map) {
+      return ScienceSessionConfig.fromJson(config.cast<String, dynamic>());
+    }
+    return null;
+  }
+
+  Future<void> updateScienceSessionConfig(
+    int sessionId,
+    ScienceSessionConfig config,
+  ) async {
+    await _post('science/session/$sessionId/config', {
+      'config': config.toJson(),
+    });
+  }
+
+  Future<Uint8List> exportSessionAavso(
+    int sessionId, {
+    required String targetStarName,
+    String? filterBand,
+    String? chartId,
+  }) async {
+    return _postRawBytes(
+      'science/session/$sessionId/export/aavso',
+      {
+        'targetStarName': targetStarName,
+        if (filterBand != null && filterBand.isNotEmpty)
+          'filterBand': filterBand,
+        if (chartId != null && chartId.isNotEmpty) 'chartId': chartId,
+      },
+    );
+  }
+
+  Future<Uint8List> generateObservationReport(int sessionId) async {
+    return _downloadBytes('science/session/$sessionId/report/pdf');
+  }
+
+  // =========================================================================
+  // Remote Filesystem
+  // =========================================================================
+
+  Future<RemoteDirectoryListing> browseRemoteDirectories({String? path}) async {
+    final response = await _get(
+      'files/browse',
+      path == null || path.isEmpty ? null : {'path': path},
+    );
+    return RemoteDirectoryListing.fromJson(response);
+  }
+
+  Future<Map<String, dynamic>> validateRemoteDirectory(
+    String path, {
+    bool mustExist = false,
+    bool mustBeWritable = false,
+  }) async {
+    return _post('files/validate', {
+      'path': path,
+      'mustExist': mustExist,
+      'mustBeWritable': mustBeWritable,
     });
   }
 
@@ -2634,8 +3372,10 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Get safety status
   Future<Map<String, dynamic>> getSafetyStatus({String? deviceId}) async {
-    final query = deviceId != null ? '?deviceId=$deviceId' : '';
-    return await _get('safety/status$query');
+    return await _get(
+      'safety/status',
+      deviceId != null ? {'deviceId': deviceId} : null,
+    );
   }
 
   /// Get safety settings
@@ -2725,11 +3465,11 @@ class NetworkBackend implements NightshadeBackend {
     required double dec,
     DateTime? time,
   }) async {
-    var query = 'ra=$ra&dec=$dec';
-    if (time != null) {
-      query += '&time=${time.toIso8601String()}';
-    }
-    return await _get('scheduler/altitude?$query');
+    return await _get('scheduler/altitude', {
+      'ra': ra,
+      'dec': dec,
+      if (time != null) 'time': time.toIso8601String(),
+    });
   }
 
   /// Get transit time for object
@@ -2737,7 +3477,7 @@ class NetworkBackend implements NightshadeBackend {
     required double ra,
     required double dec,
   }) async {
-    return await _get('scheduler/transit-time?ra=$ra&dec=$dec');
+    return await _get('scheduler/transit-time', {'ra': ra, 'dec': dec});
   }
 
   /// Get rise and set times for object
@@ -2746,11 +3486,11 @@ class NetworkBackend implements NightshadeBackend {
     required double dec,
     double? minAltitude,
   }) async {
-    var query = 'ra=$ra&dec=$dec';
-    if (minAltitude != null) {
-      query += '&minAltitude=$minAltitude';
-    }
-    return await _get('scheduler/rise-set?$query');
+    return await _get('scheduler/rise-set', {
+      'ra': ra,
+      'dec': dec,
+      if (minAltitude != null) 'minAltitude': minAltitude,
+    });
   }
 
   /// Get hours object is above altitude
@@ -2759,8 +3499,11 @@ class NetworkBackend implements NightshadeBackend {
     required double dec,
     double minAltitude = 30.0,
   }) async {
-    return await _get(
-        'scheduler/hours-above-horizon?ra=$ra&dec=$dec&minAltitude=$minAltitude');
+    return await _get('scheduler/hours-above-horizon', {
+      'ra': ra,
+      'dec': dec,
+      'minAltitude': minAltitude,
+    });
   }
 
   /// Optimize target order for imaging
@@ -2778,14 +3521,18 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Get twilight times for tonight
   Future<Map<String, dynamic>> getTwilightTimes({DateTime? date}) async {
-    final query = date != null ? '?date=${date.toIso8601String()}' : '';
-    return await _get('scheduler/twilight-times$query');
+    return await _get(
+      'scheduler/twilight-times',
+      date != null ? {'date': date.toIso8601String()} : null,
+    );
   }
 
   /// Get moon information
   Future<Map<String, dynamic>> getMoonInfo({DateTime? date}) async {
-    final query = date != null ? '?date=${date.toIso8601String()}' : '';
-    return await _get('scheduler/moon-info$query');
+    return await _get(
+      'scheduler/moon-info',
+      date != null ? {'date': date.toIso8601String()} : null,
+    );
   }
 
   // ===========================================================================
@@ -2827,11 +3574,10 @@ class NetworkBackend implements NightshadeBackend {
     required double temperature,
     String? filter,
   }) async {
-    var query = 'temperature=$temperature';
-    if (filter != null) {
-      query += '&filter=$filter';
-    }
-    return await _get('focus-model/predict?$query');
+    return await _get('focus-model/predict', {
+      'temperature': temperature,
+      if (filter != null) 'filter': filter,
+    });
   }
 
   /// Get per-filter focus offsets
@@ -2856,11 +3602,11 @@ class NetworkBackend implements NightshadeBackend {
     required double lastFocusTemp,
     int? maxDriftSteps,
   }) async {
-    var query = 'currentTemp=$currentTemp&lastFocusTemp=$lastFocusTemp';
-    if (maxDriftSteps != null) {
-      query += '&maxDriftSteps=$maxDriftSteps';
-    }
-    return await _get('focus-model/should-refocus?$query');
+    return await _get('focus-model/should-refocus', {
+      'currentTemp': currentTemp,
+      'lastFocusTemp': lastFocusTemp,
+      if (maxDriftSteps != null) 'maxDriftSteps': maxDriftSteps,
+    });
   }
 
   /// Export focus data as JSON
@@ -2879,12 +3625,12 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Get PHD2 star image
   Future<Map<String, dynamic>> getPhd2StarImage({int size = 50}) async {
-    return await _get('phd2/star-image?size=$size');
+    return await _get('phd2/star-image', {'size': size});
   }
 
   /// Get PHD2 algorithm parameter names
   Future<List<String>> getPhd2AlgoParamNames(String axis) async {
-    final response = await _get('phd2/algo-params?axis=$axis');
+    final response = await _get('phd2/algo-params', {'axis': axis});
     return (response['parameters'] as List).cast<String>();
   }
 
@@ -2893,7 +3639,8 @@ class NetworkBackend implements NightshadeBackend {
     required String axis,
     required String name,
   }) async {
-    final response = await _get('phd2/algo-param?axis=$axis&name=$name');
+    final response =
+        await _get('phd2/algo-param', {'axis': axis, 'name': name});
     return (response['value'] as num).toDouble();
   }
 
@@ -2957,8 +3704,7 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Search catalog for objects
   Future<Map<String, dynamic>> planetariumCatalogSearch(String query) async {
-    return await _get(
-        'planetarium/catalog/search?query=${Uri.encodeComponent(query)}');
+    return await _get('planetarium/catalog/search', {'query': query});
   }
 
   /// Get objects in a region
@@ -2970,16 +3716,20 @@ class NetworkBackend implements NightshadeBackend {
     double? maxMagnitude,
     int? limit,
   }) async {
-    var queryParams = 'ra=$ra&dec=$dec&radius=$radius';
-    if (minMagnitude != null) queryParams += '&minMagnitude=$minMagnitude';
-    if (maxMagnitude != null) queryParams += '&maxMagnitude=$maxMagnitude';
-    if (limit != null) queryParams += '&limit=$limit';
-    return await _get('planetarium/catalog/region?$queryParams');
+    return await _get('planetarium/catalog/region', {
+      'ra': ra,
+      'dec': dec,
+      'radius': radius,
+      if (minMagnitude != null) 'minMagnitude': minMagnitude,
+      if (maxMagnitude != null) 'maxMagnitude': maxMagnitude,
+      if (limit != null) 'limit': limit,
+    });
   }
 
   /// Get detailed object info
   Future<Map<String, dynamic>> planetariumGetObject(String objectId) async {
-    return await _get('planetarium/catalog/object/$objectId');
+    return await _get(
+        'planetarium/catalog/object/${Uri.encodeComponent(objectId)}');
   }
 
   /// Get WebSocket subscription info for real-time updates
@@ -2990,6 +3740,44 @@ class NetworkBackend implements NightshadeBackend {
   /// Get observer location for planetarium calculations
   Future<Map<String, dynamic>> getPlanetariumLocation() async {
     return await _get('planetarium/location');
+  }
+
+  PsfFieldTileRow _psfFieldTileFromJson(Map<String, dynamic> json) {
+    return PsfFieldTileRow(
+      id: json['id'] as int,
+      capturedImageId: json['capturedImageId'] as int?,
+      sessionId: json['sessionId'] as int?,
+      tileRow: json['tileRow'] as int? ?? 0,
+      tileCol: json['tileCol'] as int? ?? 0,
+      starCount: json['starCount'] as int? ?? 0,
+      medianFwhm: (json['medianFwhm'] as num?)?.toDouble() ?? 0.0,
+      medianHfr: (json['medianHfr'] as num?)?.toDouble() ?? 0.0,
+      medianEccentricity:
+          (json['medianEccentricity'] as num?)?.toDouble() ?? 0.0,
+      roundness: (json['roundness'] as num?)?.toDouble() ?? 0.0,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        json['timestamp'] as int? ?? 0,
+      ),
+    );
+  }
+
+  AstrometryResidualVectorRow _residualVectorFromJson(
+    Map<String, dynamic> json,
+  ) {
+    return AstrometryResidualVectorRow(
+      id: json['id'] as int,
+      capturedImageId: json['capturedImageId'] as int?,
+      sessionId: json['sessionId'] as int?,
+      x: (json['x'] as num?)?.toDouble() ?? 0.0,
+      y: (json['y'] as num?)?.toDouble() ?? 0.0,
+      dxArcsec: (json['dxArcsec'] as num?)?.toDouble() ?? 0.0,
+      dyArcsec: (json['dyArcsec'] as num?)?.toDouble() ?? 0.0,
+      magnitudeArcsec: (json['magnitudeArcsec'] as num?)?.toDouble() ?? 0.0,
+      recommendationCode: json['recommendationCode'] as String?,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        json['timestamp'] as int? ?? 0,
+      ),
+    );
   }
 }
 

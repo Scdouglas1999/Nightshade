@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'widgets/profile_sidebar.dart';
 import 'widgets/connected_device_card.dart';
 import 'widgets/discovery_panel.dart';
+import 'widgets/equipment_health_panel.dart';
 import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
 import '../../utils/snackbar_helper.dart';
@@ -73,59 +76,70 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       screenId: 'equipment',
       tourCategory: TutorialCategory.equipmentTour,
       title: 'Equipment Tour',
-      description: 'Learn how to connect and manage your astrophotography equipment.',
+      description:
+          'Learn how to connect and manage your astrophotography equipment.',
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
-      child: Row(
-        children: [
-          // Profile Sidebar (collapsible, resizable)
-          _CollapsibleSidebar(
-            isCollapsed: sidebarCollapsed,
-            onToggle: () {
-              ref.read(equipmentSidebarCollapsedProvider.notifier).state = !sidebarCollapsed;
-            },
-            child: ProfileSidebar(
-              selectedProfileId: selectedProfileId,
-              onProfileSelected: (id) {
-                ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
+      child: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: Row(
+          children: [
+            // Profile Sidebar (collapsible, resizable)
+            _CollapsibleSidebar(
+              isCollapsed: sidebarCollapsed,
+              onToggle: () {
+                ref.read(equipmentSidebarCollapsedProvider.notifier).state =
+                    !sidebarCollapsed;
               },
-              onCreateProfile: () => _showProfileEditor(context, null),
-              onEditProfile: (profile) => _showProfileEditor(context, profile),
-              onConnectAll: _connectAllDevices,
-              onDisconnectAll: _disconnectAllDevices,
-              onSetDefault: _setDefaultProfile,
-              onDuplicateProfile: _duplicateProfile,
-              onDeleteProfile: _deleteProfile,
-              onReorderProfiles: _reorderProfiles,
-              onCollapse: () {
-                ref.read(equipmentSidebarCollapsedProvider.notifier).state = true;
-              },
+              child: ProfileSidebar(
+                selectedProfileId: selectedProfileId,
+                onProfileSelected: (id) {
+                  ref.read(selectedEquipmentProfileIdProvider.notifier).state =
+                      id;
+                },
+                onCreateProfile: () => _showProfileEditor(context, null),
+                onEditProfile: (profile) =>
+                    _showProfileEditor(context, profile),
+                onConnectAll: _connectAllDevices,
+                onDisconnectAll: _disconnectAllDevices,
+                onSetDefault: _setDefaultProfile,
+                onDuplicateProfile: _duplicateProfile,
+                onDeleteProfile: _deleteProfile,
+                onReorderProfiles: _reorderProfiles,
+                onCollapse: () {
+                  ref.read(equipmentSidebarCollapsedProvider.notifier).state =
+                      true;
+                },
+              ),
             ),
-          ),
 
-          // Main content area
-          Expanded(
-            child: Column(
-              children: [
-                // Dashboard header
-                _DashboardHeader(
-                  profileName: selectedProfile?.name,
-                  onSettings: () => _showSettings(context),
-                ),
-
-                // Device cards grid
-                Expanded(
-                  child: _DeviceDashboard(
-                    profile: selectedProfile,
+            // Main content area
+            Expanded(
+              child: Column(
+                children: [
+                  // Dashboard header
+                  _DashboardHeader(
+                    profileName: selectedProfile?.name,
+                    onSettings: () => _showSettings(context),
                   ),
-                ),
 
-                // Discovery panel (collapsible)
-                const DiscoveryPanel(),
-              ],
+                  // Equipment health panel (collapsible)
+                  const EquipmentHealthPanel(),
+
+                  // Device cards grid
+                  Expanded(
+                    child: _DeviceDashboard(
+                      profile: selectedProfile,
+                    ),
+                  ),
+
+                  // Discovery panel (collapsible)
+                  const DiscoveryPanel(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -134,7 +148,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   // Profile Operations
   // ============================================================================
 
-  Future<void> _showProfileEditor(BuildContext context, EquipmentProfileModel? profile) async {
+  Future<void> _showProfileEditor(
+      BuildContext context, EquipmentProfileModel? profile) async {
     await ProfileEditorDialog.show(context, profile: profile);
   }
 
@@ -158,10 +173,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     });
   }
 
-  Future<void> _setDefaultProfile(int profileId) async {
+  Future<void> _setDefaultProfile(EquipmentProfileModel profile) async {
     try {
-      final dao = ref.read(equipmentProfilesDaoProvider);
-      await dao.setActiveProfile(profileId);
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .setDefaultProfile(profile.id, makeActive: true);
       if (mounted) {
         context.showSuccessSnackBar('Default profile set');
       }
@@ -198,22 +214,47 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   Future<void> _deleteProfile(int profileId) async {
     try {
       final profileService = ref.read(profileServiceProvider);
+      final dao = ref.read(equipmentProfilesDaoProvider);
+      final deletedProfile = await dao.getProfileById(profileId);
+      if (deletedProfile == null) {
+        throw StateError('Profile $profileId no longer exists');
+      }
+      final deletedProfileJson =
+          await profileService.exportProfileToJson(profileId);
       await profileService.deleteProfile(profileId);
 
       // If we deleted the selected profile, select another one
       final selectedId = ref.read(selectedEquipmentProfileIdProvider);
       if (selectedId == profileId) {
         final profiles = ref.read(sortedProfilesProvider);
-        final remainingProfiles = profiles.where((p) => p.id != profileId).toList();
+        final remainingProfiles =
+            profiles.where((p) => p.id != profileId).toList();
         if (remainingProfiles.isNotEmpty) {
-          ref.read(selectedEquipmentProfileIdProvider.notifier).state = remainingProfiles.first.id;
+          ref.read(selectedEquipmentProfileIdProvider.notifier).state =
+              remainingProfiles.first.id;
         } else {
           ref.read(selectedEquipmentProfileIdProvider.notifier).state = null;
         }
       }
 
       if (mounted) {
-        context.showSuccessSnackBar('Profile deleted');
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Deleted "${deletedProfile.name}"'),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () {
+                unawaited(_restoreDeletedProfile(
+                  deletedProfileJson,
+                  wasActive: deletedProfile.isActive,
+                ));
+              },
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -248,6 +289,29 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     }
   }
 
+  Future<void> _restoreDeletedProfile(
+    String exportedProfileJson, {
+    required bool wasActive,
+  }) async {
+    try {
+      final profileService = ref.read(profileServiceProvider);
+      final dao = ref.read(equipmentProfilesDaoProvider);
+      final restoredId =
+          await profileService.importProfileFromJson(exportedProfileJson);
+      if (wasActive) {
+        await dao.setActiveProfile(restoredId);
+      }
+      ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
+      if (mounted) {
+        context.showSuccessSnackBar('Profile restored');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to restore profile: $e');
+      }
+    }
+  }
+
   // ============================================================================
   // Device Connection Operations
   // ============================================================================
@@ -264,6 +328,9 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       profile.filterWheelId,
       profile.guiderId,
       profile.rotatorId,
+      profile.domeId,
+      profile.weatherId,
+      profile.coverCalibratorId,
     ].where((id) => id != null && id.isNotEmpty).toList();
 
     if (deviceIds.isEmpty) {
@@ -287,6 +354,13 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       (profile.filterWheelId, deviceService.connectFilterWheel, 'filter wheel'),
       (profile.guiderId, deviceService.connectGuider, 'guider'),
       (profile.rotatorId, deviceService.connectRotator, 'rotator'),
+      (profile.domeId, deviceService.connectDome, 'dome'),
+      (profile.weatherId, deviceService.connectWeather, 'weather station'),
+      (
+        profile.coverCalibratorId,
+        deviceService.connectCoverCalibrator,
+        'cover calibrator',
+      ),
     ];
 
     int successCount = 0;
@@ -308,17 +382,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     if (!mounted) return;
 
     if (successCount > 0 && failCount == 0) {
-      context.showSuccessSnackBar('Connected $successCount device${successCount > 1 ? 's' : ''}');
+      context.showSuccessSnackBar(
+          'Connected $successCount device${successCount > 1 ? 's' : ''}');
     } else if (successCount > 0 && failCount > 0) {
       context.showWarningSnackBar(
-        'Connected $successCount device${successCount > 1 ? 's' : ''}, '
-        'failed: ${failedDevices.join(", ")}'
-      );
+          'Connected $successCount device${successCount > 1 ? 's' : ''}, '
+          'failed: ${failedDevices.join(", ")}');
     } else if (failCount > 0) {
-      context.showErrorSnackBar(
-        'Failed to connect: ${failedDevices.join(", ")}. '
-        'Ensure devices are powered on and available.'
-      );
+      context
+          .showErrorSnackBar('Failed to connect: ${failedDevices.join(", ")}. '
+              'Ensure devices are powered on and available.');
     }
   }
 
@@ -332,6 +405,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       (deviceService.disconnectFilterWheel, 'filter wheel'),
       (deviceService.disconnectGuider, 'guider'),
       (deviceService.disconnectRotator, 'rotator'),
+      (deviceService.disconnectDome, 'dome'),
+      (deviceService.disconnectWeather, 'weather station'),
+      (deviceService.disconnectSafetyMonitor, 'safety monitor'),
+      (deviceService.disconnectCoverCalibrator, 'cover calibrator'),
     ];
 
     int successCount = 0;
@@ -370,7 +447,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
           height: 500,
           decoration: BoxDecoration(
             color: colors.background,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -383,7 +460,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(LucideIcons.settings, color: colors.textPrimary, size: 20),
+                    Icon(LucideIcons.settings,
+                        color: colors.textPrimary, size: 20),
                     const SizedBox(width: 12),
                     Text(
                       'Equipment Settings',
@@ -488,6 +566,10 @@ class _ConnectionStatusSummary extends ConsumerWidget {
     final filterWheelState = ref.watch(filterWheelStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
     final rotatorState = ref.watch(rotatorStateProvider);
+    final domeState = ref.watch(domeStateProvider);
+    final weatherState = ref.watch(weatherStateProvider);
+    final safetyMonitorState = ref.watch(safetyMonitorStateProvider);
+    final coverCalibratorState = ref.watch(coverCalibratorStateProvider);
 
     final connectionStates = [
       cameraState.connectionState,
@@ -496,6 +578,10 @@ class _ConnectionStatusSummary extends ConsumerWidget {
       filterWheelState.connectionState,
       guiderState.connectionState,
       rotatorState.connectionState,
+      domeState.connectionState,
+      weatherState.connectionState,
+      safetyMonitorState.connectionState,
+      coverCalibratorState.connectionState,
     ];
 
     final connectedCount = connectionStates
@@ -510,7 +596,7 @@ class _ConnectionStatusSummary extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: colors.success.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.success.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -559,6 +645,10 @@ class _DeviceDashboard extends ConsumerWidget {
     final filterWheelState = ref.watch(filterWheelStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
     final rotatorState = ref.watch(rotatorStateProvider);
+    final domeState = ref.watch(domeStateProvider);
+    final weatherState = ref.watch(weatherStateProvider);
+    final safetyMonitorState = ref.watch(safetyMonitorStateProvider);
+    final coverCalibratorState = ref.watch(coverCalibratorStateProvider);
 
     // Build list of connected device cards
     final connectedCards = <Widget>[];
@@ -601,6 +691,31 @@ class _DeviceDashboard extends ConsumerWidget {
       ));
     }
 
+    if (domeState.connectionState == DeviceConnectionState.connected) {
+      connectedCards.add(const ConnectedDeviceCard(
+        type: ConnectedDeviceType.dome,
+      ));
+    }
+
+    if (weatherState.connectionState == DeviceConnectionState.connected) {
+      connectedCards.add(const ConnectedDeviceCard(
+        type: ConnectedDeviceType.weather,
+      ));
+    }
+
+    if (safetyMonitorState.connectionState == DeviceConnectionState.connected) {
+      connectedCards.add(const ConnectedDeviceCard(
+        type: ConnectedDeviceType.safetyMonitor,
+      ));
+    }
+
+    if (coverCalibratorState.connectionState ==
+        DeviceConnectionState.connected) {
+      connectedCards.add(const ConnectedDeviceCard(
+        type: ConnectedDeviceType.coverCalibrator,
+      ));
+    }
+
     // No profile selected state
     if (profile == null) {
       return Center(
@@ -625,12 +740,16 @@ class _DeviceDashboard extends ConsumerWidget {
     if (connectedCards.isEmpty) {
       // Check if the profile has any devices assigned (profile is guaranteed non-null here)
       final p = profile!;
-      final hasDevicesAssigned = (p.cameraId != null && p.cameraId!.isNotEmpty) ||
-          (p.mountId != null && p.mountId!.isNotEmpty) ||
-          (p.focuserId != null && p.focuserId!.isNotEmpty) ||
-          (p.filterWheelId != null && p.filterWheelId!.isNotEmpty) ||
-          (p.guiderId != null && p.guiderId!.isNotEmpty) ||
-          (p.rotatorId != null && p.rotatorId!.isNotEmpty);
+      final hasDevicesAssigned =
+          (p.cameraId != null && p.cameraId!.isNotEmpty) ||
+              (p.mountId != null && p.mountId!.isNotEmpty) ||
+              (p.focuserId != null && p.focuserId!.isNotEmpty) ||
+              (p.filterWheelId != null && p.filterWheelId!.isNotEmpty) ||
+              (p.guiderId != null && p.guiderId!.isNotEmpty) ||
+              (p.rotatorId != null && p.rotatorId!.isNotEmpty) ||
+              (p.domeId != null && p.domeId!.isNotEmpty) ||
+              (p.weatherId != null && p.weatherId!.isNotEmpty) ||
+              (p.coverCalibratorId != null && p.coverCalibratorId!.isNotEmpty);
 
       if (hasDevicesAssigned) {
         // Profile has devices but none connected
@@ -909,7 +1028,7 @@ class _FirstTimeOnboarding extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(

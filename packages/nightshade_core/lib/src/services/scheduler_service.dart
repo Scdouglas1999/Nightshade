@@ -63,23 +63,42 @@ class SchedulerService {
     required double latitudeDegrees,
     required double longitudeDegrees,
   }) {
-    // Convert to radians
+    final (alt, _) = calculateAltAz(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      time: time,
+      latitudeDegrees: latitudeDegrees,
+      longitudeDegrees: longitudeDegrees,
+    );
+    return alt;
+  }
+
+  /// Calculate both altitude and azimuth for a celestial object at a given time.
+  /// Returns (altitude, azimuth) in degrees.
+  (double altitude, double azimuth) calculateAltAz({
+    required double raHours,
+    required double decDegrees,
+    required DateTime time,
+    required double latitudeDegrees,
+    required double longitudeDegrees,
+  }) {
     final dec = decDegrees * math.pi / 180.0;
     final lat = latitudeDegrees * math.pi / 180.0;
 
-    // Calculate Local Sidereal Time
     final lst = _calculateLST(time, longitudeDegrees);
+    final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
 
-    // Hour Angle = LST - RA
-    final ha = (lst - raHours) * 15.0 * math.pi / 180.0; // Convert to radians
-
-    // Calculate altitude using spherical formula
-    // sin(alt) = sin(dec) * sin(lat) + cos(dec) * cos(lat) * cos(ha)
     final sinAlt = math.sin(dec) * math.sin(lat) +
         math.cos(dec) * math.cos(lat) * math.cos(ha);
+    final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
-    final altitude = math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
-    return altitude;
+    final y = -math.sin(ha) * math.cos(dec);
+    final x = math.sin(dec) * math.cos(lat) -
+        math.cos(dec) * math.sin(lat) * math.cos(ha);
+    var az = math.atan2(y, x);
+    if (az < 0) az += 2 * math.pi;
+
+    return (alt * 180.0 / math.pi, az * 180.0 / math.pi);
   }
 
   /// Calculate Local Sidereal Time in hours
@@ -241,9 +260,26 @@ class SchedulerService {
     final lat = latitudeDegrees * math.pi / 180.0;
     final alt = minAltitude * math.pi / 180.0;
 
+    final sinThreshold = math.sin(alt);
+    final center = math.sin(dec) * math.sin(lat);
+    final amplitude = (math.cos(dec) * math.cos(lat)).abs();
+    final minSinAltitude = center - amplitude;
+    final maxSinAltitude = center + amplitude;
+
+    if (maxSinAltitude < sinThreshold) {
+      return 0.0;
+    }
+    if (minSinAltitude >= sinThreshold) {
+      return 24.0;
+    }
+
+    final denominator = math.cos(dec) * math.cos(lat);
+    if (denominator.abs() < 1e-12) {
+      return center >= sinThreshold ? 24.0 : 0.0;
+    }
+
     // cos(H) = (sin(alt) - sin(dec) * sin(lat)) / (cos(dec) * cos(lat))
-    final cosH = (math.sin(alt) - math.sin(dec) * math.sin(lat)) /
-        (math.cos(dec) * math.cos(lat));
+    final cosH = (sinThreshold - center) / denominator;
 
     if (cosH <= -1.0) {
       // Circumpolar - always visible
@@ -406,7 +442,7 @@ class SchedulerService {
     if (raHours < 0) raHours += 24.0;
 
     // Calculate illumination (simplified, based on phase angle)
-    final illumination = (1.0 - math.cos(dRad * math.pi / 180.0)) / 2.0;
+    final illumination = (1.0 - math.cos(dRad)) / 2.0;
 
     return (
       raHours: raHours,

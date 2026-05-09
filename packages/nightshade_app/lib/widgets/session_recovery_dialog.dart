@@ -18,7 +18,8 @@ class SessionRecoveryDialog extends ConsumerWidget {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(LucideIcons.alertCircle, color: Theme.of(context).colorScheme.primary),
+          Icon(LucideIcons.alertCircle,
+              color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 12),
           const Text('Incomplete Sessions Found'),
         ],
@@ -86,42 +87,49 @@ class SessionRecoveryDialog extends ConsumerWidget {
     );
   }
 
-  Future<void> _recoverSession(WidgetRef ref, SessionRecoveryInfo session) async {
+  Future<void> _recoverSession(
+      WidgetRef ref, SessionRecoveryInfo session) async {
     try {
       final sessionNotifier = ref.read(sessionStateProvider.notifier);
       await sessionNotifier.recoverSession(session);
 
       // Show success message
       if (ref.context.mounted) {
+        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
-            content: Text('Session recovered: ${session.sessionName ?? "Session ${session.sessionId}"}'),
-            backgroundColor: Colors.green,
+            content: Text(
+              'Session recovered: ${session.sessionName ?? "Session ${session.sessionId}"}',
+            ),
+            backgroundColor: colors.success,
           ),
         );
       }
     } catch (e) {
       if (ref.context.mounted) {
+        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
             content: Text('Failed to recover session: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: colors.error,
           ),
         );
       }
     }
   }
 
-  Future<void> _discardSession(WidgetRef ref, SessionRecoveryInfo session) async {
+  Future<void> _discardSession(
+      WidgetRef ref, SessionRecoveryInfo session) async {
     try {
       final sessionService = ref.read(sessionServiceProvider);
       await sessionService.markSessionAborted(session.sessionId);
     } catch (e) {
       if (ref.context.mounted) {
+        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
             content: Text('Failed to discard session: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: colors.error,
           ),
         );
       }
@@ -143,6 +151,7 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>()!;
     final stats = session.stats;
 
     return Card(
@@ -207,7 +216,7 @@ class _SessionCard extends StatelessWidget {
                   _StatChip(
                     icon: LucideIcons.alertTriangle,
                     label: '${stats.failedExposures} failed',
-                    color: Colors.orange,
+                    color: colors.warning,
                   ),
               ],
             ),

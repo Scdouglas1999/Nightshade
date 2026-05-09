@@ -366,7 +366,7 @@ impl QhySdk {
             }
         }
 
-        tracing::warn!("QHY SDK not found");
+        tracing::debug!("QHY SDK not found");
         None
     }
 

@@ -1,0 +1,416 @@
+{
+  "generatedAt": "2026-05-06T14:38:25.105301Z",
+  "objectiveSource": "goal.txt",
+  "objectiveSummary": "Prepare Nightshade for public release with direct evidence for the P0 release gates in goal.txt.",
+  "sourceArtifacts": [
+    {
+      "path": "goal.txt",
+      "exists": true,
+      "sizeBytes": 8159,
+      "fileModifiedAt": "2026-05-05T00:20:03.000Z",
+      "generatedAt": null,
+      "decision": null,
+      "ready": null,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/public-release-gate.json",
+      "exists": true,
+      "sizeBytes": 12670,
+      "fileModifiedAt": "2026-05-06T14:38:13.000Z",
+      "generatedAt": "2026-05-06T14:38:13.927557Z",
+      "decision": "NOT_READY",
+      "ready": false,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": 18,
+      "blockerCount": 7,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/public-release-blocker-inputs.json",
+      "exists": true,
+      "sizeBytes": 16555,
+      "fileModifiedAt": "2026-05-06T01:16:56.000Z",
+      "generatedAt": "2026-05-06T01:16:56.433074Z",
+      "decision": "NOT_READY",
+      "ready": null,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": null,
+      "blockerCount": 7,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/public-release-external-evidence.json",
+      "exists": true,
+      "sizeBytes": 4148,
+      "fileModifiedAt": "2026-05-06T11:18:47.000Z",
+      "generatedAt": "2026-05-06T11:18:47.059351Z",
+      "decision": null,
+      "ready": false,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": 0,
+      "blockerCount": null,
+      "checkCount": 5
+    },
+    {
+      "path": "docs/production-readiness/release-staging-audit.json",
+      "exists": true,
+      "sizeBytes": 446524,
+      "fileModifiedAt": "2026-05-06T09:42:35.000Z",
+      "generatedAt": "2026-05-06T09:42:35.600502Z",
+      "decision": null,
+      "ready": null,
+      "entryCount": 913,
+      "bucketCount": null,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/release-pr-split-plan.json",
+      "exists": true,
+      "sizeBytes": 698443,
+      "fileModifiedAt": "2026-05-06T09:42:36.000Z",
+      "generatedAt": "2026-05-06T09:42:36.905333Z",
+      "decision": null,
+      "ready": null,
+      "entryCount": 913,
+      "bucketCount": 10,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/release-pr-owner-decision-matrix.json",
+      "exists": true,
+      "sizeBytes": 86712,
+      "fileModifiedAt": "2026-05-06T10:22:53.000Z",
+      "generatedAt": "2026-05-06T10:22:53.024152Z",
+      "decision": null,
+      "ready": null,
+      "entryCount": 913,
+      "bucketCount": 10,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/release-pr-staged-branch-validation.json",
+      "exists": true,
+      "sizeBytes": 9051,
+      "fileModifiedAt": "2026-05-06T10:23:09.000Z",
+      "generatedAt": "2026-05-06T10:23:09.445212Z",
+      "decision": null,
+      "ready": null,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    },
+    {
+      "path": "docs/production-readiness/public-release-checklist-audit.json",
+      "exists": true,
+      "sizeBytes": 66721,
+      "fileModifiedAt": "2026-05-06T01:17:07.000Z",
+      "generatedAt": "2026-05-06T01:17:07.040302Z",
+      "decision": null,
+      "ready": null,
+      "entryCount": null,
+      "bucketCount": null,
+      "passedCount": null,
+      "blockerCount": null,
+      "checkCount": null
+    }
+  ],
+  "decision": "NOT_ACHIEVED",
+  "gateDecision": "NOT_READY",
+  "ready": false,
+  "completeCount": 0,
+  "blockedOrIncompleteCount": 7,
+  "promptToArtifactChecklist": [
+    {
+      "id": "clean_release_branch_pr",
+      "requirement": "Create a clean release branch/PR from the dirty worktree so the final artifact is reviewable.",
+      "status": "blocked",
+      "evidence": [
+        "docs/production-readiness/release-staging-audit.json",
+        "docs/production-readiness/release-pr-split-plan.json",
+        "docs/production-readiness/release-pr-staged-branch-validation.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.json",
+        "docs/production-readiness/release-pr-pathspecs/*.txt"
+      ],
+      "verification": "Gate check `release_staging` requires a non-main clean branch with no untracked release-critical entries.",
+      "requiredInput": "Owner decision on must ship, generated only, binary/evidence, and defer/exclude bucket lists, then a clean non-main release branch/PR validated against that matrix.",
+      "rerunCommands": [
+        "dart run melos run audit:release-staging --no-select",
+        "dart run melos run audit:release-pr-plan --no-select",
+        "dart run melos run audit:release-pr-owner-matrix --no-select",
+        "dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index",
+        "dart run melos run audit:release-pr-staged-branch --no-select -- --mode=branch --base=main",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Work is on a non-main release branch.",
+        "`dart run melos run audit:release-staging --no-select` reports entryCount=0 and untrackedReleaseCriticalCount=0 for the final PR workspace, or the final PR contains only intentionally staged release files with exclusions documented.",
+        "The owner matrix lists every split-plan bucket under must_ship, generated_only, binary_evidence, or defer_exclude.",
+        "`dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index` or the branch-mode equivalent passes before PR creation.",
+        "The PR description links the staged bucket pathspecs, uses the draft description for each bucket, and explains any excluded bucket."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/release-staging-audit.json",
+        "docs/production-readiness/release-pr-split-plan.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.md",
+        "docs/production-readiness/release-pr-staged-branch-validation.json",
+        "docs/production-readiness/release-pr-pathspecs/*.txt",
+        "GitHub PR URL or local branch/review record"
+      ],
+      "gap": "Current branch=main; entryCount=913; untrackedReleaseCritical=336; stagedBranchValidationPassed=false. Required input: Owner decision on must ship, generated only, binary/evidence, and defer/exclude bucket lists, then a clean non-main release branch/PR validated against that matrix."
+    },
+    {
+      "id": "split_generated_binary_native",
+      "requirement": "Split generated/binary/native changes from Dart/UI changes where possible.",
+      "status": "in_progress",
+      "evidence": [
+        "docs/production-readiness/release-pr-split-plan.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.json",
+        "docs/production-readiness/release-pr-staged-branch-validation.json",
+        "docs/production-readiness/release-pr-pathspecs/*.txt"
+      ],
+      "verification": "Split plan assigns dirty entries into generated, binary/evidence, native/bridge, core, UI, and other buckets with pathspec files; owner matrix separates must_ship, generated_only, binary_evidence, and defer_exclude; validator checks the staged index or branch diff against that matrix.",
+      "requiredInput": "Owner decision on must ship, generated only, binary/evidence, and defer/exclude bucket lists, then a clean non-main release branch/PR validated against that matrix.",
+      "rerunCommands": [
+        "dart run melos run audit:release-staging --no-select",
+        "dart run melos run audit:release-pr-plan --no-select",
+        "dart run melos run audit:release-pr-owner-matrix --no-select",
+        "dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index",
+        "dart run melos run audit:release-pr-staged-branch --no-select -- --mode=branch --base=main",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Work is on a non-main release branch.",
+        "`dart run melos run audit:release-staging --no-select` reports entryCount=0 and untrackedReleaseCriticalCount=0 for the final PR workspace, or the final PR contains only intentionally staged release files with exclusions documented.",
+        "The owner matrix lists every split-plan bucket under must_ship, generated_only, binary_evidence, or defer_exclude.",
+        "`dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index` or the branch-mode equivalent passes before PR creation.",
+        "The PR description links the staged bucket pathspecs, uses the draft description for each bucket, and explains any excluded bucket."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/release-staging-audit.json",
+        "docs/production-readiness/release-pr-split-plan.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.json",
+        "docs/production-readiness/release-pr-owner-decision-matrix.md",
+        "docs/production-readiness/release-pr-staged-branch-validation.json",
+        "docs/production-readiness/release-pr-pathspecs/*.txt",
+        "GitHub PR URL or local branch/review record"
+      ],
+      "gap": "Planning artifacts exist, but no final clean PR has staged or excluded those buckets yet. bucketCount=10; entryCount=913; ownerMatrixPaths=913; stagedBranchValidationPassed=false."
+    },
+    {
+      "id": "linux_release_build",
+      "requirement": "Do a Linux release build on an actual Linux environment, not inferred from Windows.",
+      "status": "blocked",
+      "evidence": [
+        "docs/production-readiness/linux-environment-probe.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/linux-release-build-evidence.json"
+      ],
+      "verification": "Gate requires the external evidence validator to accept Linux build/package evidence.",
+      "requiredInput": "A working Linux build environment, either repaired WSL Ubuntu, Docker Desktop Linux engine, or another Linux host/CI runner.",
+      "rerunCommands": [
+        "dart run melos run audit:public-release-external-evidence --no-select",
+        "dart run melos run audit:linux-environment --no-select",
+        "dart run melos run build:desktop:linux --no-select",
+        "dart run melos run audit:linux-release-package-metadata --no-select",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "`dart run melos run build:desktop:linux --no-select` succeeds on Linux.",
+        "Linux package/runtime artifact is recorded with path, size, hash, and native library/permission notes from the package metadata generator or CI workflow.",
+        "Linux-launched headless/dashboard smoke evidence exists from that Linux artifact."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/linux-release-build-evidence.json",
+        "docs/production-readiness/linux-release-package-metadata.json",
+        "docs/production-readiness/external-evidence-templates/linux-release-build-evidence.template.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/linux-environment-probe.json",
+        ".github/workflows/linux-release-build.yml workflow run and uploaded artifact metadata",
+        "Linux build log",
+        "Linux package artifact path/hash",
+        "Linux runtime/headless smoke log"
+      ],
+      "gap": "Required input: A working Linux build environment, either repaired WSL Ubuntu, Docker Desktop Linux engine, or another Linux host/CI runner."
+    },
+    {
+      "id": "full_hardware_smoke",
+      "requirement": "Run a full hardware smoke pass with real or simulator-backed camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety devices.",
+      "status": "blocked",
+      "evidence": [
+        "docs/production-readiness/hardware-availability-probe.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/full-hardware-control-smoke-evidence.json"
+      ],
+      "verification": "Gate requires validated external full hardware/control smoke evidence covering all required device classes.",
+      "requiredInput": "A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands.",
+      "rerunCommands": [
+        "dart run melos run audit:public-release-external-evidence --no-select",
+        "dart run melos run audit:hardware-availability:windows --no-select",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Every required device class is discoverable as real or simulator-backed for the smoke environment.",
+        "Connect/disconnect is exercised for each required class.",
+        "Safe read/status command is exercised for each required class.",
+        "Safe control command is exercised where applicable, such as camera short exposure, focuser small move, filter position query/change, rotator angle query/change, guider status, dome status/open-close or simulator equivalent, weather read, and safety state read.",
+        "The smoke log records device IDs, driver types, command results, and any intentionally skipped unsafe action."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/full-hardware-control-smoke-evidence.json",
+        "docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/hardware-availability-probe.json",
+        "Full hardware/control smoke log with command results",
+        "Screenshots or exported dashboard/device-state evidence if manually driven"
+      ],
+      "gap": "Required input: A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands."
+    },
+    {
+      "id": "older_profile_migration",
+      "requirement": "Verify upgrade/migration from an older Nightshade profile/database.",
+      "status": "blocked",
+      "evidence": [
+        "docs/production-readiness/manual-migration-probe.json",
+        "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
+        "packages/nightshade_core/test/services/database_migration_test.dart"
+      ],
+      "verification": "Manual migration probe must run against an older real database/profile and report migrationVerified=true. Synthetic regression tests cover old-schema/profile fixtures but do not replace the real older-profile artifact.",
+      "requiredInput": "An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.",
+      "rerunCommands": [
+        "cd packages/nightshade_core && flutter test test/services/database_migration_test.dart",
+        "$env:NIGHTSHADE_OLD_DATABASE=\"<path-to-old-nightshade.sqlite>\"",
+        "dart run melos run audit:manual-migration --no-select",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Probe runs against a temporary copy of an older real database/profile.",
+        "`artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.",
+        "Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.",
+        "Synthetic old-schema/profile migration regression tests pass without using real user data."
+      ],
+      "expectedEvidence": [
+        "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
+        "packages/nightshade_core/test/services/database_migration_test.dart",
+        "docs/production-readiness/manual-migration-probe.json",
+        "docs/production-readiness/manual-migration-probe.md",
+        "Path or secure reference to the source old database artifact"
+      ],
+      "gap": "Required input: An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe."
+    },
+    {
+      "id": "integrated_remote_headless",
+      "requirement": "Verify headless auth, LAN opt-in, dashboard, mobile remote client, and WebSocket reconnect behavior together.",
+      "status": "incomplete",
+      "evidence": [
+        "docs/production-readiness/android-emulator-remote-smoke-log.txt, docs/production-readiness/android-emulator-remote-smoke.png, docs/production-readiness/mobile-remote-window-connected.xml",
+        "docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/public-release-audit-report.md",
+        "docs/production-readiness/public-release-master-checklist.md",
+        "docs/production-readiness/hardware-availability-probe.json"
+      ],
+      "verification": "Emulator/mobile and reconnect evidence pass, but second physical LAN/firewall and real remote-control action evidence are still required.",
+      "requiredInput": "A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it. Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices.",
+      "rerunCommands": [
+        "dart run melos run audit:public-release-external-evidence --no-select",
+        "dart run melos run smoke:headless-lan:windows",
+        "dart run melos run audit:public-release-gate --no-select",
+        "dart run melos run audit:hardware-availability:windows --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Packaged Windows headless server is reached from the second device over the LAN IP, not localhost or emulator alias.",
+        "Dashboard loads with HTML/CSS/JS assets.",
+        "Authenticated token flow succeeds and missing/wrong token fails.",
+        "WebSocket connects and reconnect behavior is observed or logged.",
+        "Evidence records server LAN URL, client device type, network path, timestamp, and screenshots/logs.",
+        "Remote client sends at least one safe command per applicable device class.",
+        "Server logs include request IDs, client key/token scope, action, route, and completion status for high-risk commands.",
+        "Device state after each command is read back and recorded.",
+        "Unsafe real-world commands are either performed in simulator mode or explicitly skipped with a safety reason."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/second-device-lan-firewall-smoke-evidence.json",
+        "docs/production-readiness/external-evidence-templates/second-device-lan-firewall-smoke-evidence.template.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "Second-device browser screenshot or mobile screenshot",
+        "Server log showing second-device client IP",
+        "Manual smoke notes with firewall/router path",
+        "docs/production-readiness/public-release-audit-report.md update",
+        "docs/production-readiness/real-remote-control-actions-evidence.json",
+        "docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json",
+        "Remote-control smoke log with command/result pairs",
+        "Dashboard/mobile screenshots showing connected state and command results",
+        "Server audit log excerpt for high-risk commands"
+      ],
+      "gap": "Required input: A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it. Required input: Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices."
+    },
+    {
+      "id": "release_checklist_known_unsupported",
+      "requirement": "Produce a release checklist with known unsupported-by-platform items clearly documented.",
+      "status": "blocked",
+      "evidence": [
+        "docs/production-readiness/public-release-master-checklist.md",
+        "docs/production-readiness/public-release-checklist-audit.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/known-limitations.md",
+        "docs/supported-hardware-by-platform.md"
+      ],
+      "verification": "Final checklist gate requires checklist audit evidence with zero unchecked items, zero checked-without-evidence items, known limitations/support docs references, and validated final sign-off evidence.",
+      "requiredInput": "Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied.",
+      "rerunCommands": [
+        "dart run melos run audit:public-release-external-evidence --no-select",
+        "dart run melos run audit:public-release-checklist --no-select",
+        "dart run melos run audit:public-release-gate --no-select"
+      ],
+      "acceptanceCriteria": [
+        "Every completed checklist item has evidence notes.",
+        "Every unchecked release-blocking item is resolved, hidden, or removed from scope.",
+        "Known unsupported-by-platform items are referenced in the known limitations and supported hardware docs.",
+        "Final ship/no-ship decision records date, reviewer, commit/hash, and known limitations.",
+        "`audit:public-release-gate` reports `Decision: READY`."
+      ],
+      "expectedEvidence": [
+        "docs/production-readiness/final-release-signoff-evidence.json",
+        "docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json",
+        "docs/production-readiness/public-release-external-evidence.json",
+        "docs/production-readiness/public-release-master-checklist.md",
+        "docs/production-readiness/public-release-checklist-audit.json",
+        "docs/production-readiness/public-release-gate.json",
+        "Final release decision record"
+      ],
+      "gap": "Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=284; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=0/5."
+    }
+  ],
+  "goalSectionsObserved": [
+    "P0 Before Public Release",
+    "UI Consistency",
+    "Headless And Remote",
+    "Platform Parity",
+    "Hardware Workflows",
+    "Sequencer",
+    "Imaging And Processing",
+    "Math And Astronomy",
+    "Competitor-Parity Features",
+    "Performance And Code Quality",
+    "Docs And Release UX"
+  ],
+  "completionDecision": "NOT_ACHIEVED",
+  "completionDetail": "One or more P0 requirements remain blocked or weakly verified."
+}

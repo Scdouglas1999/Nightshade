@@ -72,9 +72,11 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     double fovDegrees, {
     int? maxResults,
   }) {
-    // Calculate the RA and Dec ranges that might be visible
-    // RA range depends on declination (wider near poles)
-    final decRangeHalf = fovDegrees / 2;
+    // Calculate the RA and Dec ranges that might be visible.
+    // Use a generous margin (1.5x FOV) to avoid clipping objects at viewport edges
+    // — the stereographic projection shows objects beyond the nominal FOV circle.
+    final queryFov = fovDegrees * 1.5;
+    final decRangeHalf = queryFov / 2;
     final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
 
@@ -82,7 +84,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     // At dec=90, all RA values are at the same point
     final cosDec = math.cos(centerDec.abs() * math.pi / 180);
     final raRangeHours =
-        cosDec > 0.1 ? (fovDegrees / 15 / cosDec).clamp(0.0, 12.0) : 12.0;
+        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) : 12.0;
 
     final minRA = centerRA - raRangeHours / 2;
     final maxRA = centerRA + raRangeHours / 2;
@@ -94,29 +96,38 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     final endDecCell = _decToCell(maxDec);
 
     // Handle RA wraparound (e.g., viewport spanning 23h to 1h)
-    void addFromRaRange(double raStart, double raEnd) {
-      final startRaCell = _raToCell(raStart);
-      final endRaCell = _raToCell(raEnd);
-
-      for (var r = startRaCell; r <= endRaCell; r++) {
-        final raIdx = r % raCells;
+    // Iterate over a contiguous range of cell indices (inclusive).
+    void addCellRange(int startCell, int endCell) {
+      for (var r = startCell; r <= endCell; r++) {
         for (var d = startDecCell; d <= endDecCell; d++) {
           if (maxResults != null && results.length >= maxResults) return;
-          results.addAll(_grid[raIdx][d]);
+          results.addAll(_grid[r][d]);
         }
       }
     }
 
-    if (maxRA > 24.0) {
-      // Wraparound case: spans across 24h/0h boundary
-      addFromRaRange(minRA, 24.0);
-      addFromRaRange(0.0, maxRA - 24.0);
-    } else if (minRA < 0.0) {
-      // Wraparound case: spans across 0h boundary
-      addFromRaRange(minRA + 24.0, 24.0);
-      addFromRaRange(0.0, maxRA);
+    final startRaCell = _raToCell(minRA);
+    final endRaCell = _raToCell(maxRA);
+
+    if (maxRA > 24.0 || minRA < 0.0) {
+      // Wraparound case: the RA range crosses the 0h/24h boundary.
+      // We need to query two contiguous cell ranges:
+      //   1) From the start cell up to the last cell (raCells - 1)
+      //   2) From cell 0 up to the end cell
+      // Because _raToCell normalizes into [0, raCells-1], after
+      // wraparound startRaCell > endRaCell.
+      if (startRaCell <= endRaCell) {
+        // Edge case: the wraparound range is so wide it covers all cells,
+        // or rounding made start <= end. Query the full range.
+        addCellRange(startRaCell, endRaCell);
+      } else {
+        // Normal wraparound: startRaCell is in the high-RA region,
+        // endRaCell is in the low-RA region.
+        addCellRange(startRaCell, raCells - 1);
+        addCellRange(0, endRaCell);
+      }
     } else {
-      addFromRaRange(minRA, maxRA);
+      addCellRange(startRaCell, endRaCell);
     }
 
     // Apply maxResults limit if specified

@@ -19,6 +19,10 @@ export 'src/database/daos/flat_history_dao.dart';
 export 'src/database/daos/tutorial_progress_dao.dart';
 export 'src/database/daos/polar_alignment_history_dao.dart';
 export 'src/database/daos/science_dao.dart';
+export 'src/database/daos/dark_library_dao.dart';
+export 'src/database/daos/observation_logs_dao.dart';
+export 'src/database/daos/observing_lists_dao.dart';
+export 'src/database/daos/sequence_runs_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
 // TrackingRate is re-exported from equipment_models.dart (canonical source: device_capabilities.dart)
@@ -58,6 +62,7 @@ export 'src/providers/event_provider.dart';
 export 'src/providers/framing_provider.dart' hide MosaicConfig, MosaicPanel;
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/sequence_provider.dart';
+export 'src/providers/sequence_stats_provider.dart';
 export 'src/providers/session_provider.dart';
 export 'src/providers/settings_provider.dart';
 export 'src/providers/profiles_provider.dart';
@@ -67,6 +72,8 @@ export 'src/providers/simbad_provider.dart';
 export 'src/providers/exoplanet_provider.dart';
 export 'src/providers/gaia_provider.dart';
 export 'src/providers/annotation_settings_provider.dart';
+export 'src/providers/annotation_presets_provider.dart'
+    hide AnnotationPreset, annotationPresetsProvider, AnnotationPresetsNotifier;
 export 'src/providers/tutorial_provider.dart';
 export 'src/providers/filter_offset_provider.dart';
 export 'src/providers/camera_presets_provider.dart';
@@ -84,6 +91,22 @@ export 'src/providers/suggestion_filter_provider.dart';
 export 'src/providers/transient_alert_provider.dart';
 export 'src/providers/auto_stretch_provider.dart';
 export 'src/providers/science_provider.dart';
+export 'src/providers/autofocus_progress_provider.dart';
+export 'src/providers/push_notification_provider.dart';
+export 'src/providers/dark_library_provider.dart';
+export 'src/providers/live_stacking_provider.dart';
+export 'src/providers/project_tracking_provider.dart';
+export 'src/providers/equipment_health_provider.dart';
+export 'src/providers/optical_train_diagnostics_provider.dart';
+export 'src/providers/session_handoff_provider.dart';
+export 'src/providers/session_optimizer_provider.dart';
+export 'src/providers/web_server_provider.dart';
+export 'src/providers/observation_log_provider.dart';
+export 'src/providers/observing_list_provider.dart';
+export 'src/providers/imaging_history_provider.dart';
+export 'src/providers/live_validation_provider.dart';
+export 'src/providers/period_analysis_provider.dart';
+export 'src/providers/photometric_transform_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -92,6 +115,8 @@ export 'src/backend/network_backend.dart';
 export 'src/backend/disconnected_backend.dart';
 export 'src/models/backend/fits_header.dart';
 export 'src/models/backend/image_result.dart';
+export 'src/models/backend/platform_capabilities.dart';
+export 'src/models/backend/remote_api_compatibility.dart';
 
 // Services
 export 'src/services/device_service.dart';
@@ -115,11 +140,17 @@ export 'src/services/flat_exposure_calculator.dart';
 export 'src/services/backup_service.dart';
 export 'src/services/auto_save_service.dart';
 export 'src/services/notification_service.dart';
+export 'src/services/push_notification_service.dart';
 export 'src/services/session_export_service.dart';
 export 'src/services/mosaic_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
+export 'src/services/calibration_service.dart';
 export 'src/services/frame_quality_assessment_service.dart';
+export 'src/services/session_optimizer_service.dart';
+export 'src/services/optical_train_diagnostics_service.dart';
+export 'src/services/equipment_health_service.dart';
+export 'src/services/session_handoff_service.dart';
 export 'src/services/weather/weather_radar_service.dart';
 export 'src/services/weather/cloud_motion_analyzer.dart';
 export 'src/services/weather/weather_alert_service.dart';
@@ -130,6 +161,13 @@ export 'src/services/sequence_time_estimator.dart';
 export 'src/services/science/science_backend.dart';
 export 'src/services/science/default_science_backend.dart';
 export 'src/services/science/science_processing_service.dart';
+export 'src/services/science/photometric_transform_service.dart';
+export 'src/services/science/aavso_export_service.dart';
+export 'src/services/science/mpc_export_service.dart';
+export 'src/services/science/period_analysis_service.dart';
+export 'src/services/dark_library_service.dart';
+export 'src/services/live_stacking_service.dart';
+export 'src/services/project_tracking_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

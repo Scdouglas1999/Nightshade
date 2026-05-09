@@ -66,12 +66,13 @@ impl IndiFilterWheel {
         slot: i32,
         timeout: Option<Duration>,
     ) -> Result<(), String> {
-        let timeout_duration = timeout.unwrap_or_else(|| {
-            let client = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(self.client.read())
-            });
-            Duration::from_secs(client.timeout_config().filter_change_timeout_secs)
-        });
+        let timeout_duration = match timeout {
+            Some(timeout) => timeout,
+            None => {
+                let client = self.client.read().await;
+                Duration::from_secs(client.timeout_config().filter_change_timeout_secs)
+            }
+        };
 
         // Start the filter change
         {

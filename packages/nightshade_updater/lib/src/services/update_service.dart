@@ -4,12 +4,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
+import 'archive_extraction.dart';
 import 'update_downloader.dart';
 import 'update_verifier.dart';
 
@@ -20,6 +20,7 @@ class UpdateService {
   final UpdateDownloader _downloader;
   final UpdateVerifier _verifier;
   final http.Client _httpClient;
+  final Future<Directory> Function() _applicationSupportDirectoryProvider;
 
   String? _updateServerUrl;
   String _channel = 'stable';
@@ -31,11 +32,15 @@ class UpdateService {
     UpdateDownloader? downloader,
     UpdateVerifier? verifier,
     http.Client? httpClient,
+    Future<Directory> Function()? applicationSupportDirectoryProvider,
   })  : _currentVersion = currentVersion,
         _currentBuildNumber = currentBuildNumber,
         _downloader = downloader ?? UpdateDownloader(),
         _verifier = verifier ?? UpdateVerifier(),
-        _httpClient = httpClient ?? http.Client();
+        _httpClient = httpClient ?? http.Client(),
+        _applicationSupportDirectoryProvider =
+            applicationSupportDirectoryProvider ??
+                getApplicationSupportDirectory;
 
   /// Cancel any in-progress download
   void cancelDownload() {
@@ -49,6 +54,58 @@ class UpdateService {
         ? serverUrl.substring(0, serverUrl.length - 1)
         : serverUrl;
     _channel = channel;
+  }
+
+  /// Verify whether a previously applied update booted successfully.
+  Future<PendingInstallStatus> verifyPendingInstall() async {
+    final pendingFile = await _getPendingInstallFile();
+    if (!await pendingFile.exists()) {
+      return const PendingInstallStatus.none();
+    }
+
+    try {
+      final payload =
+          jsonDecode(await pendingFile.readAsString()) as Map<String, dynamic>;
+      final targetVersion = payload['targetVersion'] as String?;
+      final targetBuild = payload['targetBuildNumber'] as int?;
+      final previousVersion = payload['previousVersion'] as String?;
+      final previousBuild = payload['previousBuildNumber'] as int?;
+      final backupDirPath = payload['backupDir'] as String?;
+
+      if (targetVersion == _currentVersion &&
+          targetBuild == _currentBuildNumber) {
+        await pendingFile.delete();
+        if (backupDirPath != null) {
+          final backupDir = Directory(backupDirPath);
+          if (await backupDir.exists()) {
+            await backupDir.delete(recursive: true);
+          }
+        }
+        return PendingInstallStatus.verified(
+          'Verified update $targetVersion+$targetBuild on startup.',
+        );
+      }
+
+      if (previousVersion == _currentVersion &&
+          previousBuild == _currentBuildNumber) {
+        await pendingFile.delete();
+        return PendingInstallStatus.rolledBack(
+          'Rollback restored build $_currentVersion+$_currentBuildNumber '
+          'after update to ${targetVersion ?? "unknown"}+${targetBuild ?? 0}.',
+        );
+      }
+
+      return PendingInstallStatus.requiresAttention(
+        'Pending update marker targets ${targetVersion ?? "unknown"}+'
+        '${targetBuild ?? 0}, but the running build is '
+        '$_currentVersion+$_currentBuildNumber.',
+      );
+    } catch (e) {
+      await pendingFile.delete();
+      return PendingInstallStatus.requiresAttention(
+        'Discarded unreadable pending update marker: $e',
+      );
+    }
   }
 
   /// Check for available updates
@@ -158,14 +215,13 @@ class UpdateService {
     final packageFile = File(packagePath);
     final verified = await _verifier.verifyPackage(
       packageFile,
-      manifest.compressedSize,
-      manifest.signature,
+      manifest,
     );
     if (!verified) {
       await packageFile.delete();
       throw UpdateException(
         'Package integrity verification failed: '
-        'size or SHA-256 hash does not match manifest. '
+        'the package hash or manifest signature did not verify. '
         'The download may be corrupted or tampered with.',
       );
     }
@@ -177,7 +233,7 @@ class UpdateService {
     }
     await extractDir.create(recursive: true);
 
-    await _extractZip(packageFile, extractDir);
+    await extractZipSafely(packageFile, extractDir);
 
     // Verify extracted files
     final verification = await _verifier.verifyDirectory(extractDir, manifest);
@@ -196,28 +252,10 @@ class UpdateService {
     }));
   }
 
-  /// Extract ZIP archive to directory
-  Future<void> _extractZip(File zipFile, Directory destination) async {
-    final bytes = await zipFile.readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-
-    for (final file in archive) {
-      final filePath = path.join(destination.path, file.name);
-
-      if (file.isFile) {
-        final outFile = File(filePath);
-        await outFile.parent.create(recursive: true);
-        await outFile.writeAsBytes(file.content as List<int>);
-      } else {
-        await Directory(filePath).create(recursive: true);
-      }
-    }
-  }
-
   /// Get the staging directory for updates
   Future<Directory> _getStagingDirectory() async {
-    final appData = await getApplicationSupportDirectory();
-    final staging = Directory(path.join(appData.path, 'updates', 'staging'));
+    final updatesRoot = await _getUpdatesRootDirectory();
+    final staging = Directory(path.join(updatesRoot.path, 'staging'));
     if (!await staging.exists()) {
       await staging.create(recursive: true);
     }
@@ -276,6 +314,7 @@ class UpdateService {
     final installDir = await _getInstallDirectory();
     final updaterPath = path.join(installDir.path, 'updater.exe');
     final backupDir = await _getBackupDirectory();
+    final pendingFile = await _getPendingInstallFile();
 
     // Check if updater exists in install directory
     if (!await File(updaterPath).exists()) {
@@ -313,6 +352,18 @@ class UpdateService {
       }
     }
 
+    await pendingFile.parent.create(recursive: true);
+    await pendingFile.writeAsString(jsonEncode({
+      'targetVersion': staged.version,
+      'targetBuildNumber': staged.buildNumber,
+      'previousVersion': _currentVersion,
+      'previousBuildNumber': _currentBuildNumber,
+      'installDir': installDir.path,
+      'backupDir': backupDir.path,
+      'stagingDir': staged.extractPath,
+      'createdAt': DateTime.now().toIso8601String(),
+    }));
+
     // Launch updater with arguments
     final args = [
       '--parent-pid',
@@ -323,6 +374,8 @@ class UpdateService {
       installDir.path,
       '--backup-dir',
       backupDir.path,
+      '--pending-file',
+      pendingFile.path,
       '--launch-after',
     ];
 
@@ -344,12 +397,26 @@ class UpdateService {
 
   /// Get the backup directory
   Future<Directory> _getBackupDirectory() async {
-    final appData = await getApplicationSupportDirectory();
-    final backup = Directory(path.join(appData.path, 'updates', 'backup'));
+    final updatesRoot = await _getUpdatesRootDirectory();
+    final backup = Directory(path.join(updatesRoot.path, 'backup'));
     if (!await backup.exists()) {
       await backup.create(recursive: true);
     }
     return backup;
+  }
+
+  Future<Directory> _getUpdatesRootDirectory() async {
+    final appData = await _applicationSupportDirectoryProvider();
+    final updatesRoot = Directory(path.join(appData.path, 'updates'));
+    if (!await updatesRoot.exists()) {
+      await updatesRoot.create(recursive: true);
+    }
+    return updatesRoot;
+  }
+
+  Future<File> _getPendingInstallFile() async {
+    final updatesRoot = await _getUpdatesRootDirectory();
+    return File(path.join(updatesRoot.path, 'pending_install.json'));
   }
 
   /// Dispose resources
@@ -389,6 +456,31 @@ class StagedUpdate {
     required this.stagedAt,
     required this.extractPath,
   });
+}
+
+enum PendingInstallState {
+  none,
+  verified,
+  rolledBack,
+  requiresAttention,
+}
+
+class PendingInstallStatus {
+  final PendingInstallState state;
+  final String? message;
+
+  const PendingInstallStatus._(this.state, this.message);
+
+  const PendingInstallStatus.none() : this._(PendingInstallState.none, null);
+
+  const PendingInstallStatus.verified(String message)
+      : this._(PendingInstallState.verified, message);
+
+  const PendingInstallStatus.rolledBack(String message)
+      : this._(PendingInstallState.rolledBack, message);
+
+  const PendingInstallStatus.requiresAttention(String message)
+      : this._(PendingInstallState.requiresAttention, message);
 }
 
 /// Exception thrown by update operations

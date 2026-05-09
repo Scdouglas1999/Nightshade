@@ -157,11 +157,11 @@ pub struct IndiDevice {
 
 /// Check if INDI is available on this platform
 pub fn is_available() -> bool {
-    true
+    !cfg!(target_os = "windows")
 }
 
 /// INDI property types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndiPropertyType {
     Text,
     Number,

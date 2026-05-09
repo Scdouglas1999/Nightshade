@@ -80,7 +80,7 @@ impl QuirkRegistry {
 /// # Returns
 /// A vector of quirks that should be applied to this device
 pub fn get_quirks_for_device(device_id: &str) -> Vec<Quirk> {
-    let registry = get_registry().read().unwrap();
+    let registry = get_registry().read().unwrap_or_else(|e| e.into_inner());
 
     // Check if quirks are disabled for this device
     if registry.disabled_devices.contains(device_id) {
@@ -126,7 +126,7 @@ pub fn get_quirks_for_vendor(vendor: &NativeVendor) -> Vec<Quirk> {
 /// * `device_id` - The device identifier
 /// * `quirks` - The quirks to apply (replaces any existing overrides)
 pub fn set_quirk_overrides(device_id: &str, quirks: Vec<Quirk>) {
-    let mut registry = get_registry().write().unwrap();
+    let mut registry = get_registry().write().unwrap_or_else(|e| e.into_inner());
     tracing::info!(
         "Setting {} quirk overrides for device: {}",
         quirks.len(),
@@ -139,7 +139,7 @@ pub fn set_quirk_overrides(device_id: &str, quirks: Vec<Quirk>) {
 ///
 /// After clearing, the device will use the built-in quirks again.
 pub fn clear_quirk_overrides(device_id: &str) {
-    let mut registry = get_registry().write().unwrap();
+    let mut registry = get_registry().write().unwrap_or_else(|e| e.into_inner());
     tracing::info!("Clearing quirk overrides for device: {}", device_id);
     registry.overrides.remove(device_id);
 }
@@ -148,14 +148,14 @@ pub fn clear_quirk_overrides(device_id: &str) {
 ///
 /// This is useful for testing to ensure quirks are actually being applied.
 pub fn disable_quirks_for_device(device_id: &str) {
-    let mut registry = get_registry().write().unwrap();
+    let mut registry = get_registry().write().unwrap_or_else(|e| e.into_inner());
     tracing::info!("Disabling all quirks for device: {}", device_id);
     registry.disabled_devices.insert(device_id.to_string());
 }
 
 /// Re-enable quirks for a device after they were disabled.
 pub fn enable_quirks_for_device(device_id: &str) {
-    let mut registry = get_registry().write().unwrap();
+    let mut registry = get_registry().write().unwrap_or_else(|e| e.into_inner());
     tracing::info!("Re-enabling quirks for device: {}", device_id);
     registry.disabled_devices.remove(device_id);
 }

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for mosaic generation
 class MosaicHandlers {
   final ProviderContainer container;
@@ -32,18 +34,12 @@ class MosaicHandlers {
       const service = MosaicService();
       final panels = service.generatePanels(config);
 
-      return Response.ok(
-        jsonEncode({
-          "panels": panels.map((p) => _panelToJson(p)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "panels": panels.map((p) => _panelToJson(p)).toList(),
+      });
     } catch (e) {
       _logError('[API] Generate panels error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -85,24 +81,18 @@ class MosaicHandlers {
         }
       }
 
-      return Response.ok(
-        jsonEncode({
-          "sequence": {
-            "name": mosaicName,
-            "rootNodeId": rootNodeId,
-            "nodes": nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
-            "totalPanels": config.totalPanels,
-            "estimatedTimeSecs": service.estimateMosaicTime(config, exposure),
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sequence": {
+          "name": mosaicName,
+          "rootNodeId": rootNodeId,
+          "nodes": nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
+          "totalPanels": config.totalPanels,
+          "estimatedTimeSecs": service.estimateMosaicTime(config, exposure),
+        },
+      });
     } catch (e) {
       _logError('[API] Generate mosaic sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -121,19 +111,13 @@ class MosaicHandlers {
       const service = MosaicService();
       final area = service.calculateMosaicArea(config);
 
-      return Response.ok(
-        jsonEncode({
-          "areaSquareDegrees": area,
-          "totalPanels": config.totalPanels,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "areaSquareDegrees": area,
+        "totalPanels": config.totalPanels,
+      });
     } catch (e) {
       _logError('[API] Calculate area error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -152,20 +136,14 @@ class MosaicHandlers {
       const service = MosaicService();
       final validation = service.validateMosaic(config);
 
-      return Response.ok(
-        jsonEncode({
-          "isValid": validation.isValid,
-          "errors": validation.errors,
-          "warnings": validation.warnings,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "isValid": validation.isValid,
+        "errors": validation.errors,
+        "warnings": validation.warnings,
+      });
     } catch (e) {
       _logError('[API] Validate mosaic error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -192,20 +170,14 @@ class MosaicHandlers {
         overheadPerPanelSecs: overheadPerPanel,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "estimatedTimeSecs": timeSecs,
-          "estimatedTimeHours": timeSecs / 3600,
-          "totalPanels": config.totalPanels,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "estimatedTimeSecs": timeSecs,
+        "estimatedTimeHours": timeSecs / 3600,
+        "totalPanels": config.totalPanels,
+      });
     } catch (e) {
       _logError('[API] Estimate time error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

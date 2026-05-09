@@ -34,7 +34,11 @@ mixin _$MeridianFlipSettings {
   double get minutesBeforeLimit => throw _privateConstructorUsedError;
 
   /// Hour angle threshold in hours to trigger flip (default: 0.5 = 30 min)
-  double get hourAngleThreshold =>
+  double get hourAngleThreshold => throw _privateConstructorUsedError;
+
+  /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
+  /// Only used with onTrackingLimitHit trigger method.
+  double get trackingLimitWaitMinutes =>
       throw _privateConstructorUsedError; // === Flip Sequence Options ===
   /// Pause guider before flip
   bool get pauseGuidingBeforeFlip => throw _privateConstructorUsedError;
@@ -84,6 +88,7 @@ abstract class $MeridianFlipSettingsCopyWith<$Res> {
       double minutesPastMeridian,
       double minutesBeforeLimit,
       double hourAngleThreshold,
+      double trackingLimitWaitMinutes,
       bool pauseGuidingBeforeFlip,
       bool recenterAfterFlip,
       bool refocusAfterFlip,
@@ -115,6 +120,7 @@ class _$MeridianFlipSettingsCopyWithImpl<$Res,
     Object? minutesPastMeridian = null,
     Object? minutesBeforeLimit = null,
     Object? hourAngleThreshold = null,
+    Object? trackingLimitWaitMinutes = null,
     Object? pauseGuidingBeforeFlip = null,
     Object? recenterAfterFlip = null,
     Object? refocusAfterFlip = null,
@@ -146,6 +152,10 @@ class _$MeridianFlipSettingsCopyWithImpl<$Res,
       hourAngleThreshold: null == hourAngleThreshold
           ? _value.hourAngleThreshold
           : hourAngleThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      trackingLimitWaitMinutes: null == trackingLimitWaitMinutes
+          ? _value.trackingLimitWaitMinutes
+          : trackingLimitWaitMinutes // ignore: cast_nullable_to_non_nullable
               as double,
       pauseGuidingBeforeFlip: null == pauseGuidingBeforeFlip
           ? _value.pauseGuidingBeforeFlip
@@ -205,6 +215,7 @@ abstract class _$$MeridianFlipSettingsImplCopyWith<$Res>
       double minutesPastMeridian,
       double minutesBeforeLimit,
       double hourAngleThreshold,
+      double trackingLimitWaitMinutes,
       bool pauseGuidingBeforeFlip,
       bool recenterAfterFlip,
       bool refocusAfterFlip,
@@ -233,6 +244,7 @@ class __$$MeridianFlipSettingsImplCopyWithImpl<$Res>
     Object? minutesPastMeridian = null,
     Object? minutesBeforeLimit = null,
     Object? hourAngleThreshold = null,
+    Object? trackingLimitWaitMinutes = null,
     Object? pauseGuidingBeforeFlip = null,
     Object? recenterAfterFlip = null,
     Object? refocusAfterFlip = null,
@@ -264,6 +276,10 @@ class __$$MeridianFlipSettingsImplCopyWithImpl<$Res>
       hourAngleThreshold: null == hourAngleThreshold
           ? _value.hourAngleThreshold
           : hourAngleThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      trackingLimitWaitMinutes: null == trackingLimitWaitMinutes
+          ? _value.trackingLimitWaitMinutes
+          : trackingLimitWaitMinutes // ignore: cast_nullable_to_non_nullable
               as double,
       pauseGuidingBeforeFlip: null == pauseGuidingBeforeFlip
           ? _value.pauseGuidingBeforeFlip
@@ -318,6 +334,7 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
       this.minutesPastMeridian = 5.0,
       this.minutesBeforeLimit = 10.0,
       this.hourAngleThreshold = 0.5,
+      this.trackingLimitWaitMinutes = 0.0,
       this.pauseGuidingBeforeFlip = true,
       this.recenterAfterFlip = true,
       this.refocusAfterFlip = false,
@@ -359,6 +376,12 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
   @override
   @JsonKey()
   final double hourAngleThreshold;
+
+  /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
+  /// Only used with onTrackingLimitHit trigger method.
+  @override
+  @JsonKey()
+  final double trackingLimitWaitMinutes;
 // === Flip Sequence Options ===
   /// Pause guider before flip
   @override
@@ -420,7 +443,7 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
 
   @override
   String toString() {
-    return 'MeridianFlipSettings(standaloneMonitoringEnabled: $standaloneMonitoringEnabled, triggerMethod: $triggerMethod, minutesPastMeridian: $minutesPastMeridian, minutesBeforeLimit: $minutesBeforeLimit, hourAngleThreshold: $hourAngleThreshold, pauseGuidingBeforeFlip: $pauseGuidingBeforeFlip, recenterAfterFlip: $recenterAfterFlip, refocusAfterFlip: $refocusAfterFlip, settleTimeSeconds: $settleTimeSeconds, resumeGuidingAfterFlip: $resumeGuidingAfterFlip, maxRetries: $maxRetries, retryDelaysSeconds: $retryDelaysSeconds, failureAction: $failureAction, soundAlertOnFlip: $soundAlertOnFlip, pushNotificationOnFlip: $pushNotificationOnFlip)';
+    return 'MeridianFlipSettings(standaloneMonitoringEnabled: $standaloneMonitoringEnabled, triggerMethod: $triggerMethod, minutesPastMeridian: $minutesPastMeridian, minutesBeforeLimit: $minutesBeforeLimit, hourAngleThreshold: $hourAngleThreshold, trackingLimitWaitMinutes: $trackingLimitWaitMinutes, pauseGuidingBeforeFlip: $pauseGuidingBeforeFlip, recenterAfterFlip: $recenterAfterFlip, refocusAfterFlip: $refocusAfterFlip, settleTimeSeconds: $settleTimeSeconds, resumeGuidingAfterFlip: $resumeGuidingAfterFlip, maxRetries: $maxRetries, retryDelaysSeconds: $retryDelaysSeconds, failureAction: $failureAction, soundAlertOnFlip: $soundAlertOnFlip, pushNotificationOnFlip: $pushNotificationOnFlip)';
   }
 
   @override
@@ -440,6 +463,9 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
                 other.minutesBeforeLimit == minutesBeforeLimit) &&
             (identical(other.hourAngleThreshold, hourAngleThreshold) ||
                 other.hourAngleThreshold == hourAngleThreshold) &&
+            (identical(
+                    other.trackingLimitWaitMinutes, trackingLimitWaitMinutes) ||
+                other.trackingLimitWaitMinutes == trackingLimitWaitMinutes) &&
             (identical(other.pauseGuidingBeforeFlip, pauseGuidingBeforeFlip) ||
                 other.pauseGuidingBeforeFlip == pauseGuidingBeforeFlip) &&
             (identical(other.recenterAfterFlip, recenterAfterFlip) ||
@@ -471,6 +497,7 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
       minutesPastMeridian,
       minutesBeforeLimit,
       hourAngleThreshold,
+      trackingLimitWaitMinutes,
       pauseGuidingBeforeFlip,
       recenterAfterFlip,
       refocusAfterFlip,
@@ -505,6 +532,7 @@ abstract class _MeridianFlipSettings extends MeridianFlipSettings {
       final double minutesPastMeridian,
       final double minutesBeforeLimit,
       final double hourAngleThreshold,
+      final double trackingLimitWaitMinutes,
       final bool pauseGuidingBeforeFlip,
       final bool recenterAfterFlip,
       final bool refocusAfterFlip,
@@ -538,6 +566,11 @@ abstract class _MeridianFlipSettings extends MeridianFlipSettings {
 
   /// Hour angle threshold in hours to trigger flip (default: 0.5 = 30 min)
   double get hourAngleThreshold;
+  @override
+
+  /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
+  /// Only used with onTrackingLimitHit trigger method.
+  double get trackingLimitWaitMinutes;
   @override // === Flip Sequence Options ===
   /// Pause guider before flip
   bool get pauseGuidingBeforeFlip;

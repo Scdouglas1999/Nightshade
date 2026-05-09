@@ -384,6 +384,7 @@ class SessionService {
   /// Update checkpoint configuration
   void updateConfig(SessionCheckpointConfig config) {
     final wasEnabled = _config.enabled;
+    final previousInterval = _config.checkpointTimeInterval;
     _config = config;
 
     if (_config.enabled && !wasEnabled && _currentSessionId != null) {
@@ -392,7 +393,7 @@ class SessionService {
     } else if (!_config.enabled && wasEnabled) {
       // Checkpointing was just disabled, stop timer
       _stopCheckpointTimer();
-    } else if (_config.enabled && _config.checkpointTimeInterval != config.checkpointTimeInterval) {
+    } else if (_config.enabled && _config.checkpointTimeInterval != previousInterval) {
       // Interval changed, restart timer
       _stopCheckpointTimer();
       _startCheckpointTimer();

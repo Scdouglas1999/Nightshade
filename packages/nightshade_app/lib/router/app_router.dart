@@ -15,6 +15,8 @@ import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
+import '../screens/planner/planner_screen.dart';
+import '../screens/diagnostics/diagnostics_screen.dart';
 import 'page_transitions.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -137,6 +139,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'transients',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: TransientsScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          GoRoute(
+            path: '/planner',
+            name: 'planner',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: PlannerScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          GoRoute(
+            path: '/diagnostics',
+            name: 'diagnostics',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: DiagnosticsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

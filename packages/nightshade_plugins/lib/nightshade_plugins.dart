@@ -62,6 +62,11 @@ export 'src/plugin_context.dart';
 // Example plugins demonstrating the API
 export 'src/example_plugin.dart';
 
+// Additional example plugins
+export 'examples/weather_logger_plugin.dart';
+export 'examples/custom_notification_plugin.dart';
+export 'examples/sequence_delay_plugin.dart';
+
 
 
 

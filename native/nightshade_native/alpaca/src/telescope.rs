@@ -500,7 +500,10 @@ impl AlpacaTelescope {
 
     pub async fn can_move_axis(&self, axis: i32) -> Result<bool, String> {
         // axis: 0=Primary (RA), 1=Secondary (Dec), 2=Tertiary
-        self.client.get(&format!("canmoveaxis?Axis={}", axis)).await
+        let axis_string = axis.to_string();
+        self.client
+            .get_with_params("canmoveaxis", &[("Axis", axis_string.as_str())])
+            .await
     }
 
     // Guide rates

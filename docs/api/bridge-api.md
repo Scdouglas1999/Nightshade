@@ -50,7 +50,10 @@ Future<void> getDeviceManager()
 
 ### `apiDiscoverDevices`
 
-Discover available devices of a specific type. Queries ASCOM drivers on Windows, Alpaca cross-platform, plus includes simulators.
+Discover available devices of a specific type. Queries Windows-only ASCOM COM
+drivers, Alpaca network devices or bridges, reachable INDI servers, Native SDK
+paths where the release ships the needed libraries, and simulator paths where
+that workflow is enabled.
 
 ```dart
 Future<List<DeviceInfo>> apiDiscoverDevices({required DeviceType deviceType})

@@ -49,13 +49,16 @@ class UpdateManifest with _$UpdateManifest {
     /// Compressed package size in bytes
     required int compressedSize,
 
+    /// SHA-256 hash of the downloaded package archive
+    String? packageSha256,
+
     /// Download URL for the update package
     required String downloadUrl,
 
     /// Release notes (markdown)
     String? releaseNotes,
 
-    /// Optional signature for verification
+    /// Ed25519 signature for the canonical manifest payload
     String? signature,
   }) = _UpdateManifest;
 

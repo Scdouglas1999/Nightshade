@@ -44,7 +44,7 @@ final stretchedImageProvider =
   }
 
   // Check if we have raw data available from the backend
-  final backend = ref.read(backendProvider);
+  final backend = ref.watch(backendProvider);
   final cameraDeviceId = ref.read(connectedCameraIdProvider);
 
   if (cameraDeviceId == null) {
@@ -224,7 +224,8 @@ Future<Uint8List> _applyStfStretch({
   } catch (e) {
     // Fall back to Dart implementation
     debugPrint('[AutoStretch] Rust STF failed, using Dart fallback: $e');
-    return compute(_stfStretchIsolate, _StretchParams(rawData, width, height, isColor, settings));
+    return compute(_stfStretchIsolate,
+        _StretchParams(rawData, width, height, isColor, settings));
   }
 }
 
@@ -236,7 +237,8 @@ class _StretchParams {
   final bool isColor;
   final AutoStretchSettings settings;
 
-  _StretchParams(this.data, this.width, this.height, this.isColor, this.settings);
+  _StretchParams(
+      this.data, this.width, this.height, this.isColor, this.settings);
 }
 
 /// STF stretch implementation for isolate execution.
@@ -252,7 +254,8 @@ Uint8List _stfStretchIsolate(_StretchParams params) {
   if (isColor) {
     // RGB image: 3 channels
     if (data.length != pixelCount * 3) {
-      throw ArgumentError('Invalid RGB data length: expected ${pixelCount * 3}, got ${data.length}');
+      throw ArgumentError(
+          'Invalid RGB data length: expected ${pixelCount * 3}, got ${data.length}');
     }
 
     if (settings.linkedChannels) {
@@ -304,7 +307,8 @@ Uint8List _stfStretchIsolate(_StretchParams params) {
   } else {
     // Grayscale image
     if (data.length != pixelCount) {
-      throw ArgumentError('Invalid grayscale data length: expected $pixelCount, got ${data.length}');
+      throw ArgumentError(
+          'Invalid grayscale data length: expected $pixelCount, got ${data.length}');
     }
 
     final normalized = List<double>.filled(pixelCount, 0);
@@ -333,7 +337,8 @@ class _StfParams {
 }
 
 /// Calculate STF parameters from pixel data.
-_StfParams _calculateStfParams(List<double> pixels, AutoStretchSettings settings) {
+_StfParams _calculateStfParams(
+    List<double> pixels, AutoStretchSettings settings) {
   if (pixels.isEmpty) {
     return _StfParams(0, 1, 0.5);
   }
@@ -350,7 +355,8 @@ _StfParams _calculateStfParams(List<double> pixels, AutoStretchSettings settings
   // Calculate shadows and highlights using clipping parameters
   // shadowClip and highlightClip are in standard deviations from median
   var shadows = (median + settings.shadowClip * mad * 1.4826).clamp(0.0, 1.0);
-  var highlights = (median - settings.highlightClip * mad * 1.4826).clamp(0.0, 1.0);
+  var highlights =
+      (median - settings.highlightClip * mad * 1.4826).clamp(0.0, 1.0);
 
   // Ensure valid range
   if (highlights <= shadows) {
@@ -360,7 +366,8 @@ _StfParams _calculateStfParams(List<double> pixels, AutoStretchSettings settings
 
   // Calculate midtone balance for target median
   final range = highlights - shadows;
-  final medianPos = range > 0 ? ((median - shadows) / range).clamp(0.0, 1.0) : 0.5;
+  final medianPos =
+      range > 0 ? ((median - shadows) / range).clamp(0.0, 1.0) : 0.5;
 
   // MTF to achieve target median
   double midtones;
@@ -433,7 +440,8 @@ Future<Uint8List> _applyHistogramStretch({
   required bool isColor,
   required AutoStretchSettings settings,
 }) async {
-  return compute(_histogramStretchIsolate, _StretchParams(rawData, width, height, isColor, settings));
+  return compute(_histogramStretchIsolate,
+      _StretchParams(rawData, width, height, isColor, settings));
 }
 
 Uint8List _histogramStretchIsolate(_StretchParams params) {
@@ -527,7 +535,8 @@ Future<Uint8List> _applyAsinhStretch({
   required bool isColor,
   required AutoStretchSettings settings,
 }) async {
-  return compute(_asinhStretchIsolate, _StretchParams(rawData, width, height, isColor, settings));
+  return compute(_asinhStretchIsolate,
+      _StretchParams(rawData, width, height, isColor, settings));
 }
 
 Uint8List _asinhStretchIsolate(_StretchParams params) {
@@ -587,7 +596,8 @@ Future<Uint8List> _applyLogStretch({
   required bool isColor,
   required AutoStretchSettings settings,
 }) async {
-  return compute(_logStretchIsolate, _StretchParams(rawData, width, height, isColor, settings));
+  return compute(_logStretchIsolate,
+      _StretchParams(rawData, width, height, isColor, settings));
 }
 
 Uint8List _logStretchIsolate(_StretchParams params) {
@@ -642,7 +652,8 @@ Future<Uint8List> _applyGammaStretch({
   required bool isColor,
   required AutoStretchSettings settings,
 }) async {
-  return compute(_gammaStretchIsolate, _StretchParams(rawData, width, height, isColor, settings));
+  return compute(_gammaStretchIsolate,
+      _StretchParams(rawData, width, height, isColor, settings));
 }
 
 Uint8List _gammaStretchIsolate(_StretchParams params) {

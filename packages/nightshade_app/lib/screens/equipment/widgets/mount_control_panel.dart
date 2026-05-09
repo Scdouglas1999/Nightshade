@@ -24,12 +24,29 @@ class MountControlPanel extends ConsumerStatefulWidget {
   ConsumerState<MountControlPanel> createState() => _MountControlPanelState();
 }
 
+enum _CoordMode { equatorial, horizontal }
+
 class _MountControlPanelState extends ConsumerState<MountControlPanel> {
   String? _selectedDeviceId;
   bool _isSolving = false;
+  bool _isFindingHome = false;
+  _CoordMode _coordMode = _CoordMode.equatorial;
+  final _raController = TextEditingController();
+  final _decController = TextEditingController();
+  final _altController = TextEditingController();
+  final _azController = TextEditingController();
 
   bool get _isConnected =>
       widget.mountState.connectionState == DeviceConnectionState.connected;
+
+  @override
+  void dispose() {
+    _raController.dispose();
+    _decController.dispose();
+    _altController.dispose();
+    _azController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +101,7 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: widget.colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: widget.colors.border),
       ),
       child: Column(
@@ -115,7 +132,7 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: NightshadeButton(
                   label: widget.mountState.isTracking ? 'Stop Track' : 'Track',
@@ -132,8 +149,20 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                   },
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Home',
+                  icon: LucideIcons.home,
+                  variant: ButtonVariant.outline,
+                  isLoading: _isFindingHome,
+                  onPressed: _isFindingHome ? null : _handleFindHome,
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 16),
+          _buildSlewSection(),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -150,12 +179,165 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
     );
   }
 
+  Widget _buildSlewSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Slew To',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: widget.colors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            SegmentedButton<_CoordMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _CoordMode.equatorial,
+                  label: Text('RA/Dec'),
+                ),
+                ButtonSegment(
+                  value: _CoordMode.horizontal,
+                  label: Text('Alt/Az'),
+                ),
+              ],
+              selected: {_coordMode},
+              onSelectionChanged: (modes) {
+                setState(() => _coordMode = modes.first);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_coordMode == _CoordMode.equatorial) ...[
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _raController,
+                  decoration: InputDecoration(
+                    labelText: 'RA (hours)',
+                    hintText: '12.345',
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelStyle: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _decController,
+                  decoration: InputDecoration(
+                    labelText: 'Dec (deg)',
+                    hintText: '+45.67',
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelStyle: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true, signed: true),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _altController,
+                  decoration: InputDecoration(
+                    labelText: 'Alt (deg)',
+                    hintText: '45.0',
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelStyle: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true, signed: true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _azController,
+                  decoration: InputDecoration(
+                    labelText: 'Az (deg)',
+                    hintText: '180.0',
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    labelStyle: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: NightshadeButton(
+            label: 'Slew',
+            icon: LucideIcons.navigation,
+            variant: ButtonVariant.primary,
+            onPressed: widget.mountState.isSlewing ? null : _handleSlew,
+          ),
+        ),
+      ],
+    );
+  }
+
   String _getStatusLabel() {
     if (widget.mountState.isSlewing) return 'Slewing';
     if (widget.mountState.isParked) return 'Parked';
     if (widget.mountState.isTracking) return 'Tracking';
     if (_isConnected) return 'Ready';
     return 'Idle';
+  }
+
+  Future<void> _handleFindHome() async {
+    setState(() => _isFindingHome = true);
+    try {
+      final result = await ref.read(mountCommandServiceProvider).findHome();
+      if (mounted) {
+        context.showCommandActionResult(result);
+      }
+    } finally {
+      if (mounted) setState(() => _isFindingHome = false);
+    }
+  }
+
+  Future<void> _handleSlew() async {
+    if (_coordMode == _CoordMode.equatorial) {
+      final ra = double.tryParse(_raController.text);
+      final dec = double.tryParse(_decController.text);
+      if (ra == null || dec == null) {
+        context.showErrorSnackBar('Enter valid RA (hours) and Dec (degrees)');
+        return;
+      }
+      final result =
+          await ref.read(mountCommandServiceProvider).slewTo(ra, dec);
+      if (mounted) context.showCommandActionResult(result);
+    } else {
+      final alt = double.tryParse(_altController.text);
+      final az = double.tryParse(_azController.text);
+      if (alt == null || az == null) {
+        context.showErrorSnackBar('Enter valid Altitude and Azimuth (degrees)');
+        return;
+      }
+      final result =
+          await ref.read(mountCommandServiceProvider).slewToAltAz(alt, az);
+      if (mounted) context.showCommandActionResult(result);
+    }
   }
 
   Future<void> _handleConnect() async {

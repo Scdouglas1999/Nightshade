@@ -1,0 +1,9 @@
+apps/mobile/lib/main.dart
+apps/mobile/lib/screens/qr_scanner_screen.dart
+apps/mobile/lib/services/foreground_service.dart
+apps/mobile/lib/services/mobile_sequence_hooks.dart
+apps/mobile/lib/services/notification_service.dart
+apps/mobile/lib/widgets/checkpoint_resume_dialog.dart
+apps/mobile/lib/widgets/network_status_indicator.dart
+apps/mobile/pubspec.yaml
+apps/mobile/test/widget_test.dart

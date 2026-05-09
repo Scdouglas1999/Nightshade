@@ -7,6 +7,7 @@ use crate::api::{get_sim_focuser, get_sim_rotator};
 use crate::device::FilterWheelStatus;
 use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::devices::DeviceManager;
+use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use async_trait::async_trait;
 use chrono::{Datelike, Timelike};
@@ -2166,8 +2167,13 @@ impl DeviceOps for RealDeviceOps {
             names
         );
 
-        if let Some(index) = names.iter().position(|n| n.eq_ignore_ascii_case(name)) {
-            let position = index as i32;
+        if let Some(index) = find_filter_match(&names, name) {
+            // INDI filter slots are 1-based; ASCOM/Alpaca/Native use 0-based positions
+            let position = if fw_id.starts_with("indi:") {
+                (index + 1) as i32
+            } else {
+                index as i32
+            };
             tracing::info!(
                 "filterwheel_set_filter_by_name: Moving to position {} for filter '{}'",
                 position,
@@ -2377,73 +2383,34 @@ impl DeviceOps for RealDeviceOps {
         ra_only: bool,
     ) -> DeviceResult<()> {
         tracing::info!("Dithering {} pixels (RA only: {})", pixels, ra_only);
-
-        // Access PHD2 client from global storage
-        let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage
-            .as_mut()
-            .ok_or_else(|| "PHD2 not connected. Please connect to PHD2 first.".to_string())?;
-
-        client
-            .dither(pixels, ra_only, settle_pixels, settle_time, settle_timeout)
-            .map_err(|e| format!("Dither failed: {}", e))?;
-
-        // Wait for settling to complete by polling state
-        let start = std::time::Instant::now();
-        let timeout = std::time::Duration::from_secs(settle_timeout as u64 + 10);
-
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-            if start.elapsed() > timeout {
-                return Err("Dither settle timeout".to_string());
-            }
-
-            // Check if still settling
-            match client.get_app_state() {
-                Ok(nightshade_imaging::Phd2State::Guiding) => {
-                    // Back to guiding, settling complete
-                    break;
-                }
-                Ok(nightshade_imaging::Phd2State::Settling) => {
-                    // Still settling, continue waiting
-                    continue;
-                }
-                Ok(nightshade_imaging::Phd2State::LostLock) => {
-                    return Err("Lost guide star during dither".to_string());
-                }
-                Ok(_) => continue,
-                Err(e) => {
-                    tracing::warn!("Error checking PHD2 state during dither: {}", e);
-                    continue;
-                }
-            }
-        }
-
-        tracing::info!("Dither complete");
-        Ok(())
+        let guider_id = crate::api::get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        crate::api::api_guider_dither(
+            guider_id,
+            pixels,
+            ra_only as u8,
+            settle_pixels,
+            settle_time,
+            settle_timeout,
+        )
+        .await
+        .map_err(|e| format!("Dither failed: {}", e))
     }
 
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
-        let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage
-            .as_mut()
-            .ok_or_else(|| "PHD2 not connected".to_string())?;
-
-        let state = client
-            .get_app_state()
-            .map_err(|e| format!("Failed to get PHD2 state: {}", e))?;
-
-        let is_guiding = matches!(state, nightshade_imaging::Phd2State::Guiding);
-
-        // Get rolling RMS stats from PHD2 client
-        let stats = client.get_rolling_stats();
+        let guider_id = crate::api::get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let status = crate::api::api_guider_get_status(guider_id)
+            .await
+            .map_err(|e| format!("Failed to get guider status: {}", e))?;
 
         Ok(GuidingStatus {
-            is_guiding,
-            rms_ra: stats.rms_ra,
-            rms_dec: stats.rms_dec,
-            rms_total: stats.rms_total,
+            is_guiding: status.state == "Guiding",
+            rms_ra: status.rms_ra,
+            rms_dec: status.rms_dec,
+            rms_total: status.rms_total,
         })
     }
 
@@ -2460,77 +2427,22 @@ impl DeviceOps for RealDeviceOps {
             settle_timeout
         );
 
-        let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage
-            .as_mut()
-            .ok_or_else(|| "PHD2 not connected. Please connect to PHD2 first.".to_string())?;
-
-        // Ensure PHD2 is connected to equipment
-        let connected = client
-            .get_connected()
-            .map_err(|e| format!("Failed to check PHD2 connection: {}", e))?;
-
-        if !connected {
-            client
-                .set_connected(true)
-                .map_err(|e| format!("Failed to connect PHD2 to equipment: {}", e))?;
-        }
-
-        // Start guiding
-        client
-            .guide(settle_pixels, settle_time, settle_timeout)
-            .map_err(|e| format!("Failed to start guiding: {}", e))?;
-
-        // Wait for guiding to start (or timeout)
-        let start = std::time::Instant::now();
-        let timeout = std::time::Duration::from_secs(settle_timeout as u64 + 30); // Extra time for calibration
-
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-            if start.elapsed() > timeout {
-                return Err("Guiding start timeout".to_string());
-            }
-
-            match client.get_app_state() {
-                Ok(nightshade_imaging::Phd2State::Guiding) => {
-                    tracing::info!("Guiding started successfully");
-                    return Ok(());
-                }
-                Ok(nightshade_imaging::Phd2State::Calibrating) => {
-                    // Still calibrating, continue waiting
-                    continue;
-                }
-                Ok(nightshade_imaging::Phd2State::Settling) => {
-                    // Settling after calibration
-                    continue;
-                }
-                Ok(nightshade_imaging::Phd2State::LostLock) => {
-                    return Err("Lost guide star".to_string());
-                }
-                Ok(_) => continue,
-                Err(e) => {
-                    tracing::warn!("Error checking PHD2 state: {}", e);
-                    continue;
-                }
-            }
-        }
+        let guider_id = crate::api::get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        crate::api::api_guider_start_guiding(guider_id, settle_pixels, settle_time, settle_timeout)
+            .await
+            .map_err(|e| format!("Failed to start guiding: {}", e))
     }
 
     async fn guider_stop(&self) -> DeviceResult<()> {
         tracing::info!("Stopping guiding");
-
-        let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage
-            .as_mut()
-            .ok_or_else(|| "PHD2 not connected".to_string())?;
-
-        client
-            .stop_capture()
-            .map_err(|e| format!("Failed to stop guiding: {}", e))?;
-
-        tracing::info!("Guiding stopped");
-        Ok(())
+        let guider_id = crate::api::get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        crate::api::api_guider_stop(guider_id)
+            .await
+            .map_err(|e| format!("Failed to stop guiding: {}", e))
     }
 
     // =========================================================================

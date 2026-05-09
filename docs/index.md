@@ -1,15 +1,22 @@
 # Nightshade 2.0 User Documentation
 
-Welcome to the Nightshade 2.0 user documentation! This guide will help you master the world's most advanced cross-platform astrophotography suite.
+Welcome to the Nightshade 2.0 user documentation. Use these guides to install,
+configure, and operate Nightshade within the platform and hardware scope listed
+for the release candidate you are testing.
 
 ## What is Nightshade 2.0?
 
-Nightshade 2.0 is a comprehensive astrophotography application that controls your telescope, camera, mount, focuser, and other equipment to capture stunning images of the night sky. Built with Flutter and Rust, it offers native performance on Windows, macOS, and Linux.
+Nightshade 2.0 is an astrophotography application for controlling cameras,
+mounts, focusers, and related observatory equipment where the release package
+and connected driver backend support those capabilities. Built with Flutter and
+Rust, it is designed for desktop imaging workflows, with platform support
+limited by the artifacts and hardware evidence published for each release.
 
 ### Key Features
 
-- **Multi-Platform Support**: Windows, macOS, Linux desktop + iOS/Android companion apps
-- **Universal Device Compatibility**: ASCOM, INDI, Alpaca, and native SDK support
+- **Platform-Scoped Support**: Windows, Linux, macOS, and mobile claims are
+  release-specific and must match the release notes and support matrix
+- **Multi-backend Device Support**: ASCOM COM, Alpaca, INDI, native SDK, and simulator paths with platform-specific capability gates
 - **Intelligent Sequencer**: Behavior tree-based automation for complex imaging workflows
 - **Integrated Planetarium**: GPU-rendered interactive sky visualization
 - **Smart Focusing**: Automatic V-curve autofocus with temperature compensation
@@ -17,8 +24,10 @@ Nightshade 2.0 is a comprehensive astrophotography application that controls you
 - **Plate Solving**: Precise target framing and alignment
 - **Session Management**: Track and analyze your imaging sessions with checkpoint recovery
 - **Weather Integration**: Radar display, cloud motion analysis, safety alerts
-- **Remote Control**: WebRTC-based P2P control from mobile devices
-- **OTA Updates**: Automatic updates with SHA256 verification
+- **Remote Control**: Token-authenticated headless API, browser dashboard, and
+  mobile client paths where verified for the release
+- **Update Support**: Update checks and manifests where enabled by the release
+  channel
 
 ## Getting Started
 
@@ -41,6 +50,31 @@ New to Nightshade? Start here:
    - Camera settings
    - Focusing and plate solving
    - Reviewing your images
+
+4. **[Headless Secure Setup](headless-secure-setup.md)**
+   - Token-authenticated LAN mode
+   - Firewall ports and discovery
+   - Self-test and OpenAPI verification
+
+5. **[Supported Hardware By Platform](supported-hardware-by-platform.md)**
+   - Driver backend availability
+   - Device category coverage
+   - Known native SDK limitations
+
+6. **[Known Limitations](known-limitations.md)**
+   - Accepted limitations for release candidates
+   - Unsupported-by-platform summary
+   - Release notes checklist
+
+7. **[Release Notes Template](release-notes-template.md)**
+   - Required release evidence
+   - Hardware and migration summaries
+   - Rollback notes
+
+8. **[Migration, Backup, and Restore Guide](migration-backup-restore.md)**
+   - Backup contents and exclusions
+   - Local and headless restore flows
+   - Release-candidate migration evidence
 
 ## Feature Guides
 
@@ -123,33 +157,36 @@ Nightshade supports multiple ways to connect to your equipment:
 | Protocol | Best For | Platform | Requirements |
 |----------|----------|----------|--------------|
 | **ASCOM** | Windows users with ASCOM drivers | Windows only | ASCOM Platform + drivers |
-| **Native** | Direct USB connection, best performance | All platforms | Camera vendor SDK |
+| **Native** | Direct USB connection when the release includes the needed SDK | Capability-gated | Packaged vendor SDK and OS driver support |
 | **Alpaca** | Network devices, remote imaging | All platforms | Alpaca server on device |
 | **INDI** | Linux/macOS standard | Linux/macOS | INDI server + drivers |
 
-See [First Connection](getting-started/first-connection.md) for detailed setup instructions.
+See [Supported Hardware By Platform](supported-hardware-by-platform.md) for
+the public-release support matrix, then use
+[First Connection](getting-started/first-connection.md) for detailed setup
+instructions.
 
 ### Supported Equipment
 
 **Cameras**
 - ASCOM-compatible cameras (Windows)
-- INDI-compatible cameras (Linux/macOS)
-- Native SDK support: ZWO ASI, QHY, PlayerOne, SVBony, Atik, FLI, Moravian, Touptek
+- INDI-compatible cameras through a reachable INDI server
+- Native SDK cameras only where the release package includes the required vendor library and the platform is verified
 - Alpaca cameras (all platforms)
 
 **Mounts**
 - ASCOM-compatible mounts (Windows)
-- INDI-compatible mounts (Linux/macOS)
+- INDI-compatible mounts through a reachable INDI server
 - Alpaca mounts (all platforms)
-- Direct serial: SkyWatcher/Synta, iOptron, LX200
+- Limited native mount protocols where verified by the release candidate
 
 **Focusers**
 - ASCOM/INDI/Alpaca focusers
-- Native support for popular models
+- Native standalone focuser support is not a public guarantee unless listed in the release notes
 
 **Filter Wheels**
 - ASCOM/INDI/Alpaca filter wheels
-- Integrated camera filter wheels
+- Native standalone filter wheel support is not a public guarantee unless listed in the release notes
 
 **Rotators**
 - ASCOM/INDI/Alpaca rotators
@@ -159,12 +196,12 @@ See [First Connection](getting-started/first-connection.md) for detailed setup i
 - Automatic slaving to mount
 
 **Weather Stations**
-- ASCOM/INDI/Alpaca observing conditions devices
+- ASCOM/Alpaca observing conditions devices, plus INDI drivers where verified
 - Safety monitors
 
 **Guiders**
 - PHD2 integration (all platforms)
-- Direct guide camera support via ASCOM/INDI
+- Direct guide camera support is driver-dependent and should be verified per release
 
 ## Application Overview
 
@@ -258,9 +295,14 @@ Nightshade's interface is organized into main screens accessible from the sideba
 ### Remote Imaging Session
 
 1. Start desktop app on imaging computer
-2. Enable WebRTC in settings
-3. Pair mobile app via QR code
-4. Control remotely via phone/tablet
+2. For the browser dashboard or mobile remote client, follow
+   [Headless Secure Setup](headless-secure-setup.md)
+3. Enable LAN exposure only with authentication unless you are on an isolated
+   development network
+4. Verify dashboard/mobile connection and WebSocket reconnect behavior before
+   relying on remote monitoring
+5. Treat localhost or emulator tests as development evidence; release validation
+   still needs second-device LAN/firewall evidence
 
 ## Troubleshooting
 
@@ -275,6 +317,13 @@ Equipment:
 - [Mount Not Responding](troubleshooting/common-issues.md#mount-not-responding)
 - [Connection Lost During Imaging](troubleshooting/common-issues.md#connection-lost-during-imaging)
 - [PHD2 Not Connecting](troubleshooting/common-issues.md#phd2-not-connecting)
+- [PHD2 Troubleshooting](troubleshooting/phd2.md)
+- [ASCOM Troubleshooting](troubleshooting/ascom.md)
+- [INDI Troubleshooting](troubleshooting/indi.md)
+- [Alpaca Troubleshooting](troubleshooting/alpaca.md)
+- [Driver Troubleshooting](troubleshooting/drivers.md)
+- [Permissions Troubleshooting](troubleshooting/permissions.md)
+- [Firewall Troubleshooting](troubleshooting/firewall.md)
 
 Imaging:
 - [Autofocus Fails](troubleshooting/common-issues.md#autofocus-fails)
@@ -304,7 +353,8 @@ Application:
 3. **Plan Nights**: Use target library to plan entire sessions
 4. **Automate Everything**: Meridian flips, refocusing, filter changes
 5. **Analyze Sessions**: Review analytics to improve workflow
-6. **Use Remote Control**: Monitor from mobile while equipment runs
+6. **Use Remote Control Carefully**: Monitor from mobile only after the secure
+   setup and second-device LAN path are verified
 
 ## Additional Resources
 
@@ -327,15 +377,18 @@ Building plugins or contributing to Nightshade?
 Coming from Nightshade 1.x? Here's what's new:
 
 - **Complete Rewrite**: Modern Flutter/Rust architecture
-- **Cross-Platform**: Windows, macOS, Linux, iOS, Android
+- **Platform-Scoped Builds**: Desktop and mobile artifacts are documented per
+  release, with unsupported platforms listed in release notes
 - **Behavior Tree Sequencer**: More powerful than script-based v1
 - **Native Performance**: Rust backend for speed
 - **Integrated Planetarium**: GPU-rendered sky visualization with survey overlays
 - **Advanced Focusing**: Temperature compensation, ML-based focus prediction
 - **Better PHD2 Integration**: Real-time monitoring, star images, calibration
 - **Weather Integration**: Radar, cloud motion analysis, safety alerts
-- **Remote Control**: WebRTC P2P control from mobile devices
-- **OTA Updates**: Automatic update system with LAN push for development
+- **Remote Control**: Headless API, browser dashboard, and mobile client paths
+  where verified for the release
+- **Updates**: Manifest-based update checks where enabled by the release
+  channel
 - **Checkpoint Recovery**: Resume interrupted sequences automatically
 - **Modern UI**: Clean, responsive interface with dark theme
 - **Plugin System**: Extensible architecture
@@ -350,7 +403,10 @@ We value your feedback!
 
 ## About
 
-Nightshade 2.0 is developed by passionate astrophotographers for the astrophotography community. Our goal is to create the most powerful, user-friendly, and cross-platform imaging suite available.
+Nightshade 2.0 is developed by astrophotographers for the astrophotography
+community. Its public release scope is intentionally conservative: use the
+release notes, support matrix, and known limitations to decide which workflows
+are supported by the artifact you install.
 
 ---
 

@@ -563,12 +563,12 @@ impl NativeDevice for AtikCamera {
 
         // Store handle
         {
-            let mut handle = self.handle.lock().unwrap();
+            let mut handle = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *handle = HandleWrapper(new_handle);
         }
 
         // Check connection
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         if unsafe { (sdk.is_connected)(handle) } == 0 {
             tracing::error!(
                 "Atik camera at index {} - ArtemisIsConnected() returned false after successful connect.",
@@ -704,7 +704,7 @@ impl NativeDevice for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Abort any exposure
         let _ = unsafe { (sdk.abort_exposure)(handle) };
@@ -728,7 +728,7 @@ impl NativeDevice for AtikCamera {
         }
 
         {
-            let mut h = self.handle.lock().unwrap();
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *h = HandleWrapper(std::ptr::null_mut());
         }
         self.connected = false;
@@ -756,7 +756,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Get temperature
         let sensor_temp = {
@@ -850,7 +850,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Set dark mode (normal mode by default - dark frames handled at higher level)
         let _ = unsafe { (sdk.set_dark_mode)(handle, 0) };
@@ -877,7 +877,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let result = unsafe { (sdk.abort_exposure)(handle) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             return Err(ArtemisError::from_i32(result).to_native_error("abort exposure"));
@@ -897,7 +897,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let ready = unsafe { (sdk.image_ready)(handle) };
         Ok(ready != 0)
     }
@@ -912,7 +912,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         self.state = CameraState::Downloading;
 
@@ -1004,7 +1004,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if enabled {
             // Temperature in hundredths of degrees
@@ -1035,7 +1035,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let mut temp: c_int = 0;
 
         let result = unsafe { (sdk.temperature_sensor_info)(handle, 1, &mut temp) };
@@ -1059,7 +1059,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let mut flags: c_int = 0;
         let mut level: c_int = 0;
         let mut minlvl: c_int = 0;
@@ -1097,7 +1097,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let result =
             unsafe { (sdk.set_gain)(handle, 0, gain as c_int, self.current_offset as c_int) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
@@ -1122,7 +1122,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let result =
             unsafe { (sdk.set_gain)(handle, 0, self.current_gain as c_int, offset as c_int) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
@@ -1154,7 +1154,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         let result = unsafe { (sdk.bin)(handle, bin_x as c_int, bin_y as c_int) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             return Err(ArtemisError::from_i32(result).to_native_error("set binning"));
@@ -1179,7 +1179,7 @@ impl NativeCamera for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let (x, y, w, h) = match &subframe {
             Some(sf) => (

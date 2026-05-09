@@ -11,12 +11,16 @@ import '../database/database.dart';
 class SessionExportService {
   final SessionsDao _sessionsDao;
   final ImagesDao _imagesDao;
+  final Future<Directory> Function() _documentsDirectoryProvider;
 
   SessionExportService({
     required SessionsDao sessionsDao,
     required ImagesDao imagesDao,
+    Future<Directory> Function()? documentsDirectoryProvider,
   })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao;
+        _imagesDao = imagesDao,
+        _documentsDirectoryProvider =
+            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
 
   /// Export session images to CSV format
   ///
@@ -81,7 +85,8 @@ class SessionExportService {
     // Save to file
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
-    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final timestamp =
+        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
     final fileName = '${sessionName}_$timestamp.csv';
     final filePath = path.join(directory.path, fileName);
 
@@ -196,7 +201,8 @@ class SessionExportService {
     // Save to file
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
-    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final timestamp =
+        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
     final fileName = '${sessionName}_$timestamp.json';
     final filePath = path.join(directory.path, fileName);
 
@@ -208,8 +214,9 @@ class SessionExportService {
 
   /// Get or create the export directory
   Future<Directory> _getExportDirectory() async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final exportDir = Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+    final docsDir = await _documentsDirectoryProvider();
+    final exportDir =
+        Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
 
     if (!await exportDir.exists()) {
       await exportDir.create(recursive: true);
@@ -246,8 +253,11 @@ class SessionExportService {
     buffer.writeln('Total Exposures: ${session.totalExposures}');
     buffer.writeln('Successful: ${session.successfulExposures}');
     buffer.writeln('Failed: ${session.failedExposures}');
-    buffer.writeln(
-        'Success Rate: ${(session.successfulExposures / session.totalExposures * 100).toStringAsFixed(1)}%');
+    final totalExposures = session.totalExposures;
+    final successRate = totalExposures > 0
+        ? (session.successfulExposures / totalExposures * 100)
+        : 0.0;
+    buffer.writeln('Success Rate: ${successRate.toStringAsFixed(1)}%');
     buffer.writeln(
         'Total Integration: ${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)} hours');
 
@@ -256,7 +266,8 @@ class SessionExportService {
     }
 
     if (session.avgGuidingRms != null) {
-      buffer.writeln('Average Guiding RMS: ${session.avgGuidingRms!.toStringAsFixed(2)} "');
+      buffer.writeln(
+          'Average Guiding RMS: ${session.avgGuidingRms!.toStringAsFixed(2)} "');
     }
 
     buffer.writeln('Autofocus Runs: ${session.autofocusCount}');
@@ -270,15 +281,18 @@ class SessionExportService {
       buffer.writeln('-' * 60);
 
       if (session.avgTemperature != null) {
-        buffer.writeln('Avg Temperature: ${session.avgTemperature!.toStringAsFixed(1)} °C');
+        buffer.writeln(
+            'Avg Temperature: ${session.avgTemperature!.toStringAsFixed(1)} °C');
       }
 
       if (session.avgHumidity != null) {
-        buffer.writeln('Avg Humidity: ${session.avgHumidity!.toStringAsFixed(1)} %');
+        buffer.writeln(
+            'Avg Humidity: ${session.avgHumidity!.toStringAsFixed(1)} %');
       }
 
       if (session.avgSeeing != null) {
-        buffer.writeln('Avg Seeing: ${session.avgSeeing!.toStringAsFixed(1)} "');
+        buffer
+            .writeln('Avg Seeing: ${session.avgSeeing!.toStringAsFixed(1)} "');
       }
 
       buffer.writeln();
@@ -302,8 +316,8 @@ class SessionExportService {
     if (filterGroups.isNotEmpty) {
       buffer.writeln('By Filter:');
       for (final entry in filterGroups.entries) {
-        final totalExp = entry.value.fold<double>(
-            0, (sum, img) => sum + img.exposureDuration);
+        final totalExp = entry.value
+            .fold<double>(0, (sum, img) => sum + img.exposureDuration);
         buffer.writeln(
             '  ${entry.key}: ${entry.value.length} images, ${(totalExp / 60).toStringAsFixed(1)} min');
       }
@@ -323,5 +337,130 @@ class SessionExportService {
     buffer.writeln('=' * 60);
 
     return buffer.toString();
+  }
+
+  /// Export a styled HTML session report.
+  Future<String> exportToHtml(int sessionId) async {
+    final session = await _sessionsDao.getSessionById(sessionId);
+    if (session == null) {
+      throw Exception('Session not found: $sessionId');
+    }
+
+    final images = await _imagesDao.getImagesForSession(sessionId);
+    final acceptedImages = images.where((image) => image.isAccepted).toList();
+    final totalIntegrationHours = session.totalIntegrationSecs / 3600.0;
+    final successRate = session.totalExposures > 0
+        ? (session.successfulExposures / session.totalExposures) * 100.0
+        : 0.0;
+
+    final filterGroups = <String, List<CapturedImage>>{};
+    for (final image in acceptedImages) {
+      final filter = image.filter ?? 'No Filter';
+      filterGroups.putIfAbsent(filter, () => <CapturedImage>[]).add(image);
+    }
+
+    final filterRows = filterGroups.entries.map((entry) {
+      final totalExp = entry.value.fold<double>(
+        0.0,
+        (sum, img) => sum + img.exposureDuration,
+      );
+      return '''
+        <tr>
+          <td>${entry.key}</td>
+          <td>${entry.value.length}</td>
+          <td>${(totalExp / 60).toStringAsFixed(1)} min</td>
+        </tr>
+      ''';
+    }).join();
+
+    final imageRows = acceptedImages.take(20).map((image) {
+      return '''
+        <tr>
+          <td>${image.fileName}</td>
+          <td>${image.frameType}</td>
+          <td>${image.filter ?? '-'}</td>
+          <td>${image.exposureDuration.toStringAsFixed(1)} s</td>
+          <td>${image.hfr?.toStringAsFixed(2) ?? '-'}</td>
+          <td>${image.guidingRmsTotal?.toStringAsFixed(2) ?? '-'}</td>
+        </tr>
+      ''';
+    }).join();
+
+    final html = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nightshade Session Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #1f2937; background: #f6f7fb; }
+    .hero { background: linear-gradient(135deg, #0f172a, #1d4ed8); color: white; padding: 28px; border-radius: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin: 20px 0; }
+    .card { background: white; border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+    h1, h2 { margin: 0 0 12px; }
+    h2 { margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid #e5e7eb; }
+    th { background: #e0e7ff; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .muted { color: #6b7280; }
+    .notes { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>${session.name ?? "Unnamed Session"}</h1>
+    <div>Started ${session.startTime.toLocal()}</div>
+    <div>Ended ${session.endTime?.toLocal() ?? "In progress"} · Status ${session.status}</div>
+  </section>
+
+  <section class="grid">
+    <div class="card"><div class="muted">Integration</div><strong>${totalIntegrationHours.toStringAsFixed(2)} h</strong></div>
+    <div class="card"><div class="muted">Exposures</div><strong>${session.successfulExposures}/${session.totalExposures}</strong></div>
+    <div class="card"><div class="muted">Success Rate</div><strong>${successRate.toStringAsFixed(1)}%</strong></div>
+    <div class="card"><div class="muted">Autofocus Runs</div><strong>${session.autofocusCount}</strong></div>
+  </section>
+
+  <h2>Session Summary</h2>
+  <div class="grid">
+    <div class="card"><div class="muted">Average HFR</div><strong>${session.avgHfr?.toStringAsFixed(2) ?? "-"}</strong></div>
+    <div class="card"><div class="muted">Guiding RMS</div><strong>${session.avgGuidingRms?.toStringAsFixed(2) ?? "-"}</strong></div>
+    <div class="card"><div class="muted">Humidity</div><strong>${session.avgHumidity?.toStringAsFixed(1) ?? "-"}%</strong></div>
+    <div class="card"><div class="muted">Temperature</div><strong>${session.avgTemperature?.toStringAsFixed(1) ?? "-"} C</strong></div>
+  </div>
+
+  <h2>Accepted Frames by Filter</h2>
+  <table>
+    <thead>
+      <tr><th>Filter</th><th>Frames</th><th>Integration</th></tr>
+    </thead>
+    <tbody>
+      ${filterRows.isEmpty ? '<tr><td colspan="3">No accepted frames recorded.</td></tr>' : filterRows}
+    </tbody>
+  </table>
+
+  <h2>Accepted Frame Sample</h2>
+  <table>
+    <thead>
+      <tr><th>Filename</th><th>Type</th><th>Filter</th><th>Exposure</th><th>HFR</th><th>Guiding RMS</th></tr>
+    </thead>
+    <tbody>
+      ${imageRows.isEmpty ? '<tr><td colspan="6">No accepted frames recorded.</td></tr>' : imageRows}
+    </tbody>
+  </table>
+
+  ${session.notes != null && session.notes!.isNotEmpty ? '<h2>Notes</h2><div class="card notes">${session.notes}</div>' : ''}
+</body>
+</html>
+''';
+
+    final directory = await _getExportDirectory();
+    final sessionName = session.name ?? 'session_$sessionId';
+    final timestamp =
+        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+    final fileName = '${sessionName}_$timestamp.html';
+    final filePath = path.join(directory.path, fileName);
+    final file = File(filePath);
+    await file.writeAsString(html);
+    return filePath;
   }
 }

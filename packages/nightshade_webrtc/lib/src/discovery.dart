@@ -10,6 +10,11 @@ class DiscoveredServer {
   final int signalingPort;
   final String name;
   final String version;
+  final String mode;
+  final bool authRequired;
+  final String authenticationMode;
+  final bool pairingSupported;
+  final String? authToken;
 
   DiscoveredServer({
     required this.host,
@@ -17,10 +22,41 @@ class DiscoveredServer {
     required this.signalingPort,
     required this.name,
     required this.version,
+    this.mode = 'desktop',
+    this.authRequired = false,
+    this.authenticationMode = 'none',
+    this.pairingSupported = false,
+    this.authToken,
   });
 
   String get webUrl => 'http://$host:$webPort';
   String get signalingUrl => 'http://$host:$signalingPort';
+
+  DiscoveredServer copyWith({
+    String? host,
+    int? webPort,
+    int? signalingPort,
+    String? name,
+    String? version,
+    String? mode,
+    bool? authRequired,
+    String? authenticationMode,
+    bool? pairingSupported,
+    String? authToken,
+  }) {
+    return DiscoveredServer(
+      host: host ?? this.host,
+      webPort: webPort ?? this.webPort,
+      signalingPort: signalingPort ?? this.signalingPort,
+      name: name ?? this.name,
+      version: version ?? this.version,
+      mode: mode ?? this.mode,
+      authRequired: authRequired ?? this.authRequired,
+      authenticationMode: authenticationMode ?? this.authenticationMode,
+      pairingSupported: pairingSupported ?? this.pairingSupported,
+      authToken: authToken ?? this.authToken,
+    );
+  }
 
   @override
   String toString() => '$name ($host:$webPort)';
@@ -293,4 +329,3 @@ class UpdatePushDiscovery {
     return socket;
   }
 }
-

@@ -80,6 +80,7 @@ void main(List<String> args) {
   final allowlist = _loadAllowlist(allowlistPath);
   final hits = <String>{};
   final highRisk = <String>{};
+  final workspaceRoot = _normalize(Directory.current.absolute.path);
 
   for (final root in _scanRoots) {
     final rootDir = Directory(root);
@@ -93,7 +94,7 @@ void main(List<String> args) {
         continue;
       }
 
-      final normalizedPath = _normalize(entity.path);
+      final normalizedPath = _toWorkspaceRelative(entity.path, workspaceRoot);
       if (!_isRuntimePath(normalizedPath) || _shouldSkip(normalizedPath)) {
         continue;
       }
@@ -130,8 +131,8 @@ void main(List<String> args) {
   final sortedHits = hits.toList()..sort();
   final sortedHighRisk = highRisk.toList()..sort();
 
-  File(hitsPath).writeAsStringSync('${sortedHits.join('\n')}\n');
-  File(highRiskPath).writeAsStringSync('${sortedHighRisk.join('\n')}\n');
+  _writeTextFile(hitsPath, '${sortedHits.join('\n')}\n');
+  _writeTextFile(highRiskPath, '${sortedHighRisk.join('\n')}\n');
 
   stdout.writeln('Runtime marker audit complete.');
   stdout.writeln('Hits: ${sortedHits.length} -> $hitsPath');
@@ -186,6 +187,12 @@ String? _argValue(List<String> args, String key) {
     }
   }
   return null;
+}
+
+void _writeTextFile(String path, String content) {
+  final file = File(path);
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(content);
 }
 
 Set<String> _loadAllowlist(String path) {
@@ -264,3 +271,18 @@ List<String> _readLinesSafe(File file) {
 
 String _normalize(String path) =>
     path.replaceAll('\\', '/').replaceAll(RegExp(r'/+'), '/');
+
+String _toWorkspaceRelative(String path, String workspaceRoot) {
+  final absolute = _normalize(File(path).absolute.path);
+  final lowerAbsolute = absolute.toLowerCase();
+  final lowerRoot = workspaceRoot.toLowerCase();
+  if (lowerAbsolute.startsWith(lowerRoot)) {
+    final start = workspaceRoot.endsWith('/')
+        ? workspaceRoot.length
+        : workspaceRoot.length + 1;
+    if (absolute.length >= start) {
+      return absolute.substring(start);
+    }
+  }
+  return _normalize(path);
+}

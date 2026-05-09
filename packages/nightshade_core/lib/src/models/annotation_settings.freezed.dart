@@ -63,6 +63,18 @@ mixin _$AnnotationSettings {
   /// Maximum number of objects to display
   int get maxObjectsToDisplay => throw _privateConstructorUsedError;
 
+  /// Whether to show compass overlay (N/E arrows from plate solve rotation)
+  bool get compassEnabled => throw _privateConstructorUsedError;
+
+  /// Whether to show scale bar overlay (angular size reference)
+  bool get scaleBarEnabled => throw _privateConstructorUsedError;
+
+  /// Grid overlay type (none, pixel, or celestial RA/Dec)
+  GridType get gridType => throw _privateConstructorUsedError;
+
+  /// Whether to show plate solve residual vectors overlay
+  bool get showSolveResiduals => throw _privateConstructorUsedError;
+
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
   $AnnotationSettingsCopyWith<AnnotationSettings> get copyWith =>
@@ -89,7 +101,11 @@ abstract class $AnnotationSettingsCopyWith<$Res> {
       bool clickToIdentify,
       double clickSearchRadiusArcsec,
       bool autoAnnotate,
-      int maxObjectsToDisplay});
+      int maxObjectsToDisplay,
+      bool compassEnabled,
+      bool scaleBarEnabled,
+      GridType gridType,
+      bool showSolveResiduals});
 }
 
 /// @nodoc
@@ -119,6 +135,10 @@ class _$AnnotationSettingsCopyWithImpl<$Res, $Val extends AnnotationSettings>
     Object? clickSearchRadiusArcsec = null,
     Object? autoAnnotate = null,
     Object? maxObjectsToDisplay = null,
+    Object? compassEnabled = null,
+    Object? scaleBarEnabled = null,
+    Object? gridType = null,
+    Object? showSolveResiduals = null,
   }) {
     return _then(_value.copyWith(
       enabled: null == enabled
@@ -177,6 +197,22 @@ class _$AnnotationSettingsCopyWithImpl<$Res, $Val extends AnnotationSettings>
           ? _value.maxObjectsToDisplay
           : maxObjectsToDisplay // ignore: cast_nullable_to_non_nullable
               as int,
+      compassEnabled: null == compassEnabled
+          ? _value.compassEnabled
+          : compassEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      scaleBarEnabled: null == scaleBarEnabled
+          ? _value.scaleBarEnabled
+          : scaleBarEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      gridType: null == gridType
+          ? _value.gridType
+          : gridType // ignore: cast_nullable_to_non_nullable
+              as GridType,
+      showSolveResiduals: null == showSolveResiduals
+          ? _value.showSolveResiduals
+          : showSolveResiduals // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 }
@@ -203,7 +239,11 @@ abstract class _$$AnnotationSettingsImplCopyWith<$Res>
       bool clickToIdentify,
       double clickSearchRadiusArcsec,
       bool autoAnnotate,
-      int maxObjectsToDisplay});
+      int maxObjectsToDisplay,
+      bool compassEnabled,
+      bool scaleBarEnabled,
+      GridType gridType,
+      bool showSolveResiduals});
 }
 
 /// @nodoc
@@ -231,6 +271,10 @@ class __$$AnnotationSettingsImplCopyWithImpl<$Res>
     Object? clickSearchRadiusArcsec = null,
     Object? autoAnnotate = null,
     Object? maxObjectsToDisplay = null,
+    Object? compassEnabled = null,
+    Object? scaleBarEnabled = null,
+    Object? gridType = null,
+    Object? showSolveResiduals = null,
   }) {
     return _then(_$AnnotationSettingsImpl(
       enabled: null == enabled
@@ -289,6 +333,22 @@ class __$$AnnotationSettingsImplCopyWithImpl<$Res>
           ? _value.maxObjectsToDisplay
           : maxObjectsToDisplay // ignore: cast_nullable_to_non_nullable
               as int,
+      compassEnabled: null == compassEnabled
+          ? _value.compassEnabled
+          : compassEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      scaleBarEnabled: null == scaleBarEnabled
+          ? _value.scaleBarEnabled
+          : scaleBarEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      gridType: null == gridType
+          ? _value.gridType
+          : gridType // ignore: cast_nullable_to_non_nullable
+              as GridType,
+      showSolveResiduals: null == showSolveResiduals
+          ? _value.showSolveResiduals
+          : showSolveResiduals // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -315,7 +375,11 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
       this.clickToIdentify = true,
       this.clickSearchRadiusArcsec = 30.0,
       this.autoAnnotate = true,
-      this.maxObjectsToDisplay = 500})
+      this.maxObjectsToDisplay = 500,
+      this.compassEnabled = true,
+      this.scaleBarEnabled = true,
+      this.gridType = GridType.none,
+      this.showSolveResiduals = false})
       : _visibleTypes = visibleTypes;
 
   factory _$AnnotationSettingsImpl.fromJson(Map<String, dynamic> json) =>
@@ -398,9 +462,29 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
   @JsonKey()
   final int maxObjectsToDisplay;
 
+  /// Whether to show compass overlay (N/E arrows from plate solve rotation)
+  @override
+  @JsonKey()
+  final bool compassEnabled;
+
+  /// Whether to show scale bar overlay (angular size reference)
+  @override
+  @JsonKey()
+  final bool scaleBarEnabled;
+
+  /// Grid overlay type (none, pixel, or celestial RA/Dec)
+  @override
+  @JsonKey()
+  final GridType gridType;
+
+  /// Whether to show plate solve residual vectors overlay
+  @override
+  @JsonKey()
+  final bool showSolveResiduals;
+
   @override
   String toString() {
-    return 'AnnotationSettings(enabled: $enabled, magnitudeCutoff: $magnitudeCutoff, minMagnitude: $minMagnitude, visibleTypes: $visibleTypes, showLabels: $showLabels, showMagnitudes: $showMagnitudes, fadeWhenNotHovering: $fadeWhenNotHovering, hoverOpacity: $hoverOpacity, idleOpacity: $idleOpacity, fadeAnimationMs: $fadeAnimationMs, clickToIdentify: $clickToIdentify, clickSearchRadiusArcsec: $clickSearchRadiusArcsec, autoAnnotate: $autoAnnotate, maxObjectsToDisplay: $maxObjectsToDisplay)';
+    return 'AnnotationSettings(enabled: $enabled, magnitudeCutoff: $magnitudeCutoff, minMagnitude: $minMagnitude, visibleTypes: $visibleTypes, showLabels: $showLabels, showMagnitudes: $showMagnitudes, fadeWhenNotHovering: $fadeWhenNotHovering, hoverOpacity: $hoverOpacity, idleOpacity: $idleOpacity, fadeAnimationMs: $fadeAnimationMs, clickToIdentify: $clickToIdentify, clickSearchRadiusArcsec: $clickSearchRadiusArcsec, autoAnnotate: $autoAnnotate, maxObjectsToDisplay: $maxObjectsToDisplay, compassEnabled: $compassEnabled, scaleBarEnabled: $scaleBarEnabled, gridType: $gridType, showSolveResiduals: $showSolveResiduals)';
   }
 
   @override
@@ -435,7 +519,15 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
             (identical(other.autoAnnotate, autoAnnotate) ||
                 other.autoAnnotate == autoAnnotate) &&
             (identical(other.maxObjectsToDisplay, maxObjectsToDisplay) ||
-                other.maxObjectsToDisplay == maxObjectsToDisplay));
+                other.maxObjectsToDisplay == maxObjectsToDisplay) &&
+            (identical(other.compassEnabled, compassEnabled) ||
+                other.compassEnabled == compassEnabled) &&
+            (identical(other.scaleBarEnabled, scaleBarEnabled) ||
+                other.scaleBarEnabled == scaleBarEnabled) &&
+            (identical(other.gridType, gridType) ||
+                other.gridType == gridType) &&
+            (identical(other.showSolveResiduals, showSolveResiduals) ||
+                other.showSolveResiduals == showSolveResiduals));
   }
 
   @JsonKey(ignore: true)
@@ -455,7 +547,11 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
       clickToIdentify,
       clickSearchRadiusArcsec,
       autoAnnotate,
-      maxObjectsToDisplay);
+      maxObjectsToDisplay,
+      compassEnabled,
+      scaleBarEnabled,
+      gridType,
+      showSolveResiduals);
 
   @JsonKey(ignore: true)
   @override
@@ -487,7 +583,11 @@ abstract class _AnnotationSettings implements AnnotationSettings {
       final bool clickToIdentify,
       final double clickSearchRadiusArcsec,
       final bool autoAnnotate,
-      final int maxObjectsToDisplay}) = _$AnnotationSettingsImpl;
+      final int maxObjectsToDisplay,
+      final bool compassEnabled,
+      final bool scaleBarEnabled,
+      final GridType gridType,
+      final bool showSolveResiduals}) = _$AnnotationSettingsImpl;
 
   factory _AnnotationSettings.fromJson(Map<String, dynamic> json) =
       _$AnnotationSettingsImpl.fromJson;
@@ -548,6 +648,22 @@ abstract class _AnnotationSettings implements AnnotationSettings {
 
   /// Maximum number of objects to display
   int get maxObjectsToDisplay;
+  @override
+
+  /// Whether to show compass overlay (N/E arrows from plate solve rotation)
+  bool get compassEnabled;
+  @override
+
+  /// Whether to show scale bar overlay (angular size reference)
+  bool get scaleBarEnabled;
+  @override
+
+  /// Grid overlay type (none, pixel, or celestial RA/Dec)
+  GridType get gridType;
+  @override
+
+  /// Whether to show plate solve residual vectors overlay
+  bool get showSolveResiduals;
   @override
   @JsonKey(ignore: true)
   _$$AnnotationSettingsImplCopyWith<_$AnnotationSettingsImpl> get copyWith =>
@@ -995,4 +1111,628 @@ abstract class _AnnotationMarkerStyle implements AnnotationMarkerStyle {
   @JsonKey(ignore: true)
   _$$AnnotationMarkerStyleImplCopyWith<_$AnnotationMarkerStyleImpl>
       get copyWith => throw _privateConstructorUsedError;
+}
+
+AnnotationPreset _$AnnotationPresetFromJson(Map<String, dynamic> json) {
+  return _AnnotationPreset.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AnnotationPreset {
+  String get name => throw _privateConstructorUsedError;
+  Set<AnnotationObjectFilter> get visibleTypes =>
+      throw _privateConstructorUsedError;
+  double get minMagnitude => throw _privateConstructorUsedError;
+  double get magnitudeCutoff => throw _privateConstructorUsedError;
+  bool get showLabels => throw _privateConstructorUsedError;
+  bool get showMagnitudes => throw _privateConstructorUsedError;
+  bool get isBuiltIn => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $AnnotationPresetCopyWith<AnnotationPreset> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AnnotationPresetCopyWith<$Res> {
+  factory $AnnotationPresetCopyWith(
+          AnnotationPreset value, $Res Function(AnnotationPreset) then) =
+      _$AnnotationPresetCopyWithImpl<$Res, AnnotationPreset>;
+  @useResult
+  $Res call(
+      {String name,
+      Set<AnnotationObjectFilter> visibleTypes,
+      double minMagnitude,
+      double magnitudeCutoff,
+      bool showLabels,
+      bool showMagnitudes,
+      bool isBuiltIn});
+}
+
+/// @nodoc
+class _$AnnotationPresetCopyWithImpl<$Res, $Val extends AnnotationPreset>
+    implements $AnnotationPresetCopyWith<$Res> {
+  _$AnnotationPresetCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? visibleTypes = null,
+    Object? minMagnitude = null,
+    Object? magnitudeCutoff = null,
+    Object? showLabels = null,
+    Object? showMagnitudes = null,
+    Object? isBuiltIn = null,
+  }) {
+    return _then(_value.copyWith(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      visibleTypes: null == visibleTypes
+          ? _value.visibleTypes
+          : visibleTypes // ignore: cast_nullable_to_non_nullable
+              as Set<AnnotationObjectFilter>,
+      minMagnitude: null == minMagnitude
+          ? _value.minMagnitude
+          : minMagnitude // ignore: cast_nullable_to_non_nullable
+              as double,
+      magnitudeCutoff: null == magnitudeCutoff
+          ? _value.magnitudeCutoff
+          : magnitudeCutoff // ignore: cast_nullable_to_non_nullable
+              as double,
+      showLabels: null == showLabels
+          ? _value.showLabels
+          : showLabels // ignore: cast_nullable_to_non_nullable
+              as bool,
+      showMagnitudes: null == showMagnitudes
+          ? _value.showMagnitudes
+          : showMagnitudes // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isBuiltIn: null == isBuiltIn
+          ? _value.isBuiltIn
+          : isBuiltIn // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$AnnotationPresetImplCopyWith<$Res>
+    implements $AnnotationPresetCopyWith<$Res> {
+  factory _$$AnnotationPresetImplCopyWith(_$AnnotationPresetImpl value,
+          $Res Function(_$AnnotationPresetImpl) then) =
+      __$$AnnotationPresetImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String name,
+      Set<AnnotationObjectFilter> visibleTypes,
+      double minMagnitude,
+      double magnitudeCutoff,
+      bool showLabels,
+      bool showMagnitudes,
+      bool isBuiltIn});
+}
+
+/// @nodoc
+class __$$AnnotationPresetImplCopyWithImpl<$Res>
+    extends _$AnnotationPresetCopyWithImpl<$Res, _$AnnotationPresetImpl>
+    implements _$$AnnotationPresetImplCopyWith<$Res> {
+  __$$AnnotationPresetImplCopyWithImpl(_$AnnotationPresetImpl _value,
+      $Res Function(_$AnnotationPresetImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? visibleTypes = null,
+    Object? minMagnitude = null,
+    Object? magnitudeCutoff = null,
+    Object? showLabels = null,
+    Object? showMagnitudes = null,
+    Object? isBuiltIn = null,
+  }) {
+    return _then(_$AnnotationPresetImpl(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      visibleTypes: null == visibleTypes
+          ? _value._visibleTypes
+          : visibleTypes // ignore: cast_nullable_to_non_nullable
+              as Set<AnnotationObjectFilter>,
+      minMagnitude: null == minMagnitude
+          ? _value.minMagnitude
+          : minMagnitude // ignore: cast_nullable_to_non_nullable
+              as double,
+      magnitudeCutoff: null == magnitudeCutoff
+          ? _value.magnitudeCutoff
+          : magnitudeCutoff // ignore: cast_nullable_to_non_nullable
+              as double,
+      showLabels: null == showLabels
+          ? _value.showLabels
+          : showLabels // ignore: cast_nullable_to_non_nullable
+              as bool,
+      showMagnitudes: null == showMagnitudes
+          ? _value.showMagnitudes
+          : showMagnitudes // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isBuiltIn: null == isBuiltIn
+          ? _value.isBuiltIn
+          : isBuiltIn // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AnnotationPresetImpl implements _AnnotationPreset {
+  const _$AnnotationPresetImpl(
+      {required this.name,
+      required final Set<AnnotationObjectFilter> visibleTypes,
+      required this.minMagnitude,
+      required this.magnitudeCutoff,
+      required this.showLabels,
+      required this.showMagnitudes,
+      this.isBuiltIn = false})
+      : _visibleTypes = visibleTypes;
+
+  factory _$AnnotationPresetImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AnnotationPresetImplFromJson(json);
+
+  @override
+  final String name;
+  final Set<AnnotationObjectFilter> _visibleTypes;
+  @override
+  Set<AnnotationObjectFilter> get visibleTypes {
+    if (_visibleTypes is EqualUnmodifiableSetView) return _visibleTypes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableSetView(_visibleTypes);
+  }
+
+  @override
+  final double minMagnitude;
+  @override
+  final double magnitudeCutoff;
+  @override
+  final bool showLabels;
+  @override
+  final bool showMagnitudes;
+  @override
+  @JsonKey()
+  final bool isBuiltIn;
+
+  @override
+  String toString() {
+    return 'AnnotationPreset(name: $name, visibleTypes: $visibleTypes, minMagnitude: $minMagnitude, magnitudeCutoff: $magnitudeCutoff, showLabels: $showLabels, showMagnitudes: $showMagnitudes, isBuiltIn: $isBuiltIn)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AnnotationPresetImpl &&
+            (identical(other.name, name) || other.name == name) &&
+            const DeepCollectionEquality()
+                .equals(other._visibleTypes, _visibleTypes) &&
+            (identical(other.minMagnitude, minMagnitude) ||
+                other.minMagnitude == minMagnitude) &&
+            (identical(other.magnitudeCutoff, magnitudeCutoff) ||
+                other.magnitudeCutoff == magnitudeCutoff) &&
+            (identical(other.showLabels, showLabels) ||
+                other.showLabels == showLabels) &&
+            (identical(other.showMagnitudes, showMagnitudes) ||
+                other.showMagnitudes == showMagnitudes) &&
+            (identical(other.isBuiltIn, isBuiltIn) ||
+                other.isBuiltIn == isBuiltIn));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      name,
+      const DeepCollectionEquality().hash(_visibleTypes),
+      minMagnitude,
+      magnitudeCutoff,
+      showLabels,
+      showMagnitudes,
+      isBuiltIn);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AnnotationPresetImplCopyWith<_$AnnotationPresetImpl> get copyWith =>
+      __$$AnnotationPresetImplCopyWithImpl<_$AnnotationPresetImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AnnotationPresetImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _AnnotationPreset implements AnnotationPreset {
+  const factory _AnnotationPreset(
+      {required final String name,
+      required final Set<AnnotationObjectFilter> visibleTypes,
+      required final double minMagnitude,
+      required final double magnitudeCutoff,
+      required final bool showLabels,
+      required final bool showMagnitudes,
+      final bool isBuiltIn}) = _$AnnotationPresetImpl;
+
+  factory _AnnotationPreset.fromJson(Map<String, dynamic> json) =
+      _$AnnotationPresetImpl.fromJson;
+
+  @override
+  String get name;
+  @override
+  Set<AnnotationObjectFilter> get visibleTypes;
+  @override
+  double get minMagnitude;
+  @override
+  double get magnitudeCutoff;
+  @override
+  bool get showLabels;
+  @override
+  bool get showMagnitudes;
+  @override
+  bool get isBuiltIn;
+  @override
+  @JsonKey(ignore: true)
+  _$$AnnotationPresetImplCopyWith<_$AnnotationPresetImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+CustomAnnotation _$CustomAnnotationFromJson(Map<String, dynamic> json) {
+  return _CustomAnnotation.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CustomAnnotation {
+  String get id => throw _privateConstructorUsedError;
+  CustomAnnotationType get type => throw _privateConstructorUsedError;
+
+  /// Image pixel X of the anchor point (center for circles, start for arrows, position for text)
+  double get x => throw _privateConstructorUsedError;
+  double get y => throw _privateConstructorUsedError;
+
+  /// For circles: radius in pixels. For arrows: end X.
+  double? get x2 => throw _privateConstructorUsedError;
+
+  /// For arrows: end Y.
+  double? get y2 => throw _privateConstructorUsedError;
+
+  /// For circles: radius in pixels.
+  double? get radius => throw _privateConstructorUsedError;
+
+  /// Label text
+  String get label => throw _privateConstructorUsedError;
+
+  /// Color as ARGB int
+  int get color => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $CustomAnnotationCopyWith<CustomAnnotation> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CustomAnnotationCopyWith<$Res> {
+  factory $CustomAnnotationCopyWith(
+          CustomAnnotation value, $Res Function(CustomAnnotation) then) =
+      _$CustomAnnotationCopyWithImpl<$Res, CustomAnnotation>;
+  @useResult
+  $Res call(
+      {String id,
+      CustomAnnotationType type,
+      double x,
+      double y,
+      double? x2,
+      double? y2,
+      double? radius,
+      String label,
+      int color});
+}
+
+/// @nodoc
+class _$CustomAnnotationCopyWithImpl<$Res, $Val extends CustomAnnotation>
+    implements $CustomAnnotationCopyWith<$Res> {
+  _$CustomAnnotationCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? type = null,
+    Object? x = null,
+    Object? y = null,
+    Object? x2 = freezed,
+    Object? y2 = freezed,
+    Object? radius = freezed,
+    Object? label = null,
+    Object? color = null,
+  }) {
+    return _then(_value.copyWith(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      type: null == type
+          ? _value.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as CustomAnnotationType,
+      x: null == x
+          ? _value.x
+          : x // ignore: cast_nullable_to_non_nullable
+              as double,
+      y: null == y
+          ? _value.y
+          : y // ignore: cast_nullable_to_non_nullable
+              as double,
+      x2: freezed == x2
+          ? _value.x2
+          : x2 // ignore: cast_nullable_to_non_nullable
+              as double?,
+      y2: freezed == y2
+          ? _value.y2
+          : y2 // ignore: cast_nullable_to_non_nullable
+              as double?,
+      radius: freezed == radius
+          ? _value.radius
+          : radius // ignore: cast_nullable_to_non_nullable
+              as double?,
+      label: null == label
+          ? _value.label
+          : label // ignore: cast_nullable_to_non_nullable
+              as String,
+      color: null == color
+          ? _value.color
+          : color // ignore: cast_nullable_to_non_nullable
+              as int,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$CustomAnnotationImplCopyWith<$Res>
+    implements $CustomAnnotationCopyWith<$Res> {
+  factory _$$CustomAnnotationImplCopyWith(_$CustomAnnotationImpl value,
+          $Res Function(_$CustomAnnotationImpl) then) =
+      __$$CustomAnnotationImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String id,
+      CustomAnnotationType type,
+      double x,
+      double y,
+      double? x2,
+      double? y2,
+      double? radius,
+      String label,
+      int color});
+}
+
+/// @nodoc
+class __$$CustomAnnotationImplCopyWithImpl<$Res>
+    extends _$CustomAnnotationCopyWithImpl<$Res, _$CustomAnnotationImpl>
+    implements _$$CustomAnnotationImplCopyWith<$Res> {
+  __$$CustomAnnotationImplCopyWithImpl(_$CustomAnnotationImpl _value,
+      $Res Function(_$CustomAnnotationImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? type = null,
+    Object? x = null,
+    Object? y = null,
+    Object? x2 = freezed,
+    Object? y2 = freezed,
+    Object? radius = freezed,
+    Object? label = null,
+    Object? color = null,
+  }) {
+    return _then(_$CustomAnnotationImpl(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      type: null == type
+          ? _value.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as CustomAnnotationType,
+      x: null == x
+          ? _value.x
+          : x // ignore: cast_nullable_to_non_nullable
+              as double,
+      y: null == y
+          ? _value.y
+          : y // ignore: cast_nullable_to_non_nullable
+              as double,
+      x2: freezed == x2
+          ? _value.x2
+          : x2 // ignore: cast_nullable_to_non_nullable
+              as double?,
+      y2: freezed == y2
+          ? _value.y2
+          : y2 // ignore: cast_nullable_to_non_nullable
+              as double?,
+      radius: freezed == radius
+          ? _value.radius
+          : radius // ignore: cast_nullable_to_non_nullable
+              as double?,
+      label: null == label
+          ? _value.label
+          : label // ignore: cast_nullable_to_non_nullable
+              as String,
+      color: null == color
+          ? _value.color
+          : color // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CustomAnnotationImpl implements _CustomAnnotation {
+  const _$CustomAnnotationImpl(
+      {required this.id,
+      required this.type,
+      required this.x,
+      required this.y,
+      this.x2,
+      this.y2,
+      this.radius,
+      this.label = '',
+      this.color = 0xFFFF6B6B});
+
+  factory _$CustomAnnotationImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CustomAnnotationImplFromJson(json);
+
+  @override
+  final String id;
+  @override
+  final CustomAnnotationType type;
+
+  /// Image pixel X of the anchor point (center for circles, start for arrows, position for text)
+  @override
+  final double x;
+  @override
+  final double y;
+
+  /// For circles: radius in pixels. For arrows: end X.
+  @override
+  final double? x2;
+
+  /// For arrows: end Y.
+  @override
+  final double? y2;
+
+  /// For circles: radius in pixels.
+  @override
+  final double? radius;
+
+  /// Label text
+  @override
+  @JsonKey()
+  final String label;
+
+  /// Color as ARGB int
+  @override
+  @JsonKey()
+  final int color;
+
+  @override
+  String toString() {
+    return 'CustomAnnotation(id: $id, type: $type, x: $x, y: $y, x2: $x2, y2: $y2, radius: $radius, label: $label, color: $color)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CustomAnnotationImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.type, type) || other.type == type) &&
+            (identical(other.x, x) || other.x == x) &&
+            (identical(other.y, y) || other.y == y) &&
+            (identical(other.x2, x2) || other.x2 == x2) &&
+            (identical(other.y2, y2) || other.y2 == y2) &&
+            (identical(other.radius, radius) || other.radius == radius) &&
+            (identical(other.label, label) || other.label == label) &&
+            (identical(other.color, color) || other.color == color));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, id, type, x, y, x2, y2, radius, label, color);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CustomAnnotationImplCopyWith<_$CustomAnnotationImpl> get copyWith =>
+      __$$CustomAnnotationImplCopyWithImpl<_$CustomAnnotationImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CustomAnnotationImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _CustomAnnotation implements CustomAnnotation {
+  const factory _CustomAnnotation(
+      {required final String id,
+      required final CustomAnnotationType type,
+      required final double x,
+      required final double y,
+      final double? x2,
+      final double? y2,
+      final double? radius,
+      final String label,
+      final int color}) = _$CustomAnnotationImpl;
+
+  factory _CustomAnnotation.fromJson(Map<String, dynamic> json) =
+      _$CustomAnnotationImpl.fromJson;
+
+  @override
+  String get id;
+  @override
+  CustomAnnotationType get type;
+  @override
+
+  /// Image pixel X of the anchor point (center for circles, start for arrows, position for text)
+  double get x;
+  @override
+  double get y;
+  @override
+
+  /// For circles: radius in pixels. For arrows: end X.
+  double? get x2;
+  @override
+
+  /// For arrows: end Y.
+  double? get y2;
+  @override
+
+  /// For circles: radius in pixels.
+  double? get radius;
+  @override
+
+  /// Label text
+  String get label;
+  @override
+
+  /// Color as ARGB int
+  int get color;
+  @override
+  @JsonKey(ignore: true)
+  _$$CustomAnnotationImplCopyWith<_$CustomAnnotationImpl> get copyWith =>
+      throw _privateConstructorUsedError;
 }

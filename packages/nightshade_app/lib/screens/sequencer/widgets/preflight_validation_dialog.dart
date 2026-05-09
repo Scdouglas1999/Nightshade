@@ -8,9 +8,9 @@ import 'mount_unpark_dialog.dart';
 
 /// Validation issue severity
 enum ValidationSeverity {
-  error,   // Cannot start sequence
+  error, // Cannot start sequence
   warning, // Can start but may cause issues
-  info,    // Informational
+  info, // Informational
 }
 
 /// A single validation issue
@@ -42,13 +42,18 @@ class ValidationResult {
     required this.validatedAt,
   });
 
-  bool get hasErrors => issues.any((i) => i.severity == ValidationSeverity.error);
-  bool get hasWarnings => issues.any((i) => i.severity == ValidationSeverity.warning);
+  bool get hasErrors =>
+      issues.any((i) => i.severity == ValidationSeverity.error);
+  bool get hasWarnings =>
+      issues.any((i) => i.severity == ValidationSeverity.warning);
   bool get isValid => !hasErrors;
 
-  int get errorCount => issues.where((i) => i.severity == ValidationSeverity.error).length;
-  int get warningCount => issues.where((i) => i.severity == ValidationSeverity.warning).length;
-  int get infoCount => issues.where((i) => i.severity == ValidationSeverity.info).length;
+  int get errorCount =>
+      issues.where((i) => i.severity == ValidationSeverity.error).length;
+  int get warningCount =>
+      issues.where((i) => i.severity == ValidationSeverity.warning).length;
+  int get infoCount =>
+      issues.where((i) => i.severity == ValidationSeverity.info).length;
 }
 
 /// Provider for sequence validation
@@ -89,7 +94,8 @@ class SequenceValidator {
         severity: ValidationSeverity.error,
         category: 'Structure',
         title: 'Empty Sequence',
-        description: 'The sequence has no nodes. Add at least one instruction to run.',
+        description:
+            'The sequence has no nodes. Add at least one instruction to run.',
         resolution: 'Add exposure or other instruction nodes to the sequence.',
       ));
     }
@@ -115,13 +121,15 @@ class SequenceValidator {
       referencedIds.add(sequence.rootNodeId!);
     }
 
-    final orphanedNodes = sequence.nodes.keys.where((id) => !referencedIds.contains(id)).toList();
+    final orphanedNodes =
+        sequence.nodes.keys.where((id) => !referencedIds.contains(id)).toList();
     if (orphanedNodes.isNotEmpty) {
       issues.add(ValidationIssue(
         severity: ValidationSeverity.warning,
         category: 'Structure',
         title: 'Orphaned Nodes',
-        description: '${orphanedNodes.length} node(s) are not connected to the sequence.',
+        description:
+            '${orphanedNodes.length} node(s) are not connected to the sequence.',
         resolution: 'Remove unused nodes or connect them to a parent.',
       ));
     }
@@ -148,7 +156,8 @@ class SequenceValidator {
         severity: ValidationSeverity.warning,
         category: 'Targets',
         title: 'No Targets Defined',
-        description: 'Exposures exist but no target is defined. The mount will image at its current position.',
+        description:
+            'Exposures exist but no target is defined. The mount will image at its current position.',
         resolution: 'Add a Target Group node with coordinates.',
       ));
     }
@@ -160,7 +169,8 @@ class SequenceValidator {
           severity: ValidationSeverity.error,
           category: 'Targets',
           title: 'Invalid RA',
-          description: 'Target "${target.targetName}" has invalid RA: ${target.raHours}h',
+          description:
+              'Target "${target.targetName}" has invalid RA: ${target.raHours}h',
           nodeId: target.id,
           resolution: 'RA must be between 0 and 24 hours.',
         ));
@@ -171,7 +181,8 @@ class SequenceValidator {
           severity: ValidationSeverity.error,
           category: 'Targets',
           title: 'Invalid Dec',
-          description: 'Target "${target.targetName}" has invalid Dec: ${target.decDegrees}°',
+          description:
+              'Target "${target.targetName}" has invalid Dec: ${target.decDegrees}°',
           nodeId: target.id,
           resolution: 'Declination must be between -90 and +90 degrees.',
         ));
@@ -195,7 +206,8 @@ class SequenceValidator {
           severity: ValidationSeverity.warning,
           category: 'Targets',
           title: 'Very Low Altitude Limit',
-          description: 'Target "${target.targetName}" minimum altitude is ${target.minAltitude}°. Imaging near the horizon may result in poor quality.',
+          description:
+              'Target "${target.targetName}" minimum altitude is ${target.minAltitude}°. Imaging near the horizon may result in poor quality.',
           nodeId: target.id,
           resolution: 'Consider setting minimum altitude to 20° or higher.',
         ));
@@ -215,7 +227,8 @@ class SequenceValidator {
         severity: ValidationSeverity.warning,
         category: 'Imaging',
         title: 'No Exposures',
-        description: 'No exposure nodes found. The sequence will run but capture no images.',
+        description:
+            'No exposure nodes found. The sequence will run but capture no images.',
         resolution: 'Add Exposure nodes to capture images.',
       ));
       return issues;
@@ -228,7 +241,8 @@ class SequenceValidator {
           severity: ValidationSeverity.error,
           category: 'Imaging',
           title: 'Invalid Exposure Time',
-          description: 'Exposure "${exposure.name}" has invalid duration: ${exposure.durationSecs}s',
+          description:
+              'Exposure "${exposure.name}" has invalid duration: ${exposure.durationSecs}s',
           nodeId: exposure.id,
           resolution: 'Set a positive exposure duration.',
         ));
@@ -239,9 +253,11 @@ class SequenceValidator {
           severity: ValidationSeverity.warning,
           category: 'Imaging',
           title: 'Very Long Exposure',
-          description: 'Exposure "${exposure.name}" is ${(exposure.durationSecs / 60).toStringAsFixed(0)} minutes. Very long exposures may fail due to tracking errors.',
+          description:
+              'Exposure "${exposure.name}" is ${(exposure.durationSecs / 60).toStringAsFixed(0)} minutes. Very long exposures may fail due to tracking errors.',
           nodeId: exposure.id,
-          resolution: 'Consider breaking into shorter exposures or using auto-guiding.',
+          resolution:
+              'Consider breaking into shorter exposures or using auto-guiding.',
         ));
       }
 
@@ -251,19 +267,22 @@ class SequenceValidator {
           severity: ValidationSeverity.error,
           category: 'Imaging',
           title: 'Invalid Frame Count',
-          description: 'Exposure "${exposure.name}" has count of ${exposure.count}.',
+          description:
+              'Exposure "${exposure.name}" has count of ${exposure.count}.',
           nodeId: exposure.id,
           resolution: 'Set at least 1 frame to capture.',
         ));
       }
 
       // Check binning - high binning reduces resolution
-      if (exposure.binning == BinningMode.three || exposure.binning == BinningMode.four) {
+      if (exposure.binning == BinningMode.three ||
+          exposure.binning == BinningMode.four) {
         issues.add(ValidationIssue(
           severity: ValidationSeverity.info,
           category: 'Imaging',
           title: 'High Binning',
-          description: 'Exposure "${exposure.name}" uses ${exposure.binning.label} binning which reduces resolution.',
+          description:
+              'Exposure "${exposure.name}" uses ${exposure.binning.label} binning which reduces resolution.',
           nodeId: exposure.id,
         ));
       }
@@ -271,12 +290,14 @@ class SequenceValidator {
 
     // Total integration check
     final totalSecs = sequence.totalIntegrationSecs;
-    if (totalSecs > 28800) { // 8 hours
+    if (totalSecs > 28800) {
+      // 8 hours
       issues.add(ValidationIssue(
         severity: ValidationSeverity.warning,
         category: 'Timing',
         title: 'Very Long Sequence',
-        description: 'Total integration time is ${(totalSecs / 3600).toStringAsFixed(1)} hours. Consider splitting across multiple nights.',
+        description:
+            'Total integration time is ${(totalSecs / 3600).toStringAsFixed(1)} hours. Consider splitting across multiple nights.',
       ));
     }
 
@@ -309,13 +330,15 @@ class SequenceValidator {
 
       // Check guider separately via guiderStateProvider (PHD2 is not in getConnectedDevices)
       final guiderState = ref.read(guiderStateProvider);
-      final hasGuider = guiderState.connectionState == DeviceConnectionState.connected;
+      final hasGuider =
+          guiderState.connectionState == DeviceConnectionState.connected;
       if (hasGuider) {
         connectedTypes.add(DeviceType.guider);
       }
 
       // Check each required device type
-      if (requiredDevices.contains(DeviceType.camera) && !connectedTypes.contains(DeviceType.camera)) {
+      if (requiredDevices.contains(DeviceType.camera) &&
+          !connectedTypes.contains(DeviceType.camera)) {
         issues.add(const ValidationIssue(
           severity: ValidationSeverity.error,
           category: 'Equipment',
@@ -325,32 +348,38 @@ class SequenceValidator {
         ));
       }
 
-      if (requiredDevices.contains(DeviceType.mount) && !connectedTypes.contains(DeviceType.mount)) {
+      if (requiredDevices.contains(DeviceType.mount) &&
+          !connectedTypes.contains(DeviceType.mount)) {
         issues.add(const ValidationIssue(
-          severity: ValidationSeverity.warning,
+          severity: ValidationSeverity.error,
           category: 'Equipment',
           title: 'No Mount Connected',
-          description: 'This sequence includes slewing or tracking operations that require a mount.',
+          description:
+              'This sequence includes slewing or tracking operations that require a mount.',
           resolution: 'Connect a mount in the Equipment panel.',
         ));
       }
 
-      if (requiredDevices.contains(DeviceType.focuser) && !connectedTypes.contains(DeviceType.focuser)) {
+      if (requiredDevices.contains(DeviceType.focuser) &&
+          !connectedTypes.contains(DeviceType.focuser)) {
         issues.add(const ValidationIssue(
-          severity: ValidationSeverity.warning,
+          severity: ValidationSeverity.error,
           category: 'Equipment',
           title: 'No Focuser Connected',
-          description: 'This sequence includes autofocus operations that require a focuser.',
+          description:
+              'This sequence includes autofocus operations that require a focuser.',
           resolution: 'Connect a focuser in the Equipment panel.',
         ));
       }
 
-      if (requiredDevices.contains(DeviceType.filterWheel) && !connectedTypes.contains(DeviceType.filterWheel)) {
+      if (requiredDevices.contains(DeviceType.filterWheel) &&
+          !connectedTypes.contains(DeviceType.filterWheel)) {
         issues.add(const ValidationIssue(
           severity: ValidationSeverity.warning,
           category: 'Equipment',
           title: 'No Filter Wheel Connected',
-          description: 'This sequence includes filter changes that require a filter wheel.',
+          description:
+              'This sequence includes filter changes that require a filter wheel.',
           resolution: 'Connect a filter wheel in the Equipment panel.',
         ));
       }
@@ -360,12 +389,14 @@ class SequenceValidator {
           severity: ValidationSeverity.warning,
           category: 'Equipment',
           title: 'No Guider Connected',
-          description: 'This sequence includes guiding or dithering operations that require PHD2.',
+          description:
+              'This sequence includes guiding or dithering operations that require PHD2.',
           resolution: 'Connect to PHD2 in the Guiding panel.',
         ));
       }
 
-      if (requiredDevices.contains(DeviceType.rotator) && !connectedTypes.contains(DeviceType.rotator)) {
+      if (requiredDevices.contains(DeviceType.rotator) &&
+          !connectedTypes.contains(DeviceType.rotator)) {
         issues.add(const ValidationIssue(
           severity: ValidationSeverity.info,
           category: 'Equipment',
@@ -375,7 +406,8 @@ class SequenceValidator {
         ));
       }
 
-      if (requiredDevices.contains(DeviceType.dome) && !connectedTypes.contains(DeviceType.dome)) {
+      if (requiredDevices.contains(DeviceType.dome) &&
+          !connectedTypes.contains(DeviceType.dome)) {
         issues.add(const ValidationIssue(
           severity: ValidationSeverity.info,
           category: 'Equipment',
@@ -390,7 +422,8 @@ class SequenceValidator {
         severity: ValidationSeverity.warning,
         category: 'Equipment',
         title: 'Equipment Status Unknown',
-        description: 'Could not check equipment status. Ensure you are connected to the backend.',
+        description:
+            'Could not check equipment status. Ensure you are connected to the backend.',
       ));
     }
 
@@ -412,7 +445,8 @@ class SequenceValidator {
     }
 
     // Check for very long estimated duration
-    if (sequence.estimatedDurationMins != null && sequence.estimatedDurationMins! > 600) {
+    if (sequence.estimatedDurationMins != null &&
+        sequence.estimatedDurationMins! > 600) {
       issues.add(const ValidationIssue(
         severity: ValidationSeverity.info,
         category: 'Settings',
@@ -429,8 +463,10 @@ class SequenceValidator {
         severity: ValidationSeverity.warning,
         category: 'Settings',
         title: 'No Image Save Path',
-        description: 'No image output directory is configured. Captured images will NOT be saved to disk.',
-        resolution: 'Configure an image save location in Settings → File Output.',
+        description:
+            'No image output directory is configured. Captured images will NOT be saved to disk.',
+        resolution:
+            'Configure an image save location in Settings → File Output.',
       ));
     }
 
@@ -457,9 +493,10 @@ class SequenceValidator {
 
     // Check if there's a Recovery node with meridian flip trigger
     final hasRecoveryWithMeridianFlip = sequence.nodes.values.any(
-      (node) => node is RecoveryNode &&
-                node.isEnabled &&
-                node.triggerType == TriggerType.meridianFlip,
+      (node) =>
+          node is RecoveryNode &&
+          node.isEnabled &&
+          node.triggerType == TriggerType.meridianFlip,
     );
 
     // If sequence already has meridian flip handling, no warning needed
@@ -507,7 +544,8 @@ class SequenceValidator {
             severity: ValidationSeverity.warning,
             category: 'Timing',
             title: 'Wait Time Passed',
-            description: 'Wait node "${node.name}" is set for a time that has already passed.',
+            description:
+                'Wait node "${node.name}" is set for a time that has already passed.',
             nodeId: node.id,
             resolution: 'Update the wait time or remove the node.',
           ));
@@ -542,10 +580,12 @@ class PreFlightValidationDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<PreFlightValidationDialog> createState() => _PreFlightValidationDialogState();
+  ConsumerState<PreFlightValidationDialog> createState() =>
+      _PreFlightValidationDialogState();
 }
 
-class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationDialog> {
+class _PreFlightValidationDialogState
+    extends ConsumerState<PreFlightValidationDialog> {
   ValidationResult? _result;
   bool _isValidating = true;
 
@@ -577,7 +617,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
   Future<void> _handleStartSequence() async {
     // Check if a mount is connected and parked
     final mountState = ref.read(mountStateProvider);
-    final isMountConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isMountConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     final isMountParked = mountState.isParked;
 
     // Close the preflight dialog first
@@ -609,7 +650,7 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Container(
         width: 500,
@@ -651,7 +692,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
               color: colors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(LucideIcons.clipboardCheck, color: colors.primary, size: 20),
+            child: Icon(LucideIcons.clipboardCheck,
+                color: colors.primary, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -774,7 +816,7 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
             : result.hasWarnings
                 ? colors.warning.withValues(alpha: 0.1)
                 : colors.success.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: result.hasErrors
               ? colors.error.withValues(alpha: 0.3)
@@ -920,7 +962,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
                         borderRadius: BorderRadius.circular(4),
@@ -949,7 +992,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(LucideIcons.lightbulb, size: 12, color: colors.primary),
+                      Icon(LucideIcons.lightbulb,
+                          size: 12, color: colors.primary),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -977,7 +1021,7 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -1007,7 +1051,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
 
   Widget _buildActions(NightshadeColors colors) {
     final canStart = _result?.isValid ?? false;
-    final hasWarningsOnly = _result != null && !_result!.hasErrors && _result!.hasWarnings;
+    final hasWarningsOnly =
+        _result != null && !_result!.hasErrors && _result!.hasWarnings;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1044,9 +1089,11 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
             canStart: canStart,
             hasWarningsOnly: hasWarningsOnly,
             colors: colors,
-            onPressed: (canStart || hasWarningsOnly) ? () async {
-              await _handleStartSequence();
-            } : null,
+            onPressed: (canStart || hasWarningsOnly)
+                ? () async {
+                    await _handleStartSequence();
+                  }
+                : null,
           ),
         ],
       ),
@@ -1072,7 +1119,7 @@ class _CountBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1117,12 +1164,15 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
   /// Creates a slightly darker shade of the given color
   Color _darkenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onPressed != null;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
     final baseColor = widget.canStart
         ? widget.colors.success
         : widget.hasWarningsOnly
@@ -1132,7 +1182,8 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      cursor:
+          isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
       child: GestureDetector(
         onTap: widget.onPressed,
         child: AnimatedContainer(
@@ -1167,15 +1218,15 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
               Icon(
                 widget.canStart ? LucideIcons.play : LucideIcons.alertTriangle,
                 size: 16,
-                color: Colors.white,
+                color: onPrimary,
               ),
               const SizedBox(width: 8),
               Text(
                 widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: onPrimary,
                 ),
               ),
             ],

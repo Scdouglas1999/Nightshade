@@ -13,6 +13,7 @@
 //! - Buffer pooling for efficient image capture
 
 pub mod buffer_pool;
+pub mod calibration;
 
 mod camera;
 mod debayer;
@@ -23,11 +24,13 @@ mod platesolve;
 mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
+pub mod stacking;
 mod stats;
 mod stretch;
 mod xisf;
 
 pub use buffer_pool::*;
+pub use calibration::*;
 pub use camera::*;
 pub use debayer::*;
 pub use fits::*;
@@ -363,8 +366,37 @@ impl ImageData {
     /// Convert to 8-bit for display (auto-stretched)
     pub fn to_display_u8(&self) -> Vec<u8> {
         if self.pixel_type == PixelType::U16 {
-            let params = auto_stretch_stf(self);
-            apply_stretch(self, &params)
+            if self.channels == 3 {
+                if let Some(rgb_data) = self.as_u16() {
+                    let (r_params, g_params, b_params) =
+                        auto_stretch_rgb(&rgb_data, self.width, self.height);
+                    let pixel_count = (self.width * self.height) as usize;
+                    let mut stretched = vec![0u8; pixel_count * 3];
+                    let channel_params = [&r_params, &g_params, &b_params];
+
+                    for idx in 0..pixel_count {
+                        for (channel, params) in channel_params.iter().enumerate() {
+                            let normalized = rgb_data[idx * 3 + channel] as f64 / 65535.0;
+                            let range = params.highlights - params.shadows;
+                            let value = if range <= 0.0 {
+                                0.0
+                            } else {
+                                let stretched_value =
+                                    ((normalized - params.shadows) / range).clamp(0.0, 1.0);
+                                display_mtf(stretched_value, params.midtones)
+                            };
+                            stretched[idx * 3 + channel] = (value.clamp(0.0, 1.0) * 255.0) as u8;
+                        }
+                    }
+
+                    stretched
+                } else {
+                    vec![0u8; self.pixel_count()]
+                }
+            } else {
+                let params = auto_stretch_stf(self);
+                apply_stretch(self, &params)
+            }
         } else {
             // For other types, simple linear conversion
             match self.pixel_type {
@@ -424,6 +456,24 @@ impl ImageData {
                 // Fallback: treat as grayscale
                 vec![128u8; self.width as usize * self.height as usize * 4]
             }
+        }
+    }
+}
+
+fn display_mtf(x: f64, m: f64) -> f64 {
+    if x <= 0.0 {
+        0.0
+    } else if x >= 1.0 {
+        1.0
+    } else if (x - m).abs() < f64::EPSILON {
+        0.5
+    } else {
+        let numerator = (m - 1.0) * x;
+        let denominator = (2.0 * m - 1.0) * x - m;
+        if denominator.abs() < f64::EPSILON {
+            0.5
+        } else {
+            numerator / denominator
         }
     }
 }
@@ -599,12 +649,30 @@ pub fn write_tiff(path: &std::path::Path, image: &ImageData) -> Result<(), Strin
                     .ok_or_else(|| "Failed to create grayscale image buffer".to_string())?;
                 img.save(path)
                     .map_err(|e| format!("Failed to save TIFF: {}", e))?;
-            } else {
-                // For multi-channel, use grayscale (first channel only) as fallback
-                let img: GrayImage = ImageBuffer::from_raw(image.width, image.height, display_data)
-                    .ok_or_else(|| "Failed to create grayscale image buffer".to_string())?;
+            } else if image.channels >= 3 {
+                // Multi-channel: display_data contains interleaved channel bytes.
+                // Extract the first 3 channels as RGB.
+                let pixel_count = (image.width as usize) * (image.height as usize);
+                let rgb_data = if image.channels == 3 {
+                    display_data
+                } else {
+                    let mut rgb = Vec::with_capacity(pixel_count * 3);
+                    for chunk in display_data.chunks_exact(image.channels as usize) {
+                        rgb.push(chunk[0]);
+                        rgb.push(chunk[1]);
+                        rgb.push(chunk[2]);
+                    }
+                    rgb
+                };
+                let img: RgbImage = ImageBuffer::from_raw(image.width, image.height, rgb_data)
+                    .ok_or_else(|| "Failed to create RGB image buffer".to_string())?;
                 img.save(path)
                     .map_err(|e| format!("Failed to save TIFF: {}", e))?;
+            } else {
+                return Err(format!(
+                    "Unsupported channel count {} for TIFF encoding",
+                    image.channels
+                ));
             }
         }
     }
@@ -682,11 +750,30 @@ pub fn write_png(path: &std::path::Path, image: &ImageData) -> Result<(), String
                     .ok_or_else(|| "Failed to create grayscale image buffer".to_string())?;
                 img.save(path)
                     .map_err(|e| format!("Failed to save PNG: {}", e))?;
-            } else {
-                let img: GrayImage = ImageBuffer::from_raw(image.width, image.height, display_data)
-                    .ok_or_else(|| "Failed to create grayscale image buffer".to_string())?;
+            } else if image.channels >= 3 {
+                // Multi-channel: display_data contains interleaved channel bytes.
+                // Extract the first 3 channels as RGB.
+                let pixel_count = (image.width as usize) * (image.height as usize);
+                let rgb_data = if image.channels == 3 {
+                    display_data
+                } else {
+                    let mut rgb = Vec::with_capacity(pixel_count * 3);
+                    for chunk in display_data.chunks_exact(image.channels as usize) {
+                        rgb.push(chunk[0]);
+                        rgb.push(chunk[1]);
+                        rgb.push(chunk[2]);
+                    }
+                    rgb
+                };
+                let img: RgbImage = ImageBuffer::from_raw(image.width, image.height, rgb_data)
+                    .ok_or_else(|| "Failed to create RGB image buffer".to_string())?;
                 img.save(path)
                     .map_err(|e| format!("Failed to save PNG: {}", e))?;
+            } else {
+                return Err(format!(
+                    "Unsupported channel count {} for PNG encoding",
+                    image.channels
+                ));
             }
         }
     }
@@ -718,17 +805,44 @@ pub fn write_jpeg(path: &std::path::Path, image: &ImageData, quality: u8) -> Res
                 image::ColorType::L8,
             )
             .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
-    } else {
-        // For RGB, the display_u8 output is grayscale-stretched
-        // So we output as grayscale
+    } else if image.channels >= 3 {
+        // RGB JPEG - display_data for multi-channel images contains interleaved
+        // RGB bytes (channels * width * height). Extract 3 channels as RGB8.
+        let pixel_count = (image.width as usize) * (image.height as usize);
+        let rgb_data =
+            if display_data.len() == pixel_count * image.channels as usize && image.channels >= 3 {
+                // display_data has interleaved channel data; take the first 3 channels
+                if image.channels == 3 {
+                    display_data
+                } else {
+                    // channels > 3 (e.g. RGBA): strip extra channels, keep RGB
+                    let mut rgb = Vec::with_capacity(pixel_count * 3);
+                    for chunk in display_data.chunks_exact(image.channels as usize) {
+                        rgb.push(chunk[0]);
+                        rgb.push(chunk[1]);
+                        rgb.push(chunk[2]);
+                    }
+                    rgb
+                }
+            } else {
+                // Fallback: replicate mono data to RGB if display_data is single-channel
+                let mut rgb = Vec::with_capacity(pixel_count * 3);
+                for &v in &display_data[..pixel_count.min(display_data.len())] {
+                    rgb.push(v);
+                    rgb.push(v);
+                    rgb.push(v);
+                }
+                rgb
+            };
+
         encoder
-            .write_image(
-                &display_data,
-                image.width,
-                image.height,
-                image::ColorType::L8,
-            )
+            .write_image(&rgb_data, image.width, image.height, image::ColorType::Rgb8)
             .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
+    } else {
+        return Err(format!(
+            "Unsupported channel count {} for JPEG encoding",
+            image.channels
+        ));
     }
 
     Ok(())
@@ -818,5 +932,21 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
             "Reading {:?} is not supported by the current image reader pipeline",
             format
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_display_u8_preserves_rgb_channel_differences_for_u16_images() {
+        let image = ImageData::from_u16(1, 2, 3, &[65535, 0, 0, 0, 32768, 65535]);
+        let display = image.to_display_u8();
+
+        assert_eq!(display.len(), 6);
+        assert!(display[0] > display[1]);
+        assert!(display[0] > display[2]);
+        assert!(display[5] >= display[4]);
     }
 }

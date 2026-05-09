@@ -8,6 +8,9 @@ class EquipmentProfile with _$EquipmentProfile {
   const factory EquipmentProfile({
     required String id,
     required String name,
+    String? description,
+
+    // Device identifiers
     String? cameraId,
     String? mountId,
     String? focuserId,
@@ -17,18 +20,57 @@ class EquipmentProfile with _$EquipmentProfile {
     String? domeId,
     String? weatherId,
     String? coverCalibratorId,
-    @Default(0.0) double telescopeFocalLength,
-    @Default(0.0) double telescopeAperture,
-    // Additional fields for compatibility with database model
+
+    // Optical setup
     @Default(0.0) double focalLength,
     @Default(0.0) double aperture,
     double? focalRatio,
-    DateTime? updatedAt,
-    @Default(false) bool isActive,
-    // Equipment names for FITS headers
-    String? telescopeName,
+
+    // Camera defaults
+    int? defaultGain,
+    int? defaultOffset,
+    @Default(1) int defaultBinX,
+    @Default(1) int defaultBinY,
+    double? defaultCoolingTemp,
+    @Default(false) bool coolOnConnect,
+
+    // Centering/plate-solve exposure default (seconds)
+    double? defaultCenteringExposure,
+
+    // Filter configuration (JSON-serialized in DB)
+    String? filterNames,
+    String? filterFocusOffsets,
+
+    // Meridian flip settings overrides (JSON)
+    String? meridianFlipOverrides,
+
+    // User-friendly device names
     String? cameraName,
-    // Camera pixel size in microns
+    String? mountName,
+    String? focuserName,
+    String? filterWheelName,
+    String? guiderName,
+    String? rotatorName,
+
+    // Telescope/OTA information
+    String? telescopeName,
+    @Default(0.0) double telescopeFocalLength,
+    @Default(0.0) double telescopeAperture,
+
+    // Profile customization
+    String? profileIcon,
+    int? profileColor,
+    @Default(0) int sortOrder,
+    @Default(false) bool isDefault,
+
+    // Timestamps
+    DateTime? createdAt,
+    DateTime? updatedAt,
+
+    // State flags
+    @Default(false) bool isActive,
+
+    // Camera pixel size in microns (not in DB, used by bridge)
     double? pixelSize,
   }) = _EquipmentProfile;
 

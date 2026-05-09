@@ -97,8 +97,16 @@ class PlateSolveService {
       );
       return PlateSolveResult.fromBackend(result);
     } catch (e) {
-      // Fall back to local solving if backend fails (e.g., DisconnectedBackend)
-      return _solveLocally(imagePath, config);
+      final fallbackResult = await _solveLocally(imagePath, config);
+      if (fallbackResult.success) {
+        return fallbackResult;
+      }
+
+      return PlateSolveResult.failed(
+        'Backend solve failed: $e. '
+        'Local fallback failed: '
+        '${fallbackResult.errorMessage ?? 'unknown error'}',
+      );
     }
   }
 

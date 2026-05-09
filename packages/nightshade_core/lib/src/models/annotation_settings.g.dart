@@ -33,6 +33,11 @@ _$AnnotationSettingsImpl _$$AnnotationSettingsImplFromJson(
       autoAnnotate: json['autoAnnotate'] as bool? ?? true,
       maxObjectsToDisplay:
           (json['maxObjectsToDisplay'] as num?)?.toInt() ?? 500,
+      compassEnabled: json['compassEnabled'] as bool? ?? true,
+      scaleBarEnabled: json['scaleBarEnabled'] as bool? ?? true,
+      gridType: $enumDecodeNullable(_$GridTypeEnumMap, json['gridType']) ??
+          GridType.none,
+      showSolveResiduals: json['showSolveResiduals'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$AnnotationSettingsImplToJson(
@@ -54,6 +59,10 @@ Map<String, dynamic> _$$AnnotationSettingsImplToJson(
       'clickSearchRadiusArcsec': instance.clickSearchRadiusArcsec,
       'autoAnnotate': instance.autoAnnotate,
       'maxObjectsToDisplay': instance.maxObjectsToDisplay,
+      'compassEnabled': instance.compassEnabled,
+      'scaleBarEnabled': instance.scaleBarEnabled,
+      'gridType': _$GridTypeEnumMap[instance.gridType]!,
+      'showSolveResiduals': instance.showSolveResiduals,
     };
 
 const _$AnnotationObjectFilterEnumMap = {
@@ -63,6 +72,12 @@ const _$AnnotationObjectFilterEnumMap = {
   AnnotationObjectFilter.planetaryNebulae: 'planetaryNebulae',
   AnnotationObjectFilter.stars: 'stars',
   AnnotationObjectFilter.other: 'other',
+};
+
+const _$GridTypeEnumMap = {
+  GridType.none: 'none',
+  GridType.pixel: 'pixel',
+  GridType.celestial: 'celestial',
 };
 
 _$AnnotationMarkerStyleImpl _$$AnnotationMarkerStyleImplFromJson(
@@ -97,3 +112,65 @@ Map<String, dynamic> _$$AnnotationMarkerStyleImplToJson(
       'minMarkerSize': instance.minMarkerSize,
       'maxMarkerSize': instance.maxMarkerSize,
     };
+
+_$AnnotationPresetImpl _$$AnnotationPresetImplFromJson(
+        Map<String, dynamic> json) =>
+    _$AnnotationPresetImpl(
+      name: json['name'] as String,
+      visibleTypes: (json['visibleTypes'] as List<dynamic>)
+          .map((e) => $enumDecode(_$AnnotationObjectFilterEnumMap, e))
+          .toSet(),
+      minMagnitude: (json['minMagnitude'] as num).toDouble(),
+      magnitudeCutoff: (json['magnitudeCutoff'] as num).toDouble(),
+      showLabels: json['showLabels'] as bool,
+      showMagnitudes: json['showMagnitudes'] as bool,
+      isBuiltIn: json['isBuiltIn'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$$AnnotationPresetImplToJson(
+        _$AnnotationPresetImpl instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'visibleTypes': instance.visibleTypes
+          .map((e) => _$AnnotationObjectFilterEnumMap[e]!)
+          .toList(),
+      'minMagnitude': instance.minMagnitude,
+      'magnitudeCutoff': instance.magnitudeCutoff,
+      'showLabels': instance.showLabels,
+      'showMagnitudes': instance.showMagnitudes,
+      'isBuiltIn': instance.isBuiltIn,
+    };
+
+_$CustomAnnotationImpl _$$CustomAnnotationImplFromJson(
+        Map<String, dynamic> json) =>
+    _$CustomAnnotationImpl(
+      id: json['id'] as String,
+      type: $enumDecode(_$CustomAnnotationTypeEnumMap, json['type']),
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      x2: (json['x2'] as num?)?.toDouble(),
+      y2: (json['y2'] as num?)?.toDouble(),
+      radius: (json['radius'] as num?)?.toDouble(),
+      label: json['label'] as String? ?? '',
+      color: (json['color'] as num?)?.toInt() ?? 0xFFFF6B6B,
+    );
+
+Map<String, dynamic> _$$CustomAnnotationImplToJson(
+        _$CustomAnnotationImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'type': _$CustomAnnotationTypeEnumMap[instance.type]!,
+      'x': instance.x,
+      'y': instance.y,
+      'x2': instance.x2,
+      'y2': instance.y2,
+      'radius': instance.radius,
+      'label': instance.label,
+      'color': instance.color,
+    };
+
+const _$CustomAnnotationTypeEnumMap = {
+  CustomAnnotationType.circle: 'circle',
+  CustomAnnotationType.arrow: 'arrow',
+  CustomAnnotationType.text: 'text',
+};

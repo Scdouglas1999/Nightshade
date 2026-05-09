@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,10 +12,11 @@ import 'package:window_manager/window_manager.dart';
 import 'package:path/path.dart' as path;
 
 import 'package:nightshade_app/nightshade_app.dart';
+import 'main_headless.dart' as headless;
 
-// Current app version - read from version.yaml during build
-const String appVersion = '2.0.0';
-const int appBuildNumber = 1;
+// Current app version - must match version.yaml
+const String appVersion = '2.5.0';
+const int appBuildNumber = 5;
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +26,8 @@ void main(List<String> args) async {
       Platform.environment['NIGHTSHADE_HEADLESS'] == '1';
 
   if (isHeadless) {
-    // Redirect to headless entry point
-    await _runHeadless();
+    // Delegate to the modern headless entry point (main_headless.dart)
+    headless.main(args);
     return;
   }
 
@@ -84,7 +86,7 @@ void main(List<String> args) async {
   });
 
   // Start background services for mobile access (non-blocking)
-  _startBackgroundServices();
+  _startBackgroundServices(container);
 
   runApp(
     UncontrolledProviderScope(
@@ -95,14 +97,59 @@ void main(List<String> args) async {
 }
 
 /// Start background services for mobile/remote access
-void _startBackgroundServices() {
+void _startBackgroundServices(ProviderContainer container) {
   // Start in background - don't block UI
   Future.microtask(() async {
-    try {
-      // Start web server with device handlers
-      print('[MAIN] Creating web server with device handlers...');
-      final webServer = NightshadeWebServer(
-        port: 8080,
+    NightshadeWebServer? webServer;
+    StreamSubscription? collaborationSubscription;
+    LiveCollaborationSessionManager? collaborationManager;
+    AppSettings? queuedWebServerSettings;
+    bool isApplyingWebServerSettings = false;
+    final dashboardDir = _findDashboardDir();
+    final pairingDatabase = PairingDatabase();
+    final tokenManager = TokenManager(pairingDatabase);
+
+    Future<void> stopWebServer(
+      AppSettings settings, {
+      String error = '',
+    }) async {
+      await collaborationSubscription?.cancel();
+      collaborationSubscription = null;
+      collaborationManager?.dispose();
+      collaborationManager = null;
+
+      final runningServer = webServer;
+      webServer = null;
+
+      if (runningServer != null) {
+        await runningServer.stop();
+      }
+
+      container.read(webServerStateProvider.notifier).setStopped(
+            configuredPort: settings.webServerPort,
+            actualPort: settings.webServerPort,
+            bindLocalOnly: false,
+            requiresAuthentication: true,
+            dashboardAvailable: dashboardDir != null,
+            lastError: error,
+          );
+    }
+
+    Future<void> applyWebServerSettings(AppSettings settings) async {
+      await stopWebServer(settings);
+
+      if (!settings.webServerEnabled) {
+        debugPrint('[MAIN] Remote access is disabled in settings');
+        return;
+      }
+
+      final nextCollaborationManager = LiveCollaborationSessionManager();
+      final nextServer = NightshadeWebServer(
+        port: settings.webServerPort,
+        webRoot: dashboardDir?.path,
+        bindLocalOnly: false,
+        tokenManager: tokenManager,
+        requireAuthentication: true,
         devicesHandler: _getDevicesHandler,
         deviceConnectHandler: _connectDeviceHandler,
         deviceDisconnectHandler: _disconnectDeviceHandler,
@@ -110,109 +157,200 @@ void _startBackgroundServices() {
         phd2ConnectHandler: _phd2ConnectHandler,
         phd2DisconnectHandler: _phd2DisconnectHandler,
       );
+      nextServer.liveCollaborationSessionManager = nextCollaborationManager;
+      nextServer.setEventStream(container.read(backendProvider).eventStream);
 
       // Wire up additional handlers using setters
-      webServer.cameraExposeHandler = _cameraExposeHandler;
-      webServer.cameraAbortHandler = _cameraAbortHandler;
-      webServer.cameraSetCoolingHandler = _cameraSetCoolingHandler;
-      webServer.cameraSetGainHandler = _cameraSetGainHandler;
-      webServer.cameraSetOffsetHandler = _cameraSetOffsetHandler;
-      webServer.cameraStatusHandler = _cameraStatusHandler;
+      nextServer.cameraExposeHandler = _cameraExposeHandler;
+      nextServer.cameraAbortHandler = _cameraAbortHandler;
+      nextServer.cameraSetCoolingHandler = _cameraSetCoolingHandler;
+      nextServer.cameraSetGainHandler = _cameraSetGainHandler;
+      nextServer.cameraSetOffsetHandler = _cameraSetOffsetHandler;
+      nextServer.cameraStatusHandler = _cameraStatusHandler;
 
-      webServer.mountSlewHandler = _mountSlewHandler;
-      webServer.mountSyncHandler = _mountSyncHandler;
-      webServer.mountParkHandler = _mountParkHandler;
-      webServer.mountUnparkHandler = _mountUnparkHandler;
-      webServer.mountSetTrackingHandler = _mountSetTrackingHandler;
-      webServer.mountAbortHandler = _mountAbortHandler;
-      webServer.mountGetStatusHandler = _mountGetStatusHandler;
-      webServer.mountStatusHandler = _mountGetStatusHandler;
+      nextServer.mountSlewHandler = _mountSlewHandler;
+      nextServer.mountSyncHandler = _mountSyncHandler;
+      nextServer.mountParkHandler = _mountParkHandler;
+      nextServer.mountUnparkHandler = _mountUnparkHandler;
+      nextServer.mountSetTrackingHandler = _mountSetTrackingHandler;
+      nextServer.mountAbortHandler = _mountAbortHandler;
+      nextServer.mountGetStatusHandler = _mountGetStatusHandler;
+      nextServer.mountStatusHandler = _mountGetStatusHandler;
 
-      webServer.focuserMoveToHandler = _focuserMoveToHandler;
-      webServer.focuserMoveRelativeHandler = _focuserMoveRelativeHandler;
-      webServer.focuserHaltHandler = _focuserHaltHandler;
-      webServer.focuserStatusHandler = _focuserStatusHandler;
+      nextServer.focuserMoveToHandler = _focuserMoveToHandler;
+      nextServer.focuserMoveRelativeHandler = _focuserMoveRelativeHandler;
+      nextServer.focuserHaltHandler = _focuserHaltHandler;
+      nextServer.focuserStatusHandler = _focuserStatusHandler;
 
-      webServer.filterWheelSetPositionHandler = _filterWheelSetPositionHandler;
-      webServer.filterWheelGetNamesHandler = _filterWheelGetNamesHandler;
-      webServer.filterWheelStatusHandler = _filterWheelStatusHandler;
+      nextServer.filterWheelSetPositionHandler = _filterWheelSetPositionHandler;
+      nextServer.filterWheelGetNamesHandler = _filterWheelGetNamesHandler;
+      nextServer.filterWheelStatusHandler = _filterWheelStatusHandler;
 
-      webServer.getLocationHandler = _getLocationHandler;
-      webServer.setLocationHandler = _setLocationHandler;
+      nextServer.getLocationHandler = _getLocationHandler;
+      nextServer.setLocationHandler = _setLocationHandler;
 
-      webServer.phd2GetStatusHandler = _phd2GetStatusHandler;
-      webServer.phd2StartGuidingHandler = _phd2StartGuidingHandler;
-      webServer.phd2StopGuidingHandler = _phd2StopGuidingHandler;
-      webServer.phd2DitherHandler = _phd2DitherHandler;
+      nextServer.phd2GetStatusHandler = _phd2GetStatusHandler;
+      nextServer.phd2StartGuidingHandler = _phd2StartGuidingHandler;
+      nextServer.phd2StopGuidingHandler = _phd2StopGuidingHandler;
+      nextServer.phd2DitherHandler = _phd2DitherHandler;
+      nextServer.guiderStartGuidingHandler = _guiderStartGuidingHandler;
+      nextServer.guiderStopGuidingHandler = _guiderStopGuidingHandler;
+      nextServer.guiderDitherHandler = _guiderDitherHandler;
+      nextServer.guiderLoopHandler = _guiderLoopHandler;
+      nextServer.guiderFindStarHandler = _guiderFindStarHandler;
+      nextServer.guiderSetLockPositionHandler = _guiderSetLockPositionHandler;
+      nextServer.guiderGetLockPositionHandler = _guiderGetLockPositionHandler;
+      nextServer.guiderDeselectStarHandler = _guiderDeselectStarHandler;
+      nextServer.guiderGetStarImageHandler = _guiderGetStarImageHandler;
 
       // Extended handlers
-      webServer.cameraGetLastImageHandler = _cameraGetLastImageHandler;
-      webServer.mountPulseGuideHandler = _mountPulseGuideHandler;
-      webServer.autofocusStartHandler = _autofocusStartHandler;
-      webServer.autofocusCancelHandler = _autofocusCancelHandler;
-      webServer.filterWheelSetByNameHandler = _filterWheelSetByNameHandler;
-      webServer.rotatorMoveToHandler = _rotatorMoveToHandler;
-      webServer.rotatorMoveRelativeHandler = _rotatorMoveRelativeHandler;
-      webServer.rotatorGetStatusHandler = _rotatorGetStatusHandler;
-      webServer.rotatorHaltHandler = _rotatorHaltHandler;
-      webServer.plateSolveHandler = _plateSolveHandler;
-      webServer.sequencerStartHandler = _sequencerStartHandler;
-      webServer.sequencerStopHandler = _sequencerStopHandler;
-      webServer.sequencerPauseHandler = _sequencerPauseHandler;
-      webServer.sequencerResumeHandler = _sequencerResumeHandler;
-      webServer.sequencerLoadHandler = _sequencerLoadHandler;
-      webServer.sequencerSetSimulationHandler = _sequencerSetSimulationHandler;
-      webServer.sequencerStatusHandler = _sequencerGetStatusHandler;
-      webServer.getProfilesHandler = _getProfilesHandler;
-      webServer.saveProfileHandler = _saveProfileHandler;
-      webServer.deleteProfileHandler = _deleteProfileHandler;
-      webServer.loadProfileHandler = _loadProfileHandler;
-      webServer.getActiveProfileHandler = _getActiveProfileHandler;
-      webServer.getSettingsHandler = _getSettingsHandler;
-      webServer.updateSettingsHandler = _updateSettingsHandler;
-      webServer.polarAlignmentStartHandler = _polarAlignmentStartHandler;
-      webServer.polarAlignmentStopHandler = _polarAlignmentStopHandler;
+      nextServer.cameraGetLastImageHandler = _cameraGetLastImageHandler;
+      nextServer.mountPulseGuideHandler = _mountPulseGuideHandler;
+      nextServer.autofocusStartHandler = _autofocusStartHandler;
+      nextServer.autofocusCancelHandler = _autofocusCancelHandler;
+      nextServer.filterWheelSetByNameHandler = _filterWheelSetByNameHandler;
+      nextServer.rotatorMoveToHandler = _rotatorMoveToHandler;
+      nextServer.rotatorMoveRelativeHandler = _rotatorMoveRelativeHandler;
+      nextServer.rotatorGetStatusHandler = _rotatorGetStatusHandler;
+      nextServer.rotatorHaltHandler = _rotatorHaltHandler;
+      nextServer.plateSolveHandler = _plateSolveHandler;
+      nextServer.sequencerStartHandler = _sequencerStartHandler;
+      nextServer.sequencerStopHandler = _sequencerStopHandler;
+      nextServer.sequencerPauseHandler = _sequencerPauseHandler;
+      nextServer.sequencerResumeHandler = _sequencerResumeHandler;
+      nextServer.sequencerLoadHandler = _sequencerLoadHandler;
+      nextServer.sequencerSetSimulationHandler = _sequencerSetSimulationHandler;
+      nextServer.sequencerStatusHandler = _sequencerGetStatusHandler;
+      nextServer.getProfilesHandler = _getProfilesHandler;
+      nextServer.saveProfileHandler = _saveProfileHandler;
+      nextServer.deleteProfileHandler = _deleteProfileHandler;
+      nextServer.loadProfileHandler = _loadProfileHandler;
+      nextServer.getActiveProfileHandler = _getActiveProfileHandler;
+      nextServer.getSettingsHandler = _getSettingsHandler;
+      nextServer.updateSettingsHandler = _updateSettingsHandler;
+      nextServer.polarAlignmentStartHandler = _polarAlignmentStartHandler;
+      nextServer.polarAlignmentStopHandler = _polarAlignmentStopHandler;
 
-      print('[MAIN] Starting web server...');
-      await webServer.start();
-      print(
-          '[MAIN] Web server started for mobile access on port ${webServer.actualPort}');
+      try {
+        debugPrint(
+            '[MAIN] Starting authenticated desktop remote access server...');
+        await nextServer.start();
+        webServer = nextServer;
+        collaborationManager = nextCollaborationManager;
+        debugPrint(
+          '[MAIN] Remote access started on port ${nextServer.actualPort}'
+          ' (dashboard: ${dashboardDir?.path ?? 'unavailable'})',
+        );
 
-      // Start UDP broadcasting for auto-discovery
-      print('[MAIN] Starting UDP broadcast for auto-discovery...');
-      await NightshadeDiscovery.startBroadcasting(
-        webPort: webServer.actualPort,
-        signalingPort: 45678,
-        name: 'Nightshade Server',
-        version: '2.0.0',
+        container.read(webServerStateProvider.notifier).setRunning(
+              isRunning: true,
+              actualPort: nextServer.actualPort,
+              configuredPort: settings.webServerPort,
+              bindLocalOnly: false,
+              requiresAuthentication: true,
+              dashboardAvailable: dashboardDir != null,
+            );
+
+        await collaborationSubscription?.cancel();
+        collaborationSubscription =
+            nextCollaborationManager.stream.listen((collabState) {
+          container
+              .read(webServerStateProvider.notifier)
+              .setActiveViewers(collabState.viewers.length);
+        });
+
+        try {
+          final pushService = container.read(pushNotificationServiceProvider);
+          nextServer.setPushNotificationStream(
+            pushService.notifications
+                .map((notification) => notification.toJson()),
+          );
+          debugPrint('[MAIN] Push notifications wired to web server');
+        } catch (e) {
+          debugPrint('[MAIN] Push notification setup failed: $e');
+        }
+      } catch (e) {
+        debugPrint('[MAIN] Remote access failed to start: $e');
+        await nextServer.stop();
+        nextCollaborationManager.dispose();
+        await stopWebServer(
+          settings,
+          error: 'Remote access failed to start: $e',
+        );
+      }
+    }
+
+    Future<void> scheduleWebServerUpdate(AppSettings settings) async {
+      queuedWebServerSettings = settings;
+      if (isApplyingWebServerSettings) {
+        return;
+      }
+
+      isApplyingWebServerSettings = true;
+      try {
+        while (queuedWebServerSettings != null) {
+          final nextSettings = queuedWebServerSettings!;
+          queuedWebServerSettings = null;
+          await applyWebServerSettings(nextSettings);
+        }
+      } finally {
+        isApplyingWebServerSettings = false;
+      }
+    }
+
+    try {
+      AppSettings? lastAppliedSettings;
+      container.listen<AsyncValue<AppSettings>>(
+        appSettingsProvider,
+        (_, next) {
+          final settings = next.valueOrNull;
+          if (settings == null) {
+            return;
+          }
+
+          final shouldRestart = lastAppliedSettings == null ||
+              lastAppliedSettings!.webServerEnabled !=
+                  settings.webServerEnabled ||
+              lastAppliedSettings!.webServerPort != settings.webServerPort;
+
+          if (!shouldRestart) {
+            return;
+          }
+
+          lastAppliedSettings = settings;
+          unawaited(scheduleWebServerUpdate(settings));
+        },
+        fireImmediately: true,
       );
-      print('[MAIN] Broadcasting on UDP port 45679');
 
       // Start LAN push update receiver
       try {
         var isReceivingLanPush = false;
+        final pushSecret = await _getOrCreatePushSecret();
         final lanPushReceiver = LanPushReceiver(
           currentVersion: appVersion,
           currentBuildNumber: appBuildNumber,
+          pushSecret: pushSecret,
         );
         lanPushReceiver.onUpdateReceived = (manifest, stagingPath) {
           isReceivingLanPush = false;
-          print('[MAIN] Update received via LAN push: ${manifest.version}');
+          debugPrint(
+              '[MAIN] Update received via LAN push: ${manifest.version}');
           LanPushNotifier.notifyUpdateReceived(manifest, stagingPath);
         };
         lanPushReceiver.onProgress = (received, total, progress, message) {
           isReceivingLanPush = total > 0 && received < total;
-          print(
+          debugPrint(
               '[MAIN] LAN push progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
           LanPushNotifier.notifyProgress(received, total, progress, message);
         };
         lanPushReceiver.onError = (error) {
           isReceivingLanPush = false;
-          print('[MAIN] LAN push error: $error');
+          debugPrint('[MAIN] LAN push error: $error');
           LanPushNotifier.notifyError(error);
         };
         await lanPushReceiver.startServer();
-        print('[MAIN] LAN push receiver started on port 45680');
+        debugPrint('[MAIN] LAN push receiver started on port 45680');
 
         // Start responding to update push discovery
         await UpdatePushDiscovery.startResponding(
@@ -221,198 +359,62 @@ void _startBackgroundServices() {
           buildNumber: appBuildNumber,
           isReceivingCallback: () => isReceivingLanPush,
         );
-        print('[MAIN] Update push discovery responder started');
+        debugPrint('[MAIN] Update push discovery responder started');
       } catch (e) {
         debugPrint('[MAIN] LAN push receiver failed: $e');
       }
     } catch (e) {
-      // Silently fail - web build might not be available
-      debugPrint('[MAIN] Web server not available: $e');
+      debugPrint('[MAIN] Background services failed to initialize: $e');
     }
 
-    try {
-      // Start WebRTC signaling
-      final signaling = NightshadeSignaling();
-      await signaling.startServer();
-      print('WebRTC signaling server started');
-    } catch (e) {
-      debugPrint('WebRTC signaling failed: $e');
-    }
+    debugPrint(
+      '[MAIN] Desktop GUI remote access is authenticated for non-local clients.',
+    );
   });
 }
 
-/// Run in headless mode (no GUI window)
-Future<void> _runHeadless() async {
-  print('Nightshade 2.0 - Headless Mode');
-  print('==============================');
-
-  try {
-    // Initialize the native bridge
-    print('Initializing native bridge...');
-    await bridge.NativeBridge.init();
-
-    // Initialize profile storage
-    final appDir = await getApplicationDocumentsDirectory();
-    final profileDir = path.join(appDir.path, 'Nightshade', 'profiles');
-    await Directory(profileDir).create(recursive: true);
-    await bridge.NativeBridge.apiInitProfileStorage(storagePath: profileDir);
-
-    // Initialize settings storage
-    await bridge.NativeBridge.apiInitSettingsStorage(storagePath: profileDir);
-    print('✓ Native bridge initialized');
-
-    // Initialize catalog manager
-    print('Initializing catalog manager...');
-    await _initializeCatalogManager();
-    print('✓ Catalog manager initialized');
-
-    // Start headless services (web server, discovery, etc.)
-    print('Starting headless services...');
-    await _startHeadlessServices();
-    print('✓ Headless services started');
-
-    print('\nNightshade is running in headless mode.');
-    print('Press Ctrl+C to stop.\n');
-
-    // Keep the process alive
-    ProcessSignal.sigint.watch().listen((signal) {
-      print('\nShutting down...');
-      exit(0);
-    });
-
-    // Keep alive loop
-    while (true) {
-      await Future.delayed(const Duration(seconds: 1));
-    }
-  } catch (e, stackTrace) {
-    print('Error starting headless mode: $e');
-    print('Stack trace: $stackTrace');
-    exit(1);
-  }
-}
-
-/// Start headless services (web server, discovery, WebRTC)
-Future<void> _startHeadlessServices() async {
-  // Start web server
-  try {
-    print('[HEADLESS] Initializing Nightshade headless mode...');
-    final webServer = NightshadeWebServer(
-      port: 8080,
-      devicesHandler: _getDevicesHandler,
-      deviceConnectHandler: _connectDeviceHandler,
-      deviceDisconnectHandler: _disconnectDeviceHandler,
-      connectedDevicesHandler: _getConnectedDevicesHandler,
-      phd2ConnectHandler: _phd2ConnectHandler,
-      phd2DisconnectHandler: _phd2DisconnectHandler,
-    );
-
-    // Wire up additional handlers using setters
-    webServer.cameraExposeHandler = _cameraExposeHandler;
-    webServer.cameraAbortHandler = _cameraAbortHandler;
-    webServer.cameraSetCoolingHandler = _cameraSetCoolingHandler;
-    webServer.cameraSetGainHandler = _cameraSetGainHandler;
-    webServer.cameraSetOffsetHandler = _cameraSetOffsetHandler;
-    webServer.cameraStatusHandler = _cameraStatusHandler;
-
-    webServer.mountSlewHandler = _mountSlewHandler;
-    webServer.mountSyncHandler = _mountSyncHandler;
-    webServer.mountParkHandler = _mountParkHandler;
-    webServer.mountUnparkHandler = _mountUnparkHandler;
-    webServer.mountSetTrackingHandler = _mountSetTrackingHandler;
-    webServer.mountAbortHandler = _mountAbortHandler;
-    webServer.mountGetStatusHandler = _mountGetStatusHandler;
-    webServer.mountStatusHandler = _mountGetStatusHandler;
-
-    webServer.focuserMoveToHandler = _focuserMoveToHandler;
-    webServer.focuserMoveRelativeHandler = _focuserMoveRelativeHandler;
-    webServer.focuserHaltHandler = _focuserHaltHandler;
-    webServer.focuserStatusHandler = _focuserStatusHandler;
-
-    webServer.filterWheelSetPositionHandler = _filterWheelSetPositionHandler;
-    webServer.filterWheelGetNamesHandler = _filterWheelGetNamesHandler;
-    webServer.filterWheelStatusHandler = _filterWheelStatusHandler;
-
-    webServer.getLocationHandler = _getLocationHandler;
-    webServer.setLocationHandler = _setLocationHandler;
-
-    webServer.phd2GetStatusHandler = _phd2GetStatusHandler;
-    webServer.phd2StartGuidingHandler = _phd2StartGuidingHandler;
-    webServer.phd2StopGuidingHandler = _phd2StopGuidingHandler;
-    webServer.phd2DitherHandler = _phd2DitherHandler;
-
-    // Extended handlers
-    webServer.cameraGetLastImageHandler = _cameraGetLastImageHandler;
-    webServer.mountPulseGuideHandler = _mountPulseGuideHandler;
-    webServer.autofocusStartHandler = _autofocusStartHandler;
-    webServer.autofocusCancelHandler = _autofocusCancelHandler;
-    webServer.filterWheelSetByNameHandler = _filterWheelSetByNameHandler;
-    webServer.rotatorMoveToHandler = _rotatorMoveToHandler;
-    webServer.rotatorMoveRelativeHandler = _rotatorMoveRelativeHandler;
-    webServer.rotatorGetStatusHandler = _rotatorGetStatusHandler;
-    webServer.rotatorHaltHandler = _rotatorHaltHandler;
-    webServer.plateSolveHandler = _plateSolveHandler;
-    webServer.sequencerStartHandler = _sequencerStartHandler;
-    webServer.sequencerStopHandler = _sequencerStopHandler;
-    webServer.sequencerPauseHandler = _sequencerPauseHandler;
-    webServer.sequencerResumeHandler = _sequencerResumeHandler;
-    webServer.sequencerLoadHandler = _sequencerLoadHandler;
-    webServer.sequencerSetSimulationHandler = _sequencerSetSimulationHandler;
-    webServer.sequencerStatusHandler = _sequencerGetStatusHandler;
-    webServer.getProfilesHandler = _getProfilesHandler;
-    webServer.saveProfileHandler = _saveProfileHandler;
-    webServer.deleteProfileHandler = _deleteProfileHandler;
-    webServer.loadProfileHandler = _loadProfileHandler;
-    webServer.getActiveProfileHandler = _getActiveProfileHandler;
-    webServer.getSettingsHandler = _getSettingsHandler;
-    webServer.updateSettingsHandler = _updateSettingsHandler;
-    webServer.polarAlignmentStartHandler = _polarAlignmentStartHandler;
-    webServer.polarAlignmentStopHandler = _polarAlignmentStopHandler;
-
-    await webServer.start();
-    print('  ✓ Web server started on port ${webServer.actualPort}');
-
-    // Start discovery broadcasting
-    try {
-      await NightshadeDiscovery.startBroadcasting(
-        webPort: webServer.actualPort,
-        signalingPort: 45678,
-        name: 'Nightshade',
-        version: '2.0.0',
-      );
-      print('  ✓ Discovery broadcasting started');
-    } catch (e) {
-      print('  ⚠ Discovery broadcasting failed: $e');
-    }
-
-    // Print QR connection data for mobile scanning
-    try {
-      final localIp = await _getLocalIp();
-      if (localIp != null) {
-        final qrData = EnhancedNightshadeDiscovery.generateQrData(
-          host: localIp,
-          webPort: webServer.actualPort,
-          signalingPort: 45678,
-          serverName: 'Nightshade',
-        );
-        print('\n  Mobile connection info:');
-        print('    Address: http://$localIp:${webServer.actualPort}');
-        print('    QR Data: $qrData\n');
-      }
-    } catch (e) {
-      // Ignore QR data errors
-    }
-  } catch (e) {
-    print('  ⚠ Web server failed to start: $e');
+Directory? _findDashboardDir() {
+  final exeDir = path.dirname(Platform.resolvedExecutable);
+  final releasePath =
+      path.join(exeDir, 'data', 'flutter_assets', 'web_dashboard');
+  final releaseDir = Directory(releasePath);
+  if (releaseDir.existsSync()) {
+    return releaseDir;
   }
 
-  // Start WebRTC signaling server for direct connections
-  try {
-    final signaling = NightshadeSignaling();
-    await signaling.startServer();
-    print('  ✓ WebRTC signaling server started on port 45678');
-  } catch (e) {
-    print('  ⚠ WebRTC signaling server failed: $e');
+  final sameDirPath = path.join(exeDir, 'web_dashboard');
+  final sameDir = Directory(sameDirPath);
+  if (sameDir.existsSync()) {
+    return sameDir;
   }
+
+  var current = exeDir;
+  for (var i = 0; i < 10; i++) {
+    final candidate = Directory(path.join(current, 'web_dashboard'));
+    if (candidate.existsSync()) {
+      return candidate;
+    }
+
+    final parent = path.dirname(current);
+    if (parent == current) {
+      break;
+    }
+    current = parent;
+  }
+
+  final cwdDir = Directory(path.join(Directory.current.path, 'web_dashboard'));
+  if (cwdDir.existsSync()) {
+    return cwdDir;
+  }
+
+  final sourceTreeDir = Directory(
+    path.join(Directory.current.path, 'apps', 'desktop', 'web_dashboard'),
+  );
+  if (sourceTreeDir.existsSync()) {
+    return sourceTreeDir;
+  }
+
+  return null;
 }
 
 Future<void> _initializeCatalogManager() async {
@@ -427,10 +429,8 @@ Future<void> _initializeCatalogManager() async {
 
 /// Handler for /api/devices endpoint
 Future<Map<String, dynamic>> _getDevicesHandler() async {
-  print('[API] Device discovery requested...');
   try {
     // Discover ALL device types in parallel for faster discovery
-    print('[API] Discovering all devices in parallel...');
     final results = await Future.wait([
       bridge.NativeBridge.discoverDevices(bridge.DeviceType.camera),
       bridge.NativeBridge.discoverDevices(bridge.DeviceType.mount),
@@ -531,7 +531,7 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
 
 /// Handler for /api/devices/connect endpoint
 Future<void> _connectDeviceHandler(String deviceType, String deviceId) async {
-  print('[API] Connecting device: $deviceType / $deviceId');
+  debugPrint('[API] Connecting device: $deviceType / $deviceId');
   try {
     // Parse device type
     bridge.DeviceType bridgeType;
@@ -569,7 +569,7 @@ Future<void> _connectDeviceHandler(String deviceType, String deviceId) async {
       // Regular device connection
       await bridge.NativeBridge.connectDevice(bridgeType, deviceId);
     }
-    print('[API] Device connected successfully');
+    debugPrint('[API] Device connected successfully');
   } catch (e, stackTrace) {
     debugPrint('[API] Error connecting device: $e');
     debugPrint('[API] Stack trace: $stackTrace');
@@ -580,7 +580,7 @@ Future<void> _connectDeviceHandler(String deviceType, String deviceId) async {
 /// Handler for /api/devices/disconnect endpoint
 Future<void> _disconnectDeviceHandler(
     String deviceType, String deviceId) async {
-  print('[API] Disconnecting device: $deviceType / $deviceId');
+  debugPrint('[API] Disconnecting device: $deviceType / $deviceId');
   try {
     // Parse device type
     bridge.DeviceType bridgeType;
@@ -611,7 +611,7 @@ Future<void> _disconnectDeviceHandler(
       // Regular device disconnection
       await bridge.NativeBridge.disconnectDevice(bridgeType, deviceId);
     }
-    print('[API] Device disconnected successfully');
+    debugPrint('[API] Device disconnected successfully');
   } catch (e, stackTrace) {
     debugPrint('[API] Error disconnecting device: $e');
     debugPrint('[API] Stack trace: $stackTrace');
@@ -621,7 +621,7 @@ Future<void> _disconnectDeviceHandler(
 
 /// Handler for /api/devices/connected endpoint
 Future<List<Map<String, dynamic>>> _getConnectedDevicesHandler() async {
-  print('[API] Getting connected devices...');
+  debugPrint('[API] Getting connected devices...');
   final connectedDevices = await bridge.NativeBridge.getConnectedDevices();
   return connectedDevices
       .map((device) => {
@@ -637,16 +637,16 @@ Future<List<Map<String, dynamic>>> _getConnectedDevicesHandler() async {
 
 /// Handler for /api/phd2/connect endpoint
 Future<void> _phd2ConnectHandler({String? host, int? port}) async {
-  print('[API] Connecting to PHD2: host=$host, port=$port');
+  debugPrint('[API] Connecting to PHD2: host=$host, port=$port');
   await bridge.NativeBridge.phd2Connect(host: host, port: port);
-  print('[API] PHD2 connected successfully');
+  debugPrint('[API] PHD2 connected successfully');
 }
 
 /// Handler for /api/phd2/disconnect endpoint
 Future<void> _phd2DisconnectHandler() async {
-  print('[API] Disconnecting from PHD2');
+  debugPrint('[API] Disconnecting from PHD2');
   await bridge.NativeBridge.phd2Disconnect();
-  print('[API] PHD2 disconnected successfully');
+  debugPrint('[API] PHD2 disconnected successfully');
 }
 
 // ============================================================================
@@ -655,7 +655,7 @@ Future<void> _phd2DisconnectHandler() async {
 
 /// Handler for /api/camera/expose endpoint
 Future<void> _cameraExposeHandler(Map<String, dynamic> params) async {
-  print('[API] Starting camera exposure: $params');
+  debugPrint('[API] Starting camera exposure: $params');
   final deviceId = params['deviceId'] as String;
   final duration = (params['duration'] as num).toDouble();
   final gain = params['gain'] as int? ?? 0;
@@ -671,42 +671,42 @@ Future<void> _cameraExposeHandler(Map<String, dynamic> params) async {
     binX: binX,
     binY: binY,
   );
-  print('[API] Exposure started');
+  debugPrint('[API] Exposure started');
 }
 
 /// Handler for /api/camera/abort endpoint
 Future<void> _cameraAbortHandler(String deviceId) async {
-  print('[API] Aborting camera exposure: $deviceId');
+  debugPrint('[API] Aborting camera exposure: $deviceId');
   await bridge.NativeBridge.cancelExposure(deviceId);
-  print('[API] Exposure aborted');
+  debugPrint('[API] Exposure aborted');
 }
 
 /// Handler for /api/camera/cooling endpoint
 Future<void> _cameraSetCoolingHandler(
     String deviceId, bool enabled, double? targetTemp) async {
-  print(
+  debugPrint(
       '[API] Setting camera cooling: $deviceId, enabled=$enabled, target=$targetTemp');
   await bridge.NativeBridge.setCameraCooler(deviceId, enabled, targetTemp);
-  print('[API] Cooling set');
+  debugPrint('[API] Cooling set');
 }
 
 /// Handler for /api/camera/gain endpoint
 Future<void> _cameraSetGainHandler(String deviceId, int gain) async {
-  print('[API] Setting camera gain: $deviceId, gain=$gain');
+  debugPrint('[API] Setting camera gain: $deviceId, gain=$gain');
   await bridge.NativeBridge.setCameraGain(deviceId, gain);
-  print('[API] Gain set');
+  debugPrint('[API] Gain set');
 }
 
 /// Handler for /api/camera/offset endpoint
 Future<void> _cameraSetOffsetHandler(String deviceId, int offset) async {
-  print('[API] Setting camera offset: $deviceId, offset=$offset');
+  debugPrint('[API] Setting camera offset: $deviceId, offset=$offset');
   await bridge.NativeBridge.setCameraOffset(deviceId, offset);
-  print('[API] Offset set');
+  debugPrint('[API] Offset set');
 }
 
 /// Handler for /api/equipment/camera/status endpoint
 Future<Map<String, dynamic>> _cameraStatusHandler(String deviceId) async {
-  print('[API] Getting camera status: $deviceId');
+  debugPrint('[API] Getting camera status: $deviceId');
   final status = await bridge.NativeBridge.getCameraStatus(deviceId);
   return {
     'connected': status.connected,
@@ -726,49 +726,49 @@ Future<Map<String, dynamic>> _cameraStatusHandler(String deviceId) async {
 
 /// Handler for /api/mount/slew endpoint
 Future<void> _mountSlewHandler(String deviceId, double ra, double dec) async {
-  print('[API] Slewing mount: $deviceId to RA=$ra, Dec=$dec');
+  debugPrint('[API] Slewing mount: $deviceId to RA=$ra, Dec=$dec');
   await bridge.NativeBridge.mountSlewToCoordinates(deviceId, ra, dec);
-  print('[API] Slew started');
+  debugPrint('[API] Slew started');
 }
 
 /// Handler for /api/mount/sync endpoint
 Future<void> _mountSyncHandler(String deviceId, double ra, double dec) async {
-  print('[API] Syncing mount: $deviceId to RA=$ra, Dec=$dec');
+  debugPrint('[API] Syncing mount: $deviceId to RA=$ra, Dec=$dec');
   await bridge.NativeBridge.mountSync(deviceId, ra, dec);
-  print('[API] Mount synced');
+  debugPrint('[API] Mount synced');
 }
 
 /// Handler for /api/mount/park endpoint
 Future<void> _mountParkHandler(String deviceId) async {
-  print('[API] Parking mount: $deviceId');
+  debugPrint('[API] Parking mount: $deviceId');
   await bridge.NativeBridge.mountPark(deviceId);
-  print('[API] Park started');
+  debugPrint('[API] Park started');
 }
 
 /// Handler for /api/mount/unpark endpoint
 Future<void> _mountUnparkHandler(String deviceId) async {
-  print('[API] Unparking mount: $deviceId');
+  debugPrint('[API] Unparking mount: $deviceId');
   await bridge.NativeBridge.mountUnpark(deviceId);
-  print('[API] Mount unparked');
+  debugPrint('[API] Mount unparked');
 }
 
 /// Handler for /api/mount/tracking endpoint
 Future<void> _mountSetTrackingHandler(String deviceId, bool enabled) async {
-  print('[API] Setting mount tracking: $deviceId, enabled=$enabled');
+  debugPrint('[API] Setting mount tracking: $deviceId, enabled=$enabled');
   await bridge.NativeBridge.mountSetTracking(deviceId, enabled);
-  print('[API] Tracking set');
+  debugPrint('[API] Tracking set');
 }
 
 /// Handler for /api/mount/abort endpoint
 Future<void> _mountAbortHandler(String deviceId) async {
-  print('[API] Aborting mount slew: $deviceId');
+  debugPrint('[API] Aborting mount slew: $deviceId');
   await bridge.NativeBridge.mountAbort(deviceId);
-  print('[API] Mount aborted');
+  debugPrint('[API] Mount aborted');
 }
 
 /// Handler for /api/mount/status endpoint
 Future<Map<String, dynamic>> _mountGetStatusHandler(String deviceId) async {
-  print('[API] Getting mount status: $deviceId');
+  debugPrint('[API] Getting mount status: $deviceId');
   final status = await bridge.NativeBridge.getMountStatus(deviceId);
   return {
     'connected': status.connected,
@@ -789,28 +789,28 @@ Future<Map<String, dynamic>> _mountGetStatusHandler(String deviceId) async {
 
 /// Handler for /api/focuser/move-to endpoint
 Future<void> _focuserMoveToHandler(String deviceId, int position) async {
-  print('[API] Moving focuser: $deviceId to position=$position');
+  debugPrint('[API] Moving focuser: $deviceId to position=$position');
   await bridge.NativeBridge.focuserMoveTo(deviceId, position);
-  print('[API] Focuser moving');
+  debugPrint('[API] Focuser moving');
 }
 
 /// Handler for /api/focuser/move-relative endpoint
 Future<void> _focuserMoveRelativeHandler(String deviceId, int delta) async {
-  print('[API] Moving focuser relative: $deviceId by delta=$delta');
+  debugPrint('[API] Moving focuser relative: $deviceId by delta=$delta');
   await bridge.NativeBridge.focuserMoveRelative(deviceId, delta);
-  print('[API] Focuser moving');
+  debugPrint('[API] Focuser moving');
 }
 
 /// Handler for /api/focuser/halt endpoint
 Future<void> _focuserHaltHandler(String deviceId) async {
-  print('[API] Halting focuser: $deviceId');
+  debugPrint('[API] Halting focuser: $deviceId');
   await bridge.NativeBridge.apiFocuserHalt(deviceId: deviceId);
-  print('[API] Focuser halted');
+  debugPrint('[API] Focuser halted');
 }
 
 /// Handler for /api/equipment/focuser/status endpoint
 Future<Map<String, dynamic>> _focuserStatusHandler(String deviceId) async {
-  print('[API] Getting focuser status: $deviceId');
+  debugPrint('[API] Getting focuser status: $deviceId');
   final status = await bridge.NativeBridge.getFocuserStatus(deviceId);
   return {
     'connected': status.connected,
@@ -832,21 +832,22 @@ Future<Map<String, dynamic>> _focuserStatusHandler(String deviceId) async {
 /// Handler for /api/filter-wheel/position endpoint
 Future<void> _filterWheelSetPositionHandler(
     String deviceId, int position) async {
-  print('[API] Setting filter wheel position: $deviceId to position=$position');
+  debugPrint(
+      '[API] Setting filter wheel position: $deviceId to position=$position');
   await bridge.NativeBridge.filterWheelSetPosition(deviceId, position);
-  print('[API] Filter wheel moving');
+  debugPrint('[API] Filter wheel moving');
 }
 
 /// Handler for /api/filter-wheel/names endpoint
 Future<List<String>> _filterWheelGetNamesHandler(String deviceId) async {
-  print('[API] Getting filter wheel names: $deviceId');
+  debugPrint('[API] Getting filter wheel names: $deviceId');
   final status = await bridge.NativeBridge.getFilterWheelStatus(deviceId);
   return status.filterNames;
 }
 
 /// Handler for /api/equipment/filter-wheel/status endpoint
 Future<Map<String, dynamic>> _filterWheelStatusHandler(String deviceId) async {
-  print('[API] Getting filter wheel status: $deviceId');
+  debugPrint('[API] Getting filter wheel status: $deviceId');
   final status = await bridge.NativeBridge.getFilterWheelStatus(deviceId);
   return {
     'connected': status.connected,
@@ -862,7 +863,7 @@ Future<Map<String, dynamic>> _filterWheelStatusHandler(String deviceId) async {
 
 /// Handler for /api/settings/location endpoint (GET)
 Future<Map<String, dynamic>?> _getLocationHandler() async {
-  print('[API] Getting location');
+  debugPrint('[API] Getting location');
   final loc = await bridge.NativeBridge.apiGetLocation();
   if (loc == null) return null;
   return {
@@ -874,7 +875,7 @@ Future<Map<String, dynamic>?> _getLocationHandler() async {
 
 /// Handler for /api/settings/location endpoint (POST)
 Future<void> _setLocationHandler(Map<String, dynamic>? location) async {
-  print('[API] Setting location: $location');
+  debugPrint('[API] Setting location: $location');
   if (location != null) {
     final loc = bridge.ObserverLocation(
       latitude: (location['latitude'] as num).toDouble(),
@@ -883,7 +884,7 @@ Future<void> _setLocationHandler(Map<String, dynamic>? location) async {
     );
     await bridge.NativeBridge.apiSetLocation(location: loc);
   }
-  print('[API] Location set');
+  debugPrint('[API] Location set');
 }
 
 // ============================================================================
@@ -892,7 +893,7 @@ Future<void> _setLocationHandler(Map<String, dynamic>? location) async {
 
 /// Handler for /api/phd2/status endpoint
 Future<Map<String, dynamic>> _phd2GetStatusHandler() async {
-  print('[API] Getting PHD2 status');
+  debugPrint('[API] Getting PHD2 status');
   final status = await bridge.NativeBridge.phd2GetStatus();
   return {
     'connected': status.connected,
@@ -908,7 +909,7 @@ Future<Map<String, dynamic>> _phd2GetStatusHandler() async {
 
 /// Handler for /api/phd2/start-guiding endpoint
 Future<void> _phd2StartGuidingHandler(Map<String, dynamic> params) async {
-  print('[API] Starting PHD2 guiding: $params');
+  debugPrint('[API] Starting PHD2 guiding: $params');
   final settlePixels = (params['settlePixels'] as num?)?.toDouble() ?? 1.5;
   final settleTime = (params['settleTime'] as num?)?.toDouble() ?? 10.0;
   final settleTimeout = (params['settleTimeout'] as num?)?.toDouble() ?? 60.0;
@@ -917,19 +918,19 @@ Future<void> _phd2StartGuidingHandler(Map<String, dynamic> params) async {
     settleTime: settleTime,
     settleTimeout: settleTimeout,
   );
-  print('[API] Guiding started');
+  debugPrint('[API] Guiding started');
 }
 
 /// Handler for /api/phd2/stop-guiding endpoint
 Future<void> _phd2StopGuidingHandler() async {
-  print('[API] Stopping PHD2 guiding');
+  debugPrint('[API] Stopping PHD2 guiding');
   await bridge.NativeBridge.phd2StopGuiding();
-  print('[API] Guiding stopped');
+  debugPrint('[API] Guiding stopped');
 }
 
 /// Handler for /api/phd2/dither endpoint
 Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
-  print('[API] Dithering PHD2: $params');
+  debugPrint('[API] Dithering PHD2: $params');
   final amount = (params['amount'] as num?)?.toDouble() ?? 5.0;
   final raOnly = params['raOnly'] as bool? ?? false;
   final settlePixels = (params['settlePixels'] as num?)?.toDouble() ?? 1.5;
@@ -942,7 +943,117 @@ Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
     settleTime: settleTime,
     settleTimeout: settleTimeout,
   );
-  print('[API] Dither requested');
+  debugPrint('[API] Dither requested');
+}
+
+Future<void> _guiderStartGuidingHandler(Map<String, dynamic> params) async {
+  debugPrint('[API] Starting guider: $params');
+  final deviceId = params['deviceId'] as String;
+  final settlePixels = (params['settlePixels'] as num?)?.toDouble() ?? 1.0;
+  final settleTime = (params['settleTime'] as num?)?.toDouble() ?? 10.0;
+  final settleTimeout = (params['settleTimeout'] as num?)?.toDouble() ?? 60.0;
+  await bridge.NativeBridge.guiderStartGuiding(
+    deviceId: deviceId,
+    settlePixels: settlePixels,
+    settleTime: settleTime,
+    settleTimeout: settleTimeout,
+  );
+  debugPrint('[API] Guider started: $deviceId');
+}
+
+Future<void> _guiderStopGuidingHandler(String deviceId) async {
+  debugPrint('[API] Stopping guider: $deviceId');
+  await bridge.NativeBridge.guiderStop(deviceId: deviceId);
+  debugPrint('[API] Guider stopped: $deviceId');
+}
+
+Future<void> _guiderDitherHandler(Map<String, dynamic> params) async {
+  debugPrint('[API] Dithering guider: $params');
+  final deviceId = params['deviceId'] as String;
+  final amount = (params['amount'] as num?)?.toDouble() ?? 5.0;
+  final raOnly = params['raOnly'] as bool? ?? false;
+  final settlePixels = (params['settlePixels'] as num?)?.toDouble() ?? 1.0;
+  final settleTime = (params['settleTime'] as num?)?.toDouble() ?? 10.0;
+  final settleTimeout = (params['settleTimeout'] as num?)?.toDouble() ?? 60.0;
+  await bridge.NativeBridge.guiderDither(
+    deviceId: deviceId,
+    amount: amount,
+    raOnly: raOnly,
+    settlePixels: settlePixels,
+    settleTime: settleTime,
+    settleTimeout: settleTimeout,
+  );
+  debugPrint('[API] Guider dither requested: $deviceId');
+}
+
+Future<void> _guiderLoopHandler(String deviceId) async {
+  debugPrint('[API] Starting guider loop: $deviceId');
+  await bridge.NativeBridge.guiderLoop(deviceId: deviceId);
+  debugPrint('[API] Guider loop started: $deviceId');
+}
+
+Future<Map<String, dynamic>> _guiderFindStarHandler(String deviceId) async {
+  debugPrint('[API] Finding guide star: $deviceId');
+  final (x, y) = await bridge.NativeBridge.guiderFindStar(deviceId: deviceId);
+  return {
+    'deviceId': deviceId,
+    'x': x,
+    'y': y,
+  };
+}
+
+Future<void> _guiderSetLockPositionHandler(
+  String deviceId,
+  double x,
+  double y,
+  bool exact,
+) async {
+  debugPrint(
+      '[API] Setting guider lock position: $deviceId @ ($x, $y), exact=$exact');
+  await bridge.NativeBridge.guiderSetLockPosition(
+    deviceId: deviceId,
+    x: x,
+    y: y,
+    exact: exact,
+  );
+  debugPrint('[API] Guider lock position updated: $deviceId');
+}
+
+Future<Map<String, dynamic>> _guiderGetLockPositionHandler(
+  String deviceId,
+) async {
+  debugPrint('[API] Getting guider lock position: $deviceId');
+  final (x, y) =
+      await bridge.NativeBridge.guiderGetLockPosition(deviceId: deviceId);
+  return {
+    'deviceId': deviceId,
+    'x': x,
+    'y': y,
+  };
+}
+
+Future<void> _guiderDeselectStarHandler(String deviceId) async {
+  debugPrint('[API] Deselecting guide star: $deviceId');
+  await bridge.NativeBridge.guiderDeselectStar(deviceId: deviceId);
+  debugPrint('[API] Guide star deselected: $deviceId');
+}
+
+Future<Map<String, dynamic>> _guiderGetStarImageHandler(
+  String deviceId, {
+  int size = 50,
+}) async {
+  debugPrint('[API] Getting guider star image: $deviceId size=$size');
+  final image = await bridge.NativeBridge.guiderGetStarImage(
+      deviceId: deviceId, size: size);
+  return {
+    'deviceId': deviceId,
+    'frame': image.frame,
+    'width': image.width,
+    'height': image.height,
+    'starX': image.starX,
+    'starY': image.starY,
+    'pixels': image.pixels,
+  };
 }
 
 // ============================================================================
@@ -952,7 +1063,7 @@ Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
 /// Handler for /api/camera/last-image endpoint
 Future<Map<String, dynamic>?> _cameraGetLastImageHandler(
     String deviceId) async {
-  print('[API] Getting last image for: $deviceId');
+  debugPrint('[API] Getting last image for: $deviceId');
   final result = await bridge.NativeBridge.getLastImage(deviceId: deviceId);
   if (result == null) return null;
   return {
@@ -982,10 +1093,10 @@ Future<Map<String, dynamic>?> _cameraGetLastImageHandler(
 /// Handler for /api/mount/pulse-guide endpoint
 Future<void> _mountPulseGuideHandler(
     String deviceId, String direction, int durationMs) async {
-  print(
+  debugPrint(
       '[API] Pulse guiding mount: $deviceId, direction=$direction, duration=$durationMs');
   await bridge.NativeBridge.mountPulseGuide(deviceId, direction, durationMs);
-  print('[API] Pulse guide complete');
+  debugPrint('[API] Pulse guide complete');
 }
 
 // ============================================================================
@@ -995,7 +1106,7 @@ Future<void> _mountPulseGuideHandler(
 /// Handler for /api/focuser/autofocus/start endpoint
 Future<Map<String, dynamic>> _autofocusStartHandler(
     Map<String, dynamic> params) async {
-  print('[API] Starting autofocus: $params');
+  debugPrint('[API] Starting autofocus: $params');
   final deviceId = params['deviceId'] as String;
   final cameraId = params['cameraId'] as String;
   final exposureTime = (params['exposureTime'] as num).toDouble();
@@ -1039,9 +1150,9 @@ Future<Map<String, dynamic>> _autofocusStartHandler(
 
 /// Handler for /api/focuser/autofocus/cancel endpoint
 Future<void> _autofocusCancelHandler() async {
-  print('[API] Cancelling autofocus');
+  debugPrint('[API] Cancelling autofocus');
   await bridge.NativeBridge.apiCancelAutofocus();
-  print('[API] Autofocus cancelled');
+  debugPrint('[API] Autofocus cancelled');
 }
 
 // ============================================================================
@@ -1050,10 +1161,10 @@ Future<void> _autofocusCancelHandler() async {
 
 /// Handler for /api/filter-wheel/set-by-name endpoint
 Future<void> _filterWheelSetByNameHandler(String deviceId, String name) async {
-  print('[API] Setting filter by name: $deviceId to $name');
+  debugPrint('[API] Setting filter by name: $deviceId to $name');
   await bridge.NativeBridge.apiFilterwheelSetByName(
       deviceId: deviceId, name: name);
-  print('[API] Filter set');
+  debugPrint('[API] Filter set');
 }
 
 // ============================================================================
@@ -1062,22 +1173,22 @@ Future<void> _filterWheelSetByNameHandler(String deviceId, String name) async {
 
 /// Handler for /api/rotator/move-to endpoint
 Future<void> _rotatorMoveToHandler(String deviceId, double angle) async {
-  print('[API] Moving rotator: $deviceId to angle=$angle');
+  debugPrint('[API] Moving rotator: $deviceId to angle=$angle');
   await bridge.NativeBridge.apiRotatorMoveTo(deviceId: deviceId, angle: angle);
-  print('[API] Rotator moving');
+  debugPrint('[API] Rotator moving');
 }
 
 /// Handler for /api/rotator/move-relative endpoint
 Future<void> _rotatorMoveRelativeHandler(String deviceId, double delta) async {
-  print('[API] Moving rotator relative: $deviceId by delta=$delta');
+  debugPrint('[API] Moving rotator relative: $deviceId by delta=$delta');
   await bridge.NativeBridge.apiRotatorMoveRelative(
       deviceId: deviceId, delta: delta);
-  print('[API] Rotator moving');
+  debugPrint('[API] Rotator moving');
 }
 
 /// Handler for /api/rotator/status endpoint
 Future<Map<String, dynamic>> _rotatorGetStatusHandler(String deviceId) async {
-  print('[API] Getting rotator status: $deviceId');
+  debugPrint('[API] Getting rotator status: $deviceId');
   final status =
       await bridge.NativeBridge.apiGetRotatorStatus(deviceId: deviceId);
   return {
@@ -1092,9 +1203,9 @@ Future<Map<String, dynamic>> _rotatorGetStatusHandler(String deviceId) async {
 
 /// Handler for /api/rotator/halt endpoint
 Future<void> _rotatorHaltHandler(String deviceId) async {
-  print('[API] Halting rotator: $deviceId');
+  debugPrint('[API] Halting rotator: $deviceId');
   await bridge.NativeBridge.apiRotatorHalt(deviceId: deviceId);
-  print('[API] Rotator halted');
+  debugPrint('[API] Rotator halted');
 }
 
 // ============================================================================
@@ -1104,7 +1215,7 @@ Future<void> _rotatorHaltHandler(String deviceId) async {
 /// Handler for /api/plate-solve endpoint
 Future<Map<String, dynamic>> _plateSolveHandler(
     Map<String, dynamic> params) async {
-  print('[API] Plate solving: $params');
+  debugPrint('[API] Plate solving: $params');
   final imagePath = params['imagePath'] as String;
   final ra = (params['ra'] as num?)?.toDouble();
   final dec = (params['dec'] as num?)?.toDouble();
@@ -1141,35 +1252,35 @@ Future<Map<String, dynamic>> _plateSolveHandler(
 
 /// Handler for /api/sequencer/pause endpoint
 Future<void> _sequencerPauseHandler() async {
-  print('[API] Pausing sequencer');
+  debugPrint('[API] Pausing sequencer');
   await bridge.NativeBridge.sequencerPause();
-  print('[API] Sequencer paused');
+  debugPrint('[API] Sequencer paused');
 }
 
 /// Handler for /api/sequencer/resume endpoint
 Future<void> _sequencerResumeHandler() async {
-  print('[API] Resuming sequencer');
+  debugPrint('[API] Resuming sequencer');
   await bridge.NativeBridge.sequencerResume();
-  print('[API] Sequencer resumed');
+  debugPrint('[API] Sequencer resumed');
 }
 
 /// Handler for /api/sequencer/load endpoint
 Future<void> _sequencerLoadHandler(String json) async {
-  print('[API] Loading sequence');
+  debugPrint('[API] Loading sequence');
   await bridge.NativeBridge.sequencerLoadJson(json);
-  print('[API] Sequence loaded');
+  debugPrint('[API] Sequence loaded');
 }
 
 /// Handler for /api/sequencer/simulation endpoint
 Future<void> _sequencerSetSimulationHandler(bool enabled) async {
-  print('[API] Setting simulation mode: $enabled');
+  debugPrint('[API] Setting simulation mode: $enabled');
   await bridge.NativeBridge.sequencerSetSimulationMode(enabled);
-  print('[API] Simulation mode set');
+  debugPrint('[API] Simulation mode set');
 }
 
 /// Handler for /api/sequencer/status endpoint
 Future<Map<String, dynamic>> _sequencerGetStatusHandler() async {
-  print('[API] Getting sequencer status');
+  debugPrint('[API] Getting sequencer status');
   final status = await bridge.NativeBridge.sequencerGetStatus();
   return {
     'state': status.state,
@@ -1182,9 +1293,9 @@ Future<Map<String, dynamic>> _sequencerGetStatusHandler() async {
 
 /// Handler for /api/sequencer/start and /api/sequences/start endpoints
 Future<Map<String, dynamic>> _sequencerStartHandler(String? body) async {
-  print('[API] Starting sequencer');
+  debugPrint('[API] Starting sequencer');
   await bridge.NativeBridge.sequencerStart();
-  print('[API] Sequencer started');
+  debugPrint('[API] Sequencer started');
   return {
     'status': 'started',
     'message': 'Sequence execution started successfully',
@@ -1193,9 +1304,9 @@ Future<Map<String, dynamic>> _sequencerStartHandler(String? body) async {
 
 /// Handler for /api/sequencer/stop and /api/sequences/stop endpoints
 Future<Map<String, dynamic>> _sequencerStopHandler() async {
-  print('[API] Stopping sequencer');
+  debugPrint('[API] Stopping sequencer');
   await bridge.NativeBridge.sequencerStop();
-  print('[API] Sequencer stopped');
+  debugPrint('[API] Sequencer stopped');
   return {
     'status': 'stopped',
     'message': 'Sequence execution stopped successfully',
@@ -1208,36 +1319,36 @@ Future<Map<String, dynamic>> _sequencerStopHandler() async {
 
 /// Handler for /api/profiles endpoint (GET)
 Future<List<Map<String, dynamic>>> _getProfilesHandler() async {
-  print('[API] Getting profiles');
+  debugPrint('[API] Getting profiles');
   final profiles = await bridge.NativeBridge.apiGetProfiles();
   return profiles.map((p) => _profileToJson(p)).toList();
 }
 
 /// Handler for /api/profiles endpoint (POST)
 Future<void> _saveProfileHandler(Map<String, dynamic> profileJson) async {
-  print('[API] Saving profile: ${profileJson['id']}');
+  debugPrint('[API] Saving profile: ${profileJson['id']}');
   final profile = _profileFromJson(profileJson);
   await bridge.NativeBridge.apiSaveProfile(profile: profile);
-  print('[API] Profile saved');
+  debugPrint('[API] Profile saved');
 }
 
 /// Handler for /api/profiles/{id} endpoint (DELETE)
 Future<void> _deleteProfileHandler(String profileId) async {
-  print('[API] Deleting profile: $profileId');
+  debugPrint('[API] Deleting profile: $profileId');
   await bridge.NativeBridge.apiDeleteProfile(profileId: profileId);
-  print('[API] Profile deleted');
+  debugPrint('[API] Profile deleted');
 }
 
 /// Handler for /api/profiles/{id}/load endpoint
 Future<void> _loadProfileHandler(String profileId) async {
-  print('[API] Loading profile: $profileId');
+  debugPrint('[API] Loading profile: $profileId');
   await bridge.NativeBridge.apiLoadProfile(profileId: profileId);
-  print('[API] Profile loaded');
+  debugPrint('[API] Profile loaded');
 }
 
 /// Handler for /api/profiles/active endpoint
 Future<Map<String, dynamic>?> _getActiveProfileHandler() async {
-  print('[API] Getting active profile');
+  debugPrint('[API] Getting active profile');
   final profile = await bridge.NativeBridge.apiGetActiveProfile();
   return profile != null ? _profileToJson(profile) : null;
 }
@@ -1284,17 +1395,17 @@ bridge.EquipmentProfile _profileFromJson(Map<String, dynamic> json) {
 
 /// Handler for /api/settings endpoint (GET)
 Future<Map<String, dynamic>> _getSettingsHandler() async {
-  print('[API] Getting settings');
+  debugPrint('[API] Getting settings');
   final settings = await bridge.NativeBridge.apiGetSettings();
   return _settingsToJson(settings);
 }
 
 /// Handler for /api/settings endpoint (POST)
 Future<void> _updateSettingsHandler(Map<String, dynamic> settingsJson) async {
-  print('[API] Updating settings');
+  debugPrint('[API] Updating settings');
   final settings = _settingsFromJson(settingsJson);
   await bridge.NativeBridge.apiUpdateSettings(settings: settings);
-  print('[API] Settings updated');
+  debugPrint('[API] Settings updated');
 }
 
 /// Helper to convert AppSettings to JSON
@@ -1336,7 +1447,7 @@ bridge.AppSettings _settingsFromJson(Map<String, dynamic> json) {
 
 /// Handler for /api/polar-alignment/start endpoint
 Future<void> _polarAlignmentStartHandler(Map<String, dynamic> params) async {
-  print('[API] Starting polar alignment: $params');
+  debugPrint('[API] Starting polar alignment: $params');
   final exposureTime = (params['exposure_time'] as num).toDouble();
   final stepSize = (params['step_size'] as num).toDouble();
   final binning = params['binning'] as int;
@@ -1360,36 +1471,14 @@ Future<void> _polarAlignmentStartHandler(Map<String, dynamic> params) async {
     solveTimeout: solveTimeout,
     startFromCurrent: startFromCurrent,
   );
-  print('[API] Polar alignment started');
+  debugPrint('[API] Polar alignment started');
 }
 
 /// Handler for /api/polar-alignment/stop endpoint
 Future<void> _polarAlignmentStopHandler() async {
-  print('[API] Stopping polar alignment');
+  debugPrint('[API] Stopping polar alignment');
   await bridge.apiStopPolarAlignment();
-  print('[API] Polar alignment stopped');
-}
-
-/// Get the local IP address for display
-Future<String?> _getLocalIp() async {
-  try {
-    final interfaces = await NetworkInterface.list();
-    for (final interface in interfaces) {
-      // Skip loopback interfaces
-      if (interface.name.contains('lo') ||
-          interface.name.contains('Loopback')) {
-        continue;
-      }
-      for (final addr in interface.addresses) {
-        if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-          return addr.address;
-        }
-      }
-    }
-  } catch (e) {
-    debugPrint('Error getting local IP: $e');
-  }
-  return null;
+  debugPrint('[API] Polar alignment stopped');
 }
 
 /// Check if the app should start minimized based on settings
@@ -1403,4 +1492,27 @@ Future<bool> _shouldStartMinimized(ProviderContainer container) async {
     debugPrint('Error checking start minimized setting: $e');
     return false;
   }
+}
+
+/// Load or generate the LAN push authentication secret.
+/// The secret is persisted in the app data directory so it survives restarts.
+/// The same secret must be configured on the push tool (dev machine) to authenticate.
+Future<String> _getOrCreatePushSecret() async {
+  final appData = await getApplicationSupportDirectory();
+  final secretFile = File(path.join(appData.path, 'push_secret.txt'));
+
+  if (await secretFile.exists()) {
+    final secret = (await secretFile.readAsString()).trim();
+    if (secret.isNotEmpty) {
+      return secret;
+    }
+  }
+
+  // Generate a new secret and persist it
+  final secret = LanPushReceiver.generatePushSecret();
+  await secretFile.parent.create(recursive: true);
+  await secretFile.writeAsString(secret);
+  debugPrint('[MAIN] Generated new LAN push secret. '
+      'Configure this on the push tool: ${secretFile.path}');
+  return secret;
 }

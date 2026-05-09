@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:pointycastle/export.dart';
 import 'package:crypto/crypto.dart';
@@ -148,16 +149,13 @@ class ChannelEncryption {
     return pbkdf2.process(Uint8List.fromList(utf8.encode(sessionToken)));
   }
 
-  /// Generate a random nonce for GCM
+  /// Generate a random nonce for GCM using cryptographically secure RNG
   static Uint8List _generateNonce() {
-    final random = FortunaRandom();
-    final seed = Uint8List(32);
-    for (int i = 0; i < seed.length; i++) {
-      seed[i] = DateTime.now().microsecondsSinceEpoch & 0xFF;
+    final random = Random.secure();
+    final nonce = Uint8List(_nonceSize);
+    for (int i = 0; i < _nonceSize; i++) {
+      nonce[i] = random.nextInt(256);
     }
-    random.seed(KeyParameter(seed));
-
-    final nonce = random.nextBytes(_nonceSize);
     return nonce;
   }
 

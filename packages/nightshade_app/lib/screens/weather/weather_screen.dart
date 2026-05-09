@@ -116,15 +116,18 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
       screenId: 'weather',
       tourCategory: TutorialCategory.weatherTour,
       title: 'Weather Tour',
-      description: 'Learn how to monitor weather conditions for your imaging sessions.',
+      description:
+          'Learn how to monitor weather conditions for your imaging sessions.',
       durationMinutes: 2,
       alignment: Alignment.bottomRight,
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
-            final isMedium = constraints.maxWidth > NightshadeTokens.breakpointTablet;
+            final isWide =
+                constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
+            final isMedium =
+                constraints.maxWidth > NightshadeTokens.breakpointTablet;
 
             return Scaffold(
               backgroundColor: colors.background,
@@ -191,41 +194,50 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
         radarFrames.isEmpty ? null : radarFrames[validFrameIndex];
 
     if (isWide) {
-      // Wide layout: map on left, status panel on right
+      // Wide layout: radar and controls on left, data cards on right.
+      // Both columns scroll independently. Radar is constrained to a
+      // max height (500px) so it doesn't fill the entire window.
       return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Radar map section (70%)
+          // Left column: Radar + controls (scrollable)
           Expanded(
             flex: 7,
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  // Map with legend overlay
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: WeatherRadarMap(
-                            key: WeatherTutorialKeys.radarMap,
-                            currentFrame: currentFrame,
-                            latitude: latitude,
-                            longitude: longitude,
-                            alertRadiusKm: alertRadiusKm,
-                            radarOpacity: _radarOpacity,
-                            contrastLevel: _radarContrast,
-                            motionDirection: motionDirection,
+                  // Map with legend overlay - constrained height
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: 500,
+                      minHeight: 300,
+                    ),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 10,
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: WeatherRadarMap(
+                              key: WeatherTutorialKeys.radarMap,
+                              currentFrame: currentFrame,
+                              latitude: latitude,
+                              longitude: longitude,
+                              alertRadiusKm: alertRadiusKm,
+                              radarOpacity: _radarOpacity,
+                              contrastLevel: _radarContrast,
+                              motionDirection: motionDirection,
+                            ),
                           ),
-                        ),
-                        // Satellite legend overlay (bottom-left)
-                        const Positioned(
-                          left: 16,
-                          bottom: 16,
-                          child: SatelliteLegend(compact: true),
-                        ),
-                      ],
+                          // Satellite legend overlay (bottom-left)
+                          const Positioned(
+                            left: 16,
+                            bottom: 16,
+                            child: SatelliteLegend(compact: true),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -274,7 +286,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
             color: colors.border,
           ),
 
-          // Status panel (30%)
+          // Right column: Data cards (scrollable)
           Expanded(
             flex: 3,
             child: SingleChildScrollView(
@@ -312,18 +324,21 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
         ],
       );
     } else {
-      // Narrow/medium layout: stacked vertically
+      // Narrow/medium layout: stacked vertically, all in one scroll view.
+      // Radar is constrained to a fixed height so data cards are visible below.
+      final radarHeight = isMedium ? 350.0 : 280.0;
+
       return SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Map with legend overlay
-            AspectRatio(
-              aspectRatio: isMedium ? 16 / 9 : 4 / 3,
+            // Map with legend overlay - constrained to fixed height
+            SizedBox(
+              height: radarHeight,
               child: Stack(
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     child: WeatherRadarMap(
                       key: WeatherTutorialKeys.radarMap,
                       currentFrame: currentFrame,
@@ -678,7 +693,7 @@ class _NoLocationContent extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -746,7 +761,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -872,7 +887,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -1040,7 +1055,7 @@ class _CloudCoverCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -1050,7 +1065,7 @@ class _CloudCoverCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: coverColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               icon,
@@ -1078,9 +1093,7 @@ class _CloudCoverCard extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      cloudCoverPercent != null
-                          ? '${percent.toInt()}%'
-                          : '--',
+                      cloudCoverPercent != null ? '${percent.toInt()}%' : '--',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
@@ -1145,8 +1158,10 @@ class _HardwareSensorsCard extends ConsumerWidget {
     final weatherState = ref.watch(weatherStateProvider);
     final safetyState = ref.watch(safetyMonitorStateProvider);
 
-    final hasWeatherDevice = weatherState.connectionState == DeviceConnectionState.connected;
-    final hasSafetyDevice = safetyState.connectionState == DeviceConnectionState.connected;
+    final hasWeatherDevice =
+        weatherState.connectionState == DeviceConnectionState.connected;
+    final hasSafetyDevice =
+        safetyState.connectionState == DeviceConnectionState.connected;
 
     // Don't show if no hardware devices connected
     if (!hasWeatherDevice && !hasSafetyDevice) {
@@ -1157,7 +1172,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1217,7 +1232,9 @@ class _HardwareSensorsCard extends ConsumerWidget {
           if (hasSafetyDevice) ...[
             _SensorRow(
               colors: colors,
-              icon: safetyState.isSafe ? LucideIcons.shieldCheck : LucideIcons.shieldAlert,
+              icon: safetyState.isSafe
+                  ? LucideIcons.shieldCheck
+                  : LucideIcons.shieldAlert,
               label: 'Safety Monitor',
               value: safetyState.isSafe ? 'SAFE' : 'UNSAFE',
               valueColor: safetyState.isSafe ? colors.success : colors.error,
@@ -1261,7 +1278,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
                 icon: LucideIcons.wind,
                 label: 'Wind Speed',
                 value: '${weatherState.windSpeed!.toStringAsFixed(1)} m/s',
-                valueColor: weatherState.windSpeed! > 15 ? colors.warning : null,
+                valueColor:
+                    weatherState.windSpeed! > 15 ? colors.warning : null,
               ),
             ],
             if (weatherState.cloudCover != null) ...[
@@ -1271,7 +1289,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
                 icon: LucideIcons.cloud,
                 label: 'Cloud Cover',
                 value: '${weatherState.cloudCover!.toStringAsFixed(0)}%',
-                valueColor: weatherState.cloudCover! > 60 ? colors.warning : null,
+                valueColor:
+                    weatherState.cloudCover! > 60 ? colors.warning : null,
               ),
             ],
             if (weatherState.skyQuality != null) ...[
@@ -1280,10 +1299,12 @@ class _HardwareSensorsCard extends ConsumerWidget {
                 colors: colors,
                 icon: LucideIcons.sparkles,
                 label: 'Sky Quality',
-                value: '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
+                value:
+                    '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
               ),
             ],
-            if (weatherState.rainRate != null && weatherState.rainRate! > 0) ...[
+            if (weatherState.rainRate != null &&
+                weatherState.rainRate! > 0) ...[
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,

@@ -10,6 +10,8 @@ import '../../../services/sequence_action_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
+import 'quick_start_wizard_dialog.dart';
+import 'trigger_configuration_dialog.dart';
 
 class SequenceToolbar extends ConsumerWidget {
   final NightshadeColors colors;
@@ -101,6 +103,18 @@ class SequenceToolbar extends ConsumerWidget {
                 ),
                 const SizedBox(width: 4),
                 _ToolbarIconButton(
+                  icon: LucideIcons.wand2,
+                  tooltip: 'Quick-Start Wizard',
+                  colors: colors,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const QuickStartWizardDialog(),
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ToolbarIconButton(
                   icon: LucideIcons.folderOpen,
                   tooltip: 'Open Sequence',
                   colors: colors,
@@ -175,6 +189,19 @@ class SequenceToolbar extends ConsumerWidget {
                     context.push('/polar-alignment');
                   },
                 ),
+                const SizedBox(width: 4),
+                // Trigger Configuration
+                _ToolbarIconButton(
+                  icon: LucideIcons.bellRing,
+                  tooltip: 'Exposure Triggers',
+                  colors: colors,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const TriggerConfigurationDialog(),
+                    );
+                  },
+                ),
 
                 const SizedBox(width: 24),
                 _Divider(colors: colors),
@@ -233,43 +260,7 @@ class SequenceToolbar extends ConsumerWidget {
 
               // Sequence info - hide on very narrow screens
               if (!hideSequenceInfo && sequence != null) ...[
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.camera,
-                          size: 14, color: colors.textMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${sequence.totalExposures} frames',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(LucideIcons.clock,
-                          size: 14, color: colors.textMuted),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatDuration(sequence.totalIntegrationSecs),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _SequenceTimeEstimate(colors: colors, sequence: sequence),
                 const SizedBox(width: 16),
               ],
 
@@ -333,6 +324,17 @@ class SequenceToolbar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Displays both pure integration time and overhead-aware total estimate
+class _SequenceTimeEstimate extends StatelessWidget {
+  final NightshadeColors colors;
+  final Sequence sequence;
+
+  const _SequenceTimeEstimate({
+    required this.colors,
+    required this.sequence,
+  });
 
   String _formatDuration(double seconds) {
     final hours = (seconds / 3600).floor();
@@ -341,6 +343,74 @@ class SequenceToolbar extends ConsumerWidget {
       return '${hours}h ${minutes}m';
     }
     return '${minutes}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final estimate = sequence.estimateWithOverhead();
+
+    return Tooltip(
+      message: estimate.overheadSecs > 0
+          ? 'Integration: ${_formatDuration(estimate.estimatedSecs)}\n'
+              'Overhead: ${_formatDuration(estimate.overheadSecs)} '
+              '(slews, AF, dithers, downloads, etc.)\n'
+              'Estimated total: ${_formatDuration(estimate.totalEstimatedSecs)}'
+          : 'Integration time: ${_formatDuration(estimate.estimatedSecs)}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              '${sequence.totalExposures} frames',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              _formatDuration(estimate.estimatedSecs),
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            if (estimate.overheadSecs > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 1,
+                height: 16,
+                color: colors.border,
+              ),
+              const SizedBox(width: 8),
+              Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
+              const SizedBox(width: 4),
+              Text(
+                '~${_formatDuration(estimate.totalEstimatedSecs)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textMuted,
+                  fontStyle: FontStyle.italic,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -469,6 +539,8 @@ class _PlayButtonState extends State<_PlayButton>
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -505,18 +577,18 @@ class _PlayButtonState extends State<_PlayButton>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     LucideIcons.play,
                     size: 16,
-                    color: Colors.white,
+                    color: onPrimary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     widget.label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: onPrimary,
                     ),
                   ),
                 ],
@@ -776,7 +848,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: badgeColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
       ),
       child: Row(

@@ -9,7 +9,7 @@ import '../../../utils/snackbar_helper.dart';
 class MosaicWizardDialog extends ConsumerStatefulWidget {
   final double? initialRa;
   final double? initialDec;
-  
+
   const MosaicWizardDialog({
     this.initialRa,
     this.initialDec,
@@ -29,7 +29,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   double _rotation = 0.0;
   int _panelsHorizontal = 3;
   int _panelsVertical = 3;
-  
+
   @override
   void initState() {
     super.initState();
@@ -39,47 +39,46 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
   List<_MosaicPanel> _calculatePanels() {
     final panels = <_MosaicPanel>[];
-    
+
     final overlapFactor = 1.0 - (_overlapPercent / 100.0);
     final effectiveWidth = _panelWidthArcmin * overlapFactor;
     final effectiveHeight = _panelHeightArcmin * overlapFactor;
-    
+
     final widthDeg = effectiveWidth / 60.0;
     final heightDeg = effectiveHeight / 60.0;
-    
+
     final centerRowOffset = (_panelsVertical - 1) / 2.0;
     final centerColOffset = (_panelsHorizontal - 1) / 2.0;
-    
+
     var panelIndex = 0;
-    
+
     for (var row = 0; row < _panelsVertical; row++) {
       for (var col = 0; col < _panelsHorizontal; col++) {
         final decOffset = (row - centerRowOffset) * heightDeg;
         final raOffsetDeg = (col - centerColOffset) * widthDeg;
-        
+
         // Apply rotation
         double rotatedRaOffset, rotatedDecOffset;
         if (_rotation != 0.0) {
           final angleRad = _rotation * math.pi / 180.0;
           final cosAngle = math.cos(angleRad);
           final sinAngle = math.sin(angleRad);
-          
+
           rotatedRaOffset = raOffsetDeg * cosAngle - decOffset * sinAngle;
           rotatedDecOffset = raOffsetDeg * sinAngle + decOffset * cosAngle;
         } else {
           rotatedRaOffset = raOffsetDeg;
           rotatedDecOffset = decOffset;
         }
-        
+
         // Calculate final RA with declination compression
         final decRad = _centerDec * math.pi / 180.0;
-        final raCorrection = math.cos(decRad).abs() > 0.001 
-            ? 1.0 / math.cos(decRad)
-            : 1.0;
-        
+        final raCorrection =
+            math.cos(decRad).abs() > 0.001 ? 1.0 / math.cos(decRad) : 1.0;
+
         final panelDec = _centerDec + rotatedDecOffset;
         final panelRa = _centerRa + (rotatedRaOffset * raCorrection / 15.0);
-        
+
         panels.add(_MosaicPanel(
           ra: panelRa,
           dec: panelDec,
@@ -87,11 +86,11 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           row: row,
           col: col,
         ));
-        
+
         panelIndex++;
       }
     }
-    
+
     return panels;
   }
 
@@ -99,7 +98,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final totalPanels = _panelsHorizontal * _panelsVertical;
     final timePerPanel = exposureSecs * exposuresPerPanel;
     const overheadPerPanel = 60.0; // Slew + center + settle
-    
+
     return totalPanels * (timePerPanel + overheadPerPanel);
   }
 
@@ -156,7 +155,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
     // Generate the sequence
     final nodes = mosaicService.createMosaicSequence(
-      mosaicName: 'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}°',
+      mosaicName:
+          'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}°',
       config: config,
       exposure: exposure,
       options: options,
@@ -197,90 +197,100 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
     // Show success message
     if (mounted) {
-      context.showSuccessSnackBar('Generated mosaic with ${config.totalPanels} panels');
+      context.showSuccessSnackBar(
+          'Generated mosaic with ${config.totalPanels} panels');
     }
   }
 
   void _showValidationDialog(MosaicValidation validation) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Invalid Mosaic Configuration'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Please fix the following errors:'),
-            const SizedBox(height: 8),
-            ...validation.errors.map((error) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.error, color: Colors.red, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(error)),
-                ],
-              ),
-            )),
-          ],
-        ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.of(context).pop(),
-            label: 'OK',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
+      builder: (context) {
+        final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+        return AlertDialog(
+          title: const Text('Invalid Mosaic Configuration'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please fix the following errors:'),
+              const SizedBox(height: 8),
+              ...validation.errors.map((error) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.error, color: colors.error, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(error)),
+                      ],
+                    ),
+                  )),
+            ],
           ),
-        ],
-      ),
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(context).pop(),
+              label: 'OK',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+          ],
+        );
+      },
     );
   }
 
-  void _showWarningsDialog(MosaicValidation validation, VoidCallback onProceed) {
+  void _showWarningsDialog(
+      MosaicValidation validation, VoidCallback onProceed) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mosaic Warnings'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('The following warnings were found:'),
-            const SizedBox(height: 8),
-            ...validation.warnings.map((warning) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(warning)),
-                ],
-              ),
-            )),
-            const SizedBox(height: 16),
-            const Text('Do you want to proceed anyway?'),
+      builder: (context) {
+        final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+        return AlertDialog(
+          title: const Text('Mosaic Warnings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('The following warnings were found:'),
+              const SizedBox(height: 8),
+              ...validation.warnings.map((warning) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.warning, color: colors.warning, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(warning)),
+                      ],
+                    ),
+                  )),
+              const SizedBox(height: 16),
+              const Text('Do you want to proceed anyway?'),
+            ],
+          ),
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(context).pop(),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onProceed();
+              },
+              label: 'Proceed',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
           ],
-        ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.of(context).pop(),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              onProceed();
-            },
-            label: 'Proceed',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -289,8 +299,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final theme = Theme.of(context);
     final colors = theme.extension<NightshadeColors>()!;
     final panels = _calculatePanels();
-    final totalArea = _panelWidthArcmin * _panelsHorizontal *
-                     _panelHeightArcmin * _panelsVertical;
+    final totalArea = _panelWidthArcmin *
+        _panelsHorizontal *
+        _panelHeightArcmin *
+        _panelsVertical;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -304,224 +316,230 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         ),
         child: Container(
           decoration: BoxDecoration(
-          color: colors.background.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
+            color: colors.background.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.grid_on, color: colors.primary, size: 28),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Mosaic Wizard',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.grid_on, color: colors.primary, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Mosaic Wizard',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            
-            // Content
-            Expanded(
-              child: Row(
-                children: [
-                  // Configuration Panel
-                  Expanded(
-                    flex: 2,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildSection(
-                            'Center Coordinates',
-                            [
-                              _buildNumberField(
-                                'Right Ascension (hours)',
-                                _centerRa,
-                                (v) => setState(() => _centerRa = v),
-                                min: 0,
-                                max: 24,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildNumberField(
-                                'Declination (degrees)',
-                                _centerDec,
-                                (v) => setState(() => _centerDec = v),
-                                min: -90,
-                                max: 90,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          
-                          _buildSection(
-                            'Panel Size',
-                            [
-                              _buildNumberField(
-                                'Width (arcmin)',
-                                _panelWidthArcmin,
-                                (v) => setState(() => _panelWidthArcmin = v),
-                                min: 1,
-                                max: 360,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildNumberField(
-                                'Height (arcmin)',
-                                _panelHeightArcmin,
-                                (v) => setState(() => _panelHeightArcmin = v),
-                                min: 1,
-                                max: 360,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          
-                          _buildSection(
-                            'Grid Configuration',
-                            [
-                              _buildIntField(
-                                'Panels Horizontal',
-                                _panelsHorizontal,
-                                (v) => setState(() => _panelsHorizontal = v),
-                                min: 1,
-                                max: 10,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildIntField(
-                                'Panels Vertical',
-                                _panelsVertical,
-                                (v) => setState(() => _panelsVertical = v),
-                                min: 1,
-                                max: 10,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildSlider(
-                                'Overlap (%)',
-                                _overlapPercent,
-                                (v) => setState(() => _overlapPercent = v),
-                                min: 0,
-                                max: 50,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildSlider(
-                                'Rotation (°)',
-                                _rotation,
-                                (v) => setState(() => _rotation = v),
-                                min: -180,
-                                max: 180,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          
-                          // Statistics
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: colors.surface,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: colors.border),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Statistics', style: theme.textTheme.titleSmall),
+
+              // Content
+              Expanded(
+                child: Row(
+                  children: [
+                    // Configuration Panel
+                    Expanded(
+                      flex: 2,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildSection(
+                              'Center Coordinates',
+                              [
+                                _buildNumberField(
+                                  'Right Ascension (hours)',
+                                  _centerRa,
+                                  (v) => setState(() => _centerRa = v),
+                                  min: 0,
+                                  max: 24,
+                                ),
                                 const SizedBox(height: 12),
-                                _buildStatRow('Total Panels:', '${panels.length}'),
-                                _buildStatRow('Grid Size:', '$_panelsHorizontal×$_panelsVertical'),
-                                _buildStatRow('Coverage Area:', '${(totalArea / 3600).toStringAsFixed(2)} sq°'),
-                                _buildStatRow('Panel Size:', '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°'),
-                                _buildStatRow('Effective Overlap:',
-                                    '${(_overlapPercent * _panelWidthArcmin / 100).toStringAsFixed(1)}\' × ${(_overlapPercent * _panelHeightArcmin / 100).toStringAsFixed(1)}\''),
-                                const Divider(height: 24),
-                                _buildStatRow('Est. Time (60s×10):',
-                                    '${(_calculateTotalTime(60, 10) / 3600).toStringAsFixed(1)}h',
-                                    highlight: true),
-                                _buildStatRow('Total Exposures:', '${panels.length * 10}'),
-                                _buildStatRow('Total Integration:',
-                                    '${(panels.length * 10 * 60 / 3600).toStringAsFixed(1)}h'),
+                                _buildNumberField(
+                                  'Declination (degrees)',
+                                  _centerDec,
+                                  (v) => setState(() => _centerDec = v),
+                                  min: -90,
+                                  max: 90,
+                                ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  
-                  // Preview Panel
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      margin: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: CustomPaint(
-                        painter: _MosaicPreviewPainter(
-                          panels: panels,
-                          panelWidthArcmin: _panelWidthArcmin,
-                          panelHeightArcmin: _panelHeightArcmin,
-                          colors: colors,
+                            const SizedBox(height: 24),
+
+                            _buildSection(
+                              'Panel Size',
+                              [
+                                _buildNumberField(
+                                  'Width (arcmin)',
+                                  _panelWidthArcmin,
+                                  (v) => setState(() => _panelWidthArcmin = v),
+                                  min: 1,
+                                  max: 360,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildNumberField(
+                                  'Height (arcmin)',
+                                  _panelHeightArcmin,
+                                  (v) => setState(() => _panelHeightArcmin = v),
+                                  min: 1,
+                                  max: 360,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+
+                            _buildSection(
+                              'Grid Configuration',
+                              [
+                                _buildIntField(
+                                  'Panels Horizontal',
+                                  _panelsHorizontal,
+                                  (v) => setState(() => _panelsHorizontal = v),
+                                  min: 1,
+                                  max: 10,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildIntField(
+                                  'Panels Vertical',
+                                  _panelsVertical,
+                                  (v) => setState(() => _panelsVertical = v),
+                                  min: 1,
+                                  max: 10,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSlider(
+                                  'Overlap (%)',
+                                  _overlapPercent,
+                                  (v) => setState(() => _overlapPercent = v),
+                                  min: 0,
+                                  max: 50,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildSlider(
+                                  'Rotation (°)',
+                                  _rotation,
+                                  (v) => setState(() => _rotation = v),
+                                  min: -180,
+                                  max: 180,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Statistics
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colors.surface,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: colors.border),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Statistics',
+                                      style: theme.textTheme.titleSmall),
+                                  const SizedBox(height: 12),
+                                  _buildStatRow(
+                                      'Total Panels:', '${panels.length}'),
+                                  _buildStatRow('Grid Size:',
+                                      '$_panelsHorizontal×$_panelsVertical'),
+                                  _buildStatRow('Coverage Area:',
+                                      '${(totalArea / 3600).toStringAsFixed(2)} sq°'),
+                                  _buildStatRow('Panel Size:',
+                                      '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°'),
+                                  _buildStatRow('Effective Overlap:',
+                                      '${(_overlapPercent * _panelWidthArcmin / 100).toStringAsFixed(1)}\' × ${(_overlapPercent * _panelHeightArcmin / 100).toStringAsFixed(1)}\''),
+                                  const Divider(height: 24),
+                                  _buildStatRow('Est. Time (60s×10):',
+                                      '${(_calculateTotalTime(60, 10) / 3600).toStringAsFixed(1)}h',
+                                      highlight: true),
+                                  _buildStatRow('Total Exposures:',
+                                      '${panels.length * 10}'),
+                                  _buildStatRow('Total Integration:',
+                                      '${(panels.length * 10 * 60 / 3600).toStringAsFixed(1)}h'),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                ],
+
+                    // Preview Panel
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        margin: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: CustomPaint(
+                          painter: _MosaicPreviewPainter(
+                            panels: panels,
+                            panelWidthArcmin: _panelWidthArcmin,
+                            panelHeightArcmin: _panelHeightArcmin,
+                            colors: colors,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            
-            // Footer
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
+
+              // Footer
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    NightshadeButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      label: 'Cancel',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      onPressed: _generateMosaic,
+                      icon: Icons.add,
+                      label: 'Generate Mosaic',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  NightshadeButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    label: 'Cancel',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                  const SizedBox(width: 12),
-                  NightshadeButton(
-                    onPressed: _generateMosaic,
-                    icon: Icons.add,
-                    label: 'Generate Mosaic',
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -551,7 +569,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       controller: TextEditingController(text: value.toStringAsFixed(2)),
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
+        border:
+            OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (v) {
@@ -575,7 +594,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       controller: TextEditingController(text: value.toString()),
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
+        border:
+            OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
       ),
       keyboardType: TextInputType.number,
       onChanged: (v) {
@@ -604,7 +624,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             const Spacer(),
             Text(
               value.toStringAsFixed(1),
-              style: TextStyle(color: colors.primary, fontWeight: FontWeight.bold),
+              style:
+                  TextStyle(color: colors.primary, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -626,7 +647,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontWeight: highlight ? FontWeight.bold : FontWeight.normal)),
+          Text(label,
+              style: TextStyle(
+                  fontWeight: highlight ? FontWeight.bold : FontWeight.normal)),
           Text(
             value,
             style: TextStyle(
@@ -694,7 +717,8 @@ class _MosaicPreviewPainter extends CustomPainter {
       final x = normalizedX * size.width;
       final y = (1 - normalizedY) * size.height; // Flip Y axis
 
-      final panelWidth = (panelWidthArcmin / 60.0 / 15.0) / raRange * size.width;
+      final panelWidth =
+          (panelWidthArcmin / 60.0 / 15.0) / raRange * size.width;
       final panelHeight = (panelHeightArcmin / 60.0) / decRange * size.height;
 
       final rect = Rect.fromCenter(
@@ -756,7 +780,7 @@ class _MosaicPreviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MosaicPreviewPainter oldDelegate) {
     return panels != oldDelegate.panels ||
-           panelWidthArcmin != oldDelegate.panelWidthArcmin ||
-           panelHeightArcmin != oldDelegate.panelHeightArcmin;
+        panelWidthArcmin != oldDelegate.panelWidthArcmin ||
+        panelHeightArcmin != oldDelegate.panelHeightArcmin;
   }
 }

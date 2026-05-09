@@ -76,8 +76,10 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>();
-    final primaryColor = colors?.primary ?? Colors.blue;
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>();
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colors?.primary ?? colorScheme.primary;
 
     final effectiveHistogram = widget.histogram;
     final hasData = effectiveHistogram != null && effectiveHistogram.isNotEmpty;
@@ -90,7 +92,8 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
           if (widget.showGrid && hasData)
             CustomPaint(
               painter: _GridPainter(
-                gridColor: (colors?.border ?? Colors.grey).withValues(alpha: 0.3),
+                gridColor: (colors?.border ?? colorScheme.outlineVariant)
+                    .withValues(alpha: 0.3),
               ),
               size: Size.infinite,
             ),
@@ -113,7 +116,7 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
                       color: widget.barColor ?? primaryColor,
                       logarithmic: _isLogarithmic,
                       showClipping: widget.showClipping,
-                      clippingColor: colors?.error ?? Colors.red,
+                      clippingColor: colors?.error ?? colorScheme.error,
                     ),
                     size: Size.infinite,
                   )
@@ -123,7 +126,7 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
                 'No data',
                 style: TextStyle(
                   fontSize: 10,
-                  color: colors?.textMuted ?? Colors.grey,
+                  color: colors?.textMuted ?? colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -141,7 +144,8 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
                   widget.onLogToggled?.call(_isLogarithmic);
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(3),
@@ -222,8 +226,7 @@ class _HistogramPainter extends CustomPainter {
     final barWidth = size.width / bins;
 
     // Main histogram paint
-    final paint = Paint()
-      ..style = PaintingStyle.fill;
+    final paint = Paint()..style = PaintingStyle.fill;
 
     for (int i = 0; i < bins; i++) {
       final value = histogram[i];
@@ -231,9 +234,8 @@ class _HistogramPainter extends CustomPainter {
 
       if (logarithmic) {
         // Logarithmic scale: log(1 + value) / log(1 + maxVal)
-        normalizedHeight = value > 0
-            ? math.log(1 + value) / math.log(1 + maxVal)
-            : 0;
+        normalizedHeight =
+            value > 0 ? math.log(1 + value) / math.log(1 + maxVal) : 0;
       } else {
         // Linear scale
         normalizedHeight = value / maxVal;
@@ -244,7 +246,7 @@ class _HistogramPainter extends CustomPainter {
       // Check for clipping (first or last few bins with high values)
       final isClipping = showClipping &&
           ((i < 3 && value > maxVal * 0.1) ||
-           (i >= bins - 3 && value > maxVal * 0.1));
+              (i >= bins - 3 && value > maxVal * 0.1));
 
       paint.color = isClipping
           ? clippingColor.withValues(alpha: 0.8)
@@ -296,13 +298,16 @@ class _RgbHistogramPainter extends CustomPainter {
     final barWidth = size.width / bins;
 
     // Draw each channel with additive blending
-    _drawChannel(canvas, size, redHistogram, Colors.red.withValues(alpha: 0.5), barWidth, maxVal);
-    _drawChannel(canvas, size, greenHistogram, Colors.green.withValues(alpha: 0.5), barWidth, maxVal);
-    _drawChannel(canvas, size, blueHistogram, Colors.blue.withValues(alpha: 0.5), barWidth, maxVal);
+    _drawChannel(canvas, size, redHistogram, Colors.red.withValues(alpha: 0.5),
+        barWidth, maxVal);
+    _drawChannel(canvas, size, greenHistogram,
+        Colors.green.withValues(alpha: 0.5), barWidth, maxVal);
+    _drawChannel(canvas, size, blueHistogram,
+        Colors.blue.withValues(alpha: 0.5), barWidth, maxVal);
   }
 
-  void _drawChannel(Canvas canvas, Size size, List<int> histogram,
-      Color color, double barWidth, int maxVal) {
+  void _drawChannel(Canvas canvas, Size size, List<int> histogram, Color color,
+      double barWidth, int maxVal) {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -312,9 +317,8 @@ class _RgbHistogramPainter extends CustomPainter {
       double normalizedHeight;
 
       if (logarithmic) {
-        normalizedHeight = value > 0
-            ? math.log(1 + value) / math.log(1 + maxVal)
-            : 0;
+        normalizedHeight =
+            value > 0 ? math.log(1 + value) / math.log(1 + maxVal) : 0;
       } else {
         normalizedHeight = value / maxVal;
       }
@@ -361,7 +365,8 @@ class CompactHistogramDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>();
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>();
 
     return Container(
       width: width,
@@ -381,7 +386,7 @@ class CompactHistogramDisplay extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
-                color: colors?.textMuted ?? Colors.grey,
+                color: colors?.textMuted ?? theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),

@@ -144,6 +144,25 @@ void main() {
 
       expect(decSepRot, greaterThan(decSepNoRot));
     });
+
+    test('normalizes RA hours when mosaic spans across 0h', () {
+      final config = MosaicConfig(
+        centerRa: 23.98,
+        centerDec: 10.0,
+        panelWidthArcmin: 120.0,
+        panelHeightArcmin: 60.0,
+        panelsHorizontal: 3,
+        panelsVertical: 1,
+      );
+
+      final panels = service.generatePanels(config);
+
+      expect(panels.length, 3);
+      expect(
+        panels.every((panel) => panel.raHours >= 0.0 && panel.raHours < 24.0),
+        isTrue,
+      );
+    });
   });
 
   group('MosaicService - Area Calculation', () {

@@ -1,4 +1,5 @@
 /// Plugin API - Interfaces that plugins must implement
+import 'package:flutter/widgets.dart';
 
 /// Base interface for all Nightshade plugins
 ///
@@ -221,7 +222,7 @@ enum UiExtensionPointType {
 class UiExtensionPoint {
   final UiExtensionPointType type;
   final String title;
-  final dynamic Function() widgetBuilder;
+  final Widget? Function() widgetBuilder;
 
   UiExtensionPoint({
     required this.type,
@@ -254,13 +255,32 @@ abstract class SequencePlugin extends NightshadePlugin {
   List<SequenceNodeDefinition> get nodeDefinitions;
 }
 
+/// Interface for plugin-provided sequence node instances
+///
+/// Plugins return implementations of this interface from
+/// [SequenceNodeDefinition.createNode]. The sequencer calls [execute]
+/// when the node runs.
+abstract class PluginSequenceNode {
+  /// Execute the node's logic
+  ///
+  /// Returns true if the node completed successfully, false otherwise.
+  /// The [params] map contains the node's configuration parameters.
+  /// The [context] provides access to plugin services during execution.
+  Future<bool> execute(PluginContext context);
+
+  /// Validate the node's parameters before execution
+  ///
+  /// Returns null if valid, or an error message string if invalid.
+  String? validate();
+}
+
 /// Sequence node definition
 class SequenceNodeDefinition {
   final String id;
   final String name;
   final String category;
   final String description;
-  final dynamic Function(Map<String, dynamic>) createNode;
+  final PluginSequenceNode? Function(Map<String, dynamic> params) createNode;
 
   SequenceNodeDefinition({
     required this.id,

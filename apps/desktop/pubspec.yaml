@@ -45,23 +45,23 @@ dependencies:
   json_annotation: ^4.8.1
   path_provider: ^2.1.2
   path: ^1.8.3
-  intl: ^0.19.0
+  intl: ^0.20.2
   collection: ^1.18.0
   equatable: ^2.0.5
   uuid: ^4.3.3
 
   # Window management (desktop)
   window_manager: ^0.3.8
-  
+
   # File selection
   file_selector: ^1.0.3
-  
+
   # Icons
   lucide_icons: ^0.257.0
-  
+
   # URL launcher
   url_launcher: ^6.2.4
-  
+
   # Image processing
   image: ^4.1.7
 
@@ -89,6 +89,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/
-    - assets/icons/
-    - assets/catalogs/
+    - web_dashboard/
+    - web_dashboard/css/
+    - web_dashboard/js/

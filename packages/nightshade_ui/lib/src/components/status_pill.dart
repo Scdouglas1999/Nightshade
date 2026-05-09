@@ -125,7 +125,9 @@ class _StatusPillState extends State<StatusPill>
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -134,7 +136,7 @@ class _StatusPillState extends State<StatusPill>
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceHover : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: shouldAnimate
                   ? statusColor.withValues(alpha: 0.3)
@@ -191,8 +193,3 @@ class _StatusPillState extends State<StatusPill>
     );
   }
 }
-
-
-
-
-

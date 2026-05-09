@@ -13,7 +13,7 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use libloading::Library;
 use std::ffi::{c_char, c_float, c_int, c_uint, c_void};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 // ============================================================================
 // SDK Types and Constants
@@ -222,13 +222,19 @@ fn get_sdk() -> Result<&'static MoravianSdk, NativeError> {
 // Device Discovery
 // ============================================================================
 
-/// Thread-local storage for enumeration results
-static DISCOVERED_IDS: Mutex<Vec<Cardinal>> = Mutex::new(Vec::new());
+/// Active enumeration sink for SDK callbacks.
+static ACTIVE_ENUMERATION_IDS: Mutex<Option<Arc<Mutex<Vec<Cardinal>>>>> = Mutex::new(None);
 
 /// Callback for camera enumeration
 unsafe extern "C" fn enumerate_callback(id: Cardinal) {
-    if let Ok(mut ids) = DISCOVERED_IDS.lock() {
-        ids.push(id);
+    let target = ACTIVE_ENUMERATION_IDS
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().cloned());
+    if let Some(ids) = target {
+        if let Ok(mut ids) = ids.lock() {
+            ids.push(id);
+        }
     }
 }
 
@@ -248,20 +254,19 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
     // Acquire global SDK mutex for thread safety
     let _lock = moravian_mutex().lock().await;
 
-    // Clear previous results
-    {
-        let mut ids = DISCOVERED_IDS.lock().unwrap();
-        ids.clear();
-    }
+    let ids_sink = Arc::new(Mutex::new(Vec::new()));
+    *ACTIVE_ENUMERATION_IDS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(ids_sink.clone());
 
     // Enumerate cameras
     unsafe { (sdk.enumerate)(enumerate_callback) };
+    *ACTIVE_ENUMERATION_IDS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = None;
 
     // Collect results
-    let ids: Vec<Cardinal> = {
-        let ids = DISCOVERED_IDS.lock().unwrap();
-        ids.clone()
-    };
+    let ids: Vec<Cardinal> = ids_sink.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
     let mut devices = Vec::new();
 
@@ -427,13 +432,13 @@ impl NativeDevice for MoravianCamera {
 
         // Store handle
         {
-            let mut h = self.handle.lock().unwrap();
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *h = HandleWrapper(handle);
         }
 
         // Get camera info using the stored handle (synchronous operations)
         {
-            let handle = self.handle.lock().unwrap().0;
+            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
             // Get name
             let mut name_buf = [0i8; 256];
@@ -528,7 +533,7 @@ impl NativeDevice for MoravianCamera {
 
         // Open camera for imaging
         {
-            let handle = self.handle.lock().unwrap().0;
+            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
             if unsafe { (sdk.open)(handle) } == 0 {
                 tracing::error!(
                     "Moravian Open() failed for camera '{}' (ID {}). Camera may be in use by another application.",
@@ -564,7 +569,7 @@ impl NativeDevice for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Close camera
         unsafe { (sdk.close)(handle) };
@@ -573,7 +578,7 @@ impl NativeDevice for MoravianCamera {
         unsafe { (sdk.release)(handle) };
 
         {
-            let mut h = self.handle.lock().unwrap();
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *h = HandleWrapper(std::ptr::null_mut());
         }
         self.connected = false;
@@ -606,7 +611,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Get temperature
         let current_temp = {
@@ -676,7 +681,7 @@ impl NativeCamera for MoravianCamera {
             // Acquire global SDK mutex for thread safety
             let _lock = moravian_mutex().lock().await;
 
-            let handle = self.handle.lock().unwrap().0;
+            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
             // Clear sensor first
             if unsafe { (sdk.clear_sensor)(handle) } == 0 {
@@ -730,7 +735,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // End exposure with abort
         unsafe { (sdk.end_exposure)(handle, 0, 1) };
@@ -752,7 +757,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // End exposure
         if unsafe { (sdk.end_exposure)(handle, if self.use_shutter { 1 } else { 0 }, 0) } == 0 {
@@ -877,7 +882,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if enabled {
             // Set target temperature
@@ -919,7 +924,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let mut value: Real = 0.0;
         if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
@@ -939,7 +944,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let mut value: Real = 0.0;
         if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } != 0 {
@@ -963,7 +968,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if unsafe { (sdk.set_gain)(handle, gain as Cardinal) } == 0 {
             tracing::error!(
@@ -1001,7 +1006,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if unsafe { (sdk.set_binning)(handle, bin_x as Cardinal, bin_y as Cardinal) } == 0 {
             tracing::error!(
@@ -1033,7 +1038,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if let Some(ref sf) = subframe {
             if !self.capabilities.can_subframe {
@@ -1095,7 +1100,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Get number of readout modes
         let num_modes = {
@@ -1152,7 +1157,7 @@ impl NativeCamera for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if unsafe { (sdk.set_read_mode)(handle, mode.index as Cardinal) } == 0 {
             tracing::error!(

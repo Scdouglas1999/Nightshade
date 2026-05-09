@@ -166,7 +166,7 @@ pub fn calculate_altitude(
     let ha = hour_angle(ra_hours, lst);
 
     // Convert to radians
-    let ha_rad = ha.to_radians() * 15.0; // Convert hours to degrees, then to radians
+    let ha_rad = (ha * 15.0).to_radians(); // Convert hours to degrees, then to radians
     let dec_rad = dec_degrees.to_radians();
     let lat_rad = latitude.to_radians();
 

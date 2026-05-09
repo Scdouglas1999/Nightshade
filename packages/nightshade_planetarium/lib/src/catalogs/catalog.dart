@@ -206,6 +206,7 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
       catalogIds: catalogIds,
       positionAngle: positionAngle,
       minorAxisArcMin: minorAxis,
+      commonNames: commonNames,
     );
   }
   

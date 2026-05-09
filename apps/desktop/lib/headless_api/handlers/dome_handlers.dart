@@ -5,6 +5,8 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for dome control endpoints
 class DomeHandlers {
   final ProviderContainer container;
@@ -19,21 +21,10 @@ class DomeHandlers {
     );
   }
 
-  Response _json(Object body, {int statusCode = 200}) {
-    return Response(
-      statusCode,
-      body: jsonEncode(body),
-      headers: {'content-type': 'application/json'},
-    );
-  }
-
   Response _notImplemented(String operation) {
-    return _json(
-      {
-        'error': '$operation is not supported by the current native API',
-      },
-      statusCode: 501,
-    );
+    return jsonNotImplemented({
+      'error': '$operation is not supported by the current native API',
+    });
   }
 
   String _mapShutterState(bridge.ShutterState state) {
@@ -75,16 +66,18 @@ class DomeHandlers {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String?;
       if (deviceId == null || deviceId.isEmpty) {
-        return _json({'error': 'deviceId is required'}, statusCode: 400);
+        return jsonBadRequest({'error': 'deviceId is required'});
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json({'error': 'Dome not connected', 'deviceId': deviceId},
-            statusCode: 404);
+        return jsonNotFound({
+          'error': 'Dome not connected',
+          'deviceId': deviceId,
+        });
       }
       await bridge.apiDomeOpenShutter(deviceId: deviceId);
-      return _json({'status': 'opening', 'deviceId': deviceId});
+      return jsonOk({'status': 'opening', 'deviceId': deviceId});
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -94,16 +87,18 @@ class DomeHandlers {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String?;
       if (deviceId == null || deviceId.isEmpty) {
-        return _json({'error': 'deviceId is required'}, statusCode: 400);
+        return jsonBadRequest({'error': 'deviceId is required'});
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json({'error': 'Dome not connected', 'deviceId': deviceId},
-            statusCode: 404);
+        return jsonNotFound({
+          'error': 'Dome not connected',
+          'deviceId': deviceId,
+        });
       }
       await bridge.apiDomeCloseShutter(deviceId: deviceId);
-      return _json({'status': 'closing', 'deviceId': deviceId});
+      return jsonOk({'status': 'closing', 'deviceId': deviceId});
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -114,24 +109,27 @@ class DomeHandlers {
       final deviceId = payload['deviceId'] as String?;
       final azimuth = (payload['azimuth'] as num?)?.toDouble();
       if (deviceId == null || deviceId.isEmpty) {
-        return _json({'error': 'deviceId is required'}, statusCode: 400);
+        return jsonBadRequest({'error': 'deviceId is required'});
       }
       if (azimuth == null || azimuth < 0 || azimuth >= 360) {
-        return _json({'error': 'azimuth must be between 0 and 360 degrees'},
-            statusCode: 400);
+        return jsonBadRequest({
+          'error': 'azimuth must be between 0 and 360 degrees',
+        });
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json({'error': 'Dome not connected', 'deviceId': deviceId},
-            statusCode: 404);
+        return jsonNotFound({
+          'error': 'Dome not connected',
+          'deviceId': deviceId,
+        });
       }
       await bridge.apiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
-      return _json({
+      return jsonOk({
         'status': 'slewing',
         'deviceId': deviceId,
         'targetAzimuth': azimuth
       });
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -146,16 +144,18 @@ class DomeHandlers {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String?;
       if (deviceId == null || deviceId.isEmpty) {
-        return _json({'error': 'deviceId is required'}, statusCode: 400);
+        return jsonBadRequest({'error': 'deviceId is required'});
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json({'error': 'Dome not connected', 'deviceId': deviceId},
-            statusCode: 404);
+        return jsonNotFound({
+          'error': 'Dome not connected',
+          'deviceId': deviceId,
+        });
       }
       await bridge.apiDomePark(deviceId: deviceId);
-      return _json({'status': 'parking', 'deviceId': deviceId});
+      return jsonOk({'status': 'parking', 'deviceId': deviceId});
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -174,22 +174,22 @@ class DomeHandlers {
     try {
       final deviceId = request.url.queryParameters['deviceId'] ?? '';
       if (deviceId.isEmpty) {
-        return _json({'error': 'deviceId query parameter is required'},
-            statusCode: 400);
+        return jsonBadRequest({
+          'error': 'deviceId query parameter is required',
+        });
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json(
+        return jsonNotFound(
           {
             'connected': false,
             'deviceId': deviceId,
             'error': 'Dome not connected'
           },
-          statusCode: 404,
         );
       }
 
       final status = await bridge.apiGetDomeStatus(deviceId: deviceId);
-      return _json({
+      return jsonOk({
         'connected': status.connected,
         'deviceId': deviceId,
         'shutterState': _mapShutterState(status.shutterStatus),
@@ -205,7 +205,7 @@ class DomeHandlers {
         'syncEnabled': status.isSlaved,
       });
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -214,18 +214,18 @@ class DomeHandlers {
     try {
       final deviceId = request.url.queryParameters['deviceId'] ?? '';
       if (deviceId.isEmpty) {
-        return _json({'error': 'deviceId query parameter is required'},
-            statusCode: 400);
+        return jsonBadRequest({
+          'error': 'deviceId query parameter is required',
+        });
       }
       if (!await _isConnectedDome(deviceId)) {
-        return _json(
+        return jsonNotFound(
           {'error': 'Dome not found or not connected', 'deviceId': deviceId},
-          statusCode: 404,
         );
       }
 
       final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
-      return _json({
+      return jsonOk({
         'deviceId': deviceId,
         'canSetAzimuth': caps.canSetAzimuth,
         'canSetShutter': caps.canSetShutter,
@@ -242,7 +242,7 @@ class DomeHandlers {
         'shutterStatus': _mapShutterStatus(caps.shutterStatus),
       });
     } catch (e) {
-      return _json({'error': e.toString()}, statusCode: 500);
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 }

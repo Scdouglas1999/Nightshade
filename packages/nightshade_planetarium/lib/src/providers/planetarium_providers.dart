@@ -1,8 +1,5 @@
-// ignore_for_file: unused_local_variable
-
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../celestial_object.dart';
@@ -412,6 +409,11 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
         state.copyWith(showConstellationLabels: !state.showConstellationLabels);
   }
 
+  void toggleConstellationBoundaries() {
+    state = state.copyWith(
+        showConstellationBoundaries: !state.showConstellationBoundaries);
+  }
+
   void toggleDSOs() {
     state = state.copyWith(showDSOs: !state.showDSOs);
   }
@@ -430,6 +432,10 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
 
   void toggleEcliptic() {
     state = state.copyWith(showEcliptic: !state.showEcliptic);
+  }
+
+  void toggleGalacticPlane() {
+    state = state.copyWith(showGalacticPlane: !state.showGalacticPlane);
   }
 
   void toggleHorizon() {
@@ -466,6 +472,22 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
 
   void toggleGroundPlane() {
     state = state.copyWith(showGroundPlane: !state.showGroundPlane);
+  }
+
+  void toggleSatellites() {
+    state = state.copyWith(showSatellites: !state.showSatellites);
+  }
+
+  void toggleVariableStars() {
+    state = state.copyWith(showVariableStars: !state.showVariableStars);
+  }
+
+  void toggleMinorPlanets() {
+    state = state.copyWith(showMinorPlanets: !state.showMinorPlanets);
+  }
+
+  void toggleConstellationArt() {
+    state = state.copyWith(showConstellationArt: !state.showConstellationArt);
   }
 }
 
@@ -531,44 +553,188 @@ class RenderQualityNotifier extends StateNotifier<RenderQualityConfig> {
   }
 }
 
-/// Provider for render quality configuration
+/// Provider for render quality configuration (user's manual selection)
 final renderQualityProvider =
     StateNotifierProvider<RenderQualityNotifier, RenderQualityConfig>((ref) {
   return RenderQualityNotifier();
 });
 
-/// Computed magnitude limits based on current FOV
+/// LOD quality tier based on current field of view
+enum LodTier {
+  /// Wide FOV (>60 degrees): reduce quality for performance
+  wide,
+  /// Medium-wide FOV (30-60 degrees): moderate quality
+  mediumWide,
+  /// Medium FOV (10-30 degrees): balanced rendering
+  medium,
+  /// Narrow FOV (<10 degrees): full quality, show maximum detail
+  narrow,
+}
+
+/// Determines the current LOD tier based on FOV
+final lodTierProvider = Provider<LodTier>((ref) {
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
+  if (fov > 60) return LodTier.wide;
+  if (fov > 30) return LodTier.mediumWide;
+  if (fov > 10) return LodTier.medium;
+  return LodTier.narrow;
+});
+
+/// FOV-adaptive render quality that overrides the user's manual quality setting
+/// based on the current zoom level. This ensures good performance at wide FOV
+/// and maximum detail when zoomed in, regardless of the user's manual tier.
+///
+/// - Wide FOV (>60 deg): Downgrades glow quality, limits star count, disables
+///   enhanced DSO symbols, reduces PSF quality
+/// - Medium FOV (10-60 deg): Uses the user's chosen quality tier as-is
+/// - Narrow FOV (<10 deg): Upgrades to full quality effects and higher limits
+final fovAdaptiveQualityProvider = Provider<RenderQualityConfig>((ref) {
+  final userQuality = ref.watch(renderQualityProvider);
+  final lodTier = ref.watch(lodTierProvider);
+
+  switch (lodTier) {
+    case LodTier.wide:
+      // Wide FOV (>60 deg): reduce quality for performance regardless of user setting.
+      // DSO limit is generous because faint DSOs are batched as drawRawPoints
+      // (near-zero cost). The dynamic magnitude provider already limits which
+      // DSOs are passed based on FOV, so this cap is just a safeguard.
+      return userQuality.copyWith(
+        useBlurEffects: false,
+        useGlowEffects: userQuality.quality != RenderQuality.performance &&
+            userQuality.quality != RenderQuality.minimal,
+        enableEnhancedDsoSymbols: false,
+        enablePlanetDetails: false,
+        enableParallax: false,
+        animateStarTwinkle: false,
+        starPsfQuality: (userQuality.starPsfQuality).clamp(0.0, 0.3),
+        maxStarsToRender: userQuality.maxStarsToRender.clamp(0, 3000),
+        maxDsosToRender: userQuality.maxDsosToRender.clamp(0, 3000),
+        milkyWayDetail: (userQuality.milkyWayDetail).clamp(0.0, 0.3),
+        groundPlaneDetail: (userQuality.groundPlaneDetail).clamp(0.0, 0.5),
+      );
+
+    case LodTier.mediumWide:
+      // Medium-wide FOV (30-60 deg): slightly reduced quality, more objects than wide.
+      // Faint DSOs are batched as points so the count limit can be generous.
+      return userQuality.copyWith(
+        useBlurEffects: false,
+        enableParallax: false,
+        animateStarTwinkle: false,
+        starPsfQuality: (userQuality.starPsfQuality).clamp(0.0, 0.5),
+        maxStarsToRender: userQuality.maxStarsToRender.clamp(0, 8000),
+        maxDsosToRender: userQuality.maxDsosToRender.clamp(0, 5000),
+      );
+
+    case LodTier.medium:
+      // Medium FOV (10-30 deg): use user's quality tier as-is
+      return userQuality;
+
+    case LodTier.narrow:
+      // Narrow FOV (<10 deg): upgrade to full quality for maximum detail
+      return userQuality.copyWith(
+        useGlowEffects: true,
+        useBlurEffects: userQuality.quality == RenderQuality.quality,
+        enableEnhancedDsoSymbols: true,
+        enablePlanetDetails: true,
+        enableSelectionAnimation: true,
+        starPsfQuality: (userQuality.starPsfQuality).clamp(0.5, 1.0),
+        maxStarsToRender: userQuality.maxStarsToRender.clamp(5000, 20000),
+        maxDsosToRender: userQuality.maxDsosToRender.clamp(2000, 8000),
+      );
+  }
+});
+
+/// Computed magnitude limits based on current FOV and sky brightness.
 /// Returns (starMagLimit, dsoMagLimit)
 ///
 /// As the user zooms in (narrower FOV), fainter objects become visible.
-/// This provides a more natural experience where zooming reveals more detail.
+/// When the sun is above the horizon (daylight) or in twilight, the limiting
+/// magnitude is reduced to reflect sky brightness — but conservatively,
+/// because the planetarium is a PLANNING TOOL, not a live view. Users need
+/// to see Messier objects during the day to plan tonight's session.
+///
+/// Sky brightness penalty (based on sun altitude):
+///   Sun above 0 deg (daylight): penalty = 6.0 mag (Messier objects visible to ~mag 6-8)
+///   Sun at  -6 deg (civil twilight): penalty = 3.0 mag
+///   Sun at -12 deg (nautical twilight): penalty = 1.5 mag
+///   Sun at -18 deg (astronomical twilight): penalty = 0.5 mag
+///   Below -18 deg (full dark): penalty = 0
 final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
-  final quality = ref.watch(renderQualityProvider);
+  final quality = ref.watch(fovAdaptiveQualityProvider);
+  final location = ref.watch(observerLocationProvider);
+  final time = ref.watch(_currentMinuteProvider);
   final fov = viewState.fieldOfView;
 
   // Base limits from quality tier
   final baseStarLimit = quality.starMagnitudeLimit;
   final baseDsoLimit = quality.dsoMagnitudeLimit;
 
-  // Scale limits based on FOV (narrower FOV = deeper limits)
-  // FOV 90°+ = base limits, FOV 5° = base + 4.5 magnitudes
-  double fovFactor;
-  if (fov >= 90) {
-    fovFactor = 0.0;
-  } else if (fov >= 60) {
-    fovFactor = 1.0;
-  } else if (fov >= 30) {
-    fovFactor = 2.0;
-  } else if (fov >= 15) {
-    fovFactor = 3.0;
+  // Continuous logarithmic scaling: narrower FOV reveals fainter objects smoothly.
+  // At FOV 120 deg: fovFactor = 0.0 (just base)
+  // At FOV  60 deg: fovFactor ~ 1.0
+  // At FOV  30 deg: fovFactor ~ 2.0
+  // At FOV  10 deg: fovFactor ~ 3.6
+  // At FOV   5 deg: fovFactor ~ 4.6
+  // At FOV   1 deg: fovFactor ~ 6.9
+  //
+  // Formula: fovFactor = 2.0 * log2(120 / clampedFov) - capped so we don't exceed catalog depth.
+  // Using log2 gives a smooth ramp that increases ~2 magnitudes per halving of FOV.
+  final clampedFov = fov.clamp(1.0, 120.0);
+  final fovFactor = (2.0 * math.log(120.0 / clampedFov) / math.ln2).clamp(0.0, 7.0);
+
+  // Sky brightness penalty: reduce limiting magnitude when the sky is bright.
+  // Penalties are intentionally modest because the planetarium is a planning
+  // tool — users want to see Messier/NGC objects during the day to plan their
+  // imaging session tonight. A penalty of 6 during daylight means DSOs up to
+  // about magnitude 6-8 remain visible (all 110 Messier objects plus bright
+  // NGCs). This is NOT meant to simulate naked-eye visibility.
+  //
+  // Sun altitude thresholds (standard astronomical definitions):
+  //   > 0 deg: daylight — penalty 6.0 (bright Messier/NGC objects visible)
+  //  -6 to 0: civil twilight — penalty 3.0
+  // -12 to -6: nautical twilight — penalty 1.5
+  // -18 to -12: astronomical twilight — penalty 0.5
+  //   < -18: full darkness — no penalty
+  final sunAlt = AstronomyCalculations.sunAltitude(
+    dt: time,
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+  );
+
+  double skyBrightnessPenalty;
+  if (sunAlt >= 0) {
+    // Daylight: moderate penalty. Messier objects (mag ~3-9) still visible
+    // for planning. Users can see M31, M42, M45, M13, M51, etc.
+    skyBrightnessPenalty = 6.0;
+  } else if (sunAlt >= -6) {
+    // Civil twilight: sun between -6 and 0. Linear ramp from 3.0 to 6.0.
+    // At -6: penalty=3.0, at 0: penalty=6.0
+    skyBrightnessPenalty = 3.0 + (-sunAlt / 6.0) * -3.0;
+    // Simplify: penalty = 6 + sunAlt (sunAlt is negative, so this increases as sun rises)
+    skyBrightnessPenalty = 6.0 + sunAlt; // sunAlt=-6 -> 3.0, sunAlt=0 -> 6.0
+  } else if (sunAlt >= -12) {
+    // Nautical twilight: sun between -12 and -6. Linear ramp from 1.5 to 3.0.
+    // At -12: penalty=1.5, at -6: penalty=3.0
+    skyBrightnessPenalty = 1.5 + (sunAlt + 12.0) / 6.0 * 1.5;
+  } else if (sunAlt >= -18) {
+    // Astronomical twilight: sun between -18 and -12. Linear ramp from 0 to 0.5.
+    // At -18: penalty=0, at -12: penalty=0.5
+    skyBrightnessPenalty = (sunAlt + 18.0) / 6.0 * 0.5;
   } else {
-    fovFactor = 4.5;
+    // Full darkness: no penalty
+    skyBrightnessPenalty = 0.0;
   }
 
+  // Apply penalty: stars are less affected than DSOs because point sources
+  // remain visible longer than extended objects in bright skies.
+  // Stars get half the penalty of DSOs.
+  final starPenalty = skyBrightnessPenalty * 0.5;
+  final dsoPenalty = skyBrightnessPenalty;
+
   return (
-    (baseStarLimit + fovFactor).clamp(4.5, 12.0),
-    (baseDsoLimit + fovFactor).clamp(8.0, 16.0),
+    (baseStarLimit + fovFactor - starPenalty).clamp(2.0, 12.0),
+    (baseDsoLimit + fovFactor - dsoPenalty).clamp(4.0, 16.0),
   );
 });
 
@@ -577,15 +743,17 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
 // ============================================================================
 
 final loadedStarsProvider = FutureProvider<List<Star>>((ref) async {
-  // Load stars up to magnitude 10.0 to allow deeper viewing when zoomed in
-  // The dynamic magnitude limit will filter these based on FOV
-  return HygStarCatalog(magnitudeLimit: 10.0).loadObjects();
+  // Load stars up to magnitude 12.0 to allow deep viewing when zoomed in.
+  // The HYG catalog contains ~120,000 stars to this depth. The dynamic
+  // magnitude limit provider filters them per-frame based on FOV so only
+  // a fraction is rendered at wide zoom.
+  return HygStarCatalog(magnitudeLimit: 12.0).loadObjects();
 });
 
 final loadedDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
-  // Load DSOs up to magnitude 14.0 to include faint imaging targets when zoomed in
-  // The dynamic magnitude limit will filter these based on FOV
-  return OpenNgcDsoCatalog(magnitudeLimit: 14.0).loadObjects();
+  // Load DSOs up to magnitude 16.0 to include faint imaging targets when zoomed in.
+  // The dynamic magnitude limit provider filters them per-frame based on FOV.
+  return OpenNgcDsoCatalog(magnitudeLimit: 16.0).loadObjects();
 });
 
 /// Spatial index for stars to avoid scanning full catalogs per frame.
@@ -613,12 +781,13 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
 
   return indexAsync.whenData((index) {
-    return index.queryViewportFiltered(
+    final result = index.queryViewportFiltered(
       viewState.centerRA,
       viewState.centerDec,
       viewState.fieldOfView,
       maxMagnitude: starMagLimit,
     );
+    return result;
   });
 });
 
@@ -1190,175 +1359,534 @@ final bestTargetsProvider =
 // Search Provider
 // ============================================================================
 
+/// Object type filter for search
+enum SearchObjectTypeFilter {
+  all,
+  stars,
+  galaxies,
+  nebulae,
+  clusters,
+}
+
+/// Search filter configuration
+class SearchFilters {
+  final SearchObjectTypeFilter typeFilter;
+  final double? minMagnitude;
+  final double? maxMagnitude;
+  final bool observableNow;
+  final String? constellationFilter;
+
+  const SearchFilters({
+    this.typeFilter = SearchObjectTypeFilter.all,
+    this.minMagnitude,
+    this.maxMagnitude,
+    this.observableNow = false,
+    this.constellationFilter,
+  });
+
+  SearchFilters copyWith({
+    SearchObjectTypeFilter? typeFilter,
+    double? minMagnitude,
+    double? maxMagnitude,
+    bool? observableNow,
+    String? constellationFilter,
+    bool clearMinMagnitude = false,
+    bool clearMaxMagnitude = false,
+    bool clearConstellation = false,
+  }) {
+    return SearchFilters(
+      typeFilter: typeFilter ?? this.typeFilter,
+      minMagnitude: clearMinMagnitude ? null : (minMagnitude ?? this.minMagnitude),
+      maxMagnitude: clearMaxMagnitude ? null : (maxMagnitude ?? this.maxMagnitude),
+      observableNow: observableNow ?? this.observableNow,
+      constellationFilter: clearConstellation ? null : (constellationFilter ?? this.constellationFilter),
+    );
+  }
+
+  bool get hasActiveFilters =>
+      typeFilter != SearchObjectTypeFilter.all ||
+      minMagnitude != null ||
+      maxMagnitude != null ||
+      observableNow ||
+      constellationFilter != null;
+}
+
+/// A scored search result with match quality information
+class ScoredSearchResult {
+  final CelestialObject object;
+  /// 0 = best (exact match), higher = worse match quality
+  final int score;
+  /// Which field matched (for display purposes)
+  final String matchSource;
+
+  const ScoredSearchResult({
+    required this.object,
+    required this.score,
+    required this.matchSource,
+  });
+}
+
 /// Object search state
 class ObjectSearchState {
   final String query;
   final List<CelestialObject> results;
   final bool isSearching;
+  final SearchFilters filters;
 
   const ObjectSearchState({
     this.query = '',
     this.results = const [],
     this.isSearching = false,
+    this.filters = const SearchFilters(),
   });
 
   ObjectSearchState copyWith({
     String? query,
     List<CelestialObject>? results,
     bool? isSearching,
+    SearchFilters? filters,
   }) {
     return ObjectSearchState(
       query: query ?? this.query,
       results: results ?? this.results,
       isSearching: isSearching ?? this.isSearching,
+      filters: filters ?? this.filters,
     );
   }
 }
+
+/// Compute Levenshtein distance between two strings.
+/// Used for fuzzy matching in search.
+int _levenshteinDistance(String a, String b) {
+  if (a == b) return 0;
+  if (a.isEmpty) return b.length;
+  if (b.isEmpty) return a.length;
+
+  // Use two-row optimization to save memory
+  var prevRow = List<int>.generate(b.length + 1, (i) => i);
+  var currRow = List<int>.filled(b.length + 1, 0);
+
+  for (var i = 1; i <= a.length; i++) {
+    currRow[0] = i;
+    for (var j = 1; j <= b.length; j++) {
+      final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+      currRow[j] = [
+        currRow[j - 1] + 1, // insertion
+        prevRow[j] + 1, // deletion
+        prevRow[j - 1] + cost, // substitution
+      ].reduce(math.min);
+    }
+    final temp = prevRow;
+    prevRow = currRow;
+    currRow = temp;
+  }
+  return prevRow[b.length];
+}
+
+/// Score a query match against a target string.
+/// Returns null if no match, or a score (lower = better).
+/// 0 = exact match, 1 = starts with, 2 = contains, 3+ = fuzzy match
+int? _scoreMatch(String query, String target) {
+  final q = query.toLowerCase();
+  final t = target.toLowerCase();
+  final qNorm = q.replaceAll(RegExp(r'\s+'), '');
+  final tNorm = t.replaceAll(RegExp(r'\s+'), '');
+
+  // Exact match
+  if (t == q || tNorm == qNorm) return 0;
+
+  // Starts with
+  if (t.startsWith(q) || tNorm.startsWith(qNorm)) return 1;
+
+  // Contains
+  if (t.contains(q) || tNorm.contains(qNorm)) return 2;
+
+  // Fuzzy match: only if query is >= 3 chars to avoid too many false positives
+  if (q.length >= 3) {
+    // For short targets, compare directly
+    if (tNorm.length <= qNorm.length + 3) {
+      final dist = _levenshteinDistance(qNorm, tNorm);
+      // Allow edit distance up to ~30% of query length, minimum 1
+      final maxDist = math.max(1, (qNorm.length * 0.35).floor());
+      if (dist <= maxDist) return 3 + dist;
+    }
+
+    // For longer targets, check each word
+    final words = t.split(RegExp(r'\s+'));
+    for (final word in words) {
+      if (word.length >= q.length - 2) {
+        final dist = _levenshteinDistance(q, word);
+        final maxDist = math.max(1, (q.length * 0.35).floor());
+        if (dist <= maxDist) return 3 + dist;
+      }
+    }
+  }
+
+  return null; // No match
+}
+
+/// Map of well-known DSO common names to their catalog IDs
+/// Used as a supplemental lookup for objects whose common names
+/// may not be in the catalog data
+const Map<String, List<String>> _wellKnownDsoNames = {
+  'andromeda galaxy': ['M31', 'NGC224'],
+  'orion nebula': ['M42', 'NGC1976'],
+  'great orion nebula': ['M42', 'NGC1976'],
+  'ring nebula': ['M57', 'NGC6720'],
+  'crab nebula': ['M1', 'NGC1952'],
+  'whirlpool galaxy': ['M51', 'NGC5194'],
+  'sombrero galaxy': ['M104', 'NGC4594'],
+  'pinwheel galaxy': ['M101', 'NGC5457'],
+  'triangulum galaxy': ['M33', 'NGC598'],
+  'lagoon nebula': ['M8', 'NGC6523'],
+  'eagle nebula': ['M16', 'NGC6611'],
+  'pillars of creation': ['M16', 'NGC6611'],
+  'omega nebula': ['M17', 'NGC6618'],
+  'swan nebula': ['M17', 'NGC6618'],
+  'trifid nebula': ['M20', 'NGC6514'],
+  'dumbbell nebula': ['M27', 'NGC6853'],
+  'hercules cluster': ['M13', 'NGC6205'],
+  'great hercules cluster': ['M13', 'NGC6205'],
+  'wild duck cluster': ['M11', 'NGC6705'],
+  'pleiades': ['M45'],
+  'seven sisters': ['M45'],
+  'beehive cluster': ['M44', 'NGC2632'],
+  'praesepe': ['M44', 'NGC2632'],
+  'horsehead nebula': ['IC434'],
+  'flame nebula': ['NGC2024'],
+  'rosette nebula': ['NGC2237'],
+  'north america nebula': ['NGC7000'],
+  'pelican nebula': ['IC5070'],
+  'veil nebula': ['NGC6960', 'NGC6992'],
+  'owl nebula': ['M97', 'NGC3587'],
+  'cat eye nebula': ['NGC6543'],
+  'helix nebula': ['NGC7293'],
+  'double cluster': ['NGC869', 'NGC884'],
+  'bode galaxy': ['M81', 'NGC3031'],
+  'cigar galaxy': ['M82', 'NGC3034'],
+  'sunflower galaxy': ['M63', 'NGC5055'],
+  'black eye galaxy': ['M64', 'NGC4826'],
+  'sculptor galaxy': ['NGC253'],
+  'centaurus a': ['NGC5128'],
+  'southern pinwheel': ['M83', 'NGC5236'],
+  'antennae galaxies': ['NGC4038', 'NGC4039'],
+  'leo triplet': ['M65', 'M66', 'NGC3628'],
+  'hamburger galaxy': ['NGC3628'],
+  'needle galaxy': ['NGC4565'],
+  'cocoon nebula': ['IC5146'],
+  'bubble nebula': ['NGC7635'],
+  'elephant trunk nebula': ['IC1396'],
+  'barnard loop': ['Sh2-276'],
+  'soul nebula': ['IC1848'],
+  'heart nebula': ['IC1805'],
+  'running man nebula': ['NGC1977'],
+  'california nebula': ['NGC1499'],
+  'pacman nebula': ['NGC281'],
+  'flaming star nebula': ['IC405'],
+  'cone nebula': ['NGC2264'],
+  'christmas tree cluster': ['NGC2264'],
+  'blinking planetary': ['NGC6826'],
+  'blue snowball': ['NGC7662'],
+  'saturn nebula': ['NGC7009'],
+  'eskimo nebula': ['NGC2392'],
+  'little dumbbell': ['M76', 'NGC650'],
+  'phantom galaxy': ['M74', 'NGC628'],
+  'butterfly cluster': ['M6', 'NGC6405'],
+  'ptolemy cluster': ['M7', 'NGC6475'],
+  'starfish cluster': ['M38', 'NGC1912'],
+};
+
+/// Map of well-known star proper names to their common designations
+const Map<String, String> _wellKnownStarNames = {
+  'north star': 'Polaris',
+  'pole star': 'Polaris',
+  'dog star': 'Sirius',
+  'evening star': 'Vega',
+  'summer triangle': 'Vega',
+  'barnard\'s star': 'Barnard\'s Star',
+};
 
 class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   final Ref _ref;
 
   ObjectSearchNotifier(this._ref) : super(const ObjectSearchState());
 
+  void updateFilters(SearchFilters filters) {
+    state = state.copyWith(filters: filters);
+    // Re-run search with new filters if there's an active query
+    if (state.query.isNotEmpty) {
+      search(state.query);
+    }
+  }
+
   Future<void> search(String query) async {
     if (query.isEmpty) {
-      state = const ObjectSearchState();
+      state = ObjectSearchState(filters: state.filters);
       return;
     }
 
     state = state.copyWith(query: query, isSearching: true);
 
-    // Normalize query for better matching (e.g., "IC 410" -> "ic410")
-    // Define it here so it's accessible in the sort callback
     final qLower = query.toLowerCase().trim();
-    final normalizedQuery = qLower.replaceAll(RegExp(r'\s+'), '');
+    final filters = state.filters;
 
     try {
-      final results = <CelestialObject>[];
+      final scored = <ScoredSearchResult>[];
 
-      // Search stars - use cached provider if available
-      try {
-        final loadedStars = await _ref.read(loadedStarsProvider.future);
-        final matchingStars = loadedStars
-            .where((s) {
-              final nameLower = s.name.toLowerCase();
-              final idLower = s.id.toLowerCase();
-              return nameLower.contains(qLower) || idLower.contains(qLower);
-            })
-            .take(20)
-            .toList(); // Limit stars to avoid too many results
-        results.addAll(matchingStars);
-      } catch (_) {
-        // Star search failed, continue with DSOs
+      // Check well-known name mappings first for DSO names
+      final wellKnownIds = <String>{};
+      for (final entry in _wellKnownDsoNames.entries) {
+        final score = _scoreMatch(qLower, entry.key);
+        if (score != null) {
+          wellKnownIds.addAll(entry.value.map((v) => v.toLowerCase().replaceAll(' ', '')));
+        }
       }
 
-      // Search DSOs - use cached loadedDsosProvider instead of loading from disk
-      // This is much faster since the catalog is already loaded
-      try {
-        final loadedDsos = await _ref.read(loadedDsosProvider.future);
-
-        final matchingDsos = loadedDsos.where((o) {
-          // Check ID, name, and catalog IDs
-          final idLower = o.id.toLowerCase();
-          final nameLower = o.name.toLowerCase();
-
-          // Direct matches
-          final idMatch = idLower.contains(qLower);
-          final nameMatch = nameLower.contains(qLower);
-          final catalogMatch =
-              o.catalogIds.any((c) => c.toLowerCase().contains(qLower));
-
-          // Normalized matches (handles "IC 410" vs "IC410")
-          final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
-          final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
-
-          final normalizedIdMatch = normalizedId.contains(normalizedQuery);
-          final normalizedNameMatch = normalizedName.contains(normalizedQuery);
-
-          // Also check catalog IDs with normalization
-          final normalizedCatalogMatch = o.catalogIds.any((c) {
-            final cNormalized = c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-            return cNormalized.contains(normalizedQuery);
-          });
-
-          return idMatch ||
-              nameMatch ||
-              catalogMatch ||
-              normalizedIdMatch ||
-              normalizedNameMatch ||
-              normalizedCatalogMatch;
-        }).toList();
-
-        results.addAll(matchingDsos);
-      } catch (e) {
-        // DSO search failed, continue with what we have
-        debugPrint('[Planetarium] DSO search error: $e');
+      // Check well-known star name aliases
+      String? starNameAlias;
+      for (final entry in _wellKnownStarNames.entries) {
+        final score = _scoreMatch(qLower, entry.key);
+        if (score != null) {
+          starNameAlias = entry.value.toLowerCase();
+          break;
+        }
       }
 
-      // Sort by relevance (exact matches first, then by brightness)
-      results.sort((a, b) {
-        // For DSOs, also check display name and catalog IDs
-        String aDisplayName = a.name;
-        String bDisplayName = b.name;
-        List<String> aCatalogIds = [];
-        List<String> bCatalogIds = [];
+      // Search stars
+      if (filters.typeFilter == SearchObjectTypeFilter.all ||
+          filters.typeFilter == SearchObjectTypeFilter.stars) {
+        try {
+          final loadedStars = await _ref.read(loadedStarsProvider.future);
+          for (final star in loadedStars) {
+            if (!_passesFilters(star, filters)) continue;
 
-        if (a is DeepSkyObject) {
-          final (displayName, _) = _getDsoDisplayInfoForSearch(a);
-          aDisplayName = displayName;
-          aCatalogIds = a.catalogIds;
+            // Check proper name
+            final nameScore = _scoreMatch(qLower, star.name);
+            if (nameScore != null) {
+              scored.add(ScoredSearchResult(
+                object: star,
+                score: nameScore,
+                matchSource: 'name',
+              ));
+              continue;
+            }
+
+            // Check star name alias
+            if (starNameAlias != null &&
+                star.name.toLowerCase().contains(starNameAlias)) {
+              scored.add(ScoredSearchResult(
+                object: star,
+                score: 2,
+                matchSource: 'alias',
+              ));
+              continue;
+            }
+
+            // Check catalog IDs (HIP, HD, HR)
+            final idScore = _scoreMatch(qLower, star.id);
+            if (idScore != null) {
+              scored.add(ScoredSearchResult(
+                object: star,
+                score: idScore + 1, // Slightly lower priority than name
+                matchSource: 'id',
+              ));
+              continue;
+            }
+
+            for (final catId in star.catalogIds) {
+              final catScore = _scoreMatch(qLower, catId);
+              if (catScore != null) {
+                scored.add(ScoredSearchResult(
+                  object: star,
+                  score: catScore + 1,
+                  matchSource: 'catalog',
+                ));
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[Planetarium] Star search error: $e');
         }
-        if (b is DeepSkyObject) {
-          final (displayName, _) = _getDsoDisplayInfoForSearch(b);
-          bDisplayName = displayName;
-          bCatalogIds = b.catalogIds;
+      }
+
+      // Search DSOs
+      if (filters.typeFilter == SearchObjectTypeFilter.all ||
+          filters.typeFilter != SearchObjectTypeFilter.stars) {
+        try {
+          final loadedDsos = await _ref.read(loadedDsosProvider.future);
+
+          for (final dso in loadedDsos) {
+            // Apply type filter
+            if (!_passesDsoTypeFilter(dso, filters.typeFilter)) continue;
+            if (!_passesFilters(dso, filters)) continue;
+
+            int? bestScore;
+            String matchSource = 'id';
+
+            // Check well-known ID match
+            final normalizedId = dso.id.toLowerCase().replaceAll(' ', '');
+            if (wellKnownIds.contains(normalizedId)) {
+              bestScore = 1; // Good match via well-known name
+              matchSource = 'common name';
+            }
+
+            // Also check if any catalog IDs match well-known
+            if (bestScore == null) {
+              for (final catId in dso.catalogIds) {
+                final normalizedCat = catId.toLowerCase().replaceAll(' ', '');
+                if (wellKnownIds.contains(normalizedCat)) {
+                  bestScore = 1;
+                  matchSource = 'common name';
+                  break;
+                }
+              }
+            }
+
+            // Check common names from catalog data
+            final commonNames = dso.commonNames;
+            if (commonNames != null && commonNames.isNotEmpty) {
+              for (final cn in commonNames.split(',')) {
+                final trimmed = cn.trim();
+                if (trimmed.isEmpty) continue;
+                final cnScore = _scoreMatch(qLower, trimmed);
+                if (cnScore != null && (bestScore == null || cnScore < bestScore)) {
+                  bestScore = cnScore;
+                  matchSource = 'common name';
+                }
+              }
+            }
+
+            // Check display name
+            final (displayName, _) = _getDsoDisplayInfoForSearch(dso);
+            final displayScore = _scoreMatch(qLower, displayName);
+            if (displayScore != null && (bestScore == null || displayScore < bestScore)) {
+              bestScore = displayScore;
+              matchSource = 'name';
+            }
+
+            // Check id
+            final idScore = _scoreMatch(qLower, dso.id);
+            if (idScore != null && (bestScore == null || idScore < bestScore)) {
+              bestScore = idScore;
+              matchSource = 'id';
+            }
+
+            // Check catalog IDs
+            for (final catId in dso.catalogIds) {
+              final catScore = _scoreMatch(qLower, catId);
+              if (catScore != null && (bestScore == null || catScore < bestScore)) {
+                bestScore = catScore;
+                matchSource = 'catalog';
+              }
+            }
+
+            // Check constellation
+            final constellation = dso.constellation;
+            if (constellation != null) {
+              final conScore = _scoreMatch(qLower, constellation);
+              if (conScore != null && conScore <= 1 &&
+                  (bestScore == null || conScore + 5 < bestScore)) {
+                bestScore = conScore + 5; // Lower priority for constellation matches
+                matchSource = 'constellation';
+              }
+            }
+
+            if (bestScore != null) {
+              scored.add(ScoredSearchResult(
+                object: dso,
+                score: bestScore,
+                matchSource: matchSource,
+              ));
+            }
+          }
+        } catch (e) {
+          debugPrint('[Planetarium] DSO search error: $e');
         }
+      }
 
-        final aNameLower = aDisplayName.toLowerCase();
-        final bNameLower = bDisplayName.toLowerCase();
-        final aIdLower = a.id.toLowerCase();
-        final bIdLower = b.id.toLowerCase();
-
-        // Check exact match (including normalized)
-        bool isExact(String val) {
-          final valLower = val.toLowerCase();
-          if (valLower == qLower) return true;
-          // Check normalized match
-          final normalizedVal = valLower.replaceAll(RegExp(r'\s+'), '');
-          return normalizedVal == normalizedQuery;
-        }
-
-        final aExact = isExact(aDisplayName) ||
-            isExact(a.id) ||
-            aCatalogIds.any((c) => isExact(c));
-
-        final bExact = isExact(bDisplayName) ||
-            isExact(b.id) ||
-            bCatalogIds.any((c) => isExact(c));
-
-        if (aExact && !bExact) return -1;
-        if (!aExact && bExact) return 1;
-
-        return (a.magnitude ?? 99).compareTo(b.magnitude ?? 99);
+      // Sort by score (lower = better), then by magnitude (brighter first)
+      scored.sort((a, b) {
+        final scoreCmp = a.score.compareTo(b.score);
+        if (scoreCmp != 0) return scoreCmp;
+        return (a.object.magnitude ?? 99).compareTo(b.object.magnitude ?? 99);
       });
 
+      // No hardcoded limit - return all scored results (UI can paginate)
       state = ObjectSearchState(
         query: query,
-        results: results.take(50).toList(),
+        results: scored.map((s) => s.object).toList(),
         isSearching: false,
+        filters: filters,
       );
     } catch (e) {
-      // If search fails, return empty results
       state = ObjectSearchState(
         query: query,
         results: [],
         isSearching: false,
+        filters: filters,
       );
     }
   }
 
+  bool _passesFilters(CelestialObject obj, SearchFilters filters) {
+    // Magnitude filter
+    if (filters.minMagnitude != null && obj.magnitude != null) {
+      if (obj.magnitude! < filters.minMagnitude!) return false;
+    }
+    if (filters.maxMagnitude != null && obj.magnitude != null) {
+      if (obj.magnitude! > filters.maxMagnitude!) return false;
+    }
+
+    // Constellation filter
+    if (filters.constellationFilter != null) {
+      String? objConstellation;
+      if (obj is Star) {
+        objConstellation = obj.constellation;
+      } else if (obj is DeepSkyObject) {
+        objConstellation = obj.constellation;
+      }
+      if (objConstellation == null) return false;
+      if (!objConstellation.toLowerCase().contains(
+          filters.constellationFilter!.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Observable now filter
+    if (filters.observableNow) {
+      final location = _ref.read(observerLocationProvider);
+      final obsTime = _ref.read(observationTimeProvider);
+      final (alt, _) = AstronomyCalculations.objectAltAz(
+        raDeg: obj.coordinates.ra * 15,
+        decDeg: obj.coordinates.dec,
+        dt: obsTime.time,
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
+      );
+      if (alt < 10) return false; // Must be at least 10° above horizon
+    }
+
+    return true;
+  }
+
+  bool _passesDsoTypeFilter(DeepSkyObject dso, SearchObjectTypeFilter filter) {
+    switch (filter) {
+      case SearchObjectTypeFilter.all:
+        return true;
+      case SearchObjectTypeFilter.stars:
+        return false; // Stars are handled separately
+      case SearchObjectTypeFilter.galaxies:
+        return dso.type.isGalaxy;
+      case SearchObjectTypeFilter.nebulae:
+        return dso.type.isNebula;
+      case SearchObjectTypeFilter.clusters:
+        return dso.type.isCluster;
+    }
+  }
+
   void clear() {
-    state = const ObjectSearchState();
+    state = ObjectSearchState(filters: state.filters);
   }
 }
 

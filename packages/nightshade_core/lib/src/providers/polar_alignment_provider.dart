@@ -250,8 +250,7 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     }
 
     // Get current equipment profile ID
-    final profileId =
-        ref.read(activeEquipmentProfileProvider)?.id?.toString();
+    final profileId = ref.read(activeEquipmentProfileProvider)?.id;
 
     final result = PolarAlignmentResult(
       initialError: state.initialError!,
@@ -339,44 +338,64 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
   }
 
   /// Update a single field
-  void setExposureTime(double value) =>
-      updateConfig(state.copyWith(exposureTime: value));
+  Future<void> setExposureTime(double value) async {
+    await updateConfig(state.copyWith(exposureTime: value));
+  }
 
-  void setStepSize(double value) =>
-      updateConfig(state.copyWith(stepSize: value));
+  Future<void> setStepSize(double value) async {
+    await updateConfig(state.copyWith(stepSize: value));
+  }
 
-  void setBinning(int value) => updateConfig(state.copyWith(binning: value));
+  Future<void> setBinning(int value) async {
+    await updateConfig(state.copyWith(binning: value));
+  }
 
-  void setIsNorth(bool value) => updateConfig(state.copyWith(isNorth: value));
+  Future<void> setIsNorth(bool value) async {
+    await updateConfig(state.copyWith(isNorth: value));
+  }
 
-  void setManualRotation(bool value) =>
-      updateConfig(state.copyWith(manualRotation: value));
+  Future<void> setManualRotation(bool value) async {
+    await updateConfig(state.copyWith(manualRotation: value));
+  }
 
-  void setRotateEast(bool value) =>
-      updateConfig(state.copyWith(rotateEast: value));
+  Future<void> setRotateEast(bool value) async {
+    await updateConfig(state.copyWith(rotateEast: value));
+  }
 
-  void setSolveTimeout(double value) =>
-      updateConfig(state.copyWith(solveTimeout: value));
+  Future<void> setSolveTimeout(double value) async {
+    await updateConfig(state.copyWith(solveTimeout: value));
+  }
 
-  void setAutoCompleteThreshold(double value) =>
-      updateConfig(state.copyWith(autoCompleteThreshold: value));
+  Future<void> setAutoCompleteThreshold(double value) async {
+    await updateConfig(state.copyWith(autoCompleteThreshold: value));
+  }
 
-  void setStartFromCurrent(bool value) =>
-      updateConfig(state.copyWith(startFromCurrent: value));
+  Future<void> setStartFromCurrent(bool value) async {
+    await updateConfig(state.copyWith(startFromCurrent: value));
+  }
 
-  void setGain(int? value) => updateConfig(state.copyWith(gain: value));
+  Future<void> setGain(int? value) async {
+    await updateConfig(state.copyWith(gain: value));
+  }
 
-  void setOffset(int? value) => updateConfig(state.copyWith(offset: value));
+  Future<void> setOffset(int? value) async {
+    await updateConfig(state.copyWith(offset: value));
+  }
 
   /// Reset to defaults
-  void resetToDefaults() => updateConfig(const PolarAlignmentConfig());
+  Future<void> resetToDefaults() async {
+    await updateConfig(const PolarAlignmentConfig());
+  }
 
   /// Apply quick start preset
-  void applyQuickStart() => updateConfig(PolarAlignmentConfig.quickStart());
+  Future<void> applyQuickStart() async {
+    await updateConfig(PolarAlignmentConfig.quickStart());
+  }
 
   /// Apply high precision preset
-  void applyHighPrecision() =>
-      updateConfig(PolarAlignmentConfig.highPrecision());
+  Future<void> applyHighPrecision() async {
+    await updateConfig(PolarAlignmentConfig.highPrecision());
+  }
 }
 
 // =============================================================================
@@ -474,7 +493,7 @@ extension ErrorTrendExtension on ErrorTrend {
 
 /// Provider for polar alignment history from database
 final polarAlignmentHistoryProvider =
-    FutureProvider.family<List<PolarAlignmentHistoryEntry>, String?>(
+    FutureProvider.family<List<PolarAlignmentHistoryEntry>, int?>(
         (ref, profileId) async {
   final db = ref.watch(databaseProvider);
   return db.polarAlignmentHistoryDao.getHistoryForProfile(
@@ -485,7 +504,7 @@ final polarAlignmentHistoryProvider =
 
 /// Provider for the last alignment result
 final lastPolarAlignmentProvider =
-    FutureProvider.family<PolarAlignmentHistoryEntry?, String?>(
+    FutureProvider.family<PolarAlignmentHistoryEntry?, int?>(
         (ref, profileId) async {
   final db = ref.watch(databaseProvider);
   return db.polarAlignmentHistoryDao.getLastAlignment(profileId);
@@ -493,7 +512,7 @@ final lastPolarAlignmentProvider =
 
 /// Provider for watching history changes (stream)
 final polarAlignmentHistoryStreamProvider =
-    StreamProvider.family<List<PolarAlignmentHistoryEntry>, String?>(
+    StreamProvider.family<List<PolarAlignmentHistoryEntry>, int?>(
         (ref, profileId) {
   final db = ref.watch(databaseProvider);
   return db.polarAlignmentHistoryDao.watchHistory(profileId);

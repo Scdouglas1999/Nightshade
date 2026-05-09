@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for imaging and plate solve endpoints
 class ImagingHandlers {
   final ProviderContainer container;
@@ -39,26 +41,20 @@ class ImagingHandlers {
         fovDegrees: fovDegrees,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "success": result.success,
-          "ra": result.ra,
-          "dec": result.dec,
-          "pixelScale": result.pixelScale,
-          "rotation": result.rotation,
-          "fieldWidth": result.fieldWidth,
-          "fieldHeight": result.fieldHeight,
-          "solveTimeSecs": result.solveTimeSecs,
-          "error": result.error,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "success": result.success,
+        "ra": result.ra,
+        "dec": result.dec,
+        "pixelScale": result.pixelScale,
+        "rotation": result.rotation,
+        "fieldWidth": result.fieldWidth,
+        "fieldHeight": result.fieldHeight,
+        "solveTimeSecs": result.solveTimeSecs,
+        "error": result.error,
+      });
     } catch (e) {
       _logError('[API] Plate solve error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -77,16 +73,10 @@ class ImagingHandlers {
 
       final backend = container.read(backendProvider);
       final stats = await backend.getImageStats(width, height, data);
-      return Response.ok(
-        jsonEncode({"stats": stats.toJson()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"stats": stats.toJson()});
     } catch (e) {
       _logError('[API] Get image stats error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -101,16 +91,43 @@ class ImagingHandlers {
 
       final backend = container.read(backendProvider);
       final stretched = await backend.autoStretchImage(width, height, data);
-      return Response.ok(
-        jsonEncode({"data": stretched.toList()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"data": stretched.toList()});
     } catch (e) {
       _logError('[API] Auto stretch error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGetStarCrops(Request request) async {
+    _logInfo('[API] GET /api/imaging/star-crops');
+    try {
+      final deviceId = request.url.queryParameters['deviceId'];
+      final maxCrops =
+          int.tryParse(request.url.queryParameters['maxCrops'] ?? '') ?? 5;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      final crops = await backend.getStarCropsFromLastImage(
+        deviceId,
+        maxCrops: maxCrops,
       );
+
+      return jsonOk({
+        "crops": crops
+            .map((crop) => {
+                  "pixels_base64": crop.pixelsBase64,
+                  "width": crop.width,
+                  "height": crop.height,
+                  "hfr": crop.hfr,
+                  "snr": crop.snr,
+                })
+            .toList(),
+      });
+    } catch (e) {
+      _logError('[API] Get star crops error: $e');
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -128,16 +145,10 @@ class ImagingHandlers {
       final backend = container.read(backendProvider);
       final debayered =
           await backend.debayerImage(width, height, data, pattern, algorithm);
-      return Response.ok(
-        jsonEncode({"data": debayered.toList()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"data": debayered.toList()});
     } catch (e) {
       _logError('[API] Debayer error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -148,19 +159,14 @@ class ImagingHandlers {
       final data = await backend.getLastRawImageData(deviceId);
 
       // Return as binary response for efficiency
-      return Response.ok(
+      return contentResponse(
         Uint8List.fromList(data),
-        headers: {
-          'content-type': 'application/octet-stream',
-          'content-length': data.length.toString(),
-        },
+        contentType: 'application/octet-stream',
+        contentLength: data.length,
       );
     } catch (e) {
       _logError('[API] Get raw image data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -183,16 +189,10 @@ class ImagingHandlers {
         data: dataList,
         headerData: headerData,
       );
-      return Response.ok(
-        jsonEncode({"status": "saved"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "saved"});
     } catch (e) {
       _logError('[API] Save FITS file error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -211,16 +211,10 @@ class ImagingHandlers {
         filePath: filePath,
         headerData: headerData,
       );
-      return Response.ok(
-        jsonEncode({"status": "saved"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "saved"});
     } catch (e) {
       _logError('[API] Save FITS from capture error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -230,16 +224,10 @@ class ImagingHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.clearDeviceImage(deviceId);
-      return Response.ok(
-        jsonEncode({"status": "cleared"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "cleared"});
     } catch (e) {
       _logError('[API] Clear device image error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

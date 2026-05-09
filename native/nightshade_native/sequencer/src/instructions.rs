@@ -5,7 +5,8 @@
 
 use crate::device_ops::{ImageData, SharedDeviceOps};
 use crate::*;
-use std::path::PathBuf;
+use chrono::NaiveDate;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -585,6 +586,32 @@ async fn wait_for_filterwheel_idle(
     }
 }
 
+fn ensure_unique_save_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+
+    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image");
+    let extension = path.extension().and_then(|value| value.to_str());
+
+    let mut suffix = 1;
+    loop {
+        let candidate_name = match extension {
+            Some(ext) if !ext.is_empty() => format!("{}_{:03}.{}", stem, suffix, ext),
+            _ => format!("{}_{:03}", stem, suffix),
+        };
+        let candidate = parent.join(candidate_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        suffix += 1;
+    }
+}
+
 async fn wait_for_cancellation(token: Arc<AtomicBool>) {
     loop {
         if token.load(Ordering::Relaxed) {
@@ -761,14 +788,20 @@ pub async fn execute_center(
         }
 
         // Sync mount to solved position
-        let _ = ctx
+        if let Err(e) = ctx
             .device_ops
             .mount_sync(
                 &mount_id,
                 solve_result.ra_degrees / 15.0,
                 solve_result.dec_degrees,
             )
-            .await;
+            .await
+        {
+            return InstructionResult::failure(format!(
+                "Mount sync failed during centering on attempt {}: {}",
+                attempt, e
+            ));
+        }
 
         // Slew to target
         tracing::info!("Slewing to correct position...");
@@ -882,7 +915,6 @@ pub async fn execute_exposure(
             return result;
         }
 
-        progress_callback(frame, config.count);
         tracing::info!(
             "Capturing frame {}/{} ({:.1}s)",
             frame,
@@ -890,29 +922,34 @@ pub async fn execute_exposure(
             config.duration_secs
         );
 
-        // Start exposure
-        let image_data = match ctx
-            .device_ops
-            .camera_start_exposure(
+        // Start exposure with cancellation support
+        let image_data = tokio::select! {
+            result = ctx.device_ops.camera_start_exposure(
                 &camera_id,
                 config.duration_secs,
                 config.gain,
                 config.offset,
                 bin_x,
                 bin_y,
-            )
-            .await
-        {
-            Ok(data) => {
-                tracing::info!(
-                    "[SEQ] Exposure completed: {}x{} image ({} pixels)",
-                    data.width,
-                    data.height,
-                    data.data.len()
-                );
-                data
+            ) => {
+                match result {
+                    Ok(data) => {
+                        tracing::info!(
+                            "[SEQ] Exposure completed: {}x{} image ({} pixels)",
+                            data.width,
+                            data.height,
+                            data.data.len()
+                        );
+                        data
+                    }
+                    Err(e) => return InstructionResult::failure(format!("Exposure failed: {}", e)),
+                }
             }
-            Err(e) => return InstructionResult::failure(format!("Exposure failed: {}", e)),
+            _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
+                tracing::info!("Exposure cancelled, aborting camera...");
+                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
+                return InstructionResult::cancelled("Exposure cancelled");
+            }
         };
 
         // Calculate HFR for trigger monitoring
@@ -952,7 +989,7 @@ pub async fn execute_exposure(
                 config.filter.as_deref().unwrap_or("L"),
                 frame
             );
-            let full_path = base_path.join(&filename);
+            let full_path = ensure_unique_save_path(base_path.join(&filename));
 
             if let Err(e) = ctx
                 .device_ops
@@ -983,7 +1020,13 @@ pub async fn execute_exposure(
                 tracing::info!("Dithering...");
                 if let Err(e) = ctx
                     .device_ops
-                    .guider_dither(5.0, 1.5, 30.0, 120.0, false)
+                    .guider_dither(
+                        config.dither_pixels,
+                        config.dither_settle_pixels,
+                        config.dither_settle_time,
+                        config.dither_settle_timeout,
+                        config.dither_ra_only,
+                    )
                     .await
                 {
                     tracing::warn!("Dither failed: {}", e);
@@ -1050,24 +1093,72 @@ pub async fn execute_autofocus(
 
     tracing::info!("Current focuser position: {}", current_position);
 
-    // Calculate focus points
-    let half_range = (config.steps_out as i32) * config.step_size;
-    let start_position = current_position - half_range;
-    let total_points = (config.steps_out * 2 + 1) as usize;
+    // Initialize autofocus engine with backlash compensation
+    let mut af_config = crate::autofocus::AutofocusConfig::default();
+    af_config.method = match config.method {
+        crate::AutofocusMethod::VCurve => crate::autofocus::AutofocusMethod::VCurve,
+        crate::AutofocusMethod::Quadratic => crate::autofocus::AutofocusMethod::Quadratic,
+        crate::AutofocusMethod::Hyperbolic => crate::autofocus::AutofocusMethod::Hyperbolic,
+    };
+    af_config.step_size = config.step_size;
+    af_config.steps_out = config.steps_out;
+    af_config.exposure_duration = config.exposure_duration;
+    af_config.max_duration_secs = config.max_duration_secs;
+
+    let af_start_time = std::time::Instant::now();
+    let af_timeout = Duration::from_secs_f64(config.max_duration_secs);
+
+    let af_engine = crate::autofocus::VCurveAutofocus::new(af_config.clone());
+    let backlash = crate::autofocus::BacklashCompensation::new(af_config.backlash_compensation);
+
+    // Calculate sweep positions using the autofocus engine
+    let positions = af_engine.calculate_positions(current_position);
+    let total_points = positions.len();
+    let start_position = positions[0];
 
     let mut focus_data: Vec<crate::autofocus::FocusDataPoint> = Vec::with_capacity(total_points);
 
-    // Move to starting position
-    tracing::info!("Moving to start position: {}", start_position);
+    // Move to starting position with backlash compensation
     if let Some(cb) = progress_callback {
         cb(5.0, format!("Moving to start position: {}", start_position));
     }
-    if let Err(e) = ctx
-        .device_ops
-        .focuser_move_to(&focuser_id, start_position)
-        .await
-    {
-        return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+
+    if backlash.is_needed(current_position, start_position) {
+        let (intermediate, final_pos) =
+            backlash.calculate_approach(current_position, start_position);
+
+        if let Some(overshoot) = intermediate {
+            tracing::info!(
+                "Applying backlash compensation: {} -> {} -> {}",
+                current_position,
+                overshoot,
+                final_pos
+            );
+
+            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
+                return InstructionResult::failure(format!(
+                    "Failed to move focuser (backlash): {}",
+                    e
+                ));
+            }
+            if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+            {
+                return InstructionResult::failure(e);
+            }
+        }
+
+        if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
+            return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+        }
+    } else {
+        tracing::info!("Moving to start position: {}", start_position);
+        if let Err(e) = ctx
+            .device_ops
+            .focuser_move_to(&focuser_id, start_position)
+            .await
+        {
+            return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+        }
     }
 
     // Wait for focuser to reach starting position
@@ -1093,6 +1184,27 @@ pub async fn execute_autofocus(
     let mut low_star_count_warnings = 0;
 
     for point in 0..total_points {
+        // Check timeout
+        if af_start_time.elapsed() > af_timeout {
+            tracing::warn!(
+                "Autofocus timed out after {:.0}s (limit: {:.0}s), returning focuser to original position",
+                af_start_time.elapsed().as_secs_f64(),
+                config.max_duration_secs,
+            );
+            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
+                .await;
+            let _ = ctx
+                .device_ops
+                .focuser_move_to(&focuser_id, current_position)
+                .await;
+            return InstructionResult::failure(format!(
+                "Autofocus timed out after {:.0}s (max duration: {:.0}s)",
+                af_start_time.elapsed().as_secs_f64(),
+                config.max_duration_secs,
+            ));
+        }
+
         if let Some(result) = ctx.check_cancelled() {
             // Halt focuser and wait for it to stop before returning
             tracing::info!("Autofocus cancelled, halting focuser");
@@ -1107,7 +1219,7 @@ pub async fn execute_autofocus(
             return result;
         }
 
-        let position = start_position + (point as i32) * config.step_size;
+        let position = positions[point];
 
         // Calculate progress: 10-90% for the V-curve points, remaining for final move
         let point_progress = 10.0 + (point as f64 / total_points as f64 * 80.0);
@@ -1220,8 +1332,8 @@ pub async fn execute_autofocus(
             "hfr": measurement.hfr,
             "star_count": measurement.star_count,
             "focus_range": {
-                "min": start_position,
-                "max": start_position + ((total_points - 1) as i32) * config.step_size
+                "min": positions[0],
+                "max": positions[total_points - 1]
             },
             "vcurve_points": focus_data.iter().map(|point| {
                 serde_json::json!({"position": point.position, "hfr": point.hfr})
@@ -1282,63 +1394,81 @@ pub async fn execute_autofocus(
         ));
     }
 
-    // Find best focus position by fitting curve and get RÃ‚Â² quality
-    let curve_points: Vec<(i32, f64)> = focus_data
-        .iter()
-        .map(|point| (point.position, point.hfr))
-        .collect();
-    let (best_position, r_squared) =
-        match find_best_focus_with_quality(&curve_points, config.method) {
-            Ok(result) => result,
-            Err(e) => return InstructionResult::failure(e),
-        };
-    let best_hfr = match focus_data
-        .iter()
-        .min_by(|a, b| a.hfr.total_cmp(&b.hfr))
-        .map(|point| point.hfr)
-    {
-        Some(v) => v,
-        None => {
-            return InstructionResult::failure(
-                "Autofocus failed: no focus samples collected".to_string(),
-            )
+    // Use VCurveAutofocus engine for curve fitting with outlier rejection
+    let af_result = match af_engine.find_best_focus(focus_data) {
+        Ok(mut result) => {
+            result.temperature_celsius = ctx
+                .device_ops
+                .focuser_get_temperature(&focuser_id)
+                .await
+                .ok()
+                .flatten();
+            result
+        }
+        Err(e) => {
+            return InstructionResult::failure(format!("Autofocus curve fitting failed: {}", e));
         }
     };
 
-    tracing::info!(
-        "Curve fit: position={}, HFR={:.2}, RÃ‚Â²={:.3}",
-        best_position,
-        best_hfr,
-        r_squared
-    );
+    let best_position = af_result.best_position;
+    let best_hfr = af_result.best_hfr;
+    let r_squared = af_result.curve_fit_quality;
 
     // Check curve fit quality
     if r_squared < MIN_R_SQUARED {
         tracing::warn!(
-            "Low curve fit quality: RÃ‚Â²={:.3} (minimum: {:.1}). Proceeding with caution.",
+            "Low curve fit quality: R²={:.3} (minimum: {:.1}). Proceeding with caution.",
             r_squared,
             MIN_R_SQUARED
         );
-        // Don't fail, but warn - the result may still be usable
     }
 
     tracing::info!(
-        "Best focus at position {}, HFR: {:.2}, RÃ‚Â²: {:.3}",
+        "Best focus at position {}, HFR: {:.2}, R²: {:.3}",
         best_position,
         best_hfr,
         r_squared
     );
 
-    // Move to best position
+    // Move to best position with backlash compensation
     if let Some(cb) = progress_callback {
         cb(95.0, format!("Moving to best focus: {}", best_position));
     }
-    if let Err(e) = ctx
-        .device_ops
-        .focuser_move_to(&focuser_id, best_position)
-        .await
-    {
-        return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+
+    let last_position = positions[positions.len() - 1];
+    if backlash.is_needed(last_position, best_position) {
+        let (intermediate, final_pos) = backlash.calculate_approach(last_position, best_position);
+
+        if let Some(overshoot) = intermediate {
+            tracing::info!(
+                "Final move with backlash: overshoot to {}, then {}",
+                overshoot,
+                final_pos
+            );
+
+            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
+                return InstructionResult::failure(format!(
+                    "Failed to move focuser (final backlash): {}",
+                    e
+                ));
+            }
+            if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+            {
+                return InstructionResult::failure(e);
+            }
+        }
+
+        if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
+            return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+        }
+    } else {
+        if let Err(e) = ctx
+            .device_ops
+            .focuser_move_to(&focuser_id, best_position)
+            .await
+        {
+            return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+        }
     }
 
     // Wait for focuser to settle at best position
@@ -1351,40 +1481,19 @@ pub async fn execute_autofocus(
         cb(
             100.0,
             format!(
-                "Complete: pos {}, HFR {:.2}, RÃ‚Â² {:.3}",
+                "Complete: pos {}, HFR {:.2}, R² {:.3}",
                 best_position, best_hfr, r_squared
             ),
         );
     }
 
-    let method_used = match config.method {
-        crate::AutofocusMethod::VCurve => crate::autofocus::AutofocusMethod::VCurve,
-        crate::AutofocusMethod::Quadratic => crate::autofocus::AutofocusMethod::Quadratic,
-        crate::AutofocusMethod::Hyperbolic => crate::autofocus::AutofocusMethod::Hyperbolic,
-    };
-    let temperature_celsius = ctx
-        .device_ops
-        .focuser_get_temperature(&focuser_id)
-        .await
-        .ok()
-        .flatten();
-    let autofocus_result = crate::autofocus::AutofocusResult {
-        best_position,
-        best_hfr,
-        curve_fit_quality: r_squared,
-        method_used,
-        data_points: focus_data,
-        temperature_celsius,
-        backlash_applied: false,
-    };
-
     InstructionResult {
         status: NodeStatus::Success,
         message: Some(format!(
-            "Autofocus complete: position {}, HFR {:.2}, RÃ‚Â² {:.3}",
+            "Autofocus complete: position {}, HFR {:.2}, R² {:.3}",
             best_position, best_hfr, r_squared
         )),
-        data: serde_json::to_value(&autofocus_result).ok(),
+        data: serde_json::to_value(&af_result).ok(),
         hfr_values: vec![best_hfr],
     }
 }
@@ -1454,163 +1563,6 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
     }
 }
 
-/// Find best focus position from data and calculate RÃ‚Â² quality metric
-/// Returns (best_position, r_squared)
-fn find_best_focus_with_quality(
-    data: &[(i32, f64)],
-    method: AutofocusMethod,
-) -> Result<(i32, f64), String> {
-    if data.is_empty() {
-        return Err("Autofocus failed: no valid focus data available".to_string());
-    }
-
-    if data.len() < 3 {
-        let best_pos = data
-            .iter()
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(pos, _)| *pos)
-            .ok_or_else(|| {
-                "Autofocus failed: unable to determine best focus position".to_string()
-            })?;
-        return Ok((best_pos, 0.0)); // Can't calculate R² with < 3 points
-    }
-
-    match method {
-        AutofocusMethod::VCurve => {
-            // For V-curve, find minimum and calculate a simple quality metric
-            // based on how well the data forms a V shape
-            let min_point = data
-                .iter()
-                .enumerate()
-                .min_by(|a, b| a.1 .1.total_cmp(&b.1 .1))
-                .map(|(idx, (pos, _))| (idx, *pos))
-                .ok_or_else(|| "Autofocus failed: unable to evaluate V-curve minimum".to_string())?;
-
-            let (min_idx, best_pos) = min_point;
-            let min_hfr = data[min_idx].1;
-
-            // Calculate RÃ‚Â² as the proportion of variance explained by V-shape
-            // Simple approach: measure how well points decrease before min and increase after
-            let mean_hfr: f64 = data.iter().map(|(_, h)| *h).sum::<f64>() / data.len() as f64;
-            let ss_tot: f64 = data.iter().map(|(_, h)| (h - mean_hfr).powi(2)).sum();
-
-            // For V-curve, use the minimum as the predicted value at minimum,
-            // and linear interpolation to edges
-            let mut ss_res = 0.0;
-            for (i, (_, hfr)) in data.iter().enumerate() {
-                // Simple V-curve model: HFR increases linearly from minimum
-                let dist_from_min = (i as i32 - min_idx as i32).abs() as f64;
-                let slope = if min_idx > 0 && min_idx < data.len() - 1 {
-                    // Average slope on both sides
-                    let left_slope = if min_idx > 0 {
-                        (data[0].1 - min_hfr) / min_idx as f64
-                    } else {
-                        0.0
-                    };
-                    let right_slope = if min_idx < data.len() - 1 {
-                        (data[data.len() - 1].1 - min_hfr) / (data.len() - 1 - min_idx) as f64
-                    } else {
-                        0.0
-                    };
-                    (left_slope + right_slope) / 2.0
-                } else {
-                    // Min at edge - use single-sided slope
-                    if min_idx == 0 && data.len() > 1 {
-                        (data[data.len() - 1].1 - min_hfr) / (data.len() - 1) as f64
-                    } else if data.len() > 1 {
-                        (data[0].1 - min_hfr) / min_idx as f64
-                    } else {
-                        0.0
-                    }
-                };
-
-                let predicted = min_hfr + slope * dist_from_min;
-                ss_res += (hfr - predicted).powi(2);
-            }
-
-            let r_squared = if ss_tot > 1e-10 {
-                (1.0 - ss_res / ss_tot).max(0.0)
-            } else {
-                0.0
-            };
-
-            Ok((best_pos, r_squared))
-        }
-
-        AutofocusMethod::Hyperbolic | AutofocusMethod::Quadratic => {
-            // Fit a parabola and calculate RÃ‚Â²
-            let n = data.len() as f64;
-            let sum_x: f64 = data.iter().map(|(x, _)| *x as f64).sum();
-            let sum_x2: f64 = data.iter().map(|(x, _)| (*x as f64).powi(2)).sum();
-            let sum_x3: f64 = data.iter().map(|(x, _)| (*x as f64).powi(3)).sum();
-            let sum_x4: f64 = data.iter().map(|(x, _)| (*x as f64).powi(4)).sum();
-            let sum_y: f64 = data.iter().map(|(_, y)| *y).sum();
-            let sum_xy: f64 = data.iter().map(|(x, y)| (*x as f64) * y).sum();
-            let sum_x2y: f64 = data.iter().map(|(x, y)| (*x as f64).powi(2) * y).sum();
-
-            let denom = n * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
-                - sum_x * (sum_x * sum_x4 - sum_x2 * sum_x3)
-                + sum_x2 * (sum_x * sum_x3 - sum_x2 * sum_x2);
-
-            if denom.abs() < 1e-10 {
-                let best_pos = data
-                    .iter()
-                    .min_by(|a, b| a.1.total_cmp(&b.1))
-                    .map(|(pos, _)| *pos)
-                    .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?;
-                return Ok((best_pos, 0.0));
-            }
-
-            // Solve for coefficients: y = c + b*x + a*xÃ‚Â²
-            let c = (sum_y * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
-                - sum_x * (sum_xy * sum_x4 - sum_x2y * sum_x3)
-                + sum_x2 * (sum_xy * sum_x3 - sum_x2y * sum_x2))
-                / denom;
-
-            let b = (n * (sum_xy * sum_x4 - sum_x2y * sum_x3)
-                - sum_y * (sum_x * sum_x4 - sum_x2 * sum_x3)
-                + sum_x2 * (sum_x * sum_x2y - sum_x2 * sum_xy))
-                / denom;
-
-            let a = (n * (sum_x2 * sum_x2y - sum_x3 * sum_xy)
-                - sum_x * (sum_x * sum_x2y - sum_x2 * sum_xy)
-                + sum_y * (sum_x * sum_x3 - sum_x2 * sum_x2))
-                / denom;
-
-            // Find minimum: x = -b / (2a)
-            let best_pos = if a.abs() > 1e-10 {
-                (-b / (2.0 * a)).round() as i32
-            } else {
-                data.iter()
-                    .min_by(|a, b| a.1.total_cmp(&b.1))
-                    .map(|(pos, _)| *pos)
-                    .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?
-            };
-
-            // Calculate RÃ‚Â²
-            let mean_y = sum_y / n;
-            let ss_tot: f64 = data.iter().map(|(_, y)| (y - mean_y).powi(2)).sum();
-
-            let ss_res: f64 = data
-                .iter()
-                .map(|(x, y)| {
-                    let x_f = *x as f64;
-                    let predicted = c + b * x_f + a * x_f * x_f;
-                    (y - predicted).powi(2)
-                })
-                .sum();
-
-            let r_squared = if ss_tot > 1e-10 {
-                (1.0 - ss_res / ss_tot).max(0.0)
-            } else {
-                0.0
-            };
-
-            Ok((best_pos, r_squared))
-        }
-    }
-}
-
 // =============================================================================
 // DITHER INSTRUCTION
 // =============================================================================
@@ -1626,11 +1578,61 @@ pub async fn execute_dither(
         cb(0.0, "Starting dither".to_string());
     }
 
-    tracing::info!("Dithering {} pixels", config.pixels);
-
     if let Some(result) = ctx.check_cancelled() {
         return result;
     }
+
+    // Determine dither amount based on pattern
+    let (dither_pixels, ra_only) = match config.pattern {
+        crate::DitherPattern::Random => {
+            tracing::info!("Dithering {} pixels (random)", config.pixels);
+            (config.pixels, config.ra_only)
+        }
+        crate::DitherPattern::Grid => {
+            // Get the next grid position from trigger state
+            if let Some(ref trigger_state) = ctx.trigger_state {
+                let (ra_offset, dec_offset) = {
+                    let mut state = trigger_state.write().await;
+                    let offset = state.next_grid_dither_offset(config.grid_size, config.pixels);
+                    tracing::info!(
+                        "Grid dither: position {}/{} -> RA={:.1}px, Dec={:.1}px",
+                        state.grid_dither_index,
+                        config.grid_size * config.grid_size,
+                        offset.0,
+                        offset.1
+                    );
+                    offset
+                };
+
+                // For grid dithering, we compute the total offset magnitude.
+                // The guider_dither API takes a single "pixels" value, which is the
+                // magnitude of the random offset. For grid pattern, we pass the distance
+                // from the origin as the dither amount. The RA-only flag controls
+                // whether we move in both axes.
+                let magnitude = (ra_offset * ra_offset + dec_offset * dec_offset).sqrt();
+                if magnitude < 0.01 {
+                    // At center position (0,0) - skip the dither entirely
+                    tracing::info!("Grid dither at center position, skipping");
+                    if let Some(cb) = progress_callback {
+                        cb(100.0, "Grid dither at center - skipping".to_string());
+                    }
+                    return InstructionResult::success_with_message(
+                        "Grid dither at center position (no move needed)",
+                    );
+                }
+
+                // If dec_offset is ~0, we can do RA-only dither
+                let ra_only = dec_offset.abs() < 0.01;
+                (magnitude, ra_only)
+            } else {
+                // No trigger state available - fall back to random dither
+                tracing::warn!(
+                    "Grid dither requested but no trigger state available, falling back to random"
+                );
+                (config.pixels, config.ra_only)
+            }
+        }
+    };
 
     // Emit progress for sending dither command
     if let Some(cb) = progress_callback {
@@ -1659,11 +1661,11 @@ pub async fn execute_dither(
     match ctx
         .device_ops
         .guider_dither(
-            config.pixels,
+            dither_pixels,
             config.settle_pixels,
             config.settle_time,
             config.settle_timeout,
-            config.ra_only,
+            ra_only,
         )
         .await
     {
@@ -1672,7 +1674,14 @@ pub async fn execute_dither(
             if let Some(cb) = progress_callback {
                 cb(100.0, "Dither complete".to_string());
             }
-            InstructionResult::success_with_message("Dither and settle complete")
+            let pattern_name = match config.pattern {
+                crate::DitherPattern::Random => "random",
+                crate::DitherPattern::Grid => "grid",
+            };
+            InstructionResult::success_with_message(format!(
+                "Dither ({}) and settle complete",
+                pattern_name
+            ))
         }
         Err(e) => InstructionResult::failure(format!("Dither failed: {}", e)),
     }
@@ -1746,10 +1755,58 @@ pub async fn execute_start_guiding(
         .await
     {
         Ok(_) => {
+            // ENG-F10: Validate that guiding actually reached "guiding" state.
+            // guider_start() may return Ok without the guider truly locking on.
+            // Poll status with a timeout to confirm guiding is active.
+            if let Some(cb) = progress_callback {
+                cb(80.0, "Verifying guiding is active".to_string());
+            }
+
+            let verification_timeout = Duration::from_secs(config.settle_timeout as u64);
+            let poll_interval = Duration::from_secs(2);
+            let deadline = tokio::time::Instant::now() + verification_timeout;
+            let mut guiding_confirmed = false;
+
+            while tokio::time::Instant::now() < deadline {
+                if let Some(result) = ctx.check_cancelled() {
+                    return result;
+                }
+
+                match ctx.device_ops.guider_get_status().await {
+                    Ok(status) if status.is_guiding => {
+                        tracing::info!(
+                            "Guiding confirmed active: RMS total={:.2}\"",
+                            status.rms_total
+                        );
+                        guiding_confirmed = true;
+                        break;
+                    }
+                    Ok(status) => {
+                        tracing::debug!(
+                            "Guiding not yet active (is_guiding={}), waiting...",
+                            status.is_guiding
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("Guider status poll failed: {}", e);
+                    }
+                }
+
+                sleep(poll_interval).await;
+            }
+
+            if !guiding_confirmed {
+                return InstructionResult::failure(format!(
+                    "Guiding did not reach active state within {:.0}s timeout. \
+                     The guider may have failed to calibrate or lock onto a star.",
+                    config.settle_timeout
+                ));
+            }
+
             if let Some(cb) = progress_callback {
                 cb(100.0, "Guiding active".to_string());
             }
-            InstructionResult::success_with_message("Guiding started and settled")
+            InstructionResult::success_with_message("Guiding started and verified active")
         }
         Err(e) => InstructionResult::failure(format!("Failed to start guiding: {}", e)),
     }
@@ -1905,20 +1962,14 @@ async fn apply_filter_focus_offset(
     );
 
     if let Some(cb) = progress_callback {
-        cb(
-            60.0,
-            format!("Applying focus offset: {} steps", offset),
-        );
+        cb(60.0, format!("Applying focus offset: {} steps", offset));
     }
 
     // Get current focuser position
     let current_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
-            tracing::error!(
-                "Failed to read focuser position for filter offset: {}",
-                e
-            );
+            tracing::error!("Failed to read focuser position for filter offset: {}", e);
             return;
         }
     };
@@ -1941,16 +1992,50 @@ async fn apply_filter_focus_offset(
     }
 
     // Wait for focuser to finish moving
+    let mut reached_target = false;
     for _ in 0..60 {
         sleep(Duration::from_millis(500)).await;
         match ctx.device_ops.focuser_is_moving(focuser_id).await {
-            Ok(false) => break,
+            Ok(false) => {
+                reached_target = true;
+                break;
+            }
             Ok(true) => continue,
             Err(e) => {
                 tracing::warn!("Error checking focuser movement: {}", e);
-                break;
+                return;
             }
         }
+    }
+
+    if !reached_target {
+        tracing::warn!(
+            "Focus offset move for filter \"{}\" did not report completion before the timeout window",
+            filter_name
+        );
+        return;
+    }
+
+    let final_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
+        Ok(pos) => pos,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to verify final focuser position after applying filter offset for \"{}\": {}",
+                filter_name,
+                e
+            );
+            return;
+        }
+    };
+
+    if final_pos != target_pos {
+        tracing::warn!(
+            "Filter offset for \"{}\" could not be verified (target {}, actual {})",
+            filter_name,
+            target_pos,
+            final_pos
+        );
+        return;
     }
 
     if let Some(cb) = progress_callback {
@@ -1958,7 +2043,7 @@ async fn apply_filter_focus_offset(
             80.0,
             format!(
                 "Focus offset applied: {} -> {} ({:+} steps)",
-                current_pos, target_pos, offset
+                current_pos, final_pos, offset
             ),
         );
     }
@@ -1967,7 +2052,7 @@ async fn apply_filter_focus_offset(
         "Focus offset for filter \"{}\" applied: {} -> {}",
         filter_name,
         current_pos,
-        target_pos
+        final_pos
     );
 }
 
@@ -2162,7 +2247,7 @@ pub async fn execute_warm_camera(
             return InstructionResult::failure(format!("Failed to read camera temperature: {}", e))
         }
     };
-    let target_temp = 10.0; // Warm to ambient
+    let target_temp = config.target_temp.unwrap_or(20.0);
     let temp_range = target_temp - start_temp;
     let duration_mins = temp_range / config.rate_per_min;
     let steps = (duration_mins * 6.0).max(1.0) as u32;
@@ -2237,6 +2322,7 @@ pub async fn execute_warm_camera(
 pub async fn execute_rotator_move(
     config: &RotatorConfig,
     ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
     let rotator_id = match ctx.rotator_id() {
         Ok(id) => id.to_string(),
@@ -2244,10 +2330,15 @@ pub async fn execute_rotator_move(
     };
 
     tracing::info!(
-        "Moving rotator to {}Ã‚Â° (relative: {})",
+        "Moving rotator to {} (relative: {})",
         config.target_angle,
         config.relative
     );
+
+    // Report initial progress
+    if let Some(cb) = progress_callback {
+        cb(0.0, format!("Moving to {:.1}", config.target_angle));
+    }
 
     let result = if config.relative {
         ctx.device_ops
@@ -2260,10 +2351,12 @@ pub async fn execute_rotator_move(
     };
 
     match result {
-        Ok(_) => InstructionResult::success_with_message(format!(
-            "Rotator at {}Ã‚Â°",
-            config.target_angle
-        )),
+        Ok(_) => {
+            if let Some(cb) = progress_callback {
+                cb(100.0, format!("At {:.1}", config.target_angle));
+            }
+            InstructionResult::success_with_message(format!("Rotator at {}", config.target_angle))
+        }
         Err(e) => InstructionResult::failure(format!("Rotator move failed: {}", e)),
     }
 }
@@ -2500,9 +2593,8 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     let twilight_minutes = (twilight_hour.fract() * 60.0) as u32;
     let twilight_hour = twilight_hour as u32;
 
-    let twilight_datetime = today
-        .and_hms_opt(twilight_hour, twilight_minutes, 0)
-        .unwrap_or_else(|| today.and_hms_opt(23, 59, 0).unwrap());
+    let twilight_datetime =
+        build_utc_naive_time_or_fallback(today, twilight_hour, twilight_minutes, (23, 59, 0));
 
     let twilight_timestamp =
         chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(twilight_datetime, chrono::Utc)
@@ -2542,6 +2634,17 @@ fn calculate_julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
         - 1524.5;
 
     jd
+}
+
+fn build_utc_naive_time_or_fallback(
+    date: NaiveDate,
+    hour: u32,
+    minute: u32,
+    fallback: (u32, u32, u32),
+) -> chrono::NaiveDateTime {
+    date.and_hms_opt(hour, minute, 0)
+        .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
+        .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
 }
 
 /// Calculate solar declination and equation of time
@@ -3062,7 +3165,10 @@ pub async fn execute_meridian_flip(
             if ctx.cancellation_token.load(Ordering::Relaxed) {
                 return InstructionResult::cancelled("Cancelled during settle");
             }
-            sleep(Duration::from_millis(100)).await;
+            // Poll at 250ms with +/-20ms jitter to avoid synchronization effects
+            // when multiple devices or threads check state at the same cadence
+            let jitter_ms = (settle_start.elapsed().subsec_nanos() % 41) as u64;
+            sleep(Duration::from_millis(230 + jitter_ms)).await;
         }
     }
 
@@ -3623,6 +3729,11 @@ async fn wait_for_calibrator_state(
     loop {
         // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
+            let _ = ctx
+                .device_ops
+                .cover_calibrator_calibrator_off(device_id)
+                .await;
+            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
             return Err("Operation cancelled".to_string());
         }
 
@@ -3650,6 +3761,7 @@ async fn wait_for_calibrator_state(
 
         // Check timeout
         if start.elapsed() > timeout {
+            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
             return Err(format!(
                 "Calibrator did not reach {} state within {} seconds",
                 state_name,
@@ -3741,4 +3853,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

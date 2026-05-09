@@ -100,7 +100,8 @@ class QuickConnectBar extends ConsumerWidget {
             final index = entry.key;
             final profile = entry.value;
             final isSelected = profile.id == selectedProfileId;
-            final (connectionState, connected, total) = _getProfileConnectionState(
+            final (connectionState, connected, total) =
+                _getProfileConnectionState(
               profile,
               cameraState,
               mountState,
@@ -120,7 +121,8 @@ class QuickConnectBar extends ConsumerWidget {
                 connectedDevices: connected,
                 totalDevices: total,
                 onTap: () => onProfileSelected(profile),
-                onLongPress: () => _showProfileMenu(context, ref, profile, colors),
+                onLongPress: () =>
+                    _showProfileMenu(context, ref, profile, colors),
               ),
             );
           }),
@@ -150,9 +152,14 @@ class QuickConnectBar extends ConsumerWidget {
     // Helper to check if connected device matches profile
     // Uses flexible matching that handles different ID formats while still
     // distinguishing between different models (e.g., ASI1600 vs ASI178)
-    bool isDeviceMatch(String? profileId, String? connectedId, DeviceConnectionState state) {
-      if (state != DeviceConnectionState.connected) return true; // Not connected, no mismatch
-      if (profileId == null || connectedId == null) return true; // No ID to compare
+    bool isDeviceMatch(
+        String? profileId, String? connectedId, DeviceConnectionState state) {
+      if (state != DeviceConnectionState.connected) {
+        return true; // Not connected, no mismatch
+      }
+      if (profileId == null || connectedId == null) {
+        return true; // No ID to compare
+      }
 
       final p = profileId.trim().toLowerCase();
       final c = connectedId.trim().toLowerCase();
@@ -172,17 +179,24 @@ class QuickConnectBar extends ConsumerWidget {
       // These uniquely identify devices: "asi1600", "phd2", "nyx101", "eaf", "efw"
       final modelPattern = RegExp(r'[a-z]*\d+[a-z0-9]*|[a-z]{2,}');
 
-      final profileModels = modelPattern.allMatches(normP).map((m) => m.group(0)!).toSet();
-      final connectedModels = modelPattern.allMatches(normC).map((m) => m.group(0)!).toSet();
+      final profileModels =
+          modelPattern.allMatches(normP).map((m) => m.group(0)!).toSet();
+      final connectedModels =
+          modelPattern.allMatches(normC).map((m) => m.group(0)!).toSet();
 
       // Find models that contain numbers (most distinguishing)
-      final profileNumberedModels = profileModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
-      final connectedNumberedModels = connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
+      final profileNumberedModels =
+          profileModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
+      final connectedNumberedModels =
+          connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
 
       // If both have numbered model identifiers, they must share at least one
       // This ensures ASI1600 doesn't match ASI178
-      if (profileNumberedModels.isNotEmpty && connectedNumberedModels.isNotEmpty) {
-        if (profileNumberedModels.intersection(connectedNumberedModels).isNotEmpty) {
+      if (profileNumberedModels.isNotEmpty &&
+          connectedNumberedModels.isNotEmpty) {
+        if (profileNumberedModels
+            .intersection(connectedNumberedModels)
+            .isNotEmpty) {
           return true; // Match - same model number
         }
         // Check if one model contains another (e.g., "asi1600mmcool" contains "asi1600")
@@ -196,12 +210,14 @@ class QuickConnectBar extends ConsumerWidget {
 
       // If only one has numbered models, check token overlap for the rest
       // Tokenize and check for significant overlap
-      final pTokens = p.split(RegExp(r'[_\-\s:]+'))
+      final pTokens = p
+          .split(RegExp(r'[_\-\s:]+'))
           .where((t) => t.length >= 2)
           .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
           .where((t) => t.isNotEmpty)
           .toSet();
-      final cTokens = c.split(RegExp(r'[_\-\s:]+'))
+      final cTokens = c
+          .split(RegExp(r'[_\-\s:]+'))
           .where((t) => t.length >= 2)
           .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
           .where((t) => t.isNotEmpty)
@@ -239,7 +255,8 @@ class QuickConnectBar extends ConsumerWidget {
       }
 
       // Require significant overlap
-      final minTokens = pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
+      final minTokens =
+          pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
       return matches >= (minTokens * 0.5).ceil(); // Match if >= 50% overlap
     }
 
@@ -247,12 +264,14 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.cameraId != null) {
       totalDevices++;
       if (cameraState.connectionState == DeviceConnectionState.connected) {
-        if (isDeviceMatch(profile.cameraId, cameraState.deviceId, cameraState.connectionState)) {
+        if (isDeviceMatch(profile.cameraId, cameraState.deviceId,
+            cameraState.connectionState)) {
           connectedDevices++;
         } else {
           mismatchDevices++;
         }
-      } else if (cameraState.connectionState == DeviceConnectionState.connecting) {
+      } else if (cameraState.connectionState ==
+          DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (cameraState.connectionState == DeviceConnectionState.error) {
         errorDevices++;
@@ -262,12 +281,14 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.mountId != null) {
       totalDevices++;
       if (mountState.connectionState == DeviceConnectionState.connected) {
-        if (isDeviceMatch(profile.mountId, mountState.deviceId, mountState.connectionState)) {
+        if (isDeviceMatch(
+            profile.mountId, mountState.deviceId, mountState.connectionState)) {
           connectedDevices++;
         } else {
           mismatchDevices++;
         }
-      } else if (mountState.connectionState == DeviceConnectionState.connecting) {
+      } else if (mountState.connectionState ==
+          DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (mountState.connectionState == DeviceConnectionState.error) {
         errorDevices++;
@@ -277,12 +298,14 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.focuserId != null) {
       totalDevices++;
       if (focuserState.connectionState == DeviceConnectionState.connected) {
-        if (isDeviceMatch(profile.focuserId, focuserState.deviceId, focuserState.connectionState)) {
+        if (isDeviceMatch(profile.focuserId, focuserState.deviceId,
+            focuserState.connectionState)) {
           connectedDevices++;
         } else {
           mismatchDevices++;
         }
-      } else if (focuserState.connectionState == DeviceConnectionState.connecting) {
+      } else if (focuserState.connectionState ==
+          DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (focuserState.connectionState == DeviceConnectionState.error) {
         errorDevices++;
@@ -292,14 +315,17 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.filterWheelId != null) {
       totalDevices++;
       if (filterWheelState.connectionState == DeviceConnectionState.connected) {
-        if (isDeviceMatch(profile.filterWheelId, filterWheelState.deviceId, filterWheelState.connectionState)) {
+        if (isDeviceMatch(profile.filterWheelId, filterWheelState.deviceId,
+            filterWheelState.connectionState)) {
           connectedDevices++;
         } else {
           mismatchDevices++;
         }
-      } else if (filterWheelState.connectionState == DeviceConnectionState.connecting) {
+      } else if (filterWheelState.connectionState ==
+          DeviceConnectionState.connecting) {
         connectingDevices++;
-      } else if (filterWheelState.connectionState == DeviceConnectionState.error) {
+      } else if (filterWheelState.connectionState ==
+          DeviceConnectionState.error) {
         errorDevices++;
       }
     }
@@ -307,12 +333,14 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.guiderId != null) {
       totalDevices++;
       if (guiderState.connectionState == DeviceConnectionState.connected) {
-        if (isDeviceMatch(profile.guiderId, guiderState.deviceId, guiderState.connectionState)) {
+        if (isDeviceMatch(profile.guiderId, guiderState.deviceId,
+            guiderState.connectionState)) {
           connectedDevices++;
         } else {
           mismatchDevices++;
         }
-      } else if (guiderState.connectionState == DeviceConnectionState.connecting) {
+      } else if (guiderState.connectionState ==
+          DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (guiderState.connectionState == DeviceConnectionState.error) {
         errorDevices++;
@@ -324,7 +352,11 @@ class QuickConnectBar extends ConsumerWidget {
     }
 
     if (connectingDevices > 0) {
-      return (ProfileConnectionState.connecting, connectedDevices, totalDevices);
+      return (
+        ProfileConnectionState.connecting,
+        connectedDevices,
+        totalDevices
+      );
     }
 
     // Check for mismatches - connected devices don't match profile
@@ -341,7 +373,11 @@ class QuickConnectBar extends ConsumerWidget {
     }
 
     if (connectedDevices > 0) {
-      return (ProfileConnectionState.partiallyConnected, connectedDevices, totalDevices);
+      return (
+        ProfileConnectionState.partiallyConnected,
+        connectedDevices,
+        totalDevices
+      );
     }
 
     return (ProfileConnectionState.disconnected, 0, totalDevices);
@@ -354,11 +390,13 @@ class QuickConnectBar extends ConsumerWidget {
     NightshadeColors colors,
   ) {
     final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final RelativeRect position = RelativeRect.fromRect(
       Rect.fromPoints(
         button.localToGlobal(Offset.zero, ancestor: overlay),
-        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero),
+            ancestor: overlay),
       ),
       Offset.zero & overlay.size,
     );
@@ -367,7 +405,7 @@ class QuickConnectBar extends ConsumerWidget {
       context: context,
       position: position,
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
         PopupMenuItem(
           value: 'edit',
@@ -393,9 +431,16 @@ class QuickConnectBar extends ConsumerWidget {
           value: 'default',
           child: Row(
             children: [
-              Icon(Icons.star_outline, size: 16, color: colors.textSecondary),
+              Icon(
+                profile.isDefault ? Icons.star : Icons.star_outline,
+                size: 16,
+                color: colors.textSecondary,
+              ),
               const SizedBox(width: 8),
-              Text('Set as Default', style: TextStyle(color: colors.textPrimary)),
+              Text(
+                profile.isDefault ? 'Clear Default' : 'Set as Default',
+                style: TextStyle(color: colors.textPrimary),
+              ),
             ],
           ),
         ),
@@ -425,7 +470,8 @@ class QuickConnectBar extends ConsumerWidget {
             context: context,
             builder: (ctx) => AlertDialog(
               backgroundColor: colors.surface,
-              title: Text('Rename Profile', style: TextStyle(color: colors.textPrimary)),
+              title: Text('Rename Profile',
+                  style: TextStyle(color: colors.textPrimary)),
               content: TextField(
                 controller: nameController,
                 autofocus: true,
@@ -449,14 +495,17 @@ class QuickConnectBar extends ConsumerWidget {
                   size: ButtonSize.small,
                 ),
                 NightshadeButton(
-                  onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
+                  onPressed: () =>
+                      Navigator.pop(ctx, nameController.text.trim()),
                   label: 'Save',
                   variant: ButtonVariant.primary,
                 ),
               ],
             ),
           );
-          if (newName != null && newName.isNotEmpty && newName != profile.name) {
+          if (newName != null &&
+              newName.isNotEmpty &&
+              newName != profile.name) {
             try {
               final dao = ref.read(equipmentProfilesDaoProvider);
               await dao.updateProfile(profile.copyWith(
@@ -473,7 +522,8 @@ class QuickConnectBar extends ConsumerWidget {
           break;
         case 'duplicate':
           try {
-            await profileService.duplicateProfile(profile.id, '${profile.name} Copy');
+            await profileService.duplicateProfile(
+                profile.id, '${profile.name} Copy');
             if (!context.mounted) return;
             context.showSuccessSnackBar('Duplicated "${profile.name}"');
           } catch (e) {
@@ -483,8 +533,9 @@ class QuickConnectBar extends ConsumerWidget {
           break;
         case 'default':
           try {
-            final dao = ref.read(equipmentProfilesDaoProvider);
-            await dao.setActiveProfile(profile.id);
+            await ref
+                .read(equipmentProfilesProvider.notifier)
+                .setDefaultProfile(profile.id, makeActive: true);
             if (!context.mounted) return;
             context.showSuccessSnackBar('"${profile.name}" set as default');
           } catch (e) {
@@ -498,7 +549,8 @@ class QuickConnectBar extends ConsumerWidget {
             context: context,
             builder: (dialogContext) => AlertDialog(
               backgroundColor: colors.surface,
-              title: Text('Delete Profile', style: TextStyle(color: colors.textPrimary)),
+              title: Text('Delete Profile',
+                  style: TextStyle(color: colors.textPrimary)),
               content: Text(
                 'Delete "${profile.name}"? This cannot be undone.',
                 style: TextStyle(color: colors.textSecondary),

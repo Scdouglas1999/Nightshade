@@ -230,6 +230,8 @@ class DeepSkyObject implements CelestialObject {
   final double? positionAngle;
   final String? constellation;
   final List<String> catalogIds;
+  /// Comma-separated common names from the catalog (e.g. "Andromeda Galaxy,Great Andromeda Nebula")
+  final String? commonNames;
 
   const DeepSkyObject({
     required this.id,
@@ -242,6 +244,7 @@ class DeepSkyObject implements CelestialObject {
     this.positionAngle,
     this.constellation,
     this.catalogIds = const [],
+    this.commonNames,
   });
   
   /// Get size string for display

@@ -523,7 +523,9 @@ sealed class SequencerEvent with _$SequencerEvent {
   }) = SequencerEvent_NodeStarted;
   const factory SequencerEvent.nodeCompleted({
     required String nodeId,
-    required bool success,
+
+    /// Completion status: "success", "failed", "cancelled", or "skipped"
+    required String status,
   }) = SequencerEvent_NodeCompleted;
   const factory SequencerEvent.progress({
     required int current,
@@ -531,6 +533,12 @@ sealed class SequencerEvent with _$SequencerEvent {
   }) = SequencerEvent_Progress;
   const factory SequencerEvent.targetChanged({
     required String targetName,
+
+    /// Right Ascension in hours (0-24), if available from the target header
+    double? ra,
+
+    /// Declination in degrees (-90 to +90), if available from the target header
+    double? dec,
   }) = SequencerEvent_TargetChanged;
   const factory SequencerEvent.targetCompleted({
     required String targetName,
@@ -549,6 +557,18 @@ sealed class SequencerEvent with _$SequencerEvent {
   const factory SequencerEvent.error({
     required String message,
   }) = SequencerEvent_Error;
+
+  /// A trigger watchdog fired during sequence execution
+  const factory SequencerEvent.triggerFired({
+    /// Unique trigger identifier
+    required String triggerId,
+
+    /// Human-readable trigger name
+    required String triggerName,
+
+    /// Action taken (e.g., "Autofocus", "Dither", "PauseSequence")
+    required String action,
+  }) = SequencerEvent_TriggerFired;
 
   /// Progress update for long-running instructions (cooling, autofocus, slewing)
   const factory SequencerEvent.instructionProgress({

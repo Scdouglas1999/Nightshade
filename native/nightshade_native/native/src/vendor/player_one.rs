@@ -267,7 +267,7 @@ impl PoaSdk {
             }
         }
 
-        tracing::warn!("Player One SDK not found");
+        tracing::debug!("Player One SDK not found");
         None
     }
 

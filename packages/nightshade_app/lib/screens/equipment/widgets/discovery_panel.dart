@@ -119,12 +119,28 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     final isDiscovering = discoveryState.isDiscovering || _isScanning;
 
     // Count discovered devices by type
-    final cameras = groupedDevices.where((d) => d.type == DeviceType.camera).toList();
-    final mounts = groupedDevices.where((d) => d.type == DeviceType.mount).toList();
-    final focusers = groupedDevices.where((d) => d.type == DeviceType.focuser).toList();
-    final filterWheels = groupedDevices.where((d) => d.type == DeviceType.filterWheel).toList();
-    final guiders = groupedDevices.where((d) => d.type == DeviceType.guider).toList();
-    final rotators = groupedDevices.where((d) => d.type == DeviceType.rotator).toList();
+    final cameras =
+        groupedDevices.where((d) => d.type == DeviceType.camera).toList();
+    final mounts =
+        groupedDevices.where((d) => d.type == DeviceType.mount).toList();
+    final focusers =
+        groupedDevices.where((d) => d.type == DeviceType.focuser).toList();
+    final filterWheels =
+        groupedDevices.where((d) => d.type == DeviceType.filterWheel).toList();
+    final guiders =
+        groupedDevices.where((d) => d.type == DeviceType.guider).toList();
+    final rotators =
+        groupedDevices.where((d) => d.type == DeviceType.rotator).toList();
+    final domes =
+        groupedDevices.where((d) => d.type == DeviceType.dome).toList();
+    final weatherStations =
+        groupedDevices.where((d) => d.type == DeviceType.weather).toList();
+    final safetyMonitors = groupedDevices
+        .where((d) => d.type == DeviceType.safetyMonitor)
+        .toList();
+    final coverCalibrators = groupedDevices
+        .where((d) => d.type == DeviceType.coverCalibrator)
+        .toList();
 
     final totalDevices = groupedDevices.length;
     final lastScanText = _formatLastScanTime(lastScanTime);
@@ -132,7 +148,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -141,7 +157,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
           // Header bar - always visible
           InkWell(
             onTap: _toggleExpanded,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -195,7 +211,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
                   // Expand/collapse button
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
                       borderRadius: BorderRadius.circular(6),
@@ -244,8 +261,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Server configuration hint
-                    if (!Platform.isWindows)
-                      _buildINDIServerHint(colors),
+                    if (!Platform.isWindows) _buildINDIServerHint(colors),
 
                     // Device lists by type (always show, even if empty for that type)
                     _buildDeviceGroupSection(
@@ -300,6 +316,42 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                       DeviceType.rotator,
                       LucideIcons.rotateCw,
                       rotators,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDeviceGroupSection(
+                      context,
+                      colors,
+                      'DOMES',
+                      DeviceType.dome,
+                      LucideIcons.home,
+                      domes,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDeviceGroupSection(
+                      context,
+                      colors,
+                      'WEATHER',
+                      DeviceType.weather,
+                      LucideIcons.cloud,
+                      weatherStations,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDeviceGroupSection(
+                      context,
+                      colors,
+                      'SAFETY MONITORS',
+                      DeviceType.safetyMonitor,
+                      LucideIcons.shieldAlert,
+                      safetyMonitors,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDeviceGroupSection(
+                      context,
+                      colors,
+                      'COVER / CALIBRATORS',
+                      DeviceType.coverCalibrator,
+                      LucideIcons.sunMedium,
+                      coverCalibrators,
                     ),
                   ],
                 ),
@@ -499,7 +551,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
           throw Exception('Unsupported device type: $deviceType');
       }
       if (mounted) {
-        context.showSuccessSnackBar('Disconnected ${deviceType.displayName.toLowerCase()}');
+        context.showSuccessSnackBar(
+            'Disconnected ${deviceType.displayName.toLowerCase()}');
       }
     } catch (e) {
       if (mounted) {
@@ -671,7 +724,8 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     return currentId == null || currentId.isEmpty ? '(empty)' : '(has device)';
   }
 
-  List<PopupMenuEntry<AssignAction>> _buildAssignMenuItems(NightshadeColors colors) {
+  List<PopupMenuEntry<AssignAction>> _buildAssignMenuItems(
+      NightshadeColors colors) {
     final profiles = ref.read(sortedProfilesProvider);
     final items = <PopupMenuEntry<AssignAction>>[];
 
@@ -790,10 +844,12 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: _getDriverTypeColor(activeBackend, colors).withValues(alpha: 0.15),
+              color: _getDriverTypeColor(activeBackend, colors)
+                  .withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: _getDriverTypeColor(activeBackend, colors).withValues(alpha: 0.3),
+                color: _getDriverTypeColor(activeBackend, colors)
+                    .withValues(alpha: 0.3),
               ),
             ),
             child: Text(
@@ -812,7 +868,8 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
           PopupMenuButton<AssignAction>(
             onSelected: _handleAssign,
             offset: const Offset(0, 30),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             color: colors.surface,
             itemBuilder: (context) => _buildAssignMenuItems(colors),
             child: Container(

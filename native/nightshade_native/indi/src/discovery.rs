@@ -3,8 +3,9 @@
 //! Provides network scanning for INDI servers and device enumeration.
 
 use crate::{IndiClient, IndiProperty, INDI_DEFAULT_PORT};
+use if_addrs::get_if_addrs;
 use mdns_sd::{ServiceDaemon, ServiceEvent};
-use std::net::{SocketAddr, TcpStream};
+use std::collections::HashSet;
 use std::time::Duration;
 
 /// Discovered INDI server information
@@ -48,7 +49,7 @@ pub async fn discover_localhost() -> Option<IndiServer> {
 pub async fn discover_server(host: &str, port: u16) -> Option<IndiServer> {
     // First, try a quick TCP connect to check if server is listening
     let addr = format!("{}:{}", host, port);
-    if !check_port_open(&addr, Duration::from_millis(500)) {
+    if !check_port_open(&addr, Duration::from_millis(500)).await {
         return None;
     }
 
@@ -268,7 +269,7 @@ pub async fn discover_local_network(timeout: Duration) -> Vec<IndiServer> {
 
             handles.push(tokio::spawn(async move {
                 let addr = format!("{}:{}", ip, INDI_DEFAULT_PORT);
-                if check_port_open(&addr, timeout) {
+                if check_port_open(&addr, timeout).await {
                     discover_server(&ip, INDI_DEFAULT_PORT).await
                 } else {
                     None
@@ -297,24 +298,11 @@ pub async fn discover_local_network(timeout: Duration) -> Vec<IndiServer> {
 }
 
 /// Quick TCP port check
-fn check_port_open(addr: &str, timeout: Duration) -> bool {
-    let addr: SocketAddr = match addr.parse() {
-        Ok(a) => a,
-        Err(_) => {
-            // Try resolving hostname
-            if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(addr) {
-                if let Some(a) = addrs.into_iter().next() {
-                    a
-                } else {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-    };
-
-    TcpStream::connect_timeout(&addr, timeout).is_ok()
+async fn check_port_open(addr: &str, timeout: Duration) -> bool {
+    tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr))
+        .await
+        .map(|result| result.is_ok())
+        .unwrap_or(false)
 }
 
 /// Infer device type from its properties
@@ -416,17 +404,23 @@ fn infer_device_type(properties: &[IndiProperty]) -> IndiDeviceType {
 
 /// Get local subnet prefixes (first 3 octets of local IPs)
 fn get_local_subnets() -> Vec<(u8, u8, u8)> {
-    let mut subnets = Vec::new();
+    let mut subnets = HashSet::new();
 
-    // Common private network ranges to check
-    // This is a simplified approach - in production you might use
-    // platform-specific APIs to get actual local IP addresses
+    if let Ok(ifaces) = get_if_addrs() {
+        for iface in ifaces {
+            if iface.is_loopback() {
+                continue;
+            }
 
-    // Add common default subnets
-    subnets.push((192, 168, 1));
-    subnets.push((192, 168, 0));
-    subnets.push((10, 0, 0));
+            if let std::net::IpAddr::V4(ip) = iface.ip() {
+                let octets = ip.octets();
+                subnets.insert((octets[0], octets[1], octets[2]));
+            }
+        }
+    }
 
+    let mut subnets: Vec<_> = subnets.into_iter().collect();
+    subnets.sort_unstable();
     subnets
 }
 

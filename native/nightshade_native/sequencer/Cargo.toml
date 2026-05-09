@@ -17,5 +17,6 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 rand = "0.8"
 base64 = "0.22"
+parking_lot = "0.12"
 nightshade_imaging = { path = "../imaging" }
 

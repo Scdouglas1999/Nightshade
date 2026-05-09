@@ -22,7 +22,7 @@ class ProfileSidebar extends ConsumerWidget {
   final ValueChanged<EquipmentProfileModel> onEditProfile;
   final ValueChanged<EquipmentProfileModel> onConnectAll;
   final VoidCallback onDisconnectAll;
-  final ValueChanged<int> onSetDefault;
+  final ValueChanged<EquipmentProfileModel> onSetDefault;
   final ValueChanged<int> onDuplicateProfile;
   final ValueChanged<int> onDeleteProfile;
   final void Function(int oldIndex, int newIndex) onReorderProfiles;
@@ -62,17 +62,18 @@ class ProfileSidebar extends ConsumerWidget {
         : null;
 
     // Determine if there are connected/disconnected devices for the selected profile
-    final (hasConnectedDevices, hasDisconnectedDevices) = selectedProfile != null
-        ? _getProfileDeviceStatus(
-            selectedProfile,
-            cameraState,
-            mountState,
-            focuserState,
-            filterWheelState,
-            guiderState,
-            rotatorState,
-          )
-        : (false, false);
+    final (hasConnectedDevices, hasDisconnectedDevices) =
+        selectedProfile != null
+            ? _getProfileDeviceStatus(
+                selectedProfile,
+                cameraState,
+                mountState,
+                focuserState,
+                filterWheelState,
+                guiderState,
+                rotatorState,
+              )
+            : (false, false);
 
     return Container(
       decoration: BoxDecoration(
@@ -244,7 +245,8 @@ class ProfileSidebar extends ConsumerWidget {
           animation: animation,
           builder: (context, child) {
             final elevation = Tween<double>(begin: 0, end: 6)
-                .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut))
+                .animate(
+                    CurvedAnimation(parent: animation, curve: Curves.easeOut))
                 .value;
             return Material(
               elevation: elevation,
@@ -365,7 +367,8 @@ class ProfileSidebar extends ConsumerWidget {
     EquipmentProfileModel profile,
     NightshadeColors colors,
   ) {
-    final overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final position = RelativeRect.fromRect(
       Rect.fromLTWH(offset.dx, offset.dy, 0, 0),
       Offset.zero & overlay.size,
@@ -375,20 +378,20 @@ class ProfileSidebar extends ConsumerWidget {
       context: context,
       position: position,
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       items: [
         PopupMenuItem(
           value: 'default',
           child: Row(
             children: [
               Icon(
-                profile.isDefault ? LucideIcons.starOff : LucideIcons.star,
+                LucideIcons.star,
                 size: 16,
                 color: colors.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
-                profile.isDefault ? 'Remove Default' : 'Set as Default',
+                profile.isDefault ? 'Default Profile' : 'Set as Default',
                 style: TextStyle(color: colors.textPrimary),
               ),
             ],
@@ -432,7 +435,7 @@ class ProfileSidebar extends ConsumerWidget {
 
       switch (value) {
         case 'default':
-          onSetDefault(profile.id!);
+          onSetDefault(profile);
           break;
         case 'edit':
           onEditProfile(profile);
@@ -441,7 +444,8 @@ class ProfileSidebar extends ConsumerWidget {
           onDuplicateProfile(profile.id!);
           break;
         case 'delete':
-          final confirmed = await _showDeleteConfirmation(context, profile, colors);
+          final confirmed =
+              await _showDeleteConfirmation(context, profile, colors);
           if (confirmed == true) {
             onDeleteProfile(profile.id!);
           }
@@ -595,8 +599,11 @@ class ProfileSidebar extends ConsumerWidget {
         connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
 
     // If both have numbered model identifiers, they must share at least one
-    if (profileNumberedModels.isNotEmpty && connectedNumberedModels.isNotEmpty) {
-      if (profileNumberedModels.intersection(connectedNumberedModels).isNotEmpty) {
+    if (profileNumberedModels.isNotEmpty &&
+        connectedNumberedModels.isNotEmpty) {
+      if (profileNumberedModels
+          .intersection(connectedNumberedModels)
+          .isNotEmpty) {
         return true;
       }
       // Check if one model contains another
@@ -649,7 +656,8 @@ class ProfileSidebar extends ConsumerWidget {
       }
     }
 
-    final minTokens = pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
+    final minTokens =
+        pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
     return matches >= (minTokens * 0.5).ceil();
   }
 
@@ -666,7 +674,8 @@ class ProfileSidebar extends ConsumerWidget {
     bool hasConnected = false;
     bool hasDisconnected = false;
 
-    void checkDevice(String? profileId, String? connectedId, DeviceConnectionState state) {
+    void checkDevice(
+        String? profileId, String? connectedId, DeviceConnectionState state) {
       if (profileId == null) return;
 
       if (connectedId != null &&
@@ -678,12 +687,18 @@ class ProfileSidebar extends ConsumerWidget {
       }
     }
 
-    checkDevice(profile.cameraId, cameraState.deviceId, cameraState.connectionState);
-    checkDevice(profile.mountId, mountState.deviceId, mountState.connectionState);
-    checkDevice(profile.focuserId, focuserState.deviceId, focuserState.connectionState);
-    checkDevice(profile.filterWheelId, filterWheelState.deviceId, filterWheelState.connectionState);
-    checkDevice(profile.guiderId, guiderState.deviceId, guiderState.connectionState);
-    checkDevice(profile.rotatorId, rotatorState.deviceId, rotatorState.connectionState);
+    checkDevice(
+        profile.cameraId, cameraState.deviceId, cameraState.connectionState);
+    checkDevice(
+        profile.mountId, mountState.deviceId, mountState.connectionState);
+    checkDevice(
+        profile.focuserId, focuserState.deviceId, focuserState.connectionState);
+    checkDevice(profile.filterWheelId, filterWheelState.deviceId,
+        filterWheelState.connectionState);
+    checkDevice(
+        profile.guiderId, guiderState.deviceId, guiderState.connectionState);
+    checkDevice(
+        profile.rotatorId, rotatorState.deviceId, rotatorState.connectionState);
 
     return (hasConnected, hasDisconnected);
   }
@@ -824,7 +839,8 @@ class _ProfileCardState extends State<_ProfileCard>
                   children: [
                     // Profile icon
                     Text(
-                      widget.profile.profileIcon ?? '\u{1F52D}', // Default telescope emoji
+                      widget.profile.profileIcon ??
+                          '\u{1F52D}', // Default telescope emoji
                       style: const TextStyle(fontSize: 18),
                     ),
                     const SizedBox(width: 8),
@@ -949,7 +965,9 @@ class _ProfileCardState extends State<_ProfileCard>
           height: 8,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isHollow ? Colors.transparent : color.withValues(alpha: effectiveOpacity),
+            color: isHollow
+                ? Colors.transparent
+                : color.withValues(alpha: effectiveOpacity),
             border: Border.all(
               color: color.withValues(alpha: effectiveOpacity),
               width: isHollow ? 1.5 : 0,

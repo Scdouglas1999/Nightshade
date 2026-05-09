@@ -1,10 +1,25 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:path/path.dart' as path;
 import '../models/update_manifest.dart';
 
 /// Service for verifying update package integrity
 class UpdateVerifier {
+  final String _trustedPublicKeyBase64;
+  final Ed25519 _signatureAlgorithm;
+
+  UpdateVerifier({
+    String trustedPublicKeyBase64 = const String.fromEnvironment(
+      'NIGHTSHADE_UPDATE_PUBLIC_KEY',
+    ),
+    Ed25519? signatureAlgorithm,
+  })  : _trustedPublicKeyBase64 = trustedPublicKeyBase64,
+        _signatureAlgorithm = signatureAlgorithm ?? Ed25519();
+
   /// Calculate SHA256 hash of a file
   Future<String> hashFile(File file) async {
     final bytes = await file.readAsBytes();
@@ -37,7 +52,11 @@ class UpdateVerifier {
     for (final entry in manifest.files.entries) {
       final relativePath = entry.key;
       final fileInfo = entry.value;
-      final file = File('${directory.path}/$relativePath');
+      final file = await _resolveManifestFile(directory, relativePath);
+      if (file == null) {
+        corruptedFiles[relativePath] = 'unsafe path';
+        continue;
+      }
 
       if (!await file.exists()) {
         missingFiles.add(relativePath);
@@ -60,11 +79,59 @@ class UpdateVerifier {
     );
   }
 
+  Future<File?> _resolveManifestFile(
+    Directory directory,
+    String relativePath,
+  ) async {
+    final portablePath = relativePath.replaceAll('\\', '/');
+    if (portablePath.isEmpty ||
+        path.posix.isAbsolute(portablePath) ||
+        RegExp(r'^[a-zA-Z]:/').hasMatch(portablePath) ||
+        portablePath.startsWith('//')) {
+      return null;
+    }
+
+    final normalized = path.posix.normalize(portablePath);
+    if (normalized == '.' ||
+        normalized == '..' ||
+        normalized.startsWith('../') ||
+        normalized.contains('/../') ||
+        normalized.split('/').any((part) => part.isEmpty || part == '.')) {
+      return null;
+    }
+
+    final root = await directory.resolveSymbolicLinks();
+    final file = File(path.joinAll([root, ...normalized.split('/')]));
+    if (await file.exists()) {
+      final resolvedFile = await file.resolveSymbolicLinks();
+      if (!_isWithinDirectory(root, resolvedFile)) {
+        return null;
+      }
+    }
+    return file;
+  }
+
+  bool _isWithinDirectory(String root, String candidate) {
+    final normalizedRoot = _normalizeForComparison(path.normalize(root));
+    final normalizedCandidate =
+        _normalizeForComparison(path.normalize(candidate));
+    if (normalizedCandidate == normalizedRoot) {
+      return true;
+    }
+    final rootWithSeparator = normalizedRoot.endsWith(path.separator)
+        ? normalizedRoot
+        : '$normalizedRoot${path.separator}';
+    return normalizedCandidate.startsWith(rootWithSeparator);
+  }
+
+  String _normalizeForComparison(String value) {
+    return Platform.isWindows ? value.toLowerCase() : value;
+  }
+
   /// Verify a downloaded package (ZIP file) before extraction
   Future<bool> verifyPackage(
     File packageFile,
-    int expectedSize,
-    String? expectedHash,
+    UpdateManifest manifest,
   ) async {
     if (!await packageFile.exists()) {
       return false;
@@ -72,19 +139,87 @@ class UpdateVerifier {
 
     // Check size
     final actualSize = await packageFile.length();
-    if (actualSize != expectedSize) {
+    if (actualSize != manifest.compressedSize) {
       return false;
     }
 
-    // Check hash if provided
-    if (expectedHash != null) {
-      final actualHash = await hashFile(packageFile);
-      if (actualHash.toLowerCase() != expectedHash.toLowerCase()) {
-        return false;
-      }
+    if (manifest.packageSha256 == null || manifest.packageSha256!.isEmpty) {
+      return false;
     }
 
-    return true;
+    final actualHash = await hashFile(packageFile);
+    if (actualHash.toLowerCase() != manifest.packageSha256!.toLowerCase()) {
+      return false;
+    }
+
+    if (!_requiresManifestSignature(manifest)) {
+      return true;
+    }
+
+    return verifyManifestSignature(manifest);
+  }
+
+  Future<bool> verifyManifestSignature(UpdateManifest manifest) async {
+    if (manifest.signature == null ||
+        manifest.signature!.isEmpty ||
+        _trustedPublicKeyBase64.isEmpty) {
+      return false;
+    }
+
+    try {
+      final payloadBytes = utf8.encode(_canonicalManifestPayload(manifest));
+      final publicKey = SimplePublicKey(
+        base64Decode(_trustedPublicKeyBase64),
+        type: KeyPairType.ed25519,
+      );
+      final signature = Signature(
+        base64Decode(manifest.signature!),
+        publicKey: publicKey,
+      );
+      return await _signatureAlgorithm.verify(payloadBytes,
+          signature: signature);
+    } catch (e) {
+      developer.log(
+        'Signature verification error: $e',
+        name: 'UpdateVerifier',
+        level: 900,
+      );
+      return false;
+    }
+  }
+
+  String _canonicalManifestPayload(UpdateManifest manifest) {
+    final sortedFiles = manifest.files.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final payload = <String, dynamic>{
+      'version': manifest.version,
+      'buildNumber': manifest.buildNumber,
+      'releaseDate': manifest.releaseDate.toUtc().toIso8601String(),
+      'platform': manifest.platform,
+      'arch': manifest.arch,
+      'minVersion': manifest.minVersion,
+      'files': {
+        for (final entry in sortedFiles)
+          entry.key: {
+            'path': entry.value.path,
+            'size': entry.value.size,
+            'sha256': entry.value.sha256,
+          },
+      },
+      'totalSize': manifest.totalSize,
+      'compressedSize': manifest.compressedSize,
+      'packageSha256': manifest.packageSha256,
+      'downloadUrl': manifest.downloadUrl,
+      'releaseNotes': manifest.releaseNotes,
+    };
+    return jsonEncode(payload);
+  }
+
+  bool _requiresManifestSignature(UpdateManifest manifest) {
+    final hasTrustedKey = _trustedPublicKeyBase64.isNotEmpty;
+    final hasSignature =
+        manifest.signature != null && manifest.signature!.isNotEmpty;
+    return hasTrustedKey || hasSignature;
   }
 }
 

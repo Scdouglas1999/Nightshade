@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 
+import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 
 /// Provider for pairing state management
-final pairingProvider = StateNotifierProvider<PairingNotifier, PairingState>((ref) {
+final pairingProvider =
+    StateNotifierProvider<PairingNotifier, PairingState>((ref) {
   return PairingNotifier();
 });
 
@@ -29,18 +31,22 @@ class PairingState {
   });
 
   PairingState copyWith({
-    String? pairingCode,
-    DateTime? expiresAt,
+    Object? pairingCode = _pairingUnset,
+    Object? expiresAt = _pairingUnset,
     List<PairedDevice>? pairedDevices,
     bool? isLoading,
-    String? error,
+    Object? error = _pairingUnset,
   }) {
     return PairingState(
-      pairingCode: pairingCode ?? this.pairingCode,
-      expiresAt: expiresAt ?? this.expiresAt,
+      pairingCode: identical(pairingCode, _pairingUnset)
+          ? this.pairingCode
+          : pairingCode as String?,
+      expiresAt: identical(expiresAt, _pairingUnset)
+          ? this.expiresAt
+          : expiresAt as DateTime?,
       pairedDevices: pairedDevices ?? this.pairedDevices,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: identical(error, _pairingUnset) ? this.error : error as String?,
     );
   }
 
@@ -96,10 +102,10 @@ class PairingNotifier extends StateNotifier<PairingState> {
           _countdownTimer?.cancel();
         }
       });
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to start pairing: $e',
+        error: 'pairingErrorStart',
       );
     }
   }
@@ -115,9 +121,9 @@ class PairingNotifier extends StateNotifier<PairingState> {
   Future<void> loadPairedDevices() async {
     try {
       final devices = await _tokenManager.getActivePairedDevices();
-      state = state.copyWith(pairedDevices: devices);
-    } catch (e) {
-      state = state.copyWith(error: 'Failed to load devices: $e');
+      state = state.copyWith(pairedDevices: devices, error: null);
+    } catch (_) {
+      state = state.copyWith(error: 'pairingErrorLoad');
     }
   }
 
@@ -129,10 +135,10 @@ class PairingNotifier extends StateNotifier<PairingState> {
       await _tokenManager.revokeDevice(deviceId);
       await loadPairedDevices();
       state = state.copyWith(isLoading: false);
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to revoke device: $e',
+        error: 'pairingErrorRevoke',
       );
     }
   }
@@ -145,12 +151,16 @@ class PairingNotifier extends StateNotifier<PairingState> {
       await _tokenManager.deleteDevice(deviceId);
       await loadPairedDevices();
       state = state.copyWith(isLoading: false);
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Failed to delete device: $e',
+        error: 'pairingErrorDelete',
       );
     }
+  }
+
+  void clearError() {
+    state = state.copyWith(error: null);
   }
 
   @override
@@ -168,16 +178,25 @@ class PairingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(pairingProvider);
+    final l10n = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Remote Connection Pairing'),
+        title: Text(l10n.text('pairingTitle')),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (state.error != null) ...[
+              _PairingErrorBanner(
+                message: state.error!,
+                onDismiss: () =>
+                    ref.read(pairingProvider.notifier).clearError(),
+              ),
+              const SizedBox(height: 16),
+            ],
             _buildPairingSection(context, ref, state),
             const SizedBox(height: 32),
             _buildPairedDevicesSection(context, ref, state),
@@ -189,6 +208,7 @@ class PairingScreen extends ConsumerWidget {
 
   Widget _buildPairingSection(
       BuildContext context, WidgetRef ref, PairingState state) {
+    final l10n = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -196,19 +216,18 @@ class PairingScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Pair New Device',
+              l10n.text('pairingNewDeviceTitle'),
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 16),
             if (state.pairingCode == null) ...[
               Text(
-                'Start pairing mode to allow a new device to connect. '
-                'The pairing code will be valid for 5 minutes.',
+                l10n.text('pairingStartDesc'),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               NightshadeButton(
-                label: 'Start Pairing Mode',
+                label: l10n.text('pairingStartButton'),
                 icon: Icons.link,
                 variant: ButtonVariant.primary,
                 onPressed: state.isLoading
@@ -226,6 +245,7 @@ class PairingScreen extends ConsumerWidget {
 
   Widget _buildPairingCodeDisplay(
       BuildContext context, WidgetRef ref, PairingState state) {
+    final l10n = context.l10n;
     final timeRemaining = state.timeRemaining;
     final minutes = timeRemaining?.inMinutes ?? 0;
     final seconds = (timeRemaining?.inSeconds ?? 0) % 60;
@@ -236,12 +256,12 @@ class PairingScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
             children: [
               Text(
-                'Enter this code on your device:',
+                l10n.text('pairingEnterCode'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 16),
@@ -262,10 +282,11 @@ class PairingScreen extends ConsumerWidget {
                       Clipboard.setData(
                           ClipboardData(text: state.pairingCode!));
                       context.showSuccessSnackBar(
-                          'Pairing code copied to clipboard');
+                        l10n.text('pairingCodeCopied'),
+                      );
                     },
                     icon: const Icon(Icons.copy),
-                    tooltip: 'Copy code',
+                    tooltip: l10n.text('pairingCopyCode'),
                   ),
                 ],
               ),
@@ -283,7 +304,13 @@ class PairingScreen extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Expires in ${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+              l10n.text(
+                'pairingExpiresIn',
+                params: {
+                  'minutes': minutes.toString().padLeft(2, '0'),
+                  'seconds': seconds.toString().padLeft(2, '0'),
+                },
+              ),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Theme.of(context).colorScheme.secondary,
                   ),
@@ -292,7 +319,7 @@ class PairingScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         NightshadeButton(
-          label: 'Cancel Pairing',
+          label: l10n.text('pairingCancel'),
           variant: ButtonVariant.outline,
           onPressed: () => ref.read(pairingProvider.notifier).cancelPairing(),
         ),
@@ -302,6 +329,7 @@ class PairingScreen extends ConsumerWidget {
 
   Widget _buildPairedDevicesSection(
       BuildContext context, WidgetRef ref, PairingState state) {
+    final l10n = context.l10n;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -312,14 +340,14 @@ class PairingScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Paired Devices',
+                  l10n.text('pairingDevicesTitle'),
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 IconButton(
                   onPressed: () =>
                       ref.read(pairingProvider.notifier).loadPairedDevices(),
                   icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh',
+                  tooltip: l10n.text('pairingRefresh'),
                 ),
               ],
             ),
@@ -337,12 +365,12 @@ class PairingScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No paired devices',
+                        l10n.text('pairingNoDevices'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Start pairing mode to connect a device',
+                        l10n.text('pairingNoDevicesDesc'),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Theme.of(context).colorScheme.outline,
                             ),
@@ -370,48 +398,129 @@ class PairingScreen extends ConsumerWidget {
 
   Widget _buildDeviceListItem(
       BuildContext context, WidgetRef ref, PairedDevice device) {
-    return ListTile(
-      leading: Icon(
-        _getDeviceIcon(device.deviceType),
-        size: 32,
-      ),
-      title: Text(device.deviceName),
-      subtitle: Column(
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final statusText = _deviceStatus(device);
+    final statusColor = _deviceStatusColor(colors, device);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Paired: ${_formatDate(device.pairedAt)}'),
-          if (device.lastConnectedAt != null)
-            Text('Last connected: ${_formatDate(device.lastConnectedAt!)}'),
-        ],
-      ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'revoke') {
-            _showRevokeDialog(context, ref, device);
-          } else if (value == 'delete') {
-            _showDeleteDialog(context, ref, device);
-          }
-        },
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'revoke',
-            child: Row(
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _getDeviceIcon(device.deviceType),
+              size: 22,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.block),
-                SizedBox(width: 8),
-                Text('Revoke Access'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        device.deviceName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _deviceTypeLabel(device.deviceType),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  context.l10n.text(
+                    'pairingPairedAt',
+                    params: {'time': _formatDate(context, device.pairedAt)},
+                  ),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                Text(
+                  device.lastConnectedAt != null
+                      ? context.l10n.text(
+                          'pairingLastConnected',
+                          params: {
+                            'time':
+                                _formatDate(context, device.lastConnectedAt!),
+                          },
+                        )
+                      : 'Has not connected yet',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
-          const PopupMenuItem(
-            value: 'delete',
-            child: Row(
-              children: [
-                Icon(Icons.delete),
-                SizedBox(width: 8),
-                Text('Delete Device'),
-              ],
-            ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'revoke') {
+                _showRevokeDialog(context, ref, device);
+              } else if (value == 'delete') {
+                _showDeleteDialog(context, ref, device);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'revoke',
+                child: Row(
+                  children: [
+                    const Icon(Icons.block),
+                    const SizedBox(width: 8),
+                    Text(context.l10n.text('pairingRevokeAccess')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    const Icon(Icons.delete),
+                    const SizedBox(width: 8),
+                    Text(context.l10n.text('pairingDeleteDevice')),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -431,20 +540,71 @@ class PairingScreen extends ConsumerWidget {
     }
   }
 
-  String _formatDate(DateTime date) {
+  String _deviceTypeLabel(String deviceType) {
+    switch (deviceType.toLowerCase()) {
+      case 'mobile':
+        return 'Phone';
+      case 'tablet':
+        return 'Tablet';
+      case 'desktop':
+        return 'Computer';
+      default:
+        return 'Browser or device';
+    }
+  }
+
+  String _deviceStatus(PairedDevice device) {
+    if (!device.isActive) {
+      return 'Revoked';
+    }
+    if (device.lastConnectedAt == null) {
+      return 'Ready to connect';
+    }
+    final difference = DateTime.now().difference(device.lastConnectedAt!);
+    if (difference.inHours < 24) {
+      return 'Seen recently';
+    }
+    return 'Trusted';
+  }
+
+  Color _deviceStatusColor(NightshadeColors colors, PairedDevice device) {
+    if (!device.isActive) {
+      return colors.error;
+    }
+    if (device.lastConnectedAt == null) {
+      return colors.primary;
+    }
+    final difference = DateTime.now().difference(device.lastConnectedAt!);
+    if (difference.inHours < 24) {
+      return colors.success;
+    }
+    return colors.textSecondary;
+  }
+
+  String _formatDate(BuildContext context, DateTime date) {
+    final l10n = context.l10n;
     final now = DateTime.now();
     final difference = now.difference(date);
 
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
         if (difference.inMinutes == 0) {
-          return 'Just now';
+          return l10n.text('pairingJustNow');
         }
-        return '${difference.inMinutes}m ago';
+        return l10n.text(
+          'pairingMinutesAgo',
+          params: {'count': difference.inMinutes.toString()},
+        );
       }
-      return '${difference.inHours}h ago';
+      return l10n.text(
+        'pairingHoursAgo',
+        params: {'count': difference.inHours.toString()},
+      );
     } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
+      return l10n.text(
+        'pairingDaysAgo',
+        params: {'count': difference.inDays.toString()},
+      );
     } else {
       return '${date.month}/${date.day}/${date.year}';
     }
@@ -455,20 +615,22 @@ class PairingScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Revoke Device Access'),
+        title: Text(context.l10n.text('pairingRevokeTitle')),
         content: Text(
-          'Are you sure you want to revoke access for "${device.deviceName}"? '
-          'This device will no longer be able to connect until it is paired again.',
+          context.l10n.text(
+            'pairingRevokeBody',
+            params: {'name': device.deviceName},
+          ),
         ),
         actions: [
           NightshadeButton(
-            label: 'Cancel',
+            label: context.l10n.text('cancel'),
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
             onPressed: () => Navigator.of(context).pop(),
           ),
           NightshadeButton(
-            label: 'Revoke',
+            label: context.l10n.text('pairingRevokeAccess'),
             variant: ButtonVariant.primary,
             size: ButtonSize.small,
             onPressed: () {
@@ -486,20 +648,22 @@ class PairingScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Device'),
+        title: Text(context.l10n.text('pairingDeleteTitle')),
         content: Text(
-          'Are you sure you want to permanently delete "${device.deviceName}"? '
-          'This action cannot be undone.',
+          context.l10n.text(
+            'pairingDeleteBody',
+            params: {'name': device.deviceName},
+          ),
         ),
         actions: [
           NightshadeButton(
-            label: 'Cancel',
+            label: context.l10n.text('cancel'),
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
             onPressed: () => Navigator.of(context).pop(),
           ),
           NightshadeButton(
-            label: 'Delete',
+            label: context.l10n.text('pairingDeleteDevice'),
             variant: ButtonVariant.destructive,
             size: ButtonSize.small,
             onPressed: () {
@@ -512,3 +676,51 @@ class PairingScreen extends ConsumerWidget {
     );
   }
 }
+
+class _PairingErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _PairingErrorBanner({
+    required this.message,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, color: colors.error, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              context.l10n.text(message),
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          TextButton(
+            onPressed: onDismiss,
+            child: Text(context.l10n.text('pairingDismissError')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const Object _pairingUnset = Object();

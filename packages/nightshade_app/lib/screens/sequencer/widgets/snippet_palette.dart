@@ -378,7 +378,8 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
             decoration: BoxDecoration(
               color: widget.colors.info.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+              border:
+                  Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -538,7 +539,7 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: widget.colors.surfaceOverlay,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
           ),
           title: Row(
             children: [
@@ -773,9 +774,8 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                   : widget.colors.surfaceAlt,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isSelected
-                    ? widget.colors.primary
-                    : widget.colors.border,
+                color:
+                    isSelected ? widget.colors.primary : widget.colors.border,
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -840,7 +840,7 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
       builder: (context) => AlertDialog(
         backgroundColor: widget.colors.surfaceOverlay,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         title: Row(
           children: [
@@ -876,7 +876,9 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
           ),
           NightshadeButton(
             onPressed: () {
-              ref.read(customSnippetsProvider.notifier).removeSnippet(snippet.id);
+              ref
+                  .read(customSnippetsProvider.notifier)
+                  .removeSnippet(snippet.id);
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -1017,8 +1019,9 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
             ),
           ),
           secondChild: const SizedBox.shrink(),
-          crossFadeState:
-              _isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          crossFadeState: _isExpanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
           duration: const Duration(milliseconds: 200),
         ),
       ],
@@ -1273,7 +1276,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: widget.colors.info.withValues(alpha: 0.1),
+                                color:
+                                    widget.colors.info.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: Text(

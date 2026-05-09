@@ -18,6 +18,8 @@ export 'handlers/suggestion_handlers.dart';
 export 'handlers/transient_handlers.dart';
 export 'handlers/backup_handlers.dart';
 export 'handlers/framing_handlers.dart';
+export 'handlers/filesystem_handlers.dart';
+export 'handlers/science_handlers.dart';
 
 // Auxiliary device handlers
 export 'handlers/dome_handlers.dart';

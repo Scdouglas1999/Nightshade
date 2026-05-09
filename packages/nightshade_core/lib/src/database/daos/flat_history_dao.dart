@@ -76,28 +76,30 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Clear old history entries (keep last N per filter)
   Future<void> pruneHistory({int keepPerFilter = 50}) async {
-    // Get distinct filter names
-    final filters = await (selectOnly(flatHistory, distinct: true)
-          ..addColumns([flatHistory.filterName]))
-        .map((row) => row.read(flatHistory.filterName)!)
-        .get();
-
-    for (final filter in filters) {
-      // Get IDs to keep
-      final keepIds = await (select(flatHistory)
-            ..where((t) => t.filterName.equals(filter))
-            ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
-            ..limit(keepPerFilter))
-          .map((e) => e.id)
+    await transaction(() async {
+      // Get distinct filter names
+      final filters = await (selectOnly(flatHistory, distinct: true)
+            ..addColumns([flatHistory.filterName]))
+          .map((row) => row.read(flatHistory.filterName)!)
           .get();
 
-      if (keepIds.isNotEmpty) {
-        // Delete entries not in keep list
-        await (delete(flatHistory)
-              ..where((t) =>
-                  t.filterName.equals(filter) & t.id.isNotIn(keepIds)))
-            .go();
+      for (final filter in filters) {
+        // Get IDs to keep
+        final keepIds = await (select(flatHistory)
+              ..where((t) => t.filterName.equals(filter))
+              ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+              ..limit(keepPerFilter))
+            .map((e) => e.id)
+            .get();
+
+        if (keepIds.isNotEmpty) {
+          // Delete entries not in keep list
+          await (delete(flatHistory)
+                ..where((t) =>
+                    t.filterName.equals(filter) & t.id.isNotIn(keepIds)))
+              .go();
+        }
       }
-    }
+    });
   }
 }

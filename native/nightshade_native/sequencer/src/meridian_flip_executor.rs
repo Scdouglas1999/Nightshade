@@ -70,9 +70,52 @@ impl MeridianFlipExecutor {
         self.abort_requested.clone()
     }
 
+    /// Minimum altitude (degrees) for a target to be viable after a flip.
+    /// If the target would be below this after the flip, skip it.
+    const MIN_POST_FLIP_ALTITUDE_DEG: f64 = 10.0;
+
     /// Execute the meridian flip
     pub async fn execute(&mut self, ctx: &FlipContext) -> FlipResult {
         let start_time = Instant::now();
+
+        // ENG-F9: Pre-flip sanity check — verify target altitude is viable.
+        // If the target is below the minimum altitude, continuing with the flip
+        // would slew to an object that's about to set, risking equipment damage
+        // or wasted imaging time.
+        if let Some((lat, lon)) = self.device_ops.get_observer_location() {
+            let altitude = self.device_ops.calculate_altitude(
+                ctx.target_ra_hours,
+                ctx.target_dec_degrees,
+                lat,
+                lon,
+            );
+            tracing::info!(
+                "[MERIDIAN] Pre-flip altitude check: target '{}' altitude = {:.1}° (minimum = {:.1}°)",
+                ctx.target_name,
+                altitude,
+                Self::MIN_POST_FLIP_ALTITUDE_DEG
+            );
+            if altitude < Self::MIN_POST_FLIP_ALTITUDE_DEG {
+                let msg = format!(
+                    "Meridian flip skipped: target '{}' altitude is {:.1}° which is below \
+                     the minimum {:.1}°. The target is too low for useful imaging after the flip.",
+                    ctx.target_name,
+                    altitude,
+                    Self::MIN_POST_FLIP_ALTITUDE_DEG
+                );
+                tracing::warn!("[MERIDIAN] {}", msg);
+                self.emit_event(MeridianFlipEvent::Failed {
+                    error: msg.clone(),
+                    action_taken: "Flip skipped due to low target altitude".to_string(),
+                });
+                return FlipResult::Aborted { reason: msg };
+            }
+        } else {
+            tracing::warn!(
+                "[MERIDIAN] Observer location unavailable — cannot verify target altitude \
+                 before flip. Proceeding with flip."
+            );
+        }
 
         // Get current pier side
         let from_pier_side = match self.get_pier_side(&ctx.mount_id).await {
@@ -104,7 +147,10 @@ impl MeridianFlipExecutor {
         loop {
             attempt += 1;
 
-            match self.execute_steps(&steps, ctx, total_steps).await {
+            match self
+                .execute_steps(&steps, ctx, total_steps, from_pier_side)
+                .await
+            {
                 Ok(new_pier_side) => {
                     let duration = start_time.elapsed().as_secs_f64();
                     self.emit_event(MeridianFlipEvent::Completed {
@@ -210,6 +256,7 @@ impl MeridianFlipExecutor {
         steps: &[FlipStep],
         ctx: &FlipContext,
         total_steps: u8,
+        pre_flip_pier_side: PierSide,
     ) -> Result<PierSide, String> {
         let mut new_pier_side = PierSide::Unknown;
 
@@ -238,7 +285,10 @@ impl MeridianFlipExecutor {
                         .await
                 }
                 FlipStep::VerifyingPierSide => {
-                    match self.verify_pier_side_changed(&ctx.mount_id).await {
+                    match self
+                        .verify_pier_side_changed(&ctx.mount_id, pre_flip_pier_side)
+                        .await
+                    {
                         Ok(ps) => {
                             new_pier_side = ps;
                             Ok(())
@@ -310,7 +360,8 @@ impl MeridianFlipExecutor {
             .mount_slew_to_coordinates(mount_id, ra_hours, dec_degrees)
             .await?;
 
-        // Wait for slew to complete
+        // Wait for slew to complete with timeout (10 minutes for meridian flip slew)
+        let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(600);
         loop {
             if self
                 .abort_requested
@@ -325,22 +376,44 @@ impl MeridianFlipExecutor {
                 break;
             }
 
+            if tokio::time::Instant::now() > slew_timeout {
+                // Abort the slew before returning error
+                let _ = self.device_ops.mount_abort_slew(mount_id).await;
+                return Err("Meridian flip slew timed out after 10 minutes".to_string());
+            }
+
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
 
         Ok(())
     }
 
-    async fn verify_pier_side_changed(&self, mount_id: &str) -> Result<PierSide, String> {
-        tracing::info!("[MERIDIAN] Verifying pier side changed...");
+    async fn verify_pier_side_changed(
+        &self,
+        mount_id: &str,
+        pre_flip_pier_side: PierSide,
+    ) -> Result<PierSide, String> {
+        tracing::info!(
+            "[MERIDIAN] Verifying pier side changed from {:?}...",
+            pre_flip_pier_side
+        );
 
-        let pier_side = self.get_pier_side(mount_id).await?;
+        let new_pier_side = self.get_pier_side(mount_id).await?;
 
-        tracing::info!("[MERIDIAN] New pier side: {:?}", pier_side);
+        tracing::info!("[MERIDIAN] New pier side: {:?}", new_pier_side);
 
-        // We don't validate the specific pier side - the mount knows best
-        // Just report what it is now
-        Ok(pier_side)
+        // If pre-flip pier side was known, verify it actually changed
+        if pre_flip_pier_side != PierSide::Unknown && new_pier_side != PierSide::Unknown {
+            if pre_flip_pier_side == new_pier_side {
+                return Err(format!(
+                    "Pier side did not change after flip (still {:?}). \
+                     The mount may not have flipped correctly.",
+                    new_pier_side
+                ));
+            }
+        }
+
+        Ok(new_pier_side)
     }
 
     async fn resume_tracking(&self, mount_id: &str) -> Result<(), String> {
@@ -406,12 +479,27 @@ impl MeridianFlipExecutor {
             .mount_slew_to_coordinates(&ctx.mount_id, ctx.target_ra_hours, ctx.target_dec_degrees)
             .await?;
 
-        // Wait for slew
+        // Wait for centering slew to complete with timeout
+        let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
         loop {
+            if self
+                .abort_requested
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
+                let _ = self.device_ops.mount_abort_slew(&ctx.mount_id).await;
+                return Err("Abort requested during centering slew".to_string());
+            }
+
             let is_slewing = self.device_ops.mount_is_slewing(&ctx.mount_id).await?;
             if !is_slewing {
                 break;
             }
+
+            if tokio::time::Instant::now() > slew_timeout {
+                let _ = self.device_ops.mount_abort_slew(&ctx.mount_id).await;
+                return Err("Centering slew timed out after 5 minutes".to_string());
+            }
+
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
 
@@ -446,6 +534,7 @@ impl MeridianFlipExecutor {
             exposure_duration: 3.0, // 3 second exposures
             filter: None,           // Use current filter
             binning: Binning::One,  // 1x1 binning for best focus accuracy
+            max_duration_secs: 600.0,
         };
 
         // Create instruction context for autofocus
@@ -561,16 +650,23 @@ impl MeridianFlipExecutor {
 
     fn calculate_hour_angle(&self, ra_hours: f64) -> f64 {
         // Calculate Hour Angle: HA = LST - RA
-        // We use Greenwich Mean Sidereal Time (GMST) as an approximation for LST.
-        // This is accurate enough for meridian flip timing since the offset is
-        // constant for a given location and cancels out when comparing against
-        // configured flip thresholds.
+        // LST = GMST + longitude_degrees / 15.0
         let now = chrono::Utc::now();
         let jd = julian_day(now);
         let gmst = greenwich_mean_sidereal_time(jd);
 
-        // Use GMST as LST approximation (longitude offset is constant for a given site)
-        let lst = gmst;
+        // Get observer longitude to convert GMST to LST
+        let longitude_deg = self
+            .device_ops
+            .get_observer_location()
+            .map(|(_lat, lon)| lon)
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    "[MERIDIAN] Observer location unavailable, using longitude=0 for LST calculation"
+                );
+                0.0
+            });
+        let lst = gmst + longitude_deg / 15.0;
         let ha = lst - ra_hours;
 
         // Normalize to -12 to +12 range

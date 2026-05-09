@@ -103,7 +103,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 : _isHovered
                     ? categoryColor.withValues(alpha: 0.06)
                     : widget.colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: widget.isSelected
                   ? categoryColor

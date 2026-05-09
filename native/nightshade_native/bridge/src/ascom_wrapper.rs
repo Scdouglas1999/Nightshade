@@ -66,6 +66,7 @@ enum AscomCommand {
     SetBinning(i32, i32, oneshot::Sender<Result<(), String>>),
     SetGain(i32, oneshot::Sender<Result<(), String>>),
     SetOffset(i32, oneshot::Sender<Result<(), String>>),
+    SetReadoutMode(i32, oneshot::Sender<Result<(), String>>),
     SetCooler(bool, f64, oneshot::Sender<Result<(), String>>),
     /// Heartbeat check to verify device is still responding
     Heartbeat(oneshot::Sender<Result<CameraConnectionHealth, String>>),
@@ -453,6 +454,17 @@ impl AscomCameraWrapper {
                             let result = cam
                                 .set_offset(offset)
                                 .map_err(|e| format!("Failed to set offset: {}", e));
+                            let _ = reply.send(result);
+                        } else {
+                            let _ = reply.send(Err("Camera not created".to_string()));
+                        }
+                    }
+                    AscomCommand::SetReadoutMode(mode_index, reply) => {
+                        tracing::info!("ASCOM: SetReadoutMode called: {}", mode_index);
+                        if let Some(cam) = &mut camera {
+                            let result = cam
+                                .set_readout_mode(mode_index)
+                                .map_err(|e| format!("Failed to set readout mode: {}", e));
                             let _ = reply.send(result);
                         } else {
                             let _ = reply.send(Err("Camera not created".to_string()));
@@ -1026,8 +1038,13 @@ impl NativeCamera for AscomCameraWrapper {
             .map_err(|_| NativeError::Unknown("Failed to read readout mode cache".to_string()))
     }
 
-    async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
-        Err(NativeError::NotSupported)
+    async fn set_readout_mode(&mut self, mode: &ReadoutMode) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomCommand::SetReadoutMode(mode.index, tx))
+            .await
+            .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_readout_mode").await
     }
 
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {

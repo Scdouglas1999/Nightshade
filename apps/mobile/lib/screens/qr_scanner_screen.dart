@@ -90,7 +90,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                         color: colors.primary,
                         width: 3,
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),

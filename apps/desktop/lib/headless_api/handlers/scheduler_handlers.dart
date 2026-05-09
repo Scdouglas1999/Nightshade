@@ -5,6 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for intelligent scheduler endpoints
 ///
 /// These endpoints provide astronomical calculations for target planning:
@@ -44,20 +46,14 @@ class SchedulerHandlers {
       final timeParam = request.url.queryParameters['time'];
 
       if (raParam == null || decParam == null) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "Missing required parameters: ra and dec"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest(
+            {"error": "Missing required parameters: ra and dec"});
       }
 
       final raHours = double.tryParse(raParam);
       final decDegrees = double.tryParse(decParam);
       if (raHours == null || decDegrees == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid ra or dec values"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid ra or dec values"});
       }
 
       // Parse time or use now
@@ -67,13 +63,9 @@ class SchedulerHandlers {
         if (parsed == null) {
           final epochMs = int.tryParse(timeParam);
           if (epochMs == null) {
-            return Response.badRequest(
-              body: jsonEncode({
-                "error":
-                    "Invalid time format. Use ISO8601 or epoch milliseconds."
-              }),
-              headers: {'content-type': 'application/json'},
-            );
+            return jsonBadRequest({
+              "error": "Invalid time format. Use ISO8601 or epoch milliseconds."
+            });
           }
           time = DateTime.fromMillisecondsSinceEpoch(epochMs);
         } else {
@@ -87,13 +79,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Calculate altitude and azimuth
@@ -122,29 +111,23 @@ class SchedulerHandlers {
       );
       final isRising = futureAlt > altitude;
 
-      return Response.ok(
-        jsonEncode({
-          "ra": raHours,
-          "dec": decDegrees,
-          "time": time.toIso8601String(),
-          "altitude": altitude,
-          "azimuth": azimuth,
-          "airmass": airmass.isFinite ? airmass : null,
-          "isAboveHorizon": altitude > 0,
-          "isRising": isRising,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "ra": raHours,
+        "dec": decDegrees,
+        "time": time.toIso8601String(),
+        "altitude": altitude,
+        "azimuth": azimuth,
+        "airmass": airmass.isFinite ? airmass : null,
+        "isAboveHorizon": altitude > 0,
+        "isRising": isRising,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Calculate altitude error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -164,33 +147,24 @@ class SchedulerHandlers {
       final decParam = request.url.queryParameters['dec'];
 
       if (raParam == null || decParam == null) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "Missing required parameters: ra and dec"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest(
+            {"error": "Missing required parameters: ra and dec"});
       }
 
       final raHours = double.tryParse(raParam);
       final decDegrees = double.tryParse(decParam);
       if (raHours == null || decDegrees == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid ra or dec values"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid ra or dec values"});
       }
 
       // Get observer location
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Calculate visibility
@@ -205,41 +179,32 @@ class SchedulerHandlers {
       );
 
       if (visibility.transitTime == null) {
-        return Response.ok(
-          jsonEncode({
-            "ra": raHours,
-            "dec": decDegrees,
-            "transitTime": null,
-            "transitAltitude": null,
-            "isCircumpolar": visibility.isCircumpolar,
-            "neverRises": visibility.neverRises,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
-      }
-
-      return Response.ok(
-        jsonEncode({
+        return jsonOk({
           "ra": raHours,
           "dec": decDegrees,
-          "transitTime": visibility.transitTime!.toIso8601String(),
-          "transitTimeEpoch": visibility.transitTime!.millisecondsSinceEpoch,
-          "transitAltitude": visibility.transitAltitude,
+          "transitTime": null,
+          "transitAltitude": null,
           "isCircumpolar": visibility.isCircumpolar,
           "neverRises": visibility.neverRises,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+        });
+      }
+
+      return jsonOk({
+        "ra": raHours,
+        "dec": decDegrees,
+        "transitTime": visibility.transitTime!.toIso8601String(),
+        "transitTimeEpoch": visibility.transitTime!.millisecondsSinceEpoch,
+        "transitAltitude": visibility.transitAltitude,
+        "isCircumpolar": visibility.isCircumpolar,
+        "neverRises": visibility.neverRises,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Calculate transit time error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -260,20 +225,14 @@ class SchedulerHandlers {
       final minAltParam = request.url.queryParameters['minAltitude'];
 
       if (raParam == null || decParam == null) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "Missing required parameters: ra and dec"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest(
+            {"error": "Missing required parameters: ra and dec"});
       }
 
       final raHours = double.tryParse(raParam);
       final decDegrees = double.tryParse(decParam);
       if (raHours == null || decDegrees == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid ra or dec values"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid ra or dec values"});
       }
 
       final minAltitude = double.tryParse(minAltParam ?? '0') ?? 0.0;
@@ -282,13 +241,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Calculate visibility
@@ -303,35 +259,29 @@ class SchedulerHandlers {
         minAltitude: minAltitude,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "ra": raHours,
-          "dec": decDegrees,
-          "minAltitude": minAltitude,
-          "riseTime": visibility.riseTime?.toIso8601String(),
-          "riseTimeEpoch": visibility.riseTime?.millisecondsSinceEpoch,
-          "transitTime": visibility.transitTime?.toIso8601String(),
-          "transitTimeEpoch": visibility.transitTime?.millisecondsSinceEpoch,
-          "setTime": visibility.setTime?.toIso8601String(),
-          "setTimeEpoch": visibility.setTime?.millisecondsSinceEpoch,
-          "transitAltitude": visibility.transitAltitude,
-          "isCircumpolar": visibility.isCircumpolar,
-          "neverRises": visibility.neverRises,
-          "durationAboveHorizonMinutes":
-              visibility.durationAboveHorizon?.inMinutes,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "ra": raHours,
+        "dec": decDegrees,
+        "minAltitude": minAltitude,
+        "riseTime": visibility.riseTime?.toIso8601String(),
+        "riseTimeEpoch": visibility.riseTime?.millisecondsSinceEpoch,
+        "transitTime": visibility.transitTime?.toIso8601String(),
+        "transitTimeEpoch": visibility.transitTime?.millisecondsSinceEpoch,
+        "setTime": visibility.setTime?.toIso8601String(),
+        "setTimeEpoch": visibility.setTime?.millisecondsSinceEpoch,
+        "transitAltitude": visibility.transitAltitude,
+        "isCircumpolar": visibility.isCircumpolar,
+        "neverRises": visibility.neverRises,
+        "durationAboveHorizonMinutes":
+            visibility.durationAboveHorizon?.inMinutes,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Calculate rise/set error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -352,20 +302,14 @@ class SchedulerHandlers {
       final minAltParam = request.url.queryParameters['minAltitude'];
 
       if (raParam == null || decParam == null) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "Missing required parameters: ra and dec"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest(
+            {"error": "Missing required parameters: ra and dec"});
       }
 
       final raHours = double.tryParse(raParam);
       final decDegrees = double.tryParse(decParam);
       if (raHours == null || decDegrees == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid ra or dec values"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid ra or dec values"});
       }
 
       final minAltitude = double.tryParse(minAltParam ?? '30') ?? 30.0;
@@ -374,13 +318,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Calculate visibility
@@ -406,28 +347,22 @@ class SchedulerHandlers {
         hoursAbove = 0.0;
       }
 
-      return Response.ok(
-        jsonEncode({
-          "ra": raHours,
-          "dec": decDegrees,
-          "minAltitude": minAltitude,
-          "hoursAbove": hoursAbove,
-          "isCircumpolar": visibility.isCircumpolar,
-          "neverRises": visibility.neverRises,
-          "transitAltitude": visibility.transitAltitude,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "ra": raHours,
+        "dec": decDegrees,
+        "minAltitude": minAltitude,
+        "hoursAbove": hoursAbove,
+        "isCircumpolar": visibility.isCircumpolar,
+        "neverRises": visibility.neverRises,
+        "transitAltitude": visibility.transitAltitude,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Calculate hours above horizon error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -449,10 +384,7 @@ class SchedulerHandlers {
           .toList();
 
       if (targetIds == null || targetIds.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Missing or empty targetIds array"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Missing or empty targetIds array"});
       }
 
       // Parse strategy
@@ -463,13 +395,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Fetch targets from database
@@ -482,11 +411,8 @@ class SchedulerHandlers {
       }
 
       if (targets.isEmpty) {
-        return Response.badRequest(
-          body:
-              jsonEncode({"error": "No valid targets found for provided IDs"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest(
+            {"error": "No valid targets found for provided IDs"});
       }
 
       // Calculate visibility data for each target
@@ -617,13 +543,10 @@ class SchedulerHandlers {
           break;
 
         default:
-          return Response.badRequest(
-            body: jsonEncode({
-              "error":
-                  "Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority"
-            }),
-            headers: {'content-type': 'application/json'},
-          );
+          return jsonBadRequest({
+            "error":
+                "Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority"
+          });
       }
 
       // Build response
@@ -645,24 +568,18 @@ class SchedulerHandlers {
         };
       }).toList();
 
-      return Response.ok(
-        jsonEncode({
-          "strategy": strategyStr,
-          "minAltitude": minAltitude,
-          "optimizedTargets": orderedResults,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "strategy": strategyStr,
+        "minAltitude": minAltitude,
+        "optimizedTargets": orderedResults,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Optimize targets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -681,13 +598,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Optional date parameter
@@ -696,10 +610,7 @@ class SchedulerHandlers {
       if (dateParam != null) {
         final parsed = DateTime.tryParse(dateParam);
         if (parsed == null) {
-          return Response.badRequest(
-            body: jsonEncode({"error": "Invalid date format. Use ISO8601."}),
-            headers: {'content-type': 'application/json'},
-          );
+          return jsonBadRequest({"error": "Invalid date format. Use ISO8601."});
         }
         date = parsed;
       } else {
@@ -713,41 +624,35 @@ class SchedulerHandlers {
         longitudeDeg: longitude,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "date": date.toIso8601String().split('T')[0],
-          "sunset": twilight.sunset?.toIso8601String(),
-          "sunsetEpoch": twilight.sunset?.millisecondsSinceEpoch,
-          "civilDusk": twilight.civilDusk?.toIso8601String(),
-          "civilDuskEpoch": twilight.civilDusk?.millisecondsSinceEpoch,
-          "nauticalDusk": twilight.nauticalDusk?.toIso8601String(),
-          "nauticalDuskEpoch": twilight.nauticalDusk?.millisecondsSinceEpoch,
-          "astronomicalDusk": twilight.astronomicalDusk?.toIso8601String(),
-          "astronomicalDuskEpoch":
-              twilight.astronomicalDusk?.millisecondsSinceEpoch,
-          "astronomicalDawn": twilight.astronomicalDawn?.toIso8601String(),
-          "astronomicalDawnEpoch":
-              twilight.astronomicalDawn?.millisecondsSinceEpoch,
-          "nauticalDawn": twilight.nauticalDawn?.toIso8601String(),
-          "nauticalDawnEpoch": twilight.nauticalDawn?.millisecondsSinceEpoch,
-          "civilDawn": twilight.civilDawn?.toIso8601String(),
-          "civilDawnEpoch": twilight.civilDawn?.millisecondsSinceEpoch,
-          "sunrise": twilight.sunrise?.toIso8601String(),
-          "sunriseEpoch": twilight.sunrise?.millisecondsSinceEpoch,
-          "darknessDurationMinutes": twilight.darknessDuration?.inMinutes,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "date": date.toIso8601String().split('T')[0],
+        "sunset": twilight.sunset?.toIso8601String(),
+        "sunsetEpoch": twilight.sunset?.millisecondsSinceEpoch,
+        "civilDusk": twilight.civilDusk?.toIso8601String(),
+        "civilDuskEpoch": twilight.civilDusk?.millisecondsSinceEpoch,
+        "nauticalDusk": twilight.nauticalDusk?.toIso8601String(),
+        "nauticalDuskEpoch": twilight.nauticalDusk?.millisecondsSinceEpoch,
+        "astronomicalDusk": twilight.astronomicalDusk?.toIso8601String(),
+        "astronomicalDuskEpoch":
+            twilight.astronomicalDusk?.millisecondsSinceEpoch,
+        "astronomicalDawn": twilight.astronomicalDawn?.toIso8601String(),
+        "astronomicalDawnEpoch":
+            twilight.astronomicalDawn?.millisecondsSinceEpoch,
+        "nauticalDawn": twilight.nauticalDawn?.toIso8601String(),
+        "nauticalDawnEpoch": twilight.nauticalDawn?.millisecondsSinceEpoch,
+        "civilDawn": twilight.civilDawn?.toIso8601String(),
+        "civilDawnEpoch": twilight.civilDawn?.millisecondsSinceEpoch,
+        "sunrise": twilight.sunrise?.toIso8601String(),
+        "sunriseEpoch": twilight.sunrise?.millisecondsSinceEpoch,
+        "darknessDurationMinutes": twilight.darknessDuration?.inMinutes,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Get twilight times error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -766,13 +671,10 @@ class SchedulerHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "No observer location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error":
+              "No observer location configured. Set location in settings first."
+        });
       }
 
       // Optional date parameter
@@ -781,10 +683,7 @@ class SchedulerHandlers {
       if (dateParam != null) {
         final parsed = DateTime.tryParse(dateParam);
         if (parsed == null) {
-          return Response.badRequest(
-            body: jsonEncode({"error": "Invalid date format. Use ISO8601."}),
-            headers: {'content-type': 'application/json'},
-          );
+          return jsonBadRequest({"error": "Invalid date format. Use ISO8601."});
         }
         date = parsed;
       } else {
@@ -814,37 +713,31 @@ class SchedulerHandlers {
         longitudeDeg: longitude,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "date": date.toIso8601String(),
-          "position": {
-            "raHours": moonRaHours,
-            "raDegrees": moonRaDeg,
-            "decDegrees": moonDecDeg,
-            "distanceKm": moonDistance,
-          },
-          "illumination": illumination,
-          "phaseName": phaseName,
-          "currentAltitude": moonAlt,
-          "currentAzimuth": moonAz,
-          "isAboveHorizon": moonAlt > 0,
-          "moonrise": moonTimes.moonrise?.toIso8601String(),
-          "moonriseEpoch": moonTimes.moonrise?.millisecondsSinceEpoch,
-          "moonset": moonTimes.moonset?.toIso8601String(),
-          "moonsetEpoch": moonTimes.moonset?.millisecondsSinceEpoch,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "date": date.toIso8601String(),
+        "position": {
+          "raHours": moonRaHours,
+          "raDegrees": moonRaDeg,
+          "decDegrees": moonDecDeg,
+          "distanceKm": moonDistance,
+        },
+        "illumination": illumination,
+        "phaseName": phaseName,
+        "currentAltitude": moonAlt,
+        "currentAzimuth": moonAz,
+        "isAboveHorizon": moonAlt > 0,
+        "moonrise": moonTimes.moonrise?.toIso8601String(),
+        "moonriseEpoch": moonTimes.moonrise?.millisecondsSinceEpoch,
+        "moonset": moonTimes.moonset?.toIso8601String(),
+        "moonsetEpoch": moonTimes.moonset?.millisecondsSinceEpoch,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Get moon info error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

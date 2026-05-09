@@ -10,13 +10,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
+import 'widgets/batch_operations_toolbar.dart';
 import 'widgets/sequence_toolbar.dart';
 import 'widgets/node_palette.dart';
 import 'widgets/snippet_palette.dart';
 import 'widgets/sequence_tree.dart';
 import 'widgets/node_properties_panel.dart';
 import 'widgets/sequence_progress_bar.dart';
+import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
+import 'tabs/history_tab.dart';
 import 'tabs/targets_tab.dart';
 import 'tabs/templates_tab.dart';
 
@@ -33,7 +36,8 @@ final sequencerExpandedPanelProvider = StateProvider<String?>((ref) => null);
 final sequencerToolboxCollapsedProvider = StateProvider<bool>((ref) => false);
 
 /// Whether the properties panel is collapsed (icon-only mode)
-final sequencerPropertiesCollapsedProvider = StateProvider<bool>((ref) => false);
+final sequencerPropertiesCollapsedProvider =
+    StateProvider<bool>((ref) => false);
 
 /// Whether the snippet palette is visible in the toolbox panel
 final snippetPaletteVisibleProvider = StateProvider<bool>((ref) => false);
@@ -58,7 +62,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -120,10 +124,19 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             },
             const SingleActivator(LogicalKeyboardKey.delete): () {
               if (currentTab == 0) {
-                final selectedId = ref.read(selectedNodeIdProvider);
-                if (selectedId != null) {
-                  ref.read(currentSequenceProvider.notifier).removeNode(selectedId);
-                  ref.read(selectedNodeIdProvider.notifier).state = null;
+                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+                if (multiSelected.isNotEmpty) {
+                  ref
+                      .read(multiSelectedNodeIdsProvider.notifier)
+                      .deleteSelected();
+                } else {
+                  final selectedId = ref.read(selectedNodeIdProvider);
+                  if (selectedId != null) {
+                    ref
+                        .read(currentSequenceProvider.notifier)
+                        .removeNode(selectedId);
+                    ref.read(selectedNodeIdProvider.notifier).state = null;
+                  }
                 }
               }
             },
@@ -131,7 +144,37 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
               if (currentTab == 0) {
                 final selectedId = ref.read(selectedNodeIdProvider);
                 if (selectedId != null) {
-                  ref.read(currentSequenceProvider.notifier).duplicateNode(selectedId);
+                  ref
+                      .read(currentSequenceProvider.notifier)
+                      .duplicateNode(selectedId);
+                }
+              }
+            },
+            const SingleActivator(LogicalKeyboardKey.escape): () {
+              if (currentTab == 0) {
+                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+                if (multiSelected.isNotEmpty) {
+                  ref.read(multiSelectedNodeIdsProvider.notifier).clear();
+                }
+              }
+            },
+            const SingleActivator(LogicalKeyboardKey.keyC, control: true): () {
+              if (currentTab == 0) {
+                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+                if (multiSelected.isNotEmpty) {
+                  ref
+                      .read(multiSelectedNodeIdsProvider.notifier)
+                      .copySelected();
+                }
+              }
+            },
+            const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
+              if (currentTab == 0) {
+                final clipboard = ref.read(nodeCopyClipboardProvider);
+                if (clipboard != null && clipboard.isNotEmpty) {
+                  ref
+                      .read(multiSelectedNodeIdsProvider.notifier)
+                      .pasteFromClipboard();
                 }
               }
             },
@@ -144,11 +187,15 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             const SingleActivator(LogicalKeyboardKey.digit3, alt: true): () {
               _tabController.animateTo(2);
             },
+            const SingleActivator(LogicalKeyboardKey.digit4, alt: true): () {
+              _tabController.animateTo(3);
+            },
             // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
             const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
               if (currentTab == 0) {
                 final current = ref.read(snippetPaletteVisibleProvider);
-                ref.read(snippetPaletteVisibleProvider.notifier).state = !current;
+                ref.read(snippetPaletteVisibleProvider.notifier).state =
+                    !current;
               }
             },
           },
@@ -165,7 +212,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
 
                 // Progress bar (when running)
                 if (isRunning)
-                  SequenceProgressBar(key: SequencerTutorialKeys.progressBar, colors: colors),
+                  SequenceProgressBar(
+                      key: SequencerTutorialKeys.progressBar, colors: colors),
 
                 // Tab content
                 Expanded(
@@ -178,6 +226,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                       const TargetsTab(),
                       // Templates tab
                       const TemplatesTab(),
+                      // History tab
+                      const HistoryTab(),
                     ],
                   ),
                 ),
@@ -273,6 +323,16 @@ class _SequencerTabBar extends StatelessWidget {
                       ],
                     ),
                   ),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.history, size: isMobile ? 14 : 16),
+                        SizedBox(width: isMobile ? 4 : 8),
+                        const Text('History'),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -285,8 +345,9 @@ class _SequencerTabBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: colors.success.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: colors.success.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -347,13 +408,33 @@ class _DesktopBuilderLayout extends ConsumerWidget {
 
   const _DesktopBuilderLayout({required this.colors});
 
-  // Panel dimension constants
+  // Base panel dimension constants (for ~1024px screens)
   static const double minCenterWidth = 300.0;
-  static const double leftPanelExpandedWidth = 260.0;
-  static const double rightPanelExpandedWidth = 320.0;
-  static const double leftPanelMinWidth = 200.0;
-  static const double rightPanelMinWidth = 250.0;
   static const double collapsedPanelWidth = 48.0;
+
+  /// Compute responsive panel dimensions based on available screen width.
+  /// On a 2560px screen, panels grow proportionally wider so text doesn't
+  /// look cramped. On a 1024px tablet, sizes stay compact.
+  static ({
+    double leftExpanded,
+    double leftMin,
+    double leftMax,
+    double rightExpanded,
+    double rightMin,
+    double rightMax,
+  }) _panelDimensions(double screenWidth) {
+    // Scale factor: 1.0 at 1024px, up to ~1.4 at 2560px, minimum 1.0
+    final scale = (screenWidth / 1024.0).clamp(1.0, 1.4);
+
+    return (
+      leftExpanded: (260.0 * scale).clamp(260.0, 380.0),
+      leftMin: (220.0 * scale).clamp(220.0, 300.0),
+      leftMax: (400.0 * scale).clamp(400.0, 560.0),
+      rightExpanded: (320.0 * scale).clamp(320.0, 440.0),
+      rightMin: (270.0 * scale).clamp(270.0, 360.0),
+      rightMax: (500.0 * scale).clamp(500.0, 680.0),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -366,15 +447,39 @@ class _DesktopBuilderLayout extends ConsumerWidget {
         // Top toolbar
         SequenceToolbar(key: SequencerTutorialKeys.toolbar, colors: colors),
 
+        // Equipment telemetry strip (visible during execution)
+        Consumer(
+          builder: (context, ref, child) {
+            final executionState = ref.watch(sequenceExecutionStateProvider);
+            final isExecuting =
+                executionState == SequenceExecutionState.running ||
+                    executionState == SequenceExecutionState.paused;
+            if (!isExecuting) return const SizedBox.shrink();
+            return EquipmentTelemetryStrip(colors: colors);
+          },
+        ),
+
+        // Batch operations toolbar (visible during multi-select)
+        Consumer(
+          builder: (context, ref, child) {
+            final isMultiSelect = ref.watch(isMultiSelectActiveProvider);
+            if (!isMultiSelect) return const SizedBox.shrink();
+            return BatchOperationsToolbar(colors: colors);
+          },
+        ),
+
         // Main content - use LayoutBuilder to adapt to available width
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth;
+              final dims = _panelDimensions(availableWidth);
 
               // Calculate space needed for different configurations
-              const bothExpandedWidth = leftPanelExpandedWidth + minCenterWidth + rightPanelExpandedWidth;
-              const bothCollapsedMinWidth = collapsedPanelWidth + minCenterWidth + collapsedPanelWidth;
+              final bothExpandedWidth =
+                  dims.leftExpanded + minCenterWidth + dims.rightExpanded;
+              const bothCollapsedMinWidth =
+                  collapsedPanelWidth + minCenterWidth + collapsedPanelWidth;
 
               // On very narrow screens, use FAB overlays instead
               if (availableWidth < bothCollapsedMinWidth) {
@@ -409,26 +514,33 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     isCollapsed: effectiveToolboxCollapsed,
                     collapsedWidth: collapsedPanelWidth,
                     expandedWidth: effectivePropertiesCollapsed
-                        ? leftPanelExpandedWidth
-                        : leftPanelMinWidth,
-                    minExpandedWidth: leftPanelMinWidth,
-                    maxExpandedWidth: 400,
+                        ? dims.leftExpanded
+                        : dims.leftMin,
+                    minExpandedWidth: dims.leftMin,
+                    maxExpandedWidth: dims.leftMax,
                     side: ResizeSide.right,
                     collapsedIcon: LucideIcons.layoutGrid,
                     collapsedTooltip: 'Show Toolbox',
                     onToggle: () {
-                      final wasCollapsed = ref.read(sequencerToolboxCollapsedProvider);
-                      ref.read(sequencerToolboxCollapsedProvider.notifier).state = !wasCollapsed;
+                      final wasCollapsed =
+                          ref.read(sequencerToolboxCollapsedProvider);
+                      ref
+                          .read(sequencerToolboxCollapsedProvider.notifier)
+                          .state = !wasCollapsed;
                       // If expanding toolbox on tight screen, collapse properties
                       if (wasCollapsed && needsCollapse) {
-                        ref.read(sequencerPropertiesCollapsedProvider.notifier).state = true;
+                        ref
+                            .read(sequencerPropertiesCollapsedProvider.notifier)
+                            .state = true;
                       }
                     },
                     child: _ToolboxPanel(
                       key: SequencerTutorialKeys.nodePalette,
                       colors: colors,
                       onCollapse: () {
-                        ref.read(sequencerToolboxCollapsedProvider.notifier).state = true;
+                        ref
+                            .read(sequencerToolboxCollapsedProvider.notifier)
+                            .state = true;
                       },
                     ),
                   ),
@@ -436,8 +548,10 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                   // Center - Sequence Tree
                   Expanded(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: minCenterWidth),
-                      child: SequenceTree(key: SequencerTutorialKeys.canvas, colors: colors),
+                      constraints:
+                          const BoxConstraints(minWidth: minCenterWidth),
+                      child: SequenceTree(
+                          key: SequencerTutorialKeys.canvas, colors: colors),
                     ),
                   ),
 
@@ -447,10 +561,10 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     isCollapsed: effectivePropertiesCollapsed,
                     collapsedWidth: collapsedPanelWidth,
                     expandedWidth: effectiveToolboxCollapsed
-                        ? rightPanelExpandedWidth
-                        : rightPanelMinWidth,
-                    minExpandedWidth: rightPanelMinWidth,
-                    maxExpandedWidth: 500,
+                        ? dims.rightExpanded
+                        : dims.rightMin,
+                    minExpandedWidth: dims.rightMin,
+                    maxExpandedWidth: dims.rightMax,
                     side: ResizeSide.left,
                     collapsedIcon: LucideIcons.settings2,
                     collapsedTooltip: selectedNodeId != null
@@ -458,19 +572,28 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                         : 'No Node Selected',
                     collapsedDisabled: selectedNodeId == null,
                     onToggle: () {
-                      if (selectedNodeId == null) return; // Can't expand without selection
-                      final wasCollapsed = ref.read(sequencerPropertiesCollapsedProvider);
-                      ref.read(sequencerPropertiesCollapsedProvider.notifier).state = !wasCollapsed;
+                      if (selectedNodeId == null) {
+                        return; // Can't expand without selection
+                      }
+                      final wasCollapsed =
+                          ref.read(sequencerPropertiesCollapsedProvider);
+                      ref
+                          .read(sequencerPropertiesCollapsedProvider.notifier)
+                          .state = !wasCollapsed;
                       // If expanding properties on tight screen, collapse toolbox
                       if (wasCollapsed && needsCollapse) {
-                        ref.read(sequencerToolboxCollapsedProvider.notifier).state = true;
+                        ref
+                            .read(sequencerToolboxCollapsedProvider.notifier)
+                            .state = true;
                       }
                     },
                     child: NodePropertiesPanel(
                       key: SequencerTutorialKeys.propertiesPanel,
                       colors: colors,
                       onCollapse: () {
-                        ref.read(sequencerPropertiesCollapsedProvider.notifier).state = true;
+                        ref
+                            .read(sequencerPropertiesCollapsedProvider.notifier)
+                            .state = true;
                       },
                     ),
                   ),
@@ -571,23 +694,25 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                     dividerColor: Colors.transparent,
                     labelColor: widget.colors.primary,
                     unselectedLabelColor: widget.colors.textMuted,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    labelStyle: const TextStyle(
-                      fontSize: 11,
+                    labelPadding: EdgeInsets.symmetric(
+                      horizontal: Responsive.spacing(context, 12),
+                    ),
+                    labelStyle: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
                       fontWeight: FontWeight.w600,
                     ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontSize: 11,
+                    unselectedLabelStyle: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
                       fontWeight: FontWeight.w500,
                     ),
-                    tabs: const [
+                    tabs: [
                       Tab(
-                        height: 32,
-                        child: Text('Nodes'),
+                        height: Responsive.spacing(context, 34),
+                        child: const Text('Nodes'),
                       ),
                       Tab(
-                        height: 32,
-                        child: Text('Snippets'),
+                        height: Responsive.spacing(context, 34),
+                        child: const Text('Snippets'),
                       ),
                     ],
                   ),
@@ -637,7 +762,8 @@ class _NodePaletteContent extends ConsumerStatefulWidget {
   const _NodePaletteContent({required this.colors});
 
   @override
-  ConsumerState<_NodePaletteContent> createState() => _NodePaletteContentState();
+  ConsumerState<_NodePaletteContent> createState() =>
+      _NodePaletteContentState();
 }
 
 class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
@@ -652,44 +778,77 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
 
   IconData _getIcon(String iconName) {
     switch (iconName) {
-      case 'target': return LucideIcons.target;
-      case 'camera': return LucideIcons.camera;
-      case 'circle': return LucideIcons.circle;
-      case 'shuffle': return LucideIcons.shuffle;
-      case 'compass': return LucideIcons.compass;
-      case 'crosshair': return LucideIcons.crosshair;
-      case 'parking-circle': return LucideIcons.parkingCircle;
-      case 'unlock': return LucideIcons.unlock;
-      case 'focus': return LucideIcons.focus;
-      case 'snowflake': return LucideIcons.snowflake;
-      case 'flame': return LucideIcons.flame;
-      case 'rotate-cw': return LucideIcons.rotateCw;
-      case 'workflow': return LucideIcons.workflow;
-      case 'repeat': return LucideIcons.repeat;
-      case 'git-merge': return LucideIcons.gitMerge;
-      case 'git-branch': return LucideIcons.gitBranch;
-      case 'shield-check': return LucideIcons.shieldCheck;
-      case 'clock': return LucideIcons.clock;
-      case 'timer': return LucideIcons.timer;
-      case 'wrench': return LucideIcons.wrench;
-      case 'bell': return LucideIcons.bell;
-      case 'code': return LucideIcons.code;
-      case 'aperture': return LucideIcons.aperture;
-      default: return LucideIcons.box;
+      case 'target':
+        return LucideIcons.target;
+      case 'camera':
+        return LucideIcons.camera;
+      case 'circle':
+        return LucideIcons.circle;
+      case 'shuffle':
+        return LucideIcons.shuffle;
+      case 'compass':
+        return LucideIcons.compass;
+      case 'crosshair':
+        return LucideIcons.crosshair;
+      case 'parking-circle':
+        return LucideIcons.parkingCircle;
+      case 'unlock':
+        return LucideIcons.unlock;
+      case 'focus':
+        return LucideIcons.focus;
+      case 'snowflake':
+        return LucideIcons.snowflake;
+      case 'flame':
+        return LucideIcons.flame;
+      case 'rotate-cw':
+        return LucideIcons.rotateCw;
+      case 'workflow':
+        return LucideIcons.workflow;
+      case 'repeat':
+        return LucideIcons.repeat;
+      case 'git-merge':
+        return LucideIcons.gitMerge;
+      case 'git-branch':
+        return LucideIcons.gitBranch;
+      case 'shield-check':
+        return LucideIcons.shieldCheck;
+      case 'clock':
+        return LucideIcons.clock;
+      case 'timer':
+        return LucideIcons.timer;
+      case 'wrench':
+        return LucideIcons.wrench;
+      case 'bell':
+        return LucideIcons.bell;
+      case 'code':
+        return LucideIcons.code;
+      case 'aperture':
+        return LucideIcons.aperture;
+      default:
+        return LucideIcons.box;
     }
   }
 
   Color _getCategoryColor(String categoryName) {
     switch (categoryName) {
-      case 'Target': return widget.colors.warning;
-      case 'Imaging': return widget.colors.primary;
-      case 'Mount': return widget.colors.info;
-      case 'Focus': return widget.colors.accent;
-      case 'Camera': return widget.colors.primary;
-      case 'Logic': return widget.colors.accent;
-      case 'Timing': return widget.colors.warning;
-      case 'Utilities': return widget.colors.textMuted;
-      default: return widget.colors.textSecondary;
+      case 'Target':
+        return widget.colors.warning;
+      case 'Imaging':
+        return widget.colors.primary;
+      case 'Mount':
+        return widget.colors.info;
+      case 'Focus':
+        return widget.colors.accent;
+      case 'Camera':
+        return widget.colors.primary;
+      case 'Logic':
+        return widget.colors.accent;
+      case 'Timing':
+        return widget.colors.warning;
+      case 'Utilities':
+        return widget.colors.textMuted;
+      default:
+        return widget.colors.textSecondary;
     }
   }
 
@@ -698,29 +857,40 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
     final categories = ref.watch(nodePaletteProvider);
 
     // Filter based on search
-    final filteredCategories = categories.map((category) {
-      if (_searchQuery.isEmpty) return category;
+    final filteredCategories = categories
+        .map((category) {
+          if (_searchQuery.isEmpty) return category;
 
-      final filteredItems = category.items
-          .where((item) =>
-              item.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              item.description.toLowerCase().contains(_searchQuery.toLowerCase()))
-          .toList();
+          final filteredItems = category.items
+              .where((item) =>
+                  item.name
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()) ||
+                  item.description
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()))
+              .toList();
 
-      return NodePaletteCategory(
-        name: category.name,
-        icon: category.icon,
-        items: filteredItems,
-      );
-    }).where((c) => c.items.isNotEmpty).toList();
+          return NodePaletteCategory(
+            name: category.name,
+            icon: category.icon,
+            items: filteredItems,
+          );
+        })
+        .where((c) => c.items.isNotEmpty)
+        .toList();
+
+    final searchFontSize = Responsive.fontSize(context, 13);
+    final searchIconSize = Responsive.iconSize(context, 15);
+    final searchPadding = Responsive.spacing(context, 12);
 
     return Column(
       children: [
         // Search field
         Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(searchPadding),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: searchPadding),
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
               borderRadius: BorderRadius.circular(8),
@@ -730,27 +900,29 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
               children: [
                 Icon(
                   LucideIcons.search,
-                  size: 14,
+                  size: searchIconSize,
                   color: widget.colors.textMuted,
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: Responsive.spacing(context, 8)),
                 Expanded(
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) => setState(() => _searchQuery = value),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: searchFontSize,
                       color: widget.colors.textPrimary,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search nodes...',
                       hintStyle: TextStyle(
-                        fontSize: 12,
+                        fontSize: searchFontSize,
                         color: widget.colors.textMuted,
                       ),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: Responsive.spacing(context, 10),
+                      ),
                     ),
                   ),
                 ),
@@ -762,7 +934,7 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
                     },
                     child: Icon(
                       LucideIcons.x,
-                      size: 14,
+                      size: searchIconSize,
                       color: widget.colors.textMuted,
                     ),
                   ),
@@ -782,7 +954,7 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
               },
             ),
             child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: Responsive.spacing(context, 8)),
               itemCount: filteredCategories.length,
               itemBuilder: (context, index) {
                 final category = filteredCategories[index];
@@ -799,26 +971,27 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
 
         // Help tip
         Container(
-          padding: const EdgeInsets.all(10),
-          margin: const EdgeInsets.all(10),
+          padding: EdgeInsets.all(Responsive.spacing(context, 10)),
+          margin: EdgeInsets.all(Responsive.spacing(context, 10)),
           decoration: BoxDecoration(
             color: widget.colors.info.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+            border:
+                Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
           ),
           child: Row(
             children: [
               Icon(
                 LucideIcons.info,
-                size: 12,
+                size: Responsive.iconSize(context, 13),
                 color: widget.colors.info,
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: Responsive.spacing(context, 6)),
               Expanded(
                 child: Text(
                   'Drag nodes or double-click to add',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: Responsive.fontSize(context, 11),
                     color: widget.colors.info,
                   ),
                 ),
@@ -846,7 +1019,8 @@ class _NodeCategorySection extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_NodeCategorySection> createState() => _NodeCategorySectionState();
+  ConsumerState<_NodeCategorySection> createState() =>
+      _NodeCategorySectionState();
 }
 
 class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
@@ -854,34 +1028,43 @@ class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
 
   @override
   Widget build(BuildContext context) {
+    final badgeSize = Responsive.spacing(context, 26);
+    final badgeIconSize = Responsive.iconSize(context, 13);
+    final categoryFontSize = Responsive.fontSize(context, 12);
+    final chevronSize = Responsive.iconSize(context, 14);
+    final hPadding = Responsive.spacing(context, 12);
+    final vPadding = Responsive.spacing(context, 8);
+    final itemPadding = Responsive.spacing(context, 10);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
           onTap: () => setState(() => _isExpanded = !_isExpanded),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding:
+                EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
             child: Row(
               children: [
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: badgeSize,
+                  height: badgeSize,
                   decoration: BoxDecoration(
                     color: widget.categoryColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
                     widget.getIcon(widget.category.icon),
-                    size: 11,
+                    size: badgeIconSize,
                     color: widget.categoryColor,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: Responsive.spacing(context, 8)),
                 Expanded(
                   child: Text(
                     widget.category.name,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: categoryFontSize,
                       fontWeight: FontWeight.w600,
                       color: widget.colors.textPrimary,
                     ),
@@ -892,7 +1075,7 @@ class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     LucideIcons.chevronDown,
-                    size: 12,
+                    size: chevronSize,
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -902,7 +1085,8 @@ class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
         ),
         AnimatedCrossFade(
           firstChild: Padding(
-            padding: const EdgeInsets.only(left: 10, right: 10, bottom: 4),
+            padding: EdgeInsets.only(
+                left: itemPadding, right: itemPadding, bottom: 4),
             child: Column(
               children: widget.category.items.map((item) {
                 return _DraggableNodeItemCompact(
@@ -970,16 +1154,27 @@ class _DraggableNodeItemCompactState
 
   @override
   Widget build(BuildContext context) {
+    final nameFontSize = Responsive.fontSize(context, 12);
+    final descFontSize = Responsive.fontSize(context, 10);
+    final feedbackFontSize = Responsive.fontSize(context, 12);
+    final iconBoxSize = Responsive.spacing(context, 28);
+    final itemIconSize = Responsive.iconSize(context, 14);
+    final feedbackIconSize = Responsive.iconSize(context, 13);
+    final plusIconSize = Responsive.iconSize(context, 12);
+    final hPadding = Responsive.spacing(context, 10);
+    final vPadding = Responsive.spacing(context, 8);
+
     return Draggable<NodePaletteItem>(
       data: widget.item,
       feedback: Material(
         color: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: 6),
           decoration: BoxDecoration(
             color: widget.categoryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
+            border:
+                Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
             boxShadow: [
               BoxShadow(
                 color: widget.categoryColor.withValues(alpha: 0.3),
@@ -991,12 +1186,13 @@ class _DraggableNodeItemCompactState
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.getIcon(widget.item.icon), size: 12, color: widget.categoryColor),
+              Icon(widget.getIcon(widget.item.icon),
+                  size: feedbackIconSize, color: widget.categoryColor),
               const SizedBox(width: 6),
               Text(
                 widget.item.name,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: feedbackFontSize,
                   fontWeight: FontWeight.w500,
                   color: widget.colors.textPrimary,
                 ),
@@ -1013,7 +1209,8 @@ class _DraggableNodeItemCompactState
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             margin: const EdgeInsets.only(top: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding:
+                EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
             decoration: BoxDecoration(
               color: _isHovered
                   ? widget.colors.surfaceAlt
@@ -1028,19 +1225,19 @@ class _DraggableNodeItemCompactState
             child: Row(
               children: [
                 Container(
-                  width: 24,
-                  height: 24,
+                  width: iconBoxSize,
+                  height: iconBoxSize,
                   decoration: BoxDecoration(
                     color: widget.categoryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
                     widget.getIcon(widget.item.icon),
-                    size: 12,
+                    size: itemIconSize,
                     color: widget.categoryColor,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: Responsive.spacing(context, 8)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1048,7 +1245,7 @@ class _DraggableNodeItemCompactState
                       Text(
                         widget.item.name,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: nameFontSize,
                           fontWeight: FontWeight.w500,
                           color: _isHovered
                               ? widget.colors.textPrimary
@@ -1058,7 +1255,7 @@ class _DraggableNodeItemCompactState
                       Text(
                         widget.item.description,
                         style: TextStyle(
-                          fontSize: 8,
+                          fontSize: descFontSize,
                           color: widget.colors.textMuted,
                         ),
                         maxLines: 1,
@@ -1068,7 +1265,8 @@ class _DraggableNodeItemCompactState
                   ),
                 ),
                 if (_isHovered)
-                  Icon(LucideIcons.plus, size: 10, color: widget.categoryColor),
+                  Icon(LucideIcons.plus,
+                      size: plusIconSize, color: widget.categoryColor),
               ],
             ),
           ),
@@ -1093,10 +1291,10 @@ class _SnippetPaletteContent extends ConsumerWidget {
         final selectedId = ref.read(selectedNodeIdProvider);
         final profile = ref.read(activeEquipmentProfileProvider);
         ref.read(currentSequenceProvider.notifier).insertSnippet(
-          snippet,
-          parentId: selectedId,
-          profileFilterNames: profile?.filterNames,
-        );
+              snippet,
+              parentId: selectedId,
+              profileFilterNames: profile?.filterNames,
+            );
       },
     );
   }
@@ -1178,7 +1376,8 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
         _animationController.forward();
       }
     }
-    if (oldWidget.expandedWidth != widget.expandedWidth && !widget.isCollapsed) {
+    if (oldWidget.expandedWidth != widget.expandedWidth &&
+        !widget.isCollapsed) {
       _currentExpandedWidth = widget.expandedWidth;
       _updateAnimation();
     }
@@ -1226,7 +1425,8 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
                           ? widget.colors.textMuted
                           : widget.colors.textSecondary,
                     ),
-                    onPressed: widget.collapsedDisabled ? null : widget.onToggle,
+                    onPressed:
+                        widget.collapsedDisabled ? null : widget.onToggle,
                   ),
                 ),
               ],
@@ -1269,7 +1469,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetContext) => DraggableScrollableSheet(
         expand: false,
@@ -1294,7 +1494,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetContext) => DraggableScrollableSheet(
         expand: false,
@@ -1313,12 +1513,55 @@ class _NarrowDesktopLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
     final selectedNodeId = ref.watch(selectedNodeIdProvider);
+    final isDragging = ref.watch(isDraggingNodeProvider);
 
     return Stack(
       children: [
         // Sequence tree - full width
         SequenceTree(key: SequencerTutorialKeys.canvas, colors: colors),
+
+        // Floating palette overlay during active drag on narrow screens.
+        // This keeps the palette visible so nodes can be dragged to the tree.
+        if (isDragging)
+          Positioned(
+            left: 8,
+            bottom: 80,
+            child: Container(
+              width: 200,
+              height: 48,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: colors.primary.withValues(alpha: 0.4)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.info, size: 14, color: colors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Drop on tree to insert',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
         // FABs for accessing panels
         Positioned(
@@ -1333,7 +1576,11 @@ class _NarrowDesktopLayout extends ConsumerWidget {
                   heroTag: 'narrow_properties_fab',
                   backgroundColor: colors.accent,
                   onPressed: () => _showPropertiesSheet(context, ref),
-                  child: const Icon(LucideIcons.settings2, color: Colors.white, size: 20),
+                  child: Icon(
+                    LucideIcons.settings2,
+                    color: onPrimary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -1342,7 +1589,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
                 heroTag: 'narrow_add_node_fab',
                 backgroundColor: colors.primary,
                 onPressed: () => _showNodePaletteSheet(context),
-                child: const Icon(LucideIcons.plus, color: Colors.white),
+                child: Icon(LucideIcons.plus, color: onPrimary),
               ),
             ],
           ),
@@ -1364,7 +1611,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetContext) => DraggableScrollableSheet(
         expand: false,
@@ -1389,7 +1636,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetContext) => DraggableScrollableSheet(
         expand: false,
@@ -1408,6 +1655,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
     final selectedNodeId = ref.watch(selectedNodeIdProvider);
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
@@ -1422,7 +1670,9 @@ class _MobileBuilderLayout extends ConsumerWidget {
             MobilePlaybackBar(colors: colors),
 
             // Progress bar (when running)
-            if (isRunning) SequenceProgressBar(key: SequencerTutorialKeys.progressBar, colors: colors),
+            if (isRunning)
+              SequenceProgressBar(
+                  key: SequencerTutorialKeys.progressBar, colors: colors),
 
             // Sequence tree - full width, scrollable
             Expanded(
@@ -1451,7 +1701,11 @@ class _MobileBuilderLayout extends ConsumerWidget {
                   heroTag: 'properties_fab',
                   backgroundColor: colors.accent,
                   onPressed: () => _showPropertiesSheet(context, ref),
-                  child: const Icon(LucideIcons.settings2, color: Colors.white, size: 20),
+                  child: Icon(
+                    LucideIcons.settings2,
+                    color: onPrimary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -1460,7 +1714,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
                 heroTag: 'add_node_fab',
                 backgroundColor: colors.primary,
                 onPressed: () => _showNodePaletteSheet(context, ref),
-                child: const Icon(LucideIcons.plus, color: Colors.white),
+                child: Icon(LucideIcons.plus, color: onPrimary),
               ),
             ],
           ),

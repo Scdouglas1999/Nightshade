@@ -40,6 +40,10 @@ struct Args {
     #[arg(long)]
     backup_dir: PathBuf,
 
+    /// Marker file used for boot-time update verification
+    #[arg(long)]
+    pending_file: PathBuf,
+
     /// Launch the new version after update
     #[arg(long)]
     launch_after: bool,
@@ -64,6 +68,7 @@ fn run() -> Result<()> {
     println!("Staging: {:?}", args.staging_dir);
     println!("Install: {:?}", args.install_dir);
     println!("Backup: {:?}", args.backup_dir);
+    println!("Pending marker: {:?}", args.pending_file);
 
     // Step 1: Wait for parent process to exit
     println!("\nWaiting for Nightshade to exit...");
@@ -80,24 +85,51 @@ fn run() -> Result<()> {
 
     // Step 3: Apply update
     println!("\nApplying update...");
-    apply_update(&args.staging_dir, &args.install_dir)?;
-    println!("Update applied successfully.");
+    let apply_result = (|| -> Result<()> {
+        apply_update(&args.staging_dir, &args.install_dir)?;
+        verify_installation(&args.install_dir)?;
+        println!("Update applied successfully.");
 
-    // Step 4: Cleanup staging
-    println!("\nCleaning up...");
-    if let Err(e) = cleanup_staging(&args.staging_dir) {
-        eprintln!("Warning: Failed to cleanup staging: {}", e);
-        // Non-fatal error, continue
+        // Step 4: Cleanup staging
+        println!("\nCleaning up...");
+        if let Err(e) = cleanup_staging(&args.staging_dir) {
+            eprintln!("Warning: Failed to cleanup staging: {}", e);
+        }
+
+        // Step 5: Launch new version
+        if args.launch_after {
+            println!("\nLaunching updated Nightshade...");
+            launch_app(&args.install_dir)?;
+        }
+
+        Ok(())
+    })();
+
+    match apply_result {
+        Ok(()) => {
+            println!("\nUpdate complete!");
+            Ok(())
+        }
+        Err(update_error) => {
+            eprintln!(
+                "\nUpdate failed, attempting rollback from backup: {}",
+                update_error
+            );
+            let rollback_result = restore_backup(&args.backup_dir, &args.install_dir);
+            let _ = remove_pending_marker(&args.pending_file);
+
+            match rollback_result {
+                Ok(()) => Err(update_error.context(
+                    "Update failed, but the previous installation was restored from backup",
+                )),
+                Err(rollback_error) => Err(anyhow::anyhow!(
+                    "Update failed: {}. Rollback also failed: {}",
+                    update_error,
+                    rollback_error
+                )),
+            }
+        }
     }
-
-    // Step 5: Launch new version
-    if args.launch_after {
-        println!("\nLaunching updated Nightshade...");
-        launch_app(&args.install_dir)?;
-    }
-
-    println!("\nUpdate complete!");
-    Ok(())
 }
 
 /// Wait for a process to exit
@@ -238,6 +270,26 @@ fn apply_update(staging_dir: &Path, install_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn verify_installation(install_dir: &Path) -> Result<()> {
+    let exe_path = install_dir.join("nightshade_desktop.exe");
+    if !exe_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Updated application executable not found after install: {:?}",
+            exe_path
+        ));
+    }
+
+    let bridge_path = install_dir.join("nightshade_bridge.dll");
+    if !bridge_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Updated bridge library not found after install: {:?}",
+            bridge_path
+        ));
+    }
+
+    Ok(())
+}
+
 /// Try to update a file, using rename-and-replace strategy
 fn try_update_file(src: &Path, dst: &Path) -> Result<()> {
     // Strategy 1: Try direct delete and copy
@@ -289,6 +341,47 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
+fn restore_backup(backup_dir: &Path, install_dir: &Path) -> Result<()> {
+    if !backup_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Backup directory does not exist: {:?}",
+            backup_dir
+        ));
+    }
+
+    for entry in walkdir::WalkDir::new(backup_dir) {
+        let entry = entry.context("Failed to read backup entry")?;
+        let src_path = entry.path();
+        let relative = src_path
+            .strip_prefix(backup_dir)
+            .context("Failed to compute backup relative path")?;
+
+        if relative.as_os_str().is_empty() {
+            continue;
+        }
+
+        let dst_path = install_dir.join(relative);
+        if entry.file_type().is_dir() {
+            fs::create_dir_all(&dst_path)
+                .with_context(|| format!("Failed to recreate directory {:?}", dst_path))?;
+        } else if entry.file_type().is_file() {
+            if let Some(parent) = dst_path.parent() {
+                fs::create_dir_all(parent).with_context(|| {
+                    format!("Failed to create rollback parent directory {:?}", parent)
+                })?;
+            }
+            fs::copy(src_path, &dst_path).with_context(|| {
+                format!(
+                    "Failed to restore backup file {:?} to {:?}",
+                    src_path, dst_path
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Clean up the staging directory
 fn cleanup_staging(staging_dir: &Path) -> Result<()> {
     // Go up one level to get the updates directory and clean it all
@@ -296,6 +389,14 @@ fn cleanup_staging(staging_dir: &Path) -> Result<()> {
         if parent.exists() {
             fs::remove_dir_all(parent)?;
         }
+    }
+    Ok(())
+}
+
+fn remove_pending_marker(pending_file: &Path) -> Result<()> {
+    if pending_file.exists() {
+        fs::remove_file(pending_file)
+            .with_context(|| format!("Failed to remove pending marker {:?}", pending_file))?;
     }
     Ok(())
 }

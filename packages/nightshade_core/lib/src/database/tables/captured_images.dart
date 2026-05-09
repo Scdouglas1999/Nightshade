@@ -13,6 +13,7 @@ import 'targets.dart';
 @TableIndex(name: 'idx_images_filter', columns: {#filter})
 @TableIndex(name: 'idx_images_accepted', columns: {#isAccepted})
 @TableIndex(name: 'idx_images_session_frame', columns: {#sessionId, #frameType})
+@TableIndex(name: 'idx_images_session_captured_at', columns: {#sessionId, #capturedAt})
 class CapturedImages extends Table {
   IntColumn get id => integer().autoIncrement()();
   

@@ -8,6 +8,7 @@ use crate::device::*;
 use crate::devices::DeviceManager;
 use crate::error::*;
 use crate::event::*;
+use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -44,21 +45,21 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
 }
 
 // =============================================================================
-// Discovery Cache (ASCOM + Alpaca)
+// Unified Discovery Cache (ASCOM + Alpaca + Native + INDI)
 // =============================================================================
 
-/// Cache for discovered devices to avoid redundant discovery operations.
-/// Native discovery has its own cache; this caches ASCOM and Alpaca results.
+/// Unified cache for ALL discovered devices across every discovery source.
+/// When `api_discover_devices()` is called for any device type, the first call
+/// runs full discovery for all sources (ASCOM, Alpaca, Native, INDI) and caches
+/// every result. Subsequent calls within the TTL just filter by device_type.
 struct DiscoveryCache {
-    /// All discovered ASCOM devices (Windows only)
-    ascom_devices: Vec<DeviceInfo>,
-    /// All discovered Alpaca devices
-    alpaca_devices: Vec<DeviceInfo>,
+    /// All discovered devices from every source, unfiltered
+    all_devices: Vec<DeviceInfo>,
     /// When the cache was last populated
     timestamp: Instant,
 }
 
-/// Global discovery cache
+/// Global unified discovery cache
 static DISCOVERY_CACHE: OnceLock<Mutex<Option<DiscoveryCache>>> = OnceLock::new();
 
 // =============================================================================
@@ -70,8 +71,9 @@ use std::sync::atomic::AtomicU64;
 /// Global counter for total events dropped across all event streams.
 /// This is incremented when a receiver falls behind and events are skipped.
 static TOTAL_DROPPED_EVENTS: AtomicU64 = AtomicU64::new(0);
+static TEMP_FITS_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// How long to cache ASCOM/Alpaca discovery results (60 seconds)
+/// How long to cache unified discovery results (60 seconds)
 const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// Get or initialize the discovery cache
@@ -86,11 +88,30 @@ fn get_discovery_lock() -> &'static Mutex<bool> {
     DISCOVERY_IN_PROGRESS.get_or_init(|| Mutex::new(false))
 }
 
-/// Invalidate the discovery cache, forcing fresh discovery on next call.
+pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
+    let counter = TEMP_FITS_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    std::env::temp_dir().join(format!(
+        "{}_{}_{}_{}.fits",
+        prefix,
+        std::process::id(),
+        timestamp,
+        counter
+    ))
+}
+
+/// Invalidate the unified discovery cache, forcing fresh discovery on next call.
+/// Also invalidates the native SDK discovery cache so vendor SDKs are re-queried.
 /// Called when user explicitly requests a rescan.
 pub async fn api_invalidate_discovery_cache() {
+    // Invalidate the unified cache
     let mut cache = get_discovery_cache().lock().await;
     *cache = None;
+    // Also invalidate the native vendor SDK cache so it re-queries all SDKs
+    nightshade_native::invalidate_discovery_cache().await;
     tracing::info!("Discovery cache invalidated");
 }
 
@@ -268,7 +289,7 @@ pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, Nightshade
     use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
     use std::time::Duration;
 
-    tracing::info!("Discovering Alpaca devices on network...");
+    tracing::debug!("Discovering Alpaca devices on network...");
 
     let alpaca_devices = discover_all_devices(Duration::from_secs(3)).await;
 
@@ -287,7 +308,7 @@ pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, Nightshade
             AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
         };
 
-        tracing::info!(
+        tracing::debug!(
             "Found Alpaca device: {} at {} (unique_id: {})",
             alpaca_dev.device_name,
             alpaca_dev.base_url,
@@ -320,7 +341,7 @@ pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, Nightshade
         });
     }
 
-    tracing::info!("Found {} Alpaca devices", devices.len());
+    tracing::debug!("Found {} Alpaca devices", devices.len());
     Ok(devices)
 }
 
@@ -331,7 +352,7 @@ pub async fn api_discover_alpaca_at_address(
 ) -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_alpaca::{get_configured_devices, AlpacaDeviceType};
 
-    tracing::info!("Discovering Alpaca devices at {}:{}", host, port);
+    tracing::debug!("Discovering Alpaca devices at {}:{}", host, port);
 
     let alpaca_devices = get_configured_devices(&host, port).await.map_err(|e| {
         NightshadeError::connection_failed(
@@ -389,7 +410,7 @@ pub async fn api_discover_indi_at_address(
     host: String,
     port: u16,
 ) -> Result<Vec<DeviceInfo>, NightshadeError> {
-    tracing::info!("Discovering INDI devices at {}:{}", host, port);
+    tracing::debug!("Discovering INDI devices at {}:{}", host, port);
 
     get_device_manager()
         .discover_indi_devices(&host, port)
@@ -503,12 +524,12 @@ async fn query_indi_serials_for_server(
 pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_indi::{discover_localhost, IndiDeviceType as IndiType};
 
-    tracing::info!("Auto-discovering INDI servers on localhost...");
+    tracing::debug!("Auto-discovering INDI servers on localhost...");
 
     let mut all_devices = Vec::new();
 
     if let Some(server) = discover_localhost().await {
-        tracing::info!(
+        tracing::debug!(
             "Found INDI server at {}:{} with {} devices",
             server.host,
             server.port,
@@ -554,7 +575,7 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
         }
     }
 
-    tracing::info!("Found {} INDI devices on localhost", all_devices.len());
+    tracing::debug!("Found {} INDI devices on localhost", all_devices.len());
     Ok(all_devices)
 }
 
@@ -562,12 +583,12 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
 pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_indi::{discover_common_hosts, IndiDeviceType as IndiType};
 
-    tracing::info!("Auto-discovering INDI servers on common hosts...");
+    tracing::debug!("Auto-discovering INDI servers on common hosts...");
 
     let mut all_devices = Vec::new();
     let servers = discover_common_hosts().await;
 
-    tracing::info!("Found {} INDI servers on common hosts", servers.len());
+    tracing::debug!("Found {} INDI servers on common hosts", servers.len());
 
     for server in servers {
         let device_names = server
@@ -609,7 +630,7 @@ pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, Nightsh
         }
     }
 
-    tracing::info!("Found {} INDI devices total", all_devices.len());
+    tracing::debug!("Found {} INDI devices total", all_devices.len());
     Ok(all_devices)
 }
 
@@ -618,12 +639,12 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
     use nightshade_indi::{discover_local_network, IndiDeviceType as IndiType};
     use std::time::Duration;
 
-    tracing::info!("Scanning local network for INDI servers (this may take a while)...");
+    tracing::debug!("Scanning local network for INDI servers...");
 
     let mut all_devices = Vec::new();
     let servers = discover_local_network(Duration::from_millis(200)).await;
 
-    tracing::info!("Found {} INDI servers on local network", servers.len());
+    tracing::debug!("Found {} INDI servers on local network", servers.len());
 
     for server in servers {
         let device_names = server
@@ -665,296 +686,263 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
         }
     }
 
-    tracing::info!("Found {} INDI devices on network", all_devices.len());
+    tracing::debug!("Found {} INDI devices on network", all_devices.len());
     Ok(all_devices)
 }
 
-/// Discover available devices of a specific type
-/// Queries ASCOM drivers on Windows via COM, Alpaca cross-platform, plus includes simulators.
-/// Results are cached for 60 seconds to avoid redundant discovery operations.
+/// Discover available devices of a specific type.
+/// Queries Windows-only ASCOM COM drivers, Alpaca network devices or bridges,
+/// Native SDK paths bundled for the current release, simulator paths where
+/// enabled, and reachable INDI servers. All results are cached for 60 seconds -- the FIRST call to this
+/// function runs full discovery for every source and every device type, and subsequent
+/// calls within the TTL simply filter the cached results by the requested `device_type`.
 pub async fn api_discover_devices(
     device_type: DeviceType,
 ) -> Result<Vec<DeviceInfo>, NightshadeError> {
-    tracing::info!("Discovering {} devices", device_type.as_str());
-
-    let mut devices = Vec::new();
+    tracing::debug!("Discovering {} devices", device_type.as_str());
 
     // =====================================================
-    // CACHED ASCOM + ALPACA DISCOVERY
+    // CHECK UNIFIED CACHE
     // =====================================================
-    // Check if we have valid cached results for ASCOM and Alpaca
-    let cached_results = {
+    {
         let cache = get_discovery_cache().lock().await;
         if let Some(ref cached) = *cache {
             if cached.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
                 tracing::debug!(
-                    "Using cached ASCOM/Alpaca discovery ({} ASCOM, {} Alpaca devices, {:.1}s old)",
-                    cached.ascom_devices.len(),
-                    cached.alpaca_devices.len(),
+                    "Using cached discovery results ({} total devices, {:.1}s old)",
+                    cached.all_devices.len(),
                     cached.timestamp.elapsed().as_secs_f32()
                 );
-                Some((cached.ascom_devices.clone(), cached.alpaca_devices.clone()))
-            } else {
-                None
+                let filtered: Vec<DeviceInfo> = cached
+                    .all_devices
+                    .iter()
+                    .filter(|d| d.device_type == device_type)
+                    .cloned()
+                    .collect();
+                return Ok(filtered);
             }
-        } else {
-            None
-        }
-    };
-
-    let (ascom_devices, alpaca_devices) = if let Some((ascom, alpaca)) = cached_results {
-        (ascom, alpaca)
-    } else {
-        // Need to run fresh discovery - acquire lock to prevent concurrent discovery
-        let mut in_progress = get_discovery_lock().lock().await;
-
-        // Double-check cache after acquiring lock (another task may have populated it)
-        let cached_after_lock = {
-            let cache = get_discovery_cache().lock().await;
-            if let Some(ref cached) = *cache {
-                if cached.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
-                    Some((cached.ascom_devices.clone(), cached.alpaca_devices.clone()))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some((ascom, alpaca)) = cached_after_lock {
-            (ascom, alpaca)
-        } else {
-            // Run discovery for ALL device types at once
-            tracing::info!("Running full ASCOM/Alpaca discovery (will cache results)...");
-            *in_progress = true;
-
-            let mut all_ascom = Vec::new();
-            let mut all_alpaca = Vec::new();
-
-            // ASCOM discovery (Windows only) - discover ALL types at once
-            #[cfg(windows)]
-            {
-                use nightshade_ascom::{discover_devices as ascom_discover, AscomDeviceType};
-
-                let ascom_types = [
-                    (AscomDeviceType::Camera, DeviceType::Camera),
-                    (AscomDeviceType::Telescope, DeviceType::Mount),
-                    (AscomDeviceType::Focuser, DeviceType::Focuser),
-                    (AscomDeviceType::FilterWheel, DeviceType::FilterWheel),
-                    (AscomDeviceType::Rotator, DeviceType::Rotator),
-                    (AscomDeviceType::Dome, DeviceType::Dome),
-                    (AscomDeviceType::ObservingConditions, DeviceType::Weather),
-                    (AscomDeviceType::SafetyMonitor, DeviceType::SafetyMonitor),
-                    (
-                        AscomDeviceType::CoverCalibrator,
-                        DeviceType::CoverCalibrator,
-                    ),
-                ];
-
-                for (ascom_type, dev_type) in ascom_types {
-                    let ascom_devs = ascom_discover(ascom_type);
-                    for ascom_dev in ascom_devs {
-                        let prog_id_lower = ascom_dev.prog_id.to_lowercase();
-                        let name_lower = ascom_dev.name.to_lowercase();
-
-                        // Filter out simulators and diagnostic tools:
-                        // - "simulator" or "sim" patterns (CCDSim, ScopeSim, FocusSim, OmniSim, etc.)
-                        // - Hub/Pipe/POTH diagnostic tools that aren't real devices
-                        let is_simulator = prog_id_lower.contains("simulator")
-                            || name_lower.contains("simulator")
-                            || prog_id_lower.contains("sim.")
-                            || prog_id_lower.ends_with("sim")
-                            || prog_id_lower.starts_with("ccdsim")
-                            || prog_id_lower.starts_with("scopesim")
-                            || prog_id_lower.starts_with("focussim")
-                            || prog_id_lower.starts_with("domesim")
-                            || prog_id_lower.starts_with("filterwheelsim")
-                            || name_lower == "simulator";
-
-                        let is_diagnostic = prog_id_lower.contains("hub.")
-                            || prog_id_lower.contains("pipe.")
-                            || prog_id_lower.contains("poth.")
-                            || prog_id_lower.starts_with("hub.")
-                            || prog_id_lower.starts_with("pipe.")
-                            || prog_id_lower.starts_with("poth.");
-
-                        if is_simulator || is_diagnostic {
-                            tracing::debug!(
-                                "Filtering out ASCOM device: {} ({})",
-                                ascom_dev.name,
-                                ascom_dev.prog_id
-                            );
-                            continue;
-                        }
-                        all_ascom.push(DeviceInfo {
-                            id: format!("ascom:{}", ascom_dev.prog_id),
-                            name: ascom_dev.name.clone(),
-                            device_type: dev_type,
-                            driver_type: DriverType::Ascom,
-                            description: ascom_dev.description,
-                            driver_version: "ASCOM".to_string(),
-                            serial_number: None,
-                            unique_id: None,
-                            display_name: ascom_dev.name.clone(),
-                        });
-                    }
-                }
-                tracing::info!(
-                    "ASCOM discovery complete: found {} drivers",
-                    all_ascom.len()
-                );
-            }
-
-            // Alpaca discovery - discovers ALL device types in one broadcast
-            {
-                use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
-
-                let alpaca_devs = discover_all_devices(Duration::from_secs(2)).await;
-                for alpaca_dev in alpaca_devs {
-                    let dev_type = match alpaca_dev.device_type {
-                        AlpacaDeviceType::Camera => DeviceType::Camera,
-                        AlpacaDeviceType::Telescope => DeviceType::Mount,
-                        AlpacaDeviceType::Focuser => DeviceType::Focuser,
-                        AlpacaDeviceType::FilterWheel => DeviceType::FilterWheel,
-                        AlpacaDeviceType::Rotator => DeviceType::Rotator,
-                        AlpacaDeviceType::Dome => DeviceType::Dome,
-                        AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
-                        AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
-                        AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
-                        _ => continue,
-                    };
-
-                    let unique_id = if alpaca_dev.unique_id.is_empty() {
-                        None
-                    } else {
-                        Some(alpaca_dev.unique_id.clone())
-                    };
-                    let display_name = DeviceInfo::generate_display_name(
-                        &alpaca_dev.device_name,
-                        None,
-                        unique_id.as_deref(),
-                        None,
-                    );
-
-                    all_alpaca.push(DeviceInfo {
-                        id: alpaca_dev.id(),
-                        name: alpaca_dev.device_name.clone(),
-                        device_type: dev_type,
-                        driver_type: DriverType::Alpaca,
-                        description: format!("Alpaca device at {}", alpaca_dev.base_url),
-                        driver_version: "Alpaca".to_string(),
-                        serial_number: None,
-                        unique_id,
-                        display_name,
-                    });
-                }
-                tracing::info!(
-                    "Alpaca discovery complete: found {} devices",
-                    all_alpaca.len()
-                );
-            }
-
-            // Cache the results
-            {
-                let mut cache = get_discovery_cache().lock().await;
-                *cache = Some(DiscoveryCache {
-                    ascom_devices: all_ascom.clone(),
-                    alpaca_devices: all_alpaca.clone(),
-                    timestamp: Instant::now(),
-                });
-            }
-
-            *in_progress = false;
-            (all_ascom, all_alpaca)
-        }
-    };
-
-    // Filter ASCOM devices by requested type
-    for dev in ascom_devices {
-        if dev.device_type == device_type {
-            devices.push(dev);
-        }
-    }
-
-    // Filter Alpaca devices by requested type
-    for dev in alpaca_devices {
-        if dev.device_type == device_type {
-            devices.push(dev);
         }
     }
 
     // =====================================================
-    // NATIVE DRIVER DISCOVERY (Cross-platform, vendor SDKs)
-    // Native discovery has its own cache in nightshade_native
+    // ACQUIRE LOCK & DOUBLE-CHECK CACHE
     // =====================================================
+    let mut in_progress = get_discovery_lock().lock().await;
+
+    // Another concurrent caller may have populated the cache while we waited
     {
-        use nightshade_native::{
-            discover_devices as native_discover, DeviceType as NativeDeviceType,
-        };
-
-        let native_device_type = match device_type {
-            DeviceType::Camera => Some(NativeDeviceType::Camera),
-            DeviceType::Mount => Some(NativeDeviceType::Mount),
-            DeviceType::Focuser => Some(NativeDeviceType::Focuser),
-            DeviceType::FilterWheel => Some(NativeDeviceType::FilterWheel),
-            DeviceType::Rotator => Some(NativeDeviceType::Rotator),
-            _ => None,
-        };
-
-        if let Some(native_type) = native_device_type {
-            if let Ok(native_devices) = native_discover(native_type).await {
-                for native_dev in native_devices {
-                    tracing::info!(
-                        "Found native device: {} ({})",
-                        native_dev.display_name,
-                        native_dev.vendor.as_str()
-                    );
-                    devices.push(DeviceInfo {
-                        id: native_dev.id,
-                        name: native_dev.name.clone(),
-                        device_type,
-                        driver_type: DriverType::Native,
-                        description: format!("{} native driver", native_dev.vendor.as_str()),
-                        driver_version: native_dev
-                            .sdk_version
-                            .unwrap_or_else(|| "Native".to_string()),
-                        serial_number: native_dev.serial_number,
-                        unique_id: None,
-                        display_name: native_dev.display_name,
-                    });
-                }
+        let cache = get_discovery_cache().lock().await;
+        if let Some(ref cached) = *cache {
+            if cached.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
+                let filtered: Vec<DeviceInfo> = cached
+                    .all_devices
+                    .iter()
+                    .filter(|d| d.device_type == device_type)
+                    .cloned()
+                    .collect();
+                return Ok(filtered);
             }
         }
     }
 
     // =====================================================
-    // INDI DISCOVERY (Cross-platform)
+    // RUN FULL DISCOVERY (all sources, all types)
     // =====================================================
+    *in_progress = true;
+    let mut all_devices: Vec<DeviceInfo> = Vec::new();
+
+    let mut ascom_count: usize = 0;
+    let mut alpaca_count: usize = 0;
+    let mut native_count: usize = 0;
+    let mut indi_count: usize = 0;
+
+    // ----- ASCOM discovery (Windows only) -----
+    #[cfg(windows)]
+    {
+        use nightshade_ascom::{discover_devices as ascom_discover, AscomDeviceType};
+
+        let ascom_types = [
+            (AscomDeviceType::Camera, DeviceType::Camera),
+            (AscomDeviceType::Telescope, DeviceType::Mount),
+            (AscomDeviceType::Focuser, DeviceType::Focuser),
+            (AscomDeviceType::FilterWheel, DeviceType::FilterWheel),
+            (AscomDeviceType::Rotator, DeviceType::Rotator),
+            (AscomDeviceType::Dome, DeviceType::Dome),
+            (AscomDeviceType::ObservingConditions, DeviceType::Weather),
+            (AscomDeviceType::SafetyMonitor, DeviceType::SafetyMonitor),
+            (
+                AscomDeviceType::CoverCalibrator,
+                DeviceType::CoverCalibrator,
+            ),
+        ];
+
+        for (ascom_type, dev_type) in ascom_types {
+            let ascom_devs = ascom_discover(ascom_type);
+            for ascom_dev in ascom_devs {
+                let prog_id_lower = ascom_dev.prog_id.to_lowercase();
+                let name_lower = ascom_dev.name.to_lowercase();
+
+                // Filter out simulators and diagnostic tools
+                let is_simulator = prog_id_lower.contains("simulator")
+                    || name_lower.contains("simulator")
+                    || prog_id_lower.contains("sim.")
+                    || prog_id_lower.ends_with("sim")
+                    || prog_id_lower.starts_with("ccdsim")
+                    || prog_id_lower.starts_with("scopesim")
+                    || prog_id_lower.starts_with("focussim")
+                    || prog_id_lower.starts_with("domesim")
+                    || prog_id_lower.starts_with("filterwheelsim")
+                    || name_lower == "simulator";
+
+                let is_diagnostic = prog_id_lower.contains("hub.")
+                    || prog_id_lower.contains("pipe.")
+                    || prog_id_lower.contains("poth.")
+                    || prog_id_lower.starts_with("hub.")
+                    || prog_id_lower.starts_with("pipe.")
+                    || prog_id_lower.starts_with("poth.");
+
+                if is_simulator || is_diagnostic {
+                    tracing::trace!(
+                        "Filtering out ASCOM device: {} ({})",
+                        ascom_dev.name,
+                        ascom_dev.prog_id
+                    );
+                    continue;
+                }
+                all_devices.push(DeviceInfo {
+                    id: format!("ascom:{}", ascom_dev.prog_id),
+                    name: ascom_dev.name.clone(),
+                    device_type: dev_type,
+                    driver_type: DriverType::Ascom,
+                    description: ascom_dev.description,
+                    driver_version: "ASCOM".to_string(),
+                    serial_number: None,
+                    unique_id: None,
+                    display_name: ascom_dev.name.clone(),
+                });
+                ascom_count += 1;
+            }
+        }
+    }
+
+    // ----- Alpaca discovery -----
+    {
+        use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
+
+        let alpaca_devs = discover_all_devices(Duration::from_secs(2)).await;
+        for alpaca_dev in alpaca_devs {
+            let dev_type = match alpaca_dev.device_type {
+                AlpacaDeviceType::Camera => DeviceType::Camera,
+                AlpacaDeviceType::Telescope => DeviceType::Mount,
+                AlpacaDeviceType::Focuser => DeviceType::Focuser,
+                AlpacaDeviceType::FilterWheel => DeviceType::FilterWheel,
+                AlpacaDeviceType::Rotator => DeviceType::Rotator,
+                AlpacaDeviceType::Dome => DeviceType::Dome,
+                AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
+                AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
+                AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
+                _ => continue,
+            };
+
+            let unique_id = if alpaca_dev.unique_id.is_empty() {
+                None
+            } else {
+                Some(alpaca_dev.unique_id.clone())
+            };
+            let display_name = DeviceInfo::generate_display_name(
+                &alpaca_dev.device_name,
+                None,
+                unique_id.as_deref(),
+                None,
+            );
+
+            all_devices.push(DeviceInfo {
+                id: alpaca_dev.id(),
+                name: alpaca_dev.device_name.clone(),
+                device_type: dev_type,
+                driver_type: DriverType::Alpaca,
+                description: format!("Alpaca device at {}", alpaca_dev.base_url),
+                driver_version: "Alpaca".to_string(),
+                serial_number: None,
+                unique_id,
+                display_name,
+            });
+            alpaca_count += 1;
+        }
+    }
+
+    // ----- Native vendor SDK discovery -----
+    {
+        use nightshade_native::discover_all_devices as native_discover_all;
+
+        if let Ok(native_devices) = native_discover_all().await {
+            for native_dev in native_devices {
+                let dev_type = match native_dev.device_type {
+                    nightshade_native::DeviceType::Camera => DeviceType::Camera,
+                    nightshade_native::DeviceType::Mount => DeviceType::Mount,
+                    nightshade_native::DeviceType::Focuser => DeviceType::Focuser,
+                    nightshade_native::DeviceType::FilterWheel => DeviceType::FilterWheel,
+                    nightshade_native::DeviceType::Rotator => DeviceType::Rotator,
+                };
+                tracing::debug!(
+                    "Found native device: {} ({})",
+                    native_dev.display_name,
+                    native_dev.vendor.as_str()
+                );
+                all_devices.push(DeviceInfo {
+                    id: native_dev.id,
+                    name: native_dev.name.clone(),
+                    device_type: dev_type,
+                    driver_type: DriverType::Native,
+                    description: format!("{} native driver", native_dev.vendor.as_str()),
+                    driver_version: native_dev
+                        .sdk_version
+                        .unwrap_or_else(|| "Native".to_string()),
+                    serial_number: native_dev.serial_number,
+                    unique_id: None,
+                    display_name: native_dev.display_name,
+                });
+                native_count += 1;
+            }
+        }
+    }
+
+    // ----- INDI discovery -----
     {
         let indi_devices = get_device_manager().get_all_indi_devices().await;
         for dev in indi_devices {
-            if dev.device_type == device_type {
-                tracing::info!("Found INDI device: {}", dev.name);
-                devices.push(dev);
-            }
+            tracing::debug!("Found INDI device: {} ({:?})", dev.name, dev.device_type);
+            indi_count += 1;
+            all_devices.push(dev);
         }
     }
 
-    // =====================================================
-    // PHD2 DISCOVERY (Guider only)
-    // =====================================================
-    if device_type == DeviceType::Guider {
+    // ----- Built-in Guider (always available) -----
+    all_devices.push(DeviceInfo {
+        id: crate::builtin_guider::device_id().to_string(),
+        name: "Built-in Multi-Star Guider".to_string(),
+        device_type: DeviceType::Guider,
+        driver_type: DriverType::Native,
+        description: "Software guider using Nightshade star tracking and mount pulse guide"
+            .to_string(),
+        driver_version: "Nightshade".to_string(),
+        serial_number: None,
+        unique_id: Some("builtin_multi_star_guider".to_string()),
+        display_name: "Built-in Multi-Star Guider".to_string(),
+    });
+
+    // ----- PHD2 discovery -----
+    {
         let is_running = nightshade_imaging::is_phd2_running();
         let is_installed = nightshade_imaging::is_phd2_installed();
 
         if is_running || is_installed {
-            tracing::info!(
+            tracing::debug!(
                 "Found PHD2 Guiding (Running: {}, Installed: {})",
                 is_running,
                 is_installed
             );
-            devices.push(DeviceInfo {
+            all_devices.push(DeviceInfo {
                 id: "phd2_guider".to_string(),
                 name: "PHD2 Guiding".to_string(),
                 device_type: DeviceType::Guider,
@@ -973,24 +961,46 @@ pub async fn api_discover_devices(
         }
     }
 
-    // =====================================================
-    // SIMULATOR DISCOVERY (Always available for debugging)
-    // =====================================================
-    if device_type == DeviceType::Camera {
-        devices.push(DeviceInfo {
-            id: "sim_camera_1".to_string(),
-            name: "Simulated Camera".to_string(),
-            device_type: DeviceType::Camera,
-            driver_type: DriverType::Simulator,
-            description: "Internal Simulator".to_string(),
-            driver_version: "1.0.0".to_string(),
-            serial_number: Some("SIM-123".to_string()),
-            unique_id: Some("sim_camera_1".to_string()),
-            display_name: "Simulated Camera".to_string(),
+    // ----- Simulator (always available) -----
+    all_devices.push(DeviceInfo {
+        id: "sim_camera_1".to_string(),
+        name: "Simulated Camera".to_string(),
+        device_type: DeviceType::Camera,
+        driver_type: DriverType::Simulator,
+        description: "Internal Simulator".to_string(),
+        driver_version: "1.0.0".to_string(),
+        serial_number: Some("SIM-123".to_string()),
+        unique_id: Some("sim_camera_1".to_string()),
+        display_name: "Simulated Camera".to_string(),
+    });
+
+    // ----- Summary log line -----
+    tracing::info!(
+        "Discovery complete: {} ASCOM, {} Alpaca, {} Native, {} INDI devices",
+        ascom_count,
+        alpaca_count,
+        native_count,
+        indi_count
+    );
+
+    // ----- Cache ALL results -----
+    {
+        let mut cache = get_discovery_cache().lock().await;
+        *cache = Some(DiscoveryCache {
+            all_devices: all_devices.clone(),
+            timestamp: Instant::now(),
         });
     }
 
-    Ok(devices)
+    *in_progress = false;
+
+    // Filter by requested device type
+    let filtered: Vec<DeviceInfo> = all_devices
+        .into_iter()
+        .filter(|d| d.device_type == device_type)
+        .collect();
+
+    Ok(filtered)
 }
 
 // =============================================================================
@@ -1006,6 +1016,7 @@ fn device_info_from_id(device_id: &str, device_type: DeviceType) -> Option<Devic
         if parts.len() >= 3 {
             let vendor = parts[1];
             let name = match vendor {
+                "builtin_guider" => "Built-in Multi-Star Guider".to_string(),
                 "zwo" => format!("ZWO Camera {}", parts[2]),
                 "zwo_eaf" => format!("ZWO EAF {}", parts[2]),
                 "zwo_efw" => format!("ZWO EFW {}", parts[2]),
@@ -1033,11 +1044,7 @@ fn device_info_from_id(device_id: &str, device_type: DeviceType) -> Option<Devic
         }
     } else if device_id.starts_with("ascom:") {
         let prog_id = &device_id[6..]; // strip "ascom:"
-        let name = prog_id
-            .split('.')
-            .skip(1)
-            .collect::<Vec<_>>()
-            .join(" ");
+        let name = prog_id.split('.').skip(1).collect::<Vec<_>>().join(" ");
         let name = if name.is_empty() {
             prog_id.to_string()
         } else {
@@ -1106,7 +1113,7 @@ pub async fn api_connect_device(
     );
 
     // Special handling for PHD2 auto-launch
-    if device_id == "phd2_guider" {
+    if is_phd2_device_id(&device_id) {
         if !nightshade_imaging::is_phd2_running() {
             tracing::info!("PHD2 not running, attempting to launch...");
             if let Err(e) = nightshade_imaging::launch_phd2() {
@@ -1149,16 +1156,11 @@ pub async fn api_connect_device(
     // native discovery which opens/closes hardware and can interfere with
     // subsequent position reads on filter wheels).
     if !is_registered {
-        tracing::info!(
-            "Device {} not registered, registering...",
-            device_id
-        );
+        tracing::info!("Device {} not registered, registering...", device_id);
 
         let device_info = device_info_from_id(&device_id, device_type.clone());
         if let Some(info) = device_info {
-            device_manager
-                .register_device(info.clone(), false)
-                .await;
+            device_manager.register_device(info.clone(), false).await;
             tracing::info!("Registered device from ID: {} ({})", info.name, device_id);
         } else {
             // Fallback: run full discovery to find the device
@@ -1168,10 +1170,12 @@ pub async fn api_connect_device(
             );
             let discovered_devices = api_discover_devices(device_type.clone()).await?;
             if let Some(info) = discovered_devices.iter().find(|d| d.id == device_id) {
-                device_manager
-                    .register_device(info.clone(), false)
-                    .await;
-                tracing::info!("Registered device via discovery: {} ({})", info.name, device_id);
+                device_manager.register_device(info.clone(), false).await;
+                tracing::info!(
+                    "Registered device via discovery: {} ({})",
+                    info.name,
+                    device_id
+                );
             } else {
                 return Err(NightshadeError::connection_failed(
                     &device_id,
@@ -1186,6 +1190,13 @@ pub async fn api_connect_device(
         .connect_device(&device_id)
         .await
         .map_err(|e| NightshadeError::connection_failed(&device_id, e))
+}
+
+fn is_phd2_device_id(device_id: &str) -> bool {
+    device_id == "phd2_guider"
+        || device_id == "phd2"
+        || device_id.starts_with("phd2:")
+        || device_id.starts_with("phd2://")
 }
 
 /// Get the display name for a device that's already registered in the device manager.
@@ -1852,6 +1863,26 @@ pub async fn mount_move_axis(
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
+/// Slew mount to alt/az coordinates (altitude in degrees, azimuth in degrees)
+pub async fn mount_slew_alt_az(
+    device_id: String,
+    altitude: f64,
+    azimuth: f64,
+) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_slew_alt_az(&device_id, altitude, azimuth)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Find mount home position
+pub async fn mount_find_home(device_id: String) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_find_home(&device_id)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
 // =============================================================================
 // Focuser Control
 // =============================================================================
@@ -1965,6 +1996,34 @@ pub async fn set_camera_gain(device_id: String, gain: i32) -> Result<(), Nightsh
 pub async fn set_camera_offset(device_id: String, offset: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
     mgr.camera_set_offset(&device_id, offset)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+// =============================================================================
+// Camera Readout Mode
+// =============================================================================
+
+/// Set camera readout mode by index
+///
+/// mode_index: 0 = default/high quality, 1 = fast readout, etc.
+/// The available modes are camera-dependent.
+pub async fn api_camera_set_readout_mode(
+    device_id: String,
+    mode_index: i32,
+) -> Result<(), NightshadeError> {
+    if device_id.starts_with("sim_") {
+        tracing::info!("Simulator camera readout mode set to index: {}", mode_index);
+        return Ok(());
+    }
+
+    tracing::info!(
+        "Setting camera readout mode for {}: index={}",
+        device_id,
+        mode_index
+    );
+    let mgr = get_device_manager();
+    mgr.camera_set_readout_mode(&device_id, mode_index)
         .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
@@ -2454,6 +2513,71 @@ pub async fn api_mount_set_tracking(device_id: String, enabled: u8) -> Result<()
     }
 }
 
+/// Slew mount to alt/az coordinates (simulator handler)
+pub async fn api_mount_slew_alt_az(
+    device_id: String,
+    altitude: f64,
+    azimuth: f64,
+) -> Result<(), NightshadeError> {
+    if device_id.starts_with("sim_") {
+        tracing::info!("Slewing to Alt: {:.4}°, Az: {:.4}°", altitude, azimuth);
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.slewing = true;
+        }
+
+        // Simulate slew time
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.slewing = false;
+            mount.status.altitude = altitude;
+            mount.status.azimuth = azimuth;
+            mount.status.parked = false;
+        }
+
+        tracing::info!("Alt/Az slew complete");
+        Ok(())
+    } else {
+        let mgr = get_device_manager();
+        mgr.mount_slew_alt_az(&device_id, altitude, azimuth)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e))
+    }
+}
+
+/// Find mount home position (simulator handler)
+pub async fn api_mount_find_home(device_id: String) -> Result<(), NightshadeError> {
+    if device_id.starts_with("sim_") {
+        tracing::info!("Finding mount home position");
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.slewing = true;
+        }
+
+        // Simulate home-finding time
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.slewing = false;
+            mount.status.at_home = true;
+            mount.status.parked = false;
+        }
+
+        tracing::info!("Mount home found");
+        Ok(())
+    } else {
+        let mgr = get_device_manager();
+        mgr.mount_find_home(&device_id)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e))
+    }
+}
+
 /// Pulse guide the mount in a direction for a duration
 pub async fn api_mount_pulse_guide(
     device_id: String,
@@ -2842,9 +2966,7 @@ pub async fn api_filterwheel_set_by_name(
         })?;
 
         // Find filter position by name (case-insensitive)
-        let position = filter_names
-            .iter()
-            .position(|n| n.eq_ignore_ascii_case(&name))
+        let position = find_filter_match(&filter_names, &name)
             .map(|p| p as i32)
             .ok_or_else(|| {
                 NightshadeError::OperationFailed(format!(
@@ -3143,6 +3265,7 @@ pub async fn api_run_autofocus(
         method,
         binning,
         filter: None, // Optional: add filter support
+        max_duration_secs: 600.0,
     };
 
     // Create context - use UnifiedDeviceOps which routes through DeviceManager
@@ -3570,13 +3693,20 @@ pub async fn api_camera_start_exposure(
             tracing::info!("Debayering color image with pattern {:?}", bayer_pattern);
 
             // 2. Debayer to RGB16 (if color)
-            // Cast u8 buffer to u16 slice (unsafe but fast)
-            let u16_data = unsafe {
-                std::slice::from_raw_parts(image.data.as_ptr() as *const u16, image.data.len() / 2)
-            };
+            // Safe conversion from u8 buffer to u16 values
+            if image.data.len() % 2 != 0 {
+                return Err(NightshadeError::ImageError(
+                    "Odd byte count in image data — cannot convert to u16 pixels".to_string(),
+                ));
+            }
+            let u16_data: Vec<u16> = image
+                .data
+                .chunks_exact(2)
+                .map(|b| u16::from_ne_bytes([b[0], b[1]]))
+                .collect();
 
             let mut rgb_data = nightshade_imaging::debayer_to_rgb16(
-                u16_data,
+                &u16_data,
                 seq_image.width,
                 seq_image.height,
                 bayer_pattern,
@@ -3593,7 +3723,14 @@ pub async fn api_camera_start_exposure(
             // NaN values are treated as equal to avoid panics
             sorted
                 .par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let median = sorted[sorted.len() / 2];
+            if sorted.is_empty() {
+                return Err(NightshadeError::ImageError(
+                    "Empty image data for median calculation".to_string(),
+                ));
+            }
+            let median = median_from_sorted_f64(&sorted).ok_or_else(|| {
+                NightshadeError::ImageError("Empty image data for median calculation".to_string())
+            })?;
             let unified_params = nightshade_imaging::StretchParams {
                 shadows: (median - 0.1).max(0.0),
                 highlights: (median + 0.3).min(1.0),
@@ -4275,6 +4412,19 @@ fn median(values: &[f64]) -> f64 {
     percentile(values, 0.5)
 }
 
+fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
+    if sorted.is_empty() {
+        return None;
+    }
+
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 0 {
+        Some((sorted[mid - 1] + sorted[mid]) / 2.0)
+    } else {
+        Some(sorted[mid])
+    }
+}
+
 fn mad(values: &[f64], median_value: f64) -> f64 {
     if values.is_empty() {
         return 0.0;
@@ -4773,8 +4923,8 @@ impl Default for StarDetectionConfigApi {
             max_eccentricity: 0.7,
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: Some(1.0),        // Real stars have HFR > ~1.0; hot pixels < 0.8
-            min_snr: Some(5.0),        // Modest SNR threshold - real stars in short subs can be faint
+            min_hfr: Some(1.0), // Real stars have HFR > ~1.0; hot pixels < 0.8
+            min_snr: Some(5.0), // Modest SNR threshold - real stars in short subs can be faint
             max_sharpness: Some(0.95), // Only reject extreme hot pixels (sharpness ~1.0)
         }
     }
@@ -5518,6 +5668,31 @@ pub fn get_phd2_storage() -> &'static Arc<RwLock<Option<nightshade_imaging::Phd2
     PHD2_CLIENT.get_or_init(|| Arc::new(RwLock::new(None)))
 }
 
+#[flutter_rust_bridge::frb(ignore)]
+pub async fn get_active_guider_id_for_ops() -> Option<String> {
+    if let Some(profile_guider) = get_state().get_profile_device_id(DeviceType::Guider).await {
+        return Some(profile_guider);
+    }
+    if get_state()
+        .is_device_connected(DeviceType::Guider, crate::builtin_guider::device_id())
+        .await
+    {
+        return Some(crate::builtin_guider::device_id().to_string());
+    }
+    if get_state()
+        .is_device_connected(DeviceType::Guider, "phd2_guider")
+        .await
+    {
+        return Some("phd2_guider".to_string());
+    }
+    get_state()
+        .get_devices(DeviceType::Guider)
+        .await
+        .into_iter()
+        .map(|device| device.id)
+        .next()
+}
+
 /// Connect to PHD2
 pub async fn api_phd2_connect(
     host: Option<String>,
@@ -6049,6 +6224,225 @@ pub fn api_launch_phd2() -> Result<(), NightshadeError> {
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to launch PHD2: {}", e)))
 }
 
+pub async fn api_guider_start_guiding(
+    device_id: String,
+    settle_pixels: f64,
+    settle_time: f64,
+    settle_timeout: f64,
+) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout).await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::start_guiding(settle_pixels, settle_time, settle_timeout)
+            .await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_stop(device_id: String) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_stop_guiding().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::stop().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_dither(
+    device_id: String,
+    amount: f64,
+    ra_only: u8,
+    settle_pixels: f64,
+    settle_time: f64,
+    settle_timeout: f64,
+) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_dither(amount, ra_only, settle_pixels, settle_time, settle_timeout).await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::dither(
+            amount,
+            ra_only != 0,
+            settle_pixels,
+            settle_time,
+            settle_timeout,
+        )
+        .await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_loop(device_id: String) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_loop().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::loop_exposures().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_find_star(device_id: String) -> Result<(f64, f64), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_find_star().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::find_star().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_set_lock_position(
+    device_id: String,
+    x: f64,
+    y: f64,
+    exact: bool,
+) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_set_lock_position(x, y, exact).await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::set_lock_position(x, y).await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_get_lock_position(
+    device_id: String,
+) -> Result<(f64, f64), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_get_lock_position().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::get_lock_position().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_deselect_star(device_id: String) -> Result<(), NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_deselect_star().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::deselect_star().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_get_star_image(
+    device_id: String,
+    size: u32,
+) -> Result<Phd2StarImage, NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_get_star_image(size).await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::get_star_image(size).await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+pub async fn api_guider_get_status(device_id: String) -> Result<Phd2Status, NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_get_status().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::get_status().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+// =============================================================================
+// BUILT-IN GUIDER CONFIGURATION
+// =============================================================================
+
+/// Get the current built-in guider configuration.
+/// Returns a flat struct with all configurable parameters.
+pub async fn api_builtin_guider_get_config() -> Result<BuiltinGuiderConfig, NightshadeError> {
+    let config = crate::builtin_guider::get_config().await;
+    Ok(BuiltinGuiderConfig {
+        exposure_secs: config.exposure_secs,
+        gain: config.gain,
+        offset: config.offset,
+        binning: config.binning,
+        calibration_ms: config.calibration_ms,
+        settle_sleep_ms: config.settle_sleep_ms,
+        min_pulse_ms: config.min_pulse_ms,
+        max_pulse_ms: config.max_pulse_ms,
+    })
+}
+
+/// Set the built-in guider configuration.
+/// Can be called while guiding is active; changes apply to subsequent frames.
+pub async fn api_builtin_guider_set_config(
+    exposure_secs: f64,
+    gain: i32,
+    offset: i32,
+    binning: i32,
+    calibration_ms: u32,
+    settle_sleep_ms: u64,
+    min_pulse_ms: f64,
+    max_pulse_ms: f64,
+) -> Result<(), NightshadeError> {
+    let config = crate::builtin_guider::GuiderConfig {
+        exposure_secs,
+        gain,
+        offset,
+        binning,
+        calibration_ms,
+        settle_sleep_ms,
+        min_pulse_ms,
+        max_pulse_ms,
+    };
+    crate::builtin_guider::set_config(config).await;
+    Ok(())
+}
+
+/// FRB-friendly struct for the built-in guider configuration.
+#[derive(Clone, Debug)]
+pub struct BuiltinGuiderConfig {
+    pub exposure_secs: f64,
+    pub gain: i32,
+    pub offset: i32,
+    pub binning: i32,
+    pub calibration_ms: u32,
+    pub settle_sleep_ms: u64,
+    pub min_pulse_ms: f64,
+    pub max_pulse_ms: f64,
+}
+
 // =============================================================================
 // ALPACA DEVICE CONNECTION (Cross-platform)
 // =============================================================================
@@ -6186,11 +6580,11 @@ pub mod alpaca_connections {
 
 use nightshade_sequencer::{
     mosaic::calculate_mosaic_panels, mosaic::MosaicPanel, AutofocusConfig, AutofocusMethod,
-    Binning, CenterConfig, CoolConfig, DelayConfig, DitherConfig, ExecutorEvent, ExecutorState,
-    ExposureConfig, FilterConfig, LoopCondition, LoopConfig, MosaicConfig, NodeDefinition,
-    NodeStatus, NodeType, NotificationConfig, NotificationLevel, RotatorConfig, ScriptConfig,
-    SequenceDefinition, SequenceProgress, SlewConfig, TargetGroupConfig, TargetHeaderConfig,
-    TwilightType, WaitTimeConfig, WarmConfig,
+    Binning, CenterConfig, CoolConfig, DelayConfig, DitherConfig, DitherPattern, ExecutorEvent,
+    ExecutorState, ExposureConfig, FilterConfig, LoopCondition, LoopConfig, MosaicConfig,
+    NodeDefinition, NodeStatus, NodeType, NotificationConfig, NotificationLevel, RotatorConfig,
+    ScriptConfig, SequenceDefinition, SequenceProgress, SlewConfig, TargetGroupConfig,
+    TargetHeaderConfig, TwilightType, WaitTimeConfig, WarmConfig,
 };
 
 /// Get the global sequence executor instance
@@ -6222,6 +6616,7 @@ impl From<SequenceProgress> for SequencerState {
             ExecutorState::Running => "running",
             ExecutorState::Paused => "paused",
             ExecutorState::Stopping => "stopping",
+            ExecutorState::Cancelled => "cancelled",
             ExecutorState::Completed => "completed",
             ExecutorState::Failed => "failed",
         };
@@ -6302,7 +6697,13 @@ impl From<&NodeDefinition> for NodeDefinitionApi {
             NodeType::CalibratorOff(_) => "calibrator_off",
         };
 
-        let config_json = serde_json::to_string(&n.node_type).unwrap_or_default();
+        let config_json = match serde_json::to_string(&n.node_type) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::error!("Failed to serialize node type for node '{}': {}", n.id, e);
+                format!("{{\"error\":\"serialization failed: {}\"}}", e)
+            }
+        };
 
         Self {
             id: n.id.clone(),
@@ -6498,6 +6899,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                     let _state_str = match s {
                         ExecutorState::Running => "running",
                         ExecutorState::Paused => "paused",
+                        ExecutorState::Cancelled => "cancelled",
                         ExecutorState::Completed => "completed",
                         _ => continue,
                     };
@@ -6506,6 +6908,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         EventCategory::Sequencer,
                         EventPayload::Sequencer(match s {
                             ExecutorState::Paused => SequencerEvent::Paused,
+                            ExecutorState::Cancelled => SequencerEvent::Stopped,
                             ExecutorState::Completed => SequencerEvent::Completed,
                             _ => continue,
                         }),
@@ -6519,14 +6922,26 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         node_type: name.clone(),
                     }),
                 )),
-                ExecutorEvent::NodeCompleted { id, status } => Some(create_event_auto_id(
-                    EventSeverity::Info,
-                    EventCategory::Sequencer,
-                    EventPayload::Sequencer(SequencerEvent::NodeCompleted {
-                        node_id: id.clone(),
-                        success: *status == NodeStatus::Success,
-                    }),
-                )),
+                ExecutorEvent::NodeCompleted { id, status } => {
+                    let status_str = match status {
+                        NodeStatus::Success => "success",
+                        NodeStatus::Failure => "failed",
+                        NodeStatus::Skipped => "skipped",
+                        _ => "failed",
+                    };
+                    let severity = match status {
+                        NodeStatus::Failure => EventSeverity::Warning,
+                        _ => EventSeverity::Info,
+                    };
+                    Some(create_event_auto_id(
+                        severity,
+                        EventCategory::Sequencer,
+                        EventPayload::Sequencer(SequencerEvent::NodeCompleted {
+                            node_id: id.clone(),
+                            status: status_str.to_string(),
+                        }),
+                    ))
+                }
                 ExecutorEvent::ProgressUpdated(progress) => Some(create_event_auto_id(
                     EventSeverity::Info,
                     EventCategory::Sequencer,
@@ -6552,42 +6967,36 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                     total,
                     filter,
                     duration_secs,
-                } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::ExposureStarted {
-                            frame: *frame,
-                            total: *total,
-                            filter: filter.clone(),
-                            duration_secs: *duration_secs,
-                        }),
-                    ))
-                }
+                } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::ExposureStarted {
+                        frame: *frame,
+                        total: *total,
+                        filter: filter.clone(),
+                        duration_secs: *duration_secs,
+                    }),
+                )),
                 ExecutorEvent::ExposureCompleted {
                     frame,
                     total,
                     duration_secs,
-                } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::ExposureCompleted {
-                            frame: *frame,
-                            total: *total,
-                            duration_secs: *duration_secs,
-                        }),
-                    ))
-                }
-                ExecutorEvent::TargetStarted {
-                    name,
-                    ra: _,
-                    dec: _,
                 } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::ExposureCompleted {
+                        frame: *frame,
+                        total: *total,
+                        duration_secs: *duration_secs,
+                    }),
+                )),
+                ExecutorEvent::TargetStarted { name, ra, dec } => Some(create_event_auto_id(
                     EventSeverity::Info,
                     EventCategory::Sequencer,
                     EventPayload::Sequencer(SequencerEvent::TargetChanged {
                         target_name: name.clone(),
+                        ra: Some(*ra),
+                        dec: Some(*dec),
                     }),
                 )),
                 ExecutorEvent::TargetCompleted { name } => Some(create_event_auto_id(
@@ -6641,8 +7050,10 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                     Some(create_event_auto_id(
                         EventSeverity::Info,
                         EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Error {
-                            message: format!("Trigger '{}' fired: {}", trigger_name, action),
+                        EventPayload::Sequencer(SequencerEvent::TriggerFired {
+                            trigger_id: trigger_id.clone(),
+                            trigger_name: trigger_name.clone(),
+                            action: action.clone(),
                         }),
                     ))
                 }
@@ -6894,8 +7305,83 @@ pub async fn api_sequencer_set_save_path(path: Option<String>) -> Result<(), Nig
 }
 
 // =============================================================================
+// SEQUENCER RUNTIME SETTINGS PROPAGATION
+// =============================================================================
+
+/// Update dither configuration at runtime while a sequence is running or paused.
+/// The updated values are stored on the executor and will be used by subsequent
+/// trigger-initiated dithers and checkpoint resumes.
+pub async fn api_sequencer_update_dither_config(
+    pixels: f64,
+    settle_pixels: f64,
+    settle_time: f64,
+    settle_timeout: f64,
+    ra_only: bool,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Updating sequencer dither config: pixels={}, settle_pixels={}, settle_time={}, settle_timeout={}, ra_only={}",
+        pixels, settle_pixels, settle_time, settle_timeout, ra_only
+    );
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_dither_config(pixels, settle_pixels, settle_time, settle_timeout, ra_only);
+    Ok(())
+}
+
+/// Update observer location at runtime while a sequence is running or paused.
+/// Updates the executor's stored latitude/longitude so altitude-based triggers
+/// use the correct location on their next evaluation.
+pub async fn api_sequencer_update_location(
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Updating sequencer location: lat={:?}, lon={:?}",
+        latitude,
+        longitude
+    );
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_location(latitude, longitude);
+    Ok(())
+}
+
+/// Update filter focus offsets at runtime while a sequence is running or paused.
+/// Updates the executor's stored offsets so subsequent filter changes apply
+/// the correct focus compensation.
+pub async fn api_sequencer_update_filter_offsets(
+    offsets: std::collections::HashMap<String, i32>,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Updating sequencer filter focus offsets: {} entries",
+        offsets.len()
+    );
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_filter_offsets(offsets);
+    Ok(())
+}
+
+// =============================================================================
 // SEQUENCER NODE FACTORY - Create nodes programmatically
 // =============================================================================
+
+fn serialize_node_definition(node: &NodeDefinition) -> Result<String, NightshadeError> {
+    serde_json::to_string(node).map_err(|e| {
+        NightshadeError::SerializationError(format!(
+            "Failed to serialize node '{}' ({}): {}",
+            node.name, node.id, e
+        ))
+    })
+}
+
+fn serialize_sequence_definition(
+    definition: &SequenceDefinition,
+) -> Result<String, NightshadeError> {
+    serde_json::to_string(definition).map_err(|e| {
+        NightshadeError::SerializationError(format!(
+            "Failed to serialize sequence '{}' ({}): {}",
+            definition.name, definition.id, e
+        ))
+    })
+}
 
 /// Create an exposure node configuration
 #[flutter_rust_bridge::frb(sync)]
@@ -6910,7 +7396,7 @@ pub fn api_create_exposure_node(
     offset: Option<i32>,
     binning: i32,
     dither_every: Option<u32>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let binning_enum = match binning {
         1 => Binning::One,
         2 => Binning::Two,
@@ -6928,6 +7414,11 @@ pub fn api_create_exposure_node(
         offset,
         binning: binning_enum,
         dither_every,
+        dither_pixels: 5.0,
+        dither_settle_pixels: 1.5,
+        dither_settle_time: 30.0,
+        dither_settle_timeout: 120.0,
+        dither_ra_only: false,
         save_to: None,
         triggers: Vec::new(),
     };
@@ -6940,7 +7431,7 @@ pub fn api_create_exposure_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a slew node configuration
@@ -6951,7 +7442,7 @@ pub fn api_create_slew_node(
     use_target_coords: u8,
     custom_ra: Option<f64>,
     custom_dec: Option<f64>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = SlewConfig {
         use_target_coords: use_target_coords != 0,
         custom_ra,
@@ -6966,7 +7457,7 @@ pub fn api_create_slew_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a center node configuration
@@ -6978,7 +7469,7 @@ pub fn api_create_center_node(
     accuracy_arcsec: f64,
     max_attempts: u32,
     exposure_duration: f64,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = CenterConfig {
         use_target_coords: use_target_coords != 0,
         custom_ra: None,
@@ -6997,7 +7488,7 @@ pub fn api_create_center_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create an autofocus node configuration
@@ -7009,7 +7500,7 @@ pub fn api_create_autofocus_node(
     steps_out: u32,
     exposure_duration: f64,
     method: String,
-) -> String {
+) -> Result<String, NightshadeError> {
     let method_enum = match method.as_str() {
         "vcurve" => AutofocusMethod::VCurve,
         "quadratic" => AutofocusMethod::Quadratic,
@@ -7024,6 +7515,7 @@ pub fn api_create_autofocus_node(
         exposure_duration,
         filter: None,
         binning: Binning::One,
+        max_duration_secs: 600.0,
     };
 
     let node = NodeDefinition {
@@ -7034,12 +7526,16 @@ pub fn api_create_autofocus_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a filter change node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_filter_node(id: String, name: String, filter_name: String) -> String {
+pub fn api_create_filter_node(
+    id: String,
+    name: String,
+    filter_name: String,
+) -> Result<String, NightshadeError> {
     let config = FilterConfig {
         filter_name,
         filter_index: None,
@@ -7054,7 +7550,7 @@ pub fn api_create_filter_node(id: String, name: String, filter_name: String) -> 
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a target group node configuration (legacy - use target_header instead)
@@ -7070,7 +7566,7 @@ pub fn api_create_target_group_node(
     max_altitude: Option<f64>,
     priority: i32,
     children: Vec<String>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = TargetGroupConfig {
         target_name,
         ra_hours,
@@ -7090,7 +7586,7 @@ pub fn api_create_target_group_node(
         children,
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a target header node configuration
@@ -7109,8 +7605,17 @@ pub fn api_create_target_header_node(
     end_before: Option<i64>,
     mosaic_panel_json: Option<String>,
     children: Vec<String>,
-) -> String {
-    let mosaic_panel = mosaic_panel_json.and_then(|json| serde_json::from_str(&json).ok());
+) -> Result<String, NightshadeError> {
+    let mosaic_panel = mosaic_panel_json
+        .map(|json| {
+            serde_json::from_str(&json).map_err(|e| {
+                NightshadeError::SerializationError(format!(
+                    "Invalid target header mosaic panel JSON: {}",
+                    e
+                ))
+            })
+        })
+        .transpose()?;
 
     let config = TargetHeaderConfig {
         target_name,
@@ -7133,7 +7638,7 @@ pub fn api_create_target_header_node(
         children,
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a loop node configuration
@@ -7144,7 +7649,7 @@ pub fn api_create_loop_node(
     iterations: Option<u32>,
     condition: String,
     children: Vec<String>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let condition_enum = match condition.as_str() {
         "count" => LoopCondition::Count,
         "until_time" => LoopCondition::UntilTime,
@@ -7168,12 +7673,16 @@ pub fn api_create_loop_node(
         children,
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a delay node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_delay_node(id: String, name: String, seconds: f64) -> String {
+pub fn api_create_delay_node(
+    id: String,
+    name: String,
+    seconds: f64,
+) -> Result<String, NightshadeError> {
     let config = DelayConfig { seconds };
 
     let node = NodeDefinition {
@@ -7184,12 +7693,12 @@ pub fn api_create_delay_node(id: String, name: String, seconds: f64) -> String {
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a park node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_park_node(id: String, name: String) -> String {
+pub fn api_create_park_node(id: String, name: String) -> Result<String, NightshadeError> {
     let node = NodeDefinition {
         id,
         name,
@@ -7198,12 +7707,12 @@ pub fn api_create_park_node(id: String, name: String) -> String {
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create an unpark node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_unpark_node(id: String, name: String) -> String {
+pub fn api_create_unpark_node(id: String, name: String) -> Result<String, NightshadeError> {
     let node = NodeDefinition {
         id,
         name,
@@ -7212,7 +7721,7 @@ pub fn api_create_unpark_node(id: String, name: String) -> String {
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a cool camera node configuration
@@ -7222,7 +7731,7 @@ pub fn api_create_cool_camera_node(
     name: String,
     target_temp: f64,
     duration_mins: Option<f64>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = CoolConfig {
         target_temp,
         duration_mins,
@@ -7236,13 +7745,21 @@ pub fn api_create_cool_camera_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a warm camera node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_warm_camera_node(id: String, name: String, rate_per_min: f64) -> String {
-    let config = WarmConfig { rate_per_min };
+pub fn api_create_warm_camera_node(
+    id: String,
+    name: String,
+    rate_per_min: f64,
+    target_temp: Option<f64>,
+) -> Result<String, NightshadeError> {
+    let config = WarmConfig {
+        rate_per_min,
+        target_temp,
+    };
 
     let node = NodeDefinition {
         id,
@@ -7252,7 +7769,7 @@ pub fn api_create_warm_camera_node(id: String, name: String, rate_per_min: f64) 
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a dither node configuration
@@ -7265,13 +7782,15 @@ pub fn api_create_dither_node(
     settle_time: f64,
     settle_timeout: f64,
     ra_only: u8,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = DitherConfig {
         pixels,
         settle_pixels,
         settle_time,
         settle_timeout,
         ra_only: ra_only != 0,
+        pattern: DitherPattern::default(),
+        grid_size: 3,
     };
 
     let node = NodeDefinition {
@@ -7282,7 +7801,7 @@ pub fn api_create_dither_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a wait time node configuration
@@ -7292,7 +7811,7 @@ pub fn api_create_wait_time_node(
     name: String,
     wait_until: Option<i64>,
     twilight_type: Option<String>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let twilight = twilight_type.and_then(|t| match t.as_str() {
         "civil" => Some(TwilightType::Civil),
         "nautical" => Some(TwilightType::Nautical),
@@ -7313,7 +7832,7 @@ pub fn api_create_wait_time_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a notification node configuration
@@ -7324,7 +7843,7 @@ pub fn api_create_notification_node(
     title: String,
     message: String,
     level: String,
-) -> String {
+) -> Result<String, NightshadeError> {
     let level_enum = match level.as_str() {
         "info" => NotificationLevel::Info,
         "warning" => NotificationLevel::Warning,
@@ -7347,7 +7866,7 @@ pub fn api_create_notification_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a script node configuration
@@ -7358,7 +7877,7 @@ pub fn api_create_script_node(
     script_path: String,
     arguments: Vec<String>,
     timeout_secs: Option<u32>,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = ScriptConfig {
         script_path,
         arguments,
@@ -7373,7 +7892,7 @@ pub fn api_create_script_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Create a rotator node configuration
@@ -7383,7 +7902,7 @@ pub fn api_create_rotator_node(
     name: String,
     target_angle: f64,
     relative: u8,
-) -> String {
+) -> Result<String, NightshadeError> {
     let config = RotatorConfig {
         target_angle,
         relative: relative != 0,
@@ -7397,7 +7916,7 @@ pub fn api_create_rotator_node(
         children: vec![],
     };
 
-    serde_json::to_string(&node).unwrap_or_default()
+    serialize_node_definition(&node)
 }
 
 /// Build a complete sequence definition from nodes
@@ -7408,22 +7927,101 @@ pub fn api_build_sequence(
     description: Option<String>,
     node_jsons: Vec<String>,
     root_node_id: Option<String>,
-) -> String {
-    let nodes: Vec<NodeDefinition> = node_jsons
+) -> Result<String, NightshadeError> {
+    let nodes: Result<Vec<NodeDefinition>, NightshadeError> = node_jsons
         .iter()
-        .filter_map(|json| serde_json::from_str(json).ok())
+        .enumerate()
+        .map(|(index, json)| {
+            serde_json::from_str(json).map_err(|e| {
+                NightshadeError::SerializationError(format!(
+                    "Failed to deserialize node_jsons[{}]: {}",
+                    index, e
+                ))
+            })
+        })
         .collect();
 
     let definition = SequenceDefinition {
         id,
         name,
         description,
-        nodes,
+        nodes: nodes?,
         root_node_id,
         metadata: std::collections::HashMap::new(),
     };
 
-    serde_json::to_string(&definition).unwrap_or_default()
+    serialize_sequence_definition(&definition)
+}
+
+#[cfg(test)]
+mod sequencer_node_factory_tests {
+    use super::{
+        api_build_sequence, api_create_filter_node, api_create_target_header_node, NodeDefinition,
+        SequenceDefinition,
+    };
+
+    #[test]
+    fn build_sequence_returns_error_for_invalid_node_json() {
+        let err = api_build_sequence(
+            "seq-1".to_string(),
+            "Test".to_string(),
+            None,
+            vec!["{not-json}".to_string()],
+            None,
+        )
+        .expect_err("invalid node JSON should be rejected");
+
+        assert!(err
+            .to_string()
+            .contains("Failed to deserialize node_jsons[0]"));
+    }
+
+    #[test]
+    fn target_header_rejects_invalid_mosaic_panel_json() {
+        let err = api_create_target_header_node(
+            "node-1".to_string(),
+            "Target".to_string(),
+            "M31".to_string(),
+            0.5,
+            41.0,
+            None,
+            None,
+            None,
+            1,
+            None,
+            None,
+            Some("{invalid}".to_string()),
+            vec![],
+        )
+        .expect_err("invalid mosaic JSON should be rejected");
+
+        assert!(err
+            .to_string()
+            .contains("Invalid target header mosaic panel JSON"));
+    }
+
+    #[test]
+    fn build_sequence_preserves_valid_nodes() {
+        let filter_json =
+            api_create_filter_node("node-1".to_string(), "Filter".to_string(), "L".to_string())
+                .expect("filter node should serialize");
+
+        let sequence_json = api_build_sequence(
+            "seq-1".to_string(),
+            "Test".to_string(),
+            None,
+            vec![filter_json],
+            Some("node-1".to_string()),
+        )
+        .expect("valid sequence should serialize");
+
+        let sequence: SequenceDefinition =
+            serde_json::from_str(&sequence_json).expect("sequence JSON should deserialize");
+        assert_eq!(sequence.nodes.len(), 1);
+
+        let node: &NodeDefinition = &sequence.nodes[0];
+        assert_eq!(node.id, "node-1");
+    }
 }
 
 // =============================================================================
@@ -7486,6 +8084,7 @@ pub fn api_calculate_mosaic_panels(
         rotation,
         panels_horizontal,
         panels_vertical,
+        ..MosaicConfig::default()
     };
 
     calculate_mosaic_panels(&config)
@@ -7833,9 +8432,6 @@ async fn run_polar_alignment(
         .await
         .map_err(|e| format!("Failed to capture: {:?}", e))?;
 
-        // Wait for exposure to complete
-        tokio::time::sleep(tokio::time::Duration::from_secs_f64(exposure_time + 2.0)).await;
-
         if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
             emit_polar_status("Cancelled by user", "idle", 0);
             return Ok(());
@@ -7856,8 +8452,7 @@ async fn run_polar_alignment(
         emit_polar_image(&image, point as i32, "measuring", None, None);
 
         // Save temp file for plate solving
-        let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!("polar_align_{}.fits", point));
+        let temp_path = create_unique_temp_fits_path(&format!("polar_align_point_{}", point));
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
         // Write FITS file for plate solving
@@ -7881,8 +8476,8 @@ async fn run_polar_alignment(
             Err(_) => {
                 let _ = std::fs::remove_file(&temp_path);
                 return Err(format!(
-                    "Plate solve timed out after 60 seconds for point {}",
-                    point
+                    "Plate solve timed out after {:.1} seconds for point {}",
+                    solve_timeout_secs, point
                 ));
             }
         };
@@ -8030,8 +8625,6 @@ async fn run_polar_alignment(
             continue;
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs_f64(exposure_time + 2.0)).await;
-
         if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
             emit_polar_status("Stopped", "idle", 0);
             return Ok(());
@@ -8065,8 +8658,7 @@ async fn run_polar_alignment(
         // Emit polar alignment image (adjustment phase, no coordinates yet)
         emit_polar_image(&image, 0, "adjusting", None, None);
 
-        let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join("polar_align_adjust.fits");
+        let temp_path = create_unique_temp_fits_path("polar_align_adjust");
         let temp_path_str = temp_path.to_string_lossy().to_string();
 
         if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str) {
@@ -9767,4 +10359,349 @@ pub struct QhyDiscoveryStatus {
     pub discovery_enabled: bool,
     /// The timeout for discovery operations in milliseconds
     pub timeout_ms: u64,
+}
+
+// =============================================================================
+// Image Calibration
+// =============================================================================
+
+/// Calibrate an image file using dark, flat, and/or bias calibration frames.
+///
+/// Loads the light frame and any provided calibration frames from disk,
+/// applies the calibration pipeline, and saves the result to `output_path`.
+///
+/// The calibration order is:
+/// 1. Subtract bias from dark and flat (if bias provided)
+/// 2. Subtract dark from light
+/// 3. Divide light by normalized flat
+///
+/// Any calibration frame path can be empty/None to skip that correction.
+pub fn api_calibrate_image_file(
+    light_path: String,
+    dark_path: Option<String>,
+    flat_path: Option<String>,
+    bias_path: Option<String>,
+    output_path: String,
+) -> Result<(), NightshadeError> {
+    use nightshade_imaging::{calibration, read_image, write_fits, FitsHeader, ImageFormat};
+    use std::path::Path;
+
+    // Load light frame
+    let light_result = read_image(Path::new(&light_path)).map_err(|e| {
+        NightshadeError::ImageError(format!(
+            "Failed to read light frame '{}': {}",
+            light_path, e
+        ))
+    })?;
+
+    // Load optional calibration frames
+    let dark = match &dark_path {
+        Some(p) if !p.is_empty() => {
+            let result = read_image(Path::new(p)).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to read dark frame '{}': {}", p, e))
+            })?;
+            Some(result.image)
+        }
+        _ => None,
+    };
+
+    let flat = match &flat_path {
+        Some(p) if !p.is_empty() => {
+            let result = read_image(Path::new(p)).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to read flat frame '{}': {}", p, e))
+            })?;
+            Some(result.image)
+        }
+        _ => None,
+    };
+
+    let bias = match &bias_path {
+        Some(p) if !p.is_empty() => {
+            let result = read_image(Path::new(p)).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to read bias frame '{}': {}", p, e))
+            })?;
+            Some(result.image)
+        }
+        _ => None,
+    };
+
+    // Run calibration pipeline
+    let calibrated = calibration::calibrate_frame(
+        &light_result.image,
+        dark.as_ref(),
+        flat.as_ref(),
+        bias.as_ref(),
+    )
+    .map_err(|e| NightshadeError::ImageError(format!("Calibration failed: {}", e)))?;
+
+    // Save calibrated image, preserving original format
+    let out = Path::new(&output_path);
+    let ext = out.extension().and_then(|e| e.to_str()).unwrap_or("fits");
+    let out_format = ImageFormat::from_extension(ext).unwrap_or(ImageFormat::Fits);
+
+    match out_format {
+        ImageFormat::Fits => {
+            // Carry over header from original light, add calibration note
+            let mut header = FitsHeader::new();
+            for (key, value) in &light_result.header {
+                header.set_string(key, value);
+            }
+            header.set_string("CALSTAT", "calibrated by Nightshade");
+            if let Some(ref path) = dark_path {
+                if !path.is_empty() {
+                    header.set_string("DARKFILE", path);
+                }
+            }
+            if let Some(ref path) = flat_path {
+                if !path.is_empty() {
+                    header.set_string("FLATFILE", path);
+                }
+            }
+            if let Some(ref path) = bias_path {
+                if !path.is_empty() {
+                    header.set_string("BIASFILE", path);
+                }
+            }
+
+            write_fits(out, &calibrated, &header).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to write calibrated FITS: {:?}", e))
+            })?;
+        }
+        ImageFormat::Xisf => {
+            nightshade_imaging::write_xisf(
+                out,
+                &calibrated,
+                &nightshade_imaging::XisfMetadata::default(),
+            )
+            .map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to write calibrated XISF: {:?}", e))
+            })?;
+        }
+        ImageFormat::Tiff => {
+            nightshade_imaging::write_tiff(out, &calibrated).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to write calibrated TIFF: {}", e))
+            })?;
+        }
+        ImageFormat::Png => {
+            nightshade_imaging::write_png(out, &calibrated).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to write calibrated PNG: {}", e))
+            })?;
+        }
+        _ => {
+            // Default to FITS for unsupported output formats
+            let header = FitsHeader::new();
+            write_fits(out, &calibrated, &header).map_err(|e| {
+                NightshadeError::ImageError(format!("Failed to write calibrated file: {:?}", e))
+            })?;
+        }
+    }
+
+    tracing::info!(
+        "Calibrated image saved to: {} (dark={}, flat={}, bias={})",
+        output_path,
+        dark_path
+            .as_ref()
+            .map_or("none", |p| if p.is_empty() { "none" } else { p.as_str() }),
+        flat_path
+            .as_ref()
+            .map_or("none", |p| if p.is_empty() { "none" } else { p.as_str() }),
+        bias_path
+            .as_ref()
+            .map_or("none", |p| if p.is_empty() { "none" } else { p.as_str() }),
+    );
+
+    Ok(())
+}
+
+/// Calibrate raw pixel data in memory (u16).
+///
+/// Takes pixel data directly rather than file paths. Returns calibrated pixel data.
+/// All frames must have the same dimensions and be single-channel u16.
+#[flutter_rust_bridge::frb(sync)]
+pub fn api_calibrate_image_data(
+    width: u32,
+    height: u32,
+    light_data: Vec<u16>,
+    dark_data: Option<Vec<u16>>,
+    flat_data: Option<Vec<u16>>,
+    bias_data: Option<Vec<u16>>,
+) -> Result<Vec<u16>, NightshadeError> {
+    use nightshade_imaging::{calibration, ImageData};
+
+    let light = ImageData::from_u16(width, height, 1, &light_data);
+
+    let dark = dark_data.map(|d| ImageData::from_u16(width, height, 1, &d));
+    let flat = flat_data.map(|f| ImageData::from_u16(width, height, 1, &f));
+    let bias = bias_data.map(|b| ImageData::from_u16(width, height, 1, &b));
+
+    let calibrated =
+        calibration::calibrate_frame(&light, dark.as_ref(), flat.as_ref(), bias.as_ref())
+            .map_err(|e| NightshadeError::ImageError(format!("Calibration failed: {}", e)))?;
+
+    calibrated.as_u16().ok_or_else(|| {
+        NightshadeError::ImageError(
+            "Failed to extract u16 pixel data from calibrated image".to_string(),
+        )
+    })
+}
+
+// =============================================================================
+// Live Stacking API
+// =============================================================================
+
+/// Live stacking configuration exposed to Dart
+pub struct ApiLiveStackingConfig {
+    pub sigma_clip_enabled: bool,
+    pub sigma_clip_threshold: f64,
+    pub max_match_stars: u32,
+    pub match_radius_px: f64,
+    pub match_flux_tolerance: f64,
+    pub min_matched_pairs: u32,
+}
+
+impl Default for ApiLiveStackingConfig {
+    fn default() -> Self {
+        Self {
+            sigma_clip_enabled: true,
+            sigma_clip_threshold: 2.5,
+            max_match_stars: 100,
+            match_radius_px: 50.0,
+            match_flux_tolerance: 0.7,
+            min_matched_pairs: 5,
+        }
+    }
+}
+
+/// Live stacking statistics returned to Dart
+pub struct ApiLiveStackingStats {
+    pub stacked_frame_count: u32,
+    pub total_frames_attempted: u32,
+    pub rejected_alignment_failures: u32,
+    pub avg_matched_pairs: f64,
+    pub avg_alignment_residual: f64,
+    pub total_sigma_rejected_pixels: u64,
+}
+
+/// Result from adding a frame to the live stack
+pub struct ApiLiveStackingResult {
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u16>,
+    pub stats: ApiLiveStackingStats,
+}
+
+fn convert_config(config: ApiLiveStackingConfig) -> crate::stacking_api::LiveStackingConfigApi {
+    crate::stacking_api::LiveStackingConfigApi {
+        sigma_clip_enabled: config.sigma_clip_enabled,
+        sigma_clip_threshold: config.sigma_clip_threshold,
+        max_match_stars: config.max_match_stars,
+        match_radius_px: config.match_radius_px,
+        match_flux_tolerance: config.match_flux_tolerance,
+        min_matched_pairs: config.min_matched_pairs,
+    }
+}
+
+fn convert_stats(stats: crate::stacking_api::LiveStackingStatsApi) -> ApiLiveStackingStats {
+    ApiLiveStackingStats {
+        stacked_frame_count: stats.stacked_frame_count,
+        total_frames_attempted: stats.total_frames_attempted,
+        rejected_alignment_failures: stats.rejected_alignment_failures,
+        avg_matched_pairs: stats.avg_matched_pairs,
+        avg_alignment_residual: stats.avg_alignment_residual,
+        total_sigma_rejected_pixels: stats.total_sigma_rejected_pixels,
+    }
+}
+
+fn convert_result(
+    result: crate::stacking_api::LiveStackingAddFrameResult,
+) -> ApiLiveStackingResult {
+    ApiLiveStackingResult {
+        width: result.width,
+        height: result.height,
+        data: result.data,
+        stats: convert_stats(result.stats),
+    }
+}
+
+/// Start live stacking with a reference image file.
+///
+/// All subsequent frames will be aligned to this reference.
+pub fn api_stacking_start(
+    reference_image_path: String,
+    config: ApiLiveStackingConfig,
+) -> Result<ApiLiveStackingStats, NightshadeError> {
+    let result = crate::stacking_api::stacking_start(reference_image_path, convert_config(config))
+        .map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_stats(result))
+}
+
+/// Start live stacking from raw pixel data in memory.
+pub fn api_stacking_start_from_data(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+    config: ApiLiveStackingConfig,
+) -> Result<ApiLiveStackingStats, NightshadeError> {
+    let result =
+        crate::stacking_api::stacking_start_from_data(width, height, data, convert_config(config))
+            .map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_stats(result))
+}
+
+/// Add a frame to the live stack from a file path.
+///
+/// Returns the current stacked result.
+pub fn api_stacking_add_frame(
+    image_path: String,
+) -> Result<ApiLiveStackingResult, NightshadeError> {
+    let result = crate::stacking_api::stacking_add_frame(image_path)
+        .map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_result(result))
+}
+
+/// Add a frame to the live stack from raw pixel data.
+pub fn api_stacking_add_frame_from_data(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+) -> Result<ApiLiveStackingResult, NightshadeError> {
+    let result = crate::stacking_api::stacking_add_frame_from_data(width, height, data)
+        .map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_result(result))
+}
+
+/// Get the current stacked result without adding a frame.
+pub fn api_stacking_get_result() -> Result<ApiLiveStackingResult, NightshadeError> {
+    let result =
+        crate::stacking_api::stacking_get_result().map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_result(result))
+}
+
+/// Get the current stacking statistics.
+pub fn api_stacking_get_stats() -> Result<ApiLiveStackingStats, NightshadeError> {
+    let result =
+        crate::stacking_api::stacking_get_stats().map_err(|e| NightshadeError::ImageError(e))?;
+    Ok(convert_stats(result))
+}
+
+/// Reset the live stacker, clearing accumulated data but keeping the reference.
+pub fn api_stacking_reset() -> Result<(), NightshadeError> {
+    crate::stacking_api::stacking_reset().map_err(|e| NightshadeError::ImageError(e))
+}
+
+/// Stop live stacking and release all resources.
+pub fn api_stacking_stop() -> Result<(), NightshadeError> {
+    crate::stacking_api::stacking_stop().map_err(|e| NightshadeError::ImageError(e))
+}
+
+/// Check if live stacking is currently active.
+#[flutter_rust_bridge::frb(sync)]
+pub fn api_stacking_is_active() -> bool {
+    crate::stacking_api::stacking_is_active()
+}
+
+/// Get the current stacked frame count.
+#[flutter_rust_bridge::frb(sync)]
+pub fn api_stacking_frame_count() -> u32 {
+    crate::stacking_api::stacking_frame_count()
 }

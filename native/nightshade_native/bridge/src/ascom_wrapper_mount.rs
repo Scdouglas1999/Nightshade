@@ -54,6 +54,10 @@ enum AscomMountCommand {
     GetTrackingRate(oneshot::Sender<Result<i32, String>>),
     // Axis movement commands (for jogging)
     MoveAxis(i32, f64, oneshot::Sender<Result<(), String>>),
+    // Alt/Az slew
+    SlewToAltAz(f64, f64, oneshot::Sender<Result<(), String>>),
+    // Find home
+    FindHome(oneshot::Sender<Result<(), String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -216,7 +220,7 @@ impl AscomMountWrapper {
                                 can_unpark: ascom_caps.can_unpark.unwrap_or(false),
                                 can_set_park: false, // ASCOM MountCapabilities doesn't expose this
                                 can_pulse_guide: ascom_caps.can_pulse_guide.unwrap_or(false),
-                                can_set_tracking: m.tracking().is_ok(),
+                                can_set_tracking: ascom_caps.can_set_tracking.unwrap_or(false),
                                 can_find_home: m.can_find_home().unwrap_or(false),
                                 can_move_axis_primary: ascom_caps
                                     .can_move_axis_primary
@@ -373,6 +377,33 @@ impl AscomMountWrapper {
                             let _ = reply.send(Err("Mount not created".to_string()));
                         }
                     }
+                    AscomMountCommand::SlewToAltAz(alt, az, reply) => {
+                        if let Some(m) = &mut mount {
+                            let _ = reply
+                                .send(m.slew_to_alt_az_async(alt, az).map_err(|e| e.to_string()));
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
+                    AscomMountCommand::FindHome(reply) => {
+                        if let Some(m) = &mut mount {
+                            match m.can_find_home() {
+                                Ok(true) => {
+                                    let _ = reply.send(m.find_home().map_err(|e| e.to_string()));
+                                }
+                                Ok(false) => {
+                                    let _ = reply
+                                        .send(Err("Mount does not support FindHome".to_string()));
+                                }
+                                Err(e) => {
+                                    let _ = reply
+                                        .send(Err(format!("Failed to check CanFindHome: {}", e)));
+                                }
+                            }
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
+                    }
                 }
             }
 
@@ -440,6 +471,24 @@ impl AscomMountWrapper {
         Self::recv_with_timeout(rx, Timeouts::property_read(), "can_park").await
     }
 
+    pub async fn slew_to_alt_az(&self, alt: f64, az: f64) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::SlewToAltAz(alt, az, tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::long_slew(), "slew_to_alt_az").await
+    }
+
+    pub async fn find_home(&self) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::FindHome(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::long_slew(), "find_home").await
+    }
+
     pub async fn stop(&self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
         self.sender
@@ -497,7 +546,7 @@ impl NativeDevice for AscomMountWrapper {
             Err(err) => Err(err),
             Ok(()) => {
                 self.connected.store(false, Ordering::SeqCst);
-                stop_result
+                Ok(())
             }
         }
     }
@@ -669,6 +718,18 @@ impl NativeMount for AscomMountWrapper {
             3 => Ok(TrackingRate::King),
             _ => Ok(TrackingRate::Custom),
         }
+    }
+
+    fn can_slew(&self) -> bool {
+        true
+    }
+
+    fn can_sync(&self) -> bool {
+        true
+    }
+
+    fn can_pulse_guide(&self) -> bool {
+        true
     }
 
     fn can_set_tracking_rate(&self) -> bool {
@@ -902,9 +963,28 @@ mod tests {
             let done = order_flag.lock().expect("lock order").len() >= 2;
             done
         });
-
         wrapper.disconnect().await.expect("disconnect");
         let order = order.lock().expect("lock order");
         assert_eq!(order.as_slice(), ["stop", "disconnect"]);
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_returns_ok_when_stop_fails_but_disconnect_succeeds() {
+        let mut wrapper = build_test_wrapper(|cmd| {
+            match cmd {
+                AscomMountCommand::Stop(reply) => {
+                    let _ = reply.send(Err("stop failed".to_string()));
+                }
+                AscomMountCommand::Disconnect(reply) => {
+                    let _ = reply.send(Ok(()));
+                    return true;
+                }
+                _ => {}
+            }
+            false
+        });
+
+        wrapper.disconnect().await.expect("disconnect");
+        assert!(!wrapper.is_connected());
     }
 }

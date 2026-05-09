@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:nightshade_app/router/app_router.dart';
 import 'package:nightshade_app/services/location_sync_service.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 
@@ -110,12 +111,24 @@ class NightshadeApp extends ConsumerWidget {
     }
   }
 
+  Locale? _resolveLocale(String? languageCode) {
+    switch (languageCode) {
+      case 'en':
+        return const Locale('en');
+      case 'es':
+        return const Locale('es');
+      default:
+        return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
 
     // Activate location sync to keep planetarium in sync with settings
     ref.watch(locationSyncProvider);
+    ref.watch(pushNotificationServiceProvider);
 
     // Get settings
     final settingsAsync = ref.watch(appSettingsProvider);
@@ -132,10 +145,15 @@ class NightshadeApp extends ConsumerWidget {
           theme: _getThemeForSetting(themeSetting, accentColor),
           debugShowCheckedModeBanner: false,
           routerConfig: router,
+          localizationsDelegates:
+              NightshadeLocalizations.localizationsDelegates,
+          supportedLocales: NightshadeLocalizations.supportedLocales,
+          locale: _resolveLocale(settings?.language),
           builder: (context, child) {
             // Calculate UI scale factor INSIDE builder where we have proper MediaQuery
             // The outer context doesn't have accurate devicePixelRatio from the window
-            final uiScaleFactor = _calculateUiScaleFactor(context, uiScaleSetting);
+            final uiScaleFactor =
+                _calculateUiScaleFactor(context, uiScaleSetting);
             final combinedTextScale = textScaleFactor * uiScaleFactor;
 
             // Apply text scaling for UI accessibility

@@ -135,11 +135,11 @@ class _LayerChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           color: active
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
               : Theme.of(context).colorScheme.surfaceContainerHighest,

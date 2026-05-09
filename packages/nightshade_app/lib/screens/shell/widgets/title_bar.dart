@@ -8,8 +8,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../widgets/transient_alert_badge.dart';
 
 // Conditional import for window_manager (desktop only)
-import 'title_bar_stub.dart'
-    if (dart.library.io) 'title_bar_desktop.dart' as window_impl;
+import 'title_bar_stub.dart' if (dart.library.io) 'title_bar_desktop.dart'
+    as window_impl;
 
 class TitleBar extends ConsumerWidget {
   const TitleBar({super.key});
@@ -17,6 +17,7 @@ class TitleBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return GestureDetector(
       onPanStart: window_impl.onTitleBarPanStart,
@@ -42,10 +43,10 @@ class TitleBar extends ConsumerWidget {
                     ),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     LucideIcons.sparkles,
                     size: 14,
-                    color: Colors.white,
+                    color: onPrimary,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -71,7 +72,8 @@ class TitleBar extends ConsumerWidget {
                   try {
                     context.go('/transients');
                   } catch (e) {
-                    debugPrint('[TitleBar] Could not navigate to transients: $e');
+                    debugPrint(
+                        '[TitleBar] Could not navigate to transients: $e');
                   }
                 },
               ),
@@ -181,10 +183,10 @@ class _WindowControls extends StatelessWidget {
           onPressed: window_impl.toggleMaximizeWindow,
           hoverColor: colors.surfaceHover,
         ),
-        const _WindowButton(
+        _WindowButton(
           icon: LucideIcons.x,
           onPressed: window_impl.closeWindow,
-          hoverColor: Colors.red,
+          hoverColor: colors.error,
           isClose: true,
         ),
       ],
@@ -215,6 +217,7 @@ class _WindowButtonState extends State<_WindowButton> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final onError = Theme.of(context).colorScheme.onError;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -228,15 +231,11 @@ class _WindowButtonState extends State<_WindowButton> {
           child: Icon(
             widget.icon,
             size: 14,
-            color: _isHovered && widget.isClose
-                ? Colors.white
-                : colors.textSecondary,
+            color:
+                _isHovered && widget.isClose ? onError : colors.textSecondary,
           ),
         ),
       ),
     );
   }
 }
-
-
-

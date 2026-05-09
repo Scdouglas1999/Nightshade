@@ -24,12 +24,15 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
   /// Creates a slightly lighter shade of the given color
   Color _lightenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>()!;
     final isEnabled = widget.enabled && widget.onChanged != null;
 
     // Track gradient for active state
@@ -43,14 +46,14 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
                 colors.primary,
               ],
             ),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: colors.primary.withValues(alpha: 0.3),
             ),
           )
         : BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: colors.border,
             ),
@@ -67,7 +70,7 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
 
     // Thumb with highlight edge
     final thumbColor = widget.value
-        ? Colors.white
+        ? theme.colorScheme.onPrimary
         : isEnabled
             ? colors.textSecondary
             : colors.textMuted;
@@ -82,7 +85,8 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
           opacity: isEnabled ? 1.0 : NightshadeTokens.opacityDisabled,
           child: AnimatedContainer(
             duration: NightshadeTokens.durationNormal,
-            curve: NightshadeTokens.curveSettle, // Overshoot for satisfying snap
+            curve:
+                NightshadeTokens.curveSettle, // Overshoot for satisfying snap
             width: 44,
             height: 24,
             padding: const EdgeInsets.all(2),
@@ -90,7 +94,8 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
             child: AnimatedAlign(
               duration: NightshadeTokens.durationNormal,
               curve: NightshadeTokens.curveSettle, // Overshoot animation
-              alignment: widget.value ? Alignment.centerRight : Alignment.centerLeft,
+              alignment:
+                  widget.value ? Alignment.centerRight : Alignment.centerLeft,
               child: AnimatedContainer(
                 duration: NightshadeTokens.durationQuick,
                 width: 20,
@@ -132,8 +137,3 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
     );
   }
 }
-
-
-
-
-

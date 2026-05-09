@@ -753,8 +753,8 @@ impl FujifilmSdk {
             }
         }
 
-        tracing::info!("Fujifilm X Acquire SDK (XAPI.dll) not found. Native Fujifilm camera support unavailable.");
-        tracing::info!("To use native Fujifilm drivers, install the Fujifilm X Acquire SDK or place XAPI.dll in the application directory.");
+        tracing::debug!("Fujifilm X Acquire SDK (XAPI.dll) not found. Native Fujifilm camera support unavailable.");
+        tracing::debug!("To use native Fujifilm drivers, install the Fujifilm X Acquire SDK or place XAPI.dll in the application directory.");
         None
     }
 

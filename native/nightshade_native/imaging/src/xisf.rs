@@ -6,13 +6,17 @@
 //! - Optional compression (zlib, lz4, zstd)
 
 use crate::{ImageData, PixelType};
+use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, Event};
+use quick_xml::{Reader, Writer};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 /// XISF file magic signature
 const XISF_MAGIC: &[u8; 8] = b"XISF0100";
+const XISF_ALIGNMENT: usize = 16;
+const MAX_OFFSET_RESOLUTION_PASSES: usize = 8;
 
 /// XISF metadata
 #[derive(Debug, Clone, Default)]
@@ -82,7 +86,9 @@ impl std::fmt::Display for XisfError {
             XisfError::InvalidFormat(s) => write!(f, "Invalid XISF format: {}", s),
             XisfError::XmlParse(s) => write!(f, "XML parse error: {}", s),
             XisfError::Compression(s) => write!(f, "Compression error: {}", s),
-            XisfError::UnsupportedSampleFormat(s) => write!(f, "Unsupported sample format: {}", s),
+            XisfError::UnsupportedSampleFormat(s) => {
+                write!(f, "Unsupported sample format: {}", s)
+            }
         }
     }
 }
@@ -93,6 +99,30 @@ impl From<std::io::Error> for XisfError {
     fn from(e: std::io::Error) -> Self {
         XisfError::Io(e)
     }
+}
+
+impl From<quick_xml::Error> for XisfError {
+    fn from(e: quick_xml::Error) -> Self {
+        XisfError::XmlParse(e.to_string())
+    }
+}
+
+impl From<quick_xml::events::attributes::AttrError> for XisfError {
+    fn from(e: quick_xml::events::attributes::AttrError) -> Self {
+        XisfError::XmlParse(format!("XML attribute error: {}", e))
+    }
+}
+
+/// Parsed image header information extracted from the XISF XML
+struct ImageHeader {
+    width: u32,
+    height: u32,
+    channels: u32,
+    sample_format: String,
+    #[allow(dead_code)]
+    color_space: String,
+    data_offset: usize,
+    data_size: usize,
 }
 
 /// Read an XISF file
@@ -122,23 +152,19 @@ pub fn read_xisf(path: &Path) -> Result<(ImageData, XisfMetadata), XisfError> {
     // Read XML header
     let mut xml_bytes = vec![0u8; header_len];
     reader.read_exact(&mut xml_bytes)?;
-    let xml_str = String::from_utf8_lossy(&xml_bytes);
 
-    // Parse XML header (simplified parser)
-    let (width, height, channels, sample_format, data_offset, data_size, _color_space) =
-        parse_xisf_header(&xml_str)?;
-
-    let metadata = parse_xisf_metadata(&xml_str)?;
+    // Parse XML header using quick-xml
+    let (header, metadata) = parse_xisf_xml(&xml_bytes)?;
 
     // Seek to data block
-    reader.seek(SeekFrom::Start(data_offset as u64))?;
+    reader.seek(SeekFrom::Start(header.data_offset as u64))?;
 
     // Read pixel data
-    let mut data = vec![0u8; data_size];
+    let mut data = vec![0u8; header.data_size];
     reader.read_exact(&mut data)?;
 
     // Determine pixel type
-    let pixel_type = match sample_format.as_str() {
+    let pixel_type = match header.sample_format.as_str() {
         "UInt8" => PixelType::U8,
         "UInt16" => PixelType::U16,
         "UInt32" => PixelType::U32,
@@ -150,9 +176,9 @@ pub fn read_xisf(path: &Path) -> Result<(ImageData, XisfMetadata), XisfError> {
     // XISF stores data in channel-major order (all R, then all G, then all B)
     // We need to keep it as-is for processing
     let image = ImageData {
-        width,
-        height,
-        channels,
+        width: header.width,
+        height: header.height,
+        channels: header.channels,
         pixel_type,
         data,
     };
@@ -160,138 +186,219 @@ pub fn read_xisf(path: &Path) -> Result<(ImageData, XisfMetadata), XisfError> {
     Ok((image, metadata))
 }
 
-/// Parse XISF XML header for image dimensions and data location
-fn parse_xisf_header(
-    xml: &str,
-) -> Result<(u32, u32, u32, String, usize, usize, String), XisfError> {
-    // Simple regex-like parsing for key attributes
-    // In production, use a proper XML parser
+/// Parse the XISF XML header using quick-xml, extracting both image header info and metadata.
+fn parse_xisf_xml(xml_bytes: &[u8]) -> Result<(ImageHeader, XisfMetadata), XisfError> {
+    let mut xml_reader = Reader::from_reader(xml_bytes);
+    xml_reader.trim_text(true);
 
-    let width = extract_attribute(xml, "geometry", 0)
-        .ok_or_else(|| XisfError::XmlParse("Missing width".to_string()))?;
-    let height = extract_attribute(xml, "geometry", 1)
-        .ok_or_else(|| XisfError::XmlParse("Missing height".to_string()))?;
-    let channels = extract_attribute(xml, "geometry", 2).unwrap_or(1);
+    let mut header: Option<ImageHeader> = None;
+    let mut metadata = XisfMetadata::default();
+    let mut buf = Vec::new();
+    let mut inside_image = false;
 
-    let sample_format =
-        extract_string_attribute(xml, "sampleFormat").unwrap_or_else(|| "UInt16".to_string());
+    loop {
+        match xml_reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                if e.name().as_ref() == b"Image" {
+                    header = Some(parse_image_element(e)?);
+                    inside_image = true;
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                let tag_name = e.name();
+                if tag_name.as_ref() == b"Image" {
+                    // Self-closing Image element (unlikely but handle it)
+                    header = Some(parse_image_element(e)?);
+                } else if inside_image && tag_name.as_ref() == b"Property" {
+                    parse_property_element(e, &mut metadata)?;
+                } else if inside_image && tag_name.as_ref() == b"FITSKeyword" {
+                    parse_fits_keyword_element(e, &mut metadata)?;
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                if e.name().as_ref() == b"Image" {
+                    inside_image = false;
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => {
+                return Err(XisfError::XmlParse(format!(
+                    "Error at position {}: {}",
+                    xml_reader.buffer_position(),
+                    e
+                )));
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
 
-    let color_space =
-        extract_string_attribute(xml, "colorSpace").unwrap_or_else(|| "Gray".to_string());
+    let header = header.ok_or_else(|| XisfError::XmlParse("No Image element found".to_string()))?;
 
-    // Parse attachment location
-    let (data_offset, data_size) = parse_attachment_location(xml)?;
+    Ok((header, metadata))
+}
 
-    Ok((
+/// Parse the <Image> element's attributes to extract geometry, sampleFormat, colorSpace,
+/// bounds, and attachment location.
+fn parse_image_element(element: &BytesStart) -> Result<ImageHeader, XisfError> {
+    let mut geometry: Option<String> = None;
+    let mut sample_format: Option<String> = None;
+    let mut color_space: Option<String> = None;
+    let mut location: Option<String> = None;
+
+    for attr_result in element.attributes() {
+        let attr = attr_result?;
+        let key = std::str::from_utf8(attr.key.as_ref())
+            .map_err(|e| XisfError::XmlParse(format!("Invalid UTF-8 attribute key: {}", e)))?;
+        let value = attr.unescape_value().map_err(|e| {
+            XisfError::XmlParse(format!("Error unescaping attribute '{}': {}", key, e))
+        })?;
+
+        match key {
+            "geometry" => geometry = Some(value.into_owned()),
+            "sampleFormat" => sample_format = Some(value.into_owned()),
+            "colorSpace" => color_space = Some(value.into_owned()),
+            "location" => location = Some(value.into_owned()),
+            // bounds and other attributes are noted but not needed for reading
+            _ => {}
+        }
+    }
+
+    // Parse geometry "W:H" or "W:H:C"
+    let geometry_str = geometry
+        .ok_or_else(|| XisfError::XmlParse("Missing geometry attribute on Image".to_string()))?;
+    let geo_parts: Vec<&str> = geometry_str.split(':').collect();
+
+    let width: u32 = geo_parts
+        .first()
+        .ok_or_else(|| XisfError::XmlParse("Missing width in geometry".to_string()))?
+        .parse()
+        .map_err(|_| XisfError::XmlParse(format!("Invalid width in geometry: {}", geometry_str)))?;
+
+    let height: u32 = geo_parts
+        .get(1)
+        .ok_or_else(|| XisfError::XmlParse("Missing height in geometry".to_string()))?
+        .parse()
+        .map_err(|_| {
+            XisfError::XmlParse(format!("Invalid height in geometry: {}", geometry_str))
+        })?;
+
+    let channels: u32 = geo_parts
+        .get(2)
+        .map(|s| {
+            s.parse().map_err(|_| {
+                XisfError::XmlParse(format!("Invalid channels in geometry: {}", geometry_str))
+            })
+        })
+        .transpose()?
+        .unwrap_or(1);
+
+    let sample_format = sample_format.unwrap_or_else(|| "UInt16".to_string());
+    let color_space = color_space.unwrap_or_else(|| "Gray".to_string());
+
+    // Parse location "attachment:OFFSET:SIZE"
+    let location_str = location
+        .ok_or_else(|| XisfError::XmlParse("Missing location attribute on Image".to_string()))?;
+
+    let (data_offset, data_size) = parse_attachment_location(&location_str)?;
+
+    Ok(ImageHeader {
         width,
         height,
         channels,
         sample_format,
+        color_space,
         data_offset,
         data_size,
-        color_space,
-    ))
+    })
 }
 
-/// Extract numeric attribute from geometry string "W:H:C"
-fn extract_attribute(xml: &str, attr: &str, index: usize) -> Option<u32> {
-    let attr_pattern = format!("{}=\"", attr);
-    let start = xml.find(&attr_pattern)? + attr_pattern.len();
-    let end = xml[start..].find('"')? + start;
-    let value = &xml[start..end];
+/// Parse a <Property> element and insert into metadata.
+fn parse_property_element(
+    element: &BytesStart,
+    metadata: &mut XisfMetadata,
+) -> Result<(), XisfError> {
+    let mut id: Option<String> = None;
+    let mut prop_type: Option<String> = None;
+    let mut value: Option<String> = None;
 
-    // geometry format is "W:H:C" or "W:H"
-    let parts: Vec<&str> = value.split(':').collect();
-    parts.get(index)?.parse().ok()
+    for attr_result in element.attributes() {
+        let attr = attr_result?;
+        let key = std::str::from_utf8(attr.key.as_ref())
+            .map_err(|e| XisfError::XmlParse(format!("Invalid UTF-8 attribute key: {}", e)))?;
+        let attr_value = attr.unescape_value().map_err(|e| {
+            XisfError::XmlParse(format!("Error unescaping attribute '{}': {}", key, e))
+        })?;
+
+        match key {
+            "id" => id = Some(attr_value.into_owned()),
+            "type" => prop_type = Some(attr_value.into_owned()),
+            "value" => value = Some(attr_value.into_owned()),
+            _ => {}
+        }
+    }
+
+    if let (Some(id), Some(value)) = (id, value) {
+        let prop_type = prop_type.unwrap_or_else(|| "String".to_string());
+        let property = parse_property_value(&value, &prop_type);
+        metadata.properties.insert(id, property);
+    }
+
+    Ok(())
 }
 
-/// Extract string attribute value
-fn extract_string_attribute(xml: &str, attr: &str) -> Option<String> {
-    let attr_pattern = format!("{}=\"", attr);
-    let start = xml.find(&attr_pattern)? + attr_pattern.len();
-    let end = xml[start..].find('"')? + start;
-    Some(xml[start..end].to_string())
+/// Parse a <FITSKeyword> element and insert into metadata.
+fn parse_fits_keyword_element(
+    element: &BytesStart,
+    metadata: &mut XisfMetadata,
+) -> Result<(), XisfError> {
+    let mut name: Option<String> = None;
+    let mut value: Option<String> = None;
+
+    for attr_result in element.attributes() {
+        let attr = attr_result?;
+        let key = std::str::from_utf8(attr.key.as_ref())
+            .map_err(|e| XisfError::XmlParse(format!("Invalid UTF-8 attribute key: {}", e)))?;
+        let attr_value = attr.unescape_value().map_err(|e| {
+            XisfError::XmlParse(format!("Error unescaping attribute '{}': {}", key, e))
+        })?;
+
+        match key {
+            "name" => name = Some(attr_value.into_owned()),
+            "value" => value = Some(attr_value.into_owned()),
+            _ => {}
+        }
+    }
+
+    if let (Some(name), Some(value)) = (name, value) {
+        metadata.fits_keywords.insert(name, value);
+    }
+
+    Ok(())
 }
 
 /// Parse attachment location "attachment:OFFSET:SIZE"
-fn parse_attachment_location(xml: &str) -> Result<(usize, usize), XisfError> {
-    // Look for location attribute
-    let loc_start = xml
-        .find("location=\"attachment:")
-        .ok_or_else(|| XisfError::XmlParse("Missing attachment location".to_string()))?;
+fn parse_attachment_location(location: &str) -> Result<(usize, usize), XisfError> {
+    let stripped = location.strip_prefix("attachment:").ok_or_else(|| {
+        XisfError::XmlParse(format!("Location is not an attachment: {}", location))
+    })?;
 
-    let loc_start = loc_start + "location=\"attachment:".len();
-    let loc_end = xml[loc_start..]
-        .find('"')
-        .ok_or_else(|| XisfError::XmlParse("Invalid attachment location".to_string()))?
-        + loc_start;
-
-    let loc_str = &xml[loc_start..loc_end];
-    let parts: Vec<&str> = loc_str.split(':').collect();
-
+    let parts: Vec<&str> = stripped.split(':').collect();
     if parts.len() != 2 {
-        return Err(XisfError::XmlParse("Invalid attachment format".to_string()));
+        return Err(XisfError::XmlParse(format!(
+            "Invalid attachment format (expected OFFSET:SIZE): {}",
+            location
+        )));
     }
 
     let offset: usize = parts[0]
         .parse()
-        .map_err(|_| XisfError::XmlParse("Invalid offset".to_string()))?;
+        .map_err(|_| XisfError::XmlParse(format!("Invalid attachment offset in: {}", location)))?;
     let size: usize = parts[1]
         .parse()
-        .map_err(|_| XisfError::XmlParse("Invalid size".to_string()))?;
+        .map_err(|_| XisfError::XmlParse(format!("Invalid attachment size in: {}", location)))?;
 
     Ok((offset, size))
-}
-
-/// Parse XISF metadata properties
-fn parse_xisf_metadata(xml: &str) -> Result<XisfMetadata, XisfError> {
-    let mut metadata = XisfMetadata::default();
-
-    // Parse Property elements
-    let mut search_start = 0;
-    while let Some(prop_start) = xml[search_start..].find("<Property ") {
-        let abs_start = search_start + prop_start;
-        if let Some(prop_end) = xml[abs_start..].find("/>") {
-            let prop_xml = &xml[abs_start..abs_start + prop_end + 2];
-
-            if let (Some(id), Some(value)) = (
-                extract_string_attribute(prop_xml, "id"),
-                extract_string_attribute(prop_xml, "value"),
-            ) {
-                let prop_type = extract_string_attribute(prop_xml, "type")
-                    .unwrap_or_else(|| "String".to_string());
-
-                let property = parse_property_value(&value, &prop_type);
-                metadata.properties.insert(id, property);
-            }
-
-            search_start = abs_start + prop_end + 2;
-        } else {
-            break;
-        }
-    }
-
-    // Parse FITSKeyword elements
-    search_start = 0;
-    while let Some(kw_start) = xml[search_start..].find("<FITSKeyword ") {
-        let abs_start = search_start + kw_start;
-        if let Some(kw_end) = xml[abs_start..].find("/>") {
-            let kw_xml = &xml[abs_start..abs_start + kw_end + 2];
-
-            if let (Some(name), Some(value)) = (
-                extract_string_attribute(kw_xml, "name"),
-                extract_string_attribute(kw_xml, "value"),
-            ) {
-                metadata.fits_keywords.insert(name, value);
-            }
-
-            search_start = abs_start + kw_end + 2;
-        } else {
-            break;
-        }
-    }
-
-    Ok(metadata)
 }
 
 /// Parse property value based on type
@@ -362,36 +469,7 @@ pub fn write_xisf(
     // - padding to align data
     // - image data
 
-    // We need to calculate the data offset, but the offset depends on the XML length,
-    // which depends on the offset (circular dependency).
-    // Solution: Use a fixed alignment and iterate if needed.
-
-    // First pass: estimate XML size with an initial offset guess
-    let initial_offset_guess = 16 + 4096; // Conservative estimate
-    let xml_v1 = build_xisf_xml_with_location(image, metadata, initial_offset_guess, data_size);
-
-    // Calculate required padding to align data to 16-byte boundary (XISF spec recommendation)
-    let xml_len_v1 = xml_v1.len();
-    let header_with_magic = 16 + xml_len_v1; // magic(8) + length(4) + reserved(4) + xml
-    let aligned_offset = (header_with_magic + 15) & !15; // Align to 16 bytes
-
-    // Second pass: rebuild XML with correct offset
-    let xml_final = build_xisf_xml_with_location(image, metadata, aligned_offset, data_size);
-    let xml_bytes = xml_final.as_bytes();
-
-    // Verify offset didn't change significantly (different digit count could change length)
-    let final_header = 16 + xml_bytes.len();
-    let final_aligned = (final_header + 15) & !15;
-
-    // If the offset changed, recalculate one more time
-    let (xml_bytes, data_offset) = if final_aligned != aligned_offset {
-        let xml_final2 = build_xisf_xml_with_location(image, metadata, final_aligned, data_size);
-        let bytes = xml_final2.into_bytes();
-        let offset = (16 + bytes.len() + 15) & !15;
-        (bytes, offset)
-    } else {
-        (xml_bytes.to_vec(), aligned_offset)
-    };
+    let (xml_bytes, data_offset) = resolve_stable_xml_header(image, metadata, data_size)?;
 
     // Write magic signature
     writer.write_all(XISF_MAGIC)?;
@@ -428,13 +506,45 @@ pub fn write_xisf(
     Ok(())
 }
 
-/// Build XISF XML header with data location
-fn build_xisf_xml_with_location(
+fn resolve_stable_xml_header(
+    image: &ImageData,
+    metadata: &XisfMetadata,
+    data_size: usize,
+) -> Result<(Vec<u8>, usize), XisfError> {
+    let mut candidate_offset = 16 + 4096;
+
+    for _ in 0..MAX_OFFSET_RESOLUTION_PASSES {
+        let xml_bytes = build_xisf_xml(image, metadata, candidate_offset, data_size)?;
+        let resolved_offset = align_offset(16 + xml_bytes.len());
+        if resolved_offset == candidate_offset {
+            return Ok((xml_bytes, resolved_offset));
+        }
+        candidate_offset = resolved_offset;
+    }
+
+    let xml_bytes = build_xisf_xml(image, metadata, candidate_offset, data_size)?;
+    let resolved_offset = align_offset(16 + xml_bytes.len());
+    if resolved_offset == candidate_offset {
+        return Ok((xml_bytes, resolved_offset));
+    }
+
+    Err(XisfError::InvalidFormat(format!(
+        "Failed to resolve stable XISF attachment offset after {} passes",
+        MAX_OFFSET_RESOLUTION_PASSES
+    )))
+}
+
+fn align_offset(position: usize) -> usize {
+    (position + (XISF_ALIGNMENT - 1)) & !(XISF_ALIGNMENT - 1)
+}
+
+/// Build XISF XML header with data location using quick-xml Writer
+fn build_xisf_xml(
     image: &ImageData,
     metadata: &XisfMetadata,
     data_offset: usize,
     data_size: usize,
-) -> String {
+) -> Result<Vec<u8>, XisfError> {
     let sample_format = match image.pixel_type {
         PixelType::U8 => "UInt8",
         PixelType::U16 => "UInt16",
@@ -443,12 +553,11 @@ fn build_xisf_xml_with_location(
         PixelType::F64 => "Float64",
     };
 
-    // Bounds attribute - tells PixInsight the valid data range
     let bounds = match image.pixel_type {
         PixelType::U8 => "0:255",
         PixelType::U16 => "0:65535",
         PixelType::U32 => "0:4294967295",
-        PixelType::F32 | PixelType::F64 => "0:1", // Normalized
+        PixelType::F32 | PixelType::F64 => "0:1",
     };
 
     let color_space = if image.channels == 1 { "Gray" } else { "RGB" };
@@ -458,50 +567,78 @@ fn build_xisf_xml_with_location(
         format!("{}:{}:{}", image.width, image.height, image.channels)
     };
 
-    let mut xml = String::new();
-    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<xisf version=\"1.0\" xmlns=\"http://www.pixinsight.com/xisf\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.pixinsight.com/xisf http://pixinsight.com/xisf/xisf-1.0.xsd\">\n");
+    let location = format!("attachment:{}:{}", data_offset, data_size);
 
-    // Image element with all required attributes
-    xml.push_str(&format!(
-        "  <Image geometry=\"{}\" sampleFormat=\"{}\" bounds=\"{}\" colorSpace=\"{}\" location=\"attachment:{}:{}\">\n",
-        geometry, sample_format, bounds, color_space, data_offset, data_size
+    let mut xml_buf = Cursor::new(Vec::new());
+    let mut xml_writer = Writer::new_with_indent(&mut xml_buf, b' ', 2);
+
+    // XML declaration
+    xml_writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
+
+    // <xisf> root element
+    let mut xisf_start = BytesStart::new("xisf");
+    xisf_start.push_attribute(("version", "1.0"));
+    xisf_start.push_attribute(("xmlns", "http://www.pixinsight.com/xisf"));
+    xisf_start.push_attribute(("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"));
+    xisf_start.push_attribute((
+        "xsi:schemaLocation",
+        "http://www.pixinsight.com/xisf http://pixinsight.com/xisf/xisf-1.0.xsd",
     ));
+    xml_writer.write_event(Event::Start(xisf_start))?;
 
-    // Add XISF creator property
-    xml.push_str(
-        "    <Property id=\"XISF:CreatorApplication\" type=\"String\" value=\"Nightshade 2.0\"/>\n",
-    );
-    xml.push_str(&format!(
-        "    <Property id=\"XISF:CreationTime\" type=\"TimePoint\" value=\"{}\"/>\n",
-        chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ")
-    ));
+    // <Image> element
+    let mut image_start = BytesStart::new("Image");
+    image_start.push_attribute(("geometry", geometry.as_str()));
+    image_start.push_attribute(("sampleFormat", sample_format));
+    image_start.push_attribute(("bounds", bounds));
+    image_start.push_attribute(("colorSpace", color_space));
+    image_start.push_attribute(("location", location.as_str()));
+    xml_writer.write_event(Event::Start(image_start))?;
 
-    // Add user-provided properties
+    // Creator property
+    let mut creator_prop = BytesStart::new("Property");
+    creator_prop.push_attribute(("id", "XISF:CreatorApplication"));
+    creator_prop.push_attribute(("type", "String"));
+    creator_prop.push_attribute(("value", "Nightshade 2.0"));
+    xml_writer.write_event(Event::Empty(creator_prop))?;
+
+    // Creation time property
+    let creation_time = chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string();
+    let mut time_prop = BytesStart::new("Property");
+    time_prop.push_attribute(("id", "XISF:CreationTime"));
+    time_prop.push_attribute(("type", "TimePoint"));
+    time_prop.push_attribute(("value", creation_time.as_str()));
+    xml_writer.write_event(Event::Empty(time_prop))?;
+
+    // User-provided properties
     for (id, prop) in &metadata.properties {
         let (type_str, value_str) = property_to_strings(prop);
-        xml.push_str(&format!(
-            "    <Property id=\"{}\" type=\"{}\" value=\"{}\"/>\n",
-            escape_xml(id),
-            type_str,
-            escape_xml(&value_str)
-        ));
+        let mut prop_elem = BytesStart::new("Property");
+        prop_elem.push_attribute(("id", id.as_str()));
+        prop_elem.push_attribute(("type", type_str));
+        prop_elem.push_attribute(("value", value_str.as_str()));
+        xml_writer.write_event(Event::Empty(prop_elem))?;
     }
 
-    // Add FITS keywords for interoperability
+    // FITS keywords
     for (name, value) in &metadata.fits_keywords {
-        // FITS keywords need proper formatting
-        xml.push_str(&format!(
-            "    <FITSKeyword name=\"{}\" value=\"{}\" comment=\"\"/>\n",
-            escape_xml(name),
-            escape_xml(value)
-        ));
+        let mut kw_elem = BytesStart::new("FITSKeyword");
+        kw_elem.push_attribute(("name", name.as_str()));
+        kw_elem.push_attribute(("value", value.as_str()));
+        kw_elem.push_attribute(("comment", ""));
+        xml_writer.write_event(Event::Empty(kw_elem))?;
     }
 
-    xml.push_str("  </Image>\n");
-    xml.push_str("</xisf>\n");
+    // </Image>
+    xml_writer.write_event(Event::End(BytesEnd::new("Image")))?;
 
-    xml
+    // </xisf>
+    xml_writer.write_event(Event::End(BytesEnd::new("xisf")))?;
+
+    let xml_bytes = xml_buf.into_inner();
+    Ok(xml_bytes)
 }
 
 /// Convert property to type and value strings
@@ -523,11 +660,32 @@ fn property_to_strings(prop: &XisfProperty) -> (&'static str, String) {
     }
 }
 
-/// Escape XML special characters
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolves_offsets_until_fixed_point() {
+        let resolved = resolve_stable_xml_header(
+            &ImageData {
+                width: 64,
+                height: 64,
+                channels: 1,
+                pixel_type: PixelType::U16,
+                data: vec![0; 64 * 64 * 2],
+            },
+            &XisfMetadata {
+                properties: HashMap::from([(
+                    "XISF:LongProperty".to_string(),
+                    XisfProperty::String("x".repeat(10_000)),
+                )]),
+                fits_keywords: HashMap::new(),
+            },
+            64 * 64 * 2,
+        )
+        .expect("offset resolution should converge");
+
+        let expected_offset = align_offset(16 + resolved.0.len());
+        assert_eq!(resolved.1, expected_offset);
+    }
 }

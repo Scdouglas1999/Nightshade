@@ -148,8 +148,6 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
   final drivers = <String>[];
 
   try {
-    debugPrint('[ASCOM] Querying: HKLM\\$registryPath');
-
     // Use reg.exe to query the registry (works on all Windows)
     final result = await Process.run(
       'reg',
@@ -157,13 +155,9 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
       runInShell: true,
     );
 
-    debugPrint('[ASCOM] Exit code: ${result.exitCode}');
-
     if (result.exitCode == 0) {
       final output = result.stdout as String;
       final lines = output.split('\n');
-
-      debugPrint('[ASCOM] Registry output has ${lines.length} lines');
 
       for (final line in lines) {
         final trimmed = line.trim();
@@ -179,14 +173,12 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
             !trimmed.contains(' ') &&
             !trimmed.contains('REG_')) {
           drivers.add(trimmed);
-          debugPrint('[ASCOM] Found driver: $trimmed');
         }
       }
 
       // Also check WOW6432Node for 32-bit drivers on 64-bit Windows
       final wowPath = registryPath.replaceFirst(
           'SOFTWARE\\ASCOM', 'SOFTWARE\\WOW6432Node\\ASCOM');
-      debugPrint('[ASCOM] Also checking: HKLM\\$wowPath');
 
       try {
         final wowResult = await Process.run(
@@ -212,23 +204,20 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
                 !trimmed.contains('REG_')) {
               if (!drivers.contains(trimmed)) {
                 drivers.add(trimmed);
-                debugPrint('[ASCOM] Found WOW64 driver: $trimmed');
               }
             }
           }
         }
       } catch (e) {
-        debugPrint('[ASCOM] WOW64 query failed (non-fatal): $e');
+        // WOW64 registry path doesn't exist - this is normal on many systems
       }
     } else {
-      debugPrint('[ASCOM] Registry query failed. Stderr: ${result.stderr}');
+      // Registry path doesn't exist - ASCOM not installed or no drivers of this type
     }
-  } catch (e, stackTrace) {
-    debugPrint('[ASCOM] Failed to query registry: $e');
-    debugPrint('[ASCOM] Stack trace: $stackTrace');
+  } catch (e) {
+    debugPrint('[ASCOM] Registry query failed for $registryPath: $e');
   }
 
-  debugPrint('[ASCOM] Total drivers found: ${drivers.length}');
   return drivers.toSet().toList(); // Remove duplicates
 }
 

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide NotificationService;
 import 'foreground_service.dart';
@@ -13,6 +15,7 @@ class MobileSequenceHooks {
   final ImagingForegroundService _foregroundService = ImagingForegroundService();
   final NotificationService _notificationService = NotificationService();
   final PowerService _powerService = PowerService();
+  StreamSubscription<Map<String, dynamic>>? _pushNotificationSubscription;
 
   MobileSequenceHooks(this._ref);
 
@@ -38,6 +41,27 @@ class MobileSequenceHooks {
       sequenceProgressProvider,
       (previous, next) => _handleProgressUpdate(previous, next),
     );
+
+    // Listen for push notifications from the desktop via NetworkBackend
+    _setupPushNotificationListener();
+  }
+
+  /// Subscribe to push notifications from the desktop server.
+  ///
+  /// Only activates when connected via NetworkBackend (i.e., mobile controlling
+  /// a remote desktop). Push notifications are displayed as local notifications.
+  void _setupPushNotificationListener() {
+    _pushNotificationSubscription?.cancel();
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      _pushNotificationSubscription =
+          backend.pushNotificationStream.listen((data) {
+        debugPrint('[MobileSequenceHooks] Received push notification: ${data['title']}');
+        _notificationService.notifyPush(data);
+      }, onError: (error) {
+        debugPrint('[MobileSequenceHooks] Push notification stream error: $error');
+      });
+    }
   }
 
   void _handleExecutionStateChange(
@@ -193,6 +217,8 @@ class MobileSequenceHooks {
   }
 
   Future<void> dispose() async {
+    await _pushNotificationSubscription?.cancel();
+    _pushNotificationSubscription = null;
     await _powerService.dispose();
   }
 }

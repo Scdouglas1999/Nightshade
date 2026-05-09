@@ -25,7 +25,7 @@ class OpticalConfigPanel extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -142,7 +142,8 @@ class OpticalConfigPanel extends ConsumerWidget {
         if (config.telescopeName != null) ...[
           Row(
             children: [
-              const Text('\u{1F52D}', style: TextStyle(fontSize: 14)), // Telescope emoji
+              const Text('\u{1F52D}',
+                  style: TextStyle(fontSize: 14)), // Telescope emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -175,7 +176,8 @@ class OpticalConfigPanel extends ConsumerWidget {
         if (config.cameraName != null) ...[
           Row(
             children: [
-              const Text('\u{1F4F7}', style: TextStyle(fontSize: 14)), // Camera emoji
+              const Text('\u{1F4F7}',
+                  style: TextStyle(fontSize: 14)), // Camera emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -320,7 +322,8 @@ class _ProfileSwitcher extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
+                Icon(LucideIcons.chevronDown,
+                    size: 14, color: colors.textMuted),
               ],
             ),
           ),

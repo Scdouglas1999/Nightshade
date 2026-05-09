@@ -144,7 +144,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: colors.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(8),
                 border:
                     Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
@@ -759,7 +759,7 @@ class _TwilightOption extends StatelessWidget {
           color: isSelected
               ? colors.primary.withValues(alpha: 0.1)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
             width: isSelected ? 2 : 1,
@@ -805,6 +805,9 @@ class _ActionButtons extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
+    final cameraState = ref.watch(cameraStateProvider);
+    final isCameraConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -850,8 +853,24 @@ class _ActionButtons extends ConsumerWidget {
             key: FlatWizardTutorialKeys.startBtn,
             label:
                 mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
-            onPressed: () => _startCapture(context, ref),
+            onPressed:
+                isCameraConnected ? () => _startCapture(context, ref) : null,
           ),
+        if (!state.isCapturing && !isCameraConnected) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(LucideIcons.cameraOff, size: 14, color: colors.warning),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Connect a camera before starting flat capture.',
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -859,6 +878,13 @@ class _ActionButtons extends ConsumerWidget {
   Future<void> _startCapture(BuildContext context, WidgetRef ref) async {
     final state = ref.read(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
+    final cameraState = ref.read(cameraStateProvider);
+
+    if (cameraState.connectionState != DeviceConnectionState.connected ||
+        cameraState.deviceId == null) {
+      notifier.setErrorMessage('Camera not connected');
+      return;
+    }
 
     // Check if save path is set
     if (state.globalSettings.savePath == null ||

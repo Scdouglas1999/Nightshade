@@ -342,7 +342,7 @@ class PolarAlignmentResult with _$PolarAlignmentResult {
     @Default(false) bool autoCompleted,
 
     /// Equipment profile ID used (for history tracking)
-    String? equipmentProfileId,
+    int? equipmentProfileId,
   }) = _PolarAlignmentResult;
 
   factory PolarAlignmentResult.fromJson(Map<String, dynamic> json) =>

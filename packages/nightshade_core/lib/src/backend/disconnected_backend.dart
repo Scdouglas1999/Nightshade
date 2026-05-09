@@ -100,6 +100,11 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> cameraSetReadoutMode(String deviceId, int modeIndex) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> cameraSetGain(String deviceId, int gain) async {
     _throwNotConnected();
   }
@@ -164,6 +169,16 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> mountSlewAltAz(String deviceId, double altitude, double azimuth) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> mountFindHome(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
     _throwNotConnected();
   }
@@ -187,6 +202,17 @@ class DisconnectedBackend implements NightshadeBackend {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    String curveFitting = 'Hyperbolic',
+    int numberOfAttempts = 1,
+    int exposuresPerPoint = 1,
+    double rSquaredThreshold = 0.7,
+    double outerCropRatio = 1.0,
+    double innerCropRatio = 0.0,
+    int useBrightestNStars = 0,
+    int focuserSettleTimeMs = 500,
+    String backlashCompMethod = 'Overshoot',
+    int backlashIn = 350,
+    int backlashOut = 0,
   }) async {
     _throwNotConnected();
   }
@@ -352,6 +378,54 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> guiderLoop({required String deviceId}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<(double, double)> guiderFindStar({required String deviceId}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> guiderSetLockPosition({
+    required String deviceId,
+    required double x,
+    required double y,
+    bool exact = false,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<(double, double)> guiderGetLockPosition({required String deviceId}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> guiderDeselectStar({required String deviceId}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<Phd2StarImage> guiderGetStarImage({
+    required String deviceId,
+    int size = 50,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<BuiltinGuiderConfig> builtinGuiderGetConfig() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> builtinGuiderSetConfig(BuiltinGuiderConfig config) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<PlateSolveResult> plateSolve({
     required String imagePath,
     double? ra,
@@ -421,6 +495,30 @@ class DisconnectedBackend implements NightshadeBackend {
 
   @override
   Future<void> sequencerSetSavePath(String? path) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateDitherConfig({
+    required double pixels,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+    required bool raOnly,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets) async {
     _throwNotConnected();
   }
 

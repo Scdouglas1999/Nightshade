@@ -2,6 +2,74 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../localization/nightshade_localizations.dart';
+
+List<NavItem> sideNavigationTabs(BuildContext context) {
+  final l10n = context.l10n;
+  return [
+    NavItem(
+      icon: LucideIcons.layoutDashboard,
+      label: l10n.text('navDashboard'),
+      description: l10n.text('navDashboardDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.plug,
+      label: l10n.text('navEquipment'),
+      description: l10n.text('navEquipmentDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.camera,
+      label: l10n.text('navImaging'),
+      description: l10n.text('navImagingDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.crosshair,
+      label: l10n.text('navGuiding'),
+      description: l10n.text('navGuidingDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.listOrdered,
+      label: l10n.text('navSequencer'),
+      description: l10n.text('navSequencerDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.globe,
+      label: l10n.text('navPlanetarium'),
+      description: l10n.text('navPlanetariumDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.frame,
+      label: l10n.text('navFraming'),
+      description: l10n.text('navFramingDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.barChart3,
+      label: l10n.text('navAnalytics'),
+      description: l10n.text('navAnalyticsDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.sun,
+      label: l10n.text('navFlatWizard'),
+      description: l10n.text('navFlatWizardDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.cloudRain,
+      label: l10n.text('navWeather'),
+      description: l10n.text('navWeatherDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.moonStar,
+      label: l10n.text('navPlanner'),
+      description: l10n.text('navPlannerDesc'),
+    ),
+    NavItem(
+      icon: LucideIcons.microscope,
+      label: l10n.text('navDiagnostics'),
+      description: l10n.text('navDiagnosticsDesc'),
+    ),
+  ];
+}
+
 class SideNavigation extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
@@ -20,59 +88,6 @@ class SideNavigation extends StatelessWidget {
     required this.onToggleExpanded,
     this.tutorialKeys,
   });
-
-  static const tabs = [
-    NavItem(
-      icon: LucideIcons.layoutDashboard,
-      label: 'Dashboard',
-      description: 'Overview & status',
-    ),
-    NavItem(
-      icon: LucideIcons.plug,
-      label: 'Equipment',
-      description: 'Connect devices',
-    ),
-    NavItem(
-      icon: LucideIcons.camera,
-      label: 'Imaging',
-      description: 'Capture & focus',
-    ),
-    NavItem(
-      icon: LucideIcons.crosshair,
-      label: 'Guiding',
-      description: 'PHD2 control',
-    ),
-    NavItem(
-      icon: LucideIcons.listOrdered,
-      label: 'Sequencer',
-      description: 'Automation',
-    ),
-    NavItem(
-      icon: LucideIcons.globe,
-      label: 'Planetarium',
-      description: 'Sky view',
-    ),
-    NavItem(
-      icon: LucideIcons.frame,
-      label: 'Framing',
-      description: 'Plan shots',
-    ),
-    NavItem(
-      icon: LucideIcons.barChart3,
-      label: 'Analytics',
-      description: 'Session stats',
-    ),
-    NavItem(
-      icon: LucideIcons.sun,
-      label: 'Flat Wizard',
-      description: 'Calibration',
-    ),
-    NavItem(
-      icon: LucideIcons.cloudRain,
-      label: 'Weather',
-      description: 'Cloud radar',
-    ),
-  ];
 
   Widget _buildNavButton(
     BuildContext context, {
@@ -112,7 +127,8 @@ class SideNavigation extends StatelessWidget {
               tab.description,
               style: TextStyle(
                 fontSize: 11,
-                color: Theme.of(context).extension<NightshadeColors>()!.textMuted,
+                color:
+                    Theme.of(context).extension<NightshadeColors>()!.textMuted,
               ),
             ),
           ],
@@ -128,11 +144,14 @@ class SideNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final tabs = sideNavigationTabs(context);
 
     return AnimatedContainer(
       duration: NightshadeTokens.durationSmooth,
       curve: NightshadeTokens.curveSnappy,
-      width: isExpanded ? NightshadeTokens.sidebarExpanded : NightshadeTokens.sidebarCollapsed,
+      width: isExpanded
+          ? NightshadeTokens.sidebarExpanded
+          : NightshadeTokens.sidebarCollapsed,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
@@ -237,8 +256,7 @@ class _NavButton extends StatefulWidget {
   State<_NavButton> createState() => _NavButtonState();
 }
 
-class _NavButtonState extends State<_NavButton>
-    with TickerProviderStateMixin {
+class _NavButtonState extends State<_NavButton> with TickerProviderStateMixin {
   bool _isHovered = false;
   late AnimationController _animController;
   late AnimationController _selectionController;
@@ -257,7 +275,8 @@ class _NavButtonState extends State<_NavButton>
       duration: NightshadeTokens.durationSmooth,
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
-      CurvedAnimation(parent: _animController, curve: NightshadeTokens.curveSnappy),
+      CurvedAnimation(
+          parent: _animController, curve: NightshadeTokens.curveSnappy),
     );
     _selectionScaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
       CurvedAnimation(
@@ -309,136 +328,135 @@ class _NavButtonState extends State<_NavButton>
           child: ScaleTransition(
             scale: _selectionScaleAnimation,
             child: AnimatedContainer(
-            duration: NightshadeTokens.durationNormal,
-            curve: NightshadeTokens.curveSnappy,
-            padding: EdgeInsets.symmetric(
-              horizontal: horizontalPadding,
-              vertical: widget.isExpanded ? 12 : 10,
-            ),
-            decoration: BoxDecoration(
-              gradient: widget.isSelected
-                  ? LinearGradient(
-                      colors: [
-                        colors.primary.withValues(alpha: 0.15),
-                        colors.primary.withValues(alpha: 0.05),
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    )
-                  : null,
-              color: widget.isSelected
-                  ? null
-                  : _isHovered
-                      ? colors.surfaceHover
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: widget.isSelected
-                  ? Border.all(
-                      color: colors.primary.withValues(alpha: 0.3),
-                      width: 1,
-                    )
-                  : null,
-            ),
-            child: ClipRect(
-              child: Row(
-                mainAxisAlignment: widget.isExpanded
-                    ? MainAxisAlignment.start
-                    : MainAxisAlignment.center,
-                mainAxisSize: widget.isExpanded
-                    ? MainAxisSize.max
-                    : MainAxisSize.min,
-                children: [
-                  // Icon with glow effect when selected
-                  AnimatedContainer(
-                    duration: NightshadeTokens.durationSmooth,
-                    curve: NightshadeTokens.curveSnappy,
-                    padding: EdgeInsets.all(iconPadding),
-                    decoration: BoxDecoration(
-                      color: widget.isSelected
-                          ? colors.primary.withValues(alpha: 0.2)
-                          : _isHovered
-                              ? colors.surfaceAlt
-                              : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: widget.isSelected
-                          ? [
-                              BoxShadow(
-                                color: colors.primary.withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                spreadRadius: 0,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Icon(
-                      widget.icon,
-                      size: 18,
-                      color: widget.isSelected
-                          ? colors.primary
-                          : _isHovered
-                              ? colors.textPrimary
-                              : colors.textSecondary,
-                    ),
-                  ),
-
-                // Labels (when expanded)
-                if (widget.isExpanded) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: widget.isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: widget.isSelected
+              duration: NightshadeTokens.durationNormal,
+              curve: NightshadeTokens.curveSnappy,
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: widget.isExpanded ? 12 : 10,
+              ),
+              decoration: BoxDecoration(
+                gradient: widget.isSelected
+                    ? LinearGradient(
+                        colors: [
+                          colors.primary.withValues(alpha: 0.15),
+                          colors.primary.withValues(alpha: 0.05),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      )
+                    : null,
+                color: widget.isSelected
+                    ? null
+                    : _isHovered
+                        ? colors.surfaceHover
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: widget.isSelected
+                    ? Border.all(
+                        color: colors.primary.withValues(alpha: 0.3),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: ClipRect(
+                child: Row(
+                  mainAxisAlignment: widget.isExpanded
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.center,
+                  mainAxisSize:
+                      widget.isExpanded ? MainAxisSize.max : MainAxisSize.min,
+                  children: [
+                    // Icon with glow effect when selected
+                    AnimatedContainer(
+                      duration: NightshadeTokens.durationSmooth,
+                      curve: NightshadeTokens.curveSnappy,
+                      padding: EdgeInsets.all(iconPadding),
+                      decoration: BoxDecoration(
+                        color: widget.isSelected
+                            ? colors.primary.withValues(alpha: 0.2)
+                            : _isHovered
+                                ? colors.surfaceAlt
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: widget.isSelected
+                            ? [
+                                BoxShadow(
+                                  color: colors.primary.withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  spreadRadius: 0,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        size: 18,
+                        color: widget.isSelected
+                            ? colors.primary
+                            : _isHovered
                                 ? colors.textPrimary
-                                : _isHovered
-                                    ? colors.textPrimary
-                                    : colors.textSecondary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.description,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colors.textMuted,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ],
+                                : colors.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
 
-                // Selection indicator
-                if (widget.isExpanded && widget.isSelected)
-                  Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.primary,
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.primary.withValues(alpha: 0.5),
-                          blurRadius: 4,
+                    // Labels (when expanded)
+                    if (widget.isExpanded) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.label,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: widget.isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: widget.isSelected
+                                    ? colors.textPrimary
+                                    : _isHovered
+                                        ? colors.textPrimary
+                                        : colors.textSecondary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.description,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: colors.textMuted,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-              ],
+                      ),
+                    ],
+
+                    // Selection indicator
+                    if (widget.isExpanded && widget.isSelected)
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.primary,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.primary.withValues(alpha: 0.5),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-            ),
-          ),
           ),
         ),
       ),
@@ -499,7 +517,7 @@ class _CollapseButtonState extends State<_CollapseButton> {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    'Collapse',
+                    context.l10n.text('collapse'),
                     style: TextStyle(
                       fontSize: 12,
                       color: colors.textMuted,
@@ -516,4 +534,3 @@ class _CollapseButtonState extends State<_CollapseButton> {
     );
   }
 }
-

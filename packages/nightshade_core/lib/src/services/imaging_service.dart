@@ -18,6 +18,7 @@ import '../providers/database_provider.dart';
 import '../providers/ui_notification_provider.dart';
 import '../backend/nightshade_backend.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
+import 'calibration_service.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
 import 'science/science_processing_service.dart';
@@ -30,6 +31,7 @@ class ImagingService {
   bool _isCapturing = false;
   bool _cancelRequested = false;
   int _frameNumber = 0;
+  static const _imageDownloadTimeout = Duration(seconds: 60);
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
@@ -65,6 +67,18 @@ class ImagingService {
 
       if (deviceId == null) {
         throw Exception('Camera device ID not available');
+      }
+
+      // Apply readout mode before starting exposure
+      // fastReadout: false = mode 0 (High Quality), true = mode 1 (Fast)
+      final readoutModeIndex = settings.fastReadout ? 1 : 0;
+      try {
+        await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
+      } catch (e) {
+        // Log but don't fail - not all cameras support readout mode switching
+        _logger.warning(
+            'Failed to set readout mode (index=$readoutModeIndex): $e',
+            source: 'ImagingService');
       }
 
       // Update state to exposing
@@ -165,7 +179,16 @@ class ImagingService {
         // Get the captured image from backend
         _logger.debug('Calling cameraGetLastImage...',
             source: 'ImagingService');
-        final capturedImage = await backend.cameraGetLastImage(deviceId);
+        final capturedImage =
+            await backend.cameraGetLastImage(deviceId).timeout(
+          _imageDownloadTimeout,
+          onTimeout: () {
+            throw TimeoutException(
+              'Timed out retrieving image from camera after '
+              '${_imageDownloadTimeout.inSeconds}s',
+            );
+          },
+        );
         _logger.debug(
             'cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}',
             source: 'ImagingService');
@@ -242,6 +265,7 @@ class ImagingService {
 
         // Now save FITS file and persist to database (non-critical operations)
         String? savedFilePath;
+        String? effectiveFilePath;
         int? dbImageId;
         bool isTempFile = false;
 
@@ -319,6 +343,7 @@ class ImagingService {
           );
           // Update provider with file path
           _ref.read(currentImageProvider.notifier).state = imageData;
+          effectiveFilePath = savedFilePath;
         } catch (e) {
           // Log error but don't fail the capture - image is already displayed!
           _logger.error('Error saving image: $e', source: 'ImagingService');
@@ -335,12 +360,77 @@ class ImagingService {
 
         _logger.debug('FITS save complete.', source: 'ImagingService');
 
-        if (savedFilePath != null && savedFilePath.isNotEmpty) {
+        // Auto-calibration: apply dark/flat/bias correction if enabled
+        // Only calibrate light frames - darks, flats, and biases should not be calibrated
+        if (savedFilePath != null &&
+            savedFilePath.isNotEmpty &&
+            !isTempFile &&
+            settings.frameType == FrameType.light) {
+          try {
+            final calSettings = _ref.read(calibrationSettingsProvider);
+            if (calSettings.autoCalibrate) {
+              _logger.info('Auto-calibrating: $savedFilePath',
+                  source: 'ImagingService');
+              final calibrationService = _ref.read(calibrationServiceProvider);
+              final calResult = await calibrationService.calibrateFile(
+                lightPath: savedFilePath,
+                settings: calSettings,
+                exposureTime: settings.exposureTime,
+                gain: settings.gain,
+                offset: settings.offset,
+                binX: settings.binningX,
+                binY: settings.binningY,
+                sensorTemperature: cameraState.temperature,
+              );
+              _logger.info(
+                  'Calibration complete: dark=${calResult.darkApplied}, '
+                  'flat=${calResult.flatApplied}, bias=${calResult.biasApplied} '
+                  '-> ${calResult.outputPath}',
+                  source: 'ImagingService');
+              effectiveFilePath = calResult.outputPath;
+
+              if (dbImageId != null && effectiveFilePath != savedFilePath) {
+                await _ref
+                    .read(imagesDaoProvider)
+                    .updateImageFilePath(dbImageId, effectiveFilePath);
+              }
+
+              imageData = CapturedImageData(
+                width: imageData.width,
+                height: imageData.height,
+                displayData: imageData.displayData,
+                histogram: imageData.histogram,
+                stats: imageData.stats,
+                capturedAt: imageData.capturedAt,
+                settings: imageData.settings,
+                targetName: imageData.targetName,
+                isColor: imageData.isColor,
+                filePath: effectiveFilePath,
+              );
+              _ref.read(currentImageProvider.notifier).state = imageData;
+            }
+          } catch (e) {
+            // Calibration failure should not prevent the capture from succeeding.
+            // Log and notify the user, but do not lose the uncalibrated image.
+            _logger.error('Auto-calibration failed: $e',
+                source: 'ImagingService');
+            final notificationService = _ref.read(notificationServiceProvider);
+            await notificationService.notifyError(
+              errorTitle: 'Auto-Calibration Failed',
+              errorMessage:
+                  'Failed to calibrate $savedFilePath: ${e.toString()}',
+              source: 'Calibration',
+            );
+          }
+        }
+
+        final processedFilePath = effectiveFilePath ?? savedFilePath;
+        if (processedFilePath != null && processedFilePath.isNotEmpty) {
           final sessionState = _ref.read(sessionStateProvider);
           // Science processing is informational-only and runs in background.
           unawaited(
             _ref.read(scienceProcessingServiceProvider).processCapturedFrame(
-                  imagePath: savedFilePath,
+                  imagePath: processedFilePath,
                   deviceId: deviceId,
                   capturedImageId: dbImageId,
                   sessionId: sessionState.dbSessionId,
@@ -354,7 +444,7 @@ class ImagingService {
                 CapturedImage(
                   id: dbImageId?.toString() ??
                       DateTime.now().millisecondsSinceEpoch.toString(),
-                  filePath: savedFilePath ?? '',
+                  filePath: processedFilePath ?? '',
                   capturedAt: imageData.capturedAt,
                   settings: settings,
                   stats: imageData.stats,
@@ -408,14 +498,19 @@ class ImagingService {
   }
 
   /// Start looping capture
+  ///
+  /// Includes a circuit breaker: after [maxConsecutiveErrors] consecutive
+  /// failures the loop aborts to avoid hammering a broken device endlessly.
   Future<void> startLoopCapture({
     required ExposureSettings settings,
     String? targetName,
     int? maxFrames,
+    int maxConsecutiveErrors = 10,
     void Function(CapturedImageData)? onImageCaptured,
     void Function(String)? onError,
   }) async {
     int frameNum = 0;
+    int consecutiveErrors = 0;
 
     while (!_cancelRequested && (maxFrames == null || frameNum < maxFrames)) {
       frameNum++;
@@ -427,11 +522,21 @@ class ImagingService {
         );
 
         if (image != null) {
+          consecutiveErrors = 0;
           onImageCaptured?.call(image);
         }
       } catch (e) {
+        consecutiveErrors++;
         onError?.call(e.toString());
-        // Continue on error in loop mode
+
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          final msg =
+              'Loop capture aborted after $consecutiveErrors consecutive errors. '
+              'Last error: $e';
+          _logger.error(msg, source: 'ImagingService');
+          onError?.call(msg);
+          break;
+        }
       }
 
       // Small delay between frames
@@ -507,7 +612,25 @@ class ImagingService {
       await directory.create(recursive: true);
     }
 
-    return fullPath;
+    return _ensureUniqueFilePath(fullPath);
+  }
+
+  Future<String> _ensureUniqueFilePath(String desiredPath) async {
+    var candidate = desiredPath;
+    var suffix = 1;
+
+    while (await File(candidate).exists()) {
+      final directory = path.dirname(desiredPath);
+      final baseName = path.basenameWithoutExtension(desiredPath);
+      final extension = path.extension(desiredPath);
+      candidate = path.join(
+        directory,
+        '${baseName}_${suffix.toString().padLeft(3, '0')}$extension',
+      );
+      suffix++;
+    }
+
+    return candidate;
   }
 
   /// Save FITS file via Rust backend

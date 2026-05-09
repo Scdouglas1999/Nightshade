@@ -47,6 +47,9 @@ pub enum AlpacaError {
 
     #[error("Retry exhausted after {attempts} attempts: {last_error}")]
     RetryExhausted { attempts: u32, last_error: String },
+
+    #[error("HTTP client initialization failed: {0}")]
+    ClientInitializationFailed(String),
 }
 
 impl AlpacaError {
@@ -84,6 +87,7 @@ impl AlpacaError {
             AlpacaError::UnsupportedApiVersion(_) => false,
             AlpacaError::ValidationFailed(_) => false,
             AlpacaError::RetryExhausted { .. } => false,
+            AlpacaError::ClientInitializationFailed(_) => false,
         }
     }
 }
@@ -351,7 +355,8 @@ pub struct ApiVersionsResponse {
 
 /// Alpaca client for communicating with a device
 pub struct AlpacaClient {
-    http_client: Client,
+    http_client: Option<Client>,
+    http_client_error: Option<String>,
     base_url: String,
     device_type: AlpacaDeviceType,
     device_number: u32,
@@ -376,11 +381,16 @@ impl AlpacaClient {
             .timeout(Duration::from_millis(timeout_config.standard_operation_ms))
             .connect_timeout(Duration::from_millis(timeout_config.connect_ms))
             .pool_idle_timeout(Duration::from_secs(30))
-            .build()
-            .expect("Failed to create HTTP client");
+            .build();
+
+        let (http_client, http_client_error) = match http_client {
+            Ok(client) => (Some(client), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
 
         Self {
             http_client,
+            http_client_error,
             base_url: device.base_url.clone(),
             device_type: device.device_type,
             device_number: device.device_number,
@@ -413,6 +423,16 @@ impl AlpacaClient {
     /// Get the current API version being used
     pub fn api_version(&self) -> ApiVersion {
         self.api_version
+    }
+
+    fn standard_http_client(&self) -> Result<&Client, AlpacaError> {
+        self.http_client.as_ref().ok_or_else(|| {
+            AlpacaError::ClientInitializationFailed(
+                self.http_client_error
+                    .clone()
+                    .unwrap_or_else(|| "unknown client build error".to_string()),
+            )
+        })
     }
 
     /// Build the URL for an API endpoint
@@ -514,7 +534,7 @@ impl AlpacaClient {
                     transaction_id
                 );
 
-                let response = self.http_client.get(&url).send().await?;
+                let response = self.standard_http_client()?.get(&url).send().await?;
 
                 let status = response.status();
                 if !status.is_success() {
@@ -545,6 +565,72 @@ impl AlpacaClient {
         self.get_typed(endpoint).await.map_err(|e| e.to_string())
     }
 
+    /// Make a GET request with query parameters.
+    pub async fn get_with_params<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+        params: &[(&str, &str)],
+    ) -> Result<T, String> {
+        self.get_typed_with_params(endpoint, params)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn get_typed_with_params<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+        params: &[(&str, &str)],
+    ) -> Result<T, AlpacaError> {
+        let endpoint = endpoint.to_string();
+        let params: Vec<(String, String)> = params
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        self.execute_with_retry(|| {
+            let endpoint = endpoint.clone();
+            let params = params.clone();
+            async move {
+                let (client_id, transaction_id) = get_client_transaction();
+                let url = self.build_url(&endpoint);
+                let mut query: Vec<(&str, String)> = vec![
+                    ("ClientID", client_id.to_string()),
+                    ("ClientTransactionID", transaction_id.to_string()),
+                ];
+                for (key, value) in &params {
+                    query.push((key.as_str(), value.clone()));
+                }
+
+                let response = self
+                    .standard_http_client()?
+                    .get(&url)
+                    .query(&query)
+                    .send()
+                    .await?;
+
+                let status = response.status();
+                if !status.is_success() {
+                    let body = response.text().await.unwrap_or_default();
+                    return Err(AlpacaError::HttpError {
+                        status: status.as_u16(),
+                        message: body,
+                    });
+                }
+
+                let alpaca_response: AlpacaResponse<T> = response.json().await?;
+                if alpaca_response.error_number != 0 {
+                    return Err(AlpacaError::DeviceError {
+                        code: alpaca_response.error_number,
+                        message: alpaca_response.error_message,
+                    });
+                }
+
+                Ok(alpaca_response.value)
+            }
+        })
+        .await
+    }
+
     /// Make a PUT request with typed error handling
     pub async fn put_typed<T: for<'de> Deserialize<'de>>(
         &self,
@@ -573,7 +659,12 @@ impl AlpacaClient {
                     form_params.push((key.as_str(), value.clone()));
                 }
 
-                let response = self.http_client.put(&url).form(&form_params).send().await?;
+                let response = self
+                    .standard_http_client()?
+                    .put(&url)
+                    .form(&form_params)
+                    .send()
+                    .await?;
 
                 let status = response.status();
                 if !status.is_success() {

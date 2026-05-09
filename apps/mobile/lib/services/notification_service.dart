@@ -18,6 +18,9 @@ class NotificationService {
   static const int _lowDiskSpaceId = 103;
   static const int _lowBatteryId = 104;
 
+  /// Auto-incrementing ID for push notifications from the desktop
+  int _nextPushNotificationId = 200;
+
   // Notification settings (could be exposed via settings provider)
   bool enableSequenceNotifications = true;
   bool enableMeridianFlipNotifications = true;
@@ -92,6 +95,15 @@ class NotificationService {
       enableVibration: false,
     );
 
+    const pushChannel = AndroidNotificationChannel(
+      'nightshade_push',
+      'Desktop Alerts',
+      description: 'Push notifications from the connected desktop',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+    );
+
     final androidImplementation =
         _notifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -99,6 +111,7 @@ class NotificationService {
     await androidImplementation?.createNotificationChannel(sequenceChannel);
     await androidImplementation?.createNotificationChannel(warningChannel);
     await androidImplementation?.createNotificationChannel(infoChannel);
+    await androidImplementation?.createNotificationChannel(pushChannel);
   }
 
   void _onNotificationTapped(NotificationResponse response) {
@@ -266,6 +279,67 @@ class NotificationService {
         ),
       ),
       payload: 'low_battery:$percentage',
+    );
+  }
+
+  /// Display a push notification received from the desktop via WebSocket.
+  ///
+  /// The [data] map should contain 'title', 'body', and 'priority' fields
+  /// as sent by PushNotificationService.toJson().
+  Future<void> notifyPush(Map<String, dynamic> data) async {
+    final title = data['title'] as String? ?? 'Nightshade';
+    final body = data['body'] as String? ?? '';
+    final priority = data['priority'] as String? ?? 'normal';
+    final eventType = data['eventType'] as String? ?? 'push';
+
+    // Map priority to Android notification importance and sound
+    final bool playSound;
+    final Importance importance;
+    final Priority androidPriority;
+    switch (priority) {
+      case 'critical':
+      case 'high':
+        playSound = true;
+        importance = Importance.high;
+        androidPriority = Priority.high;
+      case 'low':
+        playSound = false;
+        importance = Importance.defaultImportance;
+        androidPriority = Priority.defaultPriority;
+      default:
+        playSound = true;
+        importance = Importance.high;
+        androidPriority = Priority.high;
+    }
+
+    final id = _nextPushNotificationId++;
+    // Wrap around to avoid overflow, keeping it above the reserved IDs
+    if (_nextPushNotificationId > 9999) {
+      _nextPushNotificationId = 200;
+    }
+
+    await _notifications.show(
+      id,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_push',
+          'Desktop Alerts',
+          channelDescription: 'Push notifications from the connected desktop',
+          importance: importance,
+          priority: androidPriority,
+          playSound: playSound,
+          enableVibration: playSound,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: playSound,
+        ),
+      ),
+      payload: 'push:$eventType',
     );
   }
 

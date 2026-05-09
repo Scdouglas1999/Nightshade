@@ -17,3 +17,4 @@ base64 = "0.21"
 
 # mDNS discovery
 mdns-sd = "0.11"
+if-addrs = "0.13"

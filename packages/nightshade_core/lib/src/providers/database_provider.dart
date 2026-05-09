@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
 import '../database/daos/equipment_profiles_dao.dart';
 import '../database/daos/targets_dao.dart';
@@ -7,6 +10,9 @@ import '../database/daos/images_dao.dart';
 import '../database/daos/sequences_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/daos/science_dao.dart';
+import 'backend_provider.dart';
+
+export 'project_tracking_provider.dart';
 
 /// Global database instance provider
 final databaseProvider = Provider<db.NightshadeDatabase>((ref) {
@@ -67,11 +73,20 @@ final activeProfileProvider = StreamProvider<db.EquipmentProfile?>((ref) {
 
 /// Watch all targets (database entities)
 final allDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteTargets(backend);
+  }
   return ref.watch(targetsDaoProvider).watchAllTargets();
 });
 
 /// Watch favorite targets (database entities)
 final favoriteDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteTargets(backend)
+        .map((targets) => targets.where((target) => target.isFavorite).toList());
+  }
   return ref.watch(targetsDaoProvider).watchFavoriteTargets();
 });
 
@@ -87,17 +102,36 @@ final allDbTemplatesProvider = StreamProvider<List<db.Sequence>>((ref) {
 
 /// Watch all imaging sessions
 final allSessionsProvider = StreamProvider<List<db.ImagingSession>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteSessions(backend);
+  }
   return ref.watch(sessionsDaoProvider).watchAllSessions();
 });
 
 /// Watch all captured images (database entities)
 final allDbImagesProvider = StreamProvider<List<db.CapturedImage>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteImages(backend);
+  }
   return ref.watch(imagesDaoProvider).watchAllImages();
 });
 
 /// Load a captured image row by id.
 final capturedImageByIdProvider =
     FutureProvider.family<db.CapturedImage?, int>((ref, imageId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return backend.getAllImageRows().then((rows) {
+      for (final row in rows) {
+        if ((row['id'] as int?) == imageId) {
+          return _imageFromJson(row);
+        }
+      }
+      return null;
+    });
+  }
   return ref.watch(imagesDaoProvider).getImageById(imageId);
 });
 
@@ -139,3 +173,121 @@ final capturedImageWcsProvider =
 final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
   return ref.watch(settingsDaoProvider).watchAllSettings();
 });
+
+Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) async* {
+  yield await _fetchRemoteTargets(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteTargets(backend);
+  }
+}
+
+Stream<List<db.ImagingSession>> _pollRemoteSessions(
+  NetworkBackend backend,
+) async* {
+  yield await _fetchRemoteSessions(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteSessions(backend);
+  }
+}
+
+Stream<List<db.CapturedImage>> _pollRemoteImages(NetworkBackend backend) async* {
+  yield await _fetchRemoteImages(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteImages(backend);
+  }
+}
+
+Future<List<db.Target>> _fetchRemoteTargets(NetworkBackend backend) async {
+  final targets = await backend.getAllTargets();
+  return targets.map(_targetFromJson).toList()
+    ..sort((a, b) => a.name.compareTo(b.name));
+}
+
+Future<List<db.ImagingSession>> _fetchRemoteSessions(
+  NetworkBackend backend,
+) async {
+  final sessions = await backend.getAllSessions();
+  final mapped = sessions.map(_sessionFromJson).toList();
+  mapped.sort((a, b) => a.startTime.compareTo(b.startTime));
+  return mapped;
+}
+
+Future<List<db.CapturedImage>> _fetchRemoteImages(NetworkBackend backend) async {
+  final images = await backend.getAllImageRows();
+  final mapped = images.map(_imageFromJson).toList();
+  mapped.sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+  return mapped;
+}
+
+db.Target _targetFromJson(Map<String, dynamic> json) {
+  return db.Target(
+    id: json['id'] as int,
+    name: json['name'] as String? ?? 'Untitled target',
+    catalogId: json['catalogId'] as String?,
+    objectType: json['objectType'] as String?,
+    ra: (json['ra'] as num?)?.toDouble() ?? 0.0,
+    dec: (json['dec'] as num?)?.toDouble() ?? 0.0,
+    positionAngle: (json['positionAngle'] as num?)?.toDouble(),
+    magnitude: (json['magnitude'] as num?)?.toDouble(),
+    constellation: json['constellation'] as String?,
+    sizeArcmin: (json['sizeArcmin'] as num?)?.toDouble(),
+    minAltitude: (json['minAltitude'] as num?)?.toDouble() ?? 30.0,
+    priority: json['priority'] as int? ?? 5,
+    totalPlannedSubs: json['totalPlannedSubs'] as int? ?? 0,
+    capturedSubs: json['capturedSubs'] as int? ?? 0,
+    totalIntegrationSecs:
+        (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+    goalIntegrationSecs:
+        (json['goalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+    filterProgress: json['filterProgress'] as String?,
+    notes: json['notes'] as String?,
+    createdAt: _dateTimeFromJsonValue(json['createdAt']),
+    updatedAt: _dateTimeFromJsonValue(json['updatedAt']),
+    isFavorite: json['isFavorite'] as bool? ?? false,
+  );
+}
+
+db.ImagingSession _sessionFromJson(Map<String, dynamic> json) {
+  return db.ImagingSession(
+    id: json['id'] as int,
+    name: json['name'] as String?,
+    profileId: json['profileId'] as int?,
+    targetId: json['targetId'] as int?,
+    startTime: _dateTimeFromJsonValue(json['startTime']),
+    endTime: json['endTime'] == null
+        ? null
+        : _dateTimeFromJsonValue(json['endTime']),
+    totalExposures: json['totalExposures'] as int? ?? 0,
+    successfulExposures: json['successfulExposures'] as int? ?? 0,
+    failedExposures: json['failedExposures'] as int? ?? 0,
+    totalIntegrationSecs:
+        (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+    avgTemperature: (json['avgTemperature'] as num?)?.toDouble(),
+    avgHumidity: (json['avgHumidity'] as num?)?.toDouble(),
+    avgSeeing: (json['avgSeeing'] as num?)?.toDouble(),
+    avgHfr: (json['avgHfr'] as num?)?.toDouble(),
+    avgGuidingRms: (json['avgGuidingRms'] as num?)?.toDouble(),
+    autofocusCount: json['autofocusCount'] as int? ?? 0,
+    notes: json['notes'] as String?,
+    status: json['status'] as String? ?? 'completed',
+    sequenceId: json['sequenceId'] as int?,
+    equipmentSnapshot: json['equipmentSnapshot'] as String?,
+  );
+}
+
+db.CapturedImage _imageFromJson(Map<String, dynamic> json) {
+  return db.CapturedImage.fromJson(json);
+}
+
+DateTime _dateTimeFromJsonValue(Object? value) {
+  if (value is int) {
+    return DateTime.fromMillisecondsSinceEpoch(value);
+  }
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+  return DateTime.fromMillisecondsSinceEpoch(0);
+}

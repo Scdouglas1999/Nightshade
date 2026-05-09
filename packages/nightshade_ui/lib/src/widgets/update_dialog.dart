@@ -66,7 +66,7 @@ class UpdateAvailableDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.primary.withValues(alpha: 0.3)),
       ),
       title: Row(
@@ -228,21 +228,17 @@ class UpdateAvailableDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
+          label: 'Skip This Version',
           onPressed: onSkip,
-          style: TextButton.styleFrom(
-            foregroundColor: colors.textMuted,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          child: const Text('Skip This Version'),
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.medium,
         ),
-        TextButton(
+        NightshadeButton(
+          label: 'Later',
           onPressed: onLater,
-          style: TextButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          child: const Text('Later'),
+          variant: ButtonVariant.outline,
+          size: ButtonSize.medium,
         ),
         NightshadeButton(
           label: 'Update Now',
@@ -283,7 +279,7 @@ class UpdateDownloadDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.border),
       ),
       title: Row(
@@ -367,13 +363,11 @@ class UpdateDownloadDialog extends StatelessWidget {
       ),
       actions: [
         if (onCancel != null)
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
             onPressed: onCancel,
-            style: TextButton.styleFrom(
-              foregroundColor: colors.textMuted,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: const Text('Cancel'),
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.medium,
           ),
       ],
     );
@@ -427,7 +421,7 @@ class UpdateReadyDialog extends StatelessWidget {
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.success.withValues(alpha: 0.3)),
       ),
       title: Row(
@@ -475,7 +469,6 @@ class UpdateReadyDialog extends StatelessWidget {
                 height: 1.5,
               ),
             ),
-
             if (isSessionActive) ...[
               const SizedBox(height: 16),
               Container(
@@ -483,7 +476,8 @@ class UpdateReadyDialog extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: colors.warning.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -507,7 +501,6 @@ class UpdateReadyDialog extends StatelessWidget {
                 ),
               ),
             ],
-
             const SizedBox(height: 16),
             Text(
               'Nightshade will restart to complete the installation.',
@@ -520,19 +513,18 @@ class UpdateReadyDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
+          label: 'Restart Later',
           onPressed: onRestartLater,
-          style: TextButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          ),
-          child: const Text('Restart Later'),
+          variant: ButtonVariant.outline,
+          size: ButtonSize.medium,
         ),
         NightshadeButton(
           label: isSessionActive ? 'Restart Anyway' : 'Restart Now',
           icon: LucideIcons.refreshCw,
           onPressed: onRestartNow,
-          variant: isSessionActive ? ButtonVariant.outline : ButtonVariant.primary,
+          variant:
+              isSessionActive ? ButtonVariant.outline : ButtonVariant.primary,
           size: ButtonSize.medium,
         ),
       ],
@@ -566,7 +558,7 @@ class UpdateReceivedBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
           boxShadow: [
             BoxShadow(

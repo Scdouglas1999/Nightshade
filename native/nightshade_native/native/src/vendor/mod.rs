@@ -7,6 +7,7 @@ pub mod atik;
 pub mod fli;
 #[cfg(target_os = "windows")]
 pub mod fujifilm;
+pub mod gphoto2;
 pub mod moravian;
 pub mod player_one;
 pub mod qhy;

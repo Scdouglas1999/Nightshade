@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for flat frame calibration and sequence generation
 class FlatWizardHandlers {
   final ProviderContainer container;
@@ -49,18 +51,12 @@ class FlatWizardHandlers {
         binY: binY,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "result": _flatResultToJson(result),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "result": _flatResultToJson(result),
+      });
     } catch (e) {
       _logError('[API] Calibrate filter error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -96,18 +92,12 @@ class FlatWizardHandlers {
         binY: binY,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "results": results.map((r) => _flatResultToJson(r)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "results": results.map((r) => _flatResultToJson(r)).toList(),
+      });
     } catch (e) {
       _logError('[API] Calibrate multiple filters error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -156,18 +146,12 @@ class FlatWizardHandlers {
         onlySuccessful: onlySuccessful,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "sequence": _sequenceToJson(sequence),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sequence": _sequenceToJson(sequence),
+      });
     } catch (e) {
       _logError('[API] Generate sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -198,18 +182,12 @@ class FlatWizardHandlers {
         binY: binY,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "result": _flatResultToJson(result),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "result": _flatResultToJson(result),
+      });
     } catch (e) {
       _logError('[API] Quick calibrate error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

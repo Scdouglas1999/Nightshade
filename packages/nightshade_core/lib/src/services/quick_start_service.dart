@@ -13,6 +13,7 @@ import '../database/daos/targets_dao.dart';
 import '../models/equipment/equipment_models.dart';
 import '../providers/database_provider.dart';
 import '../providers/session_provider.dart' show sequenceCheckpointsDaoProvider;
+import '../utils/json_validation.dart';
 
 // =============================================================================
 // EquipmentSnapshot - Captures equipment state for quick session resumption
@@ -103,21 +104,37 @@ class EquipmentSnapshot {
   /// Create from JSON map (from database)
   factory EquipmentSnapshot.fromJson(Map<String, dynamic> json) {
     return EquipmentSnapshot(
-      coolerTargetTemp: json['coolerTargetTemp'] != null
-          ? (json['coolerTargetTemp'] as num).toDouble()
-          : null,
-      cameraGain: json['cameraGain'] as int?,
-      cameraOffset: json['cameraOffset'] as int?,
-      cameraBinX: json['cameraBinX'] as int?,
-      cameraBinY: json['cameraBinY'] as int?,
-      filterPosition: json['filterPosition'] as int?,
-      focuserPosition: json['focuserPosition'] as int?,
-      exposureTime: json['exposureTime'] != null
-          ? (json['exposureTime'] as num).toDouble()
-          : null,
-      capturedAt: json['capturedAt'] != null
-          ? DateTime.parse(json['capturedAt'] as String)
-          : DateTime.now(),
+      coolerTargetTemp: jsonDouble(
+        json['coolerTargetTemp'],
+        context: 'equipment_snapshot.coolerTargetTemp',
+      ),
+      cameraGain:
+          jsonInt(json['cameraGain'], context: 'equipment_snapshot.cameraGain'),
+      cameraOffset: jsonInt(
+        json['cameraOffset'],
+        context: 'equipment_snapshot.cameraOffset',
+      ),
+      cameraBinX:
+          jsonInt(json['cameraBinX'], context: 'equipment_snapshot.cameraBinX'),
+      cameraBinY:
+          jsonInt(json['cameraBinY'], context: 'equipment_snapshot.cameraBinY'),
+      filterPosition: jsonInt(
+        json['filterPosition'],
+        context: 'equipment_snapshot.filterPosition',
+      ),
+      focuserPosition: jsonInt(
+        json['focuserPosition'],
+        context: 'equipment_snapshot.focuserPosition',
+      ),
+      exposureTime: jsonDouble(
+        json['exposureTime'],
+        context: 'equipment_snapshot.exposureTime',
+      ),
+      capturedAt: jsonDateTime(
+            json['capturedAt'],
+            context: 'equipment_snapshot.capturedAt',
+          ) ??
+          DateTime.now(),
     );
   }
 
@@ -126,7 +143,10 @@ class EquipmentSnapshot {
 
   /// Create from JSON string (from database)
   factory EquipmentSnapshot.fromJsonString(String jsonStr) {
-    final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final json = decodeJsonObjectString(
+      jsonStr,
+      context: 'imaging_sessions.equipment_snapshot',
+    );
     return EquipmentSnapshot.fromJson(json);
   }
 
@@ -400,47 +420,43 @@ class QuickStartService {
   Future<QuickStartContext?> getQuickStartContext() async {
     debugPrint('QuickStartService: Getting quick start context...');
 
-    try {
-      // First, check for active (interrupted) sessions
-      final activeSessions = await sessionsDao.getActiveSessions();
-      if (activeSessions.isNotEmpty) {
-        // Return the most recent active session
-        final session = activeSessions.first;
-        debugPrint(
-            'QuickStartService: Found active session ${session.id} from ${session.startTime}');
-        return _buildQuickStartContext(session);
-      }
-
-      // If no active sessions, look for recent completed sessions
-      final recentSessions = await sessionsDao.getRecentSessions(limit: 10);
-
-      // Filter to sessions within the last 7 days that have meaningful progress
-      final candidateSessions = recentSessions.where((session) {
-        final sessionAge = DateTime.now().difference(session.startTime);
-        final hasProgress =
-            session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
-        return sessionAge.inDays <= 7 && hasProgress;
-      }).toList();
-
-      if (candidateSessions.isEmpty) {
-        debugPrint('QuickStartService: No suitable sessions found for quick start');
-        return null;
-      }
-
-      // Return the most recent completed session with progress
-      final session = candidateSessions.first;
+    // First, check for active (interrupted) sessions
+    final activeSessions = await sessionsDao.getActiveSessions();
+    if (activeSessions.isNotEmpty) {
+      // Return the most recent active session
+      final session = activeSessions.first;
       debugPrint(
-          'QuickStartService: Found recent session ${session.id} from ${session.startTime}');
+          'QuickStartService: Found active session ${session.id} from ${session.startTime}');
       return _buildQuickStartContext(session);
-    } catch (e, stackTrace) {
-      debugPrint('QuickStartService: Error getting quick start context: $e');
-      debugPrint('QuickStartService: Stack trace: $stackTrace');
+    }
+
+    // If no active sessions, look for recent completed sessions
+    final recentSessions = await sessionsDao.getRecentSessions(limit: 10);
+
+    // Filter to sessions within the last 7 days that have meaningful progress
+    final candidateSessions = recentSessions.where((session) {
+      final sessionAge = DateTime.now().difference(session.startTime);
+      final hasProgress =
+          session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
+      return sessionAge.inDays <= 7 && hasProgress;
+    }).toList();
+
+    if (candidateSessions.isEmpty) {
+      debugPrint(
+          'QuickStartService: No suitable sessions found for quick start');
       return null;
     }
+
+    // Return the most recent completed session with progress
+    final session = candidateSessions.first;
+    debugPrint(
+        'QuickStartService: Found recent session ${session.id} from ${session.startTime}');
+    return _buildQuickStartContext(session);
   }
 
   /// Build a QuickStartContext from a session record.
-  Future<QuickStartContext> _buildQuickStartContext(db.ImagingSession session) async {
+  Future<QuickStartContext> _buildQuickStartContext(
+      db.ImagingSession session) async {
     // Try to get extended session data (sequenceId, equipmentSnapshot) from raw SQL
     // since these fields may not be in the generated model yet
     final extendedData = await _getExtendedSessionData(session.id);
@@ -484,8 +500,7 @@ class QuickStartService {
         equipmentSnapshot =
             EquipmentSnapshot.fromJsonString(equipmentSnapshotJson);
       } catch (e) {
-        debugPrint(
-            'QuickStartService: Failed to parse equipment snapshot: $e');
+        debugPrint('QuickStartService: Failed to parse equipment snapshot: $e');
       }
     }
 
@@ -594,7 +609,8 @@ class QuickStartService {
   /// equipmentSnapshot field.
   Future<void> saveEquipmentSnapshot(
       int sessionId, EquipmentSnapshot snapshot) async {
-    debugPrint('QuickStartService: Saving equipment snapshot for session $sessionId');
+    debugPrint(
+        'QuickStartService: Saving equipment snapshot for session $sessionId');
 
     try {
       final session = await sessionsDao.getSessionById(sessionId);
@@ -618,35 +634,31 @@ class QuickStartService {
   Future<bool> isQuickStartAvailable() async {
     debugPrint('QuickStartService: Checking if quick start is available...');
 
-    try {
-      // Check for active sessions first
-      final hasActive = await sessionsDao.hasIncompleteSessions();
-      if (hasActive) {
-        debugPrint('QuickStartService: Quick start available (active session found)');
+    // Check for active sessions first
+    final hasActive = await sessionsDao.hasIncompleteSessions();
+    if (hasActive) {
+      debugPrint(
+          'QuickStartService: Quick start available (active session found)');
+      return true;
+    }
+
+    // Check for recent completed sessions with progress
+    final recentSessions = await sessionsDao.getRecentSessions(limit: 5);
+
+    for (final session in recentSessions) {
+      final sessionAge = DateTime.now().difference(session.startTime);
+      final hasProgress =
+          session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
+
+      if (sessionAge.inDays <= 7 && hasProgress) {
+        debugPrint(
+            'QuickStartService: Quick start available (recent session with progress found)');
         return true;
       }
-
-      // Check for recent completed sessions with progress
-      final recentSessions = await sessionsDao.getRecentSessions(limit: 5);
-
-      for (final session in recentSessions) {
-        final sessionAge = DateTime.now().difference(session.startTime);
-        final hasProgress =
-            session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
-
-        if (sessionAge.inDays <= 7 && hasProgress) {
-          debugPrint(
-              'QuickStartService: Quick start available (recent session with progress found)');
-          return true;
-        }
-      }
-
-      debugPrint('QuickStartService: Quick start not available');
-      return false;
-    } catch (e) {
-      debugPrint('QuickStartService: Error checking quick start availability: $e');
-      return false;
     }
+
+    debugPrint('QuickStartService: Quick start not available');
+    return false;
   }
 
   /// Get multiple quick start contexts for displaying a list of resumable sessions.
@@ -654,49 +666,43 @@ class QuickStartService {
   /// Returns up to [limit] sessions that are suitable for quick start,
   /// ordered by recency.
   Future<List<QuickStartContext>> getQuickStartContexts({int limit = 5}) async {
-    debugPrint('QuickStartService: Getting quick start contexts (limit: $limit)...');
+    debugPrint(
+        'QuickStartService: Getting quick start contexts (limit: $limit)...');
+    final contexts = <QuickStartContext>[];
 
-    try {
-      final contexts = <QuickStartContext>[];
+    // Get active sessions first
+    final activeSessions = await sessionsDao.getActiveSessions();
+    for (final session in activeSessions) {
+      if (contexts.length >= limit) break;
+      contexts.add(await _buildQuickStartContext(session));
+    }
 
-      // Get active sessions first
-      final activeSessions = await sessionsDao.getActiveSessions();
-      for (final session in activeSessions) {
+    // If we need more, get recent completed sessions
+    if (contexts.length < limit) {
+      final recentSessions = await sessionsDao.getRecentSessions(
+        limit: limit * 2, // Fetch extra to filter
+      );
+
+      for (final session in recentSessions) {
         if (contexts.length >= limit) break;
-        contexts.add(await _buildQuickStartContext(session));
-      }
 
-      // If we need more, get recent completed sessions
-      if (contexts.length < limit) {
-        final recentSessions = await sessionsDao.getRecentSessions(
-          limit: limit * 2, // Fetch extra to filter
-        );
+        // Skip if already included (from active sessions)
+        if (contexts.any((c) => c.sessionId == session.id)) continue;
 
-        for (final session in recentSessions) {
-          if (contexts.length >= limit) break;
+        // Skip if session is too old or has no progress
+        final sessionAge = DateTime.now().difference(session.startTime);
+        final hasProgress =
+            session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
 
-          // Skip if already included (from active sessions)
-          if (contexts.any((c) => c.sessionId == session.id)) continue;
-
-          // Skip if session is too old or has no progress
-          final sessionAge = DateTime.now().difference(session.startTime);
-          final hasProgress =
-              session.successfulExposures > 0 ||
-              session.totalIntegrationSecs > 0;
-
-          if (sessionAge.inDays <= 7 && hasProgress) {
-            contexts.add(await _buildQuickStartContext(session));
-          }
+        if (sessionAge.inDays <= 7 && hasProgress) {
+          contexts.add(await _buildQuickStartContext(session));
         }
       }
-
-      debugPrint('QuickStartService: Found ${contexts.length} quick start contexts');
-      return contexts;
-    } catch (e, stackTrace) {
-      debugPrint('QuickStartService: Error getting quick start contexts: $e');
-      debugPrint('QuickStartService: Stack trace: $stackTrace');
-      return [];
     }
+
+    debugPrint(
+        'QuickStartService: Found ${contexts.length} quick start contexts');
+    return contexts;
   }
 }
 
@@ -716,7 +722,8 @@ final quickStartServiceProvider = Provider<QuickStartService>((ref) {
 });
 
 /// Provider for the quick start context (most recent session)
-final quickStartContextProvider = FutureProvider<QuickStartContext?>((ref) async {
+final quickStartContextProvider =
+    FutureProvider<QuickStartContext?>((ref) async {
   final service = ref.watch(quickStartServiceProvider);
   return service.getQuickStartContext();
 });

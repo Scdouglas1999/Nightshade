@@ -5,7 +5,12 @@
 
 /// Quality tier for planetarium rendering
 enum RenderQuality {
-  /// Maximum performance, minimal effects - for Raspberry Pi / low-end devices
+  /// Ultra-low power mode for Raspberry Pi and extremely constrained devices.
+  /// No effects at all: raw points only, no PSF, no blur, no Milky Way,
+  /// no twinkle, grid from cache. Targets 30fps on Pi 4.
+  minimal,
+
+  /// Maximum performance, minimal effects - for low-end devices
   performance,
 
   /// Balanced - gradient glows, moderate object counts
@@ -114,6 +119,39 @@ class RenderQualityConfig {
     required this.groundPlaneDetail,
   });
 
+  /// Minimal mode: Ultra-low power for Raspberry Pi and similar SBCs.
+  ///
+  /// - All stars rendered as raw points (no circles, no PSF)
+  /// - Maximum 2000 stars, no glow, no blur, no Milky Way
+  /// - No twinkle animation, no pop-in, no parallax
+  /// - No twilight gradient, no horizon glow, no light pollution
+  /// - Grid rendered from cache only
+  /// - Designed for 30fps target on Pi 4
+  const RenderQualityConfig.minimal()
+      : quality = RenderQuality.minimal,
+        useBlurEffects = false,
+        useGlowEffects = false,
+        maxStarsToRender = 2000,
+        maxDsosToRender = 200,
+        milkyWayDetail = 0.0,
+        showConstellationArt = false,
+        animateStarTwinkle = false,
+        smoothZoomAnimation = false,
+        starMagnitudeLimit = 5.5,
+        dsoMagnitudeLimit = 8.0,
+        enableTwilightGradient = false,
+        enableHorizonGlow = false,
+        enableLightPollution = false,
+        enableAtmosphericExtinction = false,
+        enableEnhancedDsoSymbols = false,
+        enablePlanetDetails = false,
+        enableSelectionAnimation = false,
+        enableStarPopin = false,
+        enableDsoPopin = false,
+        enableParallax = false,
+        starPsfQuality = 0.0,
+        groundPlaneDetail = 0.0;
+
   /// Performance mode: Minimal effects for low-powered devices like Raspberry Pi
   ///
   /// - No blur effects (CPU-expensive)
@@ -151,7 +189,7 @@ class RenderQualityConfig {
   ///
   /// - No blur effects (uses radial gradients instead)
   /// - Glow effects via gradients
-  /// - Moderate star/DSO counts
+  /// - High object counts (faint DSOs are batched as points, near-zero cost)
   /// - Partial Milky Way
   /// - Smooth animations
   const RenderQualityConfig.balanced()
@@ -159,7 +197,7 @@ class RenderQualityConfig {
         useBlurEffects = false,
         useGlowEffects = true,
         maxStarsToRender = 5000,
-        maxDsosToRender = 2000,
+        maxDsosToRender = 4000,
         milkyWayDetail = 0.5,
         showConstellationArt = false,
         animateStarTwinkle = false,
@@ -184,7 +222,7 @@ class RenderQualityConfig {
   ///
   /// - Blur effects enabled for best visuals
   /// - Full glow effects
-  /// - High star/DSO counts
+  /// - High star/DSO counts (faint DSOs batched as points, only bright ones get full rendering)
   /// - Full Milky Way
   /// - All animations enabled
   const RenderQualityConfig.quality()
@@ -192,7 +230,7 @@ class RenderQualityConfig {
         useBlurEffects = true,
         useGlowEffects = true,
         maxStarsToRender = 15000,
-        maxDsosToRender = 5000,
+        maxDsosToRender = 6000,
         milkyWayDetail = 1.0,
         showConstellationArt = true,
         animateStarTwinkle = true,
@@ -243,6 +281,8 @@ class RenderQualityConfig {
   /// Get configuration for a specific quality tier
   factory RenderQualityConfig.fromQuality(RenderQuality quality) {
     switch (quality) {
+      case RenderQuality.minimal:
+        return const RenderQualityConfig.minimal();
       case RenderQuality.performance:
         return const RenderQualityConfig.performance();
       case RenderQuality.balanced:

@@ -125,7 +125,7 @@ impl DeviceIdCache {
     /// Get a cached entry, updating LRU order.
     /// Returns a clone of the cached value if found.
     fn get(&self, key: &str) -> Option<ParsedDeviceId> {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(value) = cache.get(key) {
             self.metrics.record_hit();
             Some(value.clone())
@@ -137,7 +137,7 @@ impl DeviceIdCache {
 
     /// Insert a new entry, potentially evicting the LRU entry.
     fn put(&self, key: String, value: ParsedDeviceId) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         // Check if we're at capacity and will evict
         if cache.len() >= cache.cap().get() && !cache.contains(&key) {
             self.metrics.record_eviction();
@@ -148,19 +148,19 @@ impl DeviceIdCache {
     /// Remove a specific entry from the cache.
     /// Useful when a device is disconnected or configuration changes.
     pub fn invalidate(&self, key: &str) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         cache.pop(key);
     }
 
     /// Clear all cached entries.
     pub fn clear(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         cache.clear();
     }
 
     /// Get the current number of entries in the cache.
     pub fn len(&self) -> usize {
-        let cache = self.cache.lock().unwrap();
+        let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         cache.len()
     }
 

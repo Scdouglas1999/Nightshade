@@ -1,14 +1,36 @@
 # Capturing Your First Image
 
-This guide will walk you through capturing your first astrophoto with Nightshade 2.0.
+This guide walks through a conservative first imaging run with Nightshade 2.0.
+Start with a short, low-risk exposure and verify each device before moving to
+long sequences or unattended automation.
+
+## Release Scope Notes
+
+Before connecting hardware, review:
+
+- [Supported Hardware By Platform](../supported-hardware-by-platform.md)
+- [Known Limitations](../known-limitations.md)
+- [Migration, Backup, and Restore Guide](../migration-backup-restore.md)
+
+Do not assume every visible control is supported by every driver or operating
+system. ASCOM is Windows-only, INDI requires a running INDI server, Alpaca
+requires a reachable network device or server, and native SDK support is
+available only where the release package includes and verifies the vendor
+library.
 
 ## Prerequisites
 
 Before capturing images, ensure:
 - [ ] Camera is connected (see [First Connection](first-connection.md))
-- [ ] Mount is connected and tracking (optional but recommended)
+- [ ] Mount is connected and tracking, or you are intentionally testing a
+      camera-only workflow
+- [ ] Save location is writable and has enough free disk space for the session
+- [ ] Equipment profile and current settings are backed up if this is an upgrade
+      or release-candidate validation run
 - [ ] You have a target in view (Moon, bright planet, or star field)
-- [ ] Camera lens cap is removed (yes, it happens!)
+- [ ] Camera lens cap or dust cap is removed
+- [ ] Unsafe or unsupported devices are left disconnected until their support
+      status is confirmed
 
 ## Quick Start: Single Exposure
 
@@ -22,11 +44,13 @@ The fastest way to capture your first image:
 ### Step 2: Configure Camera Settings
 
 1. Select the **Camera** tab
-2. Set your exposure parameters:
+2. Set conservative exposure parameters:
 
    **Exposure Time**
    - Start with 1-5 seconds for testing
-   - Longer for deep sky, shorter for planets/moon
+   - Use shorter exposures for the Moon and bright planets
+   - Move to longer deep-sky exposures only after focus, saving, and mount
+     behavior are verified
 
    **Gain**
    - Start with Unity Gain (often around 100-150, varies by camera)
@@ -48,13 +72,16 @@ The fastest way to capture your first image:
    - Choose where to save your images
    - Create a new folder for tonight's session
 
-### Step 3: Cool Your Camera (if applicable)
+### Step 3: Cool Your Camera, If Supported
 
-If you have a cooled camera:
+If your camera and driver expose cooling controls:
 
 1. Enable **Cooling**
 2. Set target temperature (typically -10°C to -20°C)
-3. Wait for temperature to stabilize (shows "At Temp" when ready)
+3. Wait for temperature to stabilize before starting calibration-sensitive work
+
+If cooling controls are missing or disabled, treat that as a driver capability
+limit and continue with uncooled test exposures rather than forcing the control.
 
 ### Step 4: Take Your First Exposure
 
@@ -104,15 +131,19 @@ To capture a series of images:
 
 ## Setting Up for Deep Sky Imaging
 
-For longer, unguided exposures:
+For longer exposures:
 
 ### Step 1: Frame Your Target
 
 1. Use short exposures (1-2 seconds) with high binning (2x2)
-2. Slew the mount to your target:
+2. Slew the mount to your target only after confirming it is unparked, tracking,
+   and safe to move:
    - Use **Imaging** > **Mount** tab for manual slewing
    - Or use **Planetarium** screen to select and slew to objects
-3. Adjust mount position until target is centered
+3. Adjust mount position with small moves until the target is centered
+
+Stop if coordinates do not update, the mount reports a parked state, or the
+target is below the horizon or obstructed from your observing location.
 
 ### Step 2: Focus Your Telescope
 
@@ -129,12 +160,12 @@ Critical for sharp images:
    - Watch HFR (Half-Flux Radius) value - lower is better
    - When HFR is minimized, you're in focus
 
-### Step 3: Start Guiding (Optional but Recommended)
+### Step 3: Start Guiding, If Available
 
-For exposures longer than 30-60 seconds:
+For exposures longer than 30-60 seconds, use guiding when your setup supports it:
 
 1. Go to **Imaging** > **Guiding** tab
-2. Ensure PHD2 is running and connected
+2. Ensure PHD2 is installed, running, and connected to the guide setup
 3. Click **Start Guiding** in Nightshade
 4. PHD2 will calibrate (if needed) and begin guiding
 5. Wait for "Guiding" status before starting exposures
@@ -158,11 +189,12 @@ For exposures longer than 30-60 seconds:
 
 ## Using Filter Wheels
 
-If you have a filter wheel connected:
+If you have a supported filter wheel connected:
 
 1. In **Camera** tab, you'll see **Filter** dropdown
 2. Select desired filter (Lum, Red, Green, Blue, Ha, OIII, etc.)
-3. Filter wheel will rotate to selected position
+3. Filter wheel will rotate to the selected position if the driver supports
+   remote position changes
 4. Wait for "Filter: [Name]" status before exposing
 
 To capture through multiple filters:
@@ -170,6 +202,9 @@ To capture through multiple filters:
 - Change filter
 - Take exposures with next filter
 - Or use **Sequencer** to automate filter changes
+
+If no filter wheel is detected, or if the platform support matrix lists your
+driver path as unsupported, capture a single-filter or no-filter test first.
 
 ## Image Preview and Plate Solving
 
@@ -199,7 +234,8 @@ To verify your framing and get precise coordinates:
 
 ### Auto-Save Settings
 
-1. Go to **Equipment** > **Settings** tab
+1. Go to **Equipment** > **Settings** tab, or the current settings surface for
+   image storage in your build
 2. Under **Imaging**:
    - **Auto-save captures**: Enabled by default
    - **Save location**: Choose default folder
@@ -254,14 +290,33 @@ All captured images are tracked:
 - Check folder path is valid
 - Look for error messages in Equipment > Settings > Logs
 
+### A control is disabled or missing
+- Check [Supported Hardware By Platform](../supported-hardware-by-platform.md)
+- Confirm the connected driver exposes that capability
+- Use a simpler first run if filter wheel, rotator, dome, weather, or safety
+  devices are not available in your setup
+- Do not bypass disabled controls for a public-release smoke pass; record the
+  missing capability as evidence instead
+
+### Remote or mobile control does not connect
+- Start with local desktop control first
+- For headless or LAN use, follow
+  [Headless Secure Setup](../headless-secure-setup.md)
+- Verify token authentication before enabling LAN exposure
+- Emulator or localhost tests do not replace a second-device LAN/firewall check
+  for release validation
+
 ## Next Steps
 
 Now that you've captured your first images:
 
 - [Sequencer Guide](../features/sequencing.md) - Automate multi-filter sequences
-- [Focusing Guide](../features/focusing.md) - Master automatic focusing
+- [Imaging Features Guide](../features/imaging.md) - Camera, mount, focusing,
+  capture, and preview controls
 - [Framing Assistant](../features/framing.md) - Plan and frame targets precisely
-- [Flat Wizard](../features/flats.md) - Capture calibration frames
+- [Guiding Guide](../features/guiding.md) - PHD2 setup and guiding workflow
+- [Migration, Backup, and Restore Guide](../migration-backup-restore.md) -
+  Protect profiles before upgrades or release-candidate testing
 
 ## Tips for Great Images
 

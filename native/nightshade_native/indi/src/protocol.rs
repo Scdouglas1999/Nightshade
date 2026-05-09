@@ -48,6 +48,7 @@ pub mod standard_properties {
     pub const TELESCOPE_MOTION_NS: &str = "TELESCOPE_MOTION_NS";
     pub const TELESCOPE_MOTION_WE: &str = "TELESCOPE_MOTION_WE";
     pub const TELESCOPE_SLEW_RATE: &str = "TELESCOPE_SLEW_RATE";
+    pub const TELESCOPE_HOME: &str = "TELESCOPE_HOME";
 
     // Focuser properties
     pub const FOCUS_MOTION: &str = "FOCUS_MOTION";

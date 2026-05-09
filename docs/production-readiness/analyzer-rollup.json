@@ -1,0 +1,2158 @@
+{
+  "generatedAtUtc": "2026-05-05T14:45:20.805920Z",
+  "analyzerExitCode": 2,
+  "policyPath": "docs/production-readiness/analyzer-policy.yaml",
+  "policy": {
+    "include": [
+      "apps/*/lib/**",
+      "packages/*/lib/**",
+      "native/nightshade_native/**/src/**"
+    ],
+    "exclude": [
+      "**/.dart_tool/**",
+      "**/.git/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/test/**",
+      "**/tests/**",
+      "**/*.g.dart",
+      "**/frb_generated*.dart"
+    ],
+    "thresholds": {
+      "errors": 0,
+      "warnings": 0,
+      "infos": 999999
+    }
+  },
+  "summary": {
+    "all": {
+      "errors": 0,
+      "warnings": 14,
+      "infos": 233
+    },
+    "production": {
+      "errors": 0,
+      "warnings": 0,
+      "infos": 211
+    },
+    "criticalWarnings": 0,
+    "failed": false
+  },
+  "criticalCodes": [
+    "UNDEFINED_HIDDEN_NAME"
+  ],
+  "criticalWarningIssues": [],
+  "productionIssues": [
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\desktop\\\\lib\\\\screens\\\\sequencer\\\\tabs\\\\targets_tab.dart",
+      "line": 754,
+      "column": 33,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\desktop\\\\lib\\\\screens\\\\sequencer\\\\tabs\\\\targets_tab.dart",
+      "line": 841,
+      "column": 37,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\mobile_sequence_hooks.dart",
+      "line": 150,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\mobile_sequence_hooks.dart",
+      "line": 170,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\mobile_sequence_hooks.dart",
+      "line": 198,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\mobile_sequence_hooks.dart",
+      "line": 208,
+      "column": 9,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\mobile_sequence_hooks.dart",
+      "line": 216,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 73,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 77,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 82,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 114,
+      "column": 9,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 119,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 129,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 140,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 152,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 158,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 168,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 199,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 217,
+      "column": 9,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 224,
+      "column": 9,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 234,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 258,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 285,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 296,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\network_service.dart",
+      "line": 311,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 73,
+      "column": 9,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 76,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 86,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 88,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 96,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 116,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 162,
+      "column": 7,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 179,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "AVOID_PRINT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\services\\\\power_service.dart",
+      "line": 185,
+      "column": 5,
+      "length": 5,
+      "message": "Don't invoke 'print' in production code."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\analytics\\\\widgets\\\\session_chart.dart",
+      "line": 5,
+      "column": 8,
+      "length": 52,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\connections_tab.dart",
+      "line": 7,
+      "column": 8,
+      "length": 52,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\connections_tab.dart",
+      "line": 54,
+      "column": 7,
+      "length": 16,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\connections_tab.dart",
+      "line": 96,
+      "column": 9,
+      "length": 16,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\connections_tab.dart",
+      "line": 160,
+      "column": 5,
+      "length": 16,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\profiles_tab.dart",
+      "line": 7,
+      "column": 8,
+      "length": 52,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\widgets\\\\profile_chip.dart",
+      "line": 4,
+      "column": 8,
+      "length": 52,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\widgets\\\\quick_connect_bar.dart",
+      "line": 4,
+      "column": 8,
+      "length": 52,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\framing\\\\framing_screen.dart",
+      "line": 14,
+      "column": 8,
+      "length": 61,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\tabs\\\\camera_tab.dart",
+      "line": 898,
+      "column": 15,
+      "length": 7,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "IMPLEMENTATION_IMPORTS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\focus_model_panel.dart",
+      "line": 10,
+      "column": 8,
+      "length": 63,
+      "message": "Import of a library in the 'lib/src' directory of another package."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1059,
+      "column": 26,
+      "length": 14,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1060,
+      "column": 29,
+      "length": 14,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1086,
+      "column": 26,
+      "length": 14,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1087,
+      "column": 29,
+      "length": 14,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONDITIONAL_ASSIGNMENT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1102,
+      "column": 9,
+      "length": 57,
+      "message": "The 'if' statement could be replaced by a null-aware assignment."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONDITIONAL_ASSIGNMENT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1148,
+      "column": 9,
+      "length": 57,
+      "message": "The 'if' statement could be replaced by a null-aware assignment."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1300,
+      "column": 20,
+      "length": 10,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_painters.dart",
+      "line": 1301,
+      "column": 23,
+      "length": 10,
+      "message": "Statements in a while should be enclosed in a block."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\overlay_widgets.dart",
+      "line": 1,
+      "column": 8,
+      "length": 9,
+      "message": "The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\rotator_panel.dart",
+      "line": 2,
+      "column": 8,
+      "length": 9,
+      "message": "The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\imaging\\\\widgets\\\\stacking_panel.dart",
+      "line": 271,
+      "column": 25,
+      "length": 11,
+      "message": "'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\sequencer\\\\widgets\\\\equipment_telemetry_strip.dart",
+      "line": 1,
+      "column": 8,
+      "length": 9,
+      "message": "The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\sequencer\\\\widgets\\\\instruction_node_properties.dart",
+      "line": 1203,
+      "column": 15,
+      "length": 11,
+      "message": "'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\sequencer\\\\widgets\\\\instruction_node_properties.dart",
+      "line": 1324,
+      "column": 15,
+      "length": 11,
+      "message": "'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\settings\\\\widgets\\\\file_path_settings.dart",
+      "line": 28,
+      "column": 13,
+      "length": 7,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\settings\\\\widgets\\\\phd2_guiding_settings.dart",
+      "line": 56,
+      "column": 13,
+      "length": 7,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\settings\\\\widgets\\\\plate_solving_settings.dart",
+      "line": 58,
+      "column": 13,
+      "length": 7,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\settings\\\\widgets\\\\plate_solving_settings.dart",
+      "line": 80,
+      "column": 13,
+      "length": 7,
+      "message": "Don't use 'BuildContext's across async gaps."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONST_DECLARATIONS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\suggestions\\\\suggestions_screen.dart",
+      "line": 132,
+      "column": 11,
+      "length": 26,
+      "message": "Use 'const' for final variables initialized to a constant value."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONST_CONSTRUCTORS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\suggestions\\\\suggestions_screen.dart",
+      "line": 174,
+      "column": 24,
+      "length": 232,
+      "message": "Use 'const' with the constructor to improve performance."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONST_CONSTRUCTORS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\suggestions\\\\suggestions_screen.dart",
+      "line": 195,
+      "column": 15,
+      "length": 407,
+      "message": "Use 'const' with the constructor to improve performance."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\widgets\\\\phd2_connection_dialog.dart",
+      "line": 30,
+      "column": 9,
+      "length": 6,
+      "message": "'parent' is deprecated and shouldn't be used. Will be removed in 3.0.0. See https://github.com/rrousselGit/riverpod/issues/3261#issuecomment-1973514033."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "UNNECESSARY_GETTERS_SETTERS",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\widgets\\\\tutorial_overlay.dart",
+      "line": 565,
+      "column": 21,
+      "length": 17,
+      "message": "Unnecessary use of getter and setter to wrap a field."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\nightshade_core.dart",
+      "line": 75,
+      "column": 1,
+      "length": 137,
+      "message": "'package:nightshade_core/src/providers/annotation_presets_provider.dart' is deprecated and shouldn't be used. Use annotation_settings_provider.dart for annotation presets. This file remains as a compatibility facade."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\ffi_backend.dart",
+      "line": 15,
+      "column": 8,
+      "length": 52,
+      "message": "The import of 'package:nightshade_core/src/database/database.dart' is unnecessary because all of the used elements are also provided by the import of 'package:nightshade_core/nightshade_core.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\ffi_backend.dart",
+      "line": 17,
+      "column": 8,
+      "length": 59,
+      "message": "The import of 'package:nightshade_core/src/database/daos/images_dao.dart' is unnecessary because all of the used elements are also provided by the import of 'package:nightshade_core/nightshade_core.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 23,
+      "column": 9,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 32,
+      "column": 14,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 59,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 62,
+      "column": 10,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 82,
+      "column": 13,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 85,
+      "column": 14,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 101,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 107,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 113,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 132,
+      "column": 42,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 136,
+      "column": 40,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 140,
+      "column": 9,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\discovery_state.dart",
+      "line": 141,
+      "column": 10,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 5,
+      "column": 11,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 6,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 7,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 8,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 9,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 10,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 31,
+      "column": 9,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 34,
+      "column": 13,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 34,
+      "column": 28,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 37,
+      "column": 9,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 49,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 56,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 78,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 90,
+      "column": 29,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 98,
+      "column": 24,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 98,
+      "column": 59,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 108,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 111,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 112,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 113,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 116,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 125,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 128,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 131,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 134,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 137,
+      "column": 16,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 147,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 162,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 181,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 190,
+      "column": 23,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 190,
+      "column": 58,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 195,
+      "column": 27,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 198,
+      "column": 27,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 200,
+      "column": 24,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 208,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 214,
+      "column": 3,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 217,
+      "column": 19,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 221,
+      "column": 33,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 225,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 233,
+      "column": 37,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 244,
+      "column": 29,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 244,
+      "column": 52,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 269,
+      "column": 39,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 273,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 275,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 277,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 279,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 281,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 289,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 291,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 293,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 295,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\equipment\\\\unified_device.dart",
+      "line": 297,
+      "column": 12,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 12,
+      "column": 71,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 16,
+      "column": 72,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 20,
+      "column": 44,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 26,
+      "column": 34,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 32,
+      "column": 3,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 42,
+      "column": 35,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 43,
+      "column": 25,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 47,
+      "column": 15,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 48,
+      "column": 24,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\device_backend_selection_provider.dart",
+      "line": 56,
+      "column": 21,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence_provider.dart",
+      "line": 1318,
+      "column": 28,
+      "length": 12,
+      "message": "'targetGroups' is deprecated and shouldn't be used. Use targetHeaders instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence_provider.dart",
+      "line": 2240,
+      "column": 26,
+      "length": 12,
+      "message": "'targetGroups' is deprecated and shouldn't be used. Use targetHeaders instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence_provider.dart",
+      "line": 2241,
+      "column": 22,
+      "length": 12,
+      "message": "'targetGroups' is deprecated and shouldn't be used. Use targetHeaders instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence_provider.dart",
+      "line": 2243,
+      "column": 27,
+      "length": 12,
+      "message": "'targetGroups' is deprecated and shouldn't be used. Use targetHeaders instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence_provider.dart",
+      "line": 2244,
+      "column": 22,
+      "length": 12,
+      "message": "'targetGroups' is deprecated and shouldn't be used. Use targetHeaders instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 41,
+      "column": 28,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 67,
+      "column": 25,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 68,
+      "column": 28,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 99,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 106,
+      "column": 31,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 119,
+      "column": 31,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 131,
+      "column": 25,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 159,
+      "column": 28,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 183,
+      "column": 13,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 203,
+      "column": 13,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 217,
+      "column": 25,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 249,
+      "column": 8,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 250,
+      "column": 23,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 252,
+      "column": 7,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 254,
+      "column": 7,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 256,
+      "column": 7,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 258,
+      "column": 7,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 263,
+      "column": 26,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 271,
+      "column": 5,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 279,
+      "column": 12,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 282,
+      "column": 14,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 283,
+      "column": 14,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 284,
+      "column": 14,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 286,
+      "column": 31,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 290,
+      "column": 49,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 293,
+      "column": 23,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 302,
+      "column": 14,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 318,
+      "column": 14,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 348,
+      "column": 9,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 349,
+      "column": 14,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 366,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 372,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 378,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 384,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 390,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 396,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 402,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 408,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\unified_discovery_provider.dart",
+      "line": 414,
+      "column": 37,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 68,
+      "column": 41,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 72,
+      "column": 21,
+      "length": 20,
+      "message": "'NightshadeDeviceType' is deprecated and shouldn't be used. Use DeviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 72,
+      "column": 48,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 74,
+      "column": 33,
+      "length": 4,
+      "message": "'type' is deprecated and shouldn't be used. Use deviceType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 94,
+      "column": 27,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 94,
+      "column": 42,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 95,
+      "column": 19,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 106,
+      "column": 23,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 106,
+      "column": 44,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 118,
+      "column": 49,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 119,
+      "column": 34,
+      "length": 7,
+      "message": "'backend' is deprecated and shouldn't be used. Use driverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 139,
+      "column": 58,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 140,
+      "column": 58,
+      "length": 13,
+      "message": "'DriverBackend' is deprecated and shouldn't be used. Use DriverType instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\device_matching_service.dart",
+      "line": 269,
+      "column": 38,
+      "length": 15,
+      "message": "'AvailableDevice' is deprecated and shouldn't be used. Use DeviceInfo instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\mosaic_service.dart",
+      "line": 432,
+      "column": 30,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler_service.dart",
+      "line": 187,
+      "column": 19,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler_service.dart",
+      "line": 299,
+      "column": 8,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler_service.dart",
+      "line": 300,
+      "column": 19,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler_service.dart",
+      "line": 323,
+      "column": 32,
+      "length": 15,
+      "message": "'TargetGroupNode' is deprecated and shouldn't be used. Use TargetHeaderNode instead."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "DEPRECATED_MEMBER_USE",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_updater\\\\lib\\\\src\\\\widgets\\\\update_manager_widget.dart",
+      "line": 292,
+      "column": 43,
+      "length": 11,
+      "message": "'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss."
+    }
+  ],
+  "stderr": []
+}

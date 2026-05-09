@@ -12,24 +12,36 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get the single settings row (first row or null)
   Future<WeatherSettingRow?> getSettings() async {
-    return await (select(weatherSettings)..limit(1)).getSingleOrNull();
+    return (select(weatherSettings)
+          ..orderBy([(s) => OrderingTerm.asc(s.id)])
+          ..limit(1))
+        .getSingleOrNull();
   }
 
   /// Get existing settings or create with defaults
   Future<WeatherSettingRow> getOrCreateSettings() async {
-    final existing = await getSettings();
-    if (existing != null) {
-      return existing;
-    }
+    return transaction(() async {
+      final rows = await (select(weatherSettings)
+            ..orderBy([(s) => OrderingTerm.asc(s.id)]))
+          .get();
 
-    // Insert default settings
-    final id = await into(weatherSettings).insert(
-      WeatherSettingsCompanion.insert(),
-    );
+      if (rows.isEmpty) {
+        await into(weatherSettings).insert(
+          WeatherSettingsCompanion.insert(id: const Value(1)),
+        );
+        return (await (select(weatherSettings)..where((s) => s.id.equals(1)))
+            .getSingle());
+      }
 
-    // Return the newly created row
-    return (await (select(weatherSettings)..where((s) => s.id.equals(id)))
-        .getSingle());
+      final primary = rows.first;
+      if (rows.length > 1) {
+        final duplicateIds = rows.skip(1).map((row) => row.id).toList();
+        await (delete(weatherSettings)..where((s) => s.id.isIn(duplicateIds)))
+            .go();
+      }
+
+      return primary;
+    });
   }
 
   /// Update specific fields
@@ -38,6 +50,9 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
     double? cloudDensityThreshold,
     int? leadTimeMinutes,
     bool? weatherSafetyEnabled,
+    double? maxHumidityPercent,
+    double? maxWindSpeedKph,
+    double? maxCloudCoverPercent,
     bool? autoParkEnabled,
     bool? autoResumeEnabled,
     String? preferredProvider,
@@ -47,7 +62,8 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
     final existing = await getOrCreateSettings();
 
     // Update the row by ID
-    await (update(weatherSettings)..where((s) => s.id.equals(existing.id))).write(
+    await (update(weatherSettings)..where((s) => s.id.equals(existing.id)))
+        .write(
       WeatherSettingsCompanion(
         triggerDistanceKm: triggerDistanceKm != null
             ? Value(triggerDistanceKm)
@@ -55,13 +71,24 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
         cloudDensityThreshold: cloudDensityThreshold != null
             ? Value(cloudDensityThreshold)
             : const Value.absent(),
-        leadTimeMinutes:
-            leadTimeMinutes != null ? Value(leadTimeMinutes) : const Value.absent(),
+        leadTimeMinutes: leadTimeMinutes != null
+            ? Value(leadTimeMinutes)
+            : const Value.absent(),
         weatherSafetyEnabled: weatherSafetyEnabled != null
             ? Value(weatherSafetyEnabled)
             : const Value.absent(),
-        autoParkEnabled:
-            autoParkEnabled != null ? Value(autoParkEnabled) : const Value.absent(),
+        maxHumidityPercent: maxHumidityPercent != null
+            ? Value(maxHumidityPercent)
+            : const Value.absent(),
+        maxWindSpeedKph: maxWindSpeedKph != null
+            ? Value(maxWindSpeedKph)
+            : const Value.absent(),
+        maxCloudCoverPercent: maxCloudCoverPercent != null
+            ? Value(maxCloudCoverPercent)
+            : const Value.absent(),
+        autoParkEnabled: autoParkEnabled != null
+            ? Value(autoParkEnabled)
+            : const Value.absent(),
         autoResumeEnabled: autoResumeEnabled != null
             ? Value(autoResumeEnabled)
             : const Value.absent(),
@@ -78,10 +105,12 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Reset to defaults - delete all rows and insert fresh default
   Future<void> resetToDefaults() async {
-    await delete(weatherSettings).go();
-    await into(weatherSettings).insert(
-      WeatherSettingsCompanion.insert(),
-    );
+    await transaction(() async {
+      await delete(weatherSettings).go();
+      await into(weatherSettings).insert(
+        WeatherSettingsCompanion.insert(id: const Value(1)),
+      );
+    });
   }
 
   /// Stream for Riverpod to watch

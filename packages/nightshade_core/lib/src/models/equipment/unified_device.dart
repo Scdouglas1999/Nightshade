@@ -271,15 +271,15 @@ extension DriverBackendDescription on DriverBackend {
   String get description {
     switch (this) {
       case DriverBackend.native:
-        return 'Direct SDK connection - best performance and lowest latency';
+        return 'Direct SDK connection where the release includes the required vendor library';
       case DriverBackend.ascom:
-        return 'Windows ASCOM driver - industry standard, well-tested';
+        return 'Windows-only ASCOM COM driver. Use Alpaca for cross-platform ASCOM devices.';
       case DriverBackend.alpaca:
-        return 'ASCOM Alpaca over network - enables remote operation';
+        return 'ASCOM Alpaca over network. Device capabilities are reported by the Alpaca server.';
       case DriverBackend.indi:
-        return 'INDI protocol - cross-platform, works on Linux/macOS';
+        return 'INDI protocol through a reachable INDI server. Feature support depends on the driver.';
       case DriverBackend.simulator:
-        return 'Simulated device for testing';
+        return 'Simulated device where that workflow is enabled for testing';
     }
   }
 
@@ -289,7 +289,7 @@ extension DriverBackendDescription on DriverBackend {
       case DriverBackend.native:
         return 'Native';
       case DriverBackend.ascom:
-        return 'ASCOM';
+        return 'ASCOM COM';
       case DriverBackend.alpaca:
         return 'Alpaca';
       case DriverBackend.indi:

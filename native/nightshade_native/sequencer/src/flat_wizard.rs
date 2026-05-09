@@ -302,10 +302,7 @@ async fn cleanup_flat_panel(ctx: &InstructionContext) -> Result<(), String> {
     // Wait for cover to close (with short timeout)
     let start = std::time::Instant::now();
     while start.elapsed() < std::time::Duration::from_secs(30) {
-        let state = ctx
-            .device_ops
-            .cover_calibrator_get_cover_state(cc_id)
-            .await;
+        let state = ctx.device_ops.cover_calibrator_get_cover_state(cc_id).await;
         let state = match state {
             Ok(v) => v,
             Err(e) => {
@@ -404,8 +401,29 @@ async fn position_for_flats(
                     cb(15.0, "Waiting for slew to complete".to_string());
                 }
 
-                // Wait for slew to complete
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // Wait for slew to complete by polling mount_is_slewing
+                let slew_timeout =
+                    tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+                loop {
+                    if ctx
+                        .cancellation_token
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        return Err("Operation cancelled during slew".to_string());
+                    }
+                    if !ctx
+                        .device_ops
+                        .mount_is_slewing(mount_id)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    if tokio::time::Instant::now() > slew_timeout {
+                        return Err("Slew to zenith timed out after 5 minutes".to_string());
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
             }
 
             Ok(())
@@ -460,8 +478,31 @@ async fn position_for_flats(
                     cb(15.0, "Waiting for slew to complete".to_string());
                 }
 
-                // Wait for slew to complete
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // Wait for slew to complete by polling mount_is_slewing
+                let slew_timeout =
+                    tokio::time::Instant::now() + std::time::Duration::from_secs(300);
+                loop {
+                    if ctx
+                        .cancellation_token
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        return Err("Operation cancelled during slew".to_string());
+                    }
+                    if !ctx
+                        .device_ops
+                        .mount_is_slewing(mount_id)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    if tokio::time::Instant::now() > slew_timeout {
+                        return Err(
+                            "Slew to sky flat position timed out after 5 minutes".to_string()
+                        );
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
             }
 
             Ok(())

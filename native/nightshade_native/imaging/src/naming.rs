@@ -532,7 +532,16 @@ fn extract_frame_number(name: &str, pos: usize) -> Option<&str> {
     }
 
     // Must be at least 3 digits (typical frame numbers)
-    if end - start >= 3 {
+    if end - start < 3 {
+        return None;
+    }
+
+    let valid_left_boundary =
+        start == 0 || matches!(bytes[start - 1], b'_' | b'-' | b' ' | b'(' | b'[');
+    let valid_right_boundary =
+        end == bytes.len() || matches!(bytes[end], b'_' | b'-' | b' ' | b'.' | b')' | b']');
+
+    if valid_left_boundary && valid_right_boundary {
         Some(&name[start..end])
     } else {
         None
@@ -560,5 +569,11 @@ mod tests {
         assert_eq!(format_exposure(120.0), "120s");
         assert_eq!(format_exposure(0.5), "500ms");
         assert_eq!(format_exposure(0.0001), "100us");
+    }
+
+    #[test]
+    fn extract_frame_number_rejects_camera_model_digits() {
+        assert_eq!(extract_frame_number("M31_ASI2600_Light.fit", 8), None);
+        assert_eq!(extract_frame_number("M31_Light_0007.fit", 12), Some("0007"));
     }
 }

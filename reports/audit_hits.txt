@@ -1,0 +1,9 @@
+native/nightshade_native/sequencer/src/instructions.rs:1941:/// no focuser is connected, or no offset is configured, this is a no-op.
+packages/nightshade_app/lib/localization/nightshade_localizations.dart:532:      'analyticsAllTime': 'Todo el tiempo',
+packages/nightshade_app/lib/screens/dashboard/widgets/zone_layout.dart:43:      return _EmptyZonePlaceholder(zone: zone, colors: colors, isEditing: isEditing);
+packages/nightshade_app/lib/screens/dashboard/widgets/zone_layout.dart:90:/// Placeholder for empty zones in edit mode.
+packages/nightshade_app/lib/screens/dashboard/widgets/zone_layout.dart:91:class _EmptyZonePlaceholder extends StatelessWidget {
+packages/nightshade_app/lib/screens/dashboard/widgets/zone_layout.dart:96:  const _EmptyZonePlaceholder({
+packages/nightshade_core/lib/src/providers/imaging_provider.dart:32:/// [exposureSettingsProvider]. Subsequent calls with the same profile are no-ops,
+packages/nightshade_core/lib/src/providers/template_snippet_provider.dart:45:  /// Ensure snippets have been loaded from disk. No-op after the first load.
+packages/nightshade_core/lib/src/providers/template_snippet_provider.dart:54:  /// no-ops via [_ensureLoaded].

@@ -11,6 +11,7 @@ import '../../../utils/snackbar_helper.dart';
 enum MountUnparkResult {
   /// User chose to unpark and continue
   unparkAndContinue,
+
   /// User cancelled the sequence
   cancel,
 }
@@ -128,7 +129,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Container(
         width: 420,
@@ -143,11 +144,13 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1 + _pulseController.value * 0.1),
+                    color: colors.warning
+                        .withValues(alpha: 0.1 + _pulseController.value * 0.1),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: colors.warning.withValues(alpha: 0.2 * _pulseController.value),
+                        color: colors.warning
+                            .withValues(alpha: 0.2 * _pulseController.value),
                         blurRadius: 20,
                         spreadRadius: 4,
                       ),
@@ -192,10 +195,11 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
             // Countdown timer display
             if (!_isUnparking) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(

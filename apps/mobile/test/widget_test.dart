@@ -5,6 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +20,11 @@ void main() {
       ),
     );
 
-    // Verify that the connection screen is shown
-    expect(find.text('Nightshade'), findsWidgets);
+    await tester.pump();
+
+    // Verify the app boots into a material shell without synchronous errors.
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MaterialApp), findsOneWidget);
+    expect(find.byType(Scaffold), findsWidgets);
   });
 }

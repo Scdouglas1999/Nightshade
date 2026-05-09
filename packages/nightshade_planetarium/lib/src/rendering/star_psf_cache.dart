@@ -22,7 +22,7 @@ class StarPsfShaderCache {
     required double radius,
     required Color color,
   }) {
-    final key = '${type.index}_${color.value}_${radius.toStringAsFixed(4)}';
+    final key = '${type.index}_${color.toARGB32()}_${radius.toStringAsFixed(4)}';
     final existing = _cache[key];
     if (existing != null) return existing;
 
@@ -35,9 +35,54 @@ class StarPsfShaderCache {
     return shader;
   }
 
-  void clear() => _cache.clear();
+  /// Cache for diffraction spike linear gradient shaders.
+  /// Key: magnitude bucket (rounded to 0.5) + spike direction angle.
+  final Map<String, ui.Shader> _spikeCache = {};
+  static const int _maxSpikeEntries = 256;
 
-  int get size => _cache.length;
+  /// Get or create a cached linear gradient shader for diffraction spikes.
+  /// Spikes are keyed by magnitude bucket (0.5 increments), color, and angle
+  /// so the same shader is reused for stars of similar brightness.
+  ui.Shader getSpikeShader({
+    required Offset center,
+    required Offset end,
+    required Color color,
+    required double brightness,
+    required double magnitude,
+    required double angle,
+  }) {
+    // Quantize magnitude to 0.5 buckets and brightness to 0.1
+    final magBucket = (magnitude * 2).round() / 2.0;
+    final brightBucket = (brightness * 10).round() / 10.0;
+    // Quantize angle to nearest 45 degrees (spikes are at fixed angles)
+    final angleBucket = (angle / 45).round() * 45;
+    final key = 'spike_${magBucket}_${brightBucket}_${angleBucket}_${color.toARGB32()}';
+
+    final existing = _spikeCache[key];
+    if (existing != null) return existing;
+
+    if (_spikeCache.length >= _maxSpikeEntries) {
+      _spikeCache.clear();
+    }
+
+    final shader = ui.Gradient.linear(
+      center,
+      end,
+      [
+        color.withValues(alpha: brightness * 0.6),
+        color.withValues(alpha: 0.0),
+      ],
+    );
+    _spikeCache[key] = shader;
+    return shader;
+  }
+
+  void clear() {
+    _cache.clear();
+    _spikeCache.clear();
+  }
+
+  int get size => _cache.length + _spikeCache.length;
 
   ui.Shader _createShader(StarPsfShaderType type, double radius, Color color) {
     final baseColor = color.withValues(alpha: 1.0);

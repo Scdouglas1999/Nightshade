@@ -21,16 +21,36 @@ enum TokenVerificationResult {
   deviceNotFound,
 }
 
+typedef PairingCompletion = ({PairingResult result, String? sessionToken});
+
 /// Manages authentication tokens and pairing for WebRTC connections
 class TokenManager {
   final PairingDatabase _database;
   final Random _random = Random.secure();
+  static const int _maxPairingCreationAttempts = 5;
 
   /// Words for generating memorable pairing codes
   static const _codeWords = [
-    'STAR', 'MOON', 'NOVA', 'ORION', 'LYRA', 'CYGNUS', 'VEGA',
-    'SIRIUS', 'PLUTO', 'MARS', 'VENUS', 'COMET', 'NEBULA', 'GALAXY',
-    'PULSAR', 'QUASAR', 'METEOR', 'COSMOS', 'ZENITH', 'ASTRO',
+    'STAR',
+    'MOON',
+    'NOVA',
+    'ORION',
+    'LYRA',
+    'CYGNUS',
+    'VEGA',
+    'SIRIUS',
+    'PLUTO',
+    'MARS',
+    'VENUS',
+    'COMET',
+    'NEBULA',
+    'GALAXY',
+    'PULSAR',
+    'QUASAR',
+    'METEOR',
+    'COSMOS',
+    'ZENITH',
+    'ASTRO',
   ];
 
   TokenManager(this._database);
@@ -49,15 +69,17 @@ class TokenManager {
     return _bytesToHex(bytes);
   }
 
-  /// Generate a user-friendly pairing code (e.g., "STAR-1234")
+  /// Generate a user-friendly pairing code (e.g., "STAR-LYRA-1234")
   /// The code is derived from a secure token to ensure uniqueness
   String generatePairingCode(String token) {
-    // Use first 4 bytes of token to select word and generate number
+    // Use the first 4 bytes of the token to derive a larger, memorable code
+    // space than a single-word code would allow.
     final tokenBytes = _hexToBytes(token);
-    final wordIndex = tokenBytes[0] % _codeWords.length;
-    final number = ((tokenBytes[1] << 8) | tokenBytes[2]) % 10000;
+    final firstWordIndex = tokenBytes[0] % _codeWords.length;
+    final secondWordIndex = tokenBytes[1] % _codeWords.length;
+    final number = ((tokenBytes[2] << 8) | tokenBytes[3]) % 10000;
 
-    return '${_codeWords[wordIndex]}-${number.toString().padLeft(4, '0')}';
+    return '${_codeWords[firstWordIndex]}-${_codeWords[secondWordIndex]}-${number.toString().padLeft(4, '0')}';
   }
 
   // ============================================================================
@@ -69,21 +91,28 @@ class TokenManager {
   Future<String> startPairing({
     Duration timeout = const Duration(minutes: 5),
   }) async {
-    // Generate secure token for this pairing session
-    final sessionToken = generateSecureToken();
-    final pairingCode = generatePairingCode(sessionToken);
-
     // Clean up expired sessions before creating a new one
     await _database.deleteExpiredPairingSessions();
 
-    // Store pairing session
-    await _database.createPairingSession(
-      pairingCode: pairingCode,
-      sessionToken: sessionToken,
-      expiresIn: timeout,
-    );
+    for (var attempt = 0; attempt < _maxPairingCreationAttempts; attempt++) {
+      final sessionToken = generateSecureToken();
+      final pairingCode = generatePairingCode(sessionToken);
 
-    return pairingCode;
+      try {
+        await _database.createPairingSession(
+          pairingCode: pairingCode,
+          sessionToken: sessionToken,
+          expiresIn: timeout,
+        );
+        return pairingCode;
+      } catch (_) {
+        if (attempt == _maxPairingCreationAttempts - 1) {
+          rethrow;
+        }
+      }
+    }
+
+    throw StateError('Failed to create a unique pairing code.');
   }
 
   /// Verify a pairing attempt and complete the pairing
@@ -93,41 +122,60 @@ class TokenManager {
     required String deviceName,
     String deviceType = 'mobile',
   }) async {
+    final completion = await completePairing(
+      pairingCode: pairingCode,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      deviceType: deviceType,
+    );
+    return completion.result;
+  }
+
+  /// Verify a pairing attempt, persist the device, and return its session token.
+  Future<PairingCompletion> completePairing({
+    required String pairingCode,
+    required String deviceId,
+    required String deviceName,
+    String deviceType = 'mobile',
+  }) async {
+    final normalizedPairingCode = pairingCode.trim().toUpperCase();
+    final normalizedDeviceId = deviceId.trim();
+    final normalizedDeviceName = deviceName.trim();
+
     // Retrieve pairing session
-    final session = await _database.getPairingSession(pairingCode);
+    final session = await _database.getPairingSession(normalizedPairingCode);
 
     if (session == null) {
-      return PairingResult.invalidCode;
+      return (result: PairingResult.invalidCode, sessionToken: null);
     }
 
     // Check if already used
     if (session.isUsed) {
-      return PairingResult.codeAlreadyUsed;
+      return (result: PairingResult.codeAlreadyUsed, sessionToken: null);
     }
 
     // Check if expired
     if (DateTime.now().isAfter(session.expiresAt)) {
-      return PairingResult.codeExpired;
+      return (result: PairingResult.codeExpired, sessionToken: null);
     }
 
     // Check if device already paired
-    final existingDevice = await _database.getPairedDevice(deviceId);
-    if (existingDevice != null && existingDevice.isActive) {
-      return PairingResult.deviceAlreadyPaired;
-    }
+    final existingDevice = await _database.getPairedDevice(normalizedDeviceId);
+    final wasAlreadyPaired = existingDevice != null && existingDevice.isActive;
 
     // Mark session as used
-    await _database.markPairingSessionUsed(pairingCode);
+    await _database.markPairingSessionUsed(normalizedPairingCode);
 
-    // Add or update paired device
+    // Add or update paired device. Existing devices are re-issued the fresh
+    // session token from the current pairing flow instead of disclosing any
+    // previous token.
     if (existingDevice != null) {
-      // Reactivate previously revoked device with new token
-      await _database.deletePairedDevice(deviceId);
+      await _database.deletePairedDevice(normalizedDeviceId);
     }
 
     await _database.addPairedDevice(
-      deviceId: deviceId,
-      deviceName: deviceName,
+      deviceId: normalizedDeviceId,
+      deviceName: normalizedDeviceName,
       sessionToken: session.sessionToken,
       deviceType: deviceType,
     );
@@ -135,7 +183,12 @@ class TokenManager {
     // Clean up used session
     await _database.deleteUsedPairingSessions();
 
-    return PairingResult.success;
+    return (
+      result: wasAlreadyPaired
+          ? PairingResult.deviceAlreadyPaired
+          : PairingResult.success,
+      sessionToken: session.sessionToken,
+    );
   }
 
   /// Verify a session token for subsequent connections

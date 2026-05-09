@@ -5,6 +5,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../database/database.dart';
 import '../models/optical_config.dart';
 import '../models/planning/target_suggestion.dart';
+import '../providers/settings_provider.dart' show HorizonProfile;
 import 'logging_service.dart';
 
 /// Service for generating target suggestions for tonight's imaging session.
@@ -48,6 +49,7 @@ class TargetSuggestionService {
     required List<ImagingSession> sessions,
     DateTime? observationTime,
     OpticalConfig? opticalConfig,
+    HorizonProfile? horizonProfile,
   }) async {
     final now = observationTime ?? DateTime.now();
     _logging.debug(
@@ -133,6 +135,24 @@ class TargetSuggestionService {
           source: _source,
         );
         continue;
+      }
+
+      // Check custom horizon profile: compute the target's azimuth at peak
+      // and verify it clears the local horizon at that bearing.
+      if (horizonProfile != null && !horizonProfile.isFlat) {
+        final peakAz = score.visibility.peakAzimuth;
+        if (peakAz != null) {
+          final horizonAlt = horizonProfile.altitudeAtAzimuth(peakAz);
+          if (peakAlt < horizonAlt) {
+            _logging.debug(
+              'Skipping ${target.name}: peak altitude ${peakAlt.toStringAsFixed(1)}° '
+              'below custom horizon ${horizonAlt.toStringAsFixed(1)}° at azimuth '
+              '${peakAz.toStringAsFixed(0)}°',
+              source: _source,
+            );
+            continue;
+          }
+        }
       }
 
       // Skip targets below minimum score

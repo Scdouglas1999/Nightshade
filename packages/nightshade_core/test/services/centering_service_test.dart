@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +6,8 @@ import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // Import plate_solve_service directly to get its PlateSolveResult type
-import 'package:nightshade_core/src/services/plate_solve_service.dart' as plate_solve;
+import 'package:nightshade_core/src/services/plate_solve_service.dart'
+    as plate_solve;
 
 import 'centering_service_test.mocks.dart';
 
@@ -43,7 +45,8 @@ void main() {
             final notifier = MountStateNotifier(ref);
             notifier.setConnecting('test_mount');
             notifier.setConnected();
-            notifier.updatePosition(10.0, 45.0, 30.0, 180.0); // ra, dec, alt, az
+            notifier.updatePosition(
+                10.0, 45.0, 30.0, 180.0); // ra, dec, alt, az
             return notifier;
           }),
         ],
@@ -172,7 +175,8 @@ void main() {
             // First solve: 2 arcmin (120 arcsec) off in RA
             return plate_solve.PlateSolveResult(
               success: true,
-              ra: targetRa + (120.0 / 3600.0 / 15.0), // 120 arcsec converted to hours
+              ra: targetRa +
+                  (120.0 / 3600.0 / 15.0), // 120 arcsec converted to hours
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -212,7 +216,8 @@ void main() {
         expect(result.iterationHistory, hasLength(2));
 
         // Verify slew was called once (after first failed iteration)
-        verify(mockDeviceService.slewMountToCoordinates(targetRa, targetDec)).called(1);
+        verify(mockDeviceService.slewMountToCoordinates(targetRa, targetDec))
+            .called(1);
       });
 
       test('fails when max iterations reached', () async {
@@ -326,6 +331,32 @@ void main() {
         disconnectedContainer.dispose();
       });
 
+      test('fails with an overall timeout instead of hanging indefinitely',
+          () async {
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
+
+        when(mockImagingService.captureImage(
+          settings: anyNamed('settings'),
+          targetName: anyNamed('targetName'),
+        )).thenAnswer((_) => Completer<CapturedImageData?>().future);
+
+        final service = container.read(centeringServiceProvider);
+        final result = await service.centerOnTarget(
+          targetRa: 10.0,
+          targetDec: 45.0,
+          solverConfig: solverConfig,
+          config: const CenteringConfig(
+            overallTimeout: Duration(milliseconds: 10),
+          ),
+        );
+
+        expect(result.success, isFalse);
+        expect(result.errorMessage, contains('timed out'));
+      });
+
       test('fails when mount not connected', () async {
         // Arrange
         final disconnectedContainer = ProviderContainer(
@@ -405,7 +436,7 @@ void main() {
         // Assert
         expect(result.success, isFalse);
         expect(result.errorMessage, contains('Plate solve failed'));
-        expect(result.iterations, equals(1));
+        expect(result.iterations, equals(5));
         expect(result.iterationHistory.first.plateSolveSuccess, isFalse);
       });
 

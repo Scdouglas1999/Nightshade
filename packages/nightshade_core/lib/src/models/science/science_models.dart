@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 enum PhotometricCatalogSource {
@@ -660,6 +661,39 @@ class ScienceSessionConfig {
           transparencyAlertThreshold ?? this.transparencyAlertThreshold,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sessionId': sessionId,
+      'photometryEnabled': photometryEnabled,
+      'calibrationEnabled': calibrationEnabled,
+      'transparencyEnabled': transparencyEnabled,
+      'psfMapEnabled': psfMapEnabled,
+      'residualsEnabled': residualsEnabled,
+      'movingObjectsEnabled': movingObjectsEnabled,
+      'narrowbandEnabled': narrowbandEnabled,
+      'psfGridRows': psfGridRows,
+      'psfGridCols': psfGridCols,
+      'transparencyAlertThreshold': transparencyAlertThreshold,
+    };
+  }
+
+  factory ScienceSessionConfig.fromJson(Map<String, dynamic> json) {
+    return ScienceSessionConfig(
+      sessionId: (json['sessionId'] as num?)?.toInt(),
+      photometryEnabled: json['photometryEnabled'] as bool? ?? true,
+      calibrationEnabled: json['calibrationEnabled'] as bool? ?? true,
+      transparencyEnabled: json['transparencyEnabled'] as bool? ?? true,
+      psfMapEnabled: json['psfMapEnabled'] as bool? ?? true,
+      residualsEnabled: json['residualsEnabled'] as bool? ?? true,
+      movingObjectsEnabled: json['movingObjectsEnabled'] as bool? ?? false,
+      narrowbandEnabled: json['narrowbandEnabled'] as bool? ?? false,
+      psfGridRows: (json['psfGridRows'] as num?)?.toInt() ?? 4,
+      psfGridCols: (json['psfGridCols'] as num?)?.toInt() ?? 6,
+      transparencyAlertThreshold:
+          (json['transparencyAlertThreshold'] as num?)?.toDouble() ?? 70.0,
+    );
+  }
 }
 
 class ScienceDiagnostics {
@@ -804,6 +838,197 @@ class SciencePhotometrySelection {
       differentialEnabled: json['differentialEnabled'] == true,
       target: parsedTarget,
       comparisons: parsedComparisons,
+    );
+  }
+}
+
+/// A single star match used for computing photometric transform coefficients.
+class TransformStarMatch {
+  final double catalogMag;
+  final double instrumentalMag;
+  final double colorIndex;
+  final double airmass;
+  final double residual;
+
+  const TransformStarMatch({
+    required this.catalogMag,
+    required this.instrumentalMag,
+    required this.colorIndex,
+    required this.airmass,
+    required this.residual,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'catalogMag': catalogMag,
+      'instrumentalMag': instrumentalMag,
+      'colorIndex': colorIndex,
+      'airmass': airmass,
+      'residual': residual,
+    };
+  }
+
+  factory TransformStarMatch.fromJson(Map<String, dynamic> json) {
+    return TransformStarMatch(
+      catalogMag: (json['catalogMag'] as num?)?.toDouble() ?? 0.0,
+      instrumentalMag: (json['instrumentalMag'] as num?)?.toDouble() ?? 0.0,
+      colorIndex: (json['colorIndex'] as num?)?.toDouble() ?? 0.0,
+      airmass: (json['airmass'] as num?)?.toDouble() ?? 1.0,
+      residual: (json['residual'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+/// Photometric transformation coefficients for converting instrumental
+/// magnitudes to standard magnitudes using the equation:
+///   M_std = m_inst - k*X + T*(B-V) + zp
+/// where:
+///   m_inst = instrumental magnitude (-2.5 * log10(flux))
+///   k = extinction coefficient (mags per airmass)
+///   X = airmass
+///   T = color term (transform coefficient)
+///   (B-V) = color index of the star
+///   zp = zero point
+class PhotometricTransformCoefficients {
+  final int? id;
+  final int? equipmentProfileId;
+  final String filterName;
+  final double colorTerm;
+  final double extinctionCoefficient;
+  final double zeroPoint;
+  final double rmsResidual;
+  final int matchedStarCount;
+  final String catalogSource;
+  final List<TransformStarMatch> fitData;
+  final DateTime dateComputed;
+
+  const PhotometricTransformCoefficients({
+    this.id,
+    this.equipmentProfileId,
+    required this.filterName,
+    required this.colorTerm,
+    required this.extinctionCoefficient,
+    required this.zeroPoint,
+    required this.rmsResidual,
+    required this.matchedStarCount,
+    this.catalogSource = 'auto',
+    this.fitData = const [],
+    required this.dateComputed,
+  });
+
+  /// Apply this transform to convert instrumental magnitude to standard.
+  double applyTransform({
+    required double instrumentalMag,
+    required double airmass,
+    required double colorIndex,
+  }) {
+    return instrumentalMag - extinctionCoefficient * airmass +
+        colorTerm * colorIndex + zeroPoint;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'equipmentProfileId': equipmentProfileId,
+      'filterName': filterName,
+      'colorTerm': colorTerm,
+      'extinctionCoefficient': extinctionCoefficient,
+      'zeroPoint': zeroPoint,
+      'rmsResidual': rmsResidual,
+      'matchedStarCount': matchedStarCount,
+      'catalogSource': catalogSource,
+      'fitData': fitData.map((match) => match.toJson()).toList(),
+      'dateComputed': dateComputed.toIso8601String(),
+    };
+  }
+
+  factory PhotometricTransformCoefficients.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final rawFitData = json['fitData'] as List? ?? const [];
+    return PhotometricTransformCoefficients(
+      id: (json['id'] as num?)?.toInt(),
+      equipmentProfileId: (json['equipmentProfileId'] as num?)?.toInt(),
+      filterName: json['filterName']?.toString() ?? '',
+      colorTerm: (json['colorTerm'] as num?)?.toDouble() ?? 0.0,
+      extinctionCoefficient:
+          (json['extinctionCoefficient'] as num?)?.toDouble() ?? 0.0,
+      zeroPoint: (json['zeroPoint'] as num?)?.toDouble() ?? 0.0,
+      rmsResidual: (json['rmsResidual'] as num?)?.toDouble() ?? 0.0,
+      matchedStarCount: (json['matchedStarCount'] as num?)?.toInt() ?? 0,
+      catalogSource: json['catalogSource']?.toString() ?? 'auto',
+      fitData: rawFitData
+          .whereType<Map>()
+          .map((entry) => TransformStarMatch.fromJson(
+                entry.cast<String, dynamic>(),
+              ))
+          .toList(growable: false),
+      dateComputed: DateTime.tryParse(json['dateComputed']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+/// Input data for the calibration wizard — catalog star with known magnitudes
+/// matched to a detected source in the image.
+class CatalogStarMatch {
+  final double x;
+  final double y;
+  final double raDegrees;
+  final double decDegrees;
+  final double catalogMagV;
+  final double catalogMagB;
+  final double instrumentalFlux;
+  final double snr;
+  final double airmass;
+
+  const CatalogStarMatch({
+    required this.x,
+    required this.y,
+    required this.raDegrees,
+    required this.decDegrees,
+    required this.catalogMagV,
+    required this.catalogMagB,
+    required this.instrumentalFlux,
+    required this.snr,
+    required this.airmass,
+  });
+
+  double get colorIndex => catalogMagB - catalogMagV;
+
+  double get instrumentalMag {
+    if (instrumentalFlux <= 0) {
+      return 99.0;
+    }
+    return -2.5 * math.log(instrumentalFlux.clamp(1e-30, double.infinity)) / math.ln10;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'x': x,
+      'y': y,
+      'raDegrees': raDegrees,
+      'decDegrees': decDegrees,
+      'catalogMagV': catalogMagV,
+      'catalogMagB': catalogMagB,
+      'instrumentalFlux': instrumentalFlux,
+      'snr': snr,
+      'airmass': airmass,
+    };
+  }
+
+  factory CatalogStarMatch.fromJson(Map<String, dynamic> json) {
+    return CatalogStarMatch(
+      x: (json['x'] as num?)?.toDouble() ?? 0.0,
+      y: (json['y'] as num?)?.toDouble() ?? 0.0,
+      raDegrees: (json['raDegrees'] as num?)?.toDouble() ?? 0.0,
+      decDegrees: (json['decDegrees'] as num?)?.toDouble() ?? 0.0,
+      catalogMagV: (json['catalogMagV'] as num?)?.toDouble() ?? 0.0,
+      catalogMagB: (json['catalogMagB'] as num?)?.toDouble() ?? 0.0,
+      instrumentalFlux:
+          (json['instrumentalFlux'] as num?)?.toDouble() ?? 0.0,
+      snr: (json['snr'] as num?)?.toDouble() ?? 0.0,
+      airmass: (json['airmass'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }

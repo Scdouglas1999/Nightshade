@@ -110,6 +110,9 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
   const factory NightshadeError.ioError(
     String field0,
   ) = NightshadeError_IoError;
+  const factory NightshadeError.serializationError(
+    String field0,
+  ) = NightshadeError_SerializationError;
   const factory NightshadeError.plateSolveError(
     String field0,
   ) = NightshadeError_PlateSolveError;

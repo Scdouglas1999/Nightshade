@@ -136,7 +136,7 @@ _$PolarAlignmentResultImpl _$$PolarAlignmentResultImplFromJson(
       config:
           PolarAlignmentConfig.fromJson(json['config'] as Map<String, dynamic>),
       autoCompleted: json['autoCompleted'] as bool? ?? false,
-      equipmentProfileId: json['equipmentProfileId'] as String?,
+      equipmentProfileId: (json['equipmentProfileId'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$$PolarAlignmentResultImplToJson(

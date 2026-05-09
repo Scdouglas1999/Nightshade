@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/remote_directory_picker_dialog.dart';
 
 class CameraTab extends ConsumerWidget {
   const CameraTab({super.key});
@@ -889,17 +890,32 @@ class _DownloadSettingsCard extends ConsumerWidget {
 
   Future<void> _browseSavePath(BuildContext context, WidgetRef ref) async {
     try {
-      final directoryPath = await getDirectoryPath(
-        confirmButtonText: 'Select',
-      );
+      final currentPath =
+          ref.read(appSettingsProvider).valueOrNull?.imageOutputPath;
+      final isRemoteMode = ref.read(isRemoteModeProvider);
+      final directoryPath = isRemoteMode
+          ? await RemoteDirectoryPickerDialog.show(
+              context,
+              title: 'Select host save folder',
+              initialPath: currentPath,
+            )
+          : await getDirectoryPath(
+              confirmButtonText: 'Select',
+            );
+
+      if (!context.mounted) {
+        return;
+      }
 
       if (directoryPath != null) {
         await ref
             .read(appSettingsProvider.notifier)
             .setImageOutputPath(directoryPath);
-        await ref.read(outputSettingsProvider.notifier).updateOutput(
-              savePath: directoryPath,
-            );
+        if (!isRemoteMode) {
+          await ref.read(outputSettingsProvider.notifier).updateOutput(
+                savePath: directoryPath,
+              );
+        }
 
         if (context.mounted) {
           context.showInfoSnackBar('Save path updated: $directoryPath');

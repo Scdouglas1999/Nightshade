@@ -142,8 +142,8 @@ impl Default for StarDetectionConfig {
             max_eccentricity: 0.7, // Slightly tighter - real stars are round
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: 1.0,       // Real stars have HFR > ~1.0; hot pixels < 0.8
-            min_snr: 5.0,       // Modest SNR threshold - real stars in short subs can be faint
+            min_hfr: 1.0,        // Real stars have HFR > ~1.0; hot pixels < 0.8
+            min_snr: 5.0,        // Modest SNR threshold - real stars in short subs can be faint
             max_sharpness: 0.95, // Only reject extreme hot pixels (sharpness ~1.0); real stars spread flux
         }
     }
@@ -570,6 +570,10 @@ pub fn calculate_median_hfr(image: &ImageData) -> Option<f64> {
 
 /// Calculate histogram for a 16-bit image
 pub fn calculate_histogram(image: &ImageData, bins: usize) -> Vec<u32> {
+    if bins == 0 {
+        return Vec::new();
+    }
+
     let bin_size = 65536 / bins;
 
     // Parallel histogram calculation
@@ -818,4 +822,38 @@ pub fn extract_top_star_crops(
         .take(max_crops)
         .map(|star| extract_star_crop(image, star, crop_size))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calculate_stats_reports_expected_mad_for_even_sample() {
+        let image = ImageData::from_u16(4, 1, 1, &[10, 10, 14, 22]);
+        let stats = calculate_stats_u16(&image);
+        assert_eq!(stats.median, 12.0);
+        assert_eq!(stats.mad, 2.0);
+    }
+
+    #[test]
+    fn calculate_stats_ignores_trailing_odd_byte() {
+        let image = ImageData {
+            width: 1,
+            height: 1,
+            channels: 1,
+            pixel_type: crate::PixelType::U16,
+            data: vec![0x34, 0x12, 0xFF],
+        };
+        let stats = calculate_stats_u16(&image);
+        assert_eq!(stats.min, 0x1234 as f64);
+        assert_eq!(stats.max, 0x1234 as f64);
+        assert_eq!(stats.mad, 0.0);
+    }
+
+    #[test]
+    fn calculate_histogram_returns_empty_for_zero_bins() {
+        let image = ImageData::from_u16(2, 1, 1, &[10, 20]);
+        assert!(calculate_histogram(&image, 0).is_empty());
+    }
 }

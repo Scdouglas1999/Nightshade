@@ -498,13 +498,31 @@ impl IndiCoverCalibrator {
     }
 
     /// Get maximum brightness
-    ///
-    /// INDI properties have min/max values defined in the defNumber element,
-    /// but the current client doesn't expose these. We default to 255 which
-    /// is the common maximum for most flat panels.
     pub async fn get_max_brightness(&self) -> Result<i32, String> {
-        // Most flat panels use 0-255 brightness range
-        // Future enhancement: parse min/max from INDI property definition
-        Ok(255)
+        let client = self.client.read().await;
+
+        if let Some(limits) = client
+            .get_number_limits(
+                &self.device_name,
+                "FLAT_LIGHT_INTENSITY",
+                "FLAT_LIGHT_INTENSITY_VALUE",
+            )
+            .await
+        {
+            if let Some(max) = limits.max {
+                return Ok(max.round() as i32);
+            }
+        }
+
+        if let Some(limits) = client
+            .get_number_limits(&self.device_name, "LIGHTBOX_BRIGHTNESS", "BRIGHTNESS")
+            .await
+        {
+            if let Some(max) = limits.max {
+                return Ok(max.round() as i32);
+            }
+        }
+
+        Err("Brightness property limits not available".to_string())
     }
 }

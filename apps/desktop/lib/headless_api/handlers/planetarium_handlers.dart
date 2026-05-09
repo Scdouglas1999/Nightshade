@@ -5,6 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for planetarium endpoints supporting remote client rendering.
 ///
 /// The planetarium renders locally on mobile/tablet clients but needs data from
@@ -40,20 +42,17 @@ class PlanetariumHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.ok(
-          jsonEncode({
-            "connected": false,
-            "ra": null,
-            "dec": null,
-            "altitude": null,
-            "azimuth": null,
-            "tracking": false,
-            "slewing": false,
-            "parked": false,
-            "sideOfPier": null,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "connected": false,
+          "ra": null,
+          "dec": null,
+          "altitude": null,
+          "azimuth": null,
+          "tracking": false,
+          "slewing": false,
+          "parked": false,
+          "sideOfPier": null,
+        });
       }
 
       final status = await backend.getMountStatus(mount.id);
@@ -71,29 +70,23 @@ class PlanetariumHandlers {
         }
       }
 
-      return Response.ok(
-        jsonEncode({
-          "connected": true,
-          "ra": status.rightAscension,
-          "dec": status.declination,
-          "altitude": status.altitude,
-          "azimuth": status.azimuth,
-          "tracking": status.tracking,
-          "slewing": status.slewing,
-          "parked": status.parked,
-          "atHome": status.atHome,
-          "sideOfPier": status.sideOfPier.name,
-          "trackingRate": status.trackingRate.name,
-          "rotatorAngle": rotatorAngle,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "connected": true,
+        "ra": status.rightAscension,
+        "dec": status.declination,
+        "altitude": status.altitude,
+        "azimuth": status.azimuth,
+        "tracking": status.tracking,
+        "slewing": status.slewing,
+        "parked": status.parked,
+        "atHome": status.atHome,
+        "sideOfPier": status.sideOfPier.name,
+        "trackingRate": status.trackingRate.name,
+        "rotatorAngle": rotatorAngle,
+      });
     } catch (e) {
       _logError('[API] Mount position error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -154,38 +147,32 @@ class PlanetariumHandlers {
         }
       }
 
-      return Response.ok(
-        jsonEncode({
-          "profileId": profile?.id,
-          "profileName": profile?.name,
-          "focalLength": focalLength,
-          "aperture": profile?.effectiveAperture ?? 0,
-          "focalRatio": profile?.computedFocalRatio,
-          "pixelSizeMicrons": pixelSize,
-          "sensorWidthPixels": cameraCapabilities?.maxWidth,
-          "sensorHeightPixels": cameraCapabilities?.maxHeight,
-          "sensorWidthMm": cameraCapabilities != null && pixelSize != null
-              ? (cameraCapabilities.maxWidth * pixelSize) / 1000.0
-              : null,
-          "sensorHeightMm": cameraCapabilities != null && pixelSize != null
-              ? (cameraCapabilities.maxHeight *
-                      (cameraCapabilities.pixelSizeY ?? pixelSize)) /
-                  1000.0
-              : null,
-          "fovWidthDegrees": fovWidthDegrees,
-          "fovHeightDegrees": fovHeightDegrees,
-          "imageScaleArcsecPerPixel": imageScaleArcsecPerPixel,
-          "cameraConnected": camera != null,
-          "cameraName": camera?.name,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "profileId": profile?.id,
+        "profileName": profile?.name,
+        "focalLength": focalLength,
+        "aperture": profile?.effectiveAperture ?? 0,
+        "focalRatio": profile?.computedFocalRatio,
+        "pixelSizeMicrons": pixelSize,
+        "sensorWidthPixels": cameraCapabilities?.maxWidth,
+        "sensorHeightPixels": cameraCapabilities?.maxHeight,
+        "sensorWidthMm": cameraCapabilities != null && pixelSize != null
+            ? (cameraCapabilities.maxWidth * pixelSize) / 1000.0
+            : null,
+        "sensorHeightMm": cameraCapabilities != null && pixelSize != null
+            ? (cameraCapabilities.maxHeight *
+                    (cameraCapabilities.pixelSizeY ?? pixelSize)) /
+                1000.0
+            : null,
+        "fovWidthDegrees": fovWidthDegrees,
+        "fovHeightDegrees": fovHeightDegrees,
+        "imageScaleArcsecPerPixel": imageScaleArcsecPerPixel,
+        "cameraConnected": camera != null,
+        "cameraName": camera?.name,
+      });
     } catch (e) {
       _logError('[API] FOV config error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -211,28 +198,19 @@ class PlanetariumHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountSlewToCoordinates(mount.id, ra, dec);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "slewing",
-          "targetRa": ra,
-          "targetDec": dec,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "slewing",
+        "targetRa": ra,
+        "targetDec": dec,
+      });
     } catch (e) {
       _logError('[API] Slew to error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -291,35 +269,29 @@ class PlanetariumHandlers {
         config: config,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "success": result.success,
-          "iterations": result.iterations,
-          "finalOffsetArcsec": result.finalOffsetArcsec,
-          "errorMessage": result.errorMessage,
-          "iterationHistory": result.iterationHistory
-              .map((i) => {
-                    'iterationNumber': i.iterationNumber,
-                    'solvedRa': i.solvedRa,
-                    'solvedDec': i.solvedDec,
-                    'targetRa': i.targetRa,
-                    'targetDec': i.targetDec,
-                    'offsetArcsec': i.offsetArcsec,
-                    'offsetArcmin': i.offsetArcmin,
-                    'plateSolveSuccess': i.plateSolveSuccess,
-                    'errorMessage': i.errorMessage,
-                    'timestamp': i.timestamp.millisecondsSinceEpoch,
-                  })
-              .toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "success": result.success,
+        "iterations": result.iterations,
+        "finalOffsetArcsec": result.finalOffsetArcsec,
+        "errorMessage": result.errorMessage,
+        "iterationHistory": result.iterationHistory
+            .map((i) => {
+                  'iterationNumber': i.iterationNumber,
+                  'solvedRa': i.solvedRa,
+                  'solvedDec': i.solvedDec,
+                  'targetRa': i.targetRa,
+                  'targetDec': i.targetDec,
+                  'offsetArcsec': i.offsetArcsec,
+                  'offsetArcmin': i.offsetArcmin,
+                  'plateSolveSuccess': i.plateSolveSuccess,
+                  'errorMessage': i.errorMessage,
+                  'timestamp': i.timestamp.millisecondsSinceEpoch,
+                })
+            .toList(),
+      });
     } catch (e) {
       _logError('[API] Center on error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -341,28 +313,19 @@ class PlanetariumHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountSync(mount.id, ra, dec);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "synced",
-          "ra": ra,
-          "dec": dec,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "synced",
+        "ra": ra,
+        "dec": dec,
+      });
     } catch (e) {
       _logError('[API] Sync to error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -380,10 +343,7 @@ class PlanetariumHandlers {
       final limit = int.tryParse(limitStr) ?? 50;
 
       if (query.isEmpty) {
-        return Response.ok(
-          jsonEncode({"results": []}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({"results": []});
       }
 
       // Use CatalogManager for searching
@@ -404,16 +364,10 @@ class PlanetariumHandlers {
               })
           .toList();
 
-      return Response.ok(
-        jsonEncode({"results": responseResults}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"results": responseResults});
     } catch (e) {
       _logError('[API] Catalog search error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -429,12 +383,9 @@ class PlanetariumHandlers {
       final typeFilter = request.url.queryParameters['type'];
 
       if (raStr == null || decStr == null || radiusStr == null) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error": "Missing required parameters: ra, dec, radius (in degrees)"
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error": "Missing required parameters: ra, dec, radius (in degrees)"
+        });
       }
 
       final ra = double.tryParse(raStr);
@@ -444,10 +395,7 @@ class PlanetariumHandlers {
           maxMagStr != null ? double.tryParse(maxMagStr) : null;
 
       if (ra == null || dec == null || radius == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid numeric parameters"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid numeric parameters"});
       }
 
       final results = <Map<String, dynamic>>[];
@@ -504,22 +452,16 @@ class PlanetariumHandlers {
       results.sort((a, b) => ((a['magnitude'] as num?) ?? 99)
           .compareTo((b['magnitude'] as num?) ?? 99));
 
-      return Response.ok(
-        jsonEncode({
-          "centerRa": ra,
-          "centerDec": dec,
-          "radiusDegrees": radius,
-          "count": results.length,
-          "results": results,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "centerRa": ra,
+        "centerDec": dec,
+        "radiusDegrees": radius,
+        "count": results.length,
+        "results": results,
+      });
     } catch (e) {
       _logError('[API] Catalog region error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -540,10 +482,7 @@ class PlanetariumHandlers {
           .firstOrNull;
 
       if (exactMatch == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Object not found: $objectId"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Object not found: $objectId"});
       }
 
       // Get observer location for visibility calculation
@@ -570,28 +509,22 @@ class PlanetariumHandlers {
         };
       }
 
-      return Response.ok(
-        jsonEncode({
-          'name': exactMatch.name,
-          'catalogId': exactMatch.catalogId,
-          'ra': exactMatch.ra,
-          'dec': exactMatch.dec,
-          'raFormatted': _formatRA(exactMatch.ra),
-          'decFormatted': _formatDec(exactMatch.dec),
-          'type': exactMatch.type,
-          'magnitude': exactMatch.magnitude,
-          'constellation': exactMatch.constellation,
-          'size': exactMatch.size,
-          'visibility': visibility,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        'name': exactMatch.name,
+        'catalogId': exactMatch.catalogId,
+        'ra': exactMatch.ra,
+        'dec': exactMatch.dec,
+        'raFormatted': _formatRA(exactMatch.ra),
+        'decFormatted': _formatDec(exactMatch.dec),
+        'type': exactMatch.type,
+        'magnitude': exactMatch.magnitude,
+        'constellation': exactMatch.constellation,
+        'size': exactMatch.size,
+        'visibility': visibility,
+      });
     } catch (e) {
       _logError('[API] Get catalog object error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -609,42 +542,36 @@ class PlanetariumHandlers {
       final port = request.requestedUri.port;
       final scheme = request.requestedUri.scheme == 'https' ? 'wss' : 'ws';
 
-      return Response.ok(
-        jsonEncode({
-          "websocketUrl": "$scheme://$host:$port/api/ws",
-          "alternateUrl": "$scheme://$host:$port/events",
-          "eventTypes": [
-            "mount_position",
-            "mount_status",
-            "mount_slewing",
-            "mount_tracking",
-            "rotator_position",
-            "camera_exposure_started",
-            "camera_exposure_complete",
-            "sequence_status",
-          ],
-          "subscriptionFormat": {
-            "description":
-                "Connect to WebSocket URL. Events are pushed automatically.",
-            "example": {
-              "type": "event",
-              "category": "equipment",
-              "event": "mount_position",
-              "data": {"ra": 12.5, "dec": 45.0, "tracking": true}
-            }
-          },
-          "pingPongSupport": true,
-          "pingFormat": {"type": "ping"},
-          "pongFormat": {"type": "pong"},
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "websocketUrl": "$scheme://$host:$port/api/ws",
+        "alternateUrl": "$scheme://$host:$port/events",
+        "eventTypes": [
+          "mount_position",
+          "mount_status",
+          "mount_slewing",
+          "mount_tracking",
+          "rotator_position",
+          "camera_exposure_started",
+          "camera_exposure_complete",
+          "sequence_status",
+        ],
+        "subscriptionFormat": {
+          "description":
+              "Connect to WebSocket URL. Events are pushed automatically.",
+          "example": {
+            "type": "event",
+            "category": "equipment",
+            "event": "mount_position",
+            "data": {"ra": 12.5, "dec": 45.0, "tracking": true}
+          }
+        },
+        "pingPongSupport": true,
+        "pingFormat": {"type": "ping"},
+        "pongFormat": {"type": "pong"},
+      });
     } catch (e) {
       _logError('[API] Subscribe info error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -661,32 +588,23 @@ class PlanetariumHandlers {
       final location = await backend.getLocation();
 
       if (location == null) {
-        return Response.ok(
-          jsonEncode({
-            "configured": false,
-            "latitude": null,
-            "longitude": null,
-            "elevation": null,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "configured": false,
+          "latitude": null,
+          "longitude": null,
+          "elevation": null,
+        });
       }
 
-      return Response.ok(
-        jsonEncode({
-          "configured": true,
-          "latitude": location.latitude,
-          "longitude": location.longitude,
-          "elevation": location.elevation,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "configured": true,
+        "latitude": location.latitude,
+        "longitude": location.longitude,
+        "elevation": location.elevation,
+      });
     } catch (e) {
       _logError('[API] Get location error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

@@ -24,7 +24,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
     // Initialize with default values, will be updated when settings load
     _hostController = TextEditingController(text: 'localhost');
     _portController = TextEditingController(text: '7624');
-    
+
     // Load settings asynchronously
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = await ref.read(appSettingsProvider.future);
@@ -122,7 +122,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: colors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +153,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                 labelText: 'INDI Server Host',
                 labelStyle: TextStyle(color: colors.textMuted),
                 hintText: 'localhost or IP address',
-                hintStyle: TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle:
+                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -172,7 +174,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                 labelText: 'Port',
                 labelStyle: TextStyle(color: colors.textMuted),
                 hintText: '7624 (default)',
-                hintStyle: TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                hintStyle:
+                    TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -186,24 +189,12 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
             // Test connection button
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isConnecting ? null : _testConnection,
-                icon: _isConnecting
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      )
-                    : const Icon(Icons.cloud_sync, size: 16),
-                label: Text(_isConnecting ? 'Testing...' : 'Test Connection'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.textPrimary,
-                  side: BorderSide(color: colors.border),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+              child: NightshadeButton(
+                onPressed: _testConnection,
+                icon: Icons.cloud_sync,
+                label: _isConnecting ? 'Testing...' : 'Test Connection',
+                variant: ButtonVariant.outline,
+                isLoading: _isConnecting,
               ),
             ),
 
@@ -226,9 +217,13 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                 child: Row(
                   children: [
                     Icon(
-                      (_connectionSuccess ?? false) ? Icons.check_circle : Icons.error,
+                      (_connectionSuccess ?? false)
+                          ? Icons.check_circle
+                          : Icons.error,
                       size: 16,
-                      color: (_connectionSuccess ?? false) ? colors.success : colors.error,
+                      color: (_connectionSuccess ?? false)
+                          ? colors.success
+                          : colors.error,
                     ),
                     const SizedBox(width: 8),
                     Expanded(

@@ -680,6 +680,18 @@ impl NativeMount for IOptronMount {
         }
     }
 
+    fn can_slew(&self) -> bool {
+        true
+    }
+
+    fn can_sync(&self) -> bool {
+        true
+    }
+
+    fn can_pulse_guide(&self) -> bool {
+        true
+    }
+
     fn can_set_tracking_rate(&self) -> bool {
         true
     }
@@ -771,7 +783,7 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
         }
     }
 
-    tracing::info!("iOptron discovery complete: found {} mounts", mounts.len());
+    tracing::debug!("iOptron discovery complete: found {} mounts", mounts.len());
     Ok(mounts)
 }
 

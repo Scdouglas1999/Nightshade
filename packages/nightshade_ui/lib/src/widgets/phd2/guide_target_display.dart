@@ -62,7 +62,7 @@ class GuideTargetDisplay extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF0A0A12),
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -71,7 +71,7 @@ class GuideTargetDisplay extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(7),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final size = math.min(constraints.maxWidth, constraints.maxHeight);
@@ -276,8 +276,8 @@ class _TargetDisplayPainter extends CustomPainter {
   @override
   bool shouldRepaint(_TargetDisplayPainter oldDelegate) {
     return errorHistory != oldDelegate.errorHistory ||
-           currentRaError != oldDelegate.currentRaError ||
-           currentDecError != oldDelegate.currentDecError ||
-           scaleArcsec != oldDelegate.scaleArcsec;
+        currentRaError != oldDelegate.currentRaError ||
+        currentDecError != oldDelegate.currentDecError ||
+        scaleArcsec != oldDelegate.scaleArcsec;
   }
 }

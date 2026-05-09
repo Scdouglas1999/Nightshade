@@ -258,6 +258,10 @@ impl AscomCoverCalibratorWrapper {
         Self::recv_with_timeout(rx, Timeouts::property_read(), "max_brightness").await
     }
 
+    pub fn cached_max_brightness(&self) -> i32 {
+        self.max_brightness
+    }
+
     /// Get the ASCOM interface version number
     pub async fn interface_version(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();

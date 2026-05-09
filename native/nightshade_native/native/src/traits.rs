@@ -299,6 +299,15 @@ pub trait NativeMount: NativeDevice {
     /// Get tracking rate
     async fn get_tracking_rate(&self) -> Result<TrackingRate, NativeError>;
 
+    /// Check if mount supports slewing
+    fn can_slew(&self) -> bool;
+
+    /// Check if mount supports sync
+    fn can_sync(&self) -> bool;
+
+    /// Check if mount supports pulse guide
+    fn can_pulse_guide(&self) -> bool;
+
     /// Check if mount supports setting tracking rate
     fn can_set_tracking_rate(&self) -> bool;
 

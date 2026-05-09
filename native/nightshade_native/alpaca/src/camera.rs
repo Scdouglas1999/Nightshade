@@ -447,6 +447,22 @@ impl AlpacaCamera {
         self.client.put("stopexposure", &[]).await
     }
 
+    // Readout mode
+
+    pub async fn readout_mode(&self) -> Result<i32, String> {
+        self.client.get("readoutmode").await
+    }
+
+    pub async fn set_readout_mode(&self, mode: i32) -> Result<(), String> {
+        self.client
+            .put("readoutmode", &[("ReadoutMode", &mode.to_string())])
+            .await
+    }
+
+    pub async fn readout_modes(&self) -> Result<Vec<String>, String> {
+        self.client.get("readoutmodes").await
+    }
+
     // Subframe
 
     pub async fn start_x(&self) -> Result<i32, String> {

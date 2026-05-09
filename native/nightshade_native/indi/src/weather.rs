@@ -266,7 +266,7 @@ impl IndiWeather {
             IndiWeatherStatus::Ok => true,
             IndiWeatherStatus::Warning => true,
             IndiWeatherStatus::Alert => false,
-            IndiWeatherStatus::Unknown => true, // Fail-open; caller should check has_weather_status()
+            IndiWeatherStatus::Unknown => false, // Fail-closed: unknown status is treated as unsafe
         }
     }
 

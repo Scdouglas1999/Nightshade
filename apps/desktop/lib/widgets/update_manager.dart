@@ -1,5 +1,7 @@
 // ignore_for_file: unused_local_variable
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -26,6 +28,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   bool _hasShownUpdateDialog = false;
   OverlayEntry? _bannerOverlay;
   late final Stream<LanPushEvent> _lanPushStream;
+  StreamSubscription<LanPushEvent>? _lanPushSubscription;
   static const _disabledUpdatesLog =
       '[UpdateManager] Update server not configured, skipping update checks';
 
@@ -46,27 +49,27 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     // Listen to LAN push events
     _lanPushStream = LanPushNotifier.stream;
-    _lanPushStream.listen(_onLanPushEvent);
+    _lanPushSubscription = _lanPushStream.listen(_onLanPushEvent);
   }
 
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      print(_disabledUpdatesLog);
+      debugPrint(_disabledUpdatesLog);
       return;
     }
 
-    print('[UpdateManager] Checking for staged updates...');
+    debugPrint('[UpdateManager] Checking for staged updates...');
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
-      print(
+      debugPrint(
           '[UpdateManager] Found staged update: ${state.availableUpdate?.version}');
       _showLanPushBannerDirect(state.availableUpdate?.version ?? 'Unknown');
     } else {
-      print('[UpdateManager] No staged update found');
+      debugPrint('[UpdateManager] No staged update found');
     }
   }
 
@@ -76,7 +79,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
-        print('[UpdateManager] LAN push received: ${manifest.version}');
+        debugPrint('[UpdateManager] LAN push received: ${manifest.version}');
         // Update the provider state so applyUpdate() works
         ref
             .read(updateProvider.notifier)
@@ -90,7 +93,9 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('LAN push error: $error'),
-            backgroundColor: Colors.red,
+            backgroundColor:
+                Theme.of(context).extension<NightshadeColors>()?.error ??
+                    Theme.of(context).colorScheme.error,
           ),
         );
         break;
@@ -120,7 +125,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     final overlay = Overlay.of(context);
     overlay.insert(_bannerOverlay!);
-    print('[UpdateManager] Banner inserted into overlay');
+    debugPrint('[UpdateManager] Banner inserted into overlay');
 
     // Auto-dismiss after 60 seconds
     Future.delayed(const Duration(seconds: 60), () {
@@ -131,7 +136,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   Future<void> _checkForUpdates() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      print(_disabledUpdatesLog);
+      debugPrint(_disabledUpdatesLog);
       return;
     }
 
@@ -242,13 +247,14 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
         _bannerOverlay?.remove();
       }
     } catch (e) {
-      print('[UpdateManager] Error removing banner: $e');
+      debugPrint('[UpdateManager] Error removing banner: $e');
     }
     _bannerOverlay = null;
   }
 
   @override
   void dispose() {
+    _lanPushSubscription?.cancel();
     _removeBanner();
     super.dispose();
   }
@@ -282,7 +288,9 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Update error: ${next.errorMessage}'),
-                  backgroundColor: Colors.red,
+                  backgroundColor:
+                      Theme.of(context).extension<NightshadeColors>()?.error ??
+                          Theme.of(context).colorScheme.error,
                 ),
               );
             }

@@ -58,6 +58,30 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
             : 'stable',
       );
     }
+
+    unawaited(_initializeStartupState());
+  }
+
+  Future<void> _initializeStartupState() async {
+    final pendingStatus = await _updateService.verifyPendingInstall();
+    if (pendingStatus.message != null) {
+      developer.log(
+        pendingStatus.message!,
+        name: 'UpdateNotifier',
+        level: pendingStatus.state == PendingInstallState.requiresAttention
+            ? 1000
+            : 800,
+      );
+    }
+
+    if (pendingStatus.state == PendingInstallState.requiresAttention) {
+      state = state.copyWith(
+        status: UpdateStatus.error,
+        errorMessage: pendingStatus.message,
+      );
+    }
+
+    await checkStagedUpdate();
   }
 
   /// Configure the update server

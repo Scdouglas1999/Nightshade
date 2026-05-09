@@ -1,11 +1,16 @@
 // ignore_for_file: unused_element, unused_field
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../celestial_object.dart';
 import '../coordinate_system.dart';
 import '../catalogs/constellation_data.dart';
+import '../catalogs/constellation_art.dart';
+import '../catalogs/satellite_catalog.dart';
+import '../catalogs/variable_star_catalog.dart';
+import '../catalogs/minor_planet_catalog.dart';
 import '../astronomy/astronomy_calculations.dart';
 import '../astronomy/planetary_positions.dart';
 import '../astronomy/milky_way_data.dart';
@@ -26,12 +31,14 @@ class SkyRenderConfig {
   final bool showStars;
   final bool showConstellationLines;
   final bool showConstellationLabels;
+  final bool showConstellationBoundaries;
   final bool showDSOs;
   final bool showDSOLabels;
   final bool showCoordinateGrid;
   final bool showAltAzGrid;
   final bool showEquatorialGrid;
   final bool showEcliptic;
+  final bool showGalacticPlane;
   final bool showHorizon;
   final bool showCardinalDirections;
   final bool showMilkyWay;
@@ -41,6 +48,10 @@ class SkyRenderConfig {
   final bool showPlanets;
   final bool showGroundPlane;
   final bool showMeridian;
+  final bool showSatellites;
+  final bool showVariableStars;
+  final bool showMinorPlanets;
+  final bool showConstellationArt;
   final Color groundColorDark;
   final Color groundColorLight;
   final Color horizonGlowColor;
@@ -48,7 +59,9 @@ class SkyRenderConfig {
   final double dsoMagnitudeLimit;
   final Color gridColor;
   final Color constellationLineColor;
+  final Color constellationBoundaryColor;
   final Color eclipticColor;
+  final Color galacticPlaneColor;
   final Color horizonColor;
   final Color mountPositionColor;
 
@@ -56,12 +69,14 @@ class SkyRenderConfig {
     this.showStars = true,
     this.showConstellationLines = true,
     this.showConstellationLabels = true,
+    this.showConstellationBoundaries = false,
     this.showDSOs = true,
     this.showDSOLabels = true,
-    this.showCoordinateGrid = true,
+    this.showCoordinateGrid = false,
     this.showAltAzGrid = false,
-    this.showEquatorialGrid = true,
+    this.showEquatorialGrid = false,
     this.showEcliptic = false,
+    this.showGalacticPlane = false,
     this.showHorizon = true,
     this.showCardinalDirections = true,
     this.showMilkyWay = false,
@@ -71,15 +86,21 @@ class SkyRenderConfig {
     this.showPlanets = true,
     this.showGroundPlane = true,
     this.showMeridian = false,
+    this.showSatellites = false,
+    this.showVariableStars = false,
+    this.showMinorPlanets = false,
+    this.showConstellationArt = false,
     this.groundColorDark = const Color(0xFF0A0805),
     this.groundColorLight = const Color(0xFF1A1510),
     this.horizonGlowColor = const Color(0xFF2A2015),
     this.starMagnitudeLimit = 6.0,
-    this.dsoMagnitudeLimit = 15.0,
+    this.dsoMagnitudeLimit = 12.0,
     this.gridColor = const Color(0x33FFFFFF),
     this.constellationLineColor = const Color(0x40FFFFFF),
+    this.constellationBoundaryColor = const Color(0x20FFFFFF),
     this.eclipticColor = const Color(0x40FFEB3B),
-    this.horizonColor = const Color(0x60FF5722),
+    this.galacticPlaneColor = const Color(0x4000BCD4),
+    this.horizonColor = const Color(0x30FF8A65),
     this.mountPositionColor = const Color(0xFFE53935),
   });
 
@@ -87,12 +108,14 @@ class SkyRenderConfig {
     bool? showStars,
     bool? showConstellationLines,
     bool? showConstellationLabels,
+    bool? showConstellationBoundaries,
     bool? showDSOs,
     bool? showDSOLabels,
     bool? showCoordinateGrid,
     bool? showAltAzGrid,
     bool? showEquatorialGrid,
     bool? showEcliptic,
+    bool? showGalacticPlane,
     bool? showHorizon,
     bool? showCardinalDirections,
     bool? showMilkyWay,
@@ -102,6 +125,10 @@ class SkyRenderConfig {
     bool? showPlanets,
     bool? showGroundPlane,
     bool? showMeridian,
+    bool? showSatellites,
+    bool? showVariableStars,
+    bool? showMinorPlanets,
+    bool? showConstellationArt,
     Color? groundColorDark,
     Color? groundColorLight,
     Color? horizonGlowColor,
@@ -109,7 +136,9 @@ class SkyRenderConfig {
     double? dsoMagnitudeLimit,
     Color? gridColor,
     Color? constellationLineColor,
+    Color? constellationBoundaryColor,
     Color? eclipticColor,
+    Color? galacticPlaneColor,
     Color? horizonColor,
     Color? mountPositionColor,
   }) {
@@ -119,12 +148,15 @@ class SkyRenderConfig {
           showConstellationLines ?? this.showConstellationLines,
       showConstellationLabels:
           showConstellationLabels ?? this.showConstellationLabels,
+      showConstellationBoundaries:
+          showConstellationBoundaries ?? this.showConstellationBoundaries,
       showDSOs: showDSOs ?? this.showDSOs,
       showDSOLabels: showDSOLabels ?? this.showDSOLabels,
       showCoordinateGrid: showCoordinateGrid ?? this.showCoordinateGrid,
       showAltAzGrid: showAltAzGrid ?? this.showAltAzGrid,
       showEquatorialGrid: showEquatorialGrid ?? this.showEquatorialGrid,
       showEcliptic: showEcliptic ?? this.showEcliptic,
+      showGalacticPlane: showGalacticPlane ?? this.showGalacticPlane,
       showHorizon: showHorizon ?? this.showHorizon,
       showCardinalDirections:
           showCardinalDirections ?? this.showCardinalDirections,
@@ -135,6 +167,11 @@ class SkyRenderConfig {
       showPlanets: showPlanets ?? this.showPlanets,
       showGroundPlane: showGroundPlane ?? this.showGroundPlane,
       showMeridian: showMeridian ?? this.showMeridian,
+      showSatellites: showSatellites ?? this.showSatellites,
+      showVariableStars: showVariableStars ?? this.showVariableStars,
+      showMinorPlanets: showMinorPlanets ?? this.showMinorPlanets,
+      showConstellationArt:
+          showConstellationArt ?? this.showConstellationArt,
       groundColorDark: groundColorDark ?? this.groundColorDark,
       groundColorLight: groundColorLight ?? this.groundColorLight,
       horizonGlowColor: horizonGlowColor ?? this.horizonGlowColor,
@@ -143,7 +180,10 @@ class SkyRenderConfig {
       gridColor: gridColor ?? this.gridColor,
       constellationLineColor:
           constellationLineColor ?? this.constellationLineColor,
+      constellationBoundaryColor:
+          constellationBoundaryColor ?? this.constellationBoundaryColor,
       eclipticColor: eclipticColor ?? this.eclipticColor,
+      galacticPlaneColor: galacticPlaneColor ?? this.galacticPlaneColor,
       horizonColor: horizonColor ?? this.horizonColor,
       mountPositionColor: mountPositionColor ?? this.mountPositionColor,
     );
@@ -190,16 +230,150 @@ class SkyViewState {
   }
 }
 
-/// Tracks rendered label bounding boxes to avoid overlap
+/// Precomputed atmospheric extinction lookup table.
+///
+/// 91 entries for altitudes 0-90 degrees. The extinction factor combines
+/// dimming and reddening from atmospheric scattering. Below 30 degrees the
+/// effect is significant; above 30 degrees the factor is 1.0 (no extinction).
+///
+/// The table is static since extinction depends only on altitude (geometric
+/// airmass), not observer location. Uses linear interpolation for fractional
+/// altitudes.
+class AtmosphericExtinctionLUT {
+  /// 91-entry LUT: index = integer altitude in degrees (0..90).
+  /// Each entry is (brightnessFactor, redShift) where:
+  ///   brightnessFactor: multiplier for star brightness [0.5..1.0]
+  ///   redShift: Color.lerp amount toward warm horizon color [0.0..0.4]
+  static final List<(double, double)> _lut = _buildLUT();
+
+  static List<(double, double)> _buildLUT() {
+    final table = List<(double, double)>.filled(91, (1.0, 0.0));
+    for (int alt = 0; alt <= 90; alt++) {
+      if (alt >= 30) {
+        table[alt] = (1.0, 0.0);
+      } else {
+        // extinctionFactor ramps from 0.5 at 0 deg to 1.0 at 30 deg
+        final extinctionFactor = (alt / 30.0).clamp(0.0, 1.0) * 0.5 + 0.5;
+        final redShift = (1.0 - extinctionFactor) * 0.4;
+        table[alt] = (extinctionFactor, redShift);
+      }
+    }
+    return table;
+  }
+
+  /// Look up extinction for a given altitude in degrees.
+  /// Returns (brightnessFactor, redShift).
+  /// Uses linear interpolation between integer entries.
+  static (double, double) lookup(double altitudeDeg) {
+    if (altitudeDeg >= 30.0) return (1.0, 0.0);
+    if (altitudeDeg <= 0.0) return _lut[0];
+
+    final lower = altitudeDeg.floor();
+    final upper = lower + 1;
+    if (upper > 90) return _lut[90];
+
+    final t = altitudeDeg - lower;
+    final (bLow, rLow) = _lut[lower];
+    final (bHigh, rHigh) = _lut[upper];
+    return (
+      bLow + (bHigh - bLow) * t,
+      rLow + (rHigh - rLow) * t,
+    );
+  }
+}
+
+/// Tracks rendered label bounding boxes to avoid overlap.
+///
+/// Caches its spatial grid across frames when the view hasn't moved
+/// significantly. Only rebuilds when view center moves >0.5 degrees
+/// or zoom changes >5%.
 class LabelLayoutManager {
   final List<Rect> _renderedLabels = [];
+  final Map<int, List<Rect>> _grid = <int, List<Rect>>{};
+  static const double _cellSize = 96.0;
 
-  void clear() => _renderedLabels.clear();
+  // Cache invalidation state
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  bool _cacheValid = false;
+
+  /// Clear the layout grid unconditionally.
+  void clear() {
+    _renderedLabels.clear();
+    _grid.clear();
+    _cacheValid = false;
+  }
+
+  /// Conditionally clear the layout grid based on view movement.
+  /// Returns true if the cache was valid and reused, false if it was cleared.
+  ///
+  /// Only rebuilds when:
+  /// - View center moves more than 0.5 degrees in RA or Dec
+  /// - Zoom (FOV) changes more than 5%
+  bool clearIfViewChanged(double centerRA, double centerDec, double fov) {
+    if (_cacheValid) {
+      final raDelta = (centerRA - _cachedCenterRA).abs();
+      final decDelta = (centerDec - _cachedCenterDec).abs();
+      final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+      // RA wraps at 24h, so check the shorter arc
+      final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+      // Convert RA hours to degrees for threshold comparison
+      final raDeg = raWrapped * 15.0;
+
+      if (raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05) {
+        // View hasn't moved enough - reuse cached grid
+        return true;
+      }
+    }
+
+    // Cache miss: rebuild
+    _renderedLabels.clear();
+    _grid.clear();
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cacheValid = true;
+    return false;
+  }
+
+  int _cellKey(int x, int y) => Object.hash(x, y);
+
+  Iterable<Rect> _nearbyRects(Rect rect) sync* {
+    final minCellX = (rect.left / _cellSize).floor();
+    final maxCellX = (rect.right / _cellSize).floor();
+    final minCellY = (rect.top / _cellSize).floor();
+    final maxCellY = (rect.bottom / _cellSize).floor();
+
+    for (int x = minCellX - 1; x <= maxCellX + 1; x++) {
+      for (int y = minCellY - 1; y <= maxCellY + 1; y++) {
+        final bucket = _grid[_cellKey(x, y)];
+        if (bucket == null) continue;
+        yield* bucket;
+      }
+    }
+  }
+
+  void _register(Rect rect) {
+    _renderedLabels.add(rect);
+
+    final minCellX = (rect.left / _cellSize).floor();
+    final maxCellX = (rect.right / _cellSize).floor();
+    final minCellY = (rect.top / _cellSize).floor();
+    final maxCellY = (rect.bottom / _cellSize).floor();
+
+    for (int x = minCellX; x <= maxCellX; x++) {
+      for (int y = minCellY; y <= maxCellY; y++) {
+        _grid.putIfAbsent(_cellKey(x, y), () => <Rect>[]).add(rect);
+      }
+    }
+  }
 
   /// Returns true if label can be placed without overlap
   bool canPlace(Rect labelRect) {
     final paddedRect = labelRect.inflate(2);
-    for (final existing in _renderedLabels) {
+    for (final existing in _nearbyRects(paddedRect)) {
       if (paddedRect.overlaps(existing)) return false;
     }
     return true;
@@ -219,7 +393,7 @@ class LabelLayoutManager {
       final rect = Rect.fromLTWH(
           offset.dx, offset.dy, labelSize.width, labelSize.height);
       if (canPlace(rect) && _isInBounds(rect, canvasSize)) {
-        _renderedLabels.add(rect);
+        _register(rect);
         return offset;
       }
     }
@@ -240,6 +414,7 @@ class LabelLayoutManager {
 class _PaintCache {
   // ===== Cached MaskFilters (expensive to create) =====
   static final Map<double, MaskFilter> _blurFilters = {};
+  static const int _maxBlurFilterEntries = 64;
 
   // ===== Reusable Paint objects for common operations =====
   // These are created once and reused by updating their properties
@@ -259,9 +434,12 @@ class _PaintCache {
 
   // Additional cached paints for various rendering operations
   static final Paint _horizonPaint = Paint()
-    ..strokeWidth = 2
+    ..strokeWidth = 1.5
     ..style = PaintingStyle.stroke;
   static final Paint _eclipticPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _galacticPlanePaint = Paint()
     ..strokeWidth = 1.5
     ..style = PaintingStyle.stroke;
   static final Paint _meridianPaint = Paint()
@@ -322,6 +500,9 @@ class _PaintCache {
     final roundedSigma = (sigma * 2).round() / 2;
     var filter = _blurFilters[roundedSigma];
     if (filter == null) {
+      if (_blurFilters.length >= _maxBlurFilterEntries) {
+        _blurFilters.remove(_blurFilters.keys.first);
+      }
       filter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
       _blurFilters[roundedSigma] = filter;
     }
@@ -330,6 +511,7 @@ class _PaintCache {
 
   // Cached blur paints with various sigma values
   static final Map<double, Paint> _blurPaints = {};
+  static const int _maxBlurPaintEntries = 64;
 
   /// Get or create a Paint with blur filter at the specified sigma
   /// This caches the Paint object with MaskFilter to avoid recreation
@@ -339,6 +521,9 @@ class _PaintCache {
 
     var paint = _blurPaints[roundedSigma];
     if (paint == null) {
+      if (_blurPaints.length >= _maxBlurPaintEntries) {
+        _blurPaints.remove(_blurPaints.keys.first);
+      }
       paint = Paint()
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
       _blurPaints[roundedSigma] = paint;
@@ -358,6 +543,12 @@ class _PaintCache {
   static Paint getEclipticPaint(Color color) {
     _eclipticPaint.color = color;
     return _eclipticPaint;
+  }
+
+  /// Get galactic plane paint with specified color
+  static Paint getGalacticPlanePaint(Color color) {
+    _galacticPlanePaint.color = color;
+    return _galacticPlanePaint;
   }
 
   /// Get meridian paint with specified color
@@ -419,6 +610,11 @@ class _PaintCache {
     _cachedTwilightVerticalShader = null;
     _cachedTwilightRadialShader = null;
     _lastSunAltitude = null;
+    // Clear global rendering caches
+    _constellationLineCache.clear();
+    _milkyWayCache.clear();
+    _backgroundGradientCache.clear();
+    _starPsfShaderCache.clear();
   }
 }
 
@@ -432,7 +628,7 @@ class _TextCache {
   /// The TextPainter is cached and reused across frames
   static TextPainter get(String text, TextStyle style) {
     final key =
-        '${text}_${style.fontSize}_${style.color?.value ?? 0}_${style.fontWeight?.index ?? 0}';
+        '${text}_${style.fontSize}_${style.color?.toARGB32() ?? 0}_${style.fontWeight?.index ?? 0}';
 
     var painter = _cache[key];
     if (painter == null) {
@@ -469,7 +665,7 @@ class _TextCache {
 class _ShaderCache {
   static final Map<String, ui.Shader> _radialShaders = {};
   static final Map<String, ui.Shader> _linearShaders = {};
-  static const int _maxCacheSize = 100;
+  static const int _maxCacheSize = 512;
 
   /// Get or create a radial gradient shader
   static ui.Shader getRadialShader(
@@ -482,7 +678,7 @@ class _ShaderCache {
     final cx = (center.dx / 10).round() * 10;
     final cy = (center.dy / 10).round() * 10;
     final r = (radius / 5).round() * 5;
-    final colorKey = colors.map((c) => c.value).join('_');
+    final colorKey = colors.map((c) => c.toARGB32()).join('_');
     final key = 'r_${cx}_${cy}_${r}_$colorKey';
 
     var shader = _radialShaders[key];
@@ -506,6 +702,135 @@ class _ShaderCache {
 
 final StarPsfShaderCache _starPsfShaderCache = StarPsfShaderCache();
 
+/// Cached constellation line rendering.
+/// Since constellation lines don't change unless the view moves significantly,
+/// we record them into a ui.Picture and replay it each frame.
+/// Cache invalidates when view center moves >0.5 degrees or zoom changes >5%.
+class _ConstellationLineCache {
+  ui.Picture? _picture;
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  Size _cachedSize = Size.zero;
+  int _cachedConstellationCount = 0;
+
+  bool isValid(double centerRA, double centerDec, double fov, Size size,
+      int constellationCount) {
+    if (_picture == null) return false;
+    if (size != _cachedSize) return false;
+    if (constellationCount != _cachedConstellationCount) return false;
+
+    final raDelta = (centerRA - _cachedCenterRA).abs();
+    final decDelta = (centerDec - _cachedCenterDec).abs();
+    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+    // RA wraps at 24h
+    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+    final raDeg = raWrapped * 15.0;
+
+    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+  }
+
+  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
+      Size size, int constellationCount) {
+    _picture?.dispose();
+    _picture = picture;
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cachedSize = size;
+    _cachedConstellationCount = constellationCount;
+  }
+
+  ui.Picture? get picture => _picture;
+
+  void clear() {
+    _picture?.dispose();
+    _picture = null;
+  }
+}
+
+/// Cached Milky Way rendering using the same view-invalidation strategy.
+class _MilkyWayCache {
+  ui.Picture? _picture;
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  Size _cachedSize = Size.zero;
+
+  bool isValid(double centerRA, double centerDec, double fov, Size size) {
+    if (_picture == null) return false;
+    if (size != _cachedSize) return false;
+
+    final raDelta = (centerRA - _cachedCenterRA).abs();
+    final decDelta = (centerDec - _cachedCenterDec).abs();
+    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+    final raDeg = raWrapped * 15.0;
+
+    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+  }
+
+  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
+      Size size) {
+    _picture?.dispose();
+    _picture = picture;
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cachedSize = size;
+  }
+
+  ui.Picture? get picture => _picture;
+
+  void clear() {
+    _picture?.dispose();
+    _picture = null;
+  }
+}
+
+// Global caches (persist across painter instances since they're recreated each frame)
+final _constellationLineCache = _ConstellationLineCache();
+final _milkyWayCache = _MilkyWayCache();
+
+/// Cached background gradient shader keyed by sun altitude bucket.
+/// The twilight gradient only changes meaningfully when the sun moves ~2 degrees.
+class _BackgroundGradientCache {
+  ui.Shader? _verticalShader;
+  ui.Shader? _radialShader;
+  int _sunAltBucket = -999;
+  Size _size = Size.zero;
+
+  /// Check if cache is valid for the given sun altitude and size.
+  /// Sun altitude is bucketed to nearest 2 degrees.
+  bool isValid(double sunAlt, Size size) {
+    final bucket = (sunAlt / 2).round();
+    return _verticalShader != null &&
+        _radialShader != null &&
+        bucket == _sunAltBucket &&
+        size == _size;
+  }
+
+  void store(ui.Shader vertical, ui.Shader radial, double sunAlt, Size size) {
+    _verticalShader = vertical;
+    _radialShader = radial;
+    _sunAltBucket = (sunAlt / 2).round();
+    _size = size;
+  }
+
+  ui.Shader? get verticalShader => _verticalShader;
+  ui.Shader? get radialShader => _radialShader;
+
+  void clear() {
+    _verticalShader = null;
+    _radialShader = null;
+    _sunAltBucket = -999;
+  }
+}
+
+final _backgroundGradientCache = _BackgroundGradientCache();
+
 /// Enhanced sky rendering painter
 class SkyCanvasPainter extends CustomPainter {
   final SkyViewState viewState;
@@ -524,6 +849,9 @@ class SkyCanvasPainter extends CustomPainter {
   final (double ra, double dec)? sunPosition;
   final (double ra, double dec, double illumination)? moonPosition;
   final List<PlanetData> planets;
+  final List<SatelliteData> satellites;
+  final List<VariableStarData> variableStars;
+  final List<MinorBodyData> minorPlanets;
   final List<MilkyWayPoint>? milkyWayPoints;
 
   /// Animation phase for star twinkle (0.0 - 1.0, cycles)
@@ -543,6 +871,23 @@ class SkyCanvasPainter extends CustomPainter {
 
   /// Density hotspots for crowded regions (ra, dec, visibleCount, hiddenCount)
   final List<(double, double, int, int)> densityHotspots;
+
+  /// Set of catalog IDs or object names that have been observed.
+  /// When non-empty, a small "observed" indicator is drawn on matching DSOs.
+  final Set<String> observedObjectIds;
+
+  /// Set of catalog IDs or object names that are in user observing lists.
+  /// When non-empty, a small bookmark marker is drawn on matching DSOs.
+  final Set<String> listedObjectIds;
+
+  /// Bortle dark-sky scale (1-9). Controls light pollution dome intensity.
+  /// 1 = pristine dark sky, 9 = inner-city.
+  final int bortleClass;
+
+  /// Custom horizon altitude at each azimuth (degrees). 360 entries for
+  /// each degree of azimuth, or null to use a flat 0 deg horizon.
+  /// When provided, the ground plane and obstruction dimming use this profile.
+  final List<double>? horizonAltitudes;
 
   static const double _deg2rad = math.pi / 180;
   static const double _rad2deg = 180 / math.pi;
@@ -567,6 +912,9 @@ class SkyCanvasPainter extends CustomPainter {
     this.sunPosition,
     this.moonPosition,
     this.planets = const [],
+    this.satellites = const [],
+    this.variableStars = const [],
+    this.minorPlanets = const [],
     this.milkyWayPoints,
     this.animationPhase,
     this.selectionAnimationPhase,
@@ -574,19 +922,50 @@ class SkyCanvasPainter extends CustomPainter {
     this.dsoPopinAnimationPhase,
     this.parallaxPanDelta,
     this.densityHotspots = const [],
+    this.observedObjectIds = const {},
+    this.listedObjectIds = const {},
+    this.bortleClass = 5,
+    this.horizonAltitudes,
   });
+
+  // Frame time monitoring: rolling average to detect sustained budget overruns.
+  // Static so it persists across painter instances (CustomPainter is recreated each frame).
+  static final List<double> _paintTimings = [];
+  static const int _maxPaintTimingSamples = 60;
+  static int _overBudgetCount = 0;
+  static const double _frameBudgetMs = 16.0; // 60fps target
+  static DateTime _lastWarningTime = DateTime(2000);
+
+  // Frame timing diagnostic: log a per-section breakdown once after the first
+  // 60 frames so the developer can see exactly where time is spent.
+  static bool _hasLoggedTimingBreakdown = false;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final paintStopwatch = Stopwatch()..start();
+
     final center = Offset(size.width / 2, size.height / 2);
     final scale =
         math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
 
-    // Clear label layout manager for fresh label placement
-    _labelManager.clear();
+    // Use cached label layout if view hasn't moved significantly.
+    // When the cache is valid (view moved <0.5 deg, zoom changed <5%),
+    // we skip clearing and reuse the prior frame's placement grid.
+    // This means labels placed in the previous frame block the same
+    // positions, providing stable labels that don't flicker between frames.
+    _labelManager.clearIfViewChanged(
+      viewState.centerRA, viewState.centerDec, viewState.fieldOfView,
+    );
+
+    // Per-section timing for diagnostic breakdown (collected once, then printed)
+    final doTiming = !_hasLoggedTimingBreakdown && _paintTimings.length >= 59;
+    final sw = doTiming ? (Stopwatch()..start()) : null;
+    int bgUs = 0, mwUs = 0, gridUs = 0, overlayUs = 0, constUs = 0;
+    int starUs = 0, dsoUs = 0, solarUs = 0, labelUs = 0, markerUs = 0;
 
     // Draw background gradient
     _drawBackground(canvas, size);
+    if (doTiming) { bgUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw Milky Way (before everything else as background glow)
     if (config.showMilkyWay &&
@@ -594,6 +973,7 @@ class SkyCanvasPainter extends CustomPainter {
         milkyWayPoints!.isNotEmpty) {
       _drawMilkyWay(canvas, size, center, scale);
     }
+    if (doTiming) { mwUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw coordinate grids
     if (config.showCoordinateGrid) {
@@ -606,10 +986,16 @@ class SkyCanvasPainter extends CustomPainter {
       // Draw zenith marker when grid is shown
       _drawZenithMarker(canvas, size, center, scale);
     }
+    if (doTiming) { gridUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw ecliptic
     if (config.showEcliptic) {
       _drawEcliptic(canvas, size, center, scale);
+    }
+
+    // Draw galactic plane
+    if (config.showGalacticPlane) {
+      _drawGalacticPlane(canvas, size, center, scale);
     }
 
     // Draw meridian line
@@ -617,7 +1003,7 @@ class SkyCanvasPainter extends CustomPainter {
       _drawMeridianLine(canvas, size, center, scale);
     }
 
-    // Draw ground plane (before horizon line so horizon draws on top)
+    // Draw ground plane (gradient transition from sky to ground)
     if (config.showGroundPlane) {
       _drawGroundPlane(canvas, size, center, scale);
     }
@@ -635,26 +1021,41 @@ class SkyCanvasPainter extends CustomPainter {
     if (qualityConfig.enableLightPollution) {
       _drawLightPollutionDome(canvas, size, center, scale);
     }
+    if (doTiming) { overlayUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
+
+    // Draw constellation boundaries (behind lines)
+    if (config.showConstellationBoundaries) {
+      _drawConstellationBoundaries(canvas, size, center, scale);
+    }
 
     // Draw constellation lines
     if (config.showConstellationLines) {
       _drawConstellationLines(canvas, size, center, scale);
     }
 
+    // Draw constellation art overlays (only in balanced/quality tiers)
+    if (config.showConstellationArt &&
+        (qualityConfig.quality == RenderQuality.balanced ||
+         qualityConfig.quality == RenderQuality.quality)) {
+      _drawConstellationArt(canvas, size, center, scale);
+    }
+    if (doTiming) { constUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
+
     // Draw stars
     if (config.showStars) {
       _drawStars(canvas, size, center, scale);
     }
+    if (doTiming) { starUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw DSOs
     if (config.showDSOs) {
       _drawDSOs(canvas, size, center, scale);
     }
 
-    // Draw density indicators for crowded regions when zoomed out
-    if (densityHotspots.isNotEmpty) {
-      _drawDensityIndicators(canvas, size, center, scale);
-    }
+    // Density hotspot indicators removed — they add visual clutter
+    // (circles with "+63" labels etc.) without meaningful benefit.
+    // Users can simply zoom in to discover more objects.
+    if (doTiming) { dsoUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw Sun
     if (config.showSun && sunPosition != null) {
@@ -671,6 +1072,22 @@ class SkyCanvasPainter extends CustomPainter {
       _drawPlanets(canvas, size, center, scale);
     }
 
+    // Draw satellites
+    if (config.showSatellites && satellites.isNotEmpty) {
+      _drawSatellites(canvas, size, center, scale);
+    }
+
+    // Draw variable stars
+    if (config.showVariableStars && variableStars.isNotEmpty) {
+      _drawVariableStars(canvas, size, center, scale);
+    }
+
+    // Draw minor planets (asteroids and comets)
+    if (config.showMinorPlanets && minorPlanets.isNotEmpty) {
+      _drawMinorPlanets(canvas, size, center, scale);
+    }
+    if (doTiming) { solarUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
+
     // Draw constellation labels
     if (config.showConstellationLabels) {
       _drawConstellationLabels(canvas, size, center, scale);
@@ -680,6 +1097,7 @@ class SkyCanvasPainter extends CustomPainter {
     if (config.showCardinalDirections) {
       _drawCardinalDirections(canvas, size);
     }
+    if (doTiming) { labelUs = sw!.elapsedMicroseconds; sw.reset(); sw.start(); }
 
     // Draw mount position marker
     if (config.showMountPosition &&
@@ -692,6 +1110,59 @@ class SkyCanvasPainter extends CustomPainter {
     // Draw selected object marker
     if (selectedObject != null) {
       _drawSelectionMarker(canvas, center, scale, selectedObject!);
+    }
+    if (doTiming) { markerUs = sw!.elapsedMicroseconds; sw.stop(); }
+
+    // Print per-section timing breakdown once after 60 frames for diagnostics
+    if (doTiming) {
+      _hasLoggedTimingBreakdown = true;
+      final totalUs = bgUs + mwUs + gridUs + overlayUs + constUs + starUs + dsoUs + solarUs + labelUs + markerUs;
+      debugPrint(
+        'SkyCanvasPainter TIMING BREAKDOWN (frame 60, ${(totalUs / 1000.0).toStringAsFixed(1)}ms total):\n'
+        '  Background:     ${(bgUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Milky Way:      ${(mwUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Grids:          ${(gridUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Overlays:       ${(overlayUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Constellations: ${(constUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Stars (${stars.length}): ${(starUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  DSOs (${dsos.length}):  ${(dsoUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Solar system:   ${(solarUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Labels:         ${(labelUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Markers:        ${(markerUs / 1000.0).toStringAsFixed(2)}ms\n'
+        '  Quality: ${qualityConfig.quality.name}',
+      );
+    }
+
+    // Record paint() frame time and warn if consistently over budget
+    paintStopwatch.stop();
+    final paintMs = paintStopwatch.elapsedMicroseconds / 1000.0;
+    _paintTimings.add(paintMs);
+    if (_paintTimings.length > _maxPaintTimingSamples) {
+      _paintTimings.removeAt(0);
+    }
+
+    if (paintMs > _frameBudgetMs) {
+      _overBudgetCount++;
+    } else if (_overBudgetCount > 0) {
+      _overBudgetCount--;
+    }
+
+    // Log warning if 10+ of last 60 frames exceeded the 16ms budget
+    // Throttle to at most once per 5 seconds to avoid log spam
+    if (_overBudgetCount >= 10 && _paintTimings.length >= 20) {
+      final now = DateTime.now();
+      if (now.difference(_lastWarningTime).inSeconds >= 5) {
+        _lastWarningTime = now;
+        final avgMs = _paintTimings.reduce((a, b) => a + b) / _paintTimings.length;
+        debugPrint(
+          'SkyCanvasPainter: paint() averaging ${avgMs.toStringAsFixed(1)}ms '
+          '(budget: ${_frameBudgetMs}ms). '
+          '$_overBudgetCount of last ${_paintTimings.length} frames over budget. '
+          'Quality: ${qualityConfig.quality.name}, '
+          'Stars: ${stars.length}, DSOs: ${dsos.length}. '
+          'Consider lowering render quality.',
+        );
+      }
     }
   }
 
@@ -714,21 +1185,28 @@ class SkyCanvasPainter extends CustomPainter {
       longitudeDeg: longitude,
     );
 
+    // Use cached gradient if sun altitude hasn't changed significantly (2-degree bucket)
+    if (_backgroundGradientCache.isValid(sunAlt, size)) {
+      final paint =
+          _PaintCache.getBackgroundPaint(_backgroundGradientCache.verticalShader!);
+      canvas.drawRect(rect, paint);
+      final radialPaint =
+          _PaintCache.getBackgroundPaint(_backgroundGradientCache.radialShader!);
+      canvas.drawRect(rect, radialPaint);
+      return;
+    }
+
     // Get twilight colors based on sun altitude
     final (zenithColor, horizonColor) = _getTwilightColors(sunAlt);
 
-    // Create vertical gradient - recreate only when colors change significantly
-    // Note: We always recreate twilight gradients since colors depend on sun position
-    // which changes slowly but continuously
+    // Create vertical gradient
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [zenithColor, horizonColor],
       stops: const [0.0, 1.0],
     );
-
-    final paint = _PaintCache.getBackgroundPaint(gradient.createShader(rect));
-    canvas.drawRect(rect, paint);
+    final verticalShader = gradient.createShader(rect);
 
     // Add a subtle radial darkening toward center for depth
     final radialGradient = RadialGradient(
@@ -739,8 +1217,14 @@ class SkyCanvasPainter extends CustomPainter {
         zenithColor.withValues(alpha: 0.3),
       ],
     );
-    final radialPaint =
-        _PaintCache.getBackgroundPaint(radialGradient.createShader(rect));
+    final radialShader = radialGradient.createShader(rect);
+
+    // Cache both shaders
+    _backgroundGradientCache.store(verticalShader, radialShader, sunAlt, size);
+
+    final paint = _PaintCache.getBackgroundPaint(verticalShader);
+    canvas.drawRect(rect, paint);
+    final radialPaint = _PaintCache.getBackgroundPaint(radialShader);
     canvas.drawRect(rect, radialPaint);
   }
 
@@ -799,8 +1283,19 @@ class SkyCanvasPainter extends CustomPainter {
   void _drawMilkyWay(Canvas canvas, Size size, Offset center, double scale) {
     if (milkyWayPoints == null) return;
 
+    // Check if we can reuse a cached Milky Way Picture.
+    // The Milky Way is fixed on the sky, so it only needs redrawing when the view moves.
+    if (_milkyWayCache.isValid(
+        viewState.centerRA, viewState.centerDec, viewState.fieldOfView, size)) {
+      canvas.drawPicture(_milkyWayCache.picture!);
+      return;
+    }
+
+    // Cache miss: record Milky Way into a Picture
+    final recorder = ui.PictureRecorder();
+    final recordCanvas = Canvas(recorder);
+
     // Calculate appropriate blur and point size based on FOV
-    // Wider FOV = larger blur for smoother appearance
     final fovFactor = viewState.fieldOfView / 60;
     final blurRadius = (8 * fovFactor).clamp(4.0, 20.0);
     final pointRadius = (3 * fovFactor).clamp(2.0, 8.0);
@@ -808,25 +1303,49 @@ class SkyCanvasPainter extends CustomPainter {
     // Milky Way color - subtle blue-white glow
     const baseColor = Color(0xFF8090A8);
 
+    // Batch Milky Way points into Float32List groups by intensity bucket
+    // to minimize draw calls
+    final glowPoints = <double>[];
+    final corePoints = <double>[];
+
     for (final point in milkyWayPoints!) {
       final offset = _celestialToScreen(point.coordinates, center, scale);
       if (offset == null || !_isInView(offset, size)) continue;
 
-      // Calculate alpha based on intensity
-      final alpha = (point.intensity * 0.25).clamp(0.02, 0.25);
+      glowPoints.add(offset.dx);
+      glowPoints.add(offset.dy);
 
-      // Draw glow circle - use cached blur paint
-      final glowPaint =
-          _PaintCache.getBlurPaint(blurRadius, baseColor, alpha: alpha);
-      canvas.drawCircle(offset, pointRadius * 2, glowPaint);
-
-      // Draw slightly brighter core for high-intensity points
       if (point.intensity > 0.5) {
-        final corePaint = _PaintCache.getBlurPaint(blurRadius * 0.5, baseColor,
-            alpha: alpha * 1.5);
-        canvas.drawCircle(offset, pointRadius, corePaint);
+        corePoints.add(offset.dx);
+        corePoints.add(offset.dy);
       }
     }
+
+    // Draw all glow points as a single batch
+    if (glowPoints.isNotEmpty) {
+      final glowPaint =
+          _PaintCache.getBlurPaint(blurRadius, baseColor, alpha: 0.12);
+      glowPaint.strokeWidth = pointRadius * 4;
+      glowPaint.strokeCap = StrokeCap.round;
+      recordCanvas.drawRawPoints(ui.PointMode.points,
+          Float32List.fromList(glowPoints), glowPaint);
+    }
+
+    // Draw brighter core points as a second batch
+    if (corePoints.isNotEmpty) {
+      final corePaint = _PaintCache.getBlurPaint(blurRadius * 0.5, baseColor,
+          alpha: 0.18);
+      corePaint.strokeWidth = pointRadius * 2;
+      corePaint.strokeCap = StrokeCap.round;
+      recordCanvas.drawRawPoints(ui.PointMode.points,
+          Float32List.fromList(corePoints), corePaint);
+    }
+
+    final picture = recorder.endRecording();
+    _milkyWayCache.store(picture, viewState.centerRA, viewState.centerDec,
+        viewState.fieldOfView, size);
+
+    canvas.drawPicture(picture);
   }
 
   void _drawEquatorialGrid(
@@ -1101,6 +1620,72 @@ class SkyCanvasPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
+  void _drawGalacticPlane(
+      Canvas canvas, Size size, Offset center, double scale) {
+    final paint =
+        _PaintCache.getGalacticPlanePaint(config.galacticPlaneColor);
+
+    final path = Path();
+    var firstPoint = true;
+
+    // Draw galactic equator as a great circle at galactic latitude 0
+    for (var lon = 0.0; lon <= 360; lon += 2) {
+      final (ra, dec) = AstronomyCalculations.galacticToEquatorial(
+        lonDeg: lon,
+        latDeg: 0,
+      );
+
+      final offset = _celestialToScreen(
+        CelestialCoordinate(ra: ra / 15, dec: dec),
+        center,
+        scale,
+      );
+
+      if (offset != null && _isInView(offset, size)) {
+        if (firstPoint) {
+          path.moveTo(offset.dx, offset.dy);
+          firstPoint = false;
+        } else {
+          path.lineTo(offset.dx, offset.dy);
+        }
+      } else {
+        firstPoint = true;
+      }
+    }
+
+    canvas.drawPath(path, paint);
+
+    // Draw "Galactic Equator" label at galactic center direction (l=0, b=0)
+    final (labelRa, labelDec) = AstronomyCalculations.galacticToEquatorial(
+      lonDeg: 0,
+      latDeg: 0,
+    );
+    final labelOffset = _celestialToScreen(
+      CelestialCoordinate(ra: labelRa / 15, dec: labelDec),
+      center,
+      scale,
+    );
+    if (labelOffset != null && _isInView(labelOffset, size)) {
+      final textStyle = TextStyle(
+        color: config.galacticPlaneColor.withValues(alpha: 0.8),
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+      );
+      final textPainter = _TextCache.get('Galactic Eq.', textStyle);
+
+      final preferredPos =
+          labelOffset + Offset(-textPainter.width / 2, -textPainter.height - 4);
+      final labelPos = _labelManager.findPlacement(
+        preferredPos,
+        Size(textPainter.width, textPainter.height),
+        size,
+      );
+      if (labelPos != null) {
+        textPainter.paint(canvas, labelPos);
+      }
+    }
+  }
+
   void _drawMeridianLine(
       Canvas canvas, Size size, Offset center, double scale) {
     if (!config.showMeridian) return;
@@ -1165,43 +1750,83 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawHorizon(Canvas canvas, Size size, Offset center, double scale) {
-    // Use cached paint instead of creating new one each frame
-    final paint = _PaintCache.getHorizonPaint(config.horizonColor);
+    // For flat horizons the ground-plane gradient transition IS the horizon
+    // indicator -- drawing an explicit stroke line creates a hard visible edge
+    // that looks unnatural.  Only draw a faint line for custom horizon profiles
+    // (terrain outlines) where the irregular shape needs a subtle guide.
+
+    if (horizonAltitudes == null || horizonAltitudes!.isEmpty) {
+      // Flat horizon: no stroke line.  The ground-plane blend handles it.
+      return;
+    }
+
+    // Custom horizon profile: draw as a very subtle polyline following the
+    // terrain so the user can see where trees/buildings clip the sky.
+    final paint = _PaintCache.getHorizonPaint(
+      config.horizonColor.withValues(alpha: (config.horizonColor.a * 0.4).clamp(0.0, 1.0)),
+    );
 
     final lst =
         AstronomyCalculations.localSiderealTime(observationTime, longitude);
 
-    // Get the altitude of the view center
-    final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
-      raDeg: viewState.centerRA * 15,
-      decDeg: viewState.centerDec,
-      latitudeDeg: latitude,
-      lstHours: lst,
-    );
+    final path = Path();
+    var firstPoint = true;
+    final step = 5.0; // 5-degree azimuth steps for smooth line
 
-    // Calculate horizon Y position using linear approximation
-    final fovHalf = viewState.fieldOfView / 2;
-    final horizonY = size.height / 2 * (1 + centerAlt / fovHalf);
+    for (var az = 0.0; az <= 360.0; az += step) {
+      final azIdx = az.round() % 360;
+      final horizonAlt = (azIdx < horizonAltitudes!.length)
+          ? horizonAltitudes![azIdx]
+          : 0.0;
 
-    // Only draw if horizon is on screen
-    if (horizonY >= 0 && horizonY <= size.height) {
-      canvas.drawLine(
-        Offset(0, horizonY),
-        Offset(size.width, horizonY),
-        paint,
+      final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+        altDeg: horizonAlt,
+        azDeg: az,
+        latitudeDeg: latitude,
+        lstHours: lst,
       );
+
+      final offset = _celestialToScreen(
+        CelestialCoordinate(ra: ra / 15, dec: dec),
+        center,
+        scale,
+      );
+
+      if (offset != null && _isInView(offset, size)) {
+        if (firstPoint) {
+          path.moveTo(offset.dx, offset.dy);
+          firstPoint = false;
+        } else {
+          path.lineTo(offset.dx, offset.dy);
+        }
+      } else {
+        firstPoint = true;
+      }
     }
+
+    canvas.drawPath(path, paint);
   }
 
-  /// Draw ground plane below the horizon with gradient
-  /// Uses simple linear approximation based on view altitude
+  /// Draw ground plane below the horizon with gradient.
+  /// When a custom horizon profile is set, fills below the profile curve.
+  /// Uses simple linear approximation based on view altitude for flat horizons.
+  ///
+  /// The ground plane starts fully transparent well above the horizon and
+  /// gradually fades to opaque ground color below, so the transition from
+  /// sky to ground is seamless -- no visible horizon line or hard edge.
   void _drawGroundPlane(Canvas canvas, Size size, Offset center, double scale) {
     if (!config.showGroundPlane) return;
 
     final lst =
         AstronomyCalculations.localSiderealTime(observationTime, longitude);
 
-    // Get the altitude of the view center
+    if (horizonAltitudes != null && horizonAltitudes!.isNotEmpty) {
+      // Custom horizon: fill below the profile as a polygon
+      _drawCustomHorizonGroundPlane(canvas, size, center, scale, lst);
+      return;
+    }
+
+    // Flat horizon: original fast path
     final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
       raDeg: viewState.centerRA * 15,
       decDeg: viewState.centerDec,
@@ -1210,75 +1835,269 @@ class SkyCanvasPainter extends CustomPainter {
     );
 
     final fovHalf = viewState.fieldOfView / 2;
-
-    // Calculate horizon Y position using linear approximation
-    // centerAlt = 0 -> horizon at screen center (Y = height/2)
-    // centerAlt = fovHalf -> horizon at screen bottom (Y = height)
-    // centerAlt = -fovHalf -> horizon at screen top (Y = 0)
     final horizonY = size.height / 2 * (1 + centerAlt / fovHalf);
 
-    // If horizon is completely below screen (looking up at sky), no ground
-    if (horizonY >= size.height) {
-      return;
-    }
+    if (horizonY >= size.height) return;
 
-    // If horizon is completely above screen (looking down at ground), fill all
     if (horizonY <= 0) {
       final paint = _PaintCache.getGroundPaint(config.groundColorDark);
       canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
       return;
     }
 
-    // Horizon is on screen - draw ground from horizonY to bottom
-    final groundRect = Rect.fromLTRB(0, horizonY, size.width, size.height);
+    // Compute the sky's horizon color so the ground blend starts from the
+    // same hue that the sky gradient ends at -- no color discontinuity.
+    final sunAlt = AstronomyCalculations.sunAltitude(
+      dt: observationTime,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+    );
+    final (_, skyHorizonColor) = _getTwilightColors(sunAlt);
+
+    // Use a generous blend zone (20% of screen height) so the transition
+    // is a wide, imperceptible fade rather than a narrow band.
+    final blendZone = (size.height * 0.20).clamp(30.0, 180.0);
+    final groundTop = horizonY - blendZone;
+    final groundRect = Rect.fromLTRB(0, groundTop, size.width, size.height);
+
+    // The fraction of the gradient rect height where the actual horizon sits.
+    final totalHeight = size.height - groundTop;
+    final horizonFraction = (horizonY - groundTop) / totalHeight;
 
     if (qualityConfig.groundPlaneDetail <= 0.0) {
-      // Performance: solid dark color - use cached paint
-      final paint = _PaintCache.getGroundPaint(config.groundColorDark);
-      canvas.drawRect(groundRect, paint);
-    } else {
-      // Balanced/Quality: gradient from horizon down
+      // Low-detail mode: simple transparent-to-opaque fade using ground color.
+      // Still uses the wide blend zone for a smooth edge.
       final gradient = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          config.horizonGlowColor,
+          config.groundColorDark.withValues(alpha: 0.0),
+          config.groundColorDark.withValues(alpha: 0.5),
+          config.groundColorDark,
+        ],
+        stops: [
+          0.0,
+          horizonFraction,
+          (horizonFraction + 0.15).clamp(0.0, 1.0),
+        ],
+      );
+      final paint = Paint()..shader = gradient.createShader(groundRect);
+      canvas.drawRect(groundRect, paint);
+    } else {
+      // High-detail mode: blend from sky horizon color through a warm
+      // intermediate to the dark ground.  The top of the gradient is fully
+      // transparent sky-horizon color, becoming opaque at the horizon, then
+      // transitioning through the ground palette below.
+      //
+      // Build a smooth multi-stop gradient:
+      //   0.0               : fully transparent (sky shows through)
+      //   horizonFraction/2 : very faint tint of sky-horizon color
+      //   horizonFraction   : sky-horizon color at moderate opacity (the "seam")
+      //   below horizon     : blends to ground colors
+      final midBlend = (horizonFraction * 0.5).clamp(0.0, 1.0);
+      final belowHorizon1 =
+          (horizonFraction + (1.0 - horizonFraction) * 0.25).clamp(0.0, 1.0);
+      final belowHorizon2 =
+          (horizonFraction + (1.0 - horizonFraction) * 0.55).clamp(0.0, 1.0);
+
+      // Blend sky-horizon color toward the ground-light color for the seam
+      // so there is never a jarring hue shift.
+      final seamColor =
+          Color.lerp(skyHorizonColor, config.groundColorLight, 0.35)!;
+
+      final gradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          skyHorizonColor.withValues(alpha: 0.0),
+          skyHorizonColor.withValues(alpha: 0.10),
+          seamColor.withValues(alpha: 0.55),
           config.groundColorLight,
           config.groundColorDark,
         ],
-        stops: const [0.0, 0.3, 1.0],
+        stops: [
+          0.0,
+          midBlend,
+          horizonFraction,
+          belowHorizon1,
+          belowHorizon2,
+        ],
       );
 
-      final paint =
-          _PaintCache.getBackgroundPaint(gradient.createShader(groundRect));
+      final paint = Paint()..shader = gradient.createShader(groundRect);
       canvas.drawRect(groundRect, paint);
 
-      // Quality mode: add subtle horizon glow line
-      if (qualityConfig.groundPlaneDetail >= 1.0) {
-        final glowPaint = Paint()
-          ..color = config.horizonGlowColor.withValues(alpha: 0.4)
-          ..strokeWidth = 4
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round;
+      // No stroke line at the horizon -- the gradient transition IS the
+      // horizon.  A visible line looks artificial.
+    }
+  }
 
-        if (qualityConfig.useBlurEffects) {
-          glowPaint.maskFilter = _PaintCache.getBlurFilter(6);
-        }
+  /// Draw ground plane following custom horizon profile.
+  /// Builds a filled polygon from horizon profile points down to screen bottom.
+  /// Uses the same sky-matching gradient approach as the flat horizon path
+  /// so the ground blends seamlessly with the sky.
+  void _drawCustomHorizonGroundPlane(
+      Canvas canvas, Size size, Offset center, double scale, double lst) {
+    final path = Path();
+    final step = 5.0;
 
-        canvas.drawLine(
-          Offset(0, horizonY),
-          Offset(size.width, horizonY),
-          glowPaint,
-        );
+    // Collect screen positions along the custom horizon
+    final horizonPoints = <Offset>[];
+
+    for (var az = 0.0; az <= 360.0; az += step) {
+      final azIdx = az.round() % 360;
+      final horizonAlt = (azIdx < horizonAltitudes!.length)
+          ? horizonAltitudes![azIdx]
+          : 0.0;
+
+      final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+        altDeg: horizonAlt,
+        azDeg: az,
+        latitudeDeg: latitude,
+        lstHours: lst,
+      );
+
+      final offset = _celestialToScreen(
+        CelestialCoordinate(ra: ra / 15, dec: dec),
+        center,
+        scale,
+      );
+
+      if (offset != null) {
+        // Clamp x to screen bounds for the fill
+        final clampedX = offset.dx.clamp(-100.0, size.width + 100.0);
+        final clampedY = offset.dy.clamp(-100.0, size.height + 200.0);
+        horizonPoints.add(Offset(clampedX, clampedY));
       }
+    }
+
+    if (horizonPoints.isEmpty) {
+      // If no horizon points are visible, check if we're looking entirely below
+      final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
+        raDeg: viewState.centerRA * 15,
+        decDeg: viewState.centerDec,
+        latitudeDeg: latitude,
+        lstHours: lst,
+      );
+      if (centerAlt < 0) {
+        // Looking below horizon, fill entire screen
+        final paint = _PaintCache.getGroundPaint(config.groundColorDark);
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+      }
+      return;
+    }
+
+    // Build fill polygon: horizon points, then close down to screen bottom
+    path.moveTo(horizonPoints.first.dx, horizonPoints.first.dy);
+    for (var i = 1; i < horizonPoints.length; i++) {
+      path.lineTo(horizonPoints[i].dx, horizonPoints[i].dy);
+    }
+    // Close down to bottom-right, then bottom-left
+    path.lineTo(size.width + 100, size.height + 100);
+    path.lineTo(-100, size.height + 100);
+    path.close();
+
+    // Compute the sky's horizon color for seamless blending
+    final sunAlt = AstronomyCalculations.sunAltitude(
+      dt: observationTime,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+    );
+    final (_, skyHorizonColor) = _getTwilightColors(sunAlt);
+
+    // Draw the fill
+    if (qualityConfig.groundPlaneDetail <= 0.0) {
+      // Low-detail: use a simple gradient that still fades smoothly
+      var topY = size.height;
+      for (final pt in horizonPoints) {
+        if (pt.dy < topY) topY = pt.dy;
+      }
+      final blendZone = (size.height * 0.20).clamp(30.0, 180.0);
+      final gradientTop = topY - blendZone;
+      final groundRect =
+          Rect.fromLTRB(0, gradientTop, size.width, size.height);
+      final horizonFraction =
+          (topY - gradientTop) / (size.height - gradientTop);
+
+      final gradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          config.groundColorDark.withValues(alpha: 0.0),
+          config.groundColorDark.withValues(alpha: 0.5),
+          config.groundColorDark,
+        ],
+        stops: [
+          0.0,
+          horizonFraction,
+          (horizonFraction + 0.15).clamp(0.0, 1.0),
+        ],
+      );
+
+      final paint = Paint()..shader = gradient.createShader(groundRect);
+      canvas.drawPath(path, paint);
+    } else {
+      // High-detail: match the sky horizon color and fade smoothly.
+      var topY = size.height;
+      for (final pt in horizonPoints) {
+        if (pt.dy < topY) topY = pt.dy;
+      }
+      final blendZone = (size.height * 0.20).clamp(30.0, 180.0);
+      final gradientTop = topY - blendZone;
+
+      final groundRect =
+          Rect.fromLTRB(0, gradientTop, size.width, size.height);
+      final totalHeight = size.height - gradientTop;
+      final horizonFraction = (topY - gradientTop) / totalHeight;
+
+      final midBlend = (horizonFraction * 0.5).clamp(0.0, 1.0);
+      final belowHorizon1 =
+          (horizonFraction + (1.0 - horizonFraction) * 0.25).clamp(0.0, 1.0);
+      final belowHorizon2 =
+          (horizonFraction + (1.0 - horizonFraction) * 0.55).clamp(0.0, 1.0);
+
+      final seamColor =
+          Color.lerp(skyHorizonColor, config.groundColorLight, 0.35)!;
+
+      final gradient = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          skyHorizonColor.withValues(alpha: 0.0),
+          skyHorizonColor.withValues(alpha: 0.10),
+          seamColor.withValues(alpha: 0.55),
+          config.groundColorLight,
+          config.groundColorDark,
+        ],
+        stops: [
+          0.0,
+          midBlend,
+          horizonFraction,
+          belowHorizon1,
+          belowHorizon2,
+        ],
+      );
+
+      final paint = Paint()..shader = gradient.createShader(groundRect);
+      canvas.drawPath(path, paint);
+
+      // No glow stroke line -- the gradient handles the transition.
     }
   }
 
   /// Draw light pollution dome effect (quality mode only)
-  /// Creates a warm orange-white wash near the horizon that fades toward zenith
-  /// Uses simple altitude-based positioning for performance
+  /// Creates a warm orange-white wash near the horizon that fades toward zenith.
+  /// Uses a smooth vertical gradient instead of discrete stroke bands so
+  /// there are no visible banding artifacts near the horizon.
+  /// Intensity and extent are scaled by Bortle class (1-9):
+  ///   Bortle 1-2: virtually no dome
+  ///   Bortle 4-5: moderate suburban glow
+  ///   Bortle 8-9: heavy urban wash extending high overhead
   void _drawLightPollutionDome(
       Canvas canvas, Size size, Offset center, double scale) {
+    // Bortle 1-2 produces negligible light pollution
+    if (bortleClass <= 2) return;
+
     final lst =
         AstronomyCalculations.localSiderealTime(observationTime, longitude);
 
@@ -1292,40 +2111,62 @@ class SkyCanvasPainter extends CustomPainter {
 
     final fovHalf = viewState.fieldOfView / 2;
 
-    // Light pollution color - warm orange-white
-    const pollutionColor = Color(0xFFFFF5E0);
+    // Scale factor based on Bortle class (0.0 at Bortle 2, 1.0 at Bortle 9)
+    final bortleScale = (bortleClass - 2).clamp(0, 7) / 7.0;
 
-    // Draw bands at different altitudes using simple horizontal lines
-    final altitudeBands = [0.0, 10.0, 20.0, 30.0, 40.0];
-    final bandOpacities = [0.12, 0.08, 0.05, 0.02, 0.005];
+    // Light pollution color - warm orange-white, shifts more orange at higher Bortle
+    final pollutionColor = Color.lerp(
+      const Color(0xFFFFF5E0), // subtle warm white (suburban)
+      const Color(0xFFFFCC80), // stronger orange (urban)
+      bortleScale,
+    )!;
 
-    for (var i = 0; i < altitudeBands.length; i++) {
-      final alt = altitudeBands[i];
-      final opacity = bandOpacities[i];
+    // The dome extends from the horizon up to maxAlt degrees
+    final maxAlt = 20.0 + bortleScale * 40.0; // 20-60 degrees
 
-      // Calculate Y position for this altitude band
-      final bandFraction = ((centerAlt - alt) / fovHalf).clamp(-1.5, 1.5);
-      final bandY = size.height / 2 + (bandFraction * size.height / 2);
+    // Calculate screen Y for the horizon (alt = 0) and the top of the dome
+    final horizonFraction = (centerAlt / fovHalf).clamp(-1.5, 1.5);
+    final horizonY = size.height / 2 + (horizonFraction * size.height / 2);
+    final topFraction =
+        ((centerAlt - maxAlt) / fovHalf).clamp(-1.5, 1.5);
+    final domeTopY = size.height / 2 + (topFraction * size.height / 2);
 
-      // Only draw if on screen
-      if (bandY >= -50 && bandY <= size.height + 50) {
-        final bandPaint = Paint()
-          ..color = pollutionColor.withValues(alpha: opacity)
-          ..strokeWidth = 30 - alt * 0.5
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round;
+    // Skip if entirely off screen
+    if (horizonY < -50 && domeTopY < -50) return;
+    if (horizonY > size.height + 50 && domeTopY > size.height + 50) return;
 
-        if (qualityConfig.useBlurEffects) {
-          bandPaint.maskFilter = _PaintCache.getBlurFilter(15 - alt * 0.3);
-        }
+    final domeRect = Rect.fromLTRB(0, domeTopY, size.width, horizonY);
+    if (domeRect.height <= 0) return;
 
-        canvas.drawLine(Offset(0, bandY), Offset(size.width, bandY), bandPaint);
-      }
+    // Base opacity scales with Bortle: 0.03 at Bortle 3 up to 0.18 at Bortle 9
+    final baseOpacity = 0.03 + bortleScale * 0.15;
+
+    // Use a smooth multi-stop gradient from top (transparent) to horizon
+    // (peak opacity). The falloff is quadratic, approximated by 4 stops.
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        pollutionColor.withValues(alpha: 0.0),
+        pollutionColor.withValues(alpha: baseOpacity * 0.04),
+        pollutionColor.withValues(alpha: baseOpacity * 0.20),
+        pollutionColor.withValues(alpha: baseOpacity * 0.55),
+        pollutionColor.withValues(alpha: baseOpacity),
+      ],
+      stops: const [0.0, 0.3, 0.55, 0.80, 1.0],
+    );
+
+    final paint = Paint()..shader = gradient.createShader(domeRect);
+    if (qualityConfig.useBlurEffects) {
+      paint.maskFilter = _PaintCache.getBlurFilter(10);
     }
+    canvas.drawRect(domeRect, paint);
   }
 
-  /// Draw a subtle glow effect above the horizon line
-  /// Uses simple altitude-based positioning for performance
+  /// Draw a subtle atmospheric glow above the horizon.
+  /// Instead of discrete stroke bands (which can create visible banding), this
+  /// uses a single vertical gradient rect that fades smoothly from the horizon
+  /// upward, simulating the natural sky-brightening near the horizon.
   void _drawHorizonGlow(Canvas canvas, Size size, Offset center, double scale) {
     final lst =
         AstronomyCalculations.localSiderealTime(observationTime, longitude);
@@ -1363,40 +2204,120 @@ class SkyCanvasPainter extends CustomPainter {
       glowColor = const Color(0xFF706050);
     }
 
-    // Draw glow bands at altitudes above horizon using simple line positioning
-    final glowAltitudes = [5.0, 10.0, 15.0];
-    final glowOpacities = [0.15, 0.10, 0.05];
+    // Calculate screen Y for altitude 0 (horizon) and the glow extent
+    // (approximately 20 degrees above horizon).
+    final glowExtentDeg = 20.0;
+    final horizonFraction = (centerAlt / fovHalf).clamp(-1.5, 1.5);
+    final horizonY = size.height / 2 + (horizonFraction * size.height / 2);
+    final topFraction =
+        ((centerAlt - glowExtentDeg) / fovHalf).clamp(-1.5, 1.5);
+    final glowTopY = size.height / 2 + (topFraction * size.height / 2);
 
-    for (var i = 0; i < glowAltitudes.length; i++) {
-      final alt = glowAltitudes[i];
-      final opacity = glowOpacities[i];
+    // Both off screen? Nothing to draw.
+    if (horizonY < -50 && glowTopY < -50) return;
+    if (horizonY > size.height + 50 && glowTopY > size.height + 50) return;
 
-      // Calculate Y position for this altitude band
-      // Altitude of glow line = centerAlt - alt (above horizon means below center visually)
-      final glowFraction = ((centerAlt - alt) / fovHalf).clamp(-1.5, 1.5);
-      final glowY = size.height / 2 + (glowFraction * size.height / 2);
+    // Draw a single gradient rect from the glow top down to the horizon.
+    // The gradient goes from fully transparent at the top to the peak glow
+    // opacity at the horizon, with a smooth curve via multiple stops.
+    final glowRect =
+        Rect.fromLTRB(0, glowTopY, size.width, horizonY);
 
-      // Only draw if on screen
-      if (glowY >= -50 && glowY <= size.height + 50) {
-        final glowPaint = Paint()
-          ..color = glowColor.withValues(alpha: opacity)
-          ..strokeWidth = (20 - alt).clamp(5.0, 15.0)
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round;
+    if (glowRect.height <= 0) return;
 
-        if (qualityConfig.useBlurEffects) {
-          glowPaint.maskFilter = _PaintCache.getBlurFilter(8);
+    final peakOpacity = sunAlt <= -18 ? 0.06 : (sunAlt <= 0 ? 0.10 : 0.12);
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        glowColor.withValues(alpha: 0.0),
+        glowColor.withValues(alpha: peakOpacity * 0.15),
+        glowColor.withValues(alpha: peakOpacity * 0.45),
+        glowColor.withValues(alpha: peakOpacity),
+      ],
+      stops: const [0.0, 0.4, 0.75, 1.0],
+    );
+
+    final paint = Paint()..shader = gradient.createShader(glowRect);
+    if (qualityConfig.useBlurEffects) {
+      // Apply a soft blur so the glow is diffuse, not sharp-edged.
+      paint.maskFilter = _PaintCache.getBlurFilter(12);
+    }
+    canvas.drawRect(glowRect, paint);
+  }
+
+  void _drawConstellationBoundaries(
+      Canvas canvas, Size size, Offset center, double scale) {
+    final boundaryPaint = Paint()
+      ..color = config.constellationBoundaryColor
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
+
+    final boundaries = ConstellationBoundaries.all;
+    final path = Path();
+
+    for (final entry in boundaries.entries) {
+      final vertices = entry.value;
+      if (vertices.length < 3) continue;
+
+      for (var i = 0; i < vertices.length; i++) {
+        final v0 = vertices[i];
+        final v1 = vertices[(i + 1) % vertices.length];
+
+        final start = _celestialToScreen(
+          CelestialCoordinate(ra: v0.ra, dec: v0.dec), center, scale);
+        final end = _celestialToScreen(
+          CelestialCoordinate(ra: v1.ra, dec: v1.dec), center, scale);
+
+        if (start == null || end == null) continue;
+        if (!_isInView(start, size) && !_isInView(end, size)) continue;
+
+        // Draw dashed line segments
+        final dx = end.dx - start.dx;
+        final dy = end.dy - start.dy;
+        final length = math.sqrt(dx * dx + dy * dy);
+        if (length < 1) continue;
+
+        const dashLength = 4.0;
+        const gapLength = 4.0;
+        final unitDx = dx / length;
+        final unitDy = dy / length;
+
+        var dist = 0.0;
+        while (dist < length) {
+          final segEnd = math.min(dist + dashLength, length);
+          path.moveTo(
+            start.dx + unitDx * dist,
+            start.dy + unitDy * dist,
+          );
+          path.lineTo(
+            start.dx + unitDx * segEnd,
+            start.dy + unitDy * segEnd,
+          );
+          dist += dashLength + gapLength;
         }
-
-        canvas.drawLine(Offset(0, glowY), Offset(size.width, glowY), glowPaint);
       }
     }
+
+    canvas.drawPath(path, boundaryPaint);
   }
 
   void _drawConstellationLines(
       Canvas canvas, Size size, Offset center, double scale) {
-    // Use cached paint for constellation lines - no gradient per line (major performance gain)
-    // The gradient was subtle and creating shader per line was expensive
+    // Check if we can reuse a cached Picture of constellation lines.
+    // Constellation lines are static relative to the sky — they only change
+    // when the view moves, so caching saves redrawing hundreds of line segments.
+    if (_constellationLineCache.isValid(
+        viewState.centerRA, viewState.centerDec, viewState.fieldOfView, size,
+        constellations.length)) {
+      canvas.drawPicture(_constellationLineCache.picture!);
+      return;
+    }
+
+    // Cache miss: record constellation lines into a Picture
+    final recorder = ui.PictureRecorder();
+    final recordCanvas = Canvas(recorder);
+
     final paint =
         _PaintCache.getConstellationPaint(config.constellationLineColor);
 
@@ -1418,7 +2339,14 @@ class SkyCanvasPainter extends CustomPainter {
     }
 
     // Single draw call for all constellation lines
-    canvas.drawPath(path, paint);
+    recordCanvas.drawPath(path, paint);
+
+    final picture = recorder.endRecording();
+    _constellationLineCache.store(picture, viewState.centerRA,
+        viewState.centerDec, viewState.fieldOfView, size, constellations.length);
+
+    // Draw the picture to the real canvas
+    canvas.drawPicture(picture);
   }
 
   void _drawConstellationLabels(
@@ -1444,11 +2372,100 @@ class SkyCanvasPainter extends CustomPainter {
     }
   }
 
+  /// Cached constellation art figures (loaded once)
+  static final List<ConstellationArtData> _constellationArtFigures =
+      ConstellationArt.all;
+
+  void _drawConstellationArt(
+      Canvas canvas, Size size, Offset center, double scale) {
+    // Gold/amber fill with 20% opacity
+    final fillPaint = Paint()
+      ..color = const Color(0x33DAA520) // goldenrod at ~20% opacity
+      ..style = PaintingStyle.fill;
+
+    // Slightly brighter stroke for figure outlines
+    final strokePaint = Paint()
+      ..color = const Color(0x28DAA520) // goldenrod at ~16% opacity
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    for (final figure in _constellationArtFigures) {
+      // Quick visibility check: find the constellation data to get its center
+      final constellationData = constellations
+          .where((c) => c.abbreviation == figure.abbreviation)
+          .firstOrNull;
+      if (constellationData == null) continue;
+
+      final centerOffset =
+          _celestialToScreen(constellationData.center, center, scale);
+      if (centerOffset == null) continue;
+
+      // Skip if constellation center is far off-screen (generous margin for large figures)
+      if (centerOffset.dx < -size.width ||
+          centerOffset.dx > size.width * 2 ||
+          centerOffset.dy < -size.height ||
+          centerOffset.dy > size.height * 2) {
+        continue;
+      }
+
+      // Build the Canvas path from the art segments
+      final path = Path();
+      bool hasVisiblePoint = false;
+
+      for (final segment in figure.segments) {
+        switch (segment) {
+          case ArtMoveTo(:final point):
+            final screenPt = _celestialToScreen(point, center, scale);
+            if (screenPt != null) {
+              path.moveTo(screenPt.dx, screenPt.dy);
+              if (_isInView(screenPt, size)) hasVisiblePoint = true;
+            }
+          case ArtLineTo(:final point):
+            final screenPt = _celestialToScreen(point, center, scale);
+            if (screenPt != null) {
+              path.lineTo(screenPt.dx, screenPt.dy);
+              if (_isInView(screenPt, size)) hasVisiblePoint = true;
+            }
+          case ArtQuadTo(:final control, :final point):
+            final ctrlPt = _celestialToScreen(control, center, scale);
+            final endPt = _celestialToScreen(point, center, scale);
+            if (ctrlPt != null && endPt != null) {
+              path.quadraticBezierTo(
+                  ctrlPt.dx, ctrlPt.dy, endPt.dx, endPt.dy);
+              if (_isInView(endPt, size)) hasVisiblePoint = true;
+            } else if (endPt != null) {
+              // Fallback to lineTo if control point is behind projection
+              path.lineTo(endPt.dx, endPt.dy);
+              if (_isInView(endPt, size)) hasVisiblePoint = true;
+            }
+          case ArtClose():
+            path.close();
+        }
+      }
+
+      // Only draw if at least one point is visible on screen
+      if (hasVisiblePoint) {
+        canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, strokePaint);
+      }
+    }
+  }
+
   void _drawStars(Canvas canvas, Size size, Offset center, double scale) {
-    // Respect quality config limits
+    // Ultra-minimal mode: ALL stars as raw points, no circles, no PSF
+    if (qualityConfig.quality == RenderQuality.minimal) {
+      _drawStarsMinimal(canvas, size, center, scale);
+      return;
+    }
+
+    // Respect quality config limits. The star list is already pre-filtered by
+    // the dynamic magnitude provider (fovFilteredStarsProvider) based on FOV,
+    // so we only apply the quality config's render count cap here. We use the
+    // quality config's magnitude limit as an additional safeguard rather than
+    // the static SkyRenderConfig.starMagnitudeLimit, which is a UI default
+    // that doesn't account for zoom level.
     final maxStars = qualityConfig.maxStarsToRender;
-    final magLimit =
-        math.min(config.starMagnitudeLimit, qualityConfig.starMagnitudeLimit);
+    final magLimit = qualityConfig.starMagnitudeLimit;
 
     // Twinkle animation enabled in quality mode
     final doTwinkle =
@@ -1531,7 +2548,7 @@ class SkyCanvasPainter extends CustomPainter {
       var color = _spectralTypeToColor(star.spectralType ?? 'G');
       color = _getEnhancedStarColor(color, magnitude);
 
-      // Atmospheric extinction for bright stars only
+      // Atmospheric extinction for bright stars only - uses precomputed LUT
       if (doExtinction && magnitude < 3.0) {
         final (alt, _) = AstronomyCalculations.equatorialToHorizontal(
           raDeg: star.coordinates.raDegrees,
@@ -1540,9 +2557,9 @@ class SkyCanvasPainter extends CustomPainter {
           lstHours: lst,
         );
         if (alt < 30) {
-          final extinctionFactor = (alt / 30).clamp(0.0, 1.0) * 0.5 + 0.5;
+          final (extinctionFactor, redShift) =
+              AtmosphericExtinctionLUT.lookup(alt);
           brightness *= extinctionFactor;
-          final redShift = (1 - extinctionFactor) * 0.4;
           color = Color.lerp(color, const Color(0xFFFFAA88), redShift)!;
         }
       }
@@ -1571,12 +2588,47 @@ class SkyCanvasPainter extends CustomPainter {
       canvas.drawPoints(ui.PointMode.points, dimStarPoints, dimPaint);
     }
 
-    // BATCH RENDER: Medium stars as simple circles
-    // Reuse a single paint object, just update the color
-    for (final (offset, radius, color, brightness) in mediumStars) {
-      final paint =
-          _PaintCache.getFillPaint(color.withValues(alpha: brightness));
-      canvas.drawCircle(offset, radius, paint);
+    // BATCH RENDER: Medium stars as raw points (single draw call)
+    // Instead of ~800 individual drawCircle calls, batch all medium star
+    // offsets into a Float32List and draw with a single drawRawPoints call.
+    // Group by approximate color bucket for fewer draw calls.
+    if (mediumStars.isNotEmpty) {
+      // Bucket medium stars by rounded color for batching
+      final colorBuckets = <int, List<(Offset, double)>>{};
+      for (final (offset, radius, color, brightness) in mediumStars) {
+        // Quantize color to reduce bucket count (round alpha to nearest 0.1)
+        final quantizedAlpha = (brightness * 10).round() / 10.0;
+        final bucketColor = color.withValues(alpha: quantizedAlpha);
+        final key = bucketColor.toARGB32();
+        (colorBuckets[key] ??= []).add((offset, radius));
+      }
+
+      // Reuse a single Paint object for all buckets to avoid GC pressure
+      final bucketPaint = Paint()..strokeCap = StrokeCap.round;
+
+      for (final entry in colorBuckets.entries) {
+        final offsets = entry.value;
+        final bucketColor = Color(entry.key);
+
+        // Calculate average radius for this bucket to set stroke width
+        var totalRadius = 0.0;
+        for (final (_, radius) in offsets) {
+          totalRadius += radius;
+        }
+        final avgRadius = totalRadius / offsets.length;
+
+        // Build Float32List of x,y pairs for drawRawPoints
+        final points = Float32List(offsets.length * 2);
+        for (var i = 0; i < offsets.length; i++) {
+          points[i * 2] = offsets[i].$1.dx;
+          points[i * 2 + 1] = offsets[i].$1.dy;
+        }
+
+        bucketPaint
+          ..color = bucketColor
+          ..strokeWidth = avgRadius * 2;
+        canvas.drawRawPoints(ui.PointMode.points, points, bucketPaint);
+      }
     }
 
     // INDIVIDUAL RENDER: Bright stars with full PSF (few of these, worth the cost)
@@ -1607,6 +2659,56 @@ class SkyCanvasPainter extends CustomPainter {
           textPainter.paint(canvas, labelPos);
         }
       }
+    }
+  }
+
+  /// Ultra-minimal star rendering: all stars as raw points in a single draw call.
+  /// No circles, no PSF, no glow. Designed for Raspberry Pi at 30fps.
+  void _drawStarsMinimal(Canvas canvas, Size size, Offset center, double scale) {
+    final maxStars = qualityConfig.maxStarsToRender;
+    final magLimit = qualityConfig.starMagnitudeLimit;
+
+    // Collect all visible star positions into a single Float32List
+    final points = <double>[];
+    var starsProcessed = 0;
+
+    for (final star in stars) {
+      if (starsProcessed >= maxStars) break;
+      if ((star.magnitude ?? 99) > magLimit) continue;
+
+      final offset = _celestialToScreen(star.coordinates, center, scale);
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      points.add(offset.dx);
+      points.add(offset.dy);
+      starsProcessed++;
+    }
+
+    if (points.isEmpty) return;
+
+    // Single draw call for ALL stars as points
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawRawPoints(
+        ui.PointMode.points, Float32List.fromList(points), paint);
+
+    // Draw labels for only the very brightest stars (mag < 1.0) even in minimal mode
+    for (final star in stars) {
+      final mag = star.magnitude ?? 99.0;
+      if (mag >= 1.0 || star.name.isEmpty) continue;
+
+      final offset = _celestialToScreen(star.coordinates, center, scale);
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      final textStyle = TextStyle(
+        color: Colors.white.withValues(alpha: 0.5),
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+      );
+      final textPainter = _TextCache.get(star.name, textStyle);
+      textPainter.paint(canvas, offset + Offset(4, -textPainter.height / 2));
     }
   }
 
@@ -1655,7 +2757,8 @@ class SkyCanvasPainter extends CustomPainter {
 
       // Draw diffraction spikes for very bright stars
       if (magnitude < 1.0 && psfQuality >= 1.0) {
-        _drawDiffractionSpikes(canvas, Offset.zero, radius, color, brightness);
+        _drawDiffractionSpikes(canvas, Offset.zero, radius, color, brightness,
+            magnitude: magnitude);
         // Add faint 45-degree secondary spikes for mag < 0
         if (magnitude < 0) {
           _drawSecondarySpikes(
@@ -1664,6 +2767,7 @@ class SkyCanvasPainter extends CustomPainter {
             radius * 0.6,
             color,
             brightness * 0.4,
+            magnitude: magnitude,
           );
         }
       }
@@ -1709,76 +2813,91 @@ class SkyCanvasPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Draw secondary 45-degree diffraction spikes for very bright stars
+  /// Draw secondary 45-degree diffraction spikes for very bright stars.
+  /// Uses cached gradient shaders to avoid per-frame shader creation.
   void _drawSecondarySpikes(Canvas canvas, Offset center, double starRadius,
-      Color color, double brightness) {
+      Color color, double brightness, {double magnitude = -1.0}) {
     final spikeLength = starRadius * 5;
+    final paint = Paint()
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
 
-    // Draw 4 spikes at 45-degree angles
+    // Draw 4 spikes at 45-degree angles with cached shaders
     for (final angle in [45.0, 135.0, 225.0, 315.0]) {
       final rad = angle * _deg2rad;
       final endX = center.dx + math.cos(rad) * spikeLength;
       final endY = center.dy + math.sin(rad) * spikeLength;
 
-      final paint = Paint()
-        ..shader = ui.Gradient.linear(
-          center,
-          Offset(endX, endY),
-          [
-            color.withValues(alpha: brightness * 0.4),
-            color.withValues(alpha: 0.0),
-          ],
-        )
-        ..strokeWidth = 0.5
-        ..style = PaintingStyle.stroke;
-
-      canvas.drawLine(center, Offset(endX, endY), paint);
-    }
-  }
-
-  /// Draw 4-pointed diffraction spikes for very bright stars
-  void _drawDiffractionSpikes(Canvas canvas, Offset center, double starRadius,
-      Color color, double brightness) {
-    final spikeLength =
-        starRadius * 5; // Reduced from 8 for more delicate appearance
-    final paint = Paint()
-      ..shader = ui.Gradient.linear(
-        center,
-        center + Offset(spikeLength, 0),
-        [
-          color.withValues(alpha: brightness * 0.6),
-          color.withValues(alpha: 0.0),
-        ],
-      )
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    // Draw 4 spikes (horizontal and vertical)
-    for (final angle in [0.0, 90.0, 180.0, 270.0]) {
-      final rad = angle * _deg2rad;
-      final endX = center.dx + math.cos(rad) * spikeLength;
-      final endY = center.dy + math.sin(rad) * spikeLength;
-
-      // Update shader for this direction
-      paint.shader = ui.Gradient.linear(
-        center,
-        Offset(endX, endY),
-        [
-          color.withValues(alpha: brightness * 0.4),
-          color.withValues(alpha: 0.0),
-        ],
+      paint.shader = _starPsfShaderCache.getSpikeShader(
+        center: center,
+        end: Offset(endX, endY),
+        color: color,
+        brightness: brightness * 0.4,
+        magnitude: magnitude,
+        angle: angle,
       );
 
       canvas.drawLine(center, Offset(endX, endY), paint);
     }
   }
 
+  /// Draw 4-pointed diffraction spikes for very bright stars.
+  /// Uses cached gradient shaders keyed by magnitude bucket + direction
+  /// to avoid recreating 4-8 shaders per bright star per frame.
+  void _drawDiffractionSpikes(Canvas canvas, Offset center, double starRadius,
+      Color color, double brightness, {double magnitude = 0.0}) {
+    final spikeLength = starRadius * 5;
+    final paint = Paint()
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    // Draw 4 spikes (horizontal and vertical) with cached shaders
+    for (final angle in [0.0, 90.0, 180.0, 270.0]) {
+      final rad = angle * _deg2rad;
+      final endX = center.dx + math.cos(rad) * spikeLength;
+      final endY = center.dy + math.sin(rad) * spikeLength;
+
+      paint.shader = _starPsfShaderCache.getSpikeShader(
+        center: center,
+        end: Offset(endX, endY),
+        color: color,
+        brightness: brightness * 0.4,
+        magnitude: magnitude,
+        angle: angle,
+      );
+
+      canvas.drawLine(center, Offset(endX, endY), paint);
+    }
+  }
+
+  /// Calculate surface brightness for a DSO.
+  /// SB = mag + 2.5 * log10(area_arcsec2)
+  double? _surfaceBrightness(DeepSkyObject dso) {
+    final mag = dso.magnitude;
+    final majorAxis = dso.sizeArcMin;
+    if (mag == null || majorAxis == null || majorAxis <= 0) return null;
+    final minorAxis = dso.minorAxisArcMin ?? majorAxis;
+    final areaArcmin2 = math.pi * (majorAxis / 2) * (minorAxis / 2);
+    final areaArcsec2 = areaArcmin2 * 3600;
+    if (areaArcsec2 <= 0) return null;
+    return mag + 2.5 * (math.log(areaArcsec2) / math.ln10);
+  }
+
+  /// Map surface brightness to opacity multiplier.
+  double _surfaceBrightnessOpacity(double? sb) {
+    if (sb == null) return 0.7;
+    if (sb <= 22.0) return 1.0;
+    if (sb >= 26.5) return 0.15;
+    return 1.0 - (sb - 22.0) / (26.5 - 22.0) * 0.85;
+  }
+
   void _drawDSOs(Canvas canvas, Size size, Offset center, double scale) {
-    // Respect quality config limits
+    // Respect quality config limits. DSO list is pre-filtered by the dynamic
+    // magnitude provider (fovFilteredDsosProvider), so we use the quality
+    // config's limit as a safeguard rather than the static SkyRenderConfig default.
     var dsosDrawn = 0;
     final maxDsos = qualityConfig.maxDsosToRender;
-    final magLimit =
-        math.min(config.dsoMagnitudeLimit, qualityConfig.dsoMagnitudeLimit);
+    final magLimit = qualityConfig.dsoMagnitudeLimit;
 
     // Calculate pop-in animation values
     // Phase goes from 0 to 1; use easeOutCubic for smooth deceleration
@@ -1790,73 +2909,67 @@ class SkyCanvasPainter extends CustomPainter {
     // Alpha from 0 to 1
     final popinAlpha = easedPhase;
 
+    // Reusable paint for all DSO shapes (avoids per-DSO allocation)
+    final shapePaint = Paint();
+
+    // Unified rendering: every DSO gets a visible type-specific shape.
+    // No "simplified" batched-points path — all DSOs are drawn as recognizable
+    // shapes (ellipses, rounded rects, circles) with a single draw call each.
+    // This is fast (one drawOval/drawCircle/drawRRect per DSO) AND visible.
     for (final dso in dsos) {
       if (dsosDrawn >= maxDsos) break;
-      if ((dso.magnitude ?? 99) > magLimit) continue;
+      final dsoMag = dso.magnitude ?? 99.0;
+      if (dsoMag > magLimit) continue;
 
       final offset = _celestialToScreen(dso.coordinates, center, scale);
       if (offset == null || !_isInView(offset, size)) continue;
 
       final dsoSize = (dso.sizeArcMin ?? 5) / 60 * scale;
-      final displaySize = dsoSize.clamp(4.0, 30.0);
+      // Minimum 6px radius so every DSO is visible. Brighter = bigger.
+      // Magnitude scaling: mag 0 -> 20px, mag 6 -> 14px, mag 10 -> 10px, mag 14 -> 6px
+      final magSizeBonus = ((14.0 - dsoMag) / 14.0 * 14.0).clamp(0.0, 14.0);
+      final displaySize = dsoSize.clamp(6.0 + magSizeBonus, 40.0);
 
-      // Apply pop-in animation if active
-      if (dsoPopinAnimationPhase != null && dsoPopinAnimationPhase! < 1.0) {
+      // Surface brightness opacity scaling
+      final sb = _surfaceBrightness(dso);
+      final sbOpacity = _surfaceBrightnessOpacity(sb);
+
+      // Effective alpha (include pop-in if animating)
+      final effectiveAlpha = (dsoPopinAnimationPhase != null && dsoPopinAnimationPhase! < 1.0)
+          ? popinAlpha * sbOpacity
+          : sbOpacity;
+
+      // Apply pop-in scale animation if active
+      final animating = dsoPopinAnimationPhase != null && dsoPopinAnimationPhase! < 1.0;
+      if (animating) {
         canvas.save();
-        // Scale from center of the DSO
         canvas.translate(offset.dx, offset.dy);
         canvas.scale(popinScale);
         canvas.translate(-offset.dx, -offset.dy);
+      }
 
-        // Draw DSO symbol with pop-in alpha
-        _drawDSOSymbolWithAlpha(
-            canvas, offset, displaySize, dso.type, popinAlpha);
+      // Draw the DSO shape — simple filled shapes, no gradients, no blur.
+      // One draw call per DSO. Color by type.
+      _drawDsoSimpleShape(canvas, offset, displaySize, dso, effectiveAlpha, shapePaint);
 
-        // Draw DSO label with pop-in alpha and collision avoidance
-        if (config.showDSOLabels) {
-          final dsoMag = dso.magnitude ?? 10.0;
+      // Draw label. For bright DSOs (mag < 10), ALWAYS show the label so users
+      // can find imaging targets. For fainter DSOs, show labels when zoomed in
+      // enough that the object is > 10px on screen.
+      if (config.showDSOLabels) {
+        final showLabel = dsoMag < 10.0 || displaySize > 10.0;
+        if (showLabel) {
+          final labelText = _dsoLabelText(dso);
           final fontSize = _getLabelFontSize(dsoMag, 'dso');
           final fontWeight = _getLabelFontWeight(dsoMag);
-          final baseAlpha = 0.7 * popinAlpha;
+          final labelAlpha = dsoMag < 10.0
+              ? 0.85 * effectiveAlpha  // Bright DSOs get prominent labels
+              : 0.6 * effectiveAlpha;  // Fainter DSOs get subtler labels
           final textStyle = TextStyle(
-            color: _dsoTypeColor(dso.type).withValues(alpha: baseAlpha),
+            color: _dsoTypeColor(dso.type).withValues(alpha: labelAlpha),
             fontSize: fontSize,
             fontWeight: fontWeight,
           );
-          // Use cached TextPainter
-          final textPainter = _TextCache.get(dso.name, textStyle);
-
-          // Find non-overlapping placement
-          final preferredPos =
-              offset + Offset(displaySize / 2 + 3, -textPainter.height / 2);
-          final labelPos = _labelManager.findPlacement(
-            preferredPos,
-            Size(textPainter.width, textPainter.height),
-            size,
-          );
-          if (labelPos != null) {
-            textPainter.paint(canvas, labelPos);
-          }
-        }
-
-        canvas.restore();
-      } else {
-        // Normal rendering without animation
-        // Draw DSO symbol based on type
-        _drawDSOSymbol(canvas, offset, displaySize, dso.type);
-
-        // Draw DSO label with collision avoidance
-        if (config.showDSOLabels) {
-          final dsoMag = dso.magnitude ?? 10.0;
-          final fontSize = _getLabelFontSize(dsoMag, 'dso');
-          final fontWeight = _getLabelFontWeight(dsoMag);
-          final textStyle = TextStyle(
-            color: _dsoTypeColor(dso.type).withValues(alpha: 0.7),
-            fontSize: fontSize,
-            fontWeight: fontWeight,
-          );
-          // Use cached TextPainter
-          final textPainter = _TextCache.get(dso.name, textStyle);
+          final textPainter = _TextCache.get(labelText, textStyle);
 
           // Find non-overlapping placement
           final preferredPos =
@@ -1872,7 +2985,328 @@ class SkyCanvasPainter extends CustomPainter {
         }
       }
 
+      if (animating) {
+        canvas.restore();
+      }
+
+      // Draw observed marker if this DSO has been logged
+      if (observedObjectIds.isNotEmpty && _isDsoObserved(dso)) {
+        _drawObservedMarker(canvas, offset, displaySize);
+      }
+
+      // Draw listed marker if this DSO is in an observing list
+      if (listedObjectIds.isNotEmpty && _isDsoListed(dso)) {
+        _drawListedMarker(canvas, offset, displaySize);
+      }
+
       dsosDrawn++;
+    }
+  }
+
+  /// Build label text for a DSO. Uses common name for bright objects,
+  /// otherwise catalog designation.
+  /// Examples: "M31 - Andromeda Galaxy", "NGC 7000 - North America Nebula", "IC 1396"
+  String _dsoLabelText(DeepSkyObject dso) {
+    // Primary designation: prefer Messier, then NGC/IC, then raw name
+    String designation;
+    final messier = dso.messierNumber;
+    if (messier != null) {
+      designation = messier;
+    } else {
+      final ngcIc = dso.ngcIcDesignation;
+      designation = ngcIc ?? dso.name;
+    }
+
+    // Append common name if available and different from designation
+    if (dso.commonNames != null && dso.commonNames!.isNotEmpty) {
+      final firstName = dso.commonNames!.split(',').first.trim();
+      if (firstName.isNotEmpty && firstName != designation) {
+        return '$designation - $firstName';
+      }
+    }
+
+    return designation;
+  }
+
+  /// Draw a simple, efficient shape for a DSO based on its type.
+  /// No gradients, no blur, no canvas.save/restore for rotation.
+  /// Just solid-color filled shapes — one or two draw calls per DSO.
+  void _drawDsoSimpleShape(Canvas canvas, Offset center, double displaySize,
+      DeepSkyObject dso, double alpha, Paint paint) {
+    final typeColor = _dsoTypeColor(dso.type);
+    final radius = displaySize / 2;
+
+    switch (dso.type) {
+      // --- Galaxies: filled ellipse using axis ratio and position angle ---
+      case DsoType.galaxy:
+      case DsoType.galaxyPair:
+      case DsoType.galaxyTriplet:
+      case DsoType.galaxyGroup:
+        final axisRatio = (dso.sizeArcMin != null &&
+                dso.minorAxisArcMin != null &&
+                dso.sizeArcMin! > 0)
+            ? (dso.minorAxisArcMin! / dso.sizeArcMin!).clamp(0.2, 1.0)
+            : 0.5; // Default to slightly elongated for galaxies
+        final paRad = (dso.positionAngle ?? 0) * _deg2rad;
+
+        // Filled ellipse body (50% alpha)
+        paint
+          ..color = typeColor.withValues(alpha: 0.5 * alpha)
+          ..style = PaintingStyle.fill;
+
+        if (paRad.abs() > 0.05) {
+          // Rotated ellipse: use save/restore only when position angle is nonzero
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.rotate(-paRad);
+          canvas.drawOval(
+            Rect.fromCenter(
+                center: Offset.zero,
+                width: displaySize,
+                height: displaySize * axisRatio),
+            paint,
+          );
+          // Bright core dot
+          paint.color = Colors.white.withValues(alpha: 0.7 * alpha);
+          canvas.drawCircle(Offset.zero, radius * 0.2, paint);
+          canvas.restore();
+        } else {
+          // Axis-aligned ellipse: no save/restore needed
+          canvas.drawOval(
+            Rect.fromCenter(
+                center: center,
+                width: displaySize,
+                height: displaySize * axisRatio),
+            paint,
+          );
+          // Bright core dot
+          paint.color = Colors.white.withValues(alpha: 0.7 * alpha);
+          canvas.drawCircle(center, radius * 0.2, paint);
+        }
+        break;
+
+      // --- Nebulae: filled rounded rectangle, colored reddish-pink ---
+      case DsoType.nebula:
+      case DsoType.emissionNebula:
+      case DsoType.reflectionNebula:
+      case DsoType.hiiRegion:
+      case DsoType.clusterWithNebulosity:
+      case DsoType.darkNebula:
+        Color nebulaColor;
+        if (dso.type == DsoType.emissionNebula || dso.type == DsoType.hiiRegion) {
+          nebulaColor = const Color(0xFFFF1744); // Pink/red for emission
+        } else if (dso.type == DsoType.reflectionNebula) {
+          nebulaColor = const Color(0xFF448AFF); // Blue for reflection
+        } else if (dso.type == DsoType.darkNebula) {
+          nebulaColor = const Color(0xFF78909C); // Blue-grey for dark nebulae
+        } else {
+          nebulaColor = typeColor; // Default nebula pink
+        }
+
+        // Filled rounded rect
+        paint
+          ..color = nebulaColor.withValues(alpha: 0.5 * alpha)
+          ..style = PaintingStyle.fill;
+        final rrect = RRect.fromRectAndRadius(
+          Rect.fromCenter(center: center, width: displaySize * 1.2, height: displaySize),
+          Radius.circular(radius * 0.3),
+        );
+        canvas.drawRRect(rrect, paint);
+        break;
+
+      // --- Planetary nebulae: double circle (ring + central dot), cyan/teal ---
+      case DsoType.planetaryNebula:
+        // Outer ring
+        paint
+          ..color = const Color(0xFF26A69A).withValues(alpha: 0.6 * alpha) // Teal
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.5, radius * 0.15);
+        canvas.drawCircle(center, radius * 0.8, paint);
+
+        // Inner ring (fainter)
+        paint
+          ..color = const Color(0xFF26A69A).withValues(alpha: 0.3 * alpha)
+          ..strokeWidth = math.max(1.0, radius * 0.1);
+        canvas.drawCircle(center, radius * 0.5, paint);
+
+        // Central star dot
+        paint
+          ..color = Colors.white.withValues(alpha: 0.8 * alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, math.max(1.5, radius * 0.12), paint);
+        break;
+
+      // --- Open clusters: circle with a few scattered dots inside, yellow ---
+      case DsoType.openCluster:
+      case DsoType.asterism:
+      case DsoType.starCloud:
+        // Boundary circle (dashed look via thin stroke)
+        paint
+          ..color = typeColor.withValues(alpha: 0.3 * alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0;
+        canvas.drawCircle(center, radius, paint);
+
+        // Scatter a few star-like dots inside
+        paint.style = PaintingStyle.fill;
+        final rng = math.Random(center.dx.toInt() ^ center.dy.toInt());
+        final dotCount = math.min(7, math.max(3, (radius / 2).round()));
+        for (var i = 0; i < dotCount; i++) {
+          final angle = rng.nextDouble() * 2 * math.pi;
+          final dist = rng.nextDouble() * radius * 0.7;
+          final dotCenter = Offset(
+            center.dx + math.cos(angle) * dist,
+            center.dy + math.sin(angle) * dist,
+          );
+          paint.color = Colors.white.withValues(
+              alpha: (0.5 + rng.nextDouble() * 0.4) * alpha);
+          canvas.drawCircle(dotCenter, math.max(1.0, radius * 0.08), paint);
+        }
+        break;
+
+      // --- Globular clusters: filled circle with bright center, orange ---
+      case DsoType.globularCluster:
+        // Outer halo
+        paint
+          ..color = typeColor.withValues(alpha: 0.25 * alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, radius, paint);
+
+        // Dense core
+        paint.color = typeColor.withValues(alpha: 0.5 * alpha);
+        canvas.drawCircle(center, radius * 0.5, paint);
+
+        // Bright center
+        paint.color = Colors.white.withValues(alpha: 0.7 * alpha);
+        canvas.drawCircle(center, radius * 0.15, paint);
+
+        // Cross-hair to distinguish from open cluster
+        paint
+          ..color = typeColor.withValues(alpha: 0.4 * alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0;
+        canvas.drawLine(
+          Offset(center.dx - radius, center.dy),
+          Offset(center.dx + radius, center.dy),
+          paint,
+        );
+        canvas.drawLine(
+          Offset(center.dx, center.dy - radius),
+          Offset(center.dx, center.dy + radius),
+          paint,
+        );
+        break;
+
+      // --- Supernova remnants: small starburst, red ---
+      case DsoType.supernova:
+      case DsoType.nova:
+        // Bright core
+        paint
+          ..color = Colors.white.withValues(alpha: 0.9 * alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, radius * 0.25, paint);
+
+        // 4 spikes
+        paint
+          ..color = typeColor.withValues(alpha: 0.7 * alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5;
+        for (var angle = 0.0; angle < math.pi * 2; angle += math.pi / 2) {
+          final dx = math.cos(angle) * radius * 0.8;
+          final dy = math.sin(angle) * radius * 0.8;
+          canvas.drawLine(center, Offset(center.dx + dx, center.dy + dy), paint);
+        }
+        break;
+
+      // --- Fallback: simple filled circle ---
+      default:
+        paint
+          ..color = typeColor.withValues(alpha: 0.5 * alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, radius, paint);
+        break;
+    }
+  }
+
+  /// Check if a DSO matches any listed catalog ID or object name.
+  bool _isDsoListed(DeepSkyObject dso) {
+    if (listedObjectIds.contains(dso.id)) return true;
+    if (listedObjectIds.contains(dso.name)) return true;
+    if (dso.isMessier) {
+      final messier = dso.messierNumber;
+      if (messier != null && listedObjectIds.contains(messier)) return true;
+    }
+    final ngcIc = dso.ngcIcDesignation;
+    if (ngcIc != null && listedObjectIds.contains(ngcIc)) return true;
+    return false;
+  }
+
+  /// Draw a small amber bookmark marker at the top-right of a DSO.
+  void _drawListedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
+    final markerSize = math.max(4.0, dsoSize * 0.3);
+    final markerPos = dsoCenter + Offset(dsoSize / 2 + markerSize * 0.5, -dsoSize / 2 - markerSize * 0.5);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFFFFA726).withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    // Draw a small bookmark shape
+    final bookmarkPath = Path()
+      ..moveTo(markerPos.dx - markerSize * 0.4, markerPos.dy - markerSize * 0.5)
+      ..lineTo(markerPos.dx + markerSize * 0.4, markerPos.dy - markerSize * 0.5)
+      ..lineTo(markerPos.dx + markerSize * 0.4, markerPos.dy + markerSize * 0.4)
+      ..lineTo(markerPos.dx, markerPos.dy + markerSize * 0.15)
+      ..lineTo(markerPos.dx - markerSize * 0.4, markerPos.dy + markerSize * 0.4)
+      ..close();
+
+    canvas.drawPath(bookmarkPath, fillPaint);
+    canvas.drawPath(bookmarkPath, borderPaint);
+  }
+
+  /// Check if a DSO matches any observed catalog ID or object name.
+  bool _isDsoObserved(DeepSkyObject dso) {
+    if (observedObjectIds.contains(dso.id)) return true;
+    if (observedObjectIds.contains(dso.name)) return true;
+    if (dso.isMessier) {
+      final messier = dso.messierNumber;
+      if (messier != null && observedObjectIds.contains(messier)) return true;
+    }
+    final ngcIc = dso.ngcIcDesignation;
+    if (ngcIc != null && observedObjectIds.contains(ngcIc)) return true;
+    return false;
+  }
+
+  /// Draw a small green "observed" indicator at the bottom-right of a DSO.
+  void _drawObservedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
+    final markerRadius = math.max(3.0, dsoSize * 0.25);
+    final markerPos = dsoCenter + Offset(dsoSize / 2 + markerRadius, dsoSize / 2);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFF4CAF50).withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    canvas.drawCircle(markerPos, markerRadius, fillPaint);
+    canvas.drawCircle(markerPos, markerRadius, borderPaint);
+
+    if (markerRadius >= 3.5) {
+      final checkPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round;
+      final checkPath = Path()
+        ..moveTo(markerPos.dx - markerRadius * 0.35, markerPos.dy)
+        ..lineTo(markerPos.dx - markerRadius * 0.05, markerPos.dy + markerRadius * 0.3)
+        ..lineTo(markerPos.dx + markerRadius * 0.35, markerPos.dy - markerRadius * 0.3);
+      canvas.drawPath(checkPath, checkPaint);
     }
   }
 
@@ -1946,7 +3380,8 @@ class SkyCanvasPainter extends CustomPainter {
 
   /// Draw DSO symbol with custom alpha for pop-in animation
   void _drawDSOSymbolWithAlpha(
-      Canvas canvas, Offset center, double size, DsoType type, double alpha) {
+      Canvas canvas, Offset center, double size, DsoType type, double alpha,
+      {DeepSkyObject? dso}) {
     final baseColor = _dsoTypeColor(type);
     final adjustedColor = baseColor.withValues(alpha: baseColor.a * alpha);
 
@@ -1954,13 +3389,33 @@ class SkyCanvasPainter extends CustomPainter {
       case DsoType.galaxy:
       case DsoType.galaxyPair:
       case DsoType.galaxyTriplet:
-        _drawGalaxyWithAlpha(canvas, center, size, adjustedColor, alpha);
+        _drawGalaxyWithAlpha(canvas, center, size, adjustedColor, alpha,
+            dso: dso);
         break;
 
       case DsoType.nebula:
       case DsoType.emissionNebula:
       case DsoType.reflectionNebula:
       case DsoType.hiiRegion:
+        // Apply elongation for nebulae with axis ratio < 0.8
+        if (dso != null &&
+            dso.sizeArcMin != null &&
+            dso.minorAxisArcMin != null &&
+            dso.sizeArcMin! > 0) {
+          final nebulaRatio =
+              (dso.minorAxisArcMin! / dso.sizeArcMin!).clamp(0.3, 1.0);
+          if (nebulaRatio < 0.8) {
+            final paRad = (dso.positionAngle ?? 0) * _deg2rad;
+            canvas.save();
+            canvas.translate(center.dx, center.dy);
+            canvas.rotate(-paRad);
+            canvas.scale(1.0, nebulaRatio);
+            _drawNebulaWithAlpha(canvas, Offset.zero,
+                size / math.sqrt(nebulaRatio), adjustedColor, type, alpha);
+            canvas.restore();
+            break;
+          }
+        }
         _drawNebulaWithAlpha(canvas, center, size, adjustedColor, type, alpha);
         break;
 
@@ -1993,28 +3448,52 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawGalaxyWithAlpha(
-      Canvas canvas, Offset center, double size, Color color, double alpha) {
-    // Outer glow
-    _drawOvalGlow(canvas, center, size * 2.5, size * 1.5, color, 8.0,
+      Canvas canvas, Offset center, double size, Color color, double alpha,
+      {DeepSkyObject? dso}) {
+    // Calculate axis ratio and position angle for elongated rendering
+    final majorAxis = dso?.sizeArcMin;
+    final minorAxis = dso?.minorAxisArcMin;
+    final posAngleDeg = dso?.positionAngle;
+
+    final axisRatio = (majorAxis != null && minorAxis != null && majorAxis > 0)
+        ? (minorAxis / majorAxis).clamp(0.2, 1.0)
+        : 0.6;
+
+    final paRad = (posAngleDeg ?? 0) * _deg2rad;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-paRad);
+
+    final localCenter = Offset.zero;
+
+    // Outer glow - elongated
+    _drawOvalGlow(canvas, localCenter, size * 2.5, size * 2.5 * axisRatio,
+        color, 8.0,
         opacity: 0.15 * alpha);
 
     // Middle layer
-    _drawOvalGlow(canvas, center, size * 1.8, size * 1.2, color, 4.0,
+    _drawOvalGlow(canvas, localCenter, size * 1.8, size * 1.8 * axisRatio,
+        color, 4.0,
         opacity: 0.4 * alpha);
 
-    // Add spiral arm hints for larger galaxies in quality mode
+    // Spiral arm hints for larger galaxies in quality mode
     if (qualityConfig.enableEnhancedDsoSymbols && size > 10) {
-      _drawSpiralArmsWithAlpha(canvas, center, size, color, alpha);
+      _drawSpiralArmsWithAlpha(canvas, localCenter, size, color, alpha);
     }
 
     // Bright core
-    _drawOvalGlow(canvas, center, size * 0.8, size * 0.5, color, 2.0,
+    final coreRatio = axisRatio < 0.4 ? axisRatio * 1.5 : axisRatio;
+    _drawOvalGlow(canvas, localCenter, size * 0.8, size * 0.8 * coreRatio,
+        color, 2.0,
         opacity: 0.8 * alpha);
 
-    // Central bright spot (always drawn)
+    // Central bright spot
     final centerPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.9 * alpha);
-    canvas.drawCircle(center, size * 0.15, centerPaint);
+    canvas.drawCircle(localCenter, size * 0.15, centerPaint);
+
+    canvas.restore();
   }
 
   void _drawSpiralArmsWithAlpha(
@@ -2061,15 +3540,17 @@ class SkyCanvasPainter extends CustomPainter {
       nebulaColor = Color.fromRGBO(68, 138, 255, alpha); // Blue for reflection
     }
 
+    // Reuse a single Paint for all puffs
+    final paint = Paint();
+
     // Draw multiple overlapping circles for wispy effect
     for (var i = 0; i < 5; i++) {
       final offsetX = (random.nextDouble() - 0.5) * size * 0.5;
       final offsetY = (random.nextDouble() - 0.5) * size * 0.5;
       final circleSize = size * (0.4 + random.nextDouble() * 0.4);
 
-      final paint = Paint()
-        ..color = nebulaColor.withValues(
-            alpha: (0.15 + random.nextDouble() * 0.1) * alpha);
+      paint.color = nebulaColor.withValues(
+          alpha: (0.15 + random.nextDouble() * 0.1) * alpha);
 
       if (qualityConfig.useBlurEffects) {
         paint.maskFilter = _PaintCache.getBlurFilter(circleSize * 0.4);
@@ -2107,6 +3588,9 @@ class SkyCanvasPainter extends CustomPainter {
       Canvas canvas, Offset center, double size, Color color, double alpha) {
     final random = math.Random(center.dx.toInt() + center.dy.toInt());
 
+    // Reuse a single paint for all stars
+    final paint = Paint();
+
     // Draw scattered small stars
     for (var i = 0; i < 8; i++) {
       final angle = random.nextDouble() * 2 * math.pi;
@@ -2118,18 +3602,17 @@ class SkyCanvasPainter extends CustomPainter {
         center.dy + math.sin(angle) * dist,
       );
 
-      final paint = Paint()
-        ..color = Colors.white
-            .withValues(alpha: (0.6 + random.nextDouble() * 0.4) * alpha);
+      paint.color = Colors.white
+          .withValues(alpha: (0.6 + random.nextDouble() * 0.4) * alpha);
       canvas.drawCircle(starCenter, starSize, paint);
     }
 
     // Faint boundary circle
-    final boundaryPaint = Paint()
+    paint
       ..color = color.withValues(alpha: 0.2 * alpha)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    canvas.drawCircle(center, size * 0.5, boundaryPaint);
+    canvas.drawCircle(center, size * 0.5, paint);
   }
 
   void _drawGlobularClusterWithAlpha(
@@ -2194,20 +3677,41 @@ class SkyCanvasPainter extends CustomPainter {
     }
   }
 
-  void _drawDSOSymbol(Canvas canvas, Offset center, double size, DsoType type) {
-    final baseColor = _dsoTypeColor(type);
+  void _drawDSOSymbol(Canvas canvas, Offset center, double size, DsoType type,
+      {double sbOpacity = 1.0, DeepSkyObject? dso}) {
+    final baseColor = _dsoTypeColor(type)
+        .withValues(alpha: _dsoTypeColor(type).a * sbOpacity);
 
     switch (type) {
       case DsoType.galaxy:
       case DsoType.galaxyPair:
       case DsoType.galaxyTriplet:
-        _drawGalaxy(canvas, center, size, baseColor);
+        _drawGalaxy(canvas, center, size, baseColor, dso: dso);
         break;
 
       case DsoType.nebula:
       case DsoType.emissionNebula:
       case DsoType.reflectionNebula:
       case DsoType.hiiRegion:
+        // Apply elongation for nebulae with axis ratio < 0.8
+        if (dso != null &&
+            dso.sizeArcMin != null &&
+            dso.minorAxisArcMin != null &&
+            dso.sizeArcMin! > 0) {
+          final nebulaRatio =
+              (dso.minorAxisArcMin! / dso.sizeArcMin!).clamp(0.3, 1.0);
+          if (nebulaRatio < 0.8) {
+            final paRad = (dso.positionAngle ?? 0) * _deg2rad;
+            canvas.save();
+            canvas.translate(center.dx, center.dy);
+            canvas.rotate(-paRad);
+            canvas.scale(1.0, nebulaRatio);
+            _drawNebula(canvas, Offset.zero,
+                size / math.sqrt(nebulaRatio), baseColor, type);
+            canvas.restore();
+            break;
+          }
+        }
         _drawNebula(canvas, center, size, baseColor, type);
         break;
 
@@ -2237,27 +3741,54 @@ class SkyCanvasPainter extends CustomPainter {
     }
   }
 
-  void _drawGalaxy(Canvas canvas, Offset center, double size, Color color) {
-    // Outer glow
-    _drawOvalGlow(canvas, center, size * 2.5, size * 1.5, color, 8.0,
+  void _drawGalaxy(Canvas canvas, Offset center, double size, Color color,
+      {DeepSkyObject? dso}) {
+    // Calculate axis ratio and position angle for elongated rendering
+    final majorAxis = dso?.sizeArcMin;
+    final minorAxis = dso?.minorAxisArcMin;
+    final posAngleDeg = dso?.positionAngle;
+
+    // Axis ratio: 1.0 = circular, < 1.0 = elongated
+    final axisRatio = (majorAxis != null && minorAxis != null && majorAxis > 0)
+        ? (minorAxis / majorAxis).clamp(0.2, 1.0)
+        : 0.6; // Default elliptical ratio for galaxies
+
+    // Position angle in radians (measured N through E)
+    final paRad = (posAngleDeg ?? 0) * _deg2rad;
+
+    // Apply rotation for position angle
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(-paRad); // Negative because canvas Y is flipped
+
+    final localCenter = Offset.zero;
+
+    // Outer glow - elongated ellipse
+    _drawOvalGlow(canvas, localCenter, size * 2.5, size * 2.5 * axisRatio,
+        color, 8.0,
         opacity: 0.15);
 
     // Middle layer
-    _drawOvalGlow(canvas, center, size * 1.8, size * 1.2, color, 4.0,
+    _drawOvalGlow(canvas, localCenter, size * 1.8, size * 1.8 * axisRatio,
+        color, 4.0,
         opacity: 0.4);
 
-    // Add spiral arm hints for larger galaxies in quality mode
+    // Spiral arm hints for larger galaxies in quality mode
     if (qualityConfig.enableEnhancedDsoSymbols && size > 10) {
-      _drawSpiralArms(canvas, center, size, color);
+      _drawSpiralArms(canvas, localCenter, size, color);
     }
 
-    // Bright core
-    _drawOvalGlow(canvas, center, size * 0.8, size * 0.5, color, 2.0,
+    // Bright core - more elongated core for edge-on galaxies
+    final coreRatio = axisRatio < 0.4 ? axisRatio * 1.5 : axisRatio;
+    _drawOvalGlow(canvas, localCenter, size * 0.8, size * 0.8 * coreRatio,
+        color, 2.0,
         opacity: 0.8);
 
-    // Central bright spot (always drawn)
+    // Central bright spot
     final centerPaint = Paint()..color = Colors.white.withValues(alpha: 0.9);
-    canvas.drawCircle(center, size * 0.15, centerPaint);
+    canvas.drawCircle(localCenter, size * 0.15, centerPaint);
+
+    canvas.restore();
   }
 
   /// Draw subtle spiral arm hints for galaxies
@@ -2313,6 +3844,13 @@ class SkyCanvasPainter extends CustomPainter {
     final enhanced = qualityConfig.enableEnhancedDsoSymbols && size > 6;
     final puffCount = enhanced ? 12 : 8;
 
+    // Reuse a single Paint for all puffs to avoid per-puff allocation
+    final puffPaint = Paint();
+    final useBlur = qualityConfig.useBlurEffects;
+    if (useBlur) {
+      puffPaint.maskFilter = _PaintCache.getBlurFilter(6);
+    }
+
     // Draw multiple cloud puffs
     for (var i = 0; i < puffCount; i++) {
       final angle = (i / puffCount) * 2 * math.pi + random.nextDouble() * 0.5;
@@ -2324,13 +3862,8 @@ class SkyCanvasPainter extends CustomPainter {
       // Varying puff sizes for more organic look
       final puffSize = size * (0.3 + random.nextDouble() * 0.4);
 
-      final puffPaint = Paint()
-        ..color =
-            nebulaColor.withValues(alpha: 0.15 + random.nextDouble() * 0.15);
-
-      if (qualityConfig.useBlurEffects) {
-        puffPaint.maskFilter = _PaintCache.getBlurFilter(6);
-      }
+      puffPaint.color =
+          nebulaColor.withValues(alpha: 0.15 + random.nextDouble() * 0.15);
       canvas.drawCircle(puffCenter, puffSize, puffPaint);
     }
 
@@ -2339,15 +3872,16 @@ class SkyCanvasPainter extends CustomPainter {
       _drawNebulaTendrils(canvas, center, size, nebulaColor, random);
     }
 
-    // Central brighter region
-    final centralPaint = Paint()..color = nebulaColor.withValues(alpha: 0.4);
-    if (qualityConfig.useBlurEffects) {
-      centralPaint.maskFilter = _PaintCache.getBlurFilter(4);
+    // Central brighter region -- reuse puffPaint
+    puffPaint.color = nebulaColor.withValues(alpha: 0.4);
+    if (useBlur) {
+      puffPaint.maskFilter = _PaintCache.getBlurFilter(4);
     }
-    canvas.drawCircle(center, size * 0.5, centralPaint);
+    canvas.drawCircle(center, size * 0.5, puffPaint);
 
     // Bright embedded stars for larger nebulae
     if (enhanced && size > 12) {
+      puffPaint.maskFilter = null; // No blur for point stars
       for (var i = 0; i < 3; i++) {
         final starAngle = random.nextDouble() * 2 * math.pi;
         final starDist = size * 0.3 * random.nextDouble();
@@ -2355,10 +3889,9 @@ class SkyCanvasPainter extends CustomPainter {
           center.dx + math.cos(starAngle) * starDist,
           center.dy + math.sin(starAngle) * starDist,
         );
-        final starPaint = Paint()
-          ..color =
-              Colors.white.withValues(alpha: 0.7 + random.nextDouble() * 0.3);
-        canvas.drawCircle(starPos, 1.0 + random.nextDouble(), starPaint);
+        puffPaint.color =
+            Colors.white.withValues(alpha: 0.7 + random.nextDouble() * 0.3);
+        canvas.drawCircle(starPos, 1.0 + random.nextDouble(), puffPaint);
       }
     }
   }
@@ -2510,6 +4043,12 @@ class SkyCanvasPainter extends CustomPainter {
     final random = math.Random(center.dx.toInt() + center.dy.toInt());
     final starCount = (size / 2).clamp(5, 15).toInt();
 
+    // Reuse paints across all stars to avoid per-star allocation
+    final glowPaint = qualityConfig.useBlurEffects
+        ? _PaintCache.getBlurPaint(2, color, alpha: 0.4)
+        : (Paint()..color = color.withValues(alpha: 0.4));
+    final starPaint = Paint()..color = color.withValues(alpha: 0.9);
+
     for (var i = 0; i < starCount; i++) {
       final angle = random.nextDouble() * 2 * math.pi;
       final distance = random.nextDouble() * size * 0.6;
@@ -2519,18 +4058,7 @@ class SkyCanvasPainter extends CustomPainter {
       );
 
       final starSize = 1.0 + random.nextDouble() * 1.5;
-
-      // Star glow - use cached blur
-      if (qualityConfig.useBlurEffects) {
-        final glowPaint = _PaintCache.getBlurPaint(2, color, alpha: 0.4);
-        canvas.drawCircle(starPos, starSize * 2, glowPaint);
-      } else {
-        final glowPaint = Paint()..color = color.withValues(alpha: 0.4);
-        canvas.drawCircle(starPos, starSize * 2, glowPaint);
-      }
-
-      // Star center
-      final starPaint = Paint()..color = color.withValues(alpha: 0.9);
+      canvas.drawCircle(starPos, starSize * 2, glowPaint);
       canvas.drawCircle(starPos, starSize, starPaint);
     }
   }
@@ -2550,6 +4078,7 @@ class SkyCanvasPainter extends CustomPainter {
     _drawGlow(canvas, center, size * 0.3, color, 2.0, opacity: 0.7);
 
     // Add some individual star sparkles (always drawn)
+    final sparklePaint = Paint()..color = Colors.white.withValues(alpha: 0.8);
     for (var i = 0; i < 6; i++) {
       final angle = (i / 6) * 2 * math.pi;
       final distance = size * (0.2 + random.nextDouble() * 0.3);
@@ -2557,9 +4086,7 @@ class SkyCanvasPainter extends CustomPainter {
         center.dx + math.cos(angle) * distance,
         center.dy + math.sin(angle) * distance,
       );
-
-      final starPaint = Paint()..color = Colors.white.withValues(alpha: 0.8);
-      canvas.drawCircle(starPos, 0.8, starPaint);
+      canvas.drawCircle(starPos, 0.8, sparklePaint);
     }
   }
 
@@ -2873,16 +4400,22 @@ class SkyCanvasPainter extends CustomPainter {
     final offset = _celestialToScreen(coord, center, scale);
     if (offset == null) return;
 
-    const moonRadius = 12.0;
+    // Moon apparent diameter ~31 arcminutes (0.517 degrees)
+    // Scale with zoom so it appears correct relative to the sky
+    final apparentSizeDeg = 31.0 / 60.0;
+    final moonPixelRadius = (apparentSizeDeg / 2) * scale;
+    final moonRadius = moonPixelRadius.clamp(8.0, 80.0);
 
-    // Outer glow - use cached blur
+    // Glow scaled to moon size
+    final glowRadius = moonRadius * 1.6;
     if (qualityConfig.useBlurEffects) {
-      final glowPaint =
-          _PaintCache.getBlurPaint(15, const Color(0xFFB0BEC5), alpha: 0.19);
-      canvas.drawCircle(offset, moonRadius + 8, glowPaint);
+      final glowPaint = _PaintCache.getBlurPaint(
+          moonRadius * 0.8, const Color(0xFFB0BEC5),
+          alpha: 0.19);
+      canvas.drawCircle(offset, glowRadius, glowPaint);
     } else {
       final glowPaint = Paint()..color = const Color(0x30B0BEC5);
-      canvas.drawCircle(offset, moonRadius + 8, glowPaint);
+      canvas.drawCircle(offset, glowRadius, glowPaint);
     }
 
     // Moon base (dark side)
@@ -2891,51 +4424,52 @@ class SkyCanvasPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawCircle(offset, moonRadius, darkPaint);
 
-    // Moon lit portion based on illumination
-    // This is a simplified phase rendering
+    // Phase rendering using terminator arc
+    // illumination: 0 = new moon, 1 = full moon (fraction 0..1)
     final litPaint = Paint()
       ..color = const Color(0xFFECEFF1)
       ..style = PaintingStyle.fill;
 
     if (illumination > 0.01) {
-      // Save canvas state
       canvas.save();
-      canvas.clipRect(Rect.fromCircle(center: offset, radius: moonRadius));
+      // Clip to moon disc using path for proper circular clip
+      final clipPath = Path()
+        ..addOval(Rect.fromCircle(center: offset, radius: moonRadius));
+      canvas.clipPath(clipPath);
 
-      // Draw lit portion - this approximates the moon phase
-      // illumination 0 = new moon, 1 = full moon
-      // For simplicity, we'll use a circular approximation
       if (illumination > 0.98) {
         // Full moon
         canvas.drawCircle(offset, moonRadius, litPaint);
-      } else if (illumination > 0.5) {
-        // Gibbous - draw full circle then dark crescent
+      } else if (illumination >= 0.5) {
+        // Gibbous: draw full lit, then dark terminator ellipse
         canvas.drawCircle(offset, moonRadius, litPaint);
-        final darkCrescentPaint = Paint()
+        final terminatorWidth =
+            moonRadius * 2 * math.cos(math.pi * (2 * illumination - 1));
+        final darkTerminator = Paint()
           ..color = const Color(0xFF37474F)
           ..style = PaintingStyle.fill;
-        final crescentWidth = moonRadius * 2 * (1 - illumination);
         canvas.drawOval(
           Rect.fromCenter(
-            center: offset + Offset(moonRadius - crescentWidth / 2, 0),
-            width: crescentWidth,
+            center: offset + Offset(moonRadius - terminatorWidth.abs() / 2, 0),
+            width: terminatorWidth.abs(),
             height: moonRadius * 2,
           ),
-          darkCrescentPaint,
+          darkTerminator,
         );
       } else {
-        // Crescent
-        final crescentWidth = moonRadius * 2 * illumination;
+        // Crescent: draw lit terminator ellipse
+        final terminatorWidth =
+            moonRadius * 2 * math.cos(math.pi * (1 - 2 * illumination));
         canvas.drawOval(
           Rect.fromCenter(
-            center: offset - Offset(moonRadius - crescentWidth / 2, 0),
-            width: crescentWidth,
+            center:
+                offset - Offset(moonRadius - terminatorWidth.abs() / 2, 0),
+            width: terminatorWidth.abs(),
             height: moonRadius * 2,
           ),
           litPaint,
         );
       }
-
       canvas.restore();
     }
 
@@ -2943,25 +4477,28 @@ class SkyCanvasPainter extends CustomPainter {
     final outlinePaint = Paint()
       ..color = const Color(0x60ECEFF1)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = moonRadius > 20 ? 1.5 : 1.0;
     canvas.drawCircle(offset, moonRadius, outlinePaint);
 
     // Moon label with illumination %
     final illuminationPct = (illumination * 100).round();
-    final textStyle = const TextStyle(
-      color: Color(0xFFB0BEC5),
-      fontSize: 10,
+    final labelStyle = TextStyle(
+      color: const Color(0xFFB0BEC5),
+      fontSize: moonRadius > 20 ? 11 : 10,
       fontWeight: FontWeight.w500,
     );
-    final textPainter = TextPainter(
-      text: TextSpan(text: 'MOON $illuminationPct%', style: textStyle),
-      textDirection: ui.TextDirection.ltr,
+    final textPainter =
+        _TextCache.get('MOON $illuminationPct%', labelStyle);
+    final preferredPos =
+        offset + Offset(-textPainter.width / 2, moonRadius + 6);
+    final labelPos = _labelManager.findPlacement(
+      preferredPos,
+      Size(textPainter.width, textPainter.height),
+      size,
     );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      offset + Offset(-textPainter.width / 2, moonRadius + 6),
-    );
+    if (labelPos != null) {
+      textPainter.paint(canvas, labelPos);
+    }
   }
 
   void _drawPlanets(Canvas canvas, Size size, Offset center, double scale) {
@@ -3133,6 +4670,241 @@ class SkyCanvasPainter extends CustomPainter {
     capPath.close();
 
     canvas.drawPath(capPath, capPaint);
+  }
+
+  /// Draw satellites as bright moving dots with labels.
+  void _drawSatellites(Canvas canvas, Size size, Offset center, double scale) {
+    const satelliteColor = Color(0xFFFFD740); // Amber/gold
+    const eclipsedColor = Color(0x80FF6E40); // Dim orange for eclipsed
+
+    for (final sat in satellites) {
+      final coord = CelestialCoordinate(ra: sat.ra, dec: sat.dec);
+      final offset = _celestialToScreen(coord, center, scale);
+      if (offset == null) continue;
+      if (!_isInView(offset, size)) continue;
+
+      final color = sat.isEclipsed ? eclipsedColor : satelliteColor;
+      final isIss = sat.name.contains('ISS') || sat.name.contains('ZARYA');
+      final dotRadius = isIss ? 4.0 : 2.5;
+
+      // Glow for illuminated satellites
+      if (!sat.isEclipsed) {
+        if (qualityConfig.useBlurEffects) {
+          final glowPaint = _PaintCache.getBlurPaint(4, color, alpha: 0.4);
+          canvas.drawCircle(offset, dotRadius + 3, glowPaint);
+        } else {
+          final glowPaint = Paint()..color = color.withValues(alpha: 0.3);
+          canvas.drawCircle(offset, dotRadius + 3, glowPaint);
+        }
+      }
+
+      // Main dot
+      final dotPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(offset, dotRadius, dotPaint);
+
+      // Cross-hair for ISS
+      if (isIss && !sat.isEclipsed) {
+        final crossPaint = Paint()
+          ..color = color.withValues(alpha: 0.6)
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke;
+        const crossSize = 8.0;
+        canvas.drawLine(
+          Offset(offset.dx - crossSize, offset.dy),
+          Offset(offset.dx + crossSize, offset.dy),
+          crossPaint,
+        );
+        canvas.drawLine(
+          Offset(offset.dx, offset.dy - crossSize),
+          Offset(offset.dx, offset.dy + crossSize),
+          crossPaint,
+        );
+      }
+
+      // Label for ISS and bright satellites above horizon
+      if ((isIss || sat.elevation > 20) && !sat.isEclipsed) {
+        final labelText = isIss ? 'ISS' : sat.name;
+        final truncatedLabel = labelText.length > 16
+            ? '${labelText.substring(0, 14)}..'
+            : labelText;
+        final textStyle = TextStyle(
+          color: color.withValues(alpha: 0.9),
+          fontSize: isIss ? 11.0 : 9.0,
+          fontWeight: isIss ? FontWeight.w600 : FontWeight.w400,
+        );
+        final textPainter = TextPainter(
+          text: TextSpan(text: truncatedLabel, style: textStyle),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+
+        final preferredPos = offset + Offset(-textPainter.width / 2, dotRadius + 4);
+        final labelPos = _labelManager.findPlacement(
+          preferredPos,
+          Size(textPainter.width, textPainter.height),
+          size,
+        );
+        if (labelPos != null) {
+          textPainter.paint(canvas, labelPos);
+        }
+      }
+    }
+  }
+
+  /// Draw variable stars with distinctive double-ring markers.
+  void _drawVariableStars(Canvas canvas, Size size, Offset center, double scale) {
+    const varColor = Color(0xFF40C4FF); // Light blue for variable markers
+
+    for (final vs in variableStars) {
+      final coord = vs.coordinates;
+      final offset = _celestialToScreen(coord, center, scale);
+      if (offset == null) continue;
+      if (!_isInView(offset, size)) continue;
+
+      final estMag = vs.estimateMagnitude(observationTime);
+      final magRange = vs.magMin - vs.magMax;
+      final brightnessFraction = magRange > 0
+          ? ((vs.magMin - estMag) / magRange).clamp(0.0, 1.0)
+          : 0.5;
+
+      // Outer ring (fixed size, bigger for brighter stars)
+      final outerRadius = 5.0 + (8.0 - vs.magMax).clamp(0.0, 4.0);
+      final outerPaint = Paint()
+        ..color = varColor.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      canvas.drawCircle(offset, outerRadius, outerPaint);
+
+      // Inner circle pulses based on current brightness
+      final innerRadius = outerRadius * (0.3 + 0.5 * brightnessFraction);
+      final innerPaint = Paint()
+        ..color = varColor.withValues(alpha: 0.3 + 0.5 * brightnessFraction)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(offset, innerRadius, innerPaint);
+
+      // Second outer ring
+      final outerRing2Paint = Paint()
+        ..color = varColor.withValues(alpha: 0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8;
+      canvas.drawCircle(offset, outerRadius + 2.5, outerRing2Paint);
+
+      // Label for bright variables (magMax < 5)
+      if (vs.magMax < 5.0) {
+        final labelText = vs.name.length > 14
+            ? '${vs.name.substring(0, 12)}..'
+            : vs.name;
+        final textStyle = TextStyle(
+          color: varColor.withValues(alpha: 0.85),
+          fontSize: 9.0,
+          fontWeight: FontWeight.w400,
+        );
+        final tp = TextPainter(
+          text: TextSpan(text: labelText, style: textStyle),
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout();
+        final preferredPos = offset + Offset(-tp.width / 2, outerRadius + 5);
+        final labelPos = _labelManager.findPlacement(
+          preferredPos, Size(tp.width, tp.height), size);
+        if (labelPos != null) {
+          tp.paint(canvas, labelPos);
+        }
+      }
+    }
+  }
+
+  /// Draw minor planets (asteroids as diamonds, comets with fuzzy tail).
+  void _drawMinorPlanets(Canvas canvas, Size size, Offset center, double scale) {
+    const asteroidColor = Color(0xFFBCAAA4);
+    const cometColor = Color(0xFF81D4FA);
+
+    for (final body in minorPlanets) {
+      if (body.visualMag > 14.0) continue;
+
+      final coord = body.coordinates;
+      final offset = _celestialToScreen(coord, center, scale);
+      if (offset == null) continue;
+      if (!_isInView(offset, size)) continue;
+
+      final isBright = body.visualMag < 10.0;
+
+      if (body.isComet) {
+        // --- Comet: fuzzy coma + tail ---
+        final comaRadius = isBright ? 5.0 : 3.0;
+        if (qualityConfig.useBlurEffects) {
+          final comaPaint = _PaintCache.getBlurPaint(3, cometColor, alpha: 0.3);
+          canvas.drawCircle(offset, comaRadius + 2, comaPaint);
+        } else {
+          canvas.drawCircle(offset, comaRadius + 2,
+              Paint()..color = cometColor.withValues(alpha: 0.2));
+        }
+        canvas.drawCircle(offset, comaRadius * 0.6,
+            Paint()..color = cometColor.withValues(alpha: isBright ? 0.8 : 0.5));
+
+        // Tail (anti-sunward, simplified as upper-right)
+        final tailLen = isBright ? 18.0 : 10.0;
+        final tailEnd = Offset(offset.dx + tailLen * 0.7, offset.dy - tailLen * 0.7);
+        canvas.drawLine(offset, tailEnd, Paint()
+          ..shader = ui.Gradient.linear(offset, tailEnd,
+              [cometColor.withValues(alpha: 0.4), cometColor.withValues(alpha: 0.0)])
+          ..strokeWidth = isBright ? 3.0 : 2.0
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round);
+        // Dust tail
+        final dustEnd = Offset(offset.dx + tailLen * 0.5, offset.dy - tailLen * 0.9);
+        canvas.drawLine(offset, dustEnd, Paint()
+          ..shader = ui.Gradient.linear(offset, dustEnd,
+              [cometColor.withValues(alpha: 0.2), cometColor.withValues(alpha: 0.0)])
+          ..strokeWidth = isBright ? 5.0 : 3.0
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round);
+
+        if (body.visualMag < 10.0) {
+          _drawMinorPlanetLabel(canvas, offset, body.name, comaRadius + 5, size, cometColor);
+        }
+      } else {
+        // --- Asteroid: diamond shape ---
+        final ds = isBright ? 4.0 : 2.5;
+        final path = Path()
+          ..moveTo(offset.dx, offset.dy - ds)
+          ..lineTo(offset.dx + ds, offset.dy)
+          ..lineTo(offset.dx, offset.dy + ds)
+          ..lineTo(offset.dx - ds, offset.dy)
+          ..close();
+        canvas.drawPath(path, Paint()
+          ..color = asteroidColor.withValues(alpha: isBright ? 0.9 : 0.6));
+        canvas.drawPath(path, Paint()
+          ..color = asteroidColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8);
+
+        if (body.visualMag < 9.0) {
+          _drawMinorPlanetLabel(canvas, offset, body.name, ds + 4, size, asteroidColor);
+        }
+      }
+    }
+  }
+
+  void _drawMinorPlanetLabel(Canvas canvas, Offset offset, String name,
+      double yOffset, Size size, Color color) {
+    final labelText = name.length > 14 ? '${name.substring(0, 12)}..' : name;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: labelText,
+        style: TextStyle(color: color.withValues(alpha: 0.85), fontSize: 9.0),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    final preferredPos = offset + Offset(-tp.width / 2, yOffset);
+    final labelPos = _labelManager.findPlacement(
+        preferredPos, Size(tp.width, tp.height), size);
+    if (labelPos != null) {
+      tp.paint(canvas, labelPos);
+    }
   }
 
   Offset? _celestialToScreen(
@@ -3310,24 +5082,26 @@ class SkyCanvasPainter extends CustomPainter {
   }) {
     if (!qualityConfig.useGlowEffects) return;
 
-    final gradient = RadialGradient(
-      colors: [
+    // Use _ShaderCache to avoid creating a new RadialGradient.createShader()
+    // every call. Previously this created ~600+ uncached shaders per frame
+    // for galaxy rendering alone.
+    final shader = _ShaderCache.getRadialShader(
+      center,
+      radius,
+      [
         color.withValues(alpha: innerOpacity),
         color.withValues(alpha: midOpacity),
         color.withValues(alpha: 0.0),
       ],
-      stops: const [0.0, 0.5, 1.0],
+      const [0.0, 0.5, 1.0],
     );
 
-    final paint = Paint()
-      ..shader = gradient.createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
-
-    canvas.drawCircle(center, radius, paint);
+    _glowShaderPaint.shader = shader;
+    canvas.drawCircle(center, radius, _glowShaderPaint);
   }
 
-  /// Draw an oval glow using radial gradient
+  /// Draw an oval glow using radial gradient.
+  /// Uses cached shaders via _ShaderCache to avoid per-frame GPU allocation.
   void _drawGlowOval(
     Canvas canvas,
     Offset center,
@@ -3339,20 +5113,27 @@ class SkyCanvasPainter extends CustomPainter {
   }) {
     if (!qualityConfig.useGlowEffects) return;
 
-    final gradient = RadialGradient(
-      colors: [
+    // Use _ShaderCache to avoid creating a new RadialGradient.createShader()
+    // every call. The cache rounds center/radius for higher hit rate.
+    final effectiveRadius = math.max(width, height) / 2;
+    final shader = _ShaderCache.getRadialShader(
+      center,
+      effectiveRadius,
+      [
         color.withValues(alpha: innerOpacity),
         color.withValues(alpha: midOpacity),
         color.withValues(alpha: 0.0),
       ],
-      stops: const [0.0, 0.5, 1.0],
+      const [0.0, 0.5, 1.0],
     );
 
     final rect = Rect.fromCenter(center: center, width: width, height: height);
-    final paint = Paint()..shader = gradient.createShader(rect);
-
-    canvas.drawOval(rect, paint);
+    _glowShaderPaint.shader = shader;
+    canvas.drawOval(rect, _glowShaderPaint);
   }
+
+  // Reusable paint for glow shader rendering to avoid per-call allocation
+  static final Paint _glowShaderPaint = Paint();
 
   /// Draw a glow effect - uses blur if available, gradient otherwise
   /// PERFORMANCE: Uses cached blur paint to avoid per-frame MaskFilter allocation
@@ -3459,15 +5240,60 @@ class SkyCanvasPainter extends CustomPainter {
       return true;
     }
 
+    // Satellites update every 2 seconds from the position notifier.
+    // Only repaint when the satellite data actually changes (length or positions).
+    if (satellites.length != oldDelegate.satellites.length) {
+      return true;
+    }
+    if (config.showSatellites && satellites.isNotEmpty && oldDelegate.satellites.isNotEmpty) {
+      // Check if any satellite position has actually moved (data identity check)
+      // The satellite list is recreated by the notifier each update, so if the
+      // list reference changed, the data is new. Use identity check.
+      if (!identical(satellites, oldDelegate.satellites)) {
+        return true;
+      }
+    }
+
+    // Variable stars / minor planets change
+    if (variableStars.length != oldDelegate.variableStars.length) {
+      return true;
+    }
+    if (config.showVariableStars != oldDelegate.config.showVariableStars) {
+      return true;
+    }
+    if (minorPlanets.length != oldDelegate.minorPlanets.length) {
+      return true;
+    }
+    if (config.showMinorPlanets != oldDelegate.config.showMinorPlanets) {
+      return true;
+    }
+    // Minor planets update every 30s; repaint if data changed
+    if (config.showMinorPlanets && minorPlanets.isNotEmpty) {
+      for (int i = 0; i < minorPlanets.length && i < oldDelegate.minorPlanets.length; i++) {
+        if ((minorPlanets[i].ra - oldDelegate.minorPlanets[i].ra).abs() > 0.001 ||
+            (minorPlanets[i].dec - oldDelegate.minorPlanets[i].dec).abs() > 0.01) {
+          return true;
+        }
+      }
+    }
+
     // Milky way data change
     if (milkyWayPoints != oldDelegate.milkyWayPoints) {
       return true;
     }
 
-    // Animation phases - repaint when animations are active
-    if (animationPhase != oldDelegate.animationPhase) {
-      return true;
+    // Animation phases - repaint when animations are active.
+    // Twinkle phase changes continuously at 60Hz but the visual effect is subtle,
+    // so quantize to ~20Hz (steps of 0.05) to reduce unnecessary repaints.
+    if (animationPhase != null || oldDelegate.animationPhase != null) {
+      final cur = animationPhase ?? -1.0;
+      final old = oldDelegate.animationPhase ?? -1.0;
+      // Quantize to 20 steps per cycle (50ms intervals on a 3s animation)
+      if ((cur * 20).floor() != (old * 20).floor()) {
+        return true;
+      }
     }
+    // Selection and pop-in are transient and short-lived, repaint every change
     if (selectionAnimationPhase != oldDelegate.selectionAnimationPhase) {
       return true;
     }
@@ -3483,6 +5309,28 @@ class SkyCanvasPainter extends CustomPainter {
 
     // Density hotspots change
     if (densityHotspots.length != oldDelegate.densityHotspots.length) {
+      return true;
+    }
+
+    // Observed object IDs change
+    if (observedObjectIds.length != oldDelegate.observedObjectIds.length ||
+        !observedObjectIds.containsAll(oldDelegate.observedObjectIds)) {
+      return true;
+    }
+
+    // Listed object IDs change
+    if (listedObjectIds.length != oldDelegate.listedObjectIds.length ||
+        !listedObjectIds.containsAll(oldDelegate.listedObjectIds)) {
+      return true;
+    }
+
+    // Bortle class change affects light pollution dome
+    if (bortleClass != oldDelegate.bortleClass) {
+      return true;
+    }
+
+    // Horizon profile change affects ground plane and horizon line
+    if (horizonAltitudes != oldDelegate.horizonAltitudes) {
       return true;
     }
 

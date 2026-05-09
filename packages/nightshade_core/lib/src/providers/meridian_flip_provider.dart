@@ -3,10 +3,12 @@ import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
 import '../models/backend/event_types.dart';
+import '../models/equipment/equipment_models.dart' show DeviceConnectionState, MountState;
 import '../models/meridian_flip_settings.dart';
 import '../models/meridian_flip_event.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
+import 'equipment_provider.dart' show mountStateProvider;
 
 /// Key used to store global meridian flip settings in app_settings table
 const _kMeridianFlipSettingsKey = 'meridian_flip_settings';
@@ -92,6 +94,11 @@ class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSetti
   /// Update hour angle threshold
   Future<void> setHourAngleThreshold(double hours) async {
     await updateSettings(state.copyWith(hourAngleThreshold: hours));
+  }
+
+  /// Update tracking limit wait minutes
+  Future<void> setTrackingLimitWaitMinutes(double minutes) async {
+    await updateSettings(state.copyWith(trackingLimitWaitMinutes: minutes));
   }
 
   /// Update pause guiding before flip
@@ -258,6 +265,50 @@ final isFlipInProgressProvider = Provider<bool>((ref) {
   return state == FlipExecutionState.executing || state == FlipExecutionState.retrying;
 });
 
+/// StateNotifier that resets flip execution state when the mount disconnects.
+///
+/// If a meridian flip is in progress (executing or retrying) and the mount
+/// disconnects, the flip can never complete. This notifier listens to the mount
+/// connection state and resets the flip providers to prevent the UI from
+/// being stuck in a "flipping" state indefinitely.
+///
+/// Uses ref.listen in its constructor instead of mutating state in a Provider
+/// build function, which would be a Riverpod violation.
+class MeridianFlipDisconnectGuard extends StateNotifier<void> {
+  final Ref _ref;
+
+  MeridianFlipDisconnectGuard(this._ref) : super(null) {
+    _ref.listen<MountState>(mountStateProvider, (prev, next) {
+      if (next.connectionState == DeviceConnectionState.disconnected) {
+        final flipState = _ref.read(flipExecutionStateProvider);
+        if (flipState == FlipExecutionState.executing ||
+            flipState == FlipExecutionState.retrying) {
+          developer.log(
+            'Mount disconnected during meridian flip - aborting flip state',
+            name: 'MeridianFlip',
+            level: 900,
+          );
+          _ref.read(flipExecutionStateProvider.notifier).state =
+              FlipExecutionState.aborted;
+          _ref.read(flipCurrentStepProvider.notifier).state = null;
+          _ref.read(flipProgressProvider.notifier).state = 0;
+          _ref.read(flipCurrentAttemptProvider.notifier).state = 0;
+          _ref.read(flipLastErrorProvider.notifier).state =
+              'Meridian flip aborted: mount disconnected';
+        }
+      }
+    });
+  }
+}
+
+/// Provider that resets flip execution state when the mount disconnects.
+///
+/// This provider must be watched (e.g., by the app shell) so it stays alive.
+final meridianFlipDisconnectGuardProvider =
+    StateNotifierProvider<MeridianFlipDisconnectGuard, void>((ref) {
+  return MeridianFlipDisconnectGuard(ref);
+});
+
 /// Provider for checking if settings indicate flip should be enabled
 ///
 /// This combines the global enable setting with the effective settings
@@ -274,5 +325,7 @@ final isMeridianFlipEnabledProvider = Provider<bool>((ref) {
       return settings.minutesBeforeLimit >= 0;
     case MeridianTriggerMethod.hourAngleThreshold:
       return settings.hourAngleThreshold >= 0;
+    case MeridianTriggerMethod.onTrackingLimitHit:
+      return true; // Always enabled when selected (wait time >= 0 is valid)
   }
 });

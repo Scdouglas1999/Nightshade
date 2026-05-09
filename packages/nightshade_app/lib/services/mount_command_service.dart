@@ -188,6 +188,48 @@ class MountCommandService {
     }
   }
 
+  /// Slews the mount to the specified Alt/Az coordinates.
+  Future<CommandActionResult> slewToAltAz(double altitude, double azimuth,
+      {bool showFeedback = true}) async {
+    if (!isConnected) {
+      return const CommandActionResult.failure('No mount connected');
+    }
+    try {
+      await _deviceService.slewMountToAltAz(altitude, azimuth);
+      if (showFeedback) {
+        return CommandActionResult.success(
+          message: 'Slewing to Alt ${altitude.toStringAsFixed(1)}, Az ${azimuth.toStringAsFixed(1)}...',
+          feedbackType: CommandFeedbackType.info,
+        );
+      }
+      return CommandActionResult.ok;
+    } catch (e) {
+      return CommandActionResult.failure('Alt/Az slew failed: $e');
+    }
+  }
+
+  /// Finds the mount home position.
+  Future<CommandActionResult> findHome() async {
+    if (!isConnected) {
+      return const CommandActionResult.failure('No mount connected');
+    }
+    try {
+      final capabilities = await _getCapabilities();
+      if (capabilities != null && !capabilities.canFindHome) {
+        return const CommandActionResult.failure(
+          'This mount does not support the Find Home operation',
+        );
+      }
+      await _deviceService.findMountHome();
+      return const CommandActionResult.success(
+        message: 'Finding home position...',
+        feedbackType: CommandFeedbackType.info,
+      );
+    } catch (e) {
+      return CommandActionResult.failure('Find home failed: $e');
+    }
+  }
+
   /// Sends a pulse guide command in the specified direction.
   Future<CommandActionResult> pulseGuide(String direction,
       {int durationMs = 500}) async {

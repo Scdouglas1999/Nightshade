@@ -70,17 +70,26 @@ class _MeridianFlipProgressDialogState
 
     setState(() {
       switch (event) {
-        case MeridianFlipStarting(:final targetName, :final fromPierSide, :final hourAngle):
+        case MeridianFlipStarting(
+            :final targetName,
+            :final fromPierSide,
+            :final hourAngle
+          ):
           _targetName = targetName;
           _fromPierSide = fromPierSide;
           _hourAngle = hourAngle;
 
-        case MeridianFlipStepStarted(:final step, :final stepIndex, :final totalSteps):
+        case MeridianFlipStepStarted(
+            :final step,
+            :final stepIndex,
+            :final totalSteps
+          ):
           // Initialize steps list if needed
           if (_steps.isEmpty) {
             _steps = List.generate(
               totalSteps,
-              (i) => FlipStepState(step: _getStepForIndex(i), status: StepStatus.pending),
+              (i) => FlipStepState(
+                  step: _getStepForIndex(i), status: StepStatus.pending),
             );
           }
           // Update current step
@@ -152,7 +161,9 @@ class _MeridianFlipProgressDialogState
       FlipStep.resumingGuider,
       FlipStep.settling,
     ];
-    return index < defaultSteps.length ? defaultSteps[index] : FlipStep.settling;
+    return index < defaultSteps.length
+        ? defaultSteps[index]
+        : FlipStep.settling;
   }
 
   @override
@@ -162,7 +173,7 @@ class _MeridianFlipProgressDialogState
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Container(
         width: 500,

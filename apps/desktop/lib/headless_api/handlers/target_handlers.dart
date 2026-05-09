@@ -7,6 +7,8 @@ import 'package:nightshade_core/database_entities.dart'
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for target CRUD operations
 class TargetHandlers {
   final ProviderContainer container;
@@ -30,18 +32,12 @@ class TargetHandlers {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getAllTargets();
 
-      return Response.ok(
-        jsonEncode({
-          "targets": targets.map((t) => _targetToJson(t)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targets": targets.map((t) => _targetToJson(t)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get all targets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -57,22 +53,13 @@ class TargetHandlers {
       final target = await database.targetsDao.getTargetById(targetId);
 
       if (target == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Target not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Target not found: $id"});
       }
 
-      return Response.ok(
-        jsonEncode({"target": _targetToJson(target)}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"target": _targetToJson(target)});
     } catch (e) {
       _logError('[API] Get target by ID error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -87,18 +74,12 @@ class TargetHandlers {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.searchTargets(query);
 
-      return Response.ok(
-        jsonEncode({
-          "targets": targets.map((t) => _targetToJson(t)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targets": targets.map((t) => _targetToJson(t)).toList(),
+      });
     } catch (e) {
       _logError('[API] Search targets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -112,18 +93,12 @@ class TargetHandlers {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getFavoriteTargets();
 
-      return Response.ok(
-        jsonEncode({
-          "targets": targets.map((t) => _targetToJson(t)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targets": targets.map((t) => _targetToJson(t)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get favorite targets error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -156,21 +131,17 @@ class TargetHandlers {
         capturedSubs: Value(payload['capturedSubs'] as int? ?? 0),
         totalIntegrationSecs:
             Value((payload['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0),
+        goalIntegrationSecs:
+            Value((payload['goalIntegrationSecs'] as num?)?.toDouble() ?? 0.0),
         filterProgress: Value(payload['filterProgress'] as String?),
       );
 
       final id = await database.targetsDao.createTarget(companion);
 
-      return Response.ok(
-        jsonEncode({"status": "created", "id": id}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "created", "id": id});
     } catch (e) {
       _logError('[API] Create target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -188,10 +159,7 @@ class TargetHandlers {
       // Get existing target
       final existing = await database.targetsDao.getTargetById(targetId);
       if (existing == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Target not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Target not found: $id"});
       }
 
       // Build updated target
@@ -221,6 +189,9 @@ class TargetHandlers {
         totalIntegrationSecs:
             (payload['totalIntegrationSecs'] as num?)?.toDouble() ??
                 existing.totalIntegrationSecs,
+        goalIntegrationSecs:
+            (payload['goalIntegrationSecs'] as num?)?.toDouble() ??
+                existing.goalIntegrationSecs,
         filterProgress: Value(
             payload['filterProgress'] as String? ?? existing.filterProgress),
         updatedAt: DateTime.now(),
@@ -228,16 +199,10 @@ class TargetHandlers {
 
       await database.targetsDao.updateTarget(updated);
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -253,22 +218,13 @@ class TargetHandlers {
 
       final deleted = await database.targetsDao.deleteTarget(targetId);
       if (deleted == 0) {
-        return Response.notFound(
-          jsonEncode({"error": "Target not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Target not found: $id"});
       }
 
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -284,16 +240,10 @@ class TargetHandlers {
 
       await database.targetsDao.toggleFavorite(targetId);
 
-      return Response.ok(
-        jsonEncode({"status": "toggled"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "toggled"});
     } catch (e) {
       _logError('[API] Toggle favorite error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -316,16 +266,10 @@ class TargetHandlers {
         filterProgress: payload['filterProgress'] as String?,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update progress error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -340,18 +284,12 @@ class TargetHandlers {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getTargetsByType(objectType);
 
-      return Response.ok(
-        jsonEncode({
-          "targets": targets.map((t) => _targetToJson(t)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targets": targets.map((t) => _targetToJson(t)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get targets by type error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -365,18 +303,12 @@ class TargetHandlers {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getTargetsByPriority();
 
-      return Response.ok(
-        jsonEncode({
-          "targets": targets.map((t) => _targetToJson(t)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targets": targets.map((t) => _targetToJson(t)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get targets by priority error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -403,6 +335,7 @@ class TargetHandlers {
       'totalPlannedSubs': target.totalPlannedSubs,
       'capturedSubs': target.capturedSubs,
       'totalIntegrationSecs': target.totalIntegrationSecs,
+      'goalIntegrationSecs': target.goalIntegrationSecs,
       'filterProgress': target.filterProgress,
       'createdAt': target.createdAt.millisecondsSinceEpoch,
       'updatedAt': target.updatedAt.millisecondsSinceEpoch,

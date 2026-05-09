@@ -19,7 +19,8 @@ class ProfileEditorDialog extends ConsumerStatefulWidget {
 
   /// Show the profile editor dialog.
   /// Returns true if a profile was created/updated, false/null if cancelled.
-  static Future<bool?> show(BuildContext context, {EquipmentProfileModel? profile}) {
+  static Future<bool?> show(BuildContext context,
+      {EquipmentProfileModel? profile}) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -28,7 +29,8 @@ class ProfileEditorDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<ProfileEditorDialog> createState() => _ProfileEditorDialogState();
+  ConsumerState<ProfileEditorDialog> createState() =>
+      _ProfileEditorDialogState();
 }
 
 class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
@@ -62,6 +64,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   final _filterWheelNameController = TextEditingController();
   final _guiderNameController = TextEditingController();
   final _rotatorNameController = TextEditingController();
+  final _domeNameController = TextEditingController();
+  final _weatherNameController = TextEditingController();
+  final _coverCalibratorNameController = TextEditingController();
 
   String? _cameraId;
   String? _mountId;
@@ -69,6 +74,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   String? _filterWheelId;
   String? _guiderId;
   String? _rotatorId;
+  String? _domeId;
+  String? _weatherId;
+  String? _coverCalibratorId;
 
   // Section 4: Filters (dynamic list)
   final List<_FilterControllerPair> _filterControllers = [];
@@ -120,12 +128,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       // Section 1: Identity
       _nameController.text = profile.name;
       _selectedIcon = profile.profileIcon ?? '';
-      _selectedColor = profile.profileColor != null ? Color(profile.profileColor!) : null;
+      _selectedColor =
+          profile.profileColor != null ? Color(profile.profileColor!) : null;
       _isDefault = profile.isDefault;
 
       // Section 2: Optical Train
       _telescopeNameController.text = profile.telescopeName ?? '';
-      if (profile.telescopeFocalLength != null && profile.telescopeFocalLength! > 0) {
+      if (profile.telescopeFocalLength != null &&
+          profile.telescopeFocalLength! > 0) {
         _focalLengthController.text = profile.telescopeFocalLength!.toString();
       } else if (profile.focalLength > 0) {
         _focalLengthController.text = profile.focalLength.toString();
@@ -149,6 +159,12 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       _guiderNameController.text = profile.guiderName ?? '';
       _rotatorId = profile.rotatorId;
       _rotatorNameController.text = profile.rotatorName ?? '';
+      _domeId = profile.domeId;
+      _domeNameController.text = profile.domeId ?? '';
+      _weatherId = profile.weatherId;
+      _weatherNameController.text = profile.weatherId ?? '';
+      _coverCalibratorId = profile.coverCalibratorId;
+      _coverCalibratorNameController.text = profile.coverCalibratorId ?? '';
 
       // Section 4: Filters
       for (int i = 0; i < profile.filterNames.length; i++) {
@@ -172,7 +188,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       }
       _coolOnConnect = profile.coolOnConnect;
       if (profile.defaultCenteringExposure != null) {
-        _centeringExposureController.text = profile.defaultCenteringExposure!.toString();
+        _centeringExposureController.text =
+            profile.defaultCenteringExposure!.toString();
       }
     }
   }
@@ -189,6 +206,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     _filterWheelNameController.dispose();
     _guiderNameController.dispose();
     _rotatorNameController.dispose();
+    _domeNameController.dispose();
+    _weatherNameController.dispose();
+    _coverCalibratorNameController.dispose();
     _gainController.dispose();
     _offsetController.dispose();
     _coolingTargetController.dispose();
@@ -216,7 +236,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final cameraState = ref.read(cameraStateProvider);
     if (cameraState.connectionState == DeviceConnectionState.connected &&
         cameraState.deviceId != null) {
-      final capabilitiesAsync = ref.read(cameraCapabilitiesProvider(cameraState.deviceId!));
+      final capabilitiesAsync =
+          ref.read(cameraCapabilitiesProvider(cameraState.deviceId!));
       final capabilities = capabilitiesAsync.valueOrNull;
       final pixelSize = capabilities?.pixelSizeX;
       if (pixelSize != null && pixelSize > 0) {
@@ -230,7 +251,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final cameraState = ref.read(cameraStateProvider);
     if (cameraState.connectionState == DeviceConnectionState.connected &&
         cameraState.deviceId != null) {
-      final capabilitiesAsync = ref.read(cameraCapabilitiesProvider(cameraState.deviceId!));
+      final capabilitiesAsync =
+          ref.read(cameraCapabilitiesProvider(cameraState.deviceId!));
       final capabilities = capabilitiesAsync.valueOrNull;
       final pixelSize = capabilities?.pixelSizeX;
       if (pixelSize != null && pixelSize > 0) {
@@ -243,7 +265,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   void _addFilter() {
     setState(() {
       _filterControllers.add(_FilterControllerPair(
-        nameController: TextEditingController(text: 'Filter ${_filterControllers.length + 1}'),
+        nameController: TextEditingController(
+            text: 'Filter ${_filterControllers.length + 1}'),
         offsetController: TextEditingController(text: '0'),
       ));
     });
@@ -258,10 +281,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   Future<void> _autoDetectFilters() async {
     final filterWheelState = ref.read(filterWheelStateProvider);
-    if (filterWheelState.connectionState != DeviceConnectionState.connected) return;
+    if (filterWheelState.connectionState != DeviceConnectionState.connected) {
+      return;
+    }
 
     final deviceId = filterWheelState.deviceId;
-    if (deviceId == null || deviceId.isEmpty) return;
+    if (deviceId == null || deviceId.isEmpty) {
+      return;
+    }
 
     // Read filter names directly from hardware to avoid profile-overridden state
     // (which may have a different count than the actual wheel)
@@ -304,57 +331,103 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final filterWheelState = ref.read(filterWheelStateProvider);
     final guiderState = ref.read(guiderStateProvider);
     final rotatorState = ref.read(rotatorStateProvider);
+    final domeState = ref.read(domeStateProvider);
+    final weatherState = ref.read(weatherStateProvider);
+    final coverCalibratorState = ref.read(coverCalibratorStateProvider);
 
     setState(() {
       // Camera
-      if (_cameraId == null && cameraState.connectionState == DeviceConnectionState.connected) {
+      if (_cameraId == null &&
+          cameraState.connectionState == DeviceConnectionState.connected) {
         _cameraId = cameraState.deviceId;
         if (_cameraNameController.text.isEmpty) {
-          _cameraNameController.text = cameraState.deviceName ?? cameraState.deviceId ?? '';
+          _cameraNameController.text =
+              cameraState.deviceName ?? cameraState.deviceId ?? '';
         }
       }
 
       // Mount
-      if (_mountId == null && mountState.connectionState == DeviceConnectionState.connected) {
+      if (_mountId == null &&
+          mountState.connectionState == DeviceConnectionState.connected) {
         _mountId = mountState.deviceId;
         if (_mountNameController.text.isEmpty) {
-          _mountNameController.text = mountState.deviceName ?? mountState.deviceId ?? '';
+          _mountNameController.text =
+              mountState.deviceName ?? mountState.deviceId ?? '';
         }
       }
 
       // Focuser
-      if (_focuserId == null && focuserState.connectionState == DeviceConnectionState.connected) {
+      if (_focuserId == null &&
+          focuserState.connectionState == DeviceConnectionState.connected) {
         _focuserId = focuserState.deviceId;
         if (_focuserNameController.text.isEmpty) {
-          _focuserNameController.text = focuserState.deviceName ?? focuserState.deviceId ?? '';
+          _focuserNameController.text =
+              focuserState.deviceName ?? focuserState.deviceId ?? '';
         }
       }
 
       // Filter Wheel
-      if (_filterWheelId == null && filterWheelState.connectionState == DeviceConnectionState.connected) {
+      if (_filterWheelId == null &&
+          filterWheelState.connectionState == DeviceConnectionState.connected) {
         _filterWheelId = filterWheelState.deviceId;
         if (_filterWheelNameController.text.isEmpty) {
-          _filterWheelNameController.text = filterWheelState.deviceName ?? filterWheelState.deviceId ?? '';
+          _filterWheelNameController.text =
+              filterWheelState.deviceName ?? filterWheelState.deviceId ?? '';
         }
         // Also populate filters
-        if (_filterControllers.isEmpty && filterWheelState.filterNames.isNotEmpty) {
+        if (_filterControllers.isEmpty &&
+            filterWheelState.filterNames.isNotEmpty) {
           _autoDetectFilters();
         }
       }
 
       // Guider
-      if (_guiderId == null && guiderState.connectionState == DeviceConnectionState.connected) {
+      if (_guiderId == null &&
+          guiderState.connectionState == DeviceConnectionState.connected) {
         _guiderId = guiderState.deviceId;
         if (_guiderNameController.text.isEmpty) {
-          _guiderNameController.text = guiderState.deviceName ?? guiderState.deviceId ?? '';
+          _guiderNameController.text =
+              guiderState.deviceName ?? guiderState.deviceId ?? '';
         }
       }
 
       // Rotator
-      if (_rotatorId == null && rotatorState.connectionState == DeviceConnectionState.connected) {
+      if (_rotatorId == null &&
+          rotatorState.connectionState == DeviceConnectionState.connected) {
         _rotatorId = rotatorState.deviceId;
         if (_rotatorNameController.text.isEmpty) {
-          _rotatorNameController.text = rotatorState.deviceName ?? rotatorState.deviceId ?? '';
+          _rotatorNameController.text =
+              rotatorState.deviceName ?? rotatorState.deviceId ?? '';
+        }
+      }
+
+      if (_domeId == null &&
+          domeState.connectionState == DeviceConnectionState.connected) {
+        _domeId = domeState.deviceId;
+        if (_domeNameController.text.isEmpty) {
+          _domeNameController.text =
+              domeState.deviceName ?? domeState.deviceId ?? '';
+        }
+      }
+
+      if (_weatherId == null &&
+          weatherState.connectionState == DeviceConnectionState.connected) {
+        _weatherId = weatherState.deviceId;
+        if (_weatherNameController.text.isEmpty) {
+          _weatherNameController.text =
+              weatherState.deviceName ?? weatherState.deviceId ?? '';
+        }
+      }
+
+      if (_coverCalibratorId == null &&
+          coverCalibratorState.connectionState ==
+              DeviceConnectionState.connected) {
+        _coverCalibratorId = coverCalibratorState.deviceId;
+        if (_coverCalibratorNameController.text.isEmpty) {
+          _coverCalibratorNameController.text =
+              coverCalibratorState.deviceName ??
+                  coverCalibratorState.deviceId ??
+                  '';
         }
       }
     });
@@ -362,7 +435,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   String _encodeFilterNames() {
     if (_filterControllers.isEmpty) return '';
-    final names = _filterControllers.map((c) => c.nameController.text.trim()).toList();
+    final names =
+        _filterControllers.map((c) => c.nameController.text.trim()).toList();
     return jsonEncode(names);
   }
 
@@ -409,7 +483,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           profileColor: Value(_selectedColor?.toARGB32()),
           isDefault: _isDefault,
           telescopeName: Value(_telescopeNameController.text.trimOrNull),
-          telescopeFocalLength: Value(double.tryParse(_focalLengthController.text)),
+          telescopeFocalLength:
+              Value(double.tryParse(_focalLengthController.text)),
           telescopeAperture: Value(double.tryParse(_apertureController.text)),
           focalLength: focalLength,
           aperture: aperture,
@@ -426,15 +501,22 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           guiderName: Value(_guiderNameController.text.trimOrNull),
           rotatorId: Value(_rotatorId),
           rotatorName: Value(_rotatorNameController.text.trimOrNull),
-          filterNames: Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
-          filterFocusOffsets: Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
+          domeId: Value(_domeId),
+          weatherId: Value(_weatherId),
+          coverCalibratorId: Value(_coverCalibratorId),
+          filterNames:
+              Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
+          filterFocusOffsets:
+              Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
           defaultGain: Value(int.tryParse(_gainController.text)),
           defaultOffset: Value(int.tryParse(_offsetController.text)),
           defaultBinX: _binning,
           defaultBinY: _binning,
-          defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
+          defaultCoolingTemp:
+              Value(double.tryParse(_coolingTargetController.text)),
           coolOnConnect: _coolOnConnect,
-          defaultCenteringExposure: Value(double.tryParse(_centeringExposureController.text)),
+          defaultCenteringExposure:
+              Value(double.tryParse(_centeringExposureController.text)),
           updatedAt: DateTime.now(),
         );
 
@@ -442,7 +524,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
         // Handle isDefault
         if (_isDefault && !existingProfile.isDefault) {
-          await dao.setActiveProfile(existingProfile.id);
+          await dao.setDefaultProfile(existingProfile.id, makeActive: true);
+        } else if (!_isDefault && existingProfile.isDefault) {
+          await dao.clearDefaultProfile();
         }
       } else {
         // Create new profile
@@ -452,7 +536,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           profileColor: Value(_selectedColor?.toARGB32()),
           isDefault: Value(_isDefault),
           telescopeName: Value(_telescopeNameController.text.trimOrNull),
-          telescopeFocalLength: Value(double.tryParse(_focalLengthController.text)),
+          telescopeFocalLength:
+              Value(double.tryParse(_focalLengthController.text)),
           telescopeAperture: Value(double.tryParse(_apertureController.text)),
           focalLength: Value(focalLength),
           aperture: Value(aperture),
@@ -469,28 +554,36 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           guiderName: Value(_guiderNameController.text.trimOrNull),
           rotatorId: Value(_rotatorId),
           rotatorName: Value(_rotatorNameController.text.trimOrNull),
-          filterNames: Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
-          filterFocusOffsets: Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
+          domeId: Value(_domeId),
+          weatherId: Value(_weatherId),
+          coverCalibratorId: Value(_coverCalibratorId),
+          filterNames:
+              Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
+          filterFocusOffsets:
+              Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
           defaultGain: Value(int.tryParse(_gainController.text)),
           defaultOffset: Value(int.tryParse(_offsetController.text)),
           defaultBinX: Value(_binning),
           defaultBinY: Value(_binning),
-          defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
+          defaultCoolingTemp:
+              Value(double.tryParse(_coolingTargetController.text)),
           coolOnConnect: Value(_coolOnConnect),
-          defaultCenteringExposure: Value(double.tryParse(_centeringExposureController.text)),
+          defaultCenteringExposure:
+              Value(double.tryParse(_centeringExposureController.text)),
         );
 
         final newId = await dao.createProfile(companion);
 
         // Set as default if requested
         if (_isDefault) {
-          await dao.setActiveProfile(newId);
+          await dao.setDefaultProfile(newId, makeActive: true);
         }
       }
 
       if (mounted) {
         final action = widget.profile != null ? 'updated' : 'created';
-        context.showSuccessSnackBar('Profile "${_nameController.text.trim()}" $action');
+        context.showSuccessSnackBar(
+            'Profile "${_nameController.text.trim()}" $action');
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -516,7 +609,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         ),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.border),
           boxShadow: [
             BoxShadow(
@@ -566,7 +659,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildHeader(NightshadeColors colors, ThemeData theme, bool isEditing) {
+  Widget _buildHeader(
+      NightshadeColors colors, ThemeData theme, bool isEditing) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -613,7 +707,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             ),
           ),
           IconButton(
-            onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
+            onPressed:
+                _isSaving ? null : () => Navigator.of(context).pop(false),
             icon: Icon(LucideIcons.x, color: colors.textMuted),
           ),
         ],
@@ -631,7 +726,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           NightshadeButton(
-            onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
+            onPressed:
+                _isSaving ? null : () => Navigator.of(context).pop(false),
             label: 'Cancel',
             variant: ButtonVariant.ghost,
           ),
@@ -657,7 +753,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       title: 'Profile Identity',
       icon: LucideIcons.user,
       isExpanded: _expandedSections['identity']!,
-      onToggle: () => setState(() => _expandedSections['identity'] = !_expandedSections['identity']!),
+      onToggle: () => setState(() =>
+          _expandedSections['identity'] = !_expandedSections['identity']!),
       summary: _nameController.text.isEmpty ? 'Unnamed' : _nameController.text,
       colors: colors,
       child: Column(
@@ -668,7 +765,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             label: 'Profile Name *',
             controller: _nameController,
             hint: 'e.g., Main Imaging Rig, Widefield Setup',
-            errorText: _nameController.text.isEmpty && _isSaving ? 'Name is required' : null,
+            errorText: _nameController.text.isEmpty && _isSaving
+                ? 'Name is required'
+                : null,
           ),
           const SizedBox(height: 20),
 
@@ -756,7 +855,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                 ),
               ),
               activeColor: colors.primary,
-              checkColor: Colors.white,
+              checkColor: Theme.of(context).colorScheme.onPrimary,
               controlAffinity: ListTileControlAffinity.trailing,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
             ),
@@ -775,7 +874,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       title: 'Optical Train',
       icon: LucideIcons.target,
       isExpanded: _expandedSections['optical']!,
-      onToggle: () => setState(() => _expandedSections['optical'] = !_expandedSections['optical']!),
+      onToggle: () => setState(
+          () => _expandedSections['optical'] = !_expandedSections['optical']!),
       summary: _telescopeNameController.text.isEmpty
           ? 'Not configured'
           : _telescopeNameController.text,
@@ -800,7 +900,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                   controller: _focalLengthController,
                   hint: 'e.g., 550',
                   suffix: 'mm',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -811,7 +912,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                   controller: _apertureController,
                   hint: 'e.g., 100',
                   suffix: 'mm',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -824,7 +926,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -867,12 +969,17 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final filterWheels = discovery.getDevicesByType(DeviceType.filterWheel);
     final guiders = discovery.getDevicesByType(DeviceType.guider);
     final rotators = discovery.getDevicesByType(DeviceType.rotator);
+    final domes = discovery.getDevicesByType(DeviceType.dome);
+    final weatherStations = discovery.getDevicesByType(DeviceType.weather);
+    final coverCalibrators =
+        discovery.getDevicesByType(DeviceType.coverCalibrator);
 
     return _SectionCard(
       title: 'Devices',
       icon: LucideIcons.plugZap,
       isExpanded: _expandedSections['devices']!,
-      onToggle: () => setState(() => _expandedSections['devices'] = !_expandedSections['devices']!),
+      onToggle: () => setState(
+          () => _expandedSections['devices'] = !_expandedSections['devices']!),
       summary: _countAssignedDevices() > 0
           ? '${_countAssignedDevices()} assigned'
           : 'None assigned',
@@ -1004,6 +1111,66 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             }),
             colors: colors,
           ),
+          const SizedBox(height: 12),
+
+          _DeviceRow(
+            type: 'Dome',
+            icon: LucideIcons.home,
+            nameController: _domeNameController,
+            deviceId: _domeId,
+            discoveredDevices: domes,
+            onDeviceSelected: (id, name) => setState(() {
+              _domeId = id;
+              if (name != null && _domeNameController.text.isEmpty) {
+                _domeNameController.text = name;
+              }
+            }),
+            onClear: () => setState(() {
+              _domeId = null;
+              _domeNameController.clear();
+            }),
+            colors: colors,
+          ),
+          const SizedBox(height: 12),
+
+          _DeviceRow(
+            type: 'Weather',
+            icon: LucideIcons.cloud,
+            nameController: _weatherNameController,
+            deviceId: _weatherId,
+            discoveredDevices: weatherStations,
+            onDeviceSelected: (id, name) => setState(() {
+              _weatherId = id;
+              if (name != null && _weatherNameController.text.isEmpty) {
+                _weatherNameController.text = name;
+              }
+            }),
+            onClear: () => setState(() {
+              _weatherId = null;
+              _weatherNameController.clear();
+            }),
+            colors: colors,
+          ),
+          const SizedBox(height: 12),
+
+          _DeviceRow(
+            type: 'Cover / Calibrator',
+            icon: LucideIcons.sunMedium,
+            nameController: _coverCalibratorNameController,
+            deviceId: _coverCalibratorId,
+            discoveredDevices: coverCalibrators,
+            onDeviceSelected: (id, name) => setState(() {
+              _coverCalibratorId = id;
+              if (name != null && _coverCalibratorNameController.text.isEmpty) {
+                _coverCalibratorNameController.text = name;
+              }
+            }),
+            onClear: () => setState(() {
+              _coverCalibratorId = null;
+              _coverCalibratorNameController.clear();
+            }),
+            colors: colors,
+          ),
           const SizedBox(height: 16),
 
           // Add from connected button
@@ -1027,6 +1194,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     if (_filterWheelId != null) count++;
     if (_guiderId != null) count++;
     if (_rotatorId != null) count++;
+    if (_domeId != null) count++;
+    if (_weatherId != null) count++;
+    if (_coverCalibratorId != null) count++;
     return count;
   }
 
@@ -1039,7 +1209,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       title: 'Filters (${_filterControllers.length} slots)',
       icon: LucideIcons.filter,
       isExpanded: _expandedSections['filters']!,
-      onToggle: () => setState(() => _expandedSections['filters'] = !_expandedSections['filters']!),
+      onToggle: () => setState(
+          () => _expandedSections['filters'] = !_expandedSections['filters']!),
       summary: _filterControllers.isEmpty
           ? 'No filters'
           : '${_filterControllers.length} filters',
@@ -1052,7 +1223,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: Row(
               children: [
@@ -1099,7 +1271,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: colors.border),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(8)),
             ),
             child: Column(
               children: [
@@ -1162,10 +1335,12 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       title: 'Camera Defaults',
       icon: LucideIcons.settings2,
       isExpanded: _expandedSections['camera']!,
-      onToggle: () => setState(() => _expandedSections['camera'] = !_expandedSections['camera']!),
-      summary: _gainController.text.isEmpty && _coolingTargetController.text.isEmpty
-          ? 'Not configured'
-          : 'Configured',
+      onToggle: () => setState(
+          () => _expandedSections['camera'] = !_expandedSections['camera']!),
+      summary:
+          _gainController.text.isEmpty && _coolingTargetController.text.isEmpty
+              ? 'Not configured'
+              : 'Configured',
       colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1216,7 +1391,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                           isExpanded: true,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           dropdownColor: colors.surfaceAlt,
-                          style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                          style: TextStyle(
+                              color: colors.textPrimary, fontSize: 13),
                           items: [1, 2, 3, 4].map((b) {
                             return DropdownMenuItem(
                               value: b,
@@ -1243,7 +1419,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                   controller: _coolingTargetController,
                   hint: 'e.g., -10',
                   suffix: '\u00B0C',
-                  keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                      signed: true, decimal: true),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1260,7 +1437,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                       ),
                       child: CheckboxListTile(
                         value: _coolOnConnect,
-                        onChanged: (v) => setState(() => _coolOnConnect = v ?? false),
+                        onChanged: (v) =>
+                            setState(() => _coolOnConnect = v ?? false),
                         title: Text(
                           'Cool on connect',
                           style: TextStyle(
@@ -1269,9 +1447,10 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                           ),
                         ),
                         activeColor: colors.primary,
-                        checkColor: Colors.white,
+                        checkColor: Theme.of(context).colorScheme.onPrimary,
                         controlAffinity: ListTileControlAffinity.trailing,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12),
                         dense: true,
                       ),
                     ),
@@ -1291,7 +1470,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                   controller: _centeringExposureController,
                   hint: 'e.g., 5',
                   suffix: 's',
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1348,7 +1528,7 @@ class _SectionCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -1357,8 +1537,8 @@ class _SectionCard extends StatelessWidget {
           InkWell(
             onTap: onToggle,
             borderRadius: isExpanded
-                ? const BorderRadius.vertical(top: Radius.circular(12))
-                : BorderRadius.circular(12),
+                ? const BorderRadius.vertical(top: Radius.circular(8))
+                : BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -1399,7 +1579,9 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                   Icon(
-                    isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    isExpanded
+                        ? LucideIcons.chevronUp
+                        : LucideIcons.chevronDown,
                     size: 18,
                     color: colors.textMuted,
                   ),
@@ -1442,7 +1624,9 @@ class _IconOption extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: isSelected ? colors.primary.withValues(alpha: 0.2) : colors.surfaceAlt,
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.2)
+              : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
@@ -1482,6 +1666,8 @@ class _ColorOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1491,7 +1677,7 @@ class _ColorOption extends StatelessWidget {
           color: color ?? colors.surfaceAlt,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isSelected ? Colors.white : (color ?? colors.border),
+            color: isSelected ? onPrimary : (color ?? colors.border),
             width: isSelected ? 3 : 1,
           ),
           boxShadow: isSelected
@@ -1596,7 +1782,9 @@ class _DeviceRow extends StatelessWidget {
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: deviceId != null ? colors.primary.withValues(alpha: 0.3) : colors.border,
+          color: deviceId != null
+              ? colors.primary.withValues(alpha: 0.3)
+              : colors.border,
         ),
       ),
       child: Column(
@@ -1644,7 +1832,8 @@ class _DeviceRow extends StatelessWidget {
                             fontSize: 13,
                           ),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 6),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide: BorderSide(color: colors.border),
@@ -1680,7 +1869,8 @@ class _DeviceRow extends StatelessWidget {
                   icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
                   splashRadius: 16,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
                 ),
             ],
           ),
@@ -1736,7 +1926,9 @@ class _DeviceDropdown extends StatelessWidget {
           );
         } else {
           // Find the device name
-          final device = discoveredDevices.where((d) => d.activeDeviceId == value).firstOrNull;
+          final device = discoveredDevices
+              .where((d) => d.activeDeviceId == value)
+              .firstOrNull;
           onSelected(value, device?.displayName);
         }
       },
@@ -1792,7 +1984,8 @@ class _DeviceDropdown extends StatelessWidget {
           value: '_scan_',
           child: Row(
             children: [
-              Icon(LucideIcons.refreshCw, size: 14, color: colors.textSecondary),
+              Icon(LucideIcons.refreshCw,
+                  size: 14, color: colors.textSecondary),
               const SizedBox(width: 8),
               Text('Scan...', style: TextStyle(color: colors.textSecondary)),
             ],
@@ -1804,7 +1997,8 @@ class _DeviceDropdown extends StatelessWidget {
             children: [
               Icon(LucideIcons.edit3, size: 14, color: colors.textSecondary),
               const SizedBox(width: 8),
-              Text('Enter manually...', style: TextStyle(color: colors.textSecondary)),
+              Text('Enter manually...',
+                  style: TextStyle(color: colors.textSecondary)),
             ],
           ),
         ));
@@ -1837,7 +2031,8 @@ class _DeviceDropdown extends StatelessWidget {
   }
 
   String _getDeviceDisplayName(String id) {
-    final device = discoveredDevices.where((d) => d.activeDeviceId == id).firstOrNull;
+    final device =
+        discoveredDevices.where((d) => d.activeDeviceId == id).firstOrNull;
     return device?.displayName ?? id;
   }
 
@@ -1898,7 +2093,8 @@ class _FilterRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: colors.border)),
+        border:
+            isLast ? null : Border(bottom: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
@@ -1923,7 +2119,8 @@ class _FilterRow extends StatelessWidget {
                   hintText: 'Filter name',
                   hintStyle: TextStyle(color: colors.textMuted, fontSize: 13),
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(color: colors.border),
@@ -1956,7 +2153,8 @@ class _FilterRow extends StatelessWidget {
                 suffixText: 'steps',
                 suffixStyle: TextStyle(color: colors.textMuted, fontSize: 10),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(4),
                   borderSide: BorderSide(color: colors.border),

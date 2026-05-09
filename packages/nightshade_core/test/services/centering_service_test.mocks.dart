@@ -96,6 +96,7 @@ class MockImagingService extends _i1.Mock implements _i4.ImagingService {
     required _i6.ExposureSettings? settings,
     String? targetName,
     int? maxFrames,
+    int? maxConsecutiveErrors = 10,
     void Function(_i6.CapturedImageData)? onImageCaptured,
     void Function(String)? onError,
   }) =>
@@ -107,6 +108,7 @@ class MockImagingService extends _i1.Mock implements _i4.ImagingService {
             #settings: settings,
             #targetName: targetName,
             #maxFrames: maxFrames,
+            #maxConsecutiveErrors: maxConsecutiveErrors,
             #onImageCaptured: onImageCaptured,
             #onError: onError,
           },
@@ -255,6 +257,27 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
         returnValue: _i5.Future<void>.value(),
         returnValueForMissingStub: _i5.Future<void>.value(),
       ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> warmCamera({double? ratePerMin = 2.0}) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #warmCamera,
+          [],
+          {#ratePerMin: ratePerMin},
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  void cancelWarmCamera() => super.noSuchMethod(
+        Invocation.method(
+          #cancelWarmCamera,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
 
   @override
   _i5.Future<void> disconnectCamera() => (super.noSuchMethod(
@@ -577,6 +600,33 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
       ) as _i5.Future<void>);
 
   @override
+  _i5.Future<void> slewMountToAltAz(
+    double? altitude,
+    double? azimuth,
+  ) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #slewMountToAltAz,
+          [
+            altitude,
+            azimuth,
+          ],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> findMountHome() => (super.noSuchMethod(
+        Invocation.method(
+          #findMountHome,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
   _i5.Future<void> pulseGuidMount({
     required String? direction,
     required int? durationMs,
@@ -625,12 +675,43 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
       ) as _i5.Future<void>);
 
   @override
+  _i5.Future<void> moveRotatorTo(double? angle) => (super.noSuchMethod(
+        Invocation.method(
+          #moveRotatorTo,
+          [angle],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> moveRotatorRelative(double? delta) => (super.noSuchMethod(
+        Invocation.method(
+          #moveRotatorRelative,
+          [delta],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> haltRotator() => (super.noSuchMethod(
+        Invocation.method(
+          #haltRotator,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
   _i5.Future<_i3.AutofocusResult> runAutofocus({
     required double? exposureTime,
     required int? stepSize,
     required int? stepsOut,
     String? method = r'VCurve',
     int? binning = 1,
+    bool? useSettingsDefaults = true,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -642,6 +723,7 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
             #stepsOut: stepsOut,
             #method: method,
             #binning: binning,
+            #useSettingsDefaults: useSettingsDefaults,
           },
         ),
         returnValue:
@@ -656,6 +738,7 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
               #stepsOut: stepsOut,
               #method: method,
               #binning: binning,
+              #useSettingsDefaults: useSettingsDefaults,
             },
           ),
         )),

@@ -92,7 +92,7 @@ class _GuideStarViewState extends State<GuideStarView> {
                 color: _getSnrColor(colors).withValues(alpha: 0.5),
                 width: 2,
               ),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
                   color: _getSnrColor(colors).withValues(alpha: 0.1),
@@ -101,7 +101,7 @@ class _GuideStarViewState extends State<GuideStarView> {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(6),
               child: Stack(
                 children: [
                   // Star image or empty state

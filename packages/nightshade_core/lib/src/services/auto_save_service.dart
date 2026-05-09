@@ -141,7 +141,9 @@ class AutoSaveService {
   }
 
   /// Stop the auto-save service
-  void stop() {
+  ///
+  /// Flushes any pending sequence saves before stopping timers.
+  Future<void> stop() async {
     debugPrint('AutoSaveService: Stopping...');
 
     _sequenceTimer?.cancel();
@@ -152,14 +154,14 @@ class AutoSaveService {
 
     // Save any pending changes before stopping
     if (_hasUnsavedChanges) {
-      _autoSaveSequences();
+      await _autoSaveSequences();
     }
 
     debugPrint('AutoSaveService: Stopped');
   }
 
   /// Update configuration (restarts timers if needed)
-  void updateConfig(AutoSaveConfig newConfig) {
+  Future<void> updateConfig(AutoSaveConfig newConfig) async {
     final needsRestart = _config.sequenceInterval != newConfig.sequenceInterval ||
                         _config.backupInterval != newConfig.backupInterval ||
                         _config.sequenceEnabled != newConfig.sequenceEnabled ||
@@ -168,7 +170,7 @@ class AutoSaveService {
     _config = newConfig;
 
     if (needsRestart) {
-      stop();
+      await stop();
       start();
     }
 
@@ -330,8 +332,21 @@ class AutoSaveService {
   }
 
   /// Dispose of resources
+  ///
+  /// Note: dispose cannot be async due to Riverpod lifecycle constraints.
+  /// Pending saves are flushed synchronously by firing _autoSaveSequences()
+  /// without awaiting (best-effort flush on teardown).
   void dispose() {
-    stop();
+    _sequenceTimer?.cancel();
+    _sequenceTimer = null;
+    _backupTimer?.cancel();
+    _backupTimer = null;
+
+    // Best-effort flush of pending saves on dispose
+    if (_hasUnsavedChanges) {
+      _autoSaveSequences();
+    }
+
     _statusController.close();
     debugPrint('AutoSaveService: Disposed');
   }

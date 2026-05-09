@@ -328,12 +328,7 @@ impl IndiAutofocus {
         // Capture image
         let image_data = self
             .camera
-            .capture_image_with_timeout(
-                self.config.exposure_duration,
-                Some(Duration::from_secs(
-                    self.config.exposure_duration as u64 + 60,
-                )),
-            )
+            .capture_image_with_timeout(self.config.exposure_duration, None)
             .await?;
 
         // Parse FITS data to extract image
@@ -347,31 +342,33 @@ impl IndiAutofocus {
 
     /// Parse FITS image data
     fn parse_fits_image(&self, data: &[u8]) -> Result<ImageData, String> {
-        // Simple FITS parser - extract 16-bit image data
-        // FITS header is 2880 bytes (36 x 80-character lines)
-        // We need to find NAXIS1 (width), NAXIS2 (height), and END keyword
-
         if data.len() < 2880 {
             return Err("FITS data too short".to_string());
         }
 
-        let header =
-            std::str::from_utf8(&data[0..2880]).map_err(|_| "Invalid FITS header".to_string())?;
-
-        // Parse NAXIS1 (width) and NAXIS2 (height)
+        // FITS headers can span multiple 2880-byte blocks. Scan 80-byte cards
+        // until END so autofocus works with extended headers.
         let mut width = 0u32;
         let mut height = 0u32;
+        let mut end_card_index = None;
 
-        for line in header.as_bytes().chunks(80) {
-            let line_str = std::str::from_utf8(line).unwrap_or("");
+        for (card_index, line) in data.chunks_exact(80).enumerate() {
+            let line_str =
+                std::str::from_utf8(line).map_err(|_| "Invalid FITS header".to_string())?;
+            let keyword = line_str.get(..8).unwrap_or("").trim();
 
-            if line_str.starts_with("NAXIS1  =") {
+            if keyword == "END" {
+                end_card_index = Some(card_index);
+                break;
+            }
+
+            if keyword == "NAXIS1" {
                 if let Some(value_str) = line_str.split('=').nth(1) {
                     if let Some(num_str) = value_str.split('/').next() {
                         width = num_str.trim().parse().unwrap_or(0);
                     }
                 }
-            } else if line_str.starts_with("NAXIS2  =") {
+            } else if keyword == "NAXIS2" {
                 if let Some(value_str) = line_str.split('=').nth(1) {
                     if let Some(num_str) = value_str.split('/').next() {
                         height = num_str.trim().parse().unwrap_or(0);
@@ -384,9 +381,10 @@ impl IndiAutofocus {
             return Err("Failed to parse FITS dimensions".to_string());
         }
 
-        // Data starts after header (skip to next 2880-byte boundary)
+        let end_card_index = end_card_index.ok_or_else(|| "Missing FITS END card".to_string())?;
         let pixel_count = (width * height) as usize;
-        let data_start = 2880;
+        let header_bytes = (end_card_index + 1) * 80;
+        let data_start = header_bytes.next_multiple_of(2880);
         let data_end = data_start + pixel_count * 2;
 
         if data_end > data.len() {

@@ -10,15 +10,20 @@ export 'src/coordinate_system.dart';
 export 'src/catalogs/catalog.dart';
 export 'src/catalogs/star_catalog.dart';
 export 'src/catalogs/constellation_data.dart';
+export 'src/catalogs/constellation_art.dart';
 export 'src/catalogs/catalog_manager.dart';
 export 'src/catalogs/hyperleda_catalog.dart';
 export 'src/catalogs/glade_plus_catalog.dart';
 export 'src/catalogs/annotation_catalog.dart';
+export 'src/catalogs/satellite_catalog.dart';
+export 'src/catalogs/variable_star_catalog.dart';
+export 'src/catalogs/minor_planet_catalog.dart';
 
 // Astronomy calculations
 export 'src/astronomy/astronomy_calculations.dart';
 export 'src/astronomy/planetary_positions.dart';
 export 'src/astronomy/milky_way_data.dart';
+export 'src/astronomy/sgp4.dart';
 
 // Rendering
 export 'src/rendering/sky_renderer.dart';
@@ -43,6 +48,9 @@ export 'src/providers/planning_providers.dart';
 export 'src/providers/target_queue_provider.dart';
 export 'src/providers/platform_providers.dart';
 export 'src/providers/performance_providers.dart';
+export 'src/providers/satellite_providers.dart';
+export 'src/providers/variable_star_providers.dart';
+export 'src/providers/minor_planet_providers.dart';
 
 // Widgets
 export 'src/widgets/interactive_sky_view.dart';

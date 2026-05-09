@@ -54,7 +54,8 @@ Future<void> main(List<String> args) async {
   if (args.contains('--push')) {
     final packagePath = getArg(args, '--package') ?? findDefaultPackage();
     if (packagePath == null) {
-      print('Error: No update package found. Run build_update_package.ps1 first.');
+      print(
+          'Error: No update package found. Run build_update_package.ps1 first.');
       exit(1);
     }
 
@@ -64,15 +65,31 @@ Future<void> main(List<String> args) async {
       exit(1);
     }
 
+    final pushSecret = getArg(args, '--secret') ??
+        Platform.environment['NIGHTSHADE_UPDATE_PUSH_SECRET'];
+    if (pushSecret == null || pushSecret.isEmpty) {
+      print(
+        'Error: No push secret provided. Pass --secret <value> or set '
+        'NIGHTSHADE_UPDATE_PUSH_SECRET.',
+      );
+      exit(1);
+    }
+
     if (args.contains('--all')) {
-      await pushToAll(packagePath, manifestPath);
+      await pushToAll(packagePath, manifestPath, pushSecret);
     } else {
       final target = getArg(args, '--target');
       if (target == null) {
         print('Error: Specify --target <ip> or --all');
         exit(1);
       }
-      await pushToTarget(target, pushPort, packagePath, manifestPath);
+      await pushToTarget(
+        target,
+        pushPort,
+        packagePath,
+        manifestPath,
+        pushSecret,
+      );
     }
     return;
   }
@@ -91,6 +108,10 @@ void printUsage() {
   print('Options:');
   print('  --package <path>   Path to update package (default: auto-detect)');
   print('  --manifest <path>  Path to manifest.json (default: auto-detect)');
+  print(
+    '  --secret <value>   LAN push shared secret '
+    '(or use NIGHTSHADE_UPDATE_PUSH_SECRET)',
+  );
 }
 
 String? getArg(List<String> args, String name) {
@@ -176,7 +197,8 @@ Future<List<UpdateTarget>> discoverTargets() async {
 
     // Send discovery broadcast
     final discoveryData = utf8.encode(updatePushMessage);
-    socket.send(discoveryData, InternetAddress('255.255.255.255'), discoveryPort);
+    socket.send(
+        discoveryData, InternetAddress('255.255.255.255'), discoveryPort);
 
     // Wait for responses
     await Future.delayed(const Duration(seconds: 3));
@@ -194,7 +216,11 @@ Future<List<UpdateTarget>> discoverTargets() async {
   return targets;
 }
 
-Future<void> pushToAll(String packagePath, String manifestPath) async {
+Future<void> pushToAll(
+  String packagePath,
+  String manifestPath,
+  String pushSecret,
+) async {
   final targets = await discoverTargets();
   if (targets.isEmpty) {
     print('\nNo targets to push to.');
@@ -208,7 +234,13 @@ Future<void> pushToAll(String packagePath, String manifestPath) async {
       print('Skipping ${target.name} (busy receiving another update)');
       continue;
     }
-    await pushToTarget(target.host, target.port, packagePath, manifestPath);
+    await pushToTarget(
+      target.host,
+      target.port,
+      packagePath,
+      manifestPath,
+      pushSecret,
+    );
   }
 }
 
@@ -217,6 +249,7 @@ Future<void> pushToTarget(
   int port,
   String packagePath,
   String manifestPath,
+  String pushSecret,
 ) async {
   print('Pushing to $host:$port...');
 
@@ -229,11 +262,27 @@ Future<void> pushToTarget(
     // Read package
     final packageFile = File(packagePath);
     final packageSize = await packageFile.length();
-    print('  Package size: ${(packageSize / 1024 / 1024).toStringAsFixed(1)} MB');
+    print(
+        '  Package size: ${(packageSize / 1024 / 1024).toStringAsFixed(1)} MB');
 
     // Connect to target
     final socket = await Socket.connect(host, port);
     print('  Connected.');
+
+    final authPayload = utf8.encode(jsonEncode({'secret': pushSecret}));
+    final authLength = ByteData(4);
+    authLength.setInt32(0, authPayload.length, Endian.big);
+    socket.add(authLength.buffer.asUint8List());
+    socket.add(authPayload);
+    await socket.flush();
+
+    final authReply = await _readJsonMessage(socket);
+    if (authReply['auth'] != 'ok') {
+      throw Exception(
+        'Authentication rejected: ${authReply['reason'] ?? 'unknown reason'}',
+      );
+    }
+    print('  Authenticated.');
 
     // Send manifest length (4 bytes, big-endian)
     final manifestBytes = utf8.encode(manifestContent);
@@ -287,4 +336,41 @@ Future<void> pushToTarget(
   } catch (e) {
     print('  Failed: $e');
   }
+}
+
+Future<Map<String, dynamic>> _readJsonMessage(Socket socket) async {
+  final completer = Completer<Map<String, dynamic>>();
+  final buffer = StringBuffer();
+
+  late StreamSubscription<List<int>> subscription;
+  subscription = socket.listen(
+    (data) {
+      buffer.write(utf8.decode(data));
+      final text = buffer.toString();
+      final start = text.indexOf('{');
+      final end = text.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        subscription.cancel();
+        completer.complete(
+          jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>,
+        );
+      }
+    },
+    onError: completer.completeError,
+    onDone: () {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          const FormatException('Socket closed before auth response'),
+        );
+      }
+    },
+  );
+
+  return completer.future.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      subscription.cancel();
+      throw TimeoutException('Timed out waiting for auth response');
+    },
+  );
 }

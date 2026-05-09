@@ -30,7 +30,7 @@ class TourSelectionSheet extends ConsumerWidget {
       ),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
         border: Border(
           top: BorderSide(color: colors.border),
           left: BorderSide(color: colors.border),
@@ -61,7 +61,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.firstLight),
+                      onStart: () =>
+                          _startTour(context, ref, TutorialCategory.firstLight),
                     ),
                     _TourListItem(
                       category: TutorialCategory.equipmentSetup,
@@ -70,7 +71,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 2,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.equipmentSetup),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.equipmentSetup),
                     ),
                     _TourListItem(
                       category: TutorialCategory.targetPlanning,
@@ -79,7 +81,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.targetPlanning),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.targetPlanning),
                     ),
                     _TourListItem(
                       category: TutorialCategory.automatedImaging,
@@ -88,7 +91,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.automatedImaging),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.automatedImaging),
                     ),
                     _TourListItem(
                       category: TutorialCategory.calibrationFrames,
@@ -97,7 +101,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 2,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.calibrationFrames),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.calibrationFrames),
                     ),
                     _TourListItem(
                       category: TutorialCategory.advancedFeatures,
@@ -106,7 +111,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.advancedFeatures),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.advancedFeatures),
                     ),
 
                     // Screen Tours Section
@@ -119,7 +125,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 5,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.dashboardTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.dashboardTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.equipmentTour,
@@ -128,7 +135,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.equipmentTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.equipmentTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.imagingTour,
@@ -137,7 +145,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 6,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.imagingTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.imagingTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.guidingTour,
@@ -146,7 +155,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.guidingTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.guidingTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.sequencerTour,
@@ -155,7 +165,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 5,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.sequencerTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.sequencerTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.planetariumTour,
@@ -164,7 +175,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.planetariumTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.planetariumTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.framingTour,
@@ -173,7 +185,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.framingTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.framingTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.analyticsTour,
@@ -182,7 +195,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.analyticsTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.analyticsTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.flatWizardTour,
@@ -191,7 +205,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.flatWizardTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.flatWizardTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.weatherTour,
@@ -200,7 +215,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 3,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.weatherTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.weatherTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.settingsTour,
@@ -209,7 +225,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.settingsTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.settingsTour),
                     ),
                     _TourListItem(
                       category: TutorialCategory.polarAlignmentTour,
@@ -218,7 +235,8 @@ class TourSelectionSheet extends ConsumerWidget {
                       durationMinutes: 4,
                       tutorialState: tutorialState,
                       colors: colors,
-                      onStart: () => _startTour(context, ref, TutorialCategory.polarAlignmentTour),
+                      onStart: () => _startTour(
+                          context, ref, TutorialCategory.polarAlignmentTour),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -231,7 +249,8 @@ class TourSelectionSheet extends ConsumerWidget {
     );
   }
 
-  void _startTour(BuildContext context, WidgetRef ref, TutorialCategory category) {
+  void _startTour(
+      BuildContext context, WidgetRef ref, TutorialCategory category) {
     final tutorialNotifier = ref.read(tutorialProvider.notifier);
     tutorialNotifier.startTutorial(category);
     Navigator.of(context).pop();
@@ -347,13 +366,13 @@ class _TourListItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           onTap: onStart,
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -414,9 +433,11 @@ class _TourListItem extends StatelessWidget {
 
   _TourStatus _getTourStatus() {
     final steps = TutorialDefinitions.getStepsForCategory(category);
-    final completedCount = steps.where(
-      (step) => tutorialState.completedSteps.contains(step.id),
-    ).length;
+    final completedCount = steps
+        .where(
+          (step) => tutorialState.completedSteps.contains(step.id),
+        )
+        .length;
 
     if (completedCount == 0) {
       return _TourStatus.notStarted;
@@ -429,9 +450,11 @@ class _TourListItem extends StatelessWidget {
 
   String _getTourProgress() {
     final steps = TutorialDefinitions.getStepsForCategory(category);
-    final completedCount = steps.where(
-      (step) => tutorialState.completedSteps.contains(step.id),
-    ).length;
+    final completedCount = steps
+        .where(
+          (step) => tutorialState.completedSteps.contains(step.id),
+        )
+        .length;
     return '$completedCount/${steps.length}';
   }
 }

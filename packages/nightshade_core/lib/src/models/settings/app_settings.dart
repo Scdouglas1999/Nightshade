@@ -5,11 +5,11 @@ part 'app_settings.g.dart';
 
 /// Defines how the safety system behaves when weather/safety devices fail or are unavailable
 enum SafetyFailMode {
-  /// Legacy mode retained for backward compatibility. Runtime is fail-closed.
+  /// Treat unavailable safety data as safe; allow imaging to continue uninterrupted.
   failOpen,
-  /// Treat unavailable safety data as unsafe (production behavior).
+  /// Treat unavailable safety data as unsafe; pause imaging and optionally park the mount.
   failClosed,
-  /// Legacy mode retained for backward compatibility. Runtime is fail-closed.
+  /// Treat unavailable safety data as safe but emit a UI warning so the user is aware.
   warnOnly,
 }
 

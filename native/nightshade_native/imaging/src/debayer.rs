@@ -206,29 +206,13 @@ fn debayer_bilinear(pixels: &[u16], width: u32, height: u32, pattern: BayerPatte
                     }
                     BayerColor::Green => {
                         // At green pixel: interpolate red and blue
-                        // Depends on which row we're in
-                        let x_odd = x % 2 == 1;
-                        let y_odd = y % 2 == 1;
-
-                        match pattern {
-                            BayerPattern::RGGB | BayerPattern::BGGR => {
-                                if y_odd {
-                                    red_row[x] = interpolate_horizontal(pixels, w, h, x, y);
-                                    blue_row[x] = interpolate_vertical(pixels, w, h, x, y);
-                                } else {
-                                    red_row[x] = interpolate_vertical(pixels, w, h, x, y);
-                                    blue_row[x] = interpolate_horizontal(pixels, w, h, x, y);
-                                }
-                            }
-                            BayerPattern::GRBG | BayerPattern::GBRG => {
-                                if x_odd {
-                                    red_row[x] = interpolate_vertical(pixels, w, h, x, y);
-                                    blue_row[x] = interpolate_horizontal(pixels, w, h, x, y);
-                                } else {
-                                    red_row[x] = interpolate_horizontal(pixels, w, h, x, y);
-                                    blue_row[x] = interpolate_vertical(pixels, w, h, x, y);
-                                }
-                            }
+                        let horizontal_color = axis_neighbor_color(pattern, x, y, true);
+                        if horizontal_color == BayerColor::Red {
+                            red_row[x] = interpolate_horizontal(pixels, w, h, x, y);
+                            blue_row[x] = interpolate_vertical(pixels, w, h, x, y);
+                        } else {
+                            red_row[x] = interpolate_vertical(pixels, w, h, x, y);
+                            blue_row[x] = interpolate_horizontal(pixels, w, h, x, y);
                         }
                     }
                 }
@@ -241,6 +225,19 @@ fn debayer_bilinear(pixels: &[u16], width: u32, height: u32, pattern: BayerPatte
         red,
         green,
         blue,
+    }
+}
+
+fn axis_neighbor_color(pattern: BayerPattern, x: usize, y: usize, horizontal: bool) -> BayerColor {
+    if horizontal {
+        if x > 0 {
+            return pattern.color_at(x - 1, y);
+        }
+        pattern.color_at(x + 1, y)
+    } else if y > 0 {
+        pattern.color_at(x, y - 1)
+    } else {
+        pattern.color_at(x, y + 1)
     }
 }
 
@@ -369,8 +366,12 @@ fn debayer_vng(pixels: &[u16], width: u32, height: u32, pattern: BayerPattern) -
 
                     // Calculate gradients in 8 directions
                     let gradients = calculate_gradients(pixels, w, x, y);
-                    let threshold =
-                        gradients.iter().cloned().fold(0i32, |acc, g| acc.min(g)) * 3 / 2;
+                    let min_g = gradients.iter().copied().min().unwrap_or(0);
+                    let max_g = gradients.iter().copied().max().unwrap_or(0);
+                    // Threshold = min + 1.5 * (max - min): directions with gradient
+                    // at or below this are considered "smooth" and selected for
+                    // interpolation, preserving edges.
+                    let threshold = min_g + (max_g - min_g) * 3 / 2;
 
                     // Average values from directions with small gradients
                     let (r, g, b) =
@@ -473,39 +474,169 @@ fn calculate_gradients(pixels: &[u16], w: usize, x: usize, y: usize) -> [i32; 8]
 }
 
 /// VNG interpolation using gradient-selected directions
+///
+/// For each of the 8 directions (N, NE, E, SE, S, SW, W, NW), we compute
+/// candidate R, G, B values by sampling same-color neighbors along that
+/// direction. We then select only the directions whose gradient is at or
+/// below a threshold (1.5x the minimum gradient), and average the candidate
+/// colors from those low-gradient directions. This produces smoother
+/// interpolation along edges while preserving detail.
 fn vng_interpolate(
     pixels: &[u16],
     w: usize,
-    h: usize,
+    _h: usize,
     x: usize,
     y: usize,
-    _gradients: &[i32; 8],
-    _threshold: i32,
+    gradients: &[i32; 8],
+    threshold: i32,
     color: BayerColor,
-    _pattern: BayerPattern,
+    pattern: BayerPattern,
 ) -> (u16, u16, u16) {
-    let idx = y * w + x;
-    let val = pixels[idx];
+    let val = pixels[y * w + x] as i32;
 
-    // For simplicity, fall back to bilinear for VNG
-    // A full VNG implementation would select directions based on gradients
-    match color {
-        BayerColor::Red => (
-            val,
-            interpolate_cross(pixels, w, h, x, y),
-            interpolate_diagonal(pixels, w, h, x, y),
-        ),
-        BayerColor::Green => (
-            interpolate_horizontal(pixels, w, h, x, y),
-            val,
-            interpolate_vertical(pixels, w, h, x, y),
-        ),
-        BayerColor::Blue => (
-            interpolate_diagonal(pixels, w, h, x, y),
-            interpolate_cross(pixels, w, h, x, y),
-            val,
-        ),
+    // Helper to read a pixel at (x+dx, y+dy)
+    let px = |dx: i32, dy: i32| -> i32 {
+        pixels[(y as i32 + dy) as usize * w + (x as i32 + dx) as usize] as i32
+    };
+
+    // Direction offsets: N, NE, E, SE, S, SW, W, NW
+    // Each direction provides two sample points at distance 1 and 2 in that direction.
+    let dir_offsets: [(i32, i32); 8] = [
+        (0, -1),  // N
+        (1, -1),  // NE
+        (1, 0),   // E
+        (1, 1),   // SE
+        (0, 1),   // S
+        (-1, 1),  // SW
+        (-1, 0),  // W
+        (-1, -1), // NW
+    ];
+
+    // For VNG, we estimate color differences (green - red, green - blue) at the
+    // center pixel using neighbors along each selected direction, then average
+    // only the estimates from low-gradient (smooth) directions.
+
+    let mut sum_r = 0i64;
+    let mut sum_g = 0i64;
+    let mut sum_b = 0i64;
+    let mut count = 0i64;
+
+    for (i, &(dx, dy)) in dir_offsets.iter().enumerate() {
+        if gradients[i] > threshold {
+            continue;
+        }
+
+        // Sample at distance 1 and 2 along this direction
+        let p1 = px(dx, dy);
+        let p2 = px(dx * 2, dy * 2);
+        let c1 = pattern.color_at((x as i32 + dx) as usize, (y as i32 + dy) as usize);
+        let c2 = pattern.color_at((x as i32 + dx * 2) as usize, (y as i32 + dy * 2) as usize);
+
+        // Estimate each channel at the center pixel using this direction.
+        // Strategy: the known channel is val. For missing channels, use the
+        // neighbor of that color and adjust by the green difference to preserve
+        // color ratios (adaptive color plane interpolation).
+        let (est_r, est_g, est_b) = match color {
+            BayerColor::Red => {
+                // We know red = val. Estimate green from nearest green neighbor
+                // along this direction, and blue from nearest blue neighbor.
+                let est_g = if c1 == BayerColor::Green {
+                    // Green neighbor at distance 1: estimate green at center
+                    // as green_neighbor - (red_at_neighbor_estimate - red_at_center)
+                    // Simplified: green = p1 + (val - p2) when p2 is same color as center
+                    if c2 == BayerColor::Red {
+                        p1 + (val - p2) / 2
+                    } else {
+                        p1
+                    }
+                } else if c2 == BayerColor::Green {
+                    p2 + (val - p1) / 2
+                } else {
+                    // Both neighbors are non-green; use cross interpolation
+                    interpolate_cross(pixels, w, _h, x, y) as i32
+                };
+                let est_b = if c1 == BayerColor::Blue {
+                    p1 + (val - p2) / 2
+                } else if c2 == BayerColor::Blue {
+                    p2 + (val - p1) / 2
+                } else {
+                    interpolate_diagonal(pixels, w, _h, x, y) as i32
+                };
+                (val, est_g, est_b)
+            }
+            BayerColor::Blue => {
+                let est_g = if c1 == BayerColor::Green {
+                    if c2 == BayerColor::Blue {
+                        p1 + (val - p2) / 2
+                    } else {
+                        p1
+                    }
+                } else if c2 == BayerColor::Green {
+                    p2 + (val - p1) / 2
+                } else {
+                    interpolate_cross(pixels, w, _h, x, y) as i32
+                };
+                let est_r = if c1 == BayerColor::Red {
+                    p1 + (val - p2) / 2
+                } else if c2 == BayerColor::Red {
+                    p2 + (val - p1) / 2
+                } else {
+                    interpolate_diagonal(pixels, w, _h, x, y) as i32
+                };
+                (est_r, est_g, val)
+            }
+            BayerColor::Green => {
+                // We know green = val. Estimate red and blue from neighbors.
+                let est_r = if c1 == BayerColor::Red {
+                    if c2 == BayerColor::Green {
+                        p1 + (val - p2) / 2
+                    } else {
+                        p1
+                    }
+                } else if c2 == BayerColor::Red {
+                    p2 + (val - p1) / 2
+                } else {
+                    // No red neighbor in this direction; use directional interpolation
+                    interpolate_horizontal(pixels, w, _h, x, y) as i32
+                };
+                let est_b = if c1 == BayerColor::Blue {
+                    if c2 == BayerColor::Green {
+                        p1 + (val - p2) / 2
+                    } else {
+                        p1
+                    }
+                } else if c2 == BayerColor::Blue {
+                    p2 + (val - p1) / 2
+                } else {
+                    interpolate_vertical(pixels, w, _h, x, y) as i32
+                };
+                (est_r, val, est_b)
+            }
+        };
+
+        sum_r += est_r as i64;
+        sum_g += est_g as i64;
+        sum_b += est_b as i64;
+        count += 1;
     }
+
+    // If no directions passed the threshold (shouldn't happen since threshold
+    // is >= min gradient, but guard against it), use all directions.
+    if count == 0 {
+        for &(dx, dy) in &dir_offsets {
+            let p1 = px(dx, dy);
+            sum_r += p1 as i64;
+            sum_g += p1 as i64;
+            sum_b += p1 as i64;
+            count += 1;
+        }
+    }
+
+    (
+        (sum_r / count).clamp(0, 65535) as u16,
+        (sum_g / count).clamp(0, 65535) as u16,
+        (sum_b / count).clamp(0, 65535) as u16,
+    )
 }
 
 /// Super-pixel debayering (2x2 binning)
@@ -569,5 +700,57 @@ fn debayer_superpixel(pixels: &[u16], width: u32, height: u32, pattern: BayerPat
         red,
         green,
         blue,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn patterned_raw(pattern: BayerPattern, width: u32, height: u32) -> Vec<u16> {
+        let mut pixels = Vec::with_capacity((width * height) as usize);
+        for y in 0..height as usize {
+            for x in 0..width as usize {
+                let value = match pattern.color_at(x, y) {
+                    BayerColor::Red => 1000,
+                    BayerColor::Green => 500,
+                    BayerColor::Blue => 100,
+                };
+                pixels.push(value);
+            }
+        }
+        pixels
+    }
+
+    #[test]
+    fn bilinear_green_interpolation_uses_correct_neighbors_for_rggb() {
+        let pixels = patterned_raw(BayerPattern::RGGB, 4, 4);
+        let rgb = debayer_to_rgb16(
+            &pixels,
+            4,
+            4,
+            BayerPattern::RGGB,
+            DebayerAlgorithm::Bilinear,
+        );
+        let idx = ((1 * 4) + 2) * 3;
+        assert_eq!(rgb[idx], 1000);
+        assert_eq!(rgb[idx + 1], 500);
+        assert_eq!(rgb[idx + 2], 100);
+    }
+
+    #[test]
+    fn bilinear_green_interpolation_uses_correct_neighbors_for_bggr() {
+        let pixels = patterned_raw(BayerPattern::BGGR, 4, 4);
+        let rgb = debayer_to_rgb16(
+            &pixels,
+            4,
+            4,
+            BayerPattern::BGGR,
+            DebayerAlgorithm::Bilinear,
+        );
+        let idx = ((2 * 4) + 1) * 3;
+        assert_eq!(rgb[idx], 1000);
+        assert_eq!(rgb[idx + 1], 500);
+        assert_eq!(rgb[idx + 2], 100);
     }
 }

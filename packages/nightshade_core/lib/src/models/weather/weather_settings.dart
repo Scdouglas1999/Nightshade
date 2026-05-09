@@ -37,6 +37,15 @@ class WeatherSettings with _$WeatherSettings {
     /// Enable weather safety monitoring
     @Default(true) bool weatherSafetyEnabled,
 
+    /// Maximum safe humidity before weather safety pauses imaging
+    @Default(90.0) double maxHumidityPercent,
+
+    /// Maximum safe wind speed before weather safety pauses imaging
+    @Default(30.0) double maxWindSpeedKph,
+
+    /// Maximum safe cloud cover before weather safety pauses imaging
+    @Default(80.0) double maxCloudCoverPercent,
+
     /// Automatically park mount when weather threatens
     @Default(true) bool autoParkEnabled,
 

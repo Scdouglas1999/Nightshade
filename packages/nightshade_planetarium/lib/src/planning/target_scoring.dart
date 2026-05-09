@@ -59,6 +59,9 @@ class TargetVisibilityInfo {
   /// Peak altitude during the night window (populated by scoreTargetForNight)
   final double? peakAltitude;
 
+  /// Azimuth at peak altitude during the night (populated by scoreTargetForNight)
+  final double? peakAzimuth;
+
   /// Time when peak altitude occurs during the night (populated by scoreTargetForNight)
   final DateTime? peakAltitudeTime;
 
@@ -77,6 +80,7 @@ class TargetVisibilityInfo {
     required this.airmass,
     required this.moonDistance,
     this.peakAltitude,
+    this.peakAzimuth,
     this.peakAltitudeTime,
     this.hoursAboveMinAlt,
   });
@@ -266,6 +270,7 @@ class TargetScoringService {
     // Sample positions throughout the night at 15-minute intervals
     const sampleInterval = Duration(minutes: 15);
     double peakAlt = -90;
+    double peakAz = 0;
     DateTime peakTime = nightStart;
     double bestAirmass = double.infinity;
     int samplesAboveMin = 0;
@@ -273,7 +278,7 @@ class TargetScoringService {
 
     var sampleTime = nightStart;
     while (!sampleTime.isAfter(nightEnd)) {
-      final (alt, _) = AstronomyCalculations.objectAltAz(
+      final (alt, az) = AstronomyCalculations.objectAltAz(
         raDeg: raDeg,
         decDeg: decDeg,
         dt: sampleTime,
@@ -284,6 +289,7 @@ class TargetScoringService {
 
       if (alt > peakAlt) {
         peakAlt = alt;
+        peakAz = az;
         peakTime = sampleTime;
       }
       if (am < bestAirmass) {
@@ -342,6 +348,7 @@ class TargetScoringService {
       airmass: currentAirmass,
       moonDistance: moonDist,
       peakAltitude: peakAlt,
+      peakAzimuth: peakAz,
       peakAltitudeTime: peakTime,
       hoursAboveMinAlt: hoursAboveMin,
     );

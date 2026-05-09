@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
 
 /// Integration test demonstrating the complete plugin lifecycle
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Plugin System Integration', () {
     late PluginHost host;
 
@@ -192,6 +196,42 @@ void main() {
       expect(allAfterClear.length, equals(0));
     });
 
+    test('File storage survives new instances', () async {
+      final tempRoot =
+          await Directory.systemTemp.createTemp('nightshade_plugins_test_');
+      addTearDown(() async {
+        if (await tempRoot.exists()) {
+          await tempRoot.delete(recursive: true);
+        }
+      });
+
+      Future<Directory> baseDir() async => tempRoot;
+
+      final first = FilePluginStorage(
+        'com.nightshade.persistence-test',
+        baseDirectoryProvider: baseDir,
+      );
+      await first.setString('greeting', 'hello');
+      await first.setInt('count', 7);
+      await first.setBool('enabled', true);
+
+      final second = FilePluginStorage(
+        'com.nightshade.persistence-test',
+        baseDirectoryProvider: baseDir,
+      );
+      expect(await second.getString('greeting'), equals('hello'));
+      expect(await second.getInt('count'), equals(7));
+      expect(await second.getBool('enabled'), isTrue);
+    });
+
+    test('Sandboxed plugin event bus blocks global subscriptions', () async {
+      final factory = PluginContextFactory();
+      final context = factory.createContext('com.nightshade.sandbox-test');
+      addTearDown(factory.dispose);
+
+      expect(() => context.eventBus.onAny(), throwsA(isA<PluginException>()));
+    });
+
     test('Event bus delivers events', () async {
       final eventBus = StreamPluginEventBus();
       final receivedEvents = <Map<String, dynamic>>[];
@@ -266,11 +306,64 @@ void main() {
       expect(plugin.nodeDefinitions, isNotEmpty);
       expect(plugin.nodeDefinitions.length, equals(2));
 
-      final waitNode = plugin.nodeDefinitions
-          .where((n) => n.id == 'example.wait')
-          .first;
+      final waitNode =
+          plugin.nodeDefinitions.where((n) => n.id == 'example.wait').first;
       expect(waitNode.name, equals('Custom Wait'));
       expect(waitNode.category, equals('Example'));
     });
   });
+
+  group('Plugin sandboxing', () {
+    test('Plugin onLoad timeout is enforced', () async {
+      final host = PluginHost(
+        lifecycleTimeout: const Duration(milliseconds: 50),
+      );
+      addTearDown(host.dispose);
+
+      expect(
+        () => host.registerPlugin(_HangingPlugin()),
+        throwsA(isA<PluginException>()),
+      );
+    });
+  });
+}
+
+class _HangingPlugin implements NightshadePlugin {
+  @override
+  String get id => 'com.nightshade.hanging';
+
+  @override
+  String get name => 'Hanging Plugin';
+
+  @override
+  String get version => '1.0.0';
+
+  @override
+  String get description => 'Deliberately hangs during onLoad';
+
+  @override
+  String get author => 'test';
+
+  @override
+  String? get minAppVersion => null;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> onDisable() async {}
+
+  @override
+  Future<void> onEnable() async {}
+
+  @override
+  Future<void> onLoad(PluginContext context) async {
+    await Future<void>.delayed(const Duration(seconds: 10));
+  }
+
+  @override
+  Future<void> onUnload() async {}
+
+  @override
+  Future<void> dispose() async {}
 }

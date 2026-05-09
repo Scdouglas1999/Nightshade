@@ -1353,7 +1353,7 @@ mixin _$PolarAlignmentResult {
   bool get autoCompleted => throw _privateConstructorUsedError;
 
   /// Equipment profile ID used (for history tracking)
-  String? get equipmentProfileId => throw _privateConstructorUsedError;
+  int? get equipmentProfileId => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -1374,7 +1374,7 @@ abstract class $PolarAlignmentResultCopyWith<$Res> {
       DateTime completedAt,
       PolarAlignmentConfig config,
       bool autoCompleted,
-      String? equipmentProfileId});
+      int? equipmentProfileId});
 
   $PolarAlignmentErrorCopyWith<$Res> get initialError;
   $PolarAlignmentErrorCopyWith<$Res> get finalError;
@@ -1431,7 +1431,7 @@ class _$PolarAlignmentResultCopyWithImpl<$Res,
       equipmentProfileId: freezed == equipmentProfileId
           ? _value.equipmentProfileId
           : equipmentProfileId // ignore: cast_nullable_to_non_nullable
-              as String?,
+              as int?,
     ) as $Val);
   }
 
@@ -1475,7 +1475,7 @@ abstract class _$$PolarAlignmentResultImplCopyWith<$Res>
       DateTime completedAt,
       PolarAlignmentConfig config,
       bool autoCompleted,
-      String? equipmentProfileId});
+      int? equipmentProfileId});
 
   @override
   $PolarAlignmentErrorCopyWith<$Res> get initialError;
@@ -1532,7 +1532,7 @@ class __$$PolarAlignmentResultImplCopyWithImpl<$Res>
       equipmentProfileId: freezed == equipmentProfileId
           ? _value.equipmentProfileId
           : equipmentProfileId // ignore: cast_nullable_to_non_nullable
-              as String?,
+              as int?,
     ));
   }
 }
@@ -1580,7 +1580,7 @@ class _$PolarAlignmentResultImpl extends _PolarAlignmentResult {
 
   /// Equipment profile ID used (for history tracking)
   @override
-  final String? equipmentProfileId;
+  final int? equipmentProfileId;
 
   @override
   String toString() {
@@ -1636,7 +1636,7 @@ abstract class _PolarAlignmentResult extends PolarAlignmentResult {
       required final DateTime completedAt,
       required final PolarAlignmentConfig config,
       final bool autoCompleted,
-      final String? equipmentProfileId}) = _$PolarAlignmentResultImpl;
+      final int? equipmentProfileId}) = _$PolarAlignmentResultImpl;
   const _PolarAlignmentResult._() : super._();
 
   factory _PolarAlignmentResult.fromJson(Map<String, dynamic> json) =
@@ -1669,7 +1669,7 @@ abstract class _PolarAlignmentResult extends PolarAlignmentResult {
   @override
 
   /// Equipment profile ID used (for history tracking)
-  String? get equipmentProfileId;
+  int? get equipmentProfileId;
   @override
   @JsonKey(ignore: true)
   _$$PolarAlignmentResultImplCopyWith<_$PolarAlignmentResultImpl>

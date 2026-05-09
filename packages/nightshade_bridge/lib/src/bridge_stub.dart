@@ -56,6 +56,19 @@ Never _nativeBridgeRequired(String operation) {
   );
 }
 
+bool _isPhd2DeviceId(String deviceId) =>
+    deviceId == 'phd2' ||
+    deviceId == 'phd2_guider' ||
+    deviceId.startsWith('phd2:') ||
+    deviceId.startsWith('phd2://');
+
+String _canonicalGuiderDeviceId(String deviceId) {
+  if (_isPhd2DeviceId(deviceId)) {
+    return 'phd2_guider';
+  }
+  return deviceId;
+}
+
 // ============================================================================
 // Type Aliases - Use FRB-generated types to avoid duplication
 // ============================================================================
@@ -306,11 +319,19 @@ class NativeBridge {
   static FocuserStatus? _focuserStatus;
   static FilterWheelStatus? _filterWheelStatus;
 
-  // Alpaca discovery cache to avoid repeated UDP broadcasts
-  static List<alpaca.AlpacaDevice>? _alpacaDiscoveryCache;
-  static DateTime? _alpacaDiscoveryCacheTime;
-  static const _alpacaDiscoveryCacheTtl = Duration(seconds: 10);
-  static Future<List<alpaca.AlpacaDevice>>? _alpacaDiscoveryInProgress;
+  // Full discovery result cache (keyed by DeviceType) with 60-second TTL.
+  // A single sweep discovers ALL device types and populates the entire cache,
+  // so concurrent callers for different types share one sweep.
+  static final Map<DeviceType, List<DeviceInfo>> _discoveryCache = {};
+  static DateTime? _discoveryCacheTime;
+  static const _discoveryCacheTtl = Duration(seconds: 60);
+
+  // Completer that gates concurrent discovery requests: if a full sweep is
+  // already in progress, new callers await this instead of launching their own.
+  static Completer<void>? _discoverySweepInProgress;
+
+  // Static flag to only print "Not on Windows" once
+  static bool _ascomNotWindowsWarned = false;
 
   // Active Alpaca connections
   static final Map<String, alpaca.AlpacaClient> _alpacaClients = {};
@@ -337,34 +358,23 @@ class NativeBridge {
     // This enables native ZWO discovery and proper ASCOM discovery
     // Note: If manual load succeeded, RustLib should also be able to find it
     try {
-      debugPrint(
-          '[Bridge] Initializing RustLib for native device discovery...');
-      debugPrint(
-          '[Bridge] RustLib will attempt to load the native library automatically');
       await frb.RustLib.init();
 
       // Initialize the native bridge API
       if (logDirectory != null) {
         gen_api.apiInitWithLogging(logDirectory: logDirectory);
-        debugPrint(
-            '[Bridge] Native bridge API initialized with logging to: $logDirectory');
       } else {
         gen_api.apiInit();
-        debugPrint(
-            '[Bridge] Native bridge API initialized (console logging only)');
       }
 
       // Verify it's working
       final version = gen_api.apiGetVersion();
-      debugPrint('[Bridge] Native bridge version: $version');
-      debugPrint(
-          '[Bridge] ✓ Native bridge ready - will discover native ZWO, ASCOM, and Alpaca devices');
+      debugPrint('[Bridge] Native bridge v$version ready');
 
       // Mark as available for native discovery
       _nativeAvailable = true;
     } catch (e) {
       debugPrint('[Bridge] RustLib initialization failed: $e');
-      debugPrint('[Bridge] Will fall back to fallback discovery methods');
       // Mark as unavailable since RustLib couldn't initialize
       _nativeAvailable = false;
     }
@@ -550,21 +560,11 @@ class NativeBridge {
         try {
           final file = File(libPath);
           if (await file.exists()) {
-            debugPrint(
-                '[Bridge] Attempting to load native library from: $libPath');
-
-            // Try to load the library
             _nativeLib = DynamicLibrary.open(libPath);
-
-            // Verify the library loaded by checking for a known symbol
-            // Validate library load succeeded
-            debugPrint(
-                '[Bridge] Successfully loaded native library from: $libPath');
             return true;
           }
         } catch (e) {
           // Continue trying other paths
-          debugPrint('[Bridge] Failed to load library from $libPath: $e');
         }
       }
 
@@ -577,28 +577,13 @@ class NativeBridge {
         } else if (Platform.isMacOS) {
           _nativeLib = DynamicLibrary.open(libName);
         }
-        debugPrint(
-            '[Bridge] Successfully loaded native library by name: $libName');
         return true;
       } catch (e) {
-        debugPrint('[Bridge] Failed to load library by name: $e');
+        // System search also failed
       }
 
       debugPrint(
           '[Bridge] Native library not found. Native-only operations will fail closed.');
-      debugPrint('');
-      debugPrint('To enable native device discovery:');
-      debugPrint(
-          '1. Build the native library: cd native/nightshade_native && cargo build --release --manifest-path bridge/Cargo.toml');
-      if (Platform.isWindows) {
-        debugPrint('2. Copy nightshade_bridge.dll to: $executableDir');
-        debugPrint(
-            '   Or build the Flutter app which should copy it automatically');
-      } else if (Platform.isLinux) {
-        debugPrint('2. Copy $libName to: $executableDir/lib/');
-      } else if (Platform.isMacOS) {
-        debugPrint('2. Copy $libName to: Frameworks/ in the app bundle');
-      }
       return false;
     } catch (e) {
       debugPrint('[Bridge] Error loading native library: $e');
@@ -608,6 +593,14 @@ class NativeBridge {
 
   /// Check if native library is available
   static bool get isNativeAvailable => _nativeAvailable;
+
+  /// Invalidate the discovery cache so the next call runs full discovery.
+  /// Call this when the user explicitly requests a refresh, or after
+  /// connecting/disconnecting a device.
+  static void invalidateDiscoveryCache() {
+    _discoveryCache.clear();
+    _discoveryCacheTime = null;
+  }
 
   /// Get the version of the native library
   static String getNativeVersion() {
@@ -648,7 +641,6 @@ class NativeBridge {
         return gen_api.apiEventStream();
       } catch (e) {
         debugPrint('[Bridge] Failed to get native event stream: $e');
-        debugPrint('[Bridge] Falling back to local event controller');
       }
     }
 
@@ -683,8 +675,6 @@ class NativeBridge {
     required int port,
   }) async {
     try {
-      debugPrint('[Bridge] Connecting to INDI server at $host:$port...');
-
       // Connect to INDI server via TCP
       final socket =
           await Socket.connect(host, port, timeout: const Duration(seconds: 5));
@@ -746,14 +736,12 @@ class NativeBridge {
         // Parse XML response
         final devices = _parseIndiDevices(response, host, port);
 
-        debugPrint(
-            '[Bridge] Discovered ${devices.length} INDI devices at $host:$port');
         return devices;
       } finally {
         await socket.close();
       }
     } catch (e) {
-      debugPrint('[Bridge] Failed to discover INDI devices at $host:$port: $e');
+      debugPrint('[Discovery] INDI discovery failed at $host:$port: $e');
       return [];
     }
   }
@@ -842,211 +830,217 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[Bridge] Error parsing INDI XML response: $e');
+      debugPrint('[Discovery] Error parsing INDI XML response: $e');
       // Try to extract device names even if full parsing fails
-      final deviceNameRegex = RegExp(r'device="([^"]+)"');
-      final matches = deviceNameRegex.allMatches(xmlResponse);
-      final seenDevices = <String>{};
-
-      for (final match in matches) {
-        final deviceName = match.group(1);
-        if (deviceName != null && !seenDevices.contains(deviceName)) {
-          seenDevices.add(deviceName);
-          debugPrint(
-            '[Bridge] Skipping INDI device "$deviceName" because type could not be determined from malformed XML response.',
-          );
-        }
-      }
+      // (these devices are skipped because type cannot be determined)
+      // Regex fallback intentionally does not add devices - malformed XML
+      // means we cannot reliably determine device types
     }
 
     return devices;
   }
 
-  /// Discover available devices of a specific type
+  /// Discover available devices of a specific type.
   ///
   /// This queries:
   /// 1. Native bridge (if available) - includes ASCOM, native ZWO, Alpaca, etc.
   /// 2. Real ASCOM drivers from Windows Registry (Windows only, fallback)
   /// 3. Real Alpaca devices on the network via HTTP (cross-platform)
-  /// 4. Simulator devices for testing
+  /// 4. PHD2 instances on the local network (guider type only)
+  ///
+  /// Results are cached for 60 seconds. Call [invalidateDiscoveryCache] to
+  /// force a fresh discovery. A single sweep discovers ALL device types so
+  /// that concurrent callers (e.g. 5 parallel calls at startup) share one
+  /// network scan instead of each launching their own.
   static Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) async {
-    final devices = <DeviceInfo>[];
-
-    // =========================================================================
-    // Try Native Bridge Discovery First (includes ASCOM, native ZWO, Alpaca)
-    // =========================================================================
-    // Only attempt native discovery if RustLib was successfully initialized
-    if (_nativeAvailable) {
-      try {
-        // Convert DeviceType to generated enum
-        final genDeviceType = _toGenDeviceType(deviceType);
-
-        // Call native bridge discovery
-        final nativeDevices =
-            await gen_api.apiDiscoverDevices(deviceType: genDeviceType);
-
-        // Convert generated DeviceInfo to local DeviceInfo
-        for (final nativeDev in nativeDevices) {
-          devices.add(DeviceInfo(
-            id: nativeDev.id,
-            name: nativeDev.name,
-            deviceType: _fromGenDeviceType(nativeDev.deviceType),
-            driverType: _fromGenDriverType(nativeDev.driverType),
-            description: nativeDev.description,
-            driverVersion: nativeDev.driverVersion,
-            displayName: nativeDev.displayName,
-          ));
-        }
-
-        if (nativeDevices.isNotEmpty) {
-          debugPrint(
-              '[Bridge] Found ${nativeDevices.length} native ${deviceType.displayName}(s)');
-        }
-      } catch (e) {
-        // Only log errors, not expected RustLib issues
-        if (!e.toString().contains('RustLib') &&
-            !e.toString().contains('not initialized')) {
-          debugPrint('[Bridge] Native discovery error: $e');
-        }
-        // Continue to fallback discovery methods
-      }
+    // Fast path: return from cache if still valid for this type
+    final now = DateTime.now();
+    if (_discoveryCacheTime != null &&
+        now.difference(_discoveryCacheTime!) < _discoveryCacheTtl &&
+        _discoveryCache.containsKey(deviceType)) {
+      return List.unmodifiable(_discoveryCache[deviceType]!);
     }
 
-    // =========================================================================
-    // Fallback: ASCOM Discovery (Windows only, direct COM via Registry)
-    // =========================================================================
-    // Only do fallback ASCOM discovery if native bridge isn't available or didn't find devices
-    // The native bridge already does ASCOM discovery, so this is just a fallback
-    if (!_nativeAvailable && Platform.isWindows) {
-      try {
-        final ascomType = _deviceTypeToAscomType(deviceType);
-        if (ascomType != null) {
-          debugPrint('[ASCOM] Discovering ASCOM $ascomType drivers...');
-          final ascomDrivers = await ascom.discoverAscomDrivers(ascomType);
-          debugPrint(
-              '[ASCOM] Found ${ascomDrivers.length} ASCOM $ascomType driver(s)');
-
-          for (final driver in ascomDrivers) {
-            devices.add(DeviceInfo(
-              id: driver.id,
-              name: driver.name,
-              deviceType: deviceType,
-              driverType: DriverType.ascom,
-              description: 'ASCOM driver: ${driver.progId}',
-              driverVersion: 'ASCOM',
-              displayName: driver.name,
-            ));
-            debugPrint(
-                '[ASCOM] Found ASCOM ${deviceType.displayName}: ${driver.name} (${driver.progId})');
-          }
-        } else {
-          debugPrint(
-              '[ASCOM] No ASCOM type mapping for ${deviceType.displayName}');
-        }
-      } catch (e, stackTrace) {
-        debugPrint('[ASCOM] Discovery failed: $e');
-        debugPrint('[ASCOM] Stack trace: $stackTrace');
+    // If a sweep is already running, wait for it and then return cached result
+    if (_discoverySweepInProgress != null) {
+      await _discoverySweepInProgress!.future;
+      // After the sweep, result should be in cache
+      if (_discoveryCache.containsKey(deviceType)) {
+        return List.unmodifiable(_discoveryCache[deviceType]!);
       }
-    } else {
-      debugPrint('[ASCOM] Not on Windows, skipping ASCOM discovery');
+      // Sweep finished but didn't populate this type (shouldn't happen, but
+      // return empty rather than silently looping)
+      return const [];
     }
 
-    // =========================================================================
-    // Alpaca Discovery (cross-platform, direct HTTP from Dart)
-    // Uses caching AND locking to avoid repeated 2-second UDP broadcasts
-    // =========================================================================
+    // We are the first caller — run a full sweep for ALL device types
+    final sweepCompleter = Completer<void>();
+    _discoverySweepInProgress = sweepCompleter;
+
     try {
-      List<alpaca.AlpacaDevice> alpacaDevices;
+      await _runFullDiscoverySweep();
+    } finally {
+      _discoverySweepInProgress = null;
+      sweepCompleter.complete();
+    }
 
-      // Check if we have a valid cache first
-      final now = DateTime.now();
-      if (_alpacaDiscoveryCache != null &&
-          _alpacaDiscoveryCacheTime != null &&
-          now.difference(_alpacaDiscoveryCacheTime!) <
-              _alpacaDiscoveryCacheTtl) {
-        // Use cached results
-        alpacaDevices = _alpacaDiscoveryCache!;
-      } else if (_alpacaDiscoveryInProgress != null) {
-        // Another discovery is in progress - wait for it instead of starting a new one
-        debugPrint('[Alpaca] discovery already in progress, waiting...');
-        alpacaDevices = await _alpacaDiscoveryInProgress!;
-      } else {
-        // Start fresh discovery with lock to prevent parallel discoveries
-        debugPrint('[Alpaca] Discovering devices (UDP broadcast)...');
-        final discoveryFuture = alpaca.discoverAllAlpacaDevices(
+    return List.unmodifiable(_discoveryCache[deviceType] ?? const []);
+  }
+
+  /// Run a single discovery sweep that populates [_discoveryCache] for every
+  /// [DeviceType]. This is called at most once per cache TTL window.
+  static Future<void> _runFullDiscoverySweep() async {
+    // Prepare empty lists for every device type
+    final allDevices = <DeviceType, List<DeviceInfo>>{};
+    for (final dt in DeviceType.values) {
+      allDevices[dt] = <DeviceInfo>[];
+    }
+
+    // =========================================================================
+    // 1. Native Bridge Discovery (includes ASCOM, native ZWO, Alpaca, etc.)
+    // =========================================================================
+    if (_nativeAvailable) {
+      // Discover all types in parallel through native bridge
+      final futures = <Future<void>>[];
+      for (final dt in DeviceType.values) {
+        futures.add(() async {
+          try {
+            final genDeviceType = _toGenDeviceType(dt);
+            final nativeDevices =
+                await gen_api.apiDiscoverDevices(deviceType: genDeviceType);
+
+            for (final nativeDev in nativeDevices) {
+              allDevices[dt]!.add(DeviceInfo(
+                id: nativeDev.id,
+                name: nativeDev.name,
+                deviceType: _fromGenDeviceType(nativeDev.deviceType),
+                driverType: _fromGenDriverType(nativeDev.driverType),
+                description: nativeDev.description,
+                driverVersion: nativeDev.driverVersion,
+                displayName: nativeDev.displayName,
+              ));
+            }
+          } catch (e) {
+            if (!e.toString().contains('RustLib') &&
+                !e.toString().contains('not initialized')) {
+              debugPrint(
+                  '[Discovery] Native discovery error for ${dt.displayName}: $e');
+            }
+          }
+        }());
+      }
+      await Future.wait(futures);
+    }
+
+    // =========================================================================
+    // 2. Fallback: ASCOM Discovery (Windows only, direct COM via Registry)
+    //    Only used when native bridge is unavailable.
+    // =========================================================================
+    if (!_nativeAvailable && Platform.isWindows) {
+      for (final dt in DeviceType.values) {
+        try {
+          final ascomType = _deviceTypeToAscomType(dt);
+          if (ascomType != null) {
+            final ascomDrivers = await ascom.discoverAscomDrivers(ascomType);
+            for (final driver in ascomDrivers) {
+              allDevices[dt]!.add(DeviceInfo(
+                id: driver.id,
+                name: driver.name,
+                deviceType: dt,
+                driverType: DriverType.ascom,
+                description: 'ASCOM driver: ${driver.progId}',
+                driverVersion: 'ASCOM',
+                displayName: driver.name,
+              ));
+            }
+          }
+        } catch (e) {
+          debugPrint(
+              '[Discovery] ASCOM fallback discovery failed for ${dt.displayName}: $e');
+        }
+      }
+    } else if (!Platform.isWindows && !_ascomNotWindowsWarned) {
+      debugPrint('[Discovery] ASCOM not available (non-Windows platform)');
+      _ascomNotWindowsWarned = true;
+    }
+
+    if (!_nativeAvailable) {
+      // =======================================================================
+      // 3. Alpaca Discovery (cross-platform, single UDP broadcast for all types)
+      // =======================================================================
+      try {
+        final alpacaDevices = await alpaca.discoverAllAlpacaDevices(
           timeout: const Duration(seconds: 2),
         );
-        _alpacaDiscoveryInProgress = discoveryFuture;
-        try {
-          alpacaDevices = await discoveryFuture;
-          _alpacaDiscoveryCache = alpacaDevices;
-          _alpacaDiscoveryCacheTime = DateTime.now();
-        } finally {
-          _alpacaDiscoveryInProgress = null;
-        }
-      }
 
-      for (final device in alpacaDevices) {
-        // Filter by device type
-        if (_alpacaTypeMatches(device.deviceType, deviceType)) {
-          devices.add(DeviceInfo(
-            id: device.id,
-            name: device.deviceName,
-            deviceType: deviceType,
-            driverType: DriverType.alpaca,
-            description:
-                'Alpaca device at ${device.server.host}:${device.server.port}',
-            driverVersion: 'Alpaca',
-            displayName: device.deviceName,
-          ));
-          debugPrint(
-              '[Alpaca] Found ${deviceType.displayName}: ${device.deviceName}');
-        }
-      }
-    } catch (e) {
-      debugPrint('[Alpaca] discovery failed: $e');
-    }
-
-    // =========================================================================
-    // PHD2 Discovery (check if running on network)
-    // =========================================================================
-    if (deviceType == DeviceType.guider) {
-      try {
-        debugPrint('[PHD2] Discovering instances...');
-        final phd2Instances = await _discoverPhd2Instances();
-
-        for (final instance in phd2Instances) {
-          final phd2Name =
-              instance['host'] == 'localhost' || instance['host'] == '127.0.0.1'
-                  ? 'PHD2 Guiding'
-                  : 'PHD2 Guiding (${instance['host']})';
-          devices.add(DeviceInfo(
-            id: 'phd2:${instance['host']}:${instance['port']}',
-            name: phd2Name,
-            deviceType: DeviceType.guider,
-            driverType: DriverType.alpaca,
-            description:
-                'PHD2 autoguiding software (${instance['host']}:${instance['port']})',
-            driverVersion: '2.6+',
-            displayName: phd2Name,
-          ));
-          debugPrint('[PHD2] Found at ${instance['host']}:${instance['port']}');
+        for (final device in alpacaDevices) {
+          for (final dt in DeviceType.values) {
+            if (_alpacaTypeMatches(device.deviceType, dt)) {
+              allDevices[dt]!.add(DeviceInfo(
+                id: device.id,
+                name: device.deviceName,
+                deviceType: dt,
+                driverType: DriverType.alpaca,
+                description:
+                    'Alpaca device at ${device.server.host}:${device.server.port}',
+                driverVersion: 'Alpaca',
+                displayName: device.deviceName,
+              ));
+            }
+          }
         }
       } catch (e) {
-        debugPrint('[PHD2] discovery failed: $e');
+        debugPrint('[Discovery] Alpaca discovery failed: $e');
+      }
+
+      // =======================================================================
+      // 4. PHD2 Discovery (guider type only)
+      // =======================================================================
+      try {
+        final phd2Instances = await _discoverPhd2Instances();
+
+        if (phd2Instances.isNotEmpty) {
+          allDevices[DeviceType.guider]!.add(const DeviceInfo(
+            id: 'phd2_guider',
+            name: 'PHD2 Guiding',
+            deviceType: DeviceType.guider,
+            driverType: DriverType.native,
+            description: 'PHD2 autoguiding software',
+            driverVersion: '2.6+',
+            displayName: 'PHD2 Guiding',
+          ));
+        }
+      } catch (e) {
+        debugPrint('[Discovery] PHD2 discovery failed: $e');
       }
     }
 
     // =========================================================================
-    // Simulator Devices - DISABLED
+    // Populate cache and print a single summary line
     // =========================================================================
-    // Built-in simulator devices have been removed to prevent silent failures
-    // with fake data. For testing, use external simulators:
-    // - ASCOM Simulator drivers (Windows)
-    // - INDI Simulator drivers (Linux/macOS)
-    // - Alpaca Simulator (cross-platform)
+    for (final devices in allDevices.values) {
+      final seenIds = <String>{};
+      devices.removeWhere((device) => !seenIds.add(device.id));
+    }
 
-    return devices;
+    _discoveryCache.clear();
+    _discoveryCache.addAll(allDevices);
+    _discoveryCacheTime = DateTime.now();
+
+    // Build a compact summary of non-empty types
+    final parts = <String>[];
+    for (final dt in DeviceType.values) {
+      final count = allDevices[dt]!.length;
+      if (count > 0) {
+        parts.add(
+            '$count ${dt.displayName.toLowerCase()}${count == 1 ? '' : 's'}');
+      }
+    }
+    if (parts.isNotEmpty) {
+      debugPrint('[Discovery] Complete: ${parts.join(', ')}');
+    } else {
+      debugPrint('[Discovery] Complete: no devices found');
+    }
   }
 
   /// Convert DeviceType to ASCOM device type string
@@ -1097,24 +1091,20 @@ class NativeBridge {
 
     // Network subnet scanning for remote PHD2 instances
     try {
-      debugPrint('[Bridge] Scanning local network for PHD2 instances...');
       final localIps = await _getLocalNetworkAddresses();
 
       for (final subnet in localIps) {
-        debugPrint('[Bridge] Scanning subnet: $subnet');
         final remoteInstances = await _scanSubnetForPhd2(subnet, defaultPort);
 
         for (final host in remoteInstances) {
-          // Don't add duplicates
           if (!discoveredHosts.contains(host)) {
             instances.add({'host': host, 'port': defaultPort});
             discoveredHosts.add(host);
-            debugPrint('[PHD2] Found remote at $host:$defaultPort');
           }
         }
       }
     } catch (e) {
-      debugPrint('[Bridge] Network scan failed: $e');
+      debugPrint('[Discovery] PHD2 network scan failed: $e');
       // Continue with local instance if we found one
     }
 
@@ -1145,7 +1135,7 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[Bridge] Failed to get network interfaces: $e');
+      debugPrint('[Discovery] Failed to get network interfaces: $e');
     }
 
     return subnets;
@@ -1280,7 +1270,7 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[PHD2] Failed to check for running process: $e');
+      // Process check failed - not critical, continue
     }
 
     return false;
@@ -1309,7 +1299,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      debugPrint('[PHD2] Failed to check for phd2 in PATH: $e');
+      // PATH check failed - not critical, continue
     }
 
     // Check if phd2 process is running
@@ -1319,7 +1309,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      debugPrint('[PHD2] Failed to check for running process: $e');
+      // Process check failed - not critical, continue
     }
 
     return false;
@@ -1348,7 +1338,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      debugPrint('[PHD2] Failed to check for phd2 in PATH: $e');
+      // PATH check failed - not critical, continue
     }
 
     // Check if phd2 process is running
@@ -1358,7 +1348,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      debugPrint('[PHD2] Failed to check for running process: $e');
+      // Process check failed - not critical, continue
     }
 
     // Check common package manager installations
@@ -1538,11 +1528,15 @@ class NativeBridge {
   static Future<void> connectDevice(
       DeviceType deviceType, String deviceId) async {
     // Check if this is PHD2 (supports new format: phd2:host:port or legacy: phd2)
-    if (deviceId == 'phd2' || deviceId.startsWith('phd2:')) {
+    if (_isPhd2DeviceId(deviceId)) {
       String? host;
       int? port;
 
-      if (deviceId.startsWith('phd2:')) {
+      if (deviceId.startsWith('phd2://')) {
+        final uri = Uri.tryParse(deviceId);
+        host = uri?.host;
+        port = uri?.port == 0 ? null : uri?.port;
+      } else if (deviceId.startsWith('phd2:')) {
         // Parse phd2:host:port format
         final parts = deviceId.split(':');
         if (parts.length >= 3) {
@@ -1554,7 +1548,7 @@ class NativeBridge {
       await phd2Connect(host: host, port: port);
       _recordConnectedDevice(
         deviceType: deviceType,
-        deviceId: deviceId,
+        deviceId: 'phd2_guider',
         driverType: DriverType.native,
         name: 'PHD2',
         displayName: 'PHD2',
@@ -1768,7 +1762,7 @@ class NativeBridge {
   static Future<void> disconnectDevice(
       DeviceType deviceType, String deviceId) async {
     // Handle PHD2 disconnection (supports new format: phd2:host:port or legacy: phd2)
-    if (deviceId == 'phd2' || deviceId.startsWith('phd2:')) {
+    if (_isPhd2DeviceId(deviceId)) {
       await phd2Disconnect();
     }
 
@@ -1934,6 +1928,26 @@ class NativeBridge {
           deviceId: deviceId, binX: binX, binY: binY);
     } catch (e) {
       debugPrint('[Bridge] Error setting camera binning from native: $e');
+      rethrow;
+    }
+  }
+
+  /// Set camera readout mode by index
+  /// modeIndex: 0 = default/high quality, 1 = fast readout, etc.
+  static Future<void> setReadoutMode({
+    required String deviceId,
+    required int modeIndex,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('setReadoutMode');
+    }
+    try {
+      await gen_api.apiCameraSetReadoutMode(
+        deviceId: deviceId,
+        modeIndex: modeIndex,
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error calling native setReadoutMode: $e');
       rethrow;
     }
   }
@@ -2140,6 +2154,34 @@ class NativeBridge {
       await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
     } catch (e) {
       debugPrint('[Bridge] Error moving axis from native: $e');
+      rethrow;
+    }
+  }
+
+  /// Slew mount to alt/az coordinates
+  static Future<void> mountSlewAltAz(
+      String deviceId, double altitude, double azimuth) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountSlewAltAz');
+    }
+    try {
+      await gen_api.mountSlewAltAz(
+          deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+    } catch (e) {
+      debugPrint('[Bridge] Error slewing mount to alt/az: $e');
+      rethrow;
+    }
+  }
+
+  /// Find mount home position
+  static Future<void> mountFindHome(String deviceId) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountFindHome');
+    }
+    try {
+      await gen_api.mountFindHome(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error finding mount home: $e');
       rethrow;
     }
   }
@@ -2621,6 +2663,219 @@ class NativeBridge {
     );
   }
 
+  static Future<void> guiderStartGuiding({
+    required String deviceId,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderStartGuiding(
+        deviceId: normalizedDeviceId,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2StartGuiding(
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
+    _nativeBridgeRequired('guiderStartGuiding');
+  }
+
+  static Future<void> guiderStop({required String deviceId}) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderStop(deviceId: normalizedDeviceId);
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2StopGuiding();
+      return;
+    }
+    _nativeBridgeRequired('guiderStop');
+  }
+
+  static Future<void> guiderDither({
+    required String deviceId,
+    required double amount,
+    required bool raOnly,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderDither(
+        deviceId: normalizedDeviceId,
+        amount: amount,
+        raOnly: raOnly ? 1 : 0,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2Dither(
+        amount: amount,
+        raOnly: raOnly,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
+    _nativeBridgeRequired('guiderDither');
+  }
+
+  static Future<void> guiderLoop({required String deviceId}) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderLoop(deviceId: normalizedDeviceId);
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2Loop();
+      return;
+    }
+    _nativeBridgeRequired('guiderLoop');
+  }
+
+  static Future<(double, double)> guiderFindStar({
+    required String deviceId,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      return gen_api.apiGuiderFindStar(deviceId: normalizedDeviceId);
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      return phd2FindStar();
+    }
+    _nativeBridgeRequired('guiderFindStar');
+  }
+
+  static Future<void> guiderSetLockPosition({
+    required String deviceId,
+    required double x,
+    required double y,
+    bool exact = false,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderSetLockPosition(
+        deviceId: normalizedDeviceId,
+        x: x,
+        y: y,
+        exact: exact,
+      );
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2SetLockPosition(x: x, y: y, exact: exact);
+      return;
+    }
+    _nativeBridgeRequired('guiderSetLockPosition');
+  }
+
+  static Future<(double, double)> guiderGetLockPosition({
+    required String deviceId,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      return gen_api.apiGuiderGetLockPosition(deviceId: normalizedDeviceId);
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      return phd2GetLockPosition();
+    }
+    _nativeBridgeRequired('guiderGetLockPosition');
+  }
+
+  static Future<void> guiderDeselectStar({required String deviceId}) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      await gen_api.apiGuiderDeselectStar(deviceId: normalizedDeviceId);
+      return;
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      await phd2DeselectStar();
+      return;
+    }
+    _nativeBridgeRequired('guiderDeselectStar');
+  }
+
+  static Future<Phd2StarImage> guiderGetStarImage({
+    required String deviceId,
+    int size = 50,
+  }) async {
+    final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
+    if (_nativeAvailable) {
+      return gen_api.apiGuiderGetStarImage(
+          deviceId: normalizedDeviceId, size: size);
+    }
+    if (normalizedDeviceId == 'phd2_guider') {
+      return phd2GetStarImage(size: size);
+    }
+    _nativeBridgeRequired('guiderGetStarImage');
+  }
+
+  // =========================================================================
+  // Built-in Guider Configuration
+  // =========================================================================
+
+  /// Get the built-in guider configuration.
+  /// Returns a map with keys matching GuiderConfig fields.
+  static Future<Map<String, dynamic>> builtinGuiderGetConfigRaw() async {
+    if (_nativeAvailable) {
+      final config = await gen_api.apiBuiltinGuiderGetConfig();
+      return {
+        'exposureSecs': config.exposureSecs,
+        'gain': config.gain,
+        'offset': config.offset,
+        'binning': config.binning,
+        'calibrationMs': config.calibrationMs,
+        'settleSleepMs': config.settleSleepMs.toInt(),
+        'minPulseMs': config.minPulseMs,
+        'maxPulseMs': config.maxPulseMs,
+      };
+    }
+    _nativeBridgeRequired('builtinGuiderGetConfig');
+  }
+
+  /// Set the built-in guider configuration.
+  static Future<void> builtinGuiderSetConfigRaw({
+    required double exposureSecs,
+    required int gain,
+    required int offset,
+    required int binning,
+    required int calibrationMs,
+    required int settleSleepMs,
+    required double minPulseMs,
+    required double maxPulseMs,
+  }) async {
+    if (_nativeAvailable) {
+      await gen_api.apiBuiltinGuiderSetConfig(
+        exposureSecs: exposureSecs,
+        gain: gain,
+        offset: offset,
+        binning: binning,
+        calibrationMs: calibrationMs,
+        settleSleepMs: BigInt.from(settleSleepMs),
+        minPulseMs: minPulseMs,
+        maxPulseMs: maxPulseMs,
+      );
+      return;
+    }
+    _nativeBridgeRequired('builtinGuiderSetConfig');
+  }
+
   /// Auto-select guide star in PHD2
   static Future<void> phd2AutoSelectStar() async {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
@@ -2918,6 +3173,72 @@ class NativeBridge {
       debugPrint('[Bridge] Set sequencer save path: ${path ?? "<none>"}');
     } catch (e) {
       debugPrint('[Bridge] Error setting sequencer save path: $e');
+      rethrow;
+    }
+  }
+
+  /// Update dither configuration on the running sequencer
+  static Future<void> sequencerUpdateDitherConfig({
+    required double pixels,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+    required bool raOnly,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateDitherConfig');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateDitherConfig(
+        pixels: pixels,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+        raOnly: raOnly,
+      );
+      debugPrint(
+          '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly');
+    } catch (e) {
+      debugPrint('[Bridge] Error updating sequencer dither config: $e');
+      rethrow;
+    }
+  }
+
+  /// Update location on the running sequencer
+  static Future<void> sequencerUpdateLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateLocation');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateLocation(
+        latitude: latitude,
+        longitude: longitude,
+      );
+      debugPrint(
+          '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude');
+    } catch (e) {
+      debugPrint('[Bridge] Error updating sequencer location: $e');
+      rethrow;
+    }
+  }
+
+  /// Update filter focus offsets on the running sequencer
+  static Future<void> sequencerUpdateFilterOffsets(
+      {required Map<String, int> offsets}) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateFilterOffsets');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateFilterOffsets(offsets: offsets);
+      debugPrint('[Bridge] Updated sequencer filter offsets: $offsets');
+    } catch (e) {
+      debugPrint('[Bridge] Error updating sequencer filter offsets: $e');
       rethrow;
     }
   }

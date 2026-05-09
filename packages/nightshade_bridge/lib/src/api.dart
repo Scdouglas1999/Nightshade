@@ -12,12 +12,13 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'state.dart';
 import 'storage.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `create_unique_temp_fits_path`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `is_phd2_device_id`, `mad`, `median_from_sorted_f64`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `serialize_node_definition`, `serialize_sequence_definition`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
-// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_active_guider_id_for_ops`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
-/// Invalidate the discovery cache, forcing fresh discovery on next call.
+/// Invalidate the unified discovery cache, forcing fresh discovery on next call.
+/// Also invalidates the native SDK discovery cache so vendor SDKs are re-queried.
 /// Called when user explicitly requests a rescan.
 Future<void> apiInvalidateDiscoveryCache() =>
     RustLib.instance.api.crateApiApiInvalidateDiscoveryCache();
@@ -102,9 +103,12 @@ Future<List<DeviceInfo>> apiDiscoverIndiCommonHosts() =>
 Future<List<DeviceInfo>> apiDiscoverIndiNetwork() =>
     RustLib.instance.api.crateApiApiDiscoverIndiNetwork();
 
-/// Discover available devices of a specific type
-/// Queries ASCOM drivers on Windows via COM, Alpaca cross-platform, plus includes simulators.
-/// Results are cached for 60 seconds to avoid redundant discovery operations.
+/// Discover available devices of a specific type.
+/// Queries Windows-only ASCOM COM drivers, Alpaca network devices or bridges,
+/// Native SDK paths bundled for the current release, simulator paths where
+/// enabled, and reachable INDI servers. All results are cached for 60 seconds -- the FIRST call to this
+/// function runs full discovery for every source and every device type, and subsequent
+/// calls within the TTL simply filter the cached results by the requested `device_type`.
 Future<List<DeviceInfo>> apiDiscoverDevices({required DeviceType deviceType}) =>
     RustLib.instance.api.crateApiApiDiscoverDevices(deviceType: deviceType);
 
@@ -390,6 +394,18 @@ Future<void> mountMoveAxis(
     RustLib.instance.api
         .crateApiMountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
 
+/// Slew mount to alt/az coordinates (altitude in degrees, azimuth in degrees)
+Future<void> mountSlewAltAz(
+        {required String deviceId,
+        required double altitude,
+        required double azimuth}) =>
+    RustLib.instance.api.crateApiMountSlewAltAz(
+        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+
+/// Find mount home position
+Future<void> mountFindHome({required String deviceId}) =>
+    RustLib.instance.api.crateApiMountFindHome(deviceId: deviceId);
+
 /// Move focuser to absolute position
 Future<void> focuserMoveAbs(
         {required String deviceId, required int position}) =>
@@ -439,6 +455,15 @@ Future<void> setCameraGain({required String deviceId, required int gain}) =>
 Future<void> setCameraOffset({required String deviceId, required int offset}) =>
     RustLib.instance.api
         .crateApiSetCameraOffset(deviceId: deviceId, offset: offset);
+
+/// Set camera readout mode by index
+///
+/// mode_index: 0 = default/high quality, 1 = fast readout, etc.
+/// The available modes are camera-dependent.
+Future<void> apiCameraSetReadoutMode(
+        {required String deviceId, required int modeIndex}) =>
+    RustLib.instance.api.crateApiApiCameraSetReadoutMode(
+        deviceId: deviceId, modeIndex: modeIndex);
 
 /// Set camera binning
 Future<void> apiSetCameraBinning(
@@ -623,6 +648,18 @@ Future<void> apiMountSetTracking(
         {required String deviceId, required int enabled}) =>
     RustLib.instance.api
         .crateApiApiMountSetTracking(deviceId: deviceId, enabled: enabled);
+
+/// Slew mount to alt/az coordinates (simulator handler)
+Future<void> apiMountSlewAltAz(
+        {required String deviceId,
+        required double altitude,
+        required double azimuth}) =>
+    RustLib.instance.api.crateApiApiMountSlewAltAz(
+        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+
+/// Find mount home position (simulator handler)
+Future<void> apiMountFindHome({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiMountFindHome(deviceId: deviceId);
 
 /// Pulse guide the mount in a direction for a duration
 Future<void> apiMountPulseGuide(
@@ -1085,6 +1122,89 @@ Future<String> apiPhd2GetProfile() =>
 /// Launch PHD2 application
 Future<void> apiLaunchPhd2() => RustLib.instance.api.crateApiApiLaunchPhd2();
 
+Future<void> apiGuiderStartGuiding(
+        {required String deviceId,
+        required double settlePixels,
+        required double settleTime,
+        required double settleTimeout}) =>
+    RustLib.instance.api.crateApiApiGuiderStartGuiding(
+        deviceId: deviceId,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout);
+
+Future<void> apiGuiderStop({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderStop(deviceId: deviceId);
+
+Future<void> apiGuiderDither(
+        {required String deviceId,
+        required double amount,
+        required int raOnly,
+        required double settlePixels,
+        required double settleTime,
+        required double settleTimeout}) =>
+    RustLib.instance.api.crateApiApiGuiderDither(
+        deviceId: deviceId,
+        amount: amount,
+        raOnly: raOnly,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout);
+
+Future<void> apiGuiderLoop({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderLoop(deviceId: deviceId);
+
+Future<(double, double)> apiGuiderFindStar({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderFindStar(deviceId: deviceId);
+
+Future<void> apiGuiderSetLockPosition(
+        {required String deviceId,
+        required double x,
+        required double y,
+        required bool exact}) =>
+    RustLib.instance.api.crateApiApiGuiderSetLockPosition(
+        deviceId: deviceId, x: x, y: y, exact: exact);
+
+Future<(double, double)> apiGuiderGetLockPosition({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderGetLockPosition(deviceId: deviceId);
+
+Future<void> apiGuiderDeselectStar({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderDeselectStar(deviceId: deviceId);
+
+Future<Phd2StarImage> apiGuiderGetStarImage(
+        {required String deviceId, required int size}) =>
+    RustLib.instance.api
+        .crateApiApiGuiderGetStarImage(deviceId: deviceId, size: size);
+
+Future<Phd2Status> apiGuiderGetStatus({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGuiderGetStatus(deviceId: deviceId);
+
+/// Get the current built-in guider configuration.
+/// Returns a flat struct with all configurable parameters.
+Future<BuiltinGuiderConfig> apiBuiltinGuiderGetConfig() =>
+    RustLib.instance.api.crateApiApiBuiltinGuiderGetConfig();
+
+/// Set the built-in guider configuration.
+/// Can be called while guiding is active; changes apply to subsequent frames.
+Future<void> apiBuiltinGuiderSetConfig(
+        {required double exposureSecs,
+        required int gain,
+        required int offset,
+        required int binning,
+        required int calibrationMs,
+        required BigInt settleSleepMs,
+        required double minPulseMs,
+        required double maxPulseMs}) =>
+    RustLib.instance.api.crateApiApiBuiltinGuiderSetConfig(
+        exposureSecs: exposureSecs,
+        gain: gain,
+        offset: offset,
+        binning: binning,
+        calibrationMs: calibrationMs,
+        settleSleepMs: settleSleepMs,
+        minPulseMs: minPulseMs,
+        maxPulseMs: maxPulseMs);
+
 /// Load a sequence from JSON
 Future<void> apiSequencerLoadJson({required String json}) =>
     RustLib.instance.api.crateApiApiSequencerLoadJson(json: json);
@@ -1184,6 +1304,38 @@ Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
 /// If not set (or set to None), images will NOT be saved to disk.
 Future<void> apiSequencerSetSavePath({String? path}) =>
     RustLib.instance.api.crateApiApiSequencerSetSavePath(path: path);
+
+/// Update dither configuration at runtime while a sequence is running or paused.
+/// The updated values are stored on the executor and will be used by subsequent
+/// trigger-initiated dithers and checkpoint resumes.
+Future<void> apiSequencerUpdateDitherConfig(
+        {required double pixels,
+        required double settlePixels,
+        required double settleTime,
+        required double settleTimeout,
+        required bool raOnly}) =>
+    RustLib.instance.api.crateApiApiSequencerUpdateDitherConfig(
+        pixels: pixels,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+        raOnly: raOnly);
+
+/// Update observer location at runtime while a sequence is running or paused.
+/// Updates the executor's stored latitude/longitude so altitude-based triggers
+/// use the correct location on their next evaluation.
+Future<void> apiSequencerUpdateLocation(
+        {double? latitude, double? longitude}) =>
+    RustLib.instance.api.crateApiApiSequencerUpdateLocation(
+        latitude: latitude, longitude: longitude);
+
+/// Update filter focus offsets at runtime while a sequence is running or paused.
+/// Updates the executor's stored offsets so subsequent filter changes apply
+/// the correct focus compensation.
+Future<void> apiSequencerUpdateFilterOffsets(
+        {required Map<String, int> offsets}) =>
+    RustLib.instance.api
+        .crateApiApiSequencerUpdateFilterOffsets(offsets: offsets);
 
 /// Create an exposure node configuration
 String apiCreateExposureNode(
@@ -1358,9 +1510,10 @@ String apiCreateCoolCameraNode(
 String apiCreateWarmCameraNode(
         {required String id,
         required String name,
-        required double ratePerMin}) =>
+        required double ratePerMin,
+        double? targetTemp}) =>
     RustLib.instance.api.crateApiApiCreateWarmCameraNode(
-        id: id, name: name, ratePerMin: ratePerMin);
+        id: id, name: name, ratePerMin: ratePerMin, targetTemp: targetTemp);
 
 /// Create a dither node configuration
 String apiCreateDitherNode(
@@ -1883,6 +2036,216 @@ void apiSetQhyDiscoveryEnabled({required bool enabled}) =>
 QhyDiscoveryStatus apiGetQhyDiscoveryStatus() =>
     RustLib.instance.api.crateApiApiGetQhyDiscoveryStatus();
 
+/// Calibrate an image file using dark, flat, and/or bias calibration frames.
+///
+/// Loads the light frame and any provided calibration frames from disk,
+/// applies the calibration pipeline, and saves the result to `output_path`.
+///
+/// The calibration order is:
+/// 1. Subtract bias from dark and flat (if bias provided)
+/// 2. Subtract dark from light
+/// 3. Divide light by normalized flat
+///
+/// Any calibration frame path can be empty/None to skip that correction.
+Future<void> apiCalibrateImageFile(
+        {required String lightPath,
+        String? darkPath,
+        String? flatPath,
+        String? biasPath,
+        required String outputPath}) =>
+    RustLib.instance.api.crateApiApiCalibrateImageFile(
+        lightPath: lightPath,
+        darkPath: darkPath,
+        flatPath: flatPath,
+        biasPath: biasPath,
+        outputPath: outputPath);
+
+/// Calibrate raw pixel data in memory (u16).
+///
+/// Takes pixel data directly rather than file paths. Returns calibrated pixel data.
+/// All frames must have the same dimensions and be single-channel u16.
+Uint16List apiCalibrateImageData(
+        {required int width,
+        required int height,
+        required List<int> lightData,
+        Uint16List? darkData,
+        Uint16List? flatData,
+        Uint16List? biasData}) =>
+    RustLib.instance.api.crateApiApiCalibrateImageData(
+        width: width,
+        height: height,
+        lightData: lightData,
+        darkData: darkData,
+        flatData: flatData,
+        biasData: biasData);
+
+/// Start live stacking with a reference image file.
+///
+/// All subsequent frames will be aligned to this reference.
+Future<ApiLiveStackingStats> apiStackingStart(
+        {required String referenceImagePath,
+        required ApiLiveStackingConfig config}) =>
+    RustLib.instance.api.crateApiApiStackingStart(
+        referenceImagePath: referenceImagePath, config: config);
+
+/// Start live stacking from raw pixel data in memory.
+Future<ApiLiveStackingStats> apiStackingStartFromData(
+        {required int width,
+        required int height,
+        required List<int> data,
+        required ApiLiveStackingConfig config}) =>
+    RustLib.instance.api.crateApiApiStackingStartFromData(
+        width: width, height: height, data: data, config: config);
+
+/// Add a frame to the live stack from a file path.
+///
+/// Returns the current stacked result.
+Future<ApiLiveStackingResult> apiStackingAddFrame(
+        {required String imagePath}) =>
+    RustLib.instance.api.crateApiApiStackingAddFrame(imagePath: imagePath);
+
+/// Add a frame to the live stack from raw pixel data.
+Future<ApiLiveStackingResult> apiStackingAddFrameFromData(
+        {required int width, required int height, required List<int> data}) =>
+    RustLib.instance.api.crateApiApiStackingAddFrameFromData(
+        width: width, height: height, data: data);
+
+/// Get the current stacked result without adding a frame.
+Future<ApiLiveStackingResult> apiStackingGetResult() =>
+    RustLib.instance.api.crateApiApiStackingGetResult();
+
+/// Get the current stacking statistics.
+Future<ApiLiveStackingStats> apiStackingGetStats() =>
+    RustLib.instance.api.crateApiApiStackingGetStats();
+
+/// Reset the live stacker, clearing accumulated data but keeping the reference.
+Future<void> apiStackingReset() =>
+    RustLib.instance.api.crateApiApiStackingReset();
+
+/// Stop live stacking and release all resources.
+Future<void> apiStackingStop() =>
+    RustLib.instance.api.crateApiApiStackingStop();
+
+/// Check if live stacking is currently active.
+bool apiStackingIsActive() =>
+    RustLib.instance.api.crateApiApiStackingIsActive();
+
+/// Get the current stacked frame count.
+int apiStackingFrameCount() =>
+    RustLib.instance.api.crateApiApiStackingFrameCount();
+
+/// Live stacking configuration exposed to Dart
+class ApiLiveStackingConfig {
+  final bool sigmaClipEnabled;
+  final double sigmaClipThreshold;
+  final int maxMatchStars;
+  final double matchRadiusPx;
+  final double matchFluxTolerance;
+  final int minMatchedPairs;
+
+  const ApiLiveStackingConfig({
+    required this.sigmaClipEnabled,
+    required this.sigmaClipThreshold,
+    required this.maxMatchStars,
+    required this.matchRadiusPx,
+    required this.matchFluxTolerance,
+    required this.minMatchedPairs,
+  });
+
+  static Future<ApiLiveStackingConfig> default_() =>
+      RustLib.instance.api.crateApiApiLiveStackingConfigDefault();
+
+  @override
+  int get hashCode =>
+      sigmaClipEnabled.hashCode ^
+      sigmaClipThreshold.hashCode ^
+      maxMatchStars.hashCode ^
+      matchRadiusPx.hashCode ^
+      matchFluxTolerance.hashCode ^
+      minMatchedPairs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiLiveStackingConfig &&
+          runtimeType == other.runtimeType &&
+          sigmaClipEnabled == other.sigmaClipEnabled &&
+          sigmaClipThreshold == other.sigmaClipThreshold &&
+          maxMatchStars == other.maxMatchStars &&
+          matchRadiusPx == other.matchRadiusPx &&
+          matchFluxTolerance == other.matchFluxTolerance &&
+          minMatchedPairs == other.minMatchedPairs;
+}
+
+/// Result from adding a frame to the live stack
+class ApiLiveStackingResult {
+  final int width;
+  final int height;
+  final Uint16List data;
+  final ApiLiveStackingStats stats;
+
+  const ApiLiveStackingResult({
+    required this.width,
+    required this.height,
+    required this.data,
+    required this.stats,
+  });
+
+  @override
+  int get hashCode =>
+      width.hashCode ^ height.hashCode ^ data.hashCode ^ stats.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiLiveStackingResult &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          data == other.data &&
+          stats == other.stats;
+}
+
+/// Live stacking statistics returned to Dart
+class ApiLiveStackingStats {
+  final int stackedFrameCount;
+  final int totalFramesAttempted;
+  final int rejectedAlignmentFailures;
+  final double avgMatchedPairs;
+  final double avgAlignmentResidual;
+  final BigInt totalSigmaRejectedPixels;
+
+  const ApiLiveStackingStats({
+    required this.stackedFrameCount,
+    required this.totalFramesAttempted,
+    required this.rejectedAlignmentFailures,
+    required this.avgMatchedPairs,
+    required this.avgAlignmentResidual,
+    required this.totalSigmaRejectedPixels,
+  });
+
+  @override
+  int get hashCode =>
+      stackedFrameCount.hashCode ^
+      totalFramesAttempted.hashCode ^
+      rejectedAlignmentFailures.hashCode ^
+      avgMatchedPairs.hashCode ^
+      avgAlignmentResidual.hashCode ^
+      totalSigmaRejectedPixels.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiLiveStackingStats &&
+          runtimeType == other.runtimeType &&
+          stackedFrameCount == other.stackedFrameCount &&
+          totalFramesAttempted == other.totalFramesAttempted &&
+          rejectedAlignmentFailures == other.rejectedAlignmentFailures &&
+          avgMatchedPairs == other.avgMatchedPairs &&
+          avgAlignmentResidual == other.avgAlignmentResidual &&
+          totalSigmaRejectedPixels == other.totalSigmaRejectedPixels;
+}
+
 /// Autofocus configuration for API
 class AutofocusConfigApi {
   final double exposureTime;
@@ -1974,6 +2337,54 @@ enum BayerPatternApi {
   grbg,
   gbrg,
   ;
+}
+
+/// FRB-friendly struct for the built-in guider configuration.
+class BuiltinGuiderConfig {
+  final double exposureSecs;
+  final int gain;
+  final int offset;
+  final int binning;
+  final int calibrationMs;
+  final BigInt settleSleepMs;
+  final double minPulseMs;
+  final double maxPulseMs;
+
+  const BuiltinGuiderConfig({
+    required this.exposureSecs,
+    required this.gain,
+    required this.offset,
+    required this.binning,
+    required this.calibrationMs,
+    required this.settleSleepMs,
+    required this.minPulseMs,
+    required this.maxPulseMs,
+  });
+
+  @override
+  int get hashCode =>
+      exposureSecs.hashCode ^
+      gain.hashCode ^
+      offset.hashCode ^
+      binning.hashCode ^
+      calibrationMs.hashCode ^
+      settleSleepMs.hashCode ^
+      minPulseMs.hashCode ^
+      maxPulseMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BuiltinGuiderConfig &&
+          runtimeType == other.runtimeType &&
+          exposureSecs == other.exposureSecs &&
+          gain == other.gain &&
+          offset == other.offset &&
+          binning == other.binning &&
+          calibrationMs == other.calibrationMs &&
+          settleSleepMs == other.settleSleepMs &&
+          minPulseMs == other.minPulseMs &&
+          maxPulseMs == other.maxPulseMs;
 }
 
 /// Captured image result containing display-ready data

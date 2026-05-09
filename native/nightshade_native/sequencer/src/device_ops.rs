@@ -593,10 +593,12 @@ impl DeviceOps for NullDeviceOps {
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("[NULL] Plate solving");
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        let ra_degrees = hint_ra
-            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_ra in simulation mode".to_string())?;
-        let dec_degrees = hint_dec
-            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_dec in simulation mode".to_string())?;
+        let ra_degrees = hint_ra.ok_or_else(|| {
+            "NullDeviceOps plate_solve requires hint_ra in simulation mode".to_string()
+        })?;
+        let dec_degrees = hint_dec.ok_or_else(|| {
+            "NullDeviceOps plate_solve requires hint_dec in simulation mode".to_string()
+        })?;
 
         Ok(PlateSolveResult {
             ra_degrees,
@@ -646,8 +648,7 @@ impl DeviceOps for NullDeviceOps {
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
 
-        let sin_alt =
-            lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+        let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
         sin_alt.clamp(-1.0, 1.0).asin().to_degrees()
     }
 

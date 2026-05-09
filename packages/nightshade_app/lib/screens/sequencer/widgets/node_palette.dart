@@ -61,6 +61,10 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
       case 'bell': return LucideIcons.bell;
       case 'code': return LucideIcons.code;
       case 'aperture': return LucideIcons.aperture;
+      case 'door-open': return LucideIcons.doorOpen;
+      case 'door-closed': return LucideIcons.doorClosed;
+      case 'lightbulb': return LucideIcons.lightbulb;
+      case 'lightbulb-off': return LucideIcons.lightbulbOff;
       default: return LucideIcons.box;
     }
   }
@@ -75,6 +79,9 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
       case 'Logic': return widget.colors.accent;
       case 'Timing': return widget.colors.warning;
       case 'Utilities': return widget.colors.textMuted;
+      case 'Flat Panel': return widget.colors.warning;
+      case 'Dome': return widget.colors.info;
+      case 'Guiding': return widget.colors.primary;
       default: return widget.colors.textSecondary;
     }
   }
@@ -241,173 +248,189 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
   }
 
   Widget _buildDesktopSidebarContent(List<NodePaletteCategory> filteredCategories) {
-    return Container(
-      decoration: BoxDecoration(
-        color: widget.colors.surface,
-        border: Border(right: BorderSide(color: widget.colors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: widget.colors.border)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      LucideIcons.layoutGrid,
-                      size: 16,
-                      color: widget.colors.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Node Palette',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (widget.onCollapse != null)
-                      Tooltip(
-                        message: 'Collapse panel',
-                        child: InkWell(
-                          onTap: widget.onCollapse,
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              LucideIcons.panelLeftClose,
-                              size: 16,
-                              color: widget.colors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Search
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: widget.colors.border),
-                  ),
-                  child: Row(
+    return Builder(builder: (context) {
+      final headerFontSize = Responsive.fontSize(context, 14);
+      final searchFontSize = Responsive.fontSize(context, 13);
+      final tipFontSize = Responsive.fontSize(context, 11);
+      final headerIconSize = Responsive.iconSize(context, 16);
+      final searchIconSize = Responsive.iconSize(context, 15);
+      final tipIconSize = Responsive.iconSize(context, 14);
+      final headerPadding = Responsive.spacing(context, 16);
+      final searchPadding = Responsive.spacing(context, 12);
+      final tipPadding = Responsive.spacing(context, 12);
+
+      return Container(
+        decoration: BoxDecoration(
+          color: widget.colors.surface,
+          border: Border(right: BorderSide(color: widget.colors.border)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: EdgeInsets.all(headerPadding),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: widget.colors.border)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
                       Icon(
-                        LucideIcons.search,
-                        size: 14,
+                        LucideIcons.layoutGrid,
+                        size: headerIconSize,
                         color: widget.colors.textMuted,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: Responsive.spacing(context, 8)),
                       Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: (value) => setState(() => _searchQuery = value),
+                        child: Text(
+                          'Node Palette',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: headerFontSize,
+                            fontWeight: FontWeight.w600,
                             color: widget.colors.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Search nodes...',
-                            hintStyle: TextStyle(
-                              fontSize: 12,
-                              color: widget.colors.textMuted,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
                       ),
-                      if (_searchQuery.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                          child: Icon(
-                            LucideIcons.x,
-                            size: 14,
-                            color: widget.colors.textMuted,
+                      if (widget.onCollapse != null)
+                        Tooltip(
+                          message: 'Collapse panel',
+                          child: InkWell(
+                            onTap: widget.onCollapse,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                LucideIcons.panelLeftClose,
+                                size: headerIconSize,
+                                color: widget.colors.textMuted,
+                              ),
+                            ),
                           ),
                         ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          // Categories
-          Expanded(
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(
-                dragDevices: {
-                  PointerDeviceKind.touch,
-                  PointerDeviceKind.mouse,
-                  PointerDeviceKind.trackpad,
-                },
-              ),
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: filteredCategories.length,
-                itemBuilder: (context, index) {
-                  final category = filteredCategories[index];
-                  return _CategorySection(
-                    category: category,
-                    colors: widget.colors,
-                    categoryColor: _getCategoryColor(category.name),
-                    getIcon: _getIcon,
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Help tip
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: widget.colors.info.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  LucideIcons.info,
-                  size: 14,
-                  color: widget.colors.info,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Drag nodes to the sequence tree or double-click to add',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: widget.colors.info,
+                  SizedBox(height: Responsive.spacing(context, 12)),
+                  // Search
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: searchPadding),
+                    decoration: BoxDecoration(
+                      color: widget.colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: widget.colors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.search,
+                          size: searchIconSize,
+                          color: widget.colors.textMuted,
+                        ),
+                        SizedBox(width: Responsive.spacing(context, 8)),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) => setState(() => _searchQuery = value),
+                            style: TextStyle(
+                              fontSize: searchFontSize,
+                              color: widget.colors.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search nodes...',
+                              hintStyle: TextStyle(
+                                fontSize: searchFontSize,
+                                color: widget.colors.textMuted,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: Responsive.spacing(context, 10),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_searchQuery.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: Icon(
+                              LucideIcons.x,
+                              size: searchIconSize,
+                              color: widget.colors.textMuted,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+
+            // Categories
+            Expanded(
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                  },
+                ),
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(
+                    vertical: Responsive.spacing(context, 8),
+                  ),
+                  itemCount: filteredCategories.length,
+                  itemBuilder: (context, index) {
+                    final category = filteredCategories[index];
+                    return _CategorySection(
+                      category: category,
+                      colors: widget.colors,
+                      categoryColor: _getCategoryColor(category.name),
+                      getIcon: _getIcon,
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Help tip
+            Container(
+              padding: EdgeInsets.all(tipPadding),
+              margin: EdgeInsets.all(tipPadding),
+              decoration: BoxDecoration(
+                color: widget.colors.info.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.info,
+                    size: tipIconSize,
+                    color: widget.colors.info,
+                  ),
+                  SizedBox(width: Responsive.spacing(context, 8)),
+                  Expanded(
+                    child: Text(
+                      'Drag nodes to the sequence tree or double-click to add',
+                      style: TextStyle(
+                        fontSize: tipFontSize,
+                        color: widget.colors.info,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -439,6 +462,14 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
   Widget build(BuildContext context) {
     final isMobile = widget.isMobile;
 
+    final badgeSize = isMobile ? 32.0 : Responsive.spacing(context, 28);
+    final badgeIconSize = isMobile ? 16.0 : Responsive.iconSize(context, 14);
+    final categoryFontSize = isMobile ? 14.0 : Responsive.fontSize(context, 13);
+    final chevronSize = isMobile ? 18.0 : Responsive.iconSize(context, 15);
+    final hPadding = isMobile ? 16.0 : Responsive.spacing(context, 16);
+    final vPadding = isMobile ? 12.0 : Responsive.spacing(context, 10);
+    final itemPadding = isMobile ? 16.0 : Responsive.spacing(context, 12);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -447,30 +478,30 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
           onTap: () => setState(() => _isExpanded = !_isExpanded),
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16 : 16,
-              vertical: isMobile ? 12 : 8,
+              horizontal: hPadding,
+              vertical: vPadding,
             ),
             child: Row(
               children: [
                 Container(
-                  width: isMobile ? 32 : 24,
-                  height: isMobile ? 32 : 24,
+                  width: badgeSize,
+                  height: badgeSize,
                   decoration: BoxDecoration(
                     color: widget.categoryColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(isMobile ? 8 : 6),
                   ),
                   child: Icon(
                     widget.getIcon(widget.category.icon),
-                    size: isMobile ? 16 : 12,
+                    size: badgeIconSize,
                     color: widget.categoryColor,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: Responsive.spacing(context, 10)),
                 Expanded(
                   child: Text(
                     widget.category.name,
                     style: TextStyle(
-                      fontSize: isMobile ? 14 : 12,
+                      fontSize: categoryFontSize,
                       fontWeight: FontWeight.w600,
                       color: widget.colors.textPrimary,
                     ),
@@ -481,7 +512,7 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     LucideIcons.chevronDown,
-                    size: isMobile ? 18 : 14,
+                    size: chevronSize,
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -494,8 +525,8 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
         AnimatedCrossFade(
           firstChild: Padding(
             padding: EdgeInsets.only(
-              left: isMobile ? 16 : 12,
-              right: isMobile ? 16 : 12,
+              left: itemPadding,
+              right: itemPadding,
               bottom: 8,
             ),
             child: Column(
@@ -647,119 +678,131 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
   }
 
   Widget _buildDesktopItem() {
-    return Draggable<NodePaletteItem>(
-      data: widget.item,
-      feedback: Material(
-        color: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: widget.categoryColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
-            boxShadow: [
-              BoxShadow(
-                color: widget.categoryColor.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.getIcon(widget.item.icon),
-                size: 14,
-                color: widget.categoryColor,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.item.name,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onDoubleTap: _addNode,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    return Builder(builder: (context) {
+      final nameFontSize = Responsive.fontSize(context, 12);
+      final descFontSize = Responsive.fontSize(context, 10);
+      final feedbackFontSize = Responsive.fontSize(context, 12);
+      final iconBoxSize = Responsive.spacing(context, 30);
+      final itemIconSize = Responsive.iconSize(context, 15);
+      final feedbackIconSize = Responsive.iconSize(context, 14);
+      final plusIconSize = Responsive.iconSize(context, 13);
+      final hPadding = Responsive.spacing(context, 10);
+      final vPadding = Responsive.spacing(context, 8);
+
+      return Draggable<NodePaletteItem>(
+        data: widget.item,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
             decoration: BoxDecoration(
-              color: _isHovered
-                  ? widget.colors.surfaceAlt
-                  : widget.colors.background,
+              color: widget.categoryColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _isHovered
-                    ? widget.categoryColor.withValues(alpha: 0.5)
-                    : widget.colors.border,
-              ),
+              border: Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.categoryColor.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    widget.getIcon(widget.item.icon),
-                    size: 14,
-                    color: widget.categoryColor,
+                Icon(
+                  widget.getIcon(widget.item.icon),
+                  size: feedbackIconSize,
+                  color: widget.categoryColor,
+                ),
+                SizedBox(width: Responsive.spacing(context, 8)),
+                Text(
+                  widget.item.name,
+                  style: TextStyle(
+                    fontSize: feedbackFontSize,
+                    fontWeight: FontWeight.w500,
+                    color: widget.colors.textPrimary,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.item.name,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: _isHovered
-                              ? widget.colors.textPrimary
-                              : widget.colors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        widget.item.description,
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: widget.colors.textMuted,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                if (_isHovered)
-                  Icon(
-                    LucideIcons.plus,
-                    size: 12,
-                    color: widget.categoryColor,
-                  ),
               ],
             ),
           ),
         ),
-      ),
-    );
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            onDoubleTap: _addNode,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(top: 4),
+              padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
+              decoration: BoxDecoration(
+                color: _isHovered
+                    ? widget.colors.surfaceAlt
+                    : widget.colors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _isHovered
+                      ? widget.categoryColor.withValues(alpha: 0.5)
+                      : widget.colors.border,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: iconBoxSize,
+                    height: iconBoxSize,
+                    decoration: BoxDecoration(
+                      color: widget.categoryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      widget.getIcon(widget.item.icon),
+                      size: itemIconSize,
+                      color: widget.categoryColor,
+                    ),
+                  ),
+                  SizedBox(width: Responsive.spacing(context, 10)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.item.name,
+                          style: TextStyle(
+                            fontSize: nameFontSize,
+                            fontWeight: FontWeight.w500,
+                            color: _isHovered
+                                ? widget.colors.textPrimary
+                                : widget.colors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          widget.item.description,
+                          style: TextStyle(
+                            fontSize: descFontSize,
+                            color: widget.colors.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isHovered)
+                    Icon(
+                      LucideIcons.plus,
+                      size: plusIconSize,
+                      color: widget.categoryColor,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// ignore: implementation_imports
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -29,7 +30,8 @@ class ConnectionStatusZone extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ConnectionStatusZone> createState() => _ConnectionStatusZoneState();
+  ConsumerState<ConnectionStatusZone> createState() =>
+      _ConnectionStatusZoneState();
 }
 
 class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
@@ -361,7 +363,7 @@ class _NoProfileSelected extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               LucideIcons.info,
@@ -500,7 +502,8 @@ class _CompactStatusBar extends StatelessWidget {
                     ),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
                   ),
                 ),
 
@@ -593,7 +596,8 @@ class _DisconnectedView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.warning.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: colors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -627,15 +631,10 @@ class _DisconnectedView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              OutlinedButton(
+              NightshadeButton(
                 onPressed: onEdit,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.textSecondary,
-                  side: BorderSide(color: colors.border),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                ),
-                child: const Text('Edit Profile'),
+                label: 'Edit Profile',
+                variant: ButtonVariant.outline,
               ),
             ],
           ),
@@ -756,7 +755,8 @@ class _ConnectingView extends StatelessWidget {
     );
   }
 
-  (IconData, Color) _getStateIcon(DeviceConnectionState state, NightshadeColors colors) {
+  (IconData, Color) _getStateIcon(
+      DeviceConnectionState state, NightshadeColors colors) {
     switch (state) {
       case DeviceConnectionState.connected:
         return (LucideIcons.checkCircle, colors.success);
@@ -829,18 +829,12 @@ class _ErrorView extends StatelessWidget {
               if (connectedCount > 0 && onSaveSetup != null) ...[
                 Tooltip(
                   message: 'Save connected devices to profile',
-                  child: OutlinedButton.icon(
+                  child: NightshadeButton(
                     onPressed: onSaveSetup,
-                    icon: Icon(LucideIcons.save, size: 14, color: colors.textSecondary),
-                    label: Text(
-                      'Save Setup',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.textSecondary,
-                      side: BorderSide(color: colors.border),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
+                    icon: LucideIcons.save,
+                    label: 'Save Setup',
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
                   ),
                 ),
                 const SizedBox(width: 8),

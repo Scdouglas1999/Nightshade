@@ -50,13 +50,27 @@ class SuggestionFilters extends ConsumerWidget {
 
     if (showAsSheet) {
       return _buildMobileLayout(
-        context, ref, colors, config, filters,
-        availableTypes, availableConstellations, magRange, sizeRange,
+        context,
+        ref,
+        colors,
+        config,
+        filters,
+        availableTypes,
+        availableConstellations,
+        magRange,
+        sizeRange,
       );
     } else {
       return _buildDesktopLayout(
-        context, ref, colors, config, filters,
-        availableTypes, availableConstellations, magRange, sizeRange,
+        context,
+        ref,
+        colors,
+        config,
+        filters,
+        availableTypes,
+        availableConstellations,
+        magRange,
+        sizeRange,
       );
     }
   }
@@ -155,7 +169,8 @@ class SuggestionFilters extends ConsumerWidget {
                     currentMax: filters.maxMagnitude ?? magRange.$2,
                     rangeMin: magRange.$1,
                     rangeMax: magRange.$2,
-                    divisions: ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
+                    divisions:
+                        ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
                     minValueFormatter: (v) => v.toStringAsFixed(1),
                     maxValueFormatter: (v) => v.toStringAsFixed(1),
                     colors: colors,
@@ -185,7 +200,9 @@ class SuggestionFilters extends ConsumerWidget {
                     currentMax: filters.maxSizeArcmin ?? sizeRange.$2,
                     rangeMin: sizeRange.$1,
                     rangeMax: sizeRange.$2,
-                    divisions: ((sizeRange.$2 - sizeRange.$1) / 0.5).round().clamp(1, 100),
+                    divisions: ((sizeRange.$2 - sizeRange.$1) / 0.5)
+                        .round()
+                        .clamp(1, 100),
                     minValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
                     maxValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
                     colors: colors,
@@ -263,7 +280,7 @@ class SuggestionFilters extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -364,7 +381,8 @@ class SuggestionFilters extends ConsumerWidget {
                 currentMax: filters.maxMagnitude ?? magRange.$2,
                 rangeMin: magRange.$1,
                 rangeMax: magRange.$2,
-                divisions: ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
+                divisions:
+                    ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
                 minValueFormatter: (v) => v.toStringAsFixed(1),
                 maxValueFormatter: (v) => v.toStringAsFixed(1),
                 minLabel: 'Brighter',
@@ -394,7 +412,8 @@ class SuggestionFilters extends ConsumerWidget {
                 currentMax: filters.maxSizeArcmin ?? sizeRange.$2,
                 rangeMin: sizeRange.$1,
                 rangeMax: sizeRange.$2,
-                divisions: ((sizeRange.$2 - sizeRange.$1) / 0.5).round().clamp(1, 100),
+                divisions:
+                    ((sizeRange.$2 - sizeRange.$1) / 0.5).round().clamp(1, 100),
                 minValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
                 maxValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
                 showLabel: true,
@@ -440,7 +459,8 @@ class SuggestionFilters extends ConsumerWidget {
               min: 0,
               max: 10,
               divisions: 20,
-              valueFormatter: (v) => v <= 0 ? 'Off' : '${v.toStringAsFixed(1)}h',
+              valueFormatter: (v) =>
+                  v <= 0 ? 'Off' : '${v.toStringAsFixed(1)}h',
               colors: colors,
               onChanged: (value) => _updateFilter(
                 ref,
@@ -728,14 +748,14 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? colors.primary.withValues(alpha: 0.15)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? colors.primary.withValues(alpha: 0.5)
@@ -949,7 +969,8 @@ class _RangeSliderControl extends StatelessWidget {
             thumbColor: colors.primary,
             overlayColor: colors.primary.withValues(alpha: 0.2),
             trackHeight: 4,
-            rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 6),
+            rangeThumbShape:
+                const RoundRangeSliderThumbShape(enabledThumbRadius: 6),
           ),
           child: RangeSlider(
             values: RangeValues(clampedMin, clampedMax),
@@ -1105,7 +1126,8 @@ class _SortModeSegmentedButton extends StatelessWidget {
                   _sortModeLabel(mode),
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                     color: isSelected ? colors.primary : colors.textSecondary,
                   ),
                 ),
@@ -1171,9 +1193,8 @@ class _PrioritizeIncompleteToggle extends StatelessWidget {
                 : colors.surfaceAlt,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: value
-                  ? colors.primary.withValues(alpha: 0.5)
-                  : colors.border,
+              color:
+                  value ? colors.primary.withValues(alpha: 0.5) : colors.border,
             ),
           ),
           child: Row(

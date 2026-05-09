@@ -256,6 +256,8 @@ pub struct MosaicConfig {
     pub rotation: f64,
     pub panels_horizontal: u32,
     pub panels_vertical: u32,
+    #[serde(default = "default_mosaic_panel_overhead_secs")]
+    pub panel_overhead_secs: f64,
 }
 
 impl Default for MosaicConfig {
@@ -269,8 +271,13 @@ impl Default for MosaicConfig {
             rotation: 0.0,
             panels_horizontal: 3,
             panels_vertical: 3,
+            panel_overhead_secs: default_mosaic_panel_overhead_secs(),
         }
     }
+}
+
+fn default_mosaic_panel_overhead_secs() -> f64 {
+    60.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -303,7 +310,7 @@ pub struct FlatWizardConfig {
     #[serde(default = "default_max_brightness")]
     pub max_brightness: i32,
     /// Number of flat frames to take after finding optimal exposure
-    #[serde(default)]
+    #[serde(default = "default_flat_count")]
     pub flat_count: u32,
 }
 
@@ -315,6 +322,9 @@ fn default_min_brightness() -> i32 {
 }
 fn default_max_brightness() -> i32 {
     255
+}
+fn default_flat_count() -> u32 {
+    30
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -338,7 +348,7 @@ impl Default for FlatWizardConfig {
             auto_adjust_brightness: false,
             min_brightness: 10,
             max_brightness: 255,
-            flat_count: 0,
+            flat_count: default_flat_count(),
         }
     }
 }
@@ -411,11 +421,21 @@ impl Default for ConditionalConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryConfig {
     pub trigger: Option<TriggerType>,
     pub recovery_action: RecoveryAction,
     pub max_retries: u32,
+}
+
+impl Default for RecoveryConfig {
+    fn default() -> Self {
+        Self {
+            trigger: None,
+            recovery_action: RecoveryAction::default(),
+            max_retries: 3,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -473,6 +493,16 @@ pub struct ExposureConfig {
     pub offset: Option<i32>,
     pub binning: Binning,
     pub dither_every: Option<u32>,
+    #[serde(default = "default_dither_pixels")]
+    pub dither_pixels: f64,
+    #[serde(default = "default_dither_settle_pixels")]
+    pub dither_settle_pixels: f64,
+    #[serde(default = "default_dither_settle_time")]
+    pub dither_settle_time: f64,
+    #[serde(default = "default_dither_settle_timeout")]
+    pub dither_settle_timeout: f64,
+    #[serde(default)]
+    pub dither_ra_only: bool,
     pub save_to: Option<String>,
     #[serde(default)]
     pub triggers: Vec<ExposureTrigger>,
@@ -489,6 +519,11 @@ impl Default for ExposureConfig {
             offset: None,
             binning: Binning::One,
             dither_every: Some(1),
+            dither_pixels: default_dither_pixels(),
+            dither_settle_pixels: default_dither_settle_pixels(),
+            dither_settle_time: default_dither_settle_time(),
+            dither_settle_timeout: default_dither_settle_timeout(),
+            dither_ra_only: false,
             save_to: None,
             triggers: Vec::new(),
         }
@@ -522,6 +557,14 @@ pub struct AutofocusConfig {
     pub exposure_duration: f64,
     pub filter: Option<String>,
     pub binning: Binning,
+    /// Maximum duration in seconds before the autofocus run is aborted.
+    /// Default 600s (10 minutes).
+    #[serde(default = "default_af_max_duration")]
+    pub max_duration_secs: f64,
+}
+
+fn default_af_max_duration() -> f64 {
+    600.0
 }
 
 impl Default for AutofocusConfig {
@@ -533,6 +576,7 @@ impl Default for AutofocusConfig {
             exposure_duration: 3.0,
             filter: None,
             binning: Binning::One,
+            max_duration_secs: 600.0,
         }
     }
 }
@@ -544,6 +588,15 @@ pub enum AutofocusMethod {
     Hyperbolic,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum DitherPattern {
+    /// Random offsets (classic dither)
+    #[default]
+    Random,
+    /// Walk through an NxN grid, cycling back to start after all positions visited
+    Grid,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DitherConfig {
     pub pixels: f64,
@@ -551,16 +604,29 @@ pub struct DitherConfig {
     pub settle_time: f64,
     pub settle_timeout: f64,
     pub ra_only: bool,
+    /// Dither pattern: Random (classic) or Grid (systematic NxN walk)
+    #[serde(default)]
+    pub pattern: DitherPattern,
+    /// Grid size N for Grid pattern (NxN grid). Ignored for Random pattern.
+    /// Default is 3 (3x3 = 9 positions).
+    #[serde(default = "default_grid_size")]
+    pub grid_size: u32,
+}
+
+fn default_grid_size() -> u32 {
+    3
 }
 
 impl Default for DitherConfig {
     fn default() -> Self {
         Self {
-            pixels: 5.0,
-            settle_pixels: 1.5,
-            settle_time: 30.0,
-            settle_timeout: 120.0,
+            pixels: default_dither_pixels(),
+            settle_pixels: default_dither_settle_pixels(),
+            settle_time: default_dither_settle_time(),
+            settle_timeout: default_dither_settle_timeout(),
             ra_only: false,
+            pattern: DitherPattern::default(),
+            grid_size: default_grid_size(),
         }
     }
 }
@@ -628,12 +694,33 @@ impl Default for CoolConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WarmConfig {
     pub rate_per_min: f64,
+    #[serde(default)]
+    pub target_temp: Option<f64>,
 }
 
 impl Default for WarmConfig {
     fn default() -> Self {
-        Self { rate_per_min: 2.0 }
+        Self {
+            rate_per_min: 2.0,
+            target_temp: None,
+        }
     }
+}
+
+const fn default_dither_pixels() -> f64 {
+    5.0
+}
+
+const fn default_dither_settle_pixels() -> f64 {
+    1.5
+}
+
+const fn default_dither_settle_time() -> f64 {
+    30.0
+}
+
+const fn default_dither_settle_timeout() -> f64 {
+    120.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -714,6 +801,10 @@ pub enum MeridianTriggerMethod {
     MinutesPastMeridian,
     MinutesBeforeLimit,
     HourAngleThreshold,
+    /// Flip when mount stops tracking due to hitting its custom tracking limits.
+    /// Uses a heuristic (connected, not slewing/parked, pre-flip pier side, HA > 0)
+    /// to distinguish limit hits from actual errors.
+    OnTrackingLimitHit,
 }
 
 /// Action when flip fails after all retries
@@ -731,6 +822,10 @@ pub struct MeridianFlipConfig {
     pub minutes_past_meridian: f64,
     pub minutes_before_limit: f64,
     pub hour_angle_threshold: f64,
+    /// Minutes to wait after tracking limit is detected before flipping (0 = immediate).
+    /// Only used with OnTrackingLimitHit trigger method.
+    #[serde(default)]
+    pub tracking_limit_wait_minutes: f64,
 
     // Flip sequence options
     pub pause_guiding: bool,
@@ -752,6 +847,7 @@ impl Default for MeridianFlipConfig {
             minutes_past_meridian: 5.0,
             minutes_before_limit: 10.0,
             hour_angle_threshold: 0.5,
+            tracking_limit_wait_minutes: 0.0,
             pause_guiding: true,
             auto_center: true,
             refocus_after: false,
@@ -895,6 +991,23 @@ pub enum TriggerType {
     MountTrackingLost,
     /// Dome shutter is not open when expected
     DomeShutterNotOpen,
+    /// Guide star lost - guider reports no star or lost lock
+    GuideStarLost,
+    /// Focus drift detection - monotonically increasing HFR moving average over N frames
+    /// Unlike HfrDegraded which catches sudden spikes, this detects gradual drift
+    FocusDrift {
+        /// Number of HFR samples to track in the moving window
+        window_size: usize,
+        /// Minimum number of consecutive increases before triggering (must be >= 2)
+        min_increasing_count: usize,
+        /// Minimum total HFR increase (last - first in the increasing run) to fire
+        min_total_increase: f64,
+    },
+    /// Humidity threshold - fire when humidity exceeds max_percent
+    HumidityThreshold {
+        /// Maximum humidity percentage before triggering (e.g., 85.0)
+        max_percent: f64,
+    },
 }
 
 fn default_consecutive_frames() -> u32 {

@@ -112,7 +112,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,
@@ -132,7 +132,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       Icons.download_rounded,
@@ -239,21 +239,19 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
+                    color: colors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                     border:
-                        Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                        Border.all(color: colors.error.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: Colors.red, size: 20),
+                      Icon(Icons.error_outline, color: colors.error, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style:
-                              const TextStyle(color: Colors.red, fontSize: 13),
+                          style: TextStyle(color: colors.error, fontSize: 13),
                         ),
                       ),
                     ],
@@ -397,7 +395,7 @@ class CatalogRequiredBanner extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(

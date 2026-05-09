@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2026-05-06T11:05:45.613685Z",
+  "passed": true,
+  "issueCount": 0,
+  "issues": [],
+  "fixture": {
+    "path": "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
+    "exists": true,
+    "sizeBytes": 5345,
+    "missingText": [],
+    "missingTextCount": 0,
+    "passed": true
+  },
+  "tests": {
+    "path": "packages/nightshade_core/test/services/database_migration_test.dart",
+    "exists": true,
+    "sizeBytes": 19753,
+    "missingText": [],
+    "missingTextCount": 0,
+    "passed": true
+  },
+  "manualProbe": {
+    "path": "packages/nightshade_core/tool/production_migration_probe.dart",
+    "exists": true,
+    "sizeBytes": 13797,
+    "missingText": [],
+    "missingTextCount": 0,
+    "passed": true
+  },
+  "manualRealArtifactGatePreserved": true,
+  "focusedTestCommand": "cd packages/nightshade_core && flutter test test/services/database_migration_test.dart",
+  "policy": "Synthetic migration fixtures reduce upgrade risk without using real user data. They do not satisfy the release blocker for an older real Nightshade profile/database artifact."
+}

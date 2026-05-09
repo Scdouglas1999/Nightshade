@@ -399,7 +399,7 @@ class FfiBackend implements NightshadeBackend {
         'NodeCompleted',
         {
           'node_id': sequencerEvent.nodeId,
-          'success': sequencerEvent.success,
+          'status': sequencerEvent.status,
         }
       );
     } else if (sequencerEvent is bridge.SequencerEvent_Progress) {
@@ -411,7 +411,14 @@ class FfiBackend implements NightshadeBackend {
         }
       );
     } else if (sequencerEvent is bridge.SequencerEvent_TargetChanged) {
-      return ('TargetChanged', {'target_name': sequencerEvent.targetName});
+      return (
+        'TargetChanged',
+        {
+          'target_name': sequencerEvent.targetName,
+          'ra': sequencerEvent.ra,
+          'dec': sequencerEvent.dec,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_TargetCompleted) {
       return ('TargetCompleted', {'target_name': sequencerEvent.targetName});
     } else if (sequencerEvent is bridge.SequencerEvent_ExposureStarted) {
@@ -435,6 +442,15 @@ class FfiBackend implements NightshadeBackend {
       );
     } else if (sequencerEvent is bridge.SequencerEvent_Error) {
       return ('Error', {'message': sequencerEvent.message});
+    } else if (sequencerEvent is bridge.SequencerEvent_TriggerFired) {
+      return (
+        'TriggerFired',
+        {
+          'trigger_id': sequencerEvent.triggerId,
+          'trigger_name': sequencerEvent.triggerName,
+          'action': sequencerEvent.action,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_InstructionProgress) {
       return (
         'InstructionProgress',
@@ -614,8 +630,15 @@ class FfiBackend implements NightshadeBackend {
 
   @override
   Future<List<DeviceInfo>> discoverIndiAtAddress(String host, int port) async {
-    final bridgeDevices =
-        await bridge_api.apiDiscoverIndiAtAddress(host: host, port: port);
+    final bridgeDevices = await _discoverAddressDevices(
+      label: 'INDI',
+      host: host,
+      port: port,
+      discover: () => bridge_api.apiDiscoverIndiAtAddress(
+        host: host,
+        port: port,
+      ),
+    );
     return bridgeDevices
         .map((d) => DeviceInfo(
               id: d.id,
@@ -631,8 +654,15 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<DeviceInfo>> discoverAlpacaAtAddress(
       String host, int port) async {
-    final bridgeDevices =
-        await bridge_api.apiDiscoverAlpacaAtAddress(host: host, port: port);
+    final bridgeDevices = await _discoverAddressDevices(
+      label: 'Alpaca',
+      host: host,
+      port: port,
+      discover: () => bridge_api.apiDiscoverAlpacaAtAddress(
+        host: host,
+        port: port,
+      ),
+    );
     return bridgeDevices
         .map((d) => DeviceInfo(
               id: d.id,
@@ -643,6 +673,24 @@ class FfiBackend implements NightshadeBackend {
               driverVersion: d.driverVersion,
             ))
         .toList();
+  }
+
+  Future<List<bridge.DeviceInfo>> _discoverAddressDevices({
+    required String label,
+    required String host,
+    required int port,
+    required Future<List<bridge.DeviceInfo>> Function() discover,
+  }) async {
+    try {
+      return await discover();
+    } catch (e, stackTrace) {
+      _logger.warning(
+        '$label address discovery failed for $host:$port; returning no devices',
+        e,
+        stackTrace,
+      );
+      return const <bridge.DeviceInfo>[];
+    }
   }
 
   @override
@@ -785,6 +833,14 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> cameraSetReadoutMode(String deviceId, int modeIndex) async {
+    await bridge.NativeBridge.setReadoutMode(
+      deviceId: deviceId,
+      modeIndex: modeIndex,
+    );
+  }
+
+  @override
   Future<void> cameraSetGain(String deviceId, int gain) async {
     await bridge.NativeBridge.setCameraGain(deviceId, gain);
   }
@@ -835,6 +891,18 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> mountSlewAltAz(
+      String deviceId, double altitude, double azimuth) async {
+    await bridge_api.mountSlewAltAz(
+        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+  }
+
+  @override
+  Future<void> mountFindHome(String deviceId) async {
+    await bridge_api.mountFindHome(deviceId: deviceId);
+  }
+
+  @override
   Future<void> mountPulseGuide({
     required String deviceId,
     required String direction,
@@ -881,6 +949,17 @@ class FfiBackend implements NightshadeBackend {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    String curveFitting = 'Hyperbolic',
+    int numberOfAttempts = 1,
+    int exposuresPerPoint = 1,
+    double rSquaredThreshold = 0.7,
+    double outerCropRatio = 1.0,
+    double innerCropRatio = 0.0,
+    int useBrightestNStars = 0,
+    int focuserSettleTimeMs = 500,
+    String backlashCompMethod = 'Overshoot',
+    int backlashIn = 350,
+    int backlashOut = 0,
   }) async {
     final config = bridge_api.AutofocusConfigApi(
       exposureTime: exposureTime,
@@ -1130,31 +1209,17 @@ class FfiBackend implements NightshadeBackend {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    // Route to appropriate guider implementation based on device ID
-    if (deviceId == 'phd2_guider') {
-      await phd2StartGuiding(
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported in the FFI backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await bridge.NativeBridge.guiderStartGuiding(
+      deviceId: deviceId,
+      settlePixels: settlePixels,
+      settleTime: settleTime,
+      settleTimeout: settleTimeout,
+    );
   }
 
   @override
   Future<void> guiderStopGuiding({required String deviceId}) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2StopGuiding();
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported in the FFI backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await bridge.NativeBridge.guiderStop(deviceId: deviceId);
   }
 
   @override
@@ -1166,20 +1231,92 @@ class FfiBackend implements NightshadeBackend {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2Dither(
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      throw UnsupportedError(
-        'Guider "$deviceId" is not supported for dithering in the FFI backend. '
-        'Supported guider: "phd2_guider".',
-      );
-    }
+    await bridge.NativeBridge.guiderDither(
+      deviceId: deviceId,
+      amount: amount,
+      raOnly: raOnly,
+      settlePixels: settlePixels,
+      settleTime: settleTime,
+      settleTimeout: settleTimeout,
+    );
+  }
+
+  @override
+  Future<void> guiderLoop({required String deviceId}) async {
+    await bridge.NativeBridge.guiderLoop(deviceId: deviceId);
+  }
+
+  @override
+  Future<(double, double)> guiderFindStar({required String deviceId}) async {
+    final result = await bridge.NativeBridge.guiderFindStar(deviceId: deviceId);
+    return (result.$1, result.$2);
+  }
+
+  @override
+  Future<void> guiderSetLockPosition({
+    required String deviceId,
+    required double x,
+    required double y,
+    bool exact = false,
+  }) async {
+    await bridge.NativeBridge.guiderSetLockPosition(
+      deviceId: deviceId,
+      x: x,
+      y: y,
+      exact: exact,
+    );
+  }
+
+  @override
+  Future<(double, double)> guiderGetLockPosition(
+      {required String deviceId}) async {
+    final result =
+        await bridge.NativeBridge.guiderGetLockPosition(deviceId: deviceId);
+    return (result.$1, result.$2);
+  }
+
+  @override
+  Future<void> guiderDeselectStar({required String deviceId}) async {
+    await bridge.NativeBridge.guiderDeselectStar(deviceId: deviceId);
+  }
+
+  @override
+  Future<Phd2StarImage> guiderGetStarImage({
+    required String deviceId,
+    int size = 50,
+  }) async {
+    final image = await bridge.NativeBridge.guiderGetStarImage(
+      deviceId: deviceId,
+      size: size,
+    );
+    return Phd2StarImage(
+      frame: image.frame,
+      width: image.width,
+      height: image.height,
+      starX: image.starX,
+      starY: image.starY,
+      pixels: image.pixels,
+    );
+  }
+
+  @override
+  Future<BuiltinGuiderConfig> builtinGuiderGetConfig() async {
+    final raw = await bridge.NativeBridge.builtinGuiderGetConfigRaw();
+    return BuiltinGuiderConfig.fromJson(raw);
+  }
+
+  @override
+  Future<void> builtinGuiderSetConfig(BuiltinGuiderConfig config) async {
+    await bridge.NativeBridge.builtinGuiderSetConfigRaw(
+      exposureSecs: config.exposureSecs,
+      gain: config.gain,
+      offset: config.offset,
+      binning: config.binning,
+      calibrationMs: config.calibrationMs,
+      settleSleepMs: config.settleSleepMs,
+      minPulseMs: config.minPulseMs,
+      maxPulseMs: config.maxPulseMs,
+    );
   }
 
   // =========================================================================
@@ -1288,6 +1425,39 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<void> sequencerSetSavePath(String? path) async {
     await bridge.NativeBridge.sequencerSetSavePath(path: path);
+  }
+
+  @override
+  Future<void> sequencerUpdateDitherConfig({
+    required double pixels,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+    required bool raOnly,
+  }) async {
+    await bridge.NativeBridge.sequencerUpdateDitherConfig(
+      pixels: pixels,
+      settlePixels: settlePixels,
+      settleTime: settleTime,
+      settleTimeout: settleTimeout,
+      raOnly: raOnly,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    await bridge.NativeBridge.sequencerUpdateLocation(
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets) async {
+    await bridge.NativeBridge.sequencerUpdateFilterOffsets(offsets: offsets);
   }
 
   @override
@@ -2517,6 +2687,10 @@ class FfiBackend implements NightshadeBackend {
       ioError: (message) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.io,
         message: 'I/O error: $message',
+      ),
+      serializationError: (message) => dart_error.NightshadeError(
+        category: dart_error.BackendErrorCategory.io,
+        message: 'Serialization error: $message',
       ),
       plateSolveError: (message) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.io,

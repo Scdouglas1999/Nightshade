@@ -28,11 +28,11 @@ Driver backend types.
 
 ```dart
 enum DriverType {
-  ascom,      // Windows ASCOM drivers
-  alpaca,     // ASCOM Alpaca (network)
-  indi,       // INDI drivers
-  native,     // Direct SDK access
-  simulator,  // Simulated devices
+  ascom,      // Windows-only ASCOM COM drivers
+  alpaca,     // ASCOM Alpaca network devices or bridges
+  indi,       // Reachable INDI servers and drivers
+  native,     // Direct SDK access where the release ships the needed library
+  simulator,  // Simulated devices where that workflow is enabled
 }
 ```
 

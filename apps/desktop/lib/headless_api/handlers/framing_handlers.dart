@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for framing assistant and centering operations
 class FramingHandlers {
   final ProviderContainer container;
@@ -38,28 +40,19 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountSlewToCoordinates(mount.id, ra, dec);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "slewing",
-          "targetRa": ra,
-          "targetDec": dec,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "slewing",
+        "targetRa": ra,
+        "targetDec": dec,
+      });
     } catch (e) {
       _logError('[API] Slew to target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -121,35 +114,29 @@ class FramingHandlers {
         config: config,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "success": result.success,
-          "iterations": result.iterations,
-          "finalOffsetArcsec": result.finalOffsetArcsec,
-          "errorMessage": result.errorMessage,
-          "iterationHistory": result.iterationHistory
-              .map((i) => {
-                    'iterationNumber': i.iterationNumber,
-                    'solvedRa': i.solvedRa,
-                    'solvedDec': i.solvedDec,
-                    'targetRa': i.targetRa,
-                    'targetDec': i.targetDec,
-                    'offsetArcsec': i.offsetArcsec,
-                    'offsetArcmin': i.offsetArcmin,
-                    'plateSolveSuccess': i.plateSolveSuccess,
-                    'errorMessage': i.errorMessage,
-                    'timestamp': i.timestamp.millisecondsSinceEpoch,
-                  })
-              .toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "success": result.success,
+        "iterations": result.iterations,
+        "finalOffsetArcsec": result.finalOffsetArcsec,
+        "errorMessage": result.errorMessage,
+        "iterationHistory": result.iterationHistory
+            .map((i) => {
+                  'iterationNumber': i.iterationNumber,
+                  'solvedRa': i.solvedRa,
+                  'solvedDec': i.solvedDec,
+                  'targetRa': i.targetRa,
+                  'targetDec': i.targetDec,
+                  'offsetArcsec': i.offsetArcsec,
+                  'offsetArcmin': i.offsetArcmin,
+                  'plateSolveSuccess': i.plateSolveSuccess,
+                  'errorMessage': i.errorMessage,
+                  'timestamp': i.timestamp.millisecondsSinceEpoch,
+                })
+            .toList(),
+      });
     } catch (e) {
       _logError('[API] Center on target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -174,28 +161,19 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountSync(mount.id, ra, dec);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "synced",
-          "ra": ra,
-          "dec": dec,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "synced",
+        "ra": ra,
+        "dec": dec,
+      });
     } catch (e) {
       _logError('[API] Sync mount error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -215,35 +193,26 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       final status = await backend.getMountStatus(mount.id);
 
-      return Response.ok(
-        jsonEncode({
-          "ra": status.rightAscension,
-          "dec": status.declination,
-          "altitude": status.altitude,
-          "azimuth": status.azimuth,
-          "tracking": status.tracking,
-          "sideOfPier": status.sideOfPier.name,
-          "slewing": status.slewing,
-          "atPark": status.parked,
-          "atHome": status.atHome,
-          "trackingRate": status.trackingRate.name,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "ra": status.rightAscension,
+        "dec": status.declination,
+        "altitude": status.altitude,
+        "azimuth": status.azimuth,
+        "tracking": status.tracking,
+        "sideOfPier": status.sideOfPier.name,
+        "slewing": status.slewing,
+        "atPark": status.parked,
+        "atHome": status.atHome,
+        "trackingRate": status.trackingRate.name,
+      });
     } catch (e) {
       _logError('[API] Get current position error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -267,27 +236,18 @@ class FramingHandlers {
           .firstOrNull;
 
       if (rotator == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No rotator connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No rotator connected"});
       }
 
       await backend.rotatorMoveTo(rotator.id, angle);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "rotating",
-          "targetAngle": angle,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "rotating",
+        "targetAngle": angle,
+      });
     } catch (e) {
       _logError('[API] Rotate to error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -307,24 +267,15 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountAbort(mount.id);
 
-      return Response.ok(
-        jsonEncode({"status": "aborted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "aborted"});
     } catch (e) {
       _logError('[API] Abort slew error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -344,24 +295,15 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountPark(mount.id);
 
-      return Response.ok(
-        jsonEncode({"status": "parking"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "parking"});
     } catch (e) {
       _logError('[API] Park mount error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -381,24 +323,15 @@ class FramingHandlers {
           .firstOrNull;
 
       if (mount == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No mount connected"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No mount connected"});
       }
 
       await backend.mountUnpark(mount.id);
 
-      return Response.ok(
-        jsonEncode({"status": "unparking"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "unparking"});
     } catch (e) {
       _logError('[API] Unpark mount error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

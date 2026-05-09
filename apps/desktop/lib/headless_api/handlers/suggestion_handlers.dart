@@ -1,8 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
+
+import '../response_helpers.dart';
 
 /// Handlers for target suggestion service
 class SuggestionHandlers {
@@ -53,21 +53,15 @@ class SuggestionHandlers {
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error": "No location configured. Set location in settings first."
-          }),
-          headers: {'content-type': 'application/json'},
+        return jsonBadRequest(
+          {"error": "No location configured. Set location in settings first."},
         );
       }
 
       // Get all targets
       final targets = await database.targetsDao.getAllTargets();
       if (targets.isEmpty) {
-        return Response.ok(
-          jsonEncode({"suggestions": []}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({"suggestions": []});
       }
 
       // Get all sessions for progress calculation
@@ -98,23 +92,17 @@ class SuggestionHandlers {
       // Limit results
       final limited = suggestions.take(maxResults).toList();
 
-      return Response.ok(
-        jsonEncode({
-          "suggestions": limited.map((s) => _suggestionToJson(s)).toList(),
-          "totalMatching": suggestions.length,
-          "location": {
-            "latitude": latitude,
-            "longitude": longitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "suggestions": limited.map((s) => _suggestionToJson(s)).toList(),
+        "totalMatching": suggestions.length,
+        "location": {
+          "latitude": latitude,
+          "longitude": longitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Get suggestions error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -128,25 +116,19 @@ class SuggestionHandlers {
       // Return default configuration
       const config = TargetSuggestionConfig();
 
-      return Response.ok(
-        jsonEncode({
-          "config": {
-            "minAltitude": config.minAltitude,
-            "minScore": config.minScore,
-            "maxMoonDistance": config.maxMoonDistance,
-            "sortMode": config.sortMode.name,
-            "prioritizeIncomplete": config.prioritizeIncomplete,
-            "preferredObjectTypes": config.preferredObjectTypes,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "config": {
+          "minAltitude": config.minAltitude,
+          "minScore": config.minScore,
+          "maxMoonDistance": config.maxMoonDistance,
+          "sortMode": config.sortMode.name,
+          "prioritizeIncomplete": config.prioritizeIncomplete,
+          "preferredObjectTypes": config.preferredObjectTypes,
+        },
+      });
     } catch (e) {
       _logError('[API] Get config error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -164,20 +146,14 @@ class SuggestionHandlers {
       // Get target
       final target = await database.targetsDao.getTargetById(tid);
       if (target == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Target not found: $targetId"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Target not found: $targetId"});
       }
 
       // Get location
       final latitude = await database.settingsDao.getObserverLatitude();
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "No location configured"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "No location configured"});
       }
 
       // Get sessions for progress calculation
@@ -202,33 +178,25 @@ class SuggestionHandlers {
       );
 
       if (suggestions.isEmpty) {
-        return Response.ok(
-          jsonEncode({
-            "targetId": tid,
-            "targetName": target.name,
-            "belowHorizon": true,
-            "message": "Target is below the horizon",
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "targetId": tid,
+          "targetName": target.name,
+          "belowHorizon": null,
+          "message":
+              "Unable to score target - target may be below horizon or not visible tonight",
+        });
       }
 
       final suggestion = suggestions.first;
 
-      return Response.ok(
-        jsonEncode({
-          "targetId": tid,
-          "targetName": target.name,
-          "suggestion": _suggestionToJson(suggestion),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "targetId": tid,
+        "targetName": target.name,
+        "suggestion": _suggestionToJson(suggestion),
+      });
     } catch (e) {
       _logError('[API] Get target score error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

@@ -3,6 +3,8 @@ import 'dart:ui';
 
 /// WCS (World Coordinate System) overlay for images
 class WcsOverlay {
+  static const double _epsilon = 1e-9;
+
   final double crpix1; // Reference pixel X
   final double crpix2; // Reference pixel Y
   final double crval1; // Reference RA (degrees)
@@ -32,9 +34,13 @@ class WcsOverlay {
     final dx2 = dx * math.cos(angle) - dy * math.sin(angle);
     final dy2 = dx * math.sin(angle) + dy * math.cos(angle);
 
-    // Convert to spherical
-    final ra = crval1 + dx2 / math.cos(crval2 * math.pi / 180);
-    final dec = crval2 + dy2;
+    // Convert to spherical. RA is undefined exactly at the pole; keep the
+    // overlay finite by preserving the reference RA when the denominator is
+    // numerically singular.
+    final cosRefDec = math.cos(crval2 * math.pi / 180);
+    final raOffset = cosRefDec.abs() < _epsilon ? 0.0 : dx2 / cosRefDec;
+    final ra = _normalizeDegrees(crval1 + raOffset);
+    final dec = (crval2 + dy2).clamp(-90.0, 90.0);
 
     return (ra, dec);
   }
@@ -42,7 +48,8 @@ class WcsOverlay {
   /// Convert celestial coordinates to pixel coordinates
   (double x, double y) celestialToPixel(double ra, double dec) {
     // Inverse TAN projection
-    final dx2 = (ra - crval1) * math.cos(crval2 * math.pi / 180);
+    final raDelta = _normalizeDeltaDegrees(ra - crval1);
+    final dx2 = raDelta * math.cos(crval2 * math.pi / 180);
     final dy2 = dec - crval2;
 
     // Apply inverse rotation
@@ -50,8 +57,8 @@ class WcsOverlay {
     final dx = dx2 * math.cos(angle) - dy2 * math.sin(angle);
     final dy = dx2 * math.sin(angle) + dy2 * math.cos(angle);
 
-    final x = crpix1 + dx / cdelt1;
-    final y = crpix2 + dy / cdelt2;
+    final x = crpix1 + dx / _safeScale(cdelt1);
+    final y = crpix2 + dy / _safeScale(cdelt2);
 
     return (x, y);
   }
@@ -70,6 +77,24 @@ class WcsOverlay {
 
   /// Get the pixel scale in arcseconds per pixel
   double get pixelScale => cdelt1.abs() * 3600;
+
+  static double _normalizeDegrees(double degrees) {
+    var normalized = degrees % 360.0;
+    if (normalized < 0) normalized += 360.0;
+    return normalized;
+  }
+
+  static double _normalizeDeltaDegrees(double degrees) {
+    var normalized = degrees % 360.0;
+    if (normalized > 180.0) normalized -= 360.0;
+    if (normalized < -180.0) normalized += 360.0;
+    return normalized;
+  }
+
+  static double _safeScale(double value) {
+    if (value.abs() >= _epsilon) return value;
+    return value.isNegative ? -_epsilon : _epsilon;
+  }
 }
 
 /// WCS grid overlay painter
@@ -92,7 +117,8 @@ class WcsGridPainter {
     double decSpacing = 1.0, // degrees
   }) {
     final lines = <GridLine>[];
-    final fov = wcs.fieldOfView(imageSize.width.toInt(), imageSize.height.toInt());
+    final fov =
+        wcs.fieldOfView(imageSize.width.toInt(), imageSize.height.toInt());
 
     // Generate RA lines
     final raStart = (wcs.crval1 - fov.$1 / 2).floor().toDouble();
@@ -191,8 +217,3 @@ class WcsAnnotation {
     return null;
   }
 }
-
-
-
-
-

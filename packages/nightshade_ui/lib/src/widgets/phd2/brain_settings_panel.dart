@@ -99,7 +99,8 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         _controllers['ra_${param.name}']?.text = param.value.toStringAsFixed(2);
       }
       for (final param in widget.decParams) {
-        _controllers['dec_${param.name}']?.text = param.value.toStringAsFixed(2);
+        _controllers['dec_${param.name}']?.text =
+            param.value.toStringAsFixed(2);
       }
     }
   }
@@ -119,7 +120,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -166,10 +167,11 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         final horizontalPadding = isCompact ? 10.0 : 16.0;
 
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          padding:
+              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
           ),
           child: Row(
             children: [
@@ -179,7 +181,8 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   color: colors.warning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(LucideIcons.brain, color: colors.warning, size: iconSize),
+                child: Icon(LucideIcons.brain,
+                    color: colors.warning, size: iconSize),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -210,7 +213,8 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
     );
   }
 
-  Widget _buildAxisSection(String label, List<BrainParam> params, String axis, NightshadeColors colors) {
+  Widget _buildAxisSection(String label, List<BrainParam> params, String axis,
+      NightshadeColors colors) {
     final axisColor = axis == 'ra' ? Colors.redAccent : colors.info;
 
     return Column(
@@ -246,14 +250,17 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
             border: Border.all(color: colors.border.withValues(alpha: 0.5)),
           ),
           child: Column(
-            children: params.map((param) => _buildParamRow(param, axis, colors)).toList(),
+            children: params
+                .map((param) => _buildParamRow(param, axis, colors))
+                .toList(),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildParamRow(BrainParam param, String axis, NightshadeColors colors) {
+  Widget _buildParamRow(
+      BrainParam param, String axis, NightshadeColors colors) {
     final controller = _controllers['${axis}_${param.name}']!;
 
     return Padding(
@@ -286,9 +293,11 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide(color: colors.border),
@@ -324,8 +333,9 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-        border: Border(top: BorderSide(color: colors.border.withValues(alpha: 0.5))),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+        border: Border(
+            top: BorderSide(color: colors.border.withValues(alpha: 0.5))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
@@ -336,10 +346,12 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
             color: colors.textSecondary,
             colors: colors,
             isOutline: true,
-            onPressed: widget.isApplying ? null : () {
-              setState(() => _hasChanges = false);
-              widget.onReset?.call();
-            },
+            onPressed: widget.isApplying
+                ? null
+                : () {
+                    setState(() => _hasChanges = false);
+                    widget.onReset?.call();
+                  },
           ),
           const SizedBox(width: 10),
           _buildActionButton(
@@ -348,10 +360,12 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
             color: colors.primary,
             colors: colors,
             isPrimary: true,
-            onPressed: widget.isApplying ? null : () {
-              setState(() => _hasChanges = false);
-              widget.onApply?.call();
-            },
+            onPressed: widget.isApplying
+                ? null
+                : () {
+                    setState(() => _hasChanges = false);
+                    widget.onApply?.call();
+                  },
           ),
         ],
       ),
@@ -368,6 +382,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
     bool isPrimary = false,
   }) {
     final isDisabled = onPressed == null;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return Material(
       color: Colors.transparent,
@@ -385,7 +400,9 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   : (isOutline ? Colors.transparent : colors.surfaceHover),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isOutline ? colors.border : (isPrimary ? color : Colors.transparent),
+                color: isOutline
+                    ? colors.border
+                    : (isPrimary ? color : Colors.transparent),
               ),
             ),
             child: Row(
@@ -395,7 +412,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   icon,
                   size: 14,
                   color: isPrimary
-                      ? (isDisabled ? colors.textMuted : Colors.white)
+                      ? (isDisabled ? colors.textMuted : onPrimary)
                       : (isDisabled ? colors.textMuted : color),
                 ),
                 const SizedBox(width: 6),
@@ -405,7 +422,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: isPrimary
-                        ? (isDisabled ? colors.textMuted : Colors.white)
+                        ? (isDisabled ? colors.textMuted : onPrimary)
                         : (isDisabled ? colors.textMuted : color),
                   ),
                   overflow: TextOverflow.ellipsis,

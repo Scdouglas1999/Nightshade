@@ -24,6 +24,8 @@ pub struct ExecutionContext {
     pub target_rotation: Option<f64>,
     /// Current filter
     pub current_filter: Option<String>,
+    /// Current binning
+    pub current_binning: crate::Binning,
     /// Cancellation flag
     pub is_cancelled: Arc<AtomicBool>,
     /// Pause flag - set by recovery nodes, cleared by executor on resume
@@ -85,6 +87,7 @@ impl ExecutionContext {
             target_name: None,
             target_rotation: None,
             current_filter: None,
+            current_binning: crate::Binning::One,
             is_cancelled: Arc::new(AtomicBool::new(false)),
             is_paused: Arc::new(AtomicBool::new(false)),
             skip_to_next_target: Arc::new(AtomicBool::new(false)),
@@ -226,7 +229,7 @@ impl ExecutionContext {
 
         // Calculate Hour Angle
         let ha = lst - ra_hours;
-        let ha_rad = ha.to_radians() * 15.0; // Convert hours to radians
+        let ha_rad = (ha * 15.0).to_radians(); // Convert hours to degrees, then to radians
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
 
@@ -271,9 +274,9 @@ impl ExecutionContext {
         .to_degrees();
 
         // Calculate angular separation using spherical law of cosines
-        let target_ra_rad = target_ra.to_radians() * 15.0; // Hours to degrees to radians
+        let target_ra_rad = (target_ra * 15.0).to_radians(); // Hours to degrees to radians
         let target_dec_rad = target_dec.to_radians();
-        let moon_ra_rad = moon_ra.to_radians() * 15.0;
+        let moon_ra_rad = (moon_ra * 15.0).to_radians();
         let moon_dec_rad = moon_dec.to_radians();
 
         let cos_sep = target_dec_rad.sin() * moon_dec_rad.sin()
@@ -291,29 +294,13 @@ impl ExecutionContext {
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
 
-        // Approximate sun position calculation
         let days_since_j2000 = jd - 2451545.0;
-        let mean_longitude = (280.46 + 0.9856474 * days_since_j2000) % 360.0;
-        let mean_anomaly = (357.528 + 0.9856003 * days_since_j2000) % 360.0;
-
-        let ecliptic_longitude = mean_longitude
-            + 1.915 * mean_anomaly.to_radians().sin()
-            + 0.020 * (2.0 * mean_anomaly.to_radians()).sin();
-
-        // Sun's declination
-        let obliquity = 23.439 - 0.0000004 * days_since_j2000;
-        let sun_dec = (obliquity.to_radians().sin() * ecliptic_longitude.to_radians().sin())
-            .asin()
-            .to_degrees();
-        let sun_ra = (ecliptic_longitude.to_radians().cos() / sun_dec.to_radians().cos())
-            .acos()
-            .to_degrees()
-            / 15.0;
+        let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000);
 
         // Calculate sun altitude
         let lst = local_sidereal_time(jd, lon);
         let ha = lst - sun_ra;
-        let ha_rad = ha.to_radians() * 15.0;
+        let ha_rad = (ha * 15.0).to_radians();
         let dec_rad = sun_dec.to_radians();
         let lat_rad = lat.to_radians();
 
@@ -347,7 +334,7 @@ impl ExecutionContext {
             target_dec: self.target_dec,
             target_name: self.target_name.clone(),
             current_filter: self.current_filter.clone(),
-            current_binning: crate::Binning::One,
+            current_binning: self.current_binning,
             cancellation_token: self.is_cancelled.clone(),
             camera_id: self.camera_id.clone(),
             mount_id: self.mount_id.clone(),
@@ -364,6 +351,29 @@ impl ExecutionContext {
             filter_focus_offsets: self.filter_focus_offsets.clone(),
         }
     }
+}
+
+fn approximate_sun_equatorial_coords(days_since_j2000: f64) -> (f64, f64) {
+    let mean_longitude = (280.46 + 0.9856474 * days_since_j2000).rem_euclid(360.0);
+    let mean_anomaly = (357.528 + 0.9856003 * days_since_j2000).rem_euclid(360.0);
+
+    let ecliptic_longitude = mean_longitude
+        + 1.915 * mean_anomaly.to_radians().sin()
+        + 0.020 * (2.0 * mean_anomaly.to_radians()).sin();
+
+    let obliquity = 23.439 - 0.0000004 * days_since_j2000;
+    let ecliptic_longitude_rad = ecliptic_longitude.to_radians();
+    let obliquity_rad = obliquity.to_radians();
+    let sun_dec = (obliquity_rad.sin() * ecliptic_longitude_rad.sin())
+        .asin()
+        .to_degrees();
+    let sun_ra = (ecliptic_longitude_rad.sin() * obliquity_rad.cos())
+        .atan2(ecliptic_longitude_rad.cos())
+        .to_degrees()
+        .rem_euclid(360.0)
+        / 15.0;
+
+    (sun_ra, sun_dec)
 }
 
 /// Base trait for all behavior tree nodes
@@ -422,6 +432,19 @@ impl RuntimeNode {
 
     pub fn add_child(&mut self, child: Box<dyn Node>) {
         self.children.push(child);
+    }
+
+    fn configured_recovery_autofocus(&self) -> Option<crate::AutofocusConfig> {
+        self.children.iter().find_map(|child| {
+            if !child.is_enabled() {
+                return None;
+            }
+
+            match child.node_type() {
+                NodeType::Autofocus(config) => Some(config.clone()),
+                _ => None,
+            }
+        })
     }
 
     /// Check exposure-level triggers (per-exposure monitoring)
@@ -556,6 +579,7 @@ impl RuntimeNode {
                             exposure_duration: 3.0,
                             filter: context.current_filter.clone(),
                             binning: config.binning,
+                            max_duration_secs: 600.0,
                         };
 
                         let ctx = context.to_instruction_context().await;
@@ -705,8 +729,25 @@ impl Node for RuntimeNode {
                     .log_and_get_status("Center Target")
             }
             NodeType::TakeExposure(config) => {
+                let previous_binning = context.current_binning;
+                context.current_binning = config.binning;
                 let mut ctx = context.to_instruction_context().await;
                 ctx.current_binning = config.binning;
+                if previous_binning != config.binning {
+                    tracing::warn!(
+                        "Exposure binning changed from {:?} to {:?}; invalidating autofocus baseline",
+                        previous_binning,
+                        config.binning
+                    );
+                    if let Some(trigger_state_lock) = &context.trigger_state {
+                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
+                            trigger_state.invalidate_autofocus(format!(
+                                "binning changed from {:?} to {:?}",
+                                previous_binning, config.binning
+                            ));
+                        }
+                    }
+                }
                 let node_id = self.id().clone();
                 let duration_secs = config.duration_secs;
                 let total_count = config.count;
@@ -978,6 +1019,11 @@ impl Node for RuntimeNode {
                 let result = execute_filter_change(config, &ctx, Some(&progress_fn)).await;
                 if result.status == NodeStatus::Success {
                     context.current_filter = Some(config.filter_name.clone());
+                    if let Some(trigger_state_lock) = &context.trigger_state {
+                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
+                            trigger_state.set_filter(config.filter_name.clone());
+                        }
+                    }
                 } else if result.status == NodeStatus::Failure {
                     if let Some(msg) = &result.message {
                         tracing::error!("Change Filter failed: {}", msg);
@@ -1035,7 +1081,25 @@ impl Node for RuntimeNode {
             }
             NodeType::MoveRotator(config) => {
                 let ctx = context.to_instruction_context().await;
-                execute_rotator_move(config, &ctx)
+                let node_id = self.id().clone();
+                let progress_cb = context.progress_callback.as_ref();
+
+                let progress_fn = |progress: f64, detail: String| {
+                    if let Some(cb) = progress_cb {
+                        cb(ProgressUpdate {
+                            node_id: node_id.clone(),
+                            status: NodeStatus::Running,
+                            message: Some(format!("Move Rotator: {} ({:.0}%)", detail, progress)),
+                            current_frame: None,
+                            total_frames: None,
+                            current_child: None,
+                            total_children: None,
+                            completed_exposure_secs: None,
+                        });
+                    }
+                };
+
+                execute_rotator_move(config, &ctx, Some(&progress_fn))
                     .await
                     .log_and_get_status("Move Rotator")
             }
@@ -1473,8 +1537,10 @@ impl RuntimeNode {
                     display_name,
                     wait_secs
                 );
-                // Wait until start time
-                tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs as u64)).await;
+                match wait_until_timestamp_or_cancel(context, start_after).await {
+                    NodeStatus::Success => {}
+                    other => return other,
+                }
             }
         }
 
@@ -1494,6 +1560,7 @@ impl RuntimeNode {
             if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
                 let target_ra_degrees = config.ra_hours * 15.0; // Convert hours to degrees
                 trigger_state.set_target(target_ra_degrees, config.dec_degrees);
+                trigger_state.set_meridian_target(display_name.clone());
                 tracing::debug!(
                     "Updated trigger state with target: RA={:.4}°, Dec={:.4}°",
                     target_ra_degrees,
@@ -1762,6 +1829,7 @@ impl RuntimeNode {
         let target_name = context.target_name.clone();
         let target_rotation = context.target_rotation;
         let current_filter = context.current_filter.clone();
+        let current_binning = context.current_binning;
         let camera_id = context.camera_id.clone();
         let mount_id = context.mount_id.clone();
         let focuser_id = context.focuser_id.clone();
@@ -1774,6 +1842,7 @@ impl RuntimeNode {
         let longitude = context.longitude;
         let safety_fail_mode = context.safety_fail_mode;
         let skip_to_next_target = context.skip_to_next_target.clone();
+        let trigger_state = context.trigger_state.clone();
         let filter_focus_offsets = context.filter_focus_offsets.clone();
 
         // Spawn tasks for each child
@@ -1802,6 +1871,7 @@ impl RuntimeNode {
                 let save_path = save_path.clone();
                 let safety_fail_mode = safety_fail_mode;
                 let skip_to_next_target = skip_to_next_target.clone();
+                let trigger_state = trigger_state.clone();
                 let filter_focus_offsets = filter_focus_offsets.clone();
 
                 tokio::spawn(async move {
@@ -1818,6 +1888,7 @@ impl RuntimeNode {
                         target_name,
                         target_rotation,
                         current_filter,
+                        current_binning,
                         is_cancelled: is_cancelled.clone(),
                         is_paused,
                         skip_to_next_target,
@@ -1836,7 +1907,7 @@ impl RuntimeNode {
                         longitude,
                         device_ops,
                         completed_integration_secs: completed_integration,
-                        trigger_state: None,
+                        trigger_state,
                         safety_fail_mode,
                         filter_focus_offsets,
                     };
@@ -2070,6 +2141,10 @@ impl RuntimeNode {
     }
 
     /// Execute a recovery node
+    ///
+    /// Retries child nodes up to `max_retries` times with exponential backoff
+    /// (1s, 2s, 4s, 8s, ...) between attempts. After exhausting all retries,
+    /// the configured recovery action determines the final outcome.
     async fn execute_recovery(
         &mut self,
         config: RecoveryConfig,
@@ -2094,17 +2169,53 @@ impl RuntimeNode {
             }
 
             if attempts >= max_attempts {
-                tracing::warn!("Max recovery attempts reached");
+                tracing::warn!(
+                    "Max recovery attempts ({}) reached, propagating failure",
+                    max_attempts
+                );
                 return match config.recovery_action {
                     RecoveryAction::Continue => NodeStatus::Success,
                     RecoveryAction::NextTarget => NodeStatus::Skipped,
                     RecoveryAction::ParkAndAbort => {
                         let ctx = context.to_instruction_context().await;
-                        let _ = execute_park(&ctx).await;
+                        let park_result = execute_park(&ctx).await;
+                        if park_result.status != NodeStatus::Success {
+                            tracing::error!(
+                                "ParkAndAbort recovery: park failed: {:?}. Mount may be in an unsafe position!",
+                                park_result.message
+                            );
+                        }
                         NodeStatus::Failure
                     }
                     _ => NodeStatus::Failure,
                 };
+            }
+
+            // Exponential backoff before retry: 1s, 2s, 4s, 8s, ...
+            // (attempts is 1-based and we've already completed attempt N, so
+            //  the delay before the next attempt uses exponent = attempts - 1)
+            let backoff_secs = 1u64 << (attempts - 1).min(6); // Cap at 64s
+            tracing::info!(
+                "Waiting {}s before retry attempt {}/{}",
+                backoff_secs,
+                attempts + 1,
+                max_attempts
+            );
+
+            // Check for cancellation during backoff
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)) => {}
+                _ = async {
+                    loop {
+                        if context.is_cancelled.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    }
+                } => {
+                    tracing::info!("Recovery cancelled during backoff wait");
+                    return NodeStatus::Cancelled;
+                }
             }
 
             // Execute recovery action
@@ -2113,10 +2224,23 @@ impl RuntimeNode {
                     tracing::info!("Retrying...");
                 }
                 RecoveryAction::Autofocus => {
+                    let autofocus_config = match self.configured_recovery_autofocus() {
+                        Some(config) => config,
+                        None => {
+                            tracing::error!(
+                                "Recovery action requested autofocus but no enabled autofocus child is configured"
+                            );
+                            return NodeStatus::Failure;
+                        }
+                    };
                     tracing::info!("Running recovery autofocus...");
                     let ctx = context.to_instruction_context().await;
-                    // Pass None for progress callback in recovery autofocus
-                    let _ = execute_autofocus(&crate::AutofocusConfig::default(), &ctx, None).await;
+                    let autofocus_result = execute_autofocus(&autofocus_config, &ctx, None).await;
+                    match autofocus_result.status {
+                        NodeStatus::Success => {}
+                        NodeStatus::Cancelled => return NodeStatus::Cancelled,
+                        _ => return autofocus_result.log_and_get_status("Recovery autofocus"),
+                    }
                 }
                 RecoveryAction::Pause => {
                     tracing::info!("Pausing for manual intervention...");
@@ -2205,6 +2329,30 @@ impl RuntimeNode {
     }
 }
 
+async fn wait_until_timestamp_or_cancel(
+    context: &ExecutionContext,
+    target_timestamp: i64,
+) -> NodeStatus {
+    loop {
+        if context.is_cancelled.load(Ordering::Relaxed) {
+            tracing::info!("Cancelled while waiting for scheduled start time");
+            return NodeStatus::Cancelled;
+        }
+        if context.is_skip_to_next_target_requested() {
+            tracing::info!("Skip requested while waiting for scheduled start time");
+            return NodeStatus::Skipped;
+        }
+
+        let now = chrono::Utc::now().timestamp();
+        if now >= target_timestamp {
+            return NodeStatus::Success;
+        }
+
+        let sleep_secs = (target_timestamp - now).min(1) as u64;
+        tokio::time::sleep(std::time::Duration::from_secs(sleep_secs.max(1))).await;
+    }
+}
+
 // ============================================================================
 // Astronomical Helper Functions
 // ============================================================================
@@ -2257,6 +2405,9 @@ pub fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        AutofocusConfig, NodeDefinition, RecoveryAction, RecoveryConfig, TargetHeaderConfig,
+    };
 
     #[test]
     fn test_execution_context_creation() {
@@ -2365,5 +2516,94 @@ mod tests {
         // East should be about 1 hour ahead (difference should be ~1 hour)
         let diff = lst_east - lst_greenwich;
         assert!((diff - 1.0).abs() < 0.1 || (diff + 23.0).abs() < 0.1); // Handle wrap
+    }
+
+    #[test]
+    fn recovery_autofocus_uses_configured_child() {
+        let mut recovery_node = RuntimeNode::from_definition(NodeDefinition {
+            id: "recovery".to_string(),
+            name: "Recovery".to_string(),
+            node_type: NodeType::Recovery(RecoveryConfig {
+                recovery_action: RecoveryAction::Autofocus,
+                ..RecoveryConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        recovery_node.add_child(Box::new(RuntimeNode::from_definition(NodeDefinition {
+            id: "autofocus".to_string(),
+            name: "Autofocus".to_string(),
+            node_type: NodeType::Autofocus(AutofocusConfig {
+                step_size: 321,
+                exposure_duration: 7.5,
+                ..AutofocusConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        })));
+
+        let autofocus = recovery_node
+            .configured_recovery_autofocus()
+            .expect("recovery node should find autofocus child");
+
+        assert_eq!(autofocus.step_size, 321);
+        assert_eq!(autofocus.exposure_duration, 7.5);
+    }
+
+    #[test]
+    fn wait_until_timestamp_or_cancel_stops_on_skip_request() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(async {
+            let ctx = ExecutionContext::new("test_node".to_string());
+            ctx.request_skip_to_next_target();
+
+            let result =
+                wait_until_timestamp_or_cancel(&ctx, chrono::Utc::now().timestamp() + 60).await;
+
+            assert_eq!(result, NodeStatus::Skipped);
+        });
+    }
+
+    #[test]
+    fn target_header_wait_is_cancellable() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        rt.block_on(async {
+            let mut node = RuntimeNode::from_definition(NodeDefinition {
+                id: "target".to_string(),
+                name: "Target".to_string(),
+                node_type: NodeType::TargetHeader(TargetHeaderConfig {
+                    target_name: "M31".to_string(),
+                    ra_hours: 1.0,
+                    dec_degrees: 2.0,
+                    start_after: Some(chrono::Utc::now().timestamp() + 60),
+                    ..TargetHeaderConfig::default()
+                }),
+                enabled: true,
+                children: vec![],
+            });
+            let mut ctx = ExecutionContext::new("target".to_string());
+            ctx.is_cancelled.store(true, Ordering::Relaxed);
+
+            let result = node.execute(&mut ctx).await;
+            assert_eq!(result, NodeStatus::Cancelled);
+        });
+    }
+
+    #[test]
+    fn sun_ra_helper_stays_finite_and_normalized() {
+        for days_since_j2000 in (-3650..=3650).step_by(137) {
+            let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000 as f64);
+            assert!(sun_ra.is_finite());
+            assert!(sun_dec.is_finite());
+            assert!((0.0..24.0).contains(&sun_ra));
+        }
     }
 }

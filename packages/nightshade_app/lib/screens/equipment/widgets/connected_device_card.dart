@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../../../services/mount_command_service.dart';
+import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 
 // ============================================================================
@@ -18,6 +20,10 @@ enum ConnectedDeviceType {
   filterWheel,
   guider,
   rotator,
+  dome,
+  weather,
+  safetyMonitor,
+  coverCalibrator,
 }
 
 extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
@@ -35,6 +41,14 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
         return 'GUIDER';
       case ConnectedDeviceType.rotator:
         return 'ROTATOR';
+      case ConnectedDeviceType.dome:
+        return 'DOME';
+      case ConnectedDeviceType.weather:
+        return 'WEATHER';
+      case ConnectedDeviceType.safetyMonitor:
+        return 'SAFETY MONITOR';
+      case ConnectedDeviceType.coverCalibrator:
+        return 'COVER CALIBRATOR';
     }
   }
 
@@ -52,6 +66,14 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
         return LucideIcons.crosshair;
       case ConnectedDeviceType.rotator:
         return LucideIcons.rotateCw;
+      case ConnectedDeviceType.dome:
+        return LucideIcons.home;
+      case ConnectedDeviceType.weather:
+        return LucideIcons.cloudSun;
+      case ConnectedDeviceType.safetyMonitor:
+        return LucideIcons.shieldCheck;
+      case ConnectedDeviceType.coverCalibrator:
+        return LucideIcons.lamp;
     }
   }
 
@@ -69,131 +91,16 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
         return colors.info;
       case ConnectedDeviceType.rotator:
         return colors.accent;
+      case ConnectedDeviceType.dome:
+        return colors.info;
+      case ConnectedDeviceType.weather:
+        return colors.accent;
+      case ConnectedDeviceType.safetyMonitor:
+        return colors.success;
+      case ConnectedDeviceType.coverCalibrator:
+        return colors.warning;
     }
   }
-}
-
-// ============================================================================
-// Device ID Formatting Helpers
-// ============================================================================
-
-/// Format a device ID into a user-friendly display name
-String _formatDeviceId(String id) {
-  final lowerId = id.toLowerCase();
-
-  // Handle native device IDs: native:vendor:index or native:vendor_type:index
-  if (lowerId.startsWith('native:')) {
-    final parts = id.substring(7).split(':');
-    if (parts.isNotEmpty) {
-      final devicePart = parts[0];
-      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-
-      // Handle vendor_type format (e.g., zwo_eaf)
-      if (devicePart.contains('_')) {
-        final subParts = devicePart.split('_');
-        final vendor = _capitalizeVendor(subParts[0]);
-        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
-        return '$vendor $type';
-      }
-
-      // Simple vendor format
-      final vendor = _capitalizeVendor(devicePart);
-      if (index != null) {
-        return '$vendor #${index + 1}';
-      }
-      return vendor;
-    }
-  }
-
-  // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type
-  if (lowerId.startsWith('ascom:')) {
-    final ascomId = id.substring(6);
-    final parts = ascomId.split('.');
-    if (parts.length >= 2) {
-      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
-      return _formatAscomVendor(vendorPart);
-    }
-  }
-
-  // Handle Alpaca device IDs
-  if (lowerId.startsWith('alpaca:')) {
-    final alpacaPart = id.substring(7);
-    return 'Alpaca: $alpacaPart';
-  }
-
-  // Handle PHD2
-  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
-    return 'PHD2';
-  }
-
-  // Fallback: try to clean up the ID
-  return _cleanupId(id);
-}
-
-/// Capitalize vendor names properly
-String _capitalizeVendor(String vendor) {
-  const knownVendors = {
-    'zwo': 'ZWO',
-    'asi': 'ZWO ASI',
-    'qhy': 'QHY',
-    'playerone': 'PlayerOne',
-    'svbony': 'SVBony',
-    'atik': 'Atik',
-    'fli': 'FLI',
-    'moravian': 'Moravian',
-    'touptek': 'Touptek',
-    'pegasus': 'Pegasus',
-    'pegasusastro': 'Pegasus Astro',
-    'ioptron': 'iOptron',
-    'skywatcher': 'Sky-Watcher',
-    'celestron': 'Celestron',
-    'meade': 'Meade',
-    'losmandy': 'Losmandy',
-    'moonlite': 'MoonLite',
-    'optec': 'Optec',
-    'lacerta': 'Lacerta',
-    'esatto': 'Esatto',
-    'primaluce': 'PrimaLuce',
-  };
-
-  final lower = vendor.toLowerCase();
-  if (knownVendors.containsKey(lower)) {
-    return knownVendors[lower]!;
-  }
-
-  if (vendor.isEmpty) return vendor;
-  return vendor[0].toUpperCase() + vendor.substring(1);
-}
-
-/// Format ASCOM vendor string by adding spaces before capitals/numbers
-String _formatAscomVendor(String vendor) {
-  final spaced = vendor.replaceAllMapped(
-    RegExp(r'([a-z])([A-Z0-9])'),
-    (m) => '${m.group(1)} ${m.group(2)}',
-  );
-  return spaced;
-}
-
-/// Clean up an unrecognized ID for display
-String _cleanupId(String id) {
-  var cleaned = id;
-  for (final prefix in ['native:', 'ascom:', 'alpaca:', 'ASCOM.']) {
-    if (cleaned.toLowerCase().startsWith(prefix.toLowerCase())) {
-      cleaned = cleaned.substring(prefix.length);
-    }
-  }
-
-  cleaned = cleaned.replaceAll('_', ' ').replaceAll('.', ' ');
-  cleaned = cleaned.replaceAll(RegExp(r'\s*:\s*\d+$'), '');
-
-  if (cleaned.isNotEmpty) {
-    cleaned = cleaned.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
-  }
-
-  return cleaned.isEmpty ? id : cleaned;
 }
 
 /// Get display name for a device, preferring deviceName, falling back to formatted deviceId
@@ -203,7 +110,7 @@ String _getDeviceDisplayName(
     return deviceName;
   }
   if (deviceId != null && deviceId.isNotEmpty) {
-    return _formatDeviceId(deviceId);
+    return formatDeviceId(deviceId);
   }
   return fallback;
 }
@@ -291,7 +198,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: borderColor, width: 1.5),
             ),
             child: Column(
@@ -338,6 +245,14 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         return ref.watch(guiderStateProvider).connectionState;
       case ConnectedDeviceType.rotator:
         return ref.watch(rotatorStateProvider).connectionState;
+      case ConnectedDeviceType.dome:
+        return ref.watch(domeStateProvider).connectionState;
+      case ConnectedDeviceType.weather:
+        return ref.watch(weatherStateProvider).connectionState;
+      case ConnectedDeviceType.safetyMonitor:
+        return ref.watch(safetyMonitorStateProvider).connectionState;
+      case ConnectedDeviceType.coverCalibrator:
+        return ref.watch(coverCalibratorStateProvider).connectionState;
     }
   }
 
@@ -444,6 +359,21 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         final state = ref.watch(rotatorStateProvider);
         return _getDeviceDisplayName(
             state.deviceName, state.deviceId, 'Rotator');
+      case ConnectedDeviceType.dome:
+        final state = ref.watch(domeStateProvider);
+        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Dome');
+      case ConnectedDeviceType.weather:
+        final state = ref.watch(weatherStateProvider);
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Weather Station');
+      case ConnectedDeviceType.safetyMonitor:
+        final state = ref.watch(safetyMonitorStateProvider);
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Safety Monitor');
+      case ConnectedDeviceType.coverCalibrator:
+        final state = ref.watch(coverCalibratorStateProvider);
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Cover Calibrator');
     }
   }
 
@@ -472,7 +402,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -525,7 +455,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+                  color: metric.valueColor ?? colors.textPrimary,
                   fontFamily: 'monospace',
                 ),
               ),
@@ -679,7 +609,145 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             label: 'Status',
           ),
         ];
+
+      case ConnectedDeviceType.dome:
+        final state = ref.watch(domeStateProvider);
+        return [
+          _DeviceMetric(
+            value: state.azimuth != null
+                ? '${state.azimuth!.toStringAsFixed(1)}\u00B0'
+                : '---',
+            label: 'Azimuth',
+          ),
+          _DeviceMetric(
+            value: _shutterStatusLabel(state.shutterStatus),
+            label: 'Shutter',
+          ),
+          _DeviceMetric(
+            value: state.isSlewing
+                ? 'Slewing'
+                : state.isParked
+                    ? 'Parked'
+                    : state.isSlaved
+                        ? 'Slaved'
+                        : 'Idle',
+            label: 'Status',
+          ),
+        ];
+
+      case ConnectedDeviceType.weather:
+        final state = ref.watch(weatherStateProvider);
+        final weatherColors = Theme.of(context).extension<NightshadeColors>()!;
+        final hasRain = state.rainRate != null && state.rainRate! > 0;
+        return [
+          _DeviceMetric(
+            value: state.temperature != null
+                ? '${state.temperature!.toStringAsFixed(1)}\u00B0C'
+                : '---',
+            label: 'Temp',
+          ),
+          _DeviceMetric(
+            value: state.humidity != null
+                ? '${state.humidity!.toStringAsFixed(0)}%'
+                : '---',
+            label: 'Humidity',
+          ),
+          _DeviceMetric(
+            value: hasRain
+                ? 'Rain!'
+                : state.dewPoint != null
+                    ? '${state.dewPoint!.toStringAsFixed(1)}\u00B0C'
+                    : '---',
+            label: hasRain ? 'Alert' : 'Dew Point',
+            valueColor: hasRain ? weatherColors.error : null,
+          ),
+        ];
+
+      case ConnectedDeviceType.safetyMonitor:
+        final state = ref.watch(safetyMonitorStateProvider);
+        final colors = Theme.of(context).extension<NightshadeColors>()!;
+        return [
+          _DeviceMetric(
+            value: state.isSafe ? 'SAFE' : 'UNSAFE',
+            label: 'Status',
+            valueColor: state.isSafe ? colors.success : colors.error,
+          ),
+          _DeviceMetric(
+            value: state.lastChecked != null
+                ? _formatTimeAgo(state.lastChecked!)
+                : '---',
+            label: 'Last Checked',
+          ),
+        ];
+
+      case ConnectedDeviceType.coverCalibrator:
+        final state = ref.watch(coverCalibratorStateProvider);
+        return [
+          if (state.hasCover)
+            _DeviceMetric(
+              value: _coverStatusLabel(state.coverStatus),
+              label: 'Cover',
+            ),
+          if (state.hasCalibrator) ...[
+            _DeviceMetric(
+              value: state.isCalibratorOn ? 'ON' : 'OFF',
+              label: 'Light',
+            ),
+            _DeviceMetric(
+              value: state.isCalibratorOn
+                  ? '${state.brightness}/${state.maxBrightness}'
+                  : '---',
+              label: 'Brightness',
+            ),
+          ],
+          if (!state.hasCover && !state.hasCalibrator)
+            _DeviceMetric(
+              value: 'Connected',
+              label: 'Status',
+            ),
+        ];
     }
+  }
+
+  String _shutterStatusLabel(ShutterStatus status) {
+    switch (status) {
+      case ShutterStatus.open:
+        return 'Open';
+      case ShutterStatus.closed:
+        return 'Closed';
+      case ShutterStatus.opening:
+        return 'Opening';
+      case ShutterStatus.closing:
+        return 'Closing';
+      case ShutterStatus.error:
+        return 'Error';
+      case ShutterStatus.unknown:
+        return 'Unknown';
+    }
+  }
+
+  String _coverStatusLabel(CoverStatus status) {
+    switch (status) {
+      case CoverStatus.open:
+        return 'Open';
+      case CoverStatus.closed:
+        return 'Closed';
+      case CoverStatus.moving:
+        return 'Moving';
+      case CoverStatus.notPresent:
+        return 'N/A';
+      case CoverStatus.unknown:
+        return 'Unknown';
+      case CoverStatus.error:
+        return 'Error';
+    }
+  }
+
+  String _formatTimeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${diff.inHours}h ago';
   }
 
   Widget _buildActionsRow(NightshadeColors colors) {
@@ -746,6 +814,12 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             onTap: () => _handleToggleTracking(state.isTracking),
             colors: colors,
           ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: 'Home',
+            onTap: () => _handleFindHome(),
+            colors: colors,
+          ),
         ];
 
       case ConnectedDeviceType.focuser:
@@ -786,6 +860,48 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             colors: colors,
           ),
         ];
+
+      case ConnectedDeviceType.dome:
+        final state = ref.watch(domeStateProvider);
+        return [
+          _ActionButton(
+            label: state.shutterStatus == ShutterStatus.open
+                ? 'Close Shutter'
+                : 'Open Shutter',
+            onTap: () => _handleDomeShutter(state.shutterStatus),
+            colors: colors,
+          ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: state.isParked ? 'Unpark' : 'Park',
+            onTap: () => _handleDomePark(state.isParked),
+            colors: colors,
+          ),
+        ];
+
+      case ConnectedDeviceType.weather:
+        return [];
+
+      case ConnectedDeviceType.safetyMonitor:
+        return [];
+
+      case ConnectedDeviceType.coverCalibrator:
+        final state = ref.watch(coverCalibratorStateProvider);
+        return [
+          if (state.hasCover)
+            _ActionButton(
+              label: state.isCoverOpen ? 'Close Cover' : 'Open Cover',
+              onTap: () => _handleCoverToggle(state.isCoverOpen),
+              colors: colors,
+            ),
+          if (state.hasCover && state.hasCalibrator) const SizedBox(width: 8),
+          if (state.hasCalibrator)
+            _ActionButton(
+              label: state.isCalibratorOn ? 'Light Off' : 'Light On',
+              onTap: () => _handleCalibratorToggle(state),
+              colors: colors,
+            ),
+        ];
     }
   }
 
@@ -815,21 +931,12 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: NightshadeButton(
                     onPressed: () => _showEditNameDialog(context),
-                    icon: Icon(LucideIcons.pencil,
-                        size: 14, color: colors.textSecondary),
-                    label: Text(
-                      'Edit Name',
-                      style:
-                          TextStyle(fontSize: 12, color: colors.textSecondary),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.textSecondary,
-                      side: BorderSide(color: colors.border),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                    ),
+                    icon: LucideIcons.pencil,
+                    label: 'Edit Name',
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
                   ),
                 ),
               ],
@@ -989,6 +1096,171 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             colors: colors,
           ),
         ];
+
+      case ConnectedDeviceType.dome:
+        final state = ref.watch(domeStateProvider);
+        return [
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
+          _TelemetryRow(
+            label: 'Azimuth',
+            value: state.azimuth != null
+                ? '${state.azimuth!.toStringAsFixed(2)}\u00B0'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Shutter',
+            value: _shutterStatusLabel(state.shutterStatus),
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Parked',
+            value: state.isParked ? 'Yes' : 'No',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'At Home',
+            value: state.isAtHome ? 'Yes' : 'No',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Slaved',
+            value: state.isSlaved ? 'Yes' : 'No',
+            colors: colors,
+          ),
+        ];
+
+      case ConnectedDeviceType.weather:
+        final state = ref.watch(weatherStateProvider);
+        return [
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
+          _TelemetryRow(
+            label: 'Temperature',
+            value: state.temperature != null
+                ? '${state.temperature!.toStringAsFixed(1)}\u00B0C'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Humidity',
+            value: state.humidity != null
+                ? '${state.humidity!.toStringAsFixed(1)}%'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Dew Point',
+            value: state.dewPoint != null
+                ? '${state.dewPoint!.toStringAsFixed(1)}\u00B0C'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Pressure',
+            value: state.pressure != null
+                ? '${state.pressure!.toStringAsFixed(1)} hPa'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Wind Speed',
+            value: state.windSpeed != null
+                ? '${state.windSpeed!.toStringAsFixed(1)} km/h'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Wind Direction',
+            value: state.windDirection != null
+                ? '${state.windDirection!.toStringAsFixed(0)}\u00B0'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Cloud Cover',
+            value: state.cloudCover != null
+                ? '${state.cloudCover!.toStringAsFixed(0)}%'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Sky Quality',
+            value: state.skyQuality != null
+                ? '${state.skyQuality!.toStringAsFixed(2)} mag/arcsec\u00B2'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Sky Temp',
+            value: state.skyTemperature != null
+                ? '${state.skyTemperature!.toStringAsFixed(1)}\u00B0C'
+                : '---',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Rain Rate',
+            value: state.rainRate != null
+                ? '${state.rainRate!.toStringAsFixed(1)} mm/h'
+                : '---',
+            colors: colors,
+          ),
+          if (state.lastUpdated != null)
+            _TelemetryRow(
+              label: 'Last Updated',
+              value: _formatTimeAgo(state.lastUpdated!),
+              colors: colors,
+            ),
+        ];
+
+      case ConnectedDeviceType.safetyMonitor:
+        final state = ref.watch(safetyMonitorStateProvider);
+        return [
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
+          _TelemetryRow(
+            label: 'Is Safe',
+            value: state.isSafe ? 'Yes' : 'No',
+            colors: colors,
+          ),
+          if (state.lastChecked != null)
+            _TelemetryRow(
+              label: 'Last Checked',
+              value: _formatTimeAgo(state.lastChecked!),
+              colors: colors,
+            ),
+        ];
+
+      case ConnectedDeviceType.coverCalibrator:
+        final state = ref.watch(coverCalibratorStateProvider);
+        return [
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
+          _TelemetryRow(
+            label: 'Cover Status',
+            value: _coverStatusLabel(state.coverStatus),
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Calibrator',
+            value: state.isCalibratorOn ? 'On' : 'Off',
+            colors: colors,
+          ),
+          _TelemetryRow(
+            label: 'Brightness',
+            value: '${state.brightness} / ${state.maxBrightness}',
+            colors: colors,
+          ),
+        ];
     }
   }
 
@@ -1017,6 +1289,18 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           break;
         case ConnectedDeviceType.rotator:
           await deviceService.disconnectRotator();
+          break;
+        case ConnectedDeviceType.dome:
+          await deviceService.disconnectDome();
+          break;
+        case ConnectedDeviceType.weather:
+          await deviceService.disconnectWeather();
+          break;
+        case ConnectedDeviceType.safetyMonitor:
+          await deviceService.disconnectSafetyMonitor();
+          break;
+        case ConnectedDeviceType.coverCalibrator:
+          await deviceService.disconnectCoverCalibrator();
           break;
       }
     } catch (e) {
@@ -1123,6 +1407,13 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     context.showCommandActionResult(result);
   }
 
+  Future<void> _handleFindHome() async {
+    final mountService = ref.read(mountCommandServiceProvider);
+    final result = await mountService.findHome();
+    if (!mounted) return;
+    context.showCommandActionResult(result);
+  }
+
   Future<void> _handleToggleTracking(bool currentlyTracking) async {
     final mountService = ref.read(mountCommandServiceProvider);
     final result = await mountService.setTracking(!currentlyTracking);
@@ -1158,6 +1449,110 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Guiding operation failed: $e');
+      }
+    }
+  }
+
+  // ============================================================================
+  // Dome Action Handlers
+  // ============================================================================
+
+  Future<void> _handleDomeShutter(ShutterStatus currentStatus) async {
+    final domeState = ref.read(domeStateProvider);
+    if (domeState.deviceId == null) return;
+    try {
+      if (currentStatus == ShutterStatus.open) {
+        await bridge_api.apiDomeCloseShutter(deviceId: domeState.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Closing dome shutter');
+        }
+      } else {
+        await bridge_api.apiDomeOpenShutter(deviceId: domeState.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Opening dome shutter');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Dome shutter operation failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleDomePark(bool isParked) async {
+    final domeState = ref.read(domeStateProvider);
+    if (domeState.deviceId == null) return;
+    try {
+      if (!isParked) {
+        await bridge_api.apiDomePark(deviceId: domeState.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Parking dome');
+        }
+      } else {
+        // There's no explicit unpark for domes -- slew to home position
+        // which effectively unparks. This is the standard ASCOM behavior.
+        if (mounted) {
+          context.showInfoSnackBar('Slew dome to unpark');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Dome park operation failed: $e');
+      }
+    }
+  }
+
+  // ============================================================================
+  // Cover Calibrator Action Handlers
+  // ============================================================================
+
+  Future<void> _handleCoverToggle(bool isOpen) async {
+    final coverState = ref.read(coverCalibratorStateProvider);
+    if (coverState.deviceId == null) return;
+    try {
+      if (isOpen) {
+        await bridge_api.apiCoverCalibratorCloseCover(
+            deviceId: coverState.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Closing cover');
+        }
+      } else {
+        await bridge_api.apiCoverCalibratorOpenCover(
+            deviceId: coverState.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Opening cover');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Cover operation failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleCalibratorToggle(CoverCalibratorState state) async {
+    if (state.deviceId == null) return;
+    try {
+      if (state.isCalibratorOn) {
+        await bridge_api.apiCoverCalibratorCalibratorOff(
+            deviceId: state.deviceId!);
+        if (mounted) {
+          context.showSuccessSnackBar('Calibrator light off');
+        }
+      } else {
+        // Turn on at current brightness, or max if brightness is 0
+        final brightness =
+            state.brightness > 0 ? state.brightness : state.maxBrightness;
+        await bridge_api.apiCoverCalibratorCalibratorOn(
+            deviceId: state.deviceId!, brightness: brightness);
+        if (mounted) {
+          context.showSuccessSnackBar(
+              'Calibrator light on at brightness $brightness');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Calibrator operation failed: $e');
       }
     }
   }
@@ -1418,13 +1813,14 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 class _DeviceMetric {
   final String value;
   final String label;
+  final Color? valueColor;
 
-  _DeviceMetric({required this.value, required this.label});
+  _DeviceMetric({required this.value, required this.label, this.valueColor});
 }
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final NightshadeColors colors;
 
@@ -1438,15 +1834,12 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPress: onLongPress,
-      child: OutlinedButton(
+      onLongPress: onTap == null ? null : onLongPress,
+      child: NightshadeButton(
         onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: colors.textSecondary,
-          side: BorderSide(color: colors.border),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
+        label: label,
+        variant: ButtonVariant.outline,
+        size: ButtonSize.small,
       ),
     );
   }
@@ -1470,7 +1863,7 @@ class _FilterDropdown extends StatelessWidget {
     if (filterNames.isEmpty) {
       return _ActionButton(
         label: 'No filters',
-        onTap: () {},
+        onTap: null,
         colors: colors,
       );
     }

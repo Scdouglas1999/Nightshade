@@ -14,7 +14,6 @@ pub struct SequencerStatus {
 }
 
 /// Load a sequence plan from JSON
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_load_plan(plan_json: String) -> Result<(), NightshadeError> {
     let sequence: SequenceDefinition = serde_json::from_str(&plan_json)
         .map_err(|e| NightshadeError::OperationFailed(format!("Invalid plan JSON: {}", e)))?;
@@ -31,7 +30,6 @@ pub async fn sequencer_load_plan(plan_json: String) -> Result<(), NightshadeErro
 }
 
 /// Start the sequence
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_start() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -42,7 +40,6 @@ pub async fn sequencer_start() -> Result<(), NightshadeError> {
 }
 
 /// Stop the sequence
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_stop() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -53,7 +50,6 @@ pub async fn sequencer_stop() -> Result<(), NightshadeError> {
 }
 
 /// Pause the sequence
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_pause() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -64,7 +60,6 @@ pub async fn sequencer_pause() -> Result<(), NightshadeError> {
 }
 
 /// Resume the sequence
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_resume() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -75,7 +70,6 @@ pub async fn sequencer_resume() -> Result<(), NightshadeError> {
 }
 
 /// Get sequencer status
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -86,6 +80,7 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
         ExecutorState::Running => "Running",
         ExecutorState::Paused => "Paused",
         ExecutorState::Stopping => "Stopping",
+        ExecutorState::Cancelled => "Cancelled",
         ExecutorState::Completed => "Completed",
         ExecutorState::Failed => "Failed",
     }
@@ -107,7 +102,6 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
 }
 
 /// Set connected devices for the sequencer
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_devices(
     camera_id: Option<String>,
     mount_id: Option<String>,
@@ -123,7 +117,6 @@ pub async fn sequencer_set_devices(
 }
 
 /// Set simulation mode (use mock devices instead of real hardware)
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_simulation_mode(enabled: bool) -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -161,7 +154,6 @@ pub async fn sequencer_set_simulation_mode(enabled: bool) -> Result<(), Nightsha
 /// This determines behavior when safety devices fail or are unavailable:
 /// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
 /// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
     let mode_lower = mode.to_lowercase();
     let fail_mode = match mode_lower.as_str() {
@@ -218,7 +210,6 @@ impl From<nightshade_sequencer::CheckpointInfo> for CheckpointInfo {
 }
 
 /// Set the checkpoint directory for crash recovery
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_checkpoint_dir(path: String) -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -250,7 +241,6 @@ pub fn sequencer_get_checkpoint_info() -> Option<CheckpointInfo> {
 }
 
 /// Resume sequence from checkpoint
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_resume_from_checkpoint() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -264,7 +254,6 @@ pub async fn sequencer_resume_from_checkpoint() -> Result<(), NightshadeError> {
 }
 
 /// Save current execution state as checkpoint
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_save_checkpoint() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -282,7 +271,9 @@ pub fn sequencer_clear_checkpoint() -> Result<(), NightshadeError> {
         exec.clear_checkpoint()
             .map_err(|e| NightshadeError::OperationFailed(e))
     } else {
-        Ok(())
+        Err(NightshadeError::OperationFailed(
+            "Failed to clear checkpoint because the sequencer executor is busy".to_string(),
+        ))
     }
 }
 
@@ -291,7 +282,6 @@ pub fn sequencer_clear_checkpoint() -> Result<(), NightshadeError> {
 // ============================================================================
 
 /// Enable or disable a specific trigger by ID
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_trigger_enabled(
     trigger_id: String,
     enabled: bool,
@@ -310,7 +300,6 @@ pub async fn sequencer_set_trigger_enabled(
 }
 
 /// Enable or disable all triggers
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_all_triggers_enabled(enabled: bool) -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
@@ -323,7 +312,6 @@ pub async fn sequencer_set_all_triggers_enabled(enabled: bool) -> Result<(), Nig
 }
 
 /// Get list of all configured triggers
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_get_triggers() -> Result<Vec<TriggerInfo>, NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -358,7 +346,6 @@ pub struct TriggerInfo {
 }
 
 /// Update guiding RMS manually (for external guiding software integration)
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_update_guiding_rms(rms: f64) -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -372,7 +359,6 @@ pub async fn sequencer_update_guiding_rms(rms: f64) -> Result<(), NightshadeErro
 }
 
 /// Update HFR manually (for external image analysis integration)
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_update_hfr(hfr: f64) -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
@@ -385,8 +371,52 @@ pub async fn sequencer_update_hfr(hfr: f64) -> Result<(), NightshadeError> {
     Ok(())
 }
 
+// ============================================================================
+// Runtime Settings Propagation API
+// ============================================================================
+
+/// Update dither configuration at runtime.
+/// Updates the executor's stored dither parameters. Values are used by subsequent
+/// trigger-initiated dithers and by any sequence checkpoint resume.
+pub async fn sequencer_update_dither_config(
+    pixels: f64,
+    settle_pixels: f64,
+    settle_time: f64,
+    settle_timeout: f64,
+    ra_only: bool,
+) -> Result<(), NightshadeError> {
+    let executor = get_executor();
+    let mut exec = executor.write().await;
+    exec.update_dither_config(pixels, settle_pixels, settle_time, settle_timeout, ra_only);
+    Ok(())
+}
+
+/// Update observer location at runtime.
+/// Updates the executor's stored latitude/longitude so altitude-based triggers
+/// and time calculations use the correct location on next use.
+pub async fn sequencer_update_location(
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+) -> Result<(), NightshadeError> {
+    let executor = get_executor();
+    let mut exec = executor.write().await;
+    exec.update_location(latitude, longitude);
+    Ok(())
+}
+
+/// Update filter focus offsets at runtime.
+/// Updates the executor's stored offsets so subsequent filter changes apply
+/// the correct focus compensation on next trigger-initiated autofocus or sequence restart.
+pub async fn sequencer_update_filter_offsets(
+    offsets: std::collections::HashMap<String, i32>,
+) -> Result<(), NightshadeError> {
+    let executor = get_executor();
+    let mut exec = executor.write().await;
+    exec.update_filter_offsets(offsets);
+    Ok(())
+}
+
 /// Reset HFR baseline (after successful autofocus or manual intervention)
-#[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_reset_hfr_baseline() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;

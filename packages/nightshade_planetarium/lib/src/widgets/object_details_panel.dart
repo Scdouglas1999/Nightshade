@@ -30,6 +30,13 @@ class ObjectDetailsPanel extends ConsumerWidget {
   /// Callback when "Add to Targets" is pressed
   final VoidCallback? onAddToTargets;
 
+  /// Optional extra widget inserted before the action buttons (e.g. imaging history).
+  final Widget? extraContent;
+
+  /// Current cloud cover percentage (0-100). When provided, the altitude chart
+  /// shows a background band: green (<20%), yellow (20-60%), red (>60%).
+  final double? cloudCoverPercent;
+
   const ObjectDetailsPanel({
     super.key,
     required this.object,
@@ -39,6 +46,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
     this.showVisibilityGraph = true,
     this.onGoTo,
     this.onAddToTargets,
+    this.extraContent,
+    this.cloudCoverPercent,
   });
 
   @override
@@ -108,12 +117,21 @@ class ObjectDetailsPanel extends ConsumerWidget {
               const SizedBox(height: 16),
               // Visibility graph (altitude over time)
               _buildVisibilityGraph(ref, txtColor, accent),
+              const SizedBox(height: 16),
+              // Airmass chart
+              _buildAirmassChart(ref, txtColor, accent),
             ],
 
             const SizedBox(height: 16),
 
             // Rise/Transit/Set times
             _buildRiseTransitSetSection(ref, txtColor),
+
+            // Extra content slot (e.g. imaging history)
+            if (extraContent != null) ...[
+              const SizedBox(height: 16),
+              extraContent!,
+            ],
 
             const SizedBox(height: 16),
 
@@ -485,7 +503,75 @@ class ObjectDetailsPanel extends ConsumerWidget {
               ref: ref,
               lineColor: accent,
               gridColor: txtColor.withValues(alpha: 0.2),
+              cloudCoverPercent: cloudCoverPercent,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAirmassChart(WidgetRef ref, Color txtColor, Color accent) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Airmass Over 24 Hours',
+              style: TextStyle(
+                color: txtColor.withValues(alpha: 0.7),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            // Legend
+            _buildAirmassLegendDot(const Color(0xFF4CAF50), '< 1.5', txtColor),
+            const SizedBox(width: 6),
+            _buildAirmassLegendDot(const Color(0xFFFFC107), '1.5-2', txtColor),
+            const SizedBox(width: 6),
+            _buildAirmassLegendDot(const Color(0xFFF44336), '> 2.0', txtColor),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: txtColor.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: CustomPaint(
+            size: const Size(double.infinity, 120),
+            painter: _AirmassChartPainter(
+              object: object,
+              ref: ref,
+              txtColor: txtColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAirmassLegendDot(Color color, String label, Color txtColor) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            color: txtColor.withValues(alpha: 0.5),
           ),
         ),
       ],
@@ -1025,24 +1111,77 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-/// Paints the altitude graph
+/// Paints the altitude graph with optional cloud cover background band.
 class _AltitudeGraphPainter extends CustomPainter {
   final CelestialObject object;
   final WidgetRef ref;
   final Color lineColor;
   final Color gridColor;
 
+  /// Current cloud cover percentage (0-100). When non-null, draws a
+  /// semi-transparent background band across the chart:
+  /// green (<20%), yellow (20-60%), red (>60%).
+  final double? cloudCoverPercent;
+
   _AltitudeGraphPainter({
     required this.object,
     required this.ref,
     required this.lineColor,
     required this.gridColor,
+    this.cloudCoverPercent,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final location = ref.read(observerLocationProvider);
     final now = ref.read(observationTimeProvider).time;
+
+    // Draw cloud cover background band (behind everything else)
+    if (cloudCoverPercent != null) {
+      final cc = cloudCoverPercent!;
+      Color bandColor;
+      if (cc < 20) {
+        // Clear: green
+        bandColor = const Color(0xFF4CAF50).withValues(alpha: 0.12);
+      } else if (cc < 60) {
+        // Partial: yellow/amber
+        bandColor = const Color(0xFFFFC107).withValues(alpha: 0.12);
+      } else {
+        // Overcast: red
+        bandColor = const Color(0xFFF44336).withValues(alpha: 0.12);
+      }
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = bandColor,
+      );
+
+      // Draw a small cloud cover label in the top-right
+      final ccLabel = '${cc.round()}% cloud';
+      Color labelColor;
+      if (cc < 20) {
+        labelColor = const Color(0xFF4CAF50);
+      } else if (cc < 60) {
+        labelColor = const Color(0xFFFFC107);
+      } else {
+        labelColor = const Color(0xFFF44336);
+      }
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: ccLabel,
+          style: TextStyle(
+            color: labelColor.withValues(alpha: 0.7),
+            fontSize: 8,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(size.width - textPainter.width - 4, 2),
+      );
+    }
 
     // Draw grid
     final gridPaint = Paint()
@@ -1102,6 +1241,239 @@ class _AltitudeGraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AltitudeGraphPainter oldDelegate) {
+    return object != oldDelegate.object ||
+        cloudCoverPercent != oldDelegate.cloudCoverPercent;
+  }
+}
+
+/// Paints the airmass chart with color zones
+/// Y-axis is inverted: 1.0 at top (best), higher values toward bottom (worse)
+/// Color zones: green < 1.5, yellow 1.5-2.0, red > 2.0
+class _AirmassChartPainter extends CustomPainter {
+  final CelestialObject object;
+  final WidgetRef ref;
+  final Color txtColor;
+
+  // Airmass display range: 1.0 (top) to 3.0 (bottom)
+  static const double _minAirmass = 1.0;
+  static const double _maxAirmass = 3.0;
+
+  _AirmassChartPainter({
+    required this.object,
+    required this.ref,
+    required this.txtColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final location = ref.read(observerLocationProvider);
+    final now = ref.read(observationTimeProvider).time;
+
+    final gridColor = txtColor.withValues(alpha: 0.15);
+    final labelStyle = TextStyle(
+      color: txtColor.withValues(alpha: 0.4),
+      fontSize: 9,
+    );
+
+    // Chart margins for labels
+    const leftMargin = 28.0;
+    const rightMargin = 4.0;
+    const topMargin = 4.0;
+    const bottomMargin = 14.0;
+    final chartWidth = size.width - leftMargin - rightMargin;
+    final chartHeight = size.height - topMargin - bottomMargin;
+
+    // Draw color zone backgrounds
+    final greenZoneBottom = _airmassToY(1.5, chartHeight) + topMargin;
+    final yellowZoneBottom = _airmassToY(2.0, chartHeight) + topMargin;
+
+    // Green zone: 1.0 to 1.5
+    canvas.drawRect(
+      Rect.fromLTRB(leftMargin, topMargin, leftMargin + chartWidth, greenZoneBottom),
+      Paint()..color = const Color(0xFF4CAF50).withValues(alpha: 0.08),
+    );
+
+    // Yellow zone: 1.5 to 2.0
+    canvas.drawRect(
+      Rect.fromLTRB(leftMargin, greenZoneBottom, leftMargin + chartWidth, yellowZoneBottom),
+      Paint()..color = const Color(0xFFFFC107).withValues(alpha: 0.08),
+    );
+
+    // Red zone: 2.0 to 3.0
+    canvas.drawRect(
+      Rect.fromLTRB(leftMargin, yellowZoneBottom, leftMargin + chartWidth, topMargin + chartHeight),
+      Paint()..color = const Color(0xFFF44336).withValues(alpha: 0.08),
+    );
+
+    // Draw horizontal grid lines at airmass values
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 0.5;
+
+    for (final am in [1.0, 1.5, 2.0, 2.5, 3.0]) {
+      final y = _airmassToY(am, chartHeight) + topMargin;
+      canvas.drawLine(
+        Offset(leftMargin, y),
+        Offset(leftMargin + chartWidth, y),
+        gridPaint,
+      );
+
+      // Y-axis label
+      final tp = TextPainter(
+        text: TextSpan(text: am.toStringAsFixed(1), style: labelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(leftMargin - tp.width - 4, y - tp.height / 2));
+    }
+
+    // Calculate airmass values over 24 hours (every 15 minutes for smoothness)
+    final points = <Offset>[];
+    final airmassValues = <double>[];
+    double? bestAirmass;
+    int? bestTimeMinute;
+
+    for (int minute = 0; minute < 24 * 60; minute += 15) {
+      final hour = minute ~/ 60;
+      final min = minute % 60;
+      final time = DateTime(now.year, now.month, now.day, hour, min);
+      final (alt, _) = AstronomyCalculations.objectAltAz(
+        raDeg: object.coordinates.ra * 15,
+        decDeg: object.coordinates.dec,
+        dt: time,
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
+      );
+
+      if (alt > 0) {
+        final am = AstronomyCalculations.airmass(alt);
+        final clampedAm = am.clamp(_minAirmass, _maxAirmass);
+        final x = leftMargin + (minute / (24 * 60)) * chartWidth;
+        final y = _airmassToY(clampedAm, chartHeight) + topMargin;
+        points.add(Offset(x, y));
+        airmassValues.add(am);
+
+        if (bestAirmass == null || am < bestAirmass) {
+          bestAirmass = am;
+          bestTimeMinute = minute;
+        }
+      } else {
+        // Object below horizon - break the line
+        if (points.isNotEmpty) {
+          _drawAirmassSegment(canvas, points, airmassValues, chartHeight, topMargin);
+          points.clear();
+          airmassValues.clear();
+        }
+      }
+    }
+
+    // Draw remaining points
+    if (points.isNotEmpty) {
+      _drawAirmassSegment(canvas, points, airmassValues, chartHeight, topMargin);
+    }
+
+    // Draw current time indicator
+    final currentMinute = now.hour * 60 + now.minute;
+    final currentX = leftMargin + (currentMinute / (24 * 60)) * chartWidth;
+    canvas.drawLine(
+      Offset(currentX, topMargin),
+      Offset(currentX, topMargin + chartHeight),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..strokeWidth = 1,
+    );
+
+    // Mark best observing window
+    if (bestTimeMinute != null && bestAirmass != null && bestAirmass < _maxAirmass) {
+      final bestX = leftMargin + (bestTimeMinute / (24 * 60)) * chartWidth;
+      final bestY = _airmassToY(bestAirmass.clamp(_minAirmass, _maxAirmass), chartHeight) + topMargin;
+
+      // Draw diamond marker
+      final markerPath = Path()
+        ..moveTo(bestX, bestY - 4)
+        ..lineTo(bestX + 4, bestY)
+        ..lineTo(bestX, bestY + 4)
+        ..lineTo(bestX - 4, bestY)
+        ..close();
+      canvas.drawPath(
+        markerPath,
+        Paint()
+          ..color = const Color(0xFF4CAF50)
+          ..style = PaintingStyle.fill,
+      );
+
+      // Label "best" below marker
+      final bestLabel = TextPainter(
+        text: TextSpan(
+          text: 'best',
+          style: TextStyle(
+            color: const Color(0xFF4CAF50),
+            fontSize: 8,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final labelX = (bestX - bestLabel.width / 2).clamp(
+        leftMargin,
+        leftMargin + chartWidth - bestLabel.width,
+      );
+      bestLabel.paint(canvas, Offset(labelX, bestY + 6));
+    }
+
+    // Draw time labels at bottom
+    for (final hour in [0, 6, 12, 18]) {
+      final x = leftMargin + (hour / 24) * chartWidth;
+      final label = '${hour.toString().padLeft(2, '0')}h';
+      final tp = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(x - tp.width / 2, topMargin + chartHeight + 2));
+    }
+  }
+
+  /// Convert airmass value to Y pixel coordinate within the chart area
+  double _airmassToY(double airmass, double chartHeight) {
+    // Inverted: 1.0 at top, 3.0 at bottom
+    final fraction = (airmass - _minAirmass) / (_maxAirmass - _minAirmass);
+    return fraction * chartHeight;
+  }
+
+  /// Draw a segment of the airmass curve with color coding
+  void _drawAirmassSegment(
+    Canvas canvas,
+    List<Offset> points,
+    List<double> airmassValues,
+    double chartHeight,
+    double topMargin,
+  ) {
+    if (points.length < 2) return;
+
+    // Draw line segments with colors based on airmass zone
+    for (int i = 0; i < points.length - 1; i++) {
+      final am = airmassValues[i];
+      Color segmentColor;
+      if (am < 1.5) {
+        segmentColor = const Color(0xFF4CAF50); // Green
+      } else if (am < 2.0) {
+        segmentColor = const Color(0xFFFFC107); // Yellow
+      } else {
+        segmentColor = const Color(0xFFF44336); // Red
+      }
+
+      canvas.drawLine(
+        points[i],
+        points[i + 1],
+        Paint()
+          ..color = segmentColor
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AirmassChartPainter oldDelegate) {
     return object != oldDelegate.object;
   }
 }

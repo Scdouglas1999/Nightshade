@@ -202,7 +202,11 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         interactionOptions: InteractionOptions(
           flags: widget.compact
               ? InteractiveFlag.none // Disable interaction in compact mode
-              : InteractiveFlag.all,
+              // Enable all interactions EXCEPT scroll wheel zoom, which would
+              // capture scroll events from the parent ScrollView and prevent
+              // the page from scrolling when the cursor is over the map.
+              // Users can still zoom via pinch, double-tap, or the +/- buttons.
+              : InteractiveFlag.all & ~InteractiveFlag.scrollWheelZoom,
         ),
         onTap: widget.onTap != null
             ? (_, __) => widget.onTap?.call()

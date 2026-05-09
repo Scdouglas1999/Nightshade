@@ -8,6 +8,8 @@ import 'package:nightshade_core/nightshade_core.dart'
     hide Sequence, SequenceNode; // Hide domain models
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for sequence management (CRUD operations)
 /// This is SEPARATE from sequencer_handlers.dart which controls sequencer execution.
 class SequenceManagementHandlers {
@@ -32,18 +34,12 @@ class SequenceManagementHandlers {
       final database = container.read(databaseProvider);
       final sequences = await database.sequencesDao.getAllSequences();
 
-      return Response.ok(
-        jsonEncode({
-          "sequences": sequences.map((s) => _sequenceToJson(s)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sequences": sequences.map((s) => _sequenceToJson(s)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get all sequences error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -57,18 +53,12 @@ class SequenceManagementHandlers {
       final database = container.read(databaseProvider);
       final templates = await database.sequencesDao.getAllTemplates();
 
-      return Response.ok(
-        jsonEncode({
-          "templates": templates.map((s) => _sequenceToJson(s)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "templates": templates.map((s) => _sequenceToJson(s)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get all templates error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -84,22 +74,13 @@ class SequenceManagementHandlers {
       final sequence = await database.sequencesDao.getSequenceById(sequenceId);
 
       if (sequence == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Sequence not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Sequence not found: $id"});
       }
 
-      return Response.ok(
-        jsonEncode({"sequence": _sequenceToJson(sequence)}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"sequence": _sequenceToJson(sequence)});
     } catch (e) {
       _logError('[API] Get sequence by ID error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -114,18 +95,12 @@ class SequenceManagementHandlers {
       final database = container.read(databaseProvider);
       final nodes = await database.sequencesDao.getNodesForSequence(sequenceId);
 
-      return Response.ok(
-        jsonEncode({
-          "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get nodes for sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -148,16 +123,10 @@ class SequenceManagementHandlers {
 
       final id = await database.sequencesDao.createSequence(companion);
 
-      return Response.ok(
-        jsonEncode({"status": "created", "id": id}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "created", "id": id});
     } catch (e) {
       _logError('[API] Create sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -175,10 +144,7 @@ class SequenceManagementHandlers {
       // Get existing sequence
       final existing = await database.sequencesDao.getSequenceById(sequenceId);
       if (existing == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Sequence not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Sequence not found: $id"});
       }
 
       // Build updated sequence
@@ -194,16 +160,10 @@ class SequenceManagementHandlers {
 
       await database.sequencesDao.updateSequence(updated);
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -219,16 +179,10 @@ class SequenceManagementHandlers {
 
       await database.sequencesDao.deleteSequence(sequenceId);
 
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -247,16 +201,10 @@ class SequenceManagementHandlers {
       final newId =
           await database.sequencesDao.duplicateSequence(sequenceId, newName);
 
-      return Response.ok(
-        jsonEncode({"status": "duplicated", "id": newId}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "duplicated", "id": newId});
     } catch (e) {
       _logError('[API] Duplicate sequence error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -288,16 +236,10 @@ class SequenceManagementHandlers {
 
       final id = await database.sequencesDao.createNode(companion);
 
-      return Response.ok(
-        jsonEncode({"status": "created", "id": id}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "created", "id": id});
     } catch (e) {
       _logError('[API] Create node error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -315,10 +257,7 @@ class SequenceManagementHandlers {
       // Get existing node
       final existing = await database.sequencesDao.getNodeById(nid);
       if (existing == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Node not found: $nodeId"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Node not found: $nodeId"});
       }
 
       // Build updated node
@@ -340,16 +279,10 @@ class SequenceManagementHandlers {
 
       await database.sequencesDao.updateNode(updated);
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update node error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -365,22 +298,13 @@ class SequenceManagementHandlers {
 
       final deleted = await database.sequencesDao.deleteNode(nid);
       if (deleted == 0) {
-        return Response.notFound(
-          jsonEncode({"error": "Node not found: $nodeId"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Node not found: $nodeId"});
       }
 
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete node error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -399,16 +323,10 @@ class SequenceManagementHandlers {
 
       await database.sequencesDao.reorderNodes(seqId, nodeIds);
 
-      return Response.ok(
-        jsonEncode({"status": "reordered"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "reordered"});
     } catch (e) {
       _logError('[API] Reorder nodes error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -426,16 +344,10 @@ class SequenceManagementHandlers {
 
       await database.sequencesDao.setNodeEnabled(nid, enabled);
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Set node enabled error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -453,18 +365,12 @@ class SequenceManagementHandlers {
       final nodes =
           await database.sequencesDao.getChildNodes(seqId, parentNodeId);
 
-      return Response.ok(
-        jsonEncode({
-          "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get child nodes error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

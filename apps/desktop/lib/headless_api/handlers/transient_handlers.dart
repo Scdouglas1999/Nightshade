@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for transient astronomical event alerts
 class TransientHandlers {
   final ProviderContainer container;
@@ -50,21 +52,15 @@ class TransientHandlers {
       final activeAlerts =
           alerts.where((a) => !_dismissedAlertIds.contains(a.id)).toList();
 
-      return Response.ok(
-        jsonEncode({
-          "alerts": activeAlerts.map((a) => _alertToJson(a)).toList(),
-          "totalCount": alerts.length,
-          "dismissedCount": _dismissedAlertIds.length,
-          "queuedCount": _queuedAlertIds.length,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "alerts": activeAlerts.map((a) => _alertToJson(a)).toList(),
+        "totalCount": alerts.length,
+        "dismissedCount": _dismissedAlertIds.length,
+        "queuedCount": _queuedAlertIds.length,
+      });
     } catch (e) {
       _logError('[API] Get transients error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -77,27 +73,19 @@ class TransientHandlers {
     try {
       final settings = _settings;
 
-      return Response.ok(
-        jsonEncode({
-          "settings": {
-            "enabledSources":
-                settings.enabledSources.map((s) => s.name).toList(),
-            "typesToMonitor":
-                settings.typesToMonitor.map((t) => t.name).toList(),
-            "magnitudeThreshold": settings.magnitudeThreshold,
-            "notifyOnNew": settings.notifyOnNew,
-            "autoQueueBright": settings.autoQueueBright,
-            "autoQueueMagnitude": settings.autoQueueMagnitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "settings": {
+          "enabledSources": settings.enabledSources.map((s) => s.name).toList(),
+          "typesToMonitor": settings.typesToMonitor.map((t) => t.name).toList(),
+          "magnitudeThreshold": settings.magnitudeThreshold,
+          "notifyOnNew": settings.notifyOnNew,
+          "autoQueueBright": settings.autoQueueBright,
+          "autoQueueMagnitude": settings.autoQueueMagnitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Get transient settings error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -153,28 +141,22 @@ class TransientHandlers {
         autoQueueMagnitude: autoQueueMagnitude,
       );
 
-      return Response.ok(
-        jsonEncode({
-          "status": "ok",
-          "settings": {
-            "enabledSources":
-                _settings.enabledSources.map((s) => s.name).toList(),
-            "typesToMonitor":
-                _settings.typesToMonitor.map((t) => t.name).toList(),
-            "magnitudeThreshold": _settings.magnitudeThreshold,
-            "notifyOnNew": _settings.notifyOnNew,
-            "autoQueueBright": _settings.autoQueueBright,
-            "autoQueueMagnitude": _settings.autoQueueMagnitude,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "ok",
+        "settings": {
+          "enabledSources":
+              _settings.enabledSources.map((s) => s.name).toList(),
+          "typesToMonitor":
+              _settings.typesToMonitor.map((t) => t.name).toList(),
+          "magnitudeThreshold": _settings.magnitudeThreshold,
+          "notifyOnNew": _settings.notifyOnNew,
+          "autoQueueBright": _settings.autoQueueBright,
+          "autoQueueMagnitude": _settings.autoQueueMagnitude,
+        },
+      });
     } catch (e) {
       _logError('[API] Update transient settings error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -187,20 +169,14 @@ class TransientHandlers {
     try {
       _queuedAlertIds.add(id);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "queued",
-          "alertId": id,
-          "queuedCount": _queuedAlertIds.length,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "queued",
+        "alertId": id,
+        "queuedCount": _queuedAlertIds.length,
+      });
     } catch (e) {
       _logError('[API] Queue transient error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -213,20 +189,14 @@ class TransientHandlers {
     try {
       _dismissedAlertIds.add(id);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "dismissed",
-          "alertId": id,
-          "dismissedCount": _dismissedAlertIds.length,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "dismissed",
+        "alertId": id,
+        "dismissedCount": _dismissedAlertIds.length,
+      });
     } catch (e) {
       _logError('[API] Dismiss transient error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -240,16 +210,10 @@ class TransientHandlers {
       final service = container.read(transientAlertServiceProvider);
       service.clearCache();
 
-      return Response.ok(
-        jsonEncode({"status": "cache_cleared"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "cache_cleared"});
     } catch (e) {
       _logError('[API] Refresh alerts error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -269,18 +233,12 @@ class TransientHandlers {
       final queuedAlerts =
           alerts.where((a) => _queuedAlertIds.contains(a.id)).toList();
 
-      return Response.ok(
-        jsonEncode({
-          "queued": queuedAlerts.map((a) => _alertToJson(a)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "queued": queuedAlerts.map((a) => _alertToJson(a)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get queued error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

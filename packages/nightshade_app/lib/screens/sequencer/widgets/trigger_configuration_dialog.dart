@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 enum TriggerConditionType { guidingRms, hfr, drift }
+
 enum TriggerActionType { pauseAndRecalibrate, autofocus, abort }
 
 class ExposureTriggerConfig {
@@ -72,11 +73,11 @@ class TriggerConfigurationDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<TriggerConfigurationDialog> createState() => 
+  ConsumerState<TriggerConfigurationDialog> createState() =>
       _TriggerConfigurationDialogState();
 }
 
-class _TriggerConfigurationDialogState 
+class _TriggerConfigurationDialogState
     extends ConsumerState<TriggerConfigurationDialog> {
   late List<ExposureTriggerConfig> _triggers;
 
@@ -125,7 +126,7 @@ class _TriggerConfigurationDialogState
         height: 500,
         decoration: BoxDecoration(
           color: colors.background.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.border, width: 1),
           boxShadow: [
             BoxShadow(
@@ -145,7 +146,8 @@ class _TriggerConfigurationDialogState
               ),
               child: Row(
                 children: [
-                  Icon(Icons.notifications_active, color: colors.primary, size: 28),
+                  Icon(Icons.notifications_active,
+                      color: colors.primary, size: 28),
                   const SizedBox(width: 12),
                   Text(
                     'Exposure Triggers',
@@ -343,7 +345,8 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
                 labelText: 'Threshold',
                 suffix: Text(_getThresholdUnit()),
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: (v) {
                 final parsed = double.tryParse(v);
                 if (parsed != null) _threshold = parsed;
@@ -369,7 +372,8 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
                 suffix: Text('seconds'),
                 helperText: 'Wait time before triggering again',
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               onChanged: (v) {
                 final parsed = double.tryParse(v);
                 if (parsed != null) _debounce = parsed;

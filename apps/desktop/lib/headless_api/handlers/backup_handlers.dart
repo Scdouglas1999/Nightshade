@@ -1,11 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
+
+import '../response_helpers.dart';
 
 /// Handlers for backup and restore operations
 class BackupHandlers {
+  static const int _maxBackupUploadBytes = 256 * 1024 * 1024;
+
   final ProviderContainer container;
   BackupHandlers(this.container);
 
@@ -52,16 +58,10 @@ class BackupHandlers {
         });
       }
 
-      return Response.ok(
-        jsonEncode({"backups": backups}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"backups": backups});
     } catch (e) {
       _logError('[API] List backups error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -86,30 +86,21 @@ class BackupHandlers {
       }
 
       if (result.success) {
-        return Response.ok(
-          jsonEncode({
-            "status": "created",
-            "filePath": result.filePath,
-            "itemsBackedUp": result.itemsBackedUp,
-            "timestamp": result.timestamp.millisecondsSinceEpoch,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "created",
+          "filePath": result.filePath,
+          "itemsBackedUp": result.itemsBackedUp,
+          "timestamp": result.timestamp.millisecondsSinceEpoch,
+        });
       } else {
-        return Response.ok(
-          jsonEncode({
-            "status": "failed",
-            "error": result.errorMessage,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "failed",
+          "error": result.errorMessage,
+        });
       }
     } catch (e) {
       _logError('[API] Create backup error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -131,30 +122,21 @@ class BackupHandlers {
       );
 
       if (result.success) {
-        return Response.ok(
-          jsonEncode({
-            "status": "restored",
-            "itemsRestored": result.itemsRestored,
-            "categoryCounts": result.categoryCounts,
-            "timestamp": result.timestamp.millisecondsSinceEpoch,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "restored",
+          "itemsRestored": result.itemsRestored,
+          "categoryCounts": result.categoryCounts,
+          "timestamp": result.timestamp.millisecondsSinceEpoch,
+        });
       } else {
-        return Response.ok(
-          jsonEncode({
-            "status": "failed",
-            "error": result.errorMessage,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "failed",
+          "error": result.errorMessage,
+        });
       }
     } catch (e) {
       _logError('[API] Restore backup error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -174,24 +156,15 @@ class BackupHandlers {
           .firstOrNull;
 
       if (file == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Backup not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Backup not found: $id"});
       }
 
       await file.delete();
 
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete backup error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -211,29 +184,20 @@ class BackupHandlers {
           .firstOrNull;
 
       if (file == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Backup not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Backup not found: $id"});
       }
 
       // Stream the file
       final fileLength = await file.length();
-      return Response.ok(
+      return attachmentResponse(
         file.openRead(),
-        headers: {
-          'content-type': 'application/json',
-          'content-length': fileLength.toString(),
-          'content-disposition':
-              'attachment; filename="${file.uri.pathSegments.last}"',
-        },
+        fileName: file.uri.pathSegments.last,
+        contentType: jsonContentType,
+        contentLength: fileLength,
       );
     } catch (e) {
       _logError('[API] Download backup error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -253,32 +217,20 @@ class BackupHandlers {
           .firstOrNull;
 
       if (file == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Backup not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Backup not found: $id"});
       }
 
       final metadata = await service.readBackupMetadata(file.path);
       if (metadata == null) {
-        return Response.ok(
-          jsonEncode({"metadata": null}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({"metadata": null});
       }
 
-      return Response.ok(
-        jsonEncode({
-          "metadata": metadata.toJson(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "metadata": metadata.toJson(),
+      });
     } catch (e) {
       _logError('[API] Get backup metadata error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -293,30 +245,169 @@ class BackupHandlers {
       final result = await service.autoSaveBackup();
 
       if (result.success) {
-        return Response.ok(
-          jsonEncode({
-            "status": "created",
-            "filePath": result.filePath,
-            "itemsBackedUp": result.itemsBackedUp,
-            "timestamp": result.timestamp.millisecondsSinceEpoch,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "created",
+          "filePath": result.filePath,
+          "itemsBackedUp": result.itemsBackedUp,
+          "timestamp": result.timestamp.millisecondsSinceEpoch,
+        });
       } else {
-        return Response.ok(
-          jsonEncode({
-            "status": "failed",
-            "error": result.errorMessage,
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({
+          "status": "failed",
+          "error": result.errorMessage,
+        });
       }
     } catch (e) {
       _logError('[API] Auto save backup error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleUploadRestoreBackup(Request request) async {
+    _logInfo('[API] POST /api/backup/upload-restore');
+    try {
+      final contentLength =
+          int.tryParse(request.headers['content-length'] ?? '');
+      if (contentLength != null && contentLength > _maxBackupUploadBytes) {
+        return jsonTooLarge({
+          'error': 'Backup upload is too large',
+          'maxBytes': _maxBackupUploadBytes,
+        });
+      }
+
+      final requestedFileName =
+          request.url.queryParameters['fileName'] ?? 'uploaded.nsbackup';
+      final fileName = _sanitizeUploadedBackupFileName(requestedFileName);
+      if (fileName == null) {
+        return jsonBadRequest({
+          'error':
+              'Invalid backup filename. Use a .nsbackup or .json filename.',
+        });
+      }
+      final replaceExisting =
+          request.url.queryParameters['replaceExisting'] == 'true';
+
+      final service = container.read(backupServiceProvider);
+      final backupDir = await service.getBackupDirectory();
+      await backupDir.create(recursive: true);
+      final file = await _resolveUploadDestination(backupDir, fileName);
+      if (file == null) {
+        return jsonBadRequest({'error': 'Invalid upload destination'});
+      }
+
+      final uploaded = await _writeUploadBody(request, file);
+      if (!uploaded) {
+        await _deleteIfExists(file);
+        return jsonTooLarge({
+          'error': 'Backup upload is too large',
+          'maxBytes': _maxBackupUploadBytes,
+        });
+      }
+
+      final result = await service.restoreBackup(
+        filePath: file.path,
+        replaceExisting: replaceExisting,
       );
+
+      if (result.success) {
+        return jsonOk({
+          'status': 'restored',
+          'itemsRestored': result.itemsRestored,
+          'categoryCounts': result.categoryCounts,
+          'timestamp': result.timestamp.millisecondsSinceEpoch,
+        });
+      }
+
+      return jsonOk({
+        'status': 'failed',
+        'error': result.errorMessage,
+      });
+    } catch (e) {
+      _logError('[API] Upload restore backup error: $e');
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  String? _sanitizeUploadedBackupFileName(String requestedFileName) {
+    var fileName = requestedFileName.split(RegExp(r'[\\/]')).last.trim();
+    fileName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    if (fileName.isEmpty || fileName == '.' || fileName == '..') {
+      return null;
+    }
+    if (!fileName.contains('.')) {
+      fileName = '$fileName.nsbackup';
+    }
+    final lower = fileName.toLowerCase();
+    if (!lower.endsWith('.nsbackup') && !lower.endsWith('.json')) {
+      return null;
+    }
+    if (fileName.length > 120) {
+      final ext = lower.endsWith('.json') ? '.json' : '.nsbackup';
+      final stem = fileName.substring(0, fileName.length - ext.length);
+      final maxStemLength = 120 - ext.length;
+      final safeStem = stem.length <= maxStemLength
+          ? stem
+          : stem.substring(0, maxStemLength);
+      fileName = '$safeStem$ext';
+    }
+    return fileName;
+  }
+
+  Future<File?> _resolveUploadDestination(
+    Directory backupDir,
+    String fileName,
+  ) async {
+    final resolvedBackupDir = await backupDir.resolveSymbolicLinks();
+    final destination = File(p.join(resolvedBackupDir, fileName));
+    final destinationParent = await destination.parent.resolveSymbolicLinks();
+    final compareBackupDir = Platform.isWindows
+        ? resolvedBackupDir.toLowerCase()
+        : resolvedBackupDir;
+    final compareParent = Platform.isWindows
+        ? destinationParent.toLowerCase()
+        : destinationParent;
+    if (compareParent != compareBackupDir) {
+      return null;
+    }
+
+    if (!await destination.exists()) {
+      return destination;
+    }
+
+    final ext = p.extension(fileName);
+    final stem = p.basenameWithoutExtension(fileName);
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-');
+    return File(p.join(resolvedBackupDir, '${stem}_upload_$timestamp$ext'));
+  }
+
+  Future<bool> _writeUploadBody(Request request, File destination) async {
+    final sink = destination.openWrite();
+    var bytesWritten = 0;
+    try {
+      await for (final chunk in request.read()) {
+        bytesWritten += chunk.length;
+        if (bytesWritten > _maxBackupUploadBytes) {
+          return false;
+        }
+        sink.add(chunk);
+      }
+      return true;
+    } finally {
+      await sink.flush();
+      await sink.close();
+    }
+  }
+
+  Future<void> _deleteIfExists(File file) async {
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Best effort cleanup only.
     }
   }
 }

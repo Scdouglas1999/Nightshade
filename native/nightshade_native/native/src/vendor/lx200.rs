@@ -157,7 +157,9 @@ fn parse_dec(response: &str) -> Result<f64, NativeError> {
             .map_err(|_| NativeError::SdkError("Invalid Dec arcmin".into()))?;
 
         let arcsec: f64 = if parts.len() >= 3 {
-            parts[2].parse().unwrap_or(0.0)
+            parts[2]
+                .parse()
+                .map_err(|_| NativeError::SdkError("Invalid Dec arcsec".into()))?
         } else {
             0.0
         };
@@ -315,7 +317,10 @@ impl Lx200Mount {
                     }
                     response.push(buf[0]);
                 }
-                Ok(_) => continue,
+                Ok(_) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
                 Err(e) => return Err(NativeError::Io(e)),
             }
@@ -347,7 +352,10 @@ impl Lx200Mount {
 
             match port.read(&mut buf) {
                 Ok(1) => return Ok(buf[0] == b'1'),
-                Ok(_) => continue,
+                Ok(_) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
+                }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
                 Err(e) => return Err(NativeError::Io(e)),
             }
@@ -792,6 +800,18 @@ impl NativeMount for Lx200Mount {
         Ok(*self.tracking_rate.lock().unwrap_or_else(|e| e.into_inner()))
     }
 
+    fn can_slew(&self) -> bool {
+        true
+    }
+
+    fn can_sync(&self) -> bool {
+        true
+    }
+
+    fn can_pulse_guide(&self) -> bool {
+        true
+    }
+
     fn can_set_tracking_rate(&self) -> bool {
         true
     }
@@ -1042,7 +1062,7 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
         } // end for baud_rate
     } // end for port_info
 
-    tracing::info!("LX200 discovery complete: found {} mounts", mounts.len());
+    tracing::debug!("LX200 discovery complete: found {} mounts", mounts.len());
     Ok(mounts)
 }
 

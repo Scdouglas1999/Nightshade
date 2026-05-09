@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for device control endpoints (camera, mount, focuser, filter wheel, rotator)
 class DeviceHandlers {
   final ProviderContainer container;
@@ -44,16 +46,10 @@ class DeviceHandlers {
         height: payload['height'] as int?,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "exposing"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "exposing"});
     } catch (e) {
       _logError('[API] Camera expose error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -66,16 +62,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.cameraAbortExposure(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "aborted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "aborted"});
     } catch (e) {
       _logError('[API] Camera abort error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -87,41 +77,32 @@ class DeviceHandlers {
       final image = await backend.cameraGetLastImage(deviceId);
 
       if (image == null) {
-        return Response.ok(
-          jsonEncode({"image": null}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({"image": null});
       }
 
-      return Response.ok(
-        jsonEncode({
-          "image": {
-            "width": image.width,
-            "height": image.height,
-            "displayData": image.displayData,
-            "histogram": image.histogram,
-            "stats": {
-              "min": image.stats.min,
-              "max": image.stats.max,
-              "mean": image.stats.mean,
-              "median": image.stats.median,
-              "stdDev": image.stats.stdDev,
-              "hfr": image.stats.hfr,
-              "starCount": image.stats.starCount,
-            },
-            "exposureTime": image.exposureTime,
-            "timestamp": image.timestamp,
-            "isColor": image.isColor,
-          }
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "image": {
+          "width": image.width,
+          "height": image.height,
+          "displayData": image.displayData,
+          "histogram": image.histogram,
+          "stats": {
+            "min": image.stats.min,
+            "max": image.stats.max,
+            "mean": image.stats.mean,
+            "median": image.stats.median,
+            "stdDev": image.stats.stdDev,
+            "hfr": image.stats.hfr,
+            "starCount": image.stats.starCount,
+          },
+          "exposureTime": image.exposureTime,
+          "timestamp": image.timestamp,
+          "isColor": image.isColor,
+        }
+      });
     } catch (e) {
       _logError('[API] Camera get last image error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -140,16 +121,27 @@ class DeviceHandlers {
         targetTemp: targetTemp,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Camera set cooling error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleCameraSetReadoutMode(Request request) async {
+    _logInfo('[API] POST /api/camera/readoutMode');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final deviceId = payload['deviceId'] as String;
+      final modeIndex = payload['modeIndex'] as int;
+
+      final backend = container.read(backendProvider);
+      await backend.cameraSetReadoutMode(deviceId, modeIndex);
+
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      _logError('[API] Camera set readout mode error: $e');
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -163,16 +155,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.cameraSetGain(deviceId, gain);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Camera set gain error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -186,16 +172,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.cameraSetOffset(deviceId, offset);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Camera set offset error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -214,16 +194,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountSlewToCoordinates(deviceId, ra, dec);
 
-      return Response.ok(
-        jsonEncode({"status": "slewing"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "slewing"});
     } catch (e) {
       _logError('[API] Mount slew error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -238,16 +212,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountSync(deviceId, ra, dec);
 
-      return Response.ok(
-        jsonEncode({"status": "synced"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "synced"});
     } catch (e) {
       _logError('[API] Mount sync error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -260,16 +228,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountPark(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "parking"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "parking"});
     } catch (e) {
       _logError('[API] Mount park error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -282,16 +244,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountUnpark(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "unparked"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "unparked"});
     } catch (e) {
       _logError('[API] Mount unpark error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -305,16 +261,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountSetTracking(deviceId, enabled);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Mount set tracking error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -333,16 +283,10 @@ class DeviceHandlers {
         durationMs: durationMs,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Mount pulse guide error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -355,16 +299,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountAbort(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "aborted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "aborted"});
     } catch (e) {
       _logError('[API] Mount abort error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -375,16 +313,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       final status = await backend.mountGetStatus(deviceId);
 
-      return Response.ok(
-        jsonEncode(status),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk(status);
     } catch (e) {
       _logError('[API] Mount get status error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -398,16 +330,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountSetTrackingRate(deviceId, rate);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Mount set tracking rate error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -422,16 +348,44 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.mountMoveAxis(deviceId, axis, rate);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Mount move axis error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleMountSlewAltAz(Request request) async {
+    _logInfo('[API] POST /api/mount/slew-alt-az');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final deviceId = payload['deviceId'] as String;
+      final altitude = (payload['altitude'] as num).toDouble();
+      final azimuth = (payload['azimuth'] as num).toDouble();
+
+      final backend = container.read(backendProvider);
+      await backend.mountSlewAltAz(deviceId, altitude, azimuth);
+
+      return jsonOk({"status": "slewing"});
+    } catch (e) {
+      _logError('[API] Mount slew alt/az error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleMountFindHome(Request request) async {
+    _logInfo('[API] POST /api/mount/find-home');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final deviceId = payload['deviceId'] as String;
+
+      final backend = container.read(backendProvider);
+      await backend.mountFindHome(deviceId);
+
+      return jsonOk({"status": "finding_home"});
+    } catch (e) {
+      _logError('[API] Mount find home error: $e');
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -449,16 +403,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.focuserMoveTo(deviceId, position);
 
-      return Response.ok(
-        jsonEncode({"status": "moving"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "moving"});
     } catch (e) {
       _logError('[API] Focuser move to error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -472,16 +420,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.focuserMoveRelative(deviceId, delta);
 
-      return Response.ok(
-        jsonEncode({"status": "moving"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "moving"});
     } catch (e) {
       _logError('[API] Focuser move relative error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -494,16 +436,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.focuserHalt(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "halted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "halted"});
     } catch (e) {
       _logError('[API] Focuser halt error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -530,16 +466,10 @@ class DeviceHandlers {
         binning: binning,
       );
 
-      return Response.ok(
-        jsonEncode(result.toJson()),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk(result.toJson());
     } catch (e) {
       _logError('[API] Autofocus start error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -549,16 +479,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.autofocusCancel();
 
-      return Response.ok(
-        jsonEncode({"status": "cancelled"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "cancelled"});
     } catch (e) {
       _logError('[API] Autofocus cancel error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -576,16 +500,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.filterWheelSetPosition(deviceId, position);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Filter wheel set position error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -596,16 +514,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       final names = await backend.filterWheelGetNames(deviceId);
 
-      return Response.ok(
-        jsonEncode({"names": names}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"names": names});
     } catch (e) {
       _logError('[API] Filter wheel get names error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -619,16 +531,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.filterWheelSetByName(deviceId, name);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] Filter wheel set by name error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -646,16 +552,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.rotatorMoveTo(deviceId, angle);
 
-      return Response.ok(
-        jsonEncode({"status": "moving"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "moving"});
     } catch (e) {
       _logError('[API] Rotator move to error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -669,16 +569,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.rotatorMoveRelative(deviceId, delta);
 
-      return Response.ok(
-        jsonEncode({"status": "moving"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "moving"});
     } catch (e) {
       _logError('[API] Rotator move relative error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -689,16 +583,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       final angle = await backend.rotatorGetAngle(deviceId);
 
-      return Response.ok(
-        jsonEncode({"position": angle}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"position": angle});
     } catch (e) {
       _logError('[API] Rotator get status error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -711,16 +599,10 @@ class DeviceHandlers {
       final backend = container.read(backendProvider);
       await backend.rotatorHalt(deviceId);
 
-      return Response.ok(
-        jsonEncode({"status": "halted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "halted"});
     } catch (e) {
       _logError('[API] Rotator halt error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 

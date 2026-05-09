@@ -1,16 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'headless_api/auth_policy.dart';
 import 'headless_api/handlers.dart';
+import 'headless_api/response_helpers.dart';
+import 'headless_api/route_metadata.dart' as route_metadata;
 
 /// Headless API server using Shelf router with modular handlers
 class HeadlessApiServer {
@@ -19,6 +27,7 @@ class HeadlessApiServer {
 
   final int port;
   final ProviderContainer container;
+  final bool bindLocalOnly;
 
   /// Optional authentication token. If set, all API requests must include
   /// this token as a Bearer token in the Authorization header.
@@ -31,12 +40,27 @@ class HeadlessApiServer {
   /// the server will generate a random token and print it to console.
   final bool requireAuth;
 
+  /// Additional scoped tokens. The legacy [authToken] remains an admin token.
+  final Map<String, HeadlessTokenScope> scopedAuthTokens;
+  final Duration webSocketHeartbeatInterval;
+  final Duration webSocketHeartbeatTimeout;
+
   HttpServer? _server;
   final List<WebSocketChannel> _sockets = [];
+  final Map<WebSocketChannel, String> _socketViewerIds = {};
+  final Map<WebSocketChannel, DateTime> _socketLastSeenAt = {};
+  Timer? _webSocketHeartbeatTimer;
   int _requestCounter = 0;
+  StreamSubscription? _eventSubscription;
+  StreamSubscription? _collaborationSubscription;
+  final LiveCollaborationSessionManager _collaborationManager =
+      LiveCollaborationSessionManager();
+  final route_metadata.EndpointRateLimiter _rateLimiter =
+      route_metadata.EndpointRateLimiter();
 
   /// The effective auth token (either provided or generated)
   late final String? _effectiveAuthToken;
+  late final Map<String, HeadlessTokenScope> _effectiveAuthTokensByValue;
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -50,12 +74,12 @@ class HeadlessApiServer {
   String _requestIdFrom(Request request) =>
       request.context[_requestIdContextKey] as String? ?? 'unknown';
 
-  void _logInfo(String message) =>
-      _logger.info(message, source: 'HeadlessApiServer');
-  void _logWarning(String message) =>
-      _logger.warning(message, source: 'HeadlessApiServer');
-  void _logError(String message) =>
-      _logger.error(message, source: 'HeadlessApiServer');
+  void _logInfo(String message, {Map<String, Object?>? fields}) =>
+      _logger.info(message, source: 'HeadlessApiServer', fields: fields);
+  void _logWarning(String message, {Map<String, Object?>? fields}) =>
+      _logger.warning(message, source: 'HeadlessApiServer', fields: fields);
+  void _logError(String message, {Map<String, Object?>? fields}) =>
+      _logger.error(message, source: 'HeadlessApiServer', fields: fields);
 
   // Handler instances
   late final DeviceHandlers _deviceHandlers;
@@ -77,6 +101,8 @@ class HeadlessApiServer {
   late final TransientHandlers _transientHandlers;
   late final BackupHandlers _backupHandlers;
   late final FramingHandlers _framingHandlers;
+  late final FileSystemHandlers _fileSystemHandlers;
+  late final ScienceHandlers _scienceHandlers;
 
   // Auxiliary device handlers
   late final DomeHandlers _domeHandlers;
@@ -93,15 +119,23 @@ class HeadlessApiServer {
   HeadlessApiServer({
     required this.port,
     required this.container,
+    this.bindLocalOnly = true,
     this.authToken,
     this.requireAuth = false,
+    this.scopedAuthTokens = const {},
+    this.webSocketHeartbeatInterval = const Duration(seconds: 30),
+    this.webSocketHeartbeatTimeout = const Duration(seconds: 90),
   }) {
+    final tokensByValue = <String, HeadlessTokenScope>{};
+
     // Determine effective auth token
     if (authToken != null) {
       _effectiveAuthToken = authToken;
+      tokensByValue[authToken!] = HeadlessTokenScope.admin;
     } else if (requireAuth) {
       // Generate a random token
       _effectiveAuthToken = _generateRandomToken();
+      tokensByValue[_effectiveAuthToken!] = HeadlessTokenScope.admin;
       _logWarning(
           '[AUTH] Generated authentication token: $_effectiveAuthToken');
       _logWarning(
@@ -109,6 +143,15 @@ class HeadlessApiServer {
     } else {
       _effectiveAuthToken = null;
     }
+
+    for (final entry in scopedAuthTokens.entries) {
+      final token = entry.key.trim();
+      if (token.isNotEmpty) {
+        tokensByValue[token] = entry.value;
+      }
+    }
+    _effectiveAuthTokensByValue = Map.unmodifiable(tokensByValue);
+
     // Initialize handler instances
     _deviceHandlers = DeviceHandlers(container);
     _guidingHandlers = GuidingHandlers(container);
@@ -129,6 +172,8 @@ class HeadlessApiServer {
     _transientHandlers = TransientHandlers(container);
     _backupHandlers = BackupHandlers(container);
     _framingHandlers = FramingHandlers(container);
+    _fileSystemHandlers = FileSystemHandlers(container);
+    _scienceHandlers = ScienceHandlers(container);
 
     // Initialize auxiliary device handlers
     _domeHandlers = DomeHandlers(container);
@@ -149,9 +194,23 @@ class HeadlessApiServer {
     // Core endpoints
     router.get('/api/info', _handleInfo);
     router.get('/api/status', _handleStatus);
+    router.get('/api/self-test', _handleSelfTest);
+    router.get('/api/openapi.json', _handleOpenApiSpec);
+    router.get('/api/collaboration/state', _handleCollaborationState);
+    router.post('/api/collaboration/viewers/join', _handleCollaborationJoin);
+    router.post('/api/collaboration/viewers/leave', _handleCollaborationLeave);
+    router.post('/api/collaboration/preview', _handleCollaborationPreview);
+    router.post('/api/collaboration/chat', _handleCollaborationChat);
+    router.post(
+        '/api/collaboration/annotations', _handleCollaborationAnnotation);
+    router.get('/api/session-handoff', _handleGetSessionHandoff);
+    router.post('/api/session-handoff', _handleSetSessionHandoff);
+    router.delete('/api/session-handoff', _handleClearSessionHandoff);
 
     // Device management
     router.get('/api/devices', _handleGetDevices);
+    router.get('/api/devices/discover-indi', _handleDiscoverIndiAtAddress);
+    router.get('/api/devices/discover-alpaca', _handleDiscoverAlpacaAtAddress);
     router.get('/api/devices/connected', _handleGetConnectedDevices);
     router.post('/api/devices/connect', _handleConnectDevice);
     router.post('/api/devices/disconnect', _handleDisconnectDevice);
@@ -162,6 +221,8 @@ class HeadlessApiServer {
     router.get(
         '/api/camera/last-image', _deviceHandlers.handleCameraGetLastImage);
     router.post('/api/camera/cooling', _deviceHandlers.handleCameraSetCooling);
+    router.post(
+        '/api/camera/readoutMode', _deviceHandlers.handleCameraSetReadoutMode);
     router.post('/api/camera/gain', _deviceHandlers.handleCameraSetGain);
     router.post('/api/camera/offset', _deviceHandlers.handleCameraSetOffset);
 
@@ -178,6 +239,8 @@ class HeadlessApiServer {
     router.post('/api/mount/set-tracking-rate',
         _deviceHandlers.handleMountSetTrackingRate);
     router.post('/api/mount/move-axis', _deviceHandlers.handleMountMoveAxis);
+    router.post('/api/mount/slew-alt-az', _deviceHandlers.handleMountSlewAltAz);
+    router.post('/api/mount/find-home', _deviceHandlers.handleMountFindHome);
 
     // Focuser Control
     router.post('/api/focuser/move-to', _deviceHandlers.handleFocuserMoveTo);
@@ -235,6 +298,27 @@ class HeadlessApiServer {
     router.post(
         '/api/phd2/algo-param', _guidingHandlers.handlePhd2SetAlgoParam);
 
+    // Generic guider control
+    router.post(
+        '/api/guider/start-guiding', _guidingHandlers.handleGuiderStartGuiding);
+    router.post(
+        '/api/guider/stop-guiding', _guidingHandlers.handleGuiderStopGuiding);
+    router.post('/api/guider/dither', _guidingHandlers.handleGuiderDither);
+    router.post('/api/guider/loop', _guidingHandlers.handleGuiderLoop);
+    router.post('/api/guider/find-star', _guidingHandlers.handleGuiderFindStar);
+    router.post('/api/guider/set-lock-position',
+        _guidingHandlers.handleGuiderSetLockPosition);
+    router.get('/api/guider/lock-position',
+        _guidingHandlers.handleGuiderGetLockPosition);
+    router.post(
+        '/api/guider/deselect-star', _guidingHandlers.handleGuiderDeselectStar);
+    router.get(
+        '/api/guider/star-image', _guidingHandlers.handleGuiderGetStarImage);
+    router.get('/api/builtin-guider/config',
+        _guidingHandlers.handleBuiltinGuiderGetConfig);
+    router.post('/api/builtin-guider/config',
+        _guidingHandlers.handleBuiltinGuiderSetConfig);
+
     // Plate Solving
     router.post('/api/plate-solve', _imagingHandlers.handlePlateSolve);
 
@@ -263,6 +347,14 @@ class HeadlessApiServer {
         '/api/sequencer/devices', _sequencerHandlers.handleSequencerSetDevices);
     router.post('/api/sequencer/safety-fail-mode',
         _sequencerHandlers.handleSequencerSetSafetyFailMode);
+    router.post('/api/sequencer/save-path',
+        _sequencerHandlers.handleSequencerSetSavePath);
+    router.post('/api/sequencer/update-dither-config',
+        _sequencerHandlers.handleSequencerUpdateDitherConfig);
+    router.post('/api/sequencer/update-location',
+        _sequencerHandlers.handleSequencerUpdateLocation);
+    router.post('/api/sequencer/update-filter-offsets',
+        _sequencerHandlers.handleSequencerUpdateFilterOffsets);
     router.post('/api/sequencer/checkpoint/dir',
         _sequencerHandlers.handleSequencerSetCheckpointDir);
     router.get('/api/sequencer/checkpoint/has',
@@ -328,6 +420,7 @@ class HeadlessApiServer {
     router.post('/api/imaging/stats', _imagingHandlers.handleGetImageStats);
     router.post(
         '/api/imaging/stretch', _imagingHandlers.handleAutoStretchImage);
+    router.get('/api/imaging/star-crops', _imagingHandlers.handleGetStarCrops);
     router.post('/api/imaging/debayer', _imagingHandlers.handleDebayerImage);
     router.get(
         '/api/imaging/raw-data', _imagingHandlers.handleGetLastRawImageData);
@@ -346,10 +439,21 @@ class HeadlessApiServer {
     // Session Images
     router.get('/api/sessions/<sessionId>/images',
         _sessionHandlers.handleGetSessionImages);
+    router.get('/api/images', _sessionHandlers.handleGetAllImages);
+    router.get(
+        '/api/images/standalone', _sessionHandlers.handleGetStandaloneImages);
     router.get('/api/images/<imageId>/thumbnail',
         _sessionHandlers.handleGetImageThumbnail);
     router.get(
         '/api/images/<imageId>/download', _sessionHandlers.handleDownloadImage);
+    router.get('/api/sessions/<sessionId>/export/json',
+        _sessionHandlers.handleExportSessionJson);
+    router.get('/api/sessions/<sessionId>/export/csv',
+        _sessionHandlers.handleExportSessionCsv);
+    router.get('/api/sessions/<sessionId>/export/html',
+        _sessionHandlers.handleExportSessionHtml);
+    router.get('/api/sessions/<sessionId>/export/<format>',
+        _sessionHandlers.handleExportSession);
 
     // ===========================================================================
     // Target Management
@@ -438,6 +542,10 @@ class HeadlessApiServer {
     router.get('/api/sessions/<id>', _analyticsHandlers.handleGetSessionById);
     router.get(
         '/api/sessions/<id>/stats', _analyticsHandlers.handleGetSessionStats);
+    router.get('/api/sessions/<id>/psf-tiles',
+        _analyticsHandlers.handleGetSessionPsfTiles);
+    router.get('/api/sessions/<id>/residuals',
+        _analyticsHandlers.handleGetSessionResiduals);
     router.get('/api/sessions/target/<targetId>',
         _analyticsHandlers.handleGetSessionsForTarget);
     router.post('/api/sessions', _analyticsHandlers.handleCreateSession);
@@ -464,6 +572,42 @@ class HeadlessApiServer {
     router.get(
         '/api/weather/safe-imaging', _weatherHandlers.handleCheckSafeImaging);
     router.post('/api/weather/clear-cache', _weatherHandlers.handleClearCache);
+
+    // ===========================================================================
+    // Remote Filesystem
+    // ===========================================================================
+    router.get(
+        '/api/files/browse', _fileSystemHandlers.handleBrowseDirectories);
+    router.post(
+        '/api/files/validate', _fileSystemHandlers.handleValidateDirectory);
+
+    // Science parity
+    router.get('/api/science/session/<sessionId>/bundle',
+        _scienceHandlers.handleGetSessionBundle);
+    router.get('/api/science/sessionless/recent',
+        _scienceHandlers.handleGetSessionlessBundle);
+    router.get(
+        '/api/science/settings', _scienceHandlers.handleGetScienceSettings);
+    router.post(
+        '/api/science/settings', _scienceHandlers.handleUpdateScienceSettings);
+    router.get('/api/science/session/<sessionId>/config',
+        _scienceHandlers.handleGetSessionConfig);
+    router.post('/api/science/session/<sessionId>/config',
+        _scienceHandlers.handleUpdateSessionConfig);
+    router.get('/api/science/transforms',
+        _scienceHandlers.handleGetPhotometricTransforms);
+    router.post('/api/science/calibration/image/<imageId>/match-stars',
+        _scienceHandlers.handleMatchPhotometricCalibrationStars);
+    router.post('/api/science/calibration/compute-transform',
+        _scienceHandlers.handleComputePhotometricTransform);
+    router.post('/api/science/calibration/save-transform',
+        _scienceHandlers.handleSavePhotometricTransform);
+    router.post('/api/science/session/<sessionId>/generate-line-ratios',
+        _scienceHandlers.handleGenerateLineRatios);
+    router.post('/api/science/session/<sessionId>/export/aavso',
+        _scienceHandlers.handleExportAavso);
+    router.get('/api/science/session/<sessionId>/report/pdf',
+        _scienceHandlers.handleGenerateObservationReport);
 
     // ===========================================================================
     // Target Suggestions
@@ -497,6 +641,8 @@ class HeadlessApiServer {
     router.post('/api/backup/create', _backupHandlers.handleCreateBackup);
     router.post('/api/backup/restore', _backupHandlers.handleRestoreBackup);
     router.post('/api/backup/auto-save', _backupHandlers.handleAutoSaveBackup);
+    router.post('/api/backup/upload-restore',
+        _backupHandlers.handleUploadRestoreBackup);
     router.get(
         '/api/backup/<id>/metadata', _backupHandlers.handleGetBackupMetadata);
     router.get(
@@ -624,30 +770,47 @@ class HeadlessApiServer {
     router.get('/api/ws', webSocketHandler(_handleWebSocket));
     router.get('/events', webSocketHandler(_handleWebSocket));
 
+    // Web Dashboard - static file serving
+    router.get('/dashboard', _handleDashboardIndex);
+    router.get('/dashboard/', _handleDashboardIndex);
+    router.get('/dashboard/<path|.*>', _handleDashboardFile);
+
     final handler = const Pipeline()
         .addMiddleware(_requestTrackingMiddleware())
         .addMiddleware(_corsMiddleware())
+        .addMiddleware(_requestSizeLimitMiddleware())
+        .addMiddleware(_apiVersionMiddleware())
         .addMiddleware(_authMiddleware())
+        .addMiddleware(_rateLimitMiddleware())
+        .addMiddleware(_highRiskAuditMiddleware())
         .addHandler(router.call);
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+    final bindAddress =
+        bindLocalOnly ? InternetAddress.loopbackIPv4 : InternetAddress.anyIPv4;
+    _server = await shelf_io.serve(handler, bindAddress, port);
     _logInfo(
         'Headless API server running on http://${_server!.address.host}:${_server!.port}');
-    if (_effectiveAuthToken != null) {
+    if (_effectiveAuthTokensByValue.isNotEmpty) {
       _logInfo(
           '[AUTH] Authentication is ENABLED. All requests require Bearer token.');
     } else {
       _logInfo('[AUTH] Authentication is DISABLED. All requests are allowed.');
+      if (!bindLocalOnly) {
+        _logWarning(
+            '[AUTH] Unauthenticated LAN access is enabled. This is unsafe for normal rig control.');
+      }
     }
 
     // Subscribe to backend events and broadcast to WebSocket clients
     _subscribeToBackendEvents();
+    _collaborationSubscription =
+        _collaborationManager.stream.listen(_broadcastCollaborationState);
   }
 
   void _subscribeToBackendEvents() {
     try {
       final backend = container.read(backendProvider);
-      backend.eventStream.listen((event) {
+      _eventSubscription = backend.eventStream.listen((event) {
         broadcastEvent(event);
       });
     } catch (e) {
@@ -656,11 +819,21 @@ class HeadlessApiServer {
   }
 
   Future<void> stop() async {
+    await _eventSubscription?.cancel();
+    _eventSubscription = null;
+    await _collaborationSubscription?.cancel();
+    _collaborationSubscription = null;
+    _webSocketHeartbeatTimer?.cancel();
+    _webSocketHeartbeatTimer = null;
     await _server?.close(force: true);
-    for (final socket in _sockets) {
+    _server = null;
+    for (final socket in List.of(_sockets)) {
       await socket.sink.close();
     }
+    _socketViewerIds.clear();
+    _socketLastSeenAt.clear();
     _sockets.clear();
+    _collaborationManager.dispose();
   }
 
   /// Broadcast an event to all connected WebSocket clients
@@ -690,11 +863,26 @@ class HeadlessApiServer {
       return;
     }
 
-    for (final socket in _sockets) {
+    for (final socket in List.of(_sockets)) {
       try {
         socket.sink.add(jsonEvent);
       } catch (e) {
         _logWarning('Error broadcasting to socket: $e');
+      }
+    }
+  }
+
+  void _broadcastCollaborationState(LiveCollaborationState state) {
+    if (_sockets.isEmpty) return;
+    final payload = jsonEncode({
+      'type': 'collaboration_state',
+      'state': state.toJson(),
+    });
+    for (final socket in List.of(_sockets)) {
+      try {
+        socket.sink.add(payload);
+      } catch (e) {
+        _logWarning('Error broadcasting collaboration state: $e');
       }
     }
   }
@@ -704,17 +892,41 @@ class HeadlessApiServer {
   // ===========================================================================
 
   Future<Response> _handleInfo(Request request) async {
-    return Response.ok(
-      jsonEncode({
-        "name": "Nightshade Headless",
-        "version": "2.0.0",
-        "mode": "headless",
-        "authRequired": _effectiveAuthToken != null,
-        "publicEndpoints": ["/api/info", "/api/ws", "/events"],
-        "endpoints": _getAvailableEndpoints(),
-      }),
-      headers: {'content-type': 'application/json'},
+    final platformCapabilities =
+        PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+
+    return jsonOk(
+      {
+        'name': 'Nightshade Headless',
+        'version': '2.5.0',
+        'apiVersion': RemoteApiCompatibility.serverApiVersion.format(),
+        'minimumSupportedApiVersion':
+            RemoteApiCompatibility.minimumSupportedVersion.format(),
+        'apiVersionHeader': RemoteApiCompatibility.apiVersionHeader,
+        'mode': 'headless',
+        'platform': platformCapabilities.platform,
+        'platformCapabilities': platformCapabilities.toJson(),
+        'authRequired': _effectiveAuthTokensByValue.isNotEmpty,
+        'authenticationMode':
+            _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
+        'authScopes': _availableAuthScopes(),
+        'pairingSupported': false,
+        'apiOnlyMode': true,
+        'webUIAvailable': false,
+        'publicEndpoints': ['/api/info', '/dashboard'],
+        'endpoints': _getAvailableEndpoints(),
+      },
+      headers: _apiCompatibilityHeaders(),
     );
+  }
+
+  List<String> _availableAuthScopes() {
+    final scopes = _effectiveAuthTokensByValue.values
+        .map(headlessTokenScopeName)
+        .toSet()
+        .toList();
+    scopes.sort();
+    return scopes;
   }
 
   List<String> _getAvailableEndpoints() {
@@ -722,7 +934,20 @@ class HeadlessApiServer {
       // Core
       'GET /api/info',
       'GET /api/status',
+      'GET /api/self-test',
+      'GET /api/openapi.json',
+      'GET /api/collaboration/state',
+      'POST /api/collaboration/viewers/join',
+      'POST /api/collaboration/viewers/leave',
+      'POST /api/collaboration/preview',
+      'POST /api/collaboration/chat',
+      'POST /api/collaboration/annotations',
+      'GET /api/session-handoff',
+      'POST /api/session-handoff',
+      'DELETE /api/session-handoff',
       'GET /api/devices',
+      'GET /api/devices/discover-indi',
+      'GET /api/devices/discover-alpaca',
       'GET /api/devices/connected',
       'POST /api/devices/connect',
       'POST /api/devices/disconnect',
@@ -731,21 +956,36 @@ class HeadlessApiServer {
       'POST /api/camera/abort',
       'GET /api/camera/last-image',
       'POST /api/camera/cooling',
+      'POST /api/camera/readoutMode',
+      'POST /api/camera/gain',
+      'POST /api/camera/offset',
       // Mount
       'POST /api/mount/slew',
       'POST /api/mount/sync',
       'POST /api/mount/park',
       'POST /api/mount/unpark',
+      'POST /api/mount/tracking',
+      'POST /api/mount/pulse-guide',
+      'POST /api/mount/abort',
+      'GET /api/mount/status',
+      'POST /api/mount/set-tracking-rate',
+      'POST /api/mount/move-axis',
+      'POST /api/mount/slew-alt-az',
+      'POST /api/mount/find-home',
       // Focuser
       'POST /api/focuser/move-to',
+      'POST /api/focuser/move-relative',
       'POST /api/focuser/halt',
       'POST /api/focuser/autofocus/start',
       'POST /api/focuser/autofocus/cancel',
       // Filter Wheel
       'POST /api/filter-wheel/position',
+      'GET /api/filter-wheel/names',
       'POST /api/filter-wheel/set-by-name',
       // Rotator
       'POST /api/rotator/move-to',
+      'POST /api/rotator/move-relative',
+      'GET /api/rotator/status',
       'POST /api/rotator/halt',
       // PHD2
       'POST /api/phd2/connect',
@@ -767,8 +1007,24 @@ class HeadlessApiServer {
       'GET /api/phd2/algo-params',
       'GET /api/phd2/algo-param',
       'POST /api/phd2/algo-param',
+      // Generic Guider
+      'POST /api/guider/start-guiding',
+      'POST /api/guider/stop-guiding',
+      'POST /api/guider/dither',
+      'POST /api/guider/loop',
+      'POST /api/guider/find-star',
+      'POST /api/guider/set-lock-position',
+      'GET /api/guider/lock-position',
+      'POST /api/guider/deselect-star',
+      'GET /api/guider/star-image',
+      'GET /api/builtin-guider/config',
+      'POST /api/builtin-guider/config',
       // Plate Solving
       'POST /api/plate-solve',
+      // Legacy Sequencer
+      'GET /api/sequences/status',
+      'POST /api/sequences/start',
+      'POST /api/sequences/stop',
       // Sequencer
       'GET /api/sequencer/status',
       'POST /api/sequencer/start',
@@ -778,6 +1034,19 @@ class HeadlessApiServer {
       'POST /api/sequencer/skip',
       'POST /api/sequencer/reset',
       'POST /api/sequencer/load',
+      'POST /api/sequencer/simulation',
+      'POST /api/sequencer/devices',
+      'POST /api/sequencer/safety-fail-mode',
+      'POST /api/sequencer/save-path',
+      'POST /api/sequencer/update-dither-config',
+      'POST /api/sequencer/update-location',
+      'POST /api/sequencer/update-filter-offsets',
+      'POST /api/sequencer/checkpoint/dir',
+      'GET /api/sequencer/checkpoint/has',
+      'GET /api/sequencer/checkpoint/info',
+      'POST /api/sequencer/checkpoint/resume',
+      'POST /api/sequencer/checkpoint/discard',
+      'POST /api/sequencer/checkpoint/save',
       // Equipment Status
       'GET /api/equipment/camera/status',
       'GET /api/equipment/mount/status',
@@ -790,26 +1059,44 @@ class HeadlessApiServer {
       'GET /api/equipment/focuser/capabilities',
       'GET /api/equipment/filter-wheel/capabilities',
       'GET /api/equipment/rotator/capabilities',
+      // Device Health
+      'POST /api/device/heartbeat/start',
+      'POST /api/device/heartbeat/stop',
+      'GET /api/device/health/<deviceId>',
       // Profiles
       'GET /api/profiles',
       'POST /api/profiles',
+      'DELETE /api/profiles/<profileId>',
+      'POST /api/profiles/<profileId>/load',
       'GET /api/profiles/active',
       // Settings
       'GET /api/settings',
       'POST /api/settings',
       'GET /api/settings/location',
       'POST /api/settings/location',
+      'GET /api/location',
       // Imaging
       'POST /api/imaging/stats',
       'POST /api/imaging/stretch',
+      'GET /api/imaging/star-crops',
+      'POST /api/imaging/debayer',
+      'GET /api/imaging/raw-data',
       'POST /api/imaging/save-fits',
       'POST /api/imaging/save-fits-from-capture',
+      'DELETE /api/imaging/device-image/<deviceId>',
       // Polar Alignment
       'POST /api/polar-alignment/start',
       'POST /api/polar-alignment/stop',
       // Session Images
       'GET /api/sessions/<sessionId>/images',
+      'GET /api/images',
+      'GET /api/images/standalone',
       'GET /api/images/<imageId>/thumbnail',
+      'GET /api/images/<imageId>/download',
+      'GET /api/sessions/<sessionId>/export/json',
+      'GET /api/sessions/<sessionId>/export/csv',
+      'GET /api/sessions/<sessionId>/export/html',
+      'GET /api/sessions/<sessionId>/export/<format>',
       // Targets
       'GET /api/targets',
       'GET /api/targets/favorites',
@@ -836,6 +1123,7 @@ class HeadlessApiServer {
       'PUT /api/sequence-management/nodes/<nodeId>',
       'DELETE /api/sequence-management/nodes/<nodeId>',
       'POST /api/sequence-management/<id>/reorder',
+      'POST /api/sequence-management/nodes/<nodeId>/enabled',
       // Flat Wizard
       'POST /api/flat-wizard/calibrate',
       'POST /api/flat-wizard/calibrate-multi',
@@ -853,11 +1141,29 @@ class HeadlessApiServer {
       'GET /api/sessions/recent',
       'GET /api/sessions/<id>',
       'GET /api/sessions/<id>/stats',
+      'GET /api/sessions/<id>/psf-tiles',
+      'GET /api/sessions/<id>/residuals',
       'GET /api/sessions/target/<targetId>',
       'POST /api/sessions',
       'PUT /api/sessions/<id>',
       'POST /api/sessions/<id>/end',
       'DELETE /api/sessions/<id>',
+      'GET /api/files/browse',
+      'POST /api/files/validate',
+      // Science
+      'GET /api/science/session/<sessionId>/bundle',
+      'GET /api/science/sessionless/recent',
+      'GET /api/science/settings',
+      'POST /api/science/settings',
+      'GET /api/science/session/<sessionId>/config',
+      'POST /api/science/session/<sessionId>/config',
+      'GET /api/science/transforms',
+      'POST /api/science/calibration/image/<imageId>/match-stars',
+      'POST /api/science/calibration/compute-transform',
+      'POST /api/science/calibration/save-transform',
+      'POST /api/science/session/<sessionId>/generate-line-ratios',
+      'POST /api/science/session/<sessionId>/export/aavso',
+      'GET /api/science/session/<sessionId>/report/pdf',
       'GET /api/analytics/summary',
       'GET /api/analytics/integration-time',
       'GET /api/analytics/target-statistics',
@@ -887,6 +1193,7 @@ class HeadlessApiServer {
       'POST /api/backup/create',
       'POST /api/backup/restore',
       'POST /api/backup/auto-save',
+      'POST /api/backup/upload-restore',
       'GET /api/backup/<id>/metadata',
       'GET /api/backup/<id>/download',
       'DELETE /api/backup/<id>',
@@ -966,25 +1273,347 @@ class HeadlessApiServer {
     try {
       final backend = container.read(backendProvider);
       final status = await backend.sequencerGetStatus();
-      return Response.ok(
-        jsonEncode({
-          "sequencer": {
-            "state": status.state,
-            "currentNodeId": status.currentNodeId,
-            "currentNodeName": status.currentNodeName,
-            "progress": status.progress,
-            "message": status.message
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
-    } catch (e) {
-      _logError('[API][$requestId] Status error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sequencer": {
+          "state": status.state,
+          "currentNodeId": status.currentNodeId,
+          "currentNodeName": status.currentNodeName,
+          "progress": status.progress,
+          "message": status.message
+        },
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Status error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
     }
+  }
+
+  Future<Response> _handleSelfTest(Request request) async {
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/self-test');
+    try {
+      final platformCapabilities =
+          PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+      final backend = container.read(backendProvider);
+      final storageChecks = await _runStorageSelfTests();
+      final databaseCheck = _runDatabaseSelfTest();
+      final connectedDeviceProbe = await _probeConnectedDevices(backend);
+      final endpointCount = _getAvailableEndpoints().length;
+
+      final checks = [
+        ...storageChecks.map((check) => check['status']),
+        databaseCheck['status'],
+        connectedDeviceProbe['status'],
+      ];
+      final hasFailures = checks.contains('error');
+
+      return jsonOk({
+        'status': hasFailures ? 'degraded' : 'ok',
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'platform': {
+          'operatingSystem': platformCapabilities.platform,
+          'operatingSystemVersion': Platform.operatingSystemVersion,
+          'executable': Platform.resolvedExecutable,
+        },
+        'server': {
+          'port': port,
+          'bindMode': bindLocalOnly ? 'loopback' : 'lan',
+          'authMode': _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
+          'authRequired': _effectiveAuthTokensByValue.isNotEmpty,
+          'authScopes': _availableAuthScopes(),
+          'dashboardAvailable': _findDashboardDir() != null,
+        },
+        'backend': {
+          'type': backend.runtimeType.toString(),
+          'connectedDevices': connectedDeviceProbe,
+        },
+        'deviceDrivers': platformCapabilities.toJson(),
+        'storagePaths': storageChecks,
+        'database': databaseCheck,
+        'api': {
+          'endpointCount': endpointCount,
+          'selfTestEndpoint': 'GET /api/self-test',
+        },
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Self-test error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
+  Future<Response> _handleOpenApiSpec(Request request) async {
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/openapi.json');
+    try {
+      return jsonOk(_buildOpenApiSpec());
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] OpenAPI generation error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
+  Map<String, dynamic> _buildOpenApiSpec() {
+    return route_metadata.buildOpenApiSpec(
+      routes: _getAvailableEndpoints(),
+      port: port,
+    );
+  }
+
+  Map<String, dynamic> _runDatabaseSelfTest() {
+    try {
+      container.read(databaseProvider);
+      return {
+        'name': 'driftDatabase',
+        'status': 'ok',
+        'message': 'Database provider is initialized.',
+      };
+    } catch (e) {
+      return {
+        'name': 'driftDatabase',
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _probeConnectedDevices(
+    NightshadeBackend backend,
+  ) async {
+    try {
+      final devices = await backend.getConnectedDevices().timeout(
+            const Duration(seconds: 2),
+          );
+      return {
+        'status': 'ok',
+        'count': devices.length,
+        'devices': devices.map((device) => device.toJson()).toList(),
+      };
+    } catch (e) {
+      return {
+        'status': 'warning',
+        'count': null,
+        'devices': <Map<String, dynamic>>[],
+        'message': 'Connected-device probe unavailable: $e',
+      };
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _runStorageSelfTests() async {
+    final checks = <Map<String, dynamic>>[];
+
+    Future<void> addDirectoryCheck(
+      String name,
+      Future<Directory> Function() resolver,
+    ) async {
+      try {
+        final directory = await resolver();
+        checks.add(await _checkWritableDirectory(name, directory));
+      } catch (e) {
+        checks.add({
+          'name': name,
+          'status': 'error',
+          'path': null,
+          'exists': false,
+          'writable': false,
+          'message': e.toString(),
+        });
+      }
+    }
+
+    await addDirectoryCheck(
+      'applicationDocuments',
+      getApplicationDocumentsDirectory,
+    );
+    await addDirectoryCheck(
+      'applicationSupport',
+      getApplicationSupportDirectory,
+    );
+    await addDirectoryCheck(
+      'systemTemp',
+      () async => Directory.systemTemp,
+    );
+
+    return checks;
+  }
+
+  Future<Map<String, dynamic>> _checkWritableDirectory(
+    String name,
+    Directory directory,
+  ) async {
+    final exists = await directory.exists();
+    if (!exists) {
+      return {
+        'name': name,
+        'status': 'error',
+        'path': directory.path,
+        'exists': false,
+        'writable': false,
+        'message': 'Directory does not exist.',
+      };
+    }
+
+    final probeFile = File(
+      p.join(
+        directory.path,
+        '.nightshade-self-test-${DateTime.now().microsecondsSinceEpoch}.tmp',
+      ),
+    );
+    try {
+      await probeFile.writeAsString('ok');
+      await probeFile.delete();
+      return {
+        'name': name,
+        'status': 'ok',
+        'path': directory.path,
+        'exists': true,
+        'writable': true,
+      };
+    } catch (e) {
+      try {
+        if (await probeFile.exists()) {
+          await probeFile.delete();
+        }
+      } catch (_) {
+        // Best-effort cleanup only.
+      }
+      return {
+        'name': name,
+        'status': 'error',
+        'path': directory.path,
+        'exists': true,
+        'writable': false,
+        'message': e.toString(),
+      };
+    }
+  }
+
+  Future<Response> _handleCollaborationState(Request request) async {
+    return jsonOk(_collaborationManager.state.toJson());
+  }
+
+  Future<Response> _handleCollaborationJoin(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final viewerId = payload['viewerId'] as String?;
+      final name = payload['name'] as String?;
+      if (viewerId == null ||
+          viewerId.isEmpty ||
+          name == null ||
+          name.isEmpty) {
+        return jsonBadRequest({'error': 'Missing viewerId or name'});
+      }
+      _collaborationManager.upsertViewer(viewerId, name);
+      return jsonOk(_collaborationManager.state.toJson());
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleCollaborationLeave(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final viewerId = payload['viewerId'] as String?;
+      if (viewerId == null || viewerId.isEmpty) {
+        return jsonBadRequest({'error': 'Missing viewerId'});
+      }
+      _collaborationManager.removeViewer(viewerId);
+      return jsonOk(_collaborationManager.state.toJson());
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleCollaborationPreview(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final preview = payload['preview'];
+      if (preview != null && preview is! Map<String, dynamic>) {
+        return jsonBadRequest({'error': 'preview must be an object'});
+      }
+      _collaborationManager.updatePreview(preview as Map<String, dynamic>?);
+      return jsonOk(_collaborationManager.state.toJson());
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleCollaborationChat(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final viewerId = payload['viewerId'] as String?;
+      final viewerName = payload['viewerName'] as String?;
+      final message = payload['message'] as String?;
+      if (viewerId == null || viewerName == null || message == null) {
+        return jsonBadRequest(
+            {'error': 'viewerId, viewerName, and message are required'});
+      }
+      _collaborationManager.addChat(
+        viewerId: viewerId,
+        viewerName: viewerName,
+        message: message,
+      );
+      return jsonOk(_collaborationManager.state.toJson());
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleCollaborationAnnotation(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final annotationId = payload['annotationId'] as String?;
+      final viewerId = payload['viewerId'] as String?;
+      final kind = payload['kind'] as String?;
+      final annotationPayload = payload['payload'];
+      if (annotationId == null ||
+          viewerId == null ||
+          kind == null ||
+          annotationPayload is! Map<String, dynamic>) {
+        return jsonBadRequest({
+          'error': 'annotationId, viewerId, kind, and payload are required'
+        });
+      }
+      _collaborationManager.addAnnotation(
+        annotationId: annotationId,
+        viewerId: viewerId,
+        kind: kind,
+        payload: annotationPayload,
+      );
+      return jsonOk(_collaborationManager.state.toJson());
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleGetSessionHandoff(Request request) async {
+    return jsonOk(
+        {'sessionHandoff': _collaborationManager.state.sessionHandoff});
+  }
+
+  Future<Response> _handleSetSessionHandoff(Request request) async {
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final handoff = payload['handoff'];
+      if (handoff != null && handoff is! Map<String, dynamic>) {
+        return jsonBadRequest({'error': 'handoff must be an object'});
+      }
+      _collaborationManager.setSessionHandoff(handoff as Map<String, dynamic>?);
+      return jsonOk(
+          {'sessionHandoff': _collaborationManager.state.sessionHandoff});
+    } catch (e) {
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> _handleClearSessionHandoff(Request request) async {
+    _collaborationManager.setSessionHandoff(null);
+    return jsonOk({'sessionHandoff': null});
   }
 
   Future<Response> _handleGetDevices(Request request) async {
@@ -1013,26 +1642,60 @@ class HeadlessApiServer {
         }
       }
 
-      return Response.ok(
-        jsonEncode({
-          "devices": allDevices
-              .map((d) => {
-                    'id': d.id,
-                    'name': d.name,
-                    'deviceType': d.deviceType.name,
-                    'driverType': d.driverType.name,
-                    'description': d.description,
-                  })
-              .toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
-    } catch (e) {
-      _logError('[API][$requestId] Get devices error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "devices": allDevices
+            .map((d) => {
+                  'id': d.id,
+                  'name': d.name,
+                  'deviceType': d.deviceType.name,
+                  'driverType': d.driverType.name,
+                  'description': d.description,
+                })
+            .toList(),
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Get devices error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
+    }
+  }
+
+  Future<Response> _handleDiscoverIndiAtAddress(Request request) async {
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/devices/discover-indi');
+    try {
+      final host = request.url.queryParameters['host'];
+      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
+      if (host == null || host.isEmpty || port == null) {
+        return jsonBadRequest({'error': 'host and port are required'});
+      }
+
+      final backend = container.read(backendProvider);
+      final devices = await backend.discoverIndiAtAddress(host, port);
+      return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
+    } catch (e, stackTrace) {
+      _logError(
+          '[API][$requestId] INDI address discovery error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
+  Future<Response> _handleDiscoverAlpacaAtAddress(Request request) async {
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/devices/discover-alpaca');
+    try {
+      final host = request.url.queryParameters['host'];
+      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
+      if (host == null || host.isEmpty || port == null) {
+        return jsonBadRequest({'error': 'host and port are required'});
+      }
+
+      final backend = container.read(backendProvider);
+      final devices = await backend.discoverAlpacaAtAddress(host, port);
+      return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
+    } catch (e, stackTrace) {
+      _logError(
+          '[API][$requestId] Alpaca address discovery error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
     }
   }
 
@@ -1042,26 +1705,21 @@ class HeadlessApiServer {
     try {
       final backend = container.read(backendProvider);
       final devices = await backend.getConnectedDevices();
-      return Response.ok(
-        jsonEncode({
-          "devices": devices
-              .map((d) => {
-                    'id': d.id,
-                    'name': d.name,
-                    'deviceType': d.deviceType.name,
-                    'driverType': d.driverType.name,
-                    'description': d.description,
-                  })
-              .toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
-    } catch (e) {
-      _logError('[API][$requestId] Get connected devices error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "devices": devices
+            .map((d) => {
+                  'id': d.id,
+                  'name': d.name,
+                  'deviceType': d.deviceType.name,
+                  'driverType': d.driverType.name,
+                  'description': d.description,
+                })
+            .toList(),
+      });
+    } catch (e, stackTrace) {
+      _logError(
+          '[API][$requestId] Get connected devices error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
     }
   }
 
@@ -1075,29 +1733,20 @@ class HeadlessApiServer {
       final deviceType = _parseDeviceType(deviceTypeStr);
 
       if (deviceType == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid device type: $deviceTypeStr"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid device type: $deviceTypeStr"});
       }
 
       final backend = container.read(backendProvider);
       await backend.connectDevice(deviceType, deviceId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "connected",
-          "deviceId": deviceId,
-          "deviceType": deviceType.name,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
-    } catch (e) {
-      _logError('[API][$requestId] Connect device error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "connected",
+        "deviceId": deviceId,
+        "deviceType": deviceType.name,
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Connect device error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
     }
   }
 
@@ -1111,29 +1760,20 @@ class HeadlessApiServer {
       final deviceType = _parseDeviceType(deviceTypeStr);
 
       if (deviceType == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Invalid device type: $deviceTypeStr"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Invalid device type: $deviceTypeStr"});
       }
 
       final backend = container.read(backendProvider);
       await backend.disconnectDevice(deviceType, deviceId);
 
-      return Response.ok(
-        jsonEncode({
-          "status": "disconnected",
-          "deviceId": deviceId,
-          "deviceType": deviceType.name,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
-    } catch (e) {
-      _logError('[API][$requestId] Disconnect device error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "status": "disconnected",
+        "deviceId": deviceId,
+        "deviceType": deviceType.name,
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Disconnect device error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
     }
   }
 
@@ -1168,28 +1808,310 @@ class HeadlessApiServer {
 
   void _handleWebSocket(WebSocketChannel socket, String? protocol) {
     _sockets.add(socket);
+    _socketLastSeenAt[socket] = DateTime.now();
+    _ensureWebSocketHeartbeatTimer();
     _logInfo('New WebSocket connection');
+    socket.sink.add(jsonEncode({
+      'type': 'collaboration_state',
+      'state': _collaborationManager.state.toJson(),
+    }));
 
     socket.stream.listen(
       (message) {
         // Handle incoming messages (e.g. pings)
         try {
-          final data = jsonDecode(message);
+          _socketLastSeenAt[socket] = DateTime.now();
+          final data = jsonDecode(message) as Map<String, dynamic>;
           if (data['type'] == 'ping') {
-            socket.sink.add(jsonEncode({'type': 'pong'}));
+            socket.sink.add(jsonEncode({
+              'type': 'pong',
+              'timestamp': DateTime.now().toUtc().toIso8601String(),
+            }));
+          } else if (data['type'] == 'pong') {
+            return;
+          } else {
+            _handleCollaborationSocketMessage(
+              socket,
+              data,
+            );
           }
         } catch (_) {}
       },
       onDone: () {
-        _sockets.remove(socket);
+        _removeWebSocket(socket);
         _logInfo('WebSocket disconnected');
       },
       onError: (error) {
-        _sockets.remove(socket);
+        _removeWebSocket(socket);
         _logWarning('WebSocket error: $error');
       },
     );
   }
+
+  void _removeWebSocket(WebSocketChannel socket) {
+    final viewerId = _socketViewerIds.remove(socket);
+    if (viewerId != null) {
+      _collaborationManager.removeViewer(viewerId);
+    }
+    _socketLastSeenAt.remove(socket);
+    _sockets.remove(socket);
+    if (_sockets.isEmpty) {
+      _webSocketHeartbeatTimer?.cancel();
+      _webSocketHeartbeatTimer = null;
+    }
+  }
+
+  void _ensureWebSocketHeartbeatTimer() {
+    if (webSocketHeartbeatInterval <= Duration.zero ||
+        _webSocketHeartbeatTimer != null) {
+      return;
+    }
+
+    _webSocketHeartbeatTimer = Timer.periodic(webSocketHeartbeatInterval, (_) {
+      final now = DateTime.now();
+      for (final socket in List.of(_sockets)) {
+        final lastSeenAt = _socketLastSeenAt[socket];
+        if (lastSeenAt != null &&
+            now.difference(lastSeenAt) > webSocketHeartbeatTimeout) {
+          _logWarning('Closing stale WebSocket after heartbeat timeout');
+          _removeWebSocket(socket);
+          unawaited(socket.sink.close());
+          continue;
+        }
+
+        try {
+          socket.sink.add(jsonEncode({
+            'type': 'ping',
+            'timestamp': now.toUtc().toIso8601String(),
+          }));
+        } catch (e) {
+          _logWarning('WebSocket heartbeat failed: $e');
+          _removeWebSocket(socket);
+        }
+      }
+    });
+  }
+
+  void _handleCollaborationSocketMessage(
+    WebSocketChannel socket,
+    Map<String, dynamic> data,
+  ) {
+    final type = data['type'] as String?;
+    switch (type) {
+      case 'collaboration.join':
+        final viewerId = data['viewerId'] as String?;
+        final name = data['name'] as String?;
+        if (viewerId == null || name == null) {
+          socket.sink.add(jsonEncode({
+            'type': 'error',
+            'message': 'collaboration.join requires viewerId and name',
+          }));
+          return;
+        }
+        _socketViewerIds[socket] = viewerId;
+        _collaborationManager.upsertViewer(viewerId, name);
+        return;
+      case 'collaboration.leave':
+        final viewerId =
+            data['viewerId'] as String? ?? _socketViewerIds.remove(socket);
+        if (viewerId != null) {
+          _collaborationManager.removeViewer(viewerId);
+        }
+        return;
+      case 'collaboration.preview':
+        final preview = data['preview'];
+        if (preview != null && preview is! Map<String, dynamic>) {
+          socket.sink.add(jsonEncode({
+            'type': 'error',
+            'message': 'collaboration.preview requires preview to be an object',
+          }));
+          return;
+        }
+        _collaborationManager.updatePreview(preview as Map<String, dynamic>?);
+        return;
+      case 'collaboration.chat':
+        final viewerId = data['viewerId'] as String?;
+        final viewerName = data['viewerName'] as String?;
+        final message = data['message'] as String?;
+        if (viewerId == null || viewerName == null || message == null) {
+          socket.sink.add(jsonEncode({
+            'type': 'error',
+            'message':
+                'collaboration.chat requires viewerId, viewerName, and message',
+          }));
+          return;
+        }
+        _collaborationManager.addChat(
+          viewerId: viewerId,
+          viewerName: viewerName,
+          message: message,
+        );
+        return;
+      case 'collaboration.annotation':
+        final annotationId = data['annotationId'] as String?;
+        final viewerId = data['viewerId'] as String?;
+        final kind = data['kind'] as String?;
+        final payload = data['payload'];
+        if (annotationId == null ||
+            viewerId == null ||
+            kind == null ||
+            payload is! Map<String, dynamic>) {
+          socket.sink.add(jsonEncode({
+            'type': 'error',
+            'message':
+                'collaboration.annotation requires annotationId, viewerId, kind, and payload',
+          }));
+          return;
+        }
+        _collaborationManager.addAnnotation(
+          annotationId: annotationId,
+          viewerId: viewerId,
+          kind: kind,
+          payload: payload,
+        );
+        return;
+      case 'session_handoff.set':
+        final handoff = data['handoff'];
+        if (handoff != null && handoff is! Map<String, dynamic>) {
+          socket.sink.add(jsonEncode({
+            'type': 'error',
+            'message': 'session_handoff.set requires handoff to be an object',
+          }));
+          return;
+        }
+        _collaborationManager
+            .setSessionHandoff(handoff as Map<String, dynamic>?);
+        return;
+      case 'session_handoff.clear':
+        _collaborationManager.setSessionHandoff(null);
+        return;
+    }
+  }
+
+  // ===========================================================================
+  // Web Dashboard Static File Serving
+  // ===========================================================================
+
+  /// Resolves the web_dashboard directory location.
+  /// Checks multiple paths: next to the executable (release), and in the source
+  /// tree (development).
+  Directory? _findDashboardDir() {
+    // 1. Next to the executable (release builds)
+    final exeDir = p.dirname(Platform.resolvedExecutable);
+    final releasePath =
+        p.join(exeDir, 'data', 'flutter_assets', 'web_dashboard');
+    final releaseDir = Directory(releasePath);
+    if (releaseDir.existsSync()) return releaseDir;
+
+    // 2. In the same directory as the executable
+    final sameDirPath = p.join(exeDir, 'web_dashboard');
+    final sameDir = Directory(sameDirPath);
+    if (sameDir.existsSync()) return sameDir;
+
+    // 3. Source tree location (development - walk up from exe to find apps/desktop)
+    // The exe in debug mode is in build/windows/x64/runner/Debug/ or similar
+    var current = exeDir;
+    for (var i = 0; i < 10; i++) {
+      final candidate = p.join(current, 'web_dashboard');
+      if (Directory(candidate).existsSync()) return Directory(candidate);
+      final parent = p.dirname(current);
+      if (parent == current) break;
+      current = parent;
+    }
+
+    // 4. Try relative to current working directory
+    final cwdPath = p.join(Directory.current.path, 'web_dashboard');
+    final cwdDir = Directory(cwdPath);
+    if (cwdDir.existsSync()) return cwdDir;
+
+    return null;
+  }
+
+  static const _mimeTypes = <String, String>{
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+  };
+
+  String _getMimeType(String filePath) {
+    final ext = p.extension(filePath).toLowerCase();
+    return _mimeTypes[ext] ?? 'application/octet-stream';
+  }
+
+  Future<Response> _handleDashboardIndex(Request request) async {
+    return _serveDashboardFile('index.html');
+  }
+
+  Future<Response> _handleDashboardFile(Request request, String path) async {
+    // Sanitize path: prevent directory traversal
+    final normalized = p.normalize(path).replaceAll('\\', '/');
+    if (normalized.contains('..') || normalized.startsWith('/')) {
+      return jsonForbidden({'error': 'Invalid path'});
+    }
+    return _serveDashboardFile(normalized);
+  }
+
+  Future<Response> _serveDashboardFile(String relativePath) async {
+    final dashboardDir = _findDashboardDir();
+    if (dashboardDir == null) {
+      _logWarning('[Dashboard] web_dashboard directory not found');
+      return jsonNotFound(
+        {
+          'error': 'Dashboard not found',
+          'message': 'The web_dashboard directory could not be located. '
+              'Ensure it is deployed alongside the application.',
+        },
+      );
+    }
+
+    final filePath = p.join(dashboardDir.path, relativePath);
+    final file = File(filePath);
+
+    if (!await file.exists()) {
+      return jsonNotFound({'error': 'File not found: $relativePath'});
+    }
+
+    // Ensure the resolved path is still inside the dashboard directory
+    final resolvedPath = await file.resolveSymbolicLinks();
+    final resolvedDashDir = await dashboardDir.resolveSymbolicLinks();
+    final dashDirWithSep = resolvedDashDir.endsWith(Platform.pathSeparator)
+        ? resolvedDashDir
+        : resolvedDashDir + Platform.pathSeparator;
+    if (!resolvedPath.startsWith(dashDirWithSep) &&
+        resolvedPath != resolvedDashDir) {
+      return jsonForbidden({'error': 'Access denied'});
+    }
+
+    final bytes = await file.readAsBytes();
+    return Response.ok(
+      bytes,
+      headers: {
+        'content-type': _getMimeType(filePath),
+        'cache-control': 'no-cache',
+        ..._dashboardSecurityHeaders,
+      },
+    );
+  }
+
+  static const _dashboardSecurityHeaders = {
+    'content-security-policy': "default-src 'self'; script-src 'self'; "
+        "style-src 'self'; img-src 'self' data: blob:; connect-src 'self' "
+        "http://*:* https://*:* ws://*:* wss://*:*; object-src 'none'; "
+        "base-uri 'none'; frame-ancestors 'none'",
+    'x-frame-options': 'DENY',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+  };
 
   // ===========================================================================
   // Middleware
@@ -1206,12 +2128,29 @@ class HeadlessApiServer {
           _requestIdContextKey: requestId,
         });
 
-        _logInfo('[REQ][$requestId] ${request.method} $path started');
+        _logInfo(
+          '[REQ][$requestId] ${request.method} $path started',
+          fields: {
+            'requestId': requestId,
+            'method': request.method,
+            'path': path,
+            'phase': 'started',
+          },
+        );
         try {
           final response = await innerHandler(scopedRequest);
           final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
           _logInfo(
-              '[REQ][$requestId] ${request.method} $path completed status=${response.statusCode} ms=$elapsedMs');
+            '[REQ][$requestId] ${request.method} $path completed status=${response.statusCode} ms=$elapsedMs',
+            fields: {
+              'requestId': requestId,
+              'method': request.method,
+              'path': path,
+              'phase': 'completed',
+              'statusCode': response.statusCode,
+              'elapsedMs': elapsedMs,
+            },
+          );
           return response.change(headers: {
             ...response.headers,
             _requestIdHeader: requestId,
@@ -1219,7 +2158,16 @@ class HeadlessApiServer {
         } catch (e, stackTrace) {
           final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
           _logError(
-              '[REQ][$requestId] ${request.method} $path failed ms=$elapsedMs error=$e\n$stackTrace');
+            '[REQ][$requestId] ${request.method} $path failed ms=$elapsedMs error=$e\n$stackTrace',
+            fields: {
+              'requestId': requestId,
+              'method': request.method,
+              'path': path,
+              'phase': 'failed',
+              'elapsedMs': elapsedMs,
+              'error': e.toString(),
+            },
+          );
           rethrow;
         }
       };
@@ -1227,50 +2175,351 @@ class HeadlessApiServer {
   }
 
   Middleware _corsMiddleware() {
-    return createMiddleware(
-      requestHandler: (request) {
+    return (innerHandler) {
+      return (request) async {
+        final corsHeaders = _buildCorsHeaders(request);
         if (request.method == 'OPTIONS') {
-          return Response.ok('', headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers':
-                'Origin, Content-Type, X-Auth-Token, Authorization',
+          if (request.headers.containsKey('origin') && corsHeaders.isEmpty) {
+            return jsonForbidden(
+              {
+                'error': 'origin_not_allowed',
+                'message': 'Cross-origin requests are not allowed.',
+              },
+              headers: {'vary': 'Origin'},
+            );
+          }
+          return Response.ok('', headers: corsHeaders);
+        }
+
+        final response = await innerHandler(request);
+        if (corsHeaders.isEmpty) {
+          return response;
+        }
+        return response.change(headers: {
+          ...response.headers,
+          ...corsHeaders,
+        });
+      };
+    };
+  }
+
+  Middleware _requestSizeLimitMiddleware() {
+    return (innerHandler) {
+      return (request) async {
+        final path = '/${request.url.path}';
+        final validation = route_metadata.validateContentLength(
+          method: request.method,
+          path: path,
+          contentLengthHeader: request.headers[HttpHeaders.contentLengthHeader],
+        );
+        if (validation != null) {
+          return jsonResponse(
+            validation['body'],
+            statusCode: validation['statusCode'] as int,
+          );
+        }
+
+        if (!route_metadata.methodCanHaveBody(request.method)) {
+          return innerHandler(request);
+        }
+
+        final declaredContentLength =
+            request.headers[HttpHeaders.contentLengthHeader];
+        if (declaredContentLength != null && declaredContentLength.isNotEmpty) {
+          return innerHandler(request);
+        }
+
+        final limit = route_metadata.requestBodyLimitForPath(path);
+        final body = await _readRequestBodyWithinLimit(request, limit);
+        if (!body.accepted) {
+          final requestId = _requestIdFrom(request);
+          _logWarning(
+            '[REQ][$requestId] ${request.method} $path body too large '
+            'received=${body.receivedBytes} max=$limit',
+            fields: {
+              'requestId': requestId,
+              'method': request.method,
+              'path': path,
+              'receivedBytes': body.receivedBytes,
+              'maxBytes': limit,
+            },
+          );
+          return jsonTooLarge({
+            'error': 'Request body too large',
+            'maxBytes': limit,
+            'receivedBytes': body.receivedBytes,
+            'requestId': requestId,
           });
         }
-        return null;
-      },
-      responseHandler: (response) {
+
+        return innerHandler(request.change(body: body.bytes));
+      };
+    };
+  }
+
+  Future<_RequestBodyLimitResult> _readRequestBodyWithinLimit(
+    Request request,
+    int maxBytes,
+  ) async {
+    final bytes = BytesBuilder(copy: false);
+    var receivedBytes = 0;
+    var exceededLimit = false;
+    await for (final chunk in request.read()) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxBytes) {
+        exceededLimit = true;
+        continue;
+      }
+      if (!exceededLimit) {
+        bytes.add(chunk);
+      }
+    }
+    if (exceededLimit) {
+      return _RequestBodyLimitResult.rejected(receivedBytes);
+    }
+    return _RequestBodyLimitResult.accepted(
+      bytes.takeBytes(),
+      receivedBytes,
+    );
+  }
+
+  Middleware _apiVersionMiddleware() {
+    return (innerHandler) {
+      return (request) async {
+        final path = '/${request.url.path}';
+        final isWebSocket = path == '/api/ws' || path == '/events';
+        final clientVersion = request
+                .headers[RemoteApiCompatibility.apiVersionHeader] ??
+            (isWebSocket ? request.url.queryParameters['apiVersion'] : null);
+        if ((path.startsWith('/api/') || isWebSocket) &&
+            clientVersion != null &&
+            clientVersion.trim().isNotEmpty) {
+          final compatibility =
+              RemoteApiCompatibility.checkClient(clientVersion);
+          if (!compatibility.isCompatible) {
+            final requestId = _requestIdFrom(request);
+            _logWarning(
+              '[API][$requestId] Rejected incompatible client API version '
+              '$clientVersion for $path: ${compatibility.code}',
+            );
+            return jsonUpgradeRequired(
+              {
+                'error': compatibility.code,
+                'message': compatibility.message,
+                'clientApiVersion':
+                    compatibility.clientVersion ?? clientVersion,
+                'serverApiVersion':
+                    RemoteApiCompatibility.serverApiVersion.format(),
+                'minimumSupportedApiVersion':
+                    RemoteApiCompatibility.minimumSupportedVersion.format(),
+                'requestId': requestId,
+              },
+              headers: {
+                _requestIdHeader: requestId,
+                ..._apiCompatibilityHeaders(),
+              },
+            );
+          }
+        }
+
+        final response = await innerHandler(request);
         return response.change(headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers':
-              'Origin, Content-Type, X-Auth-Token, Authorization',
+          ...response.headers,
+          ..._apiCompatibilityHeaders(),
         });
+      };
+    };
+  }
+
+  Map<String, String> _apiCompatibilityHeaders() {
+    return {
+      RemoteApiCompatibility.apiVersionHeader:
+          RemoteApiCompatibility.serverApiVersion.format(),
+      'x-nightshade-minimum-api-version':
+          RemoteApiCompatibility.minimumSupportedVersion.format(),
+    };
+  }
+
+  Middleware _rateLimitMiddleware() {
+    return createMiddleware(
+      requestHandler: (request) {
+        final path = '/${request.url.path}';
+        final decision = _rateLimiter.check(
+          clientKey: _rateLimitClientKey(request),
+          method: request.method,
+          path: path,
+        );
+        if (decision.allowed) {
+          return null;
+        }
+
+        final requestId = _requestIdFrom(request);
+        _logWarning(
+          '[RATE][$requestId] ${request.method} $path limited '
+          'max=${decision.maxRequests} retry=${decision.retryAfterSeconds}s',
+          fields: {
+            'requestId': requestId,
+            'method': request.method,
+            'path': path,
+            'maxRequests': decision.maxRequests,
+            'retryAfterSeconds': decision.retryAfterSeconds,
+          },
+        );
+        return jsonRateLimited(
+          {
+            'error': 'Rate limit exceeded',
+            'maxRequests': decision.maxRequests,
+            'retryAfterSeconds': decision.retryAfterSeconds,
+            'requestId': requestId,
+          },
+          headers: {
+            'retry-after': decision.retryAfterSeconds.toString(),
+          },
+        );
       },
     );
+  }
+
+  Middleware _highRiskAuditMiddleware() {
+    return (innerHandler) {
+      return (request) async {
+        final path = '/${request.url.path}';
+        final auditAction = route_metadata.highRiskAuditActionFor(
+          method: request.method,
+          path: path,
+        );
+        if (auditAction == null) {
+          return innerHandler(request);
+        }
+
+        final requestId = _requestIdFrom(request);
+        final clientKey = _rateLimitClientKey(request);
+        _logger.info(
+          '[AUDIT][$requestId] $auditAction requested '
+          'method=${request.method} path=$path client=$clientKey',
+          source: 'HeadlessApiAudit',
+          fields: {
+            'requestId': requestId,
+            'auditAction': auditAction,
+            'method': request.method,
+            'path': path,
+            'client': clientKey,
+            'phase': 'requested',
+          },
+        );
+
+        final response = await innerHandler(request);
+        _logger.info(
+          '[AUDIT][$requestId] $auditAction completed '
+          'status=${response.statusCode}',
+          source: 'HeadlessApiAudit',
+          fields: {
+            'requestId': requestId,
+            'auditAction': auditAction,
+            'method': request.method,
+            'path': path,
+            'client': clientKey,
+            'phase': 'completed',
+            'statusCode': response.statusCode,
+          },
+        );
+        return response;
+      };
+    };
+  }
+
+  String _rateLimitClientKey(Request request) {
+    final forwardedFor = request.headers['x-forwarded-for'];
+    if (forwardedFor != null && forwardedFor.trim().isNotEmpty) {
+      return forwardedFor.split(',').first.trim();
+    }
+
+    final forwardedHost = request.headers['x-real-ip'];
+    if (forwardedHost != null && forwardedHost.trim().isNotEmpty) {
+      return forwardedHost.trim();
+    }
+
+    return request.requestedUri.host;
+  }
+
+  Map<String, String> _buildCorsHeaders(Request request) {
+    final origin = request.headers['origin'];
+    final allowedOrigin = _resolveAllowedOrigin(request, origin);
+    if (allowedOrigin == null) {
+      return const {};
+    }
+    return {
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers':
+          'Origin, Content-Type, X-Auth-Token, Authorization, '
+              'X-Nightshade-API-Version, X-Request-ID',
+      'Vary': 'Origin',
+    };
+  }
+
+  String? _resolveAllowedOrigin(Request request, String? origin) {
+    if (origin == null || origin.isEmpty) {
+      return null;
+    }
+
+    final originUri = Uri.tryParse(origin);
+    if (originUri == null) {
+      return null;
+    }
+
+    final requestedUri = request.requestedUri;
+    if (originUri.scheme != requestedUri.scheme ||
+        originUri.host.toLowerCase() != requestedUri.host.toLowerCase() ||
+        originUri.port != requestedUri.port) {
+      return null;
+    }
+
+    return origin;
   }
 
   /// Middleware that validates Bearer token authentication.
   ///
   /// Public endpoints are exempt from authentication:
   /// - GET /api/info
-  /// - WebSocket upgrades (/api/ws, /events)
+  ///
+  /// WebSocket endpoints (/api/ws, /events) require authentication when enabled.
+  /// They accept the token via Authorization header or `token` query parameter
+  /// (since browsers cannot set custom headers on WebSocket upgrades).
   Middleware _authMiddleware() {
     // Endpoints that don't require authentication
-    const publicPaths = {'/api/info', '/api/ws', '/events'};
+    const publicPaths = {'/api/info'};
+
+    // WebSocket paths that support query-param auth
+    const webSocketPaths = {'/api/ws', '/events'};
 
     return createMiddleware(
       requestHandler: (request) {
         // Skip auth if no token is configured
-        if (_effectiveAuthToken == null) {
+        if (_effectiveAuthTokensByValue.isEmpty) {
           return null;
         }
 
-        // Skip auth for public endpoints
+        // Skip auth for public endpoints and dashboard static files
         final requestId = _requestIdFrom(request);
         final path = '/${request.url.path}';
-        if (publicPaths.contains(path)) {
+        if (publicPaths.contains(path) || path.startsWith('/dashboard')) {
           return null;
+        }
+
+        // For WebSocket paths, also accept token as query parameter
+        if (webSocketPaths.contains(path)) {
+          final queryToken = request.url.queryParameters['token'];
+          final queryScope = _scopeForToken(queryToken);
+          if (queryScope != null &&
+              HeadlessAuthPolicy.allows(
+                actual: queryScope,
+                method: 'WS',
+                path: path,
+              )) {
+            return null; // Valid token via query param
+          }
+          // Fall through to check Authorization header below
         }
 
         // Check for Authorization header
@@ -1278,13 +2527,12 @@ class HeadlessApiServer {
         if (authHeader == null) {
           _logWarning(
               '[AUTH][$requestId] Rejected request to $path - no Authorization header');
-          return Response.unauthorized(
-            jsonEncode({
+          return jsonUnauthorized(
+            {
               'error': 'Authentication required',
               'message': 'Missing Authorization header',
-            }),
+            },
             headers: {
-              'content-type': 'application/json',
               _requestIdHeader: requestId,
             },
           );
@@ -1294,14 +2542,13 @@ class HeadlessApiServer {
         if (!authHeader.startsWith('Bearer ')) {
           _logWarning(
               '[AUTH][$requestId] Rejected request to $path - invalid auth format');
-          return Response.unauthorized(
-            jsonEncode({
+          return jsonUnauthorized(
+            {
               'error': 'Authentication required',
               'message':
                   'Invalid Authorization header format. Expected: Bearer <token>',
-            }),
+            },
             headers: {
-              'content-type': 'application/json',
               _requestIdHeader: requestId,
             },
           );
@@ -1309,16 +2556,43 @@ class HeadlessApiServer {
 
         // Extract and validate token
         final token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        if (token != _effectiveAuthToken) {
+        final tokenScope = _scopeForToken(token);
+        if (tokenScope == null) {
           _logWarning(
               '[AUTH][$requestId] Rejected request to $path - invalid token');
-          return Response.forbidden(
-            jsonEncode({
+          return jsonForbidden(
+            {
               'error': 'Access denied',
               'message': 'Invalid authentication token',
-            }),
+            },
             headers: {
-              'content-type': 'application/json',
+              _requestIdHeader: requestId,
+            },
+          );
+        }
+
+        if (!HeadlessAuthPolicy.allows(
+          actual: tokenScope,
+          method: request.method,
+          path: path,
+        )) {
+          final requiredScope = HeadlessAuthPolicy.requiredScopeFor(
+            method: request.method,
+            path: path,
+          );
+          _logWarning(
+            '[AUTH][$requestId] Rejected request to $path - '
+            'scope=${headlessTokenScopeName(tokenScope)} '
+            'required=${headlessTokenScopeName(requiredScope)}',
+          );
+          return jsonForbidden(
+            {
+              'error': 'Access denied',
+              'message': 'Token scope is not permitted for this endpoint',
+              'requiredScope': headlessTokenScopeName(requiredScope),
+              'tokenScope': headlessTokenScopeName(tokenScope),
+            },
+            headers: {
               _requestIdHeader: requestId,
             },
           );
@@ -1330,23 +2604,57 @@ class HeadlessApiServer {
     );
   }
 
+  HeadlessTokenScope? _scopeForToken(String? token) {
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    return _effectiveAuthTokensByValue[token];
+  }
+
   /// Generates a cryptographically secure random token.
   static String _generateRandomToken({int length = 32}) {
     const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    final buffer = StringBuffer();
-
-    // Use a simple PRNG seeded with current time for token generation
-    var seed = random;
-    for (var i = 0; i < length; i++) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      buffer.write(chars[seed % chars.length]);
-    }
-    return buffer.toString();
+    final random = Random.secure();
+    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
+        .join();
   }
 
   /// Get the current authentication token (for logging/debugging).
   /// Returns null if authentication is disabled.
   String? get effectiveAuthToken => _effectiveAuthToken;
+
+  /// The bound HTTP port. Useful when the server was started with port 0.
+  int get actualPort => _server?.port ?? port;
+}
+
+class _RequestBodyLimitResult {
+  final bool accepted;
+  final Uint8List bytes;
+  final int receivedBytes;
+
+  const _RequestBodyLimitResult._({
+    required this.accepted,
+    required this.bytes,
+    required this.receivedBytes,
+  });
+
+  factory _RequestBodyLimitResult.accepted(
+    Uint8List bytes,
+    int receivedBytes,
+  ) {
+    return _RequestBodyLimitResult._(
+      accepted: true,
+      bytes: bytes,
+      receivedBytes: receivedBytes,
+    );
+  }
+
+  factory _RequestBodyLimitResult.rejected(int receivedBytes) {
+    return _RequestBodyLimitResult._(
+      accepted: false,
+      bytes: Uint8List(0),
+      receivedBytes: receivedBytes,
+    );
+  }
 }

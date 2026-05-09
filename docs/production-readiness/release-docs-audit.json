@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-05-06T10:54:37.284685Z",
+  "passed": true,
+  "documentCount": 6,
+  "issueCount": 0,
+  "issues": [],
+  "documents": [
+    {
+      "path": "docs/release-notes-template.md",
+      "label": "Release notes template",
+      "exists": true,
+      "sizeBytes": 4991,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/known-limitations.md",
+      "label": "Known limitations",
+      "exists": true,
+      "sizeBytes": 4589,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/supported-hardware-by-platform.md",
+      "label": "Supported hardware by platform",
+      "exists": true,
+      "sizeBytes": 5260,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/getting-started/installation.md",
+      "label": "Installation guide",
+      "exists": true,
+      "sizeBytes": 9031,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/troubleshooting/firewall.md",
+      "label": "Firewall troubleshooting",
+      "exists": true,
+      "sizeBytes": 2266,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/migration-backup-restore.md",
+      "label": "Migration, backup, and restore",
+      "exists": true,
+      "sizeBytes": 5875,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    }
+  ],
+  "policy": "Release-critical docs must exist and include required release notes, platform support, known limitations, installation, firewall, and migration/backup sections or links."
+}

@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
+
+const _jsonOutputPath = 'docs/production-readiness/fail-closed-audit.json';
+const _markdownOutputPath = 'docs/production-readiness/fail-closed-audit.md';
 
 class _Rule {
   final String description;
@@ -77,19 +81,34 @@ void main() {
 
       for (final match in matches) {
         final line = _lineFromOffset(content, match.start);
-        violations.add('[${rule.description}] $path:$line');
+        violations.add('${rule.description}|$path|$line');
       }
     }
   }
 
+  final report = {
+    'generatedAt': DateTime.now().toUtc().toIso8601String(),
+    'ruleCount': _rules.length,
+    'violationCount': violations.length,
+    'passed': violations.isEmpty,
+    'violations': violations.map(_violationJson).toList(),
+  };
+  File(_jsonOutputPath).parent.createSync(recursive: true);
+  File(_jsonOutputPath)
+      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  File(_markdownOutputPath).parent.createSync(recursive: true);
+  File(_markdownOutputPath).writeAsStringSync(_renderMarkdown(violations));
+
   if (violations.isEmpty) {
     stdout.writeln('Fail-closed policy checks passed.');
+    stdout.writeln('JSON: $_jsonOutputPath');
+    stdout.writeln('Markdown: $_markdownOutputPath');
     return;
   }
 
   stderr.writeln('Fail-closed policy violations detected:');
   for (final violation in violations) {
-    stderr.writeln('  $violation');
+    stderr.writeln('  ${_violationDisplay(violation)}');
   }
   exit(1);
 }
@@ -102,4 +121,41 @@ int _lineFromOffset(String content, int offset) {
     }
   }
   return line;
+}
+
+Map<String, Object?> _violationJson(String violation) {
+  final parts = violation.split('|');
+  return {
+    'description': parts.isNotEmpty ? parts[0] : violation,
+    'path': parts.length > 1 ? parts[1] : null,
+    'line': parts.length > 2 ? int.tryParse(parts[2]) : null,
+  };
+}
+
+String _renderMarkdown(List<String> violations) {
+  final buffer = StringBuffer()
+    ..writeln('# Fail-Closed Audit')
+    ..writeln()
+    ..writeln('- Rules: `${_rules.length}`')
+    ..writeln('- Violations: `${violations.length}`')
+    ..writeln();
+
+  if (violations.isEmpty) {
+    buffer.writeln('Fail-closed policy checks passed.');
+    return buffer.toString();
+  }
+
+  buffer
+    ..writeln('## Violations')
+    ..writeln();
+  for (final violation in violations) {
+    buffer.writeln('- ${_violationDisplay(violation)}');
+  }
+  return buffer.toString();
+}
+
+String _violationDisplay(String violation) {
+  final parts = violation.split('|');
+  if (parts.length < 3) return violation;
+  return '[${parts[0]}] ${parts[1]}:${parts[2]}';
 }

@@ -149,8 +149,7 @@ class _WelcomeFlowState extends ConsumerState<WelcomeFlow>
                       _WelcomeOption(
                         icon: LucideIcons.zap,
                         title: "I've Used Nightshade Before",
-                        description:
-                            'Skip all tutorials and dive straight in.',
+                        description: 'Skip all tutorials and dive straight in.',
                         buttonText: 'Skip',
                         buttonIcon: LucideIcons.arrowRight,
                         isPrimary: false,
@@ -184,7 +183,7 @@ class _WelcomeHeader extends StatelessWidget {
           height: 80,
           decoration: BoxDecoration(
             color: colors.primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: colors.primary.withValues(alpha: 0.3),
               width: 1,
@@ -276,7 +275,7 @@ class _WelcomeOptionState extends State<_WelcomeOption> {
         curve: Curves.easeOut,
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: borderColor,
             width: isPrimary ? 2 : 1,
@@ -285,7 +284,7 @@ class _WelcomeOptionState extends State<_WelcomeOption> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             onTap: widget.onPressed,
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -306,7 +305,8 @@ class _WelcomeOptionState extends State<_WelcomeOption> {
                       child: Icon(
                         widget.icon,
                         size: 20,
-                        color: isPrimary ? colors.primary : colors.textSecondary,
+                        color:
+                            isPrimary ? colors.primary : colors.textSecondary,
                       ),
                     ),
                   ),

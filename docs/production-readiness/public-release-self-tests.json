@@ -1,0 +1,211 @@
+{
+  "generatedAt": "2026-05-06T14:36:42.424622Z",
+  "durationMillis": 83976,
+  "passed": true,
+  "selfTestCount": 25,
+  "expectedSelfTestCount": 25,
+  "passedCount": 25,
+  "failedCount": 0,
+  "results": [
+    {
+      "script": "tools/production/analyzer_rollup_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 6716,
+      "stdout": "Analyzer rollup self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_gate_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 1926,
+      "stdout": "Public release gate self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_blocker_inputs_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 1669,
+      "stdout": "Public release blocker inputs self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_external_evidence_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 5706,
+      "stdout": "External evidence verifier self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_completion_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 1578,
+      "stdout": "Public release completion audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_owner_checklist_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 1837,
+      "stdout": "Public release owner checklist self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/public_release_checklist_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 1854,
+      "stdout": "Public release checklist audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/placeholder_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 3893,
+      "stdout": "Placeholder audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/fail_closed_check_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 3208,
+      "stdout": "Fail-closed audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/release_staging_pr_plan_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 4711,
+      "stdout": "Release staging and PR split plan self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/release_pr_owner_matrix_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 10775,
+      "stdout": "Release PR owner matrix self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/linux_release_package_metadata_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 3608,
+      "stdout": "Linux release package metadata self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/linux_release_workflow_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2539,
+      "stdout": "Linux release workflow audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/oversized_file_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2541,
+      "stdout": "Oversized file audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/dependency_hygiene_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2652,
+      "stdout": "Dependency hygiene self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/developer_quality_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2621,
+      "stdout": "Developer quality audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/docs_link_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2585,
+      "stdout": "Docs link audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/headless_api_contract_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2839,
+      "stdout": "Headless API contract audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/headless_route_policy_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2810,
+      "stdout": "Headless route policy audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/headless_response_helper_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 3482,
+      "stdout": "Headless response helper audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/migration_regression_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2687,
+      "stdout": "Migration regression audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/release_docs_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2759,
+      "stdout": "Release docs audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/platform_capability_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2870,
+      "stdout": "Platform capability audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/ui_consistency_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 2717,
+      "stdout": "UI consistency audit self-test passed.\n",
+      "stderr": ""
+    },
+    {
+      "script": "tools/production/windows_bundle_audit_self_test.dart",
+      "exitCode": 0,
+      "passed": true,
+      "durationMillis": 3372,
+      "stdout": "Windows bundle audit self-test passed.\n",
+      "stderr": ""
+    }
+  ]
+}

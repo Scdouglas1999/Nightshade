@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-05-06T11:18:47.059351Z",
+  "ready": false,
+  "passedCount": 0,
+  "checkCount": 5,
+  "checks": [
+    {
+      "id": "linux_release_build",
+      "label": "Linux release build/package evidence",
+      "evidencePath": "docs/production-readiness/linux-release-build-evidence.json",
+      "templatePath": "docs/production-readiness/external-evidence-templates/linux-release-build-evidence.template.json",
+      "passed": false,
+      "requirements": [
+        "Linux platform build command passed.",
+        "Evidence uses metadata schema v2 or newer and records toolchain provenance.",
+        "Package SHA256 sidecar exists and contains the package hash.",
+        "Generated package metadata exists and matches the evidence hash/size.",
+        "Package artifact path exists, size matches, and SHA256 matches.",
+        "Runtime/headless smoke from the Linux artifact passed, covers required checks, and its log exists.",
+        "Linux native shared library and permission notes are recorded."
+      ],
+      "issues": [
+        "Evidence file is missing or is not valid JSON."
+      ]
+    },
+    {
+      "id": "hardware_control_smoke",
+      "label": "Full hardware/control smoke",
+      "evidencePath": "docs/production-readiness/full-hardware-control-smoke-evidence.json",
+      "templatePath": "docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json",
+      "passed": false,
+      "requirements": [
+        "All required device classes are covered.",
+        "Per-device connect/disconnect and status reads passed.",
+        "Command results cover every required device type and the smoke log exists."
+      ],
+      "issues": [
+        "Evidence file is missing or is not valid JSON."
+      ]
+    },
+    {
+      "id": "second_device_lan_firewall",
+      "label": "Second-device LAN/firewall smoke",
+      "evidencePath": "docs/production-readiness/second-device-lan-firewall-smoke-evidence.json",
+      "templatePath": "docs/production-readiness/external-evidence-templates/second-device-lan-firewall-smoke-evidence.template.json",
+      "passed": false,
+      "requirements": [
+        "A physical second device uses the real LAN URL.",
+        "Evidence records client IP, Windows firewall rule/profile, and network path.",
+        "Dashboard, auth success/failure, WebSocket connection, and reconnect are verified.",
+        "Screenshot/log evidence artifact paths exist."
+      ],
+      "issues": [
+        "Evidence file is missing or is not valid JSON."
+      ]
+    },
+    {
+      "id": "real_remote_control_actions",
+      "label": "Real remote-control actions",
+      "evidencePath": "docs/production-readiness/real-remote-control-actions-evidence.json",
+      "templatePath": "docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json",
+      "passed": false,
+      "requirements": [
+        "Remote client sends actual safe commands.",
+        "Evidence declares the applicable remote-control device types in scope.",
+        "Command results all pass and include device IDs.",
+        "Post-command state readback and request IDs are recorded in the server audit log."
+      ],
+      "issues": [
+        "Evidence file is missing or is not valid JSON."
+      ]
+    },
+    {
+      "id": "final_release_signoff",
+      "label": "Final release checklist/sign-off",
+      "evidencePath": "docs/production-readiness/final-release-signoff-evidence.json",
+      "templatePath": "docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json",
+      "passed": false,
+      "requirements": [
+        "Reviewer, date, and commit are recorded.",
+        "Decision is ship.",
+        "Commit is a full hash matching current git HEAD.",
+        "Checklist audit has zero unchecked and zero checked-without-evidence items.",
+        "Public release gate decision is READY with no blockers.",
+        "Known limitations, supported hardware, and completed release notes artifacts exist."
+      ],
+      "issues": [
+        "Evidence file is missing or is not valid JSON."
+      ]
+    }
+  ]
+}

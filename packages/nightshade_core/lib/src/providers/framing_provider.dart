@@ -22,12 +22,6 @@ import 'equipment_provider.dart';
 
 /// Shared HTTP client for astronomy server requests.
 /// Uses standard certificate verification — no SSL bypass.
-http.Client? _astronomyHttpClient;
-
-http.Client _getAstronomyHttpClient() {
-  _astronomyHttpClient ??= http.Client();
-  return _astronomyHttpClient!;
-}
 
 // =============================================================================
 // FRAMING STATE
@@ -571,8 +565,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Toggle optical config panel visibility
   void toggleOpticalConfigPanel() {
-    state = state.copyWith(
-        showOpticalConfigPanel: !state.showOpticalConfigPanel);
+    state =
+        state.copyWith(showOpticalConfigPanel: !state.showOpticalConfigPanel);
   }
 
   /// Set optical config panel visibility
@@ -659,58 +653,65 @@ class FramingNotifier extends StateNotifier<FramingState> {
         state.surveySource,
       );
 
-      // Use custom HTTP client for trusted astronomy servers (handles cert issues)
-      final client = _getAstronomyHttpClient();
-      final response = await client.get(Uri.parse(url));
+      final client = http.Client();
+      try {
+        final response = await client.get(Uri.parse(url));
 
-      if (response.statusCode == 200) {
-        final bytes = response.bodyBytes;
+        if (response.statusCode == 200) {
+          final bytes = response.bodyBytes;
 
-        // Decode to ui.Image
-        final completer = Completer<ui.Image>();
-        ui.decodeImageFromList(bytes, (image) {
-          completer.complete(image);
-        });
-        final image = await completer.future;
-
-        state = state.copyWith(
-          surveyImageBytes: bytes,
-          surveyImage: image,
-          isLoadingImage: false,
-        );
-      } else {
-        // Fallback to SkyView
-        final skyViewUrl = _buildSkyViewUrl(
-          state.target!.raDegrees,
-          state.target!.decDegrees,
-          requestWidth,
-          requestHeight,
-          state.surveySource,
-        );
-
-        final skyViewResponse = await client.get(Uri.parse(skyViewUrl));
-
-        if (skyViewResponse.statusCode == 200) {
-          final bytes = skyViewResponse.bodyBytes;
+          // Decode to ui.Image
           final completer = Completer<ui.Image>();
           ui.decodeImageFromList(bytes, (image) {
             completer.complete(image);
           });
           final image = await completer.future;
 
+          if (!mounted) return;
           state = state.copyWith(
             surveyImageBytes: bytes,
             surveyImage: image,
             isLoadingImage: false,
           );
         } else {
-          state = state.copyWith(
-            isLoadingImage: false,
-            imageError: 'Failed to load survey image',
+          // Fallback to SkyView
+          final skyViewUrl = _buildSkyViewUrl(
+            state.target!.raDegrees,
+            state.target!.decDegrees,
+            requestWidth,
+            requestHeight,
+            state.surveySource,
           );
+
+          final skyViewResponse = await client.get(Uri.parse(skyViewUrl));
+
+          if (skyViewResponse.statusCode == 200) {
+            final bytes = skyViewResponse.bodyBytes;
+            final completer = Completer<ui.Image>();
+            ui.decodeImageFromList(bytes, (image) {
+              completer.complete(image);
+            });
+            final image = await completer.future;
+
+            if (!mounted) return;
+            state = state.copyWith(
+              surveyImageBytes: bytes,
+              surveyImage: image,
+              isLoadingImage: false,
+            );
+          } else {
+            if (!mounted) return;
+            state = state.copyWith(
+              isLoadingImage: false,
+              imageError: 'Failed to load survey image',
+            );
+          }
         }
+      } finally {
+        client.close();
       }
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoadingImage: false,
         imageError: 'Error: ${e.toString()}',
@@ -1040,7 +1041,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Get mosaic total coverage info
   (double widthDeg, double heightDeg) getMosaicCoverage() {
     final config = state.mosaicConfig;
-    final baseWidthDeg = state.customEquipment?.fovWidthDeg ?? state.previewFovDegrees;
+    final baseWidthDeg =
+        state.customEquipment?.fovWidthDeg ?? state.previewFovDegrees;
     final baseHeightDeg = state.customEquipment?.fovHeightDeg ??
         (state.surveyImage != null && state.surveyImage!.width > 0
             ? state.previewFovDegrees *
@@ -1340,33 +1342,39 @@ class SimbadResolver {
           '&output.format=votable'
           '&output.params=main_id,ra,dec,otype,flux(V)';
 
-      final client = _getAstronomyHttpClient();
-      final response = await client.get(Uri.parse(url));
+      final client = http.Client();
+      try {
+        final response = await client.get(Uri.parse(url));
 
-      if (response.statusCode != 200) return null;
+        if (response.statusCode != 200) return null;
 
-      // Parse the simple VOTable response
-      final body = response.body;
+        // Parse the simple VOTable response
+        final body = response.body;
 
-      // Extract RA and Dec from response
-      final raMatch = RegExp(r'<TD>(\d+\.\d+)</TD>').firstMatch(body);
-      final decMatch = RegExp(r'<TD>([+-]?\d+\.\d+)</TD>', caseSensitive: false)
-          .firstMatch(body);
+        // Extract RA and Dec from response
+        final raMatch = RegExp(r'<TD>(\d+\.\d+)</TD>').firstMatch(body);
+        final decMatch = RegExp(
+          r'<TD>([+-]?\d+\.\d+)</TD>',
+          caseSensitive: false,
+        ).firstMatch(body);
 
-      if (raMatch == null || decMatch == null) {
-        // Try TAP query instead
-        return await _resolveTAP(name);
+        if (raMatch == null || decMatch == null) {
+          // Try TAP query instead
+          return await _resolveTAP(name);
+        }
+
+        final raDeg = double.parse(raMatch.group(1)!);
+        final decDeg = double.parse(decMatch.group(1)!);
+
+        return SimbadResult(
+          mainId: name,
+          raHours: raDeg / 15,
+          decDegrees: decDeg,
+          objectType: 'Unknown',
+        );
+      } finally {
+        client.close();
       }
-
-      final raDeg = double.parse(raMatch.group(1)!);
-      final decDeg = double.parse(decMatch.group(1)!);
-
-      return SimbadResult(
-        mainId: name,
-        raHours: raDeg / 15,
-        decDegrees: decDeg,
-        objectType: 'Unknown',
-      );
     } catch (error, stack) {
       developer.log(
         'SIMBAD primary resolver failed for "$name"; trying TAP fallback.',
@@ -1395,25 +1403,29 @@ class SimbadResolver {
           '&format=json'
           '&query=${Uri.encodeComponent(query)}';
 
-      final client = _getAstronomyHttpClient();
-      final response = await client.get(Uri.parse(url));
+      final client = http.Client();
+      try {
+        final response = await client.get(Uri.parse(url));
 
-      if (response.statusCode != 200) return null;
+        if (response.statusCode != 200) return null;
 
-      final json = jsonDecode(response.body);
-      final data = json['data'] as List?;
+        final json = jsonDecode(response.body);
+        final data = json['data'] as List?;
 
-      if (data == null || data.isEmpty) return null;
+        if (data == null || data.isEmpty) return null;
 
-      final row = data[0] as List;
+        final row = data[0] as List;
 
-      return SimbadResult(
-        mainId: row[0] as String,
-        raHours: (row[1] as num).toDouble() / 15,
-        decDegrees: (row[2] as num).toDouble(),
-        objectType: row[3] as String? ?? 'Unknown',
-        magnitude: row.length > 4 ? (row[4] as num?)?.toDouble() : null,
-      );
+        return SimbadResult(
+          mainId: row[0] as String,
+          raHours: (row[1] as num).toDouble() / 15,
+          decDegrees: (row[2] as num).toDouble(),
+          objectType: row[3] as String? ?? 'Unknown',
+          magnitude: row.length > 4 ? (row[4] as num?)?.toDouble() : null,
+        );
+      } finally {
+        client.close();
+      }
     } catch (error, stack) {
       developer.log(
         'SIMBAD TAP resolver failed for "$name".',
@@ -1445,25 +1457,29 @@ class SimbadResolver {
           '&format=json'
           '&query=${Uri.encodeComponent(tapQuery)}';
 
-      final client = _getAstronomyHttpClient();
-      final response = await client.get(Uri.parse(url));
+      final client = http.Client();
+      try {
+        final response = await client.get(Uri.parse(url));
 
-      if (response.statusCode != 200) return [];
+        if (response.statusCode != 200) return [];
 
-      final json = jsonDecode(response.body);
-      final data = json['data'] as List?;
+        final json = jsonDecode(response.body);
+        final data = json['data'] as List?;
 
-      if (data == null) return [];
+        if (data == null) return [];
 
-      return data.map((row) {
-        final r = row as List;
-        return SimbadResult(
-          mainId: r[0] as String,
-          raHours: (r[1] as num).toDouble() / 15,
-          decDegrees: (r[2] as num).toDouble(),
-          objectType: r[3] as String? ?? 'Unknown',
-        );
-      }).toList();
+        return data.map((row) {
+          final r = row as List;
+          return SimbadResult(
+            mainId: r[0] as String,
+            raHours: (r[1] as num).toDouble() / 15,
+            decDegrees: (r[2] as num).toDouble(),
+            objectType: r[3] as String? ?? 'Unknown',
+          );
+        }).toList();
+      } finally {
+        client.close();
+      }
     } catch (error, stack) {
       developer.log(
         'SIMBAD search failed for "$query".',
@@ -1673,10 +1689,12 @@ class CoordinateUtils {
   /// Parse RA from string (supports HH:MM:SS, HHhMMmSSs, decimal hours/degrees)
   static double? parseRA(String input) {
     var cleaned = input.trim().toLowerCase();
-    
+
     // Check for explicit units
     bool isDegrees = false;
-    if (cleaned.endsWith('d') || cleaned.endsWith('deg') || cleaned.endsWith('°')) {
+    if (cleaned.endsWith('d') ||
+        cleaned.endsWith('deg') ||
+        cleaned.endsWith('°')) {
       isDegrees = true;
       cleaned = cleaned.replaceAll(RegExp(r'[d°]|deg'), '').trim();
     } else if (cleaned.endsWith('h')) {
@@ -1689,7 +1707,7 @@ class CoordinateUtils {
       if (isDegrees) {
         return decimal / 15;
       }
-      
+
       // Heuristic for unitless numbers
       if (decimal > 24) {
         // Probably degrees

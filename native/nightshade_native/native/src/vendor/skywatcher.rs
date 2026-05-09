@@ -672,6 +672,18 @@ impl NativeMount for SkyWatcherMount {
         Ok(TrackingRate::Sidereal)
     }
 
+    fn can_slew(&self) -> bool {
+        true
+    }
+
+    fn can_sync(&self) -> bool {
+        true
+    }
+
+    fn can_pulse_guide(&self) -> bool {
+        true
+    }
+
     fn can_set_tracking_rate(&self) -> bool {
         false
     }

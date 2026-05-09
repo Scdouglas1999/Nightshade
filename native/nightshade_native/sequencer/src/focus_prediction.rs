@@ -70,20 +70,69 @@ impl FocusPredictionEngine {
     /// Add a data point from an autofocus run
     pub fn add_datapoint(&mut self, point: FocusDataPoint) {
         self.data_points.push(point);
-
-        // Limit data points to prevent unbounded growth
-        if self.data_points.len() > self.max_data_points {
-            self.data_points.remove(0);
-        }
+        self.trim_data_points();
 
         // Recalculate model
         self.recalculate_model();
+    }
+
+    fn trim_data_points(&mut self) {
+        if self.data_points.len() <= self.max_data_points {
+            return;
+        }
+        if self.max_data_points == 0 {
+            self.data_points.clear();
+            return;
+        }
+        if self.max_data_points == 1 {
+            if let Some(last) = self
+                .data_points
+                .iter()
+                .max_by_key(|point| point.timestamp_secs)
+                .cloned()
+            {
+                self.data_points = vec![last];
+            }
+            return;
+        }
+
+        self.data_points
+            .sort_by(|a, b| a.timestamp_secs.cmp(&b.timestamp_secs));
+
+        let last_index = self.data_points.len() - 1;
+        let target_last_index = self.max_data_points - 1;
+        let mut retained = Vec::with_capacity(self.max_data_points);
+
+        for slot in 0..self.max_data_points {
+            let idx = if slot == target_last_index {
+                last_index
+            } else {
+                ((slot as f64 * last_index as f64) / target_last_index as f64).round() as usize
+            };
+
+            if retained
+                .last()
+                .map(|point: &FocusDataPoint| {
+                    point.timestamp_secs == self.data_points[idx].timestamp_secs
+                })
+                .unwrap_or(false)
+            {
+                continue;
+            }
+
+            retained.push(self.data_points[idx].clone());
+        }
+
+        self.data_points = retained;
     }
 
     /// Recalculate the temperature-focus model using linear regression
     fn recalculate_model(&mut self) {
         if self.data_points.len() < 3 {
             self.temperature_model = None;
+            if let Some(ref_filter) = &self.reference_filter {
+                self.update_filter_offsets(ref_filter.clone());
+            }
             return;
         }
 
@@ -108,54 +157,52 @@ impl FocusPredictionEngine {
 
         if best_points.len() < 3 {
             self.temperature_model = None;
-            return;
-        }
-
-        // Linear regression: y = mx + b
-        let n = best_points.len() as f64;
-        let (mut sum_x, mut sum_y, mut sum_xy, mut sum_x2) = (0.0, 0.0, 0.0, 0.0);
-
-        for point in &best_points {
-            let x = point.temperature_celsius;
-            let y = point.focus_position as f64;
-            sum_x += x;
-            sum_y += y;
-            sum_xy += x * y;
-            sum_x2 += x * x;
-        }
-
-        let denom = n * sum_x2 - sum_x * sum_x;
-        if denom.abs() < 1e-10 {
-            self.temperature_model = None;
-            return;
-        }
-
-        let slope = (n * sum_xy - sum_x * sum_y) / denom;
-        let intercept = (sum_y - slope * sum_x) / n;
-
-        // Calculate R-squared
-        let mean_y = sum_y / n;
-        let mut ss_tot = 0.0;
-        let mut ss_res = 0.0;
-
-        for point in &best_points {
-            let predicted = intercept + slope * point.temperature_celsius;
-            ss_tot += (point.focus_position as f64 - mean_y).powi(2);
-            ss_res += (point.focus_position as f64 - predicted).powi(2);
-        }
-
-        let r_squared = if ss_tot > 0.0 {
-            1.0 - (ss_res / ss_tot)
         } else {
-            0.0
-        };
+            // Linear regression: y = mx + b
+            let n = best_points.len() as f64;
+            let (mut sum_x, mut sum_y, mut sum_xy, mut sum_x2) = (0.0, 0.0, 0.0, 0.0);
 
-        self.temperature_model = Some(FocusModel {
-            slope,
-            intercept,
-            r_squared,
-            data_point_count: best_points.len(),
-        });
+            for point in &best_points {
+                let x = point.temperature_celsius;
+                let y = point.focus_position as f64;
+                sum_x += x;
+                sum_y += y;
+                sum_xy += x * y;
+                sum_x2 += x * x;
+            }
+
+            let denom = n * sum_x2 - sum_x * sum_x;
+            if denom.abs() < 1e-10 {
+                self.temperature_model = None;
+            } else {
+                let slope = (n * sum_xy - sum_x * sum_y) / denom;
+                let intercept = (sum_y - slope * sum_x) / n;
+
+                // Calculate R-squared
+                let mean_y = sum_y / n;
+                let mut ss_tot = 0.0;
+                let mut ss_res = 0.0;
+
+                for point in &best_points {
+                    let predicted = intercept + slope * point.temperature_celsius;
+                    ss_tot += (point.focus_position as f64 - mean_y).powi(2);
+                    ss_res += (point.focus_position as f64 - predicted).powi(2);
+                }
+
+                let r_squared = if ss_tot > 0.0 {
+                    1.0 - (ss_res / ss_tot)
+                } else {
+                    0.0
+                };
+
+                self.temperature_model = Some(FocusModel {
+                    slope,
+                    intercept,
+                    r_squared,
+                    data_point_count: best_points.len(),
+                });
+            }
+        }
 
         // Update filter offsets if we have a reference
         if let Some(ref_filter) = &self.reference_filter {
@@ -377,5 +424,30 @@ mod tests {
         let offset = engine.get_filter_offset("Ha").expect("Offset should exist");
         assert_eq!(offset.offset_steps, 200);
         assert!(offset.confidence > 0.5);
+    }
+
+    #[test]
+    fn test_trim_data_points_preserves_history_span() {
+        let mut engine = FocusPredictionEngine::new();
+        engine.max_data_points = 5;
+
+        for i in 0..10 {
+            engine.add_datapoint(FocusDataPoint {
+                timestamp_secs: i,
+                temperature_celsius: 10.0 + i as f64,
+                focus_position: 10000 + i as i32,
+                hfr: 2.0,
+                filter_name: None,
+            });
+        }
+
+        let timestamps: Vec<i64> = engine
+            .data_points
+            .iter()
+            .map(|p| p.timestamp_secs)
+            .collect();
+        assert_eq!(timestamps.len(), 5);
+        assert_eq!(timestamps.first().copied(), Some(0));
+        assert_eq!(timestamps.last().copied(), Some(9));
     }
 }

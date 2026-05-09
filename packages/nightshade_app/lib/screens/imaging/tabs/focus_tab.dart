@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/focuser_controls.dart';
+import '../widgets/focus_model_panel.dart';
 
 class FocusTab extends ConsumerStatefulWidget {
   const FocusTab({super.key});
@@ -19,6 +20,13 @@ class _FocusTabState extends ConsumerState<FocusTab> {
   bool _isRunningAf = false;
   String? _afStatus;
   double? _pendingSliderPosition;
+  final TextEditingController _goToPositionController = TextEditingController();
+
+  @override
+  void dispose() {
+    _goToPositionController.dispose();
+    super.dispose();
+  }
 
   Future<void> _moveTo(int position) async {
     try {
@@ -34,6 +42,10 @@ class _FocusTabState extends ConsumerState<FocusTab> {
       _afStatus = 'Running...';
     });
 
+    // Notify session state and overlay that AF is starting
+    ref.read(sessionStateProvider.notifier).setAutofocusing(true);
+    ref.read(autofocusOverlayProvider.notifier).onAutofocusStarted();
+
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
@@ -47,6 +59,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
       // Store result in provider for display
       ref.read(autofocusResultProvider.notifier).state = result;
 
+      // Notify overlay of completion
+      ref.read(autofocusOverlayProvider.notifier).onAutofocusCompleted(result);
+
       if (mounted) {
         setState(() {
           _afStatus = 'Complete. HFR: ${result.bestHfr.toStringAsFixed(2)}';
@@ -55,6 +70,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
             'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
       }
     } catch (e) {
+      // Notify overlay of failure
+      ref.read(autofocusOverlayProvider.notifier).onAutofocusFailed('$e');
+
       if (mounted) {
         setState(() {
           _afStatus = 'Failed';
@@ -62,6 +80,7 @@ class _FocusTabState extends ConsumerState<FocusTab> {
         context.showErrorSnackBar('Autofocus failed: $e');
       }
     } finally {
+      ref.read(sessionStateProvider.notifier).setAutofocusing(false);
       if (mounted) {
         setState(() {
           _isRunningAf = false;
@@ -434,37 +453,126 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Step size chips - wrap on very narrow screens
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  // Go To Position input and Step size chips row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        'Step Size:',
-                        style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary),
+                      // Go To Position
+                      SizedBox(
+                        width: isMobile ? 140 : 180,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 32,
+                                child: TextField(
+                                  controller: _goToPositionController,
+                                  keyboardType: TextInputType.number,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textPrimary,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: 'Position',
+                                    hintStyle: TextStyle(
+                                      fontSize: 12,
+                                      color: colors.textMuted,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 6,
+                                    ),
+                                    isDense: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                      borderSide:
+                                          BorderSide(color: colors.primary),
+                                    ),
+                                    filled: true,
+                                    fillColor: colors.surfaceAlt,
+                                  ),
+                                  onSubmitted: isConnected
+                                      ? (value) {
+                                          final pos = int.tryParse(value);
+                                          if (pos != null) {
+                                            _moveTo(pos);
+                                            _goToPositionController.clear();
+                                          }
+                                        }
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            SizedBox(
+                              height: 32,
+                              child: NightshadeButton(
+                                label: 'Go',
+                                size: ButtonSize.small,
+                                variant: ButtonVariant.outline,
+                                onPressed: isConnected
+                                    ? () {
+                                        final pos = int.tryParse(
+                                            _goToPositionController.text);
+                                        if (pos != null) {
+                                          _moveTo(pos);
+                                          _goToPositionController.clear();
+                                        }
+                                      }
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      _StepChip(
-                        label: '10',
-                        isSelected: focusSettings.stepSize == 10,
-                        onTap: () => ref
-                            .read(focusSettingsProvider.notifier)
-                            .state = focusSettings.copyWith(stepSize: 10),
-                      ),
-                      _StepChip(
-                        label: '100',
-                        isSelected: focusSettings.stepSize == 100,
-                        onTap: () => ref
-                            .read(focusSettingsProvider.notifier)
-                            .state = focusSettings.copyWith(stepSize: 100),
-                      ),
-                      _StepChip(
-                        label: '1000',
-                        isSelected: focusSettings.stepSize == 1000,
-                        onTap: () => ref
-                            .read(focusSettingsProvider.notifier)
-                            .state = focusSettings.copyWith(stepSize: 1000),
+                      const SizedBox(width: 16),
+                      // Step size chips
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Step Size:',
+                              style: TextStyle(
+                                  fontSize: 12, color: colors.textSecondary),
+                            ),
+                            _StepChip(
+                              label: '10',
+                              isSelected: focusSettings.stepSize == 10,
+                              onTap: () => ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(focusSettings.copyWith(stepSize: 10)),
+                            ),
+                            _StepChip(
+                              label: '100',
+                              isSelected: focusSettings.stepSize == 100,
+                              onTap: () => ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(focusSettings.copyWith(stepSize: 100)),
+                            ),
+                            _StepChip(
+                              label: '1000',
+                              isSelected: focusSettings.stepSize == 1000,
+                              onTap: () => ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(
+                                    focusSettings.copyWith(stepSize: 1000),
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -480,6 +588,11 @@ class _FocusTabState extends ConsumerState<FocusTab> {
               ? _buildMobileAutofocusSection(colors, focusSettings, isConnected)
               : _buildDesktopAutofocusSection(
                   colors, focusSettings, isConnected),
+
+          SizedBox(height: isMobile ? 16 : 24),
+
+          // Temperature compensation model
+          const FocusModelPanel(),
 
           SizedBox(height: isMobile ? 16 : 24),
 
@@ -521,8 +634,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(focusSettingsProvider.notifier).state =
-                            focusSettings.copyWith(method: value);
+                        ref
+                            .read(focusSettingsProvider.notifier)
+                            .update(focusSettings.copyWith(method: value));
                       }
                     },
                   ),
@@ -539,8 +653,10 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                           onChanged: (value) {
                             final v = double.tryParse(value);
                             if (v != null) {
-                              ref.read(focusSettingsProvider.notifier).state =
-                                  focusSettings.copyWith(exposureTime: v);
+                              ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(
+                                      focusSettings.copyWith(exposureTime: v));
                             }
                           },
                         ),
@@ -555,8 +671,10 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                           onChanged: (value) {
                             final v = int.tryParse(value);
                             if (v != null) {
-                              ref.read(focusSettingsProvider.notifier).state =
-                                  focusSettings.copyWith(afStepSize: v);
+                              ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(
+                                      focusSettings.copyWith(afStepSize: v));
                             }
                           },
                         ),
@@ -575,8 +693,10 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                           onChanged: (value) {
                             final v = int.tryParse(value);
                             if (v != null) {
-                              ref.read(focusSettingsProvider.notifier).state =
-                                  focusSettings.copyWith(stepsOut: v);
+                              ref
+                                  .read(focusSettingsProvider.notifier)
+                                  .update(
+                                      focusSettings.copyWith(stepsOut: v));
                             }
                           },
                         ),
@@ -745,8 +865,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
                       onChanged: (value) {
                         if (value != null) {
-                          ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(method: value);
+                          ref
+                              .read(focusSettingsProvider.notifier)
+                              .update(focusSettings.copyWith(method: value));
                         }
                       },
                     ),
@@ -760,8 +881,10 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       onChanged: (value) {
                         final v = double.tryParse(value);
                         if (v != null) {
-                          ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(exposureTime: v);
+                          ref
+                              .read(focusSettingsProvider.notifier)
+                              .update(
+                                  focusSettings.copyWith(exposureTime: v));
                         }
                       },
                     ),
@@ -775,8 +898,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       onChanged: (value) {
                         final v = int.tryParse(value);
                         if (v != null) {
-                          ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(afStepSize: v);
+                          ref
+                              .read(focusSettingsProvider.notifier)
+                              .update(focusSettings.copyWith(afStepSize: v));
                         }
                       },
                     ),
@@ -789,8 +913,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       onChanged: (value) {
                         final v = int.tryParse(value);
                         if (v != null) {
-                          ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(stepsOut: v);
+                          ref
+                              .read(focusSettingsProvider.notifier)
+                              .update(focusSettings.copyWith(stepsOut: v));
                         }
                       },
                     ),
@@ -1409,6 +1534,20 @@ class _FocusCurvePainter extends CustomPainter {
     final displayMinHfr = (minHfr - hfrPadding).clamp(0, double.infinity);
     final displayMaxHfr = maxHfr + hfrPadding;
 
+    // Guard against zero ranges (all values equal)
+    final posRange = (maxPos - minPos).toDouble();
+    final hfrRange = displayMaxHfr - displayMinHfr;
+    if (posRange == 0 || hfrRange == 0) {
+      // Draw a single point in the center when all values are identical
+      final centerX = chartArea.center.dx;
+      final centerY = chartArea.center.dy;
+      final pointPaint = Paint()
+        ..color = accentColor
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(centerX, centerY), 5, pointPaint);
+      return;
+    }
+
     // Draw grid
     final gridPaint = Paint()
       ..color = gridColor.withValues(alpha: 0.3)
@@ -1435,10 +1574,10 @@ class _FocusCurvePainter extends CustomPainter {
       for (var i = 0; i < points.length; i++) {
         final p = points[i];
         final x = chartArea.left +
-            (p.position - minPos) / (maxPos - minPos) * chartArea.width;
+            (p.position - minPos) / posRange * chartArea.width;
         final y = chartArea.bottom -
             (p.hfr - displayMinHfr) /
-                (displayMaxHfr - displayMinHfr) *
+                hfrRange *
                 chartArea.height;
 
         if (i == 0) {
@@ -1457,10 +1596,10 @@ class _FocusCurvePainter extends CustomPainter {
 
     for (final p in points) {
       final x = chartArea.left +
-          (p.position - minPos) / (maxPos - minPos) * chartArea.width;
+          (p.position - minPos) / posRange * chartArea.width;
       final y = chartArea.bottom -
           (p.hfr - displayMinHfr) /
-              (displayMaxHfr - displayMinHfr) *
+              hfrRange *
               chartArea.height;
 
       final isMinimum = p.position == bestPosition;
@@ -1543,7 +1682,44 @@ class _FilterOffsetMeasurementDialogState
   int? _referencePosition;
   final Map<String, int> _measuredOffsets = {};
   final Map<String, int> _measuredPositions = {};
+  /// Per-filter individual run results for multi-iteration averaging
+  final Map<String, List<int>> _perFilterRunPositions = {};
   String? _errorMessage;
+  /// Number of AF runs per filter (for averaging accuracy)
+  int _iterationsPerFilter = 3;
+
+  /// Run autofocus N times for a given filter and return the averaged best position.
+  Future<int> _runAveragedAutofocus(String filterLabel) async {
+    final positions = <int>[];
+
+    for (var iter = 1; iter <= _iterationsPerFilter; iter++) {
+      if (_isCancelled || !mounted) {
+        throw Exception('Cancelled');
+      }
+
+      if (mounted) {
+        setState(() {
+          _status = '$filterLabel: AF run $iter/$_iterationsPerFilter';
+        });
+      }
+
+      final result = await widget.deviceService.runAutofocus(
+        exposureTime: widget.focusSettings.exposureTime,
+        stepSize: widget.focusSettings.afStepSize,
+        stepsOut: widget.focusSettings.stepsOut,
+        method: widget.focusSettings.method,
+        binning: 1,
+      );
+      positions.add(result.bestPosition);
+    }
+
+    // Store individual run positions for display
+    _perFilterRunPositions[filterLabel] = List.unmodifiable(positions);
+
+    // Return the averaged position (rounded to nearest int)
+    final sum = positions.reduce((a, b) => a + b);
+    return (sum / positions.length).round();
+  }
 
   Future<void> _startMeasurement() async {
     setState(() {
@@ -1552,6 +1728,7 @@ class _FilterOffsetMeasurementDialogState
       _status = 'Starting measurement...';
       _measuredOffsets.clear();
       _measuredPositions.clear();
+      _perFilterRunPositions.clear();
       _completedFilters = 0;
       _referencePosition = null;
       _errorMessage = null;
@@ -1564,6 +1741,7 @@ class _FilterOffsetMeasurementDialogState
         throw Exception('Reference filter not found');
       }
 
+      if (!mounted) return;
       setState(() {
         _currentFilter = widget.referenceFilter;
         _status = 'Changing to reference filter: ${widget.referenceFilter}';
@@ -1576,40 +1754,33 @@ class _FilterOffsetMeasurementDialogState
       // Wait for filter change to complete
       await _waitForFilterChange();
 
-      if (_isCancelled) return;
+      if (_isCancelled || !mounted) return;
 
-      setState(() {
-        _status =
-            'Running autofocus on reference filter: ${widget.referenceFilter}';
-      });
+      // Run averaged autofocus on reference filter
+      final refAvgPosition =
+          await _runAveragedAutofocus(widget.referenceFilter);
 
-      // Run autofocus on reference filter
-      final refResult = await widget.deviceService.runAutofocus(
-        exposureTime: widget.focusSettings.exposureTime,
-        stepSize: widget.focusSettings.afStepSize,
-        stepsOut: widget.focusSettings.stepsOut,
-        method: widget.focusSettings.method,
-        binning: 1,
-      );
-
-      _referencePosition = refResult.bestPosition;
-      _measuredPositions[widget.referenceFilter] = refResult.bestPosition;
+      _referencePosition = refAvgPosition;
+      _measuredPositions[widget.referenceFilter] = refAvgPosition;
       _measuredOffsets[widget.referenceFilter] = 0; // Reference is always 0
 
+      if (!mounted) return;
       setState(() {
         _completedFilters = 1;
-        _status = 'Reference position: ${refResult.bestPosition}';
+        _status = 'Reference position: $refAvgPosition'
+            '${_iterationsPerFilter > 1 ? ' (avg of $_iterationsPerFilter runs)' : ''}';
       });
 
       if (_isCancelled) return;
 
       // Measure each other filter
       for (var i = 0; i < widget.filters.length; i++) {
-        if (_isCancelled) return;
+        if (_isCancelled || !mounted) return;
 
         final filterName = widget.filters[i];
         if (filterName == widget.referenceFilter) continue;
 
+        if (!mounted) return;
         setState(() {
           _currentFilter = filterName;
           _status = 'Changing to filter: $filterName';
@@ -1622,33 +1793,25 @@ class _FilterOffsetMeasurementDialogState
         // Wait for filter change
         await _waitForFilterChange();
 
-        if (_isCancelled) return;
+        if (_isCancelled || !mounted) return;
 
-        setState(() {
-          _status = 'Running autofocus on filter: $filterName';
-        });
-
-        // Run autofocus
-        final result = await widget.deviceService.runAutofocus(
-          exposureTime: widget.focusSettings.exposureTime,
-          stepSize: widget.focusSettings.afStepSize,
-          stepsOut: widget.focusSettings.stepsOut,
-          method: widget.focusSettings.method,
-          binning: 1,
-        );
+        // Run averaged autofocus
+        final avgPosition = await _runAveragedAutofocus(filterName);
 
         // Calculate offset from reference
-        final offset = result.bestPosition - _referencePosition!;
-        _measuredPositions[filterName] = result.bestPosition;
+        final offset = avgPosition - _referencePosition!;
+        _measuredPositions[filterName] = avgPosition;
         _measuredOffsets[filterName] = offset;
 
+        if (!mounted) return;
         setState(() {
           _completedFilters++;
           _status =
-              '$filterName: position ${result.bestPosition} (offset: ${offset > 0 ? '+$offset' : offset})';
+              '$filterName: position $avgPosition (offset: ${offset > 0 ? '+$offset' : offset})';
         });
       }
 
+      if (!mounted) return;
       setState(() {
         _isRunning = false;
         _status = 'Measurement complete!';
@@ -1657,11 +1820,19 @@ class _FilterOffsetMeasurementDialogState
       // Call completion callback
       widget.onComplete(_measuredOffsets);
     } catch (e) {
-      setState(() {
-        _isRunning = false;
-        _errorMessage = e.toString();
-        _status = 'Error: $e';
-      });
+      if (!mounted) return;
+      if (_isCancelled) {
+        setState(() {
+          _isRunning = false;
+          _status = 'Cancelled';
+        });
+      } else {
+        setState(() {
+          _isRunning = false;
+          _errorMessage = e.toString();
+          _status = 'Error: $e';
+        });
+      }
     }
   }
 
@@ -1741,7 +1912,67 @@ class _FilterOffsetMeasurementDialogState
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // Iterations per filter setting
+            if (!_isRunning && _completedFilters == 0)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: widget.colors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.repeat,
+                        size: 16, color: widget.colors.textSecondary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AF runs per filter: ',
+                      style: TextStyle(color: widget.colors.textSecondary),
+                    ),
+                    const Spacer(),
+                    ...([1, 2, 3, 5].map((n) => Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _iterationsPerFilter = n),
+                            child: Container(
+                              width: 32,
+                              height: 28,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _iterationsPerFilter == n
+                                    ? widget.colors.primary
+                                        .withValues(alpha: 0.2)
+                                    : widget.colors.surface,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: _iterationsPerFilter == n
+                                      ? widget.colors.primary
+                                      : widget.colors.border,
+                                ),
+                              ),
+                              child: Text(
+                                '$n',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _iterationsPerFilter == n
+                                      ? widget.colors.primary
+                                      : widget.colors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ))),
+                  ],
+                ),
+              ),
+
+            if (!_isRunning && _completedFilters == 0)
+              const SizedBox(height: 12),
 
             // Filters to measure
             Text(
@@ -1904,7 +2135,9 @@ class _FilterOffsetMeasurementDialogState
             if (_measuredPositions.isNotEmpty && !_isRunning) ...[
               const SizedBox(height: 16),
               Text(
-                'Results:',
+                _iterationsPerFilter > 1
+                    ? 'Results (averaged from $_iterationsPerFilter runs):'
+                    : 'Results:',
                 style: TextStyle(
                   color: widget.colors.textSecondary,
                   fontWeight: FontWeight.bold,
@@ -1913,7 +2146,7 @@ class _FilterOffsetMeasurementDialogState
               ),
               const SizedBox(height: 8),
               Container(
-                constraints: const BoxConstraints(maxHeight: 150),
+                constraints: const BoxConstraints(maxHeight: 200),
                 decoration: BoxDecoration(
                   border: Border.all(color: widget.colors.border),
                   borderRadius: BorderRadius.circular(6),
@@ -1923,6 +2156,8 @@ class _FilterOffsetMeasurementDialogState
                   children: _measuredPositions.entries.map((entry) {
                     final offset = _measuredOffsets[entry.key] ?? 0;
                     final isRef = entry.key == widget.referenceFilter;
+                    final runPositions =
+                        _perFilterRunPositions[entry.key] ?? [];
                     return Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
@@ -1933,70 +2168,93 @@ class _FilterOffsetMeasurementDialogState
                                   widget.colors.border.withValues(alpha: 0.5)),
                         ),
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 2,
-                            child: Row(
-                              children: [
-                                Text(
-                                  entry.key,
-                                  style: TextStyle(
-                                    color: isRef
-                                        ? widget.colors.primary
-                                        : widget.colors.textPrimary,
-                                    fontWeight: isRef
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                                if (isRef) ...[
-                                  const SizedBox(width: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: widget.colors.primary,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: Text(
-                                      'REF',
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      entry.key,
                                       style: TextStyle(
-                                        color: widget.colors.surface,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
+                                        color: isRef
+                                            ? widget.colors.primary
+                                            : widget.colors.textPrimary,
+                                        fontWeight: isRef
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     ),
+                                    if (isRef) ...[
+                                      const SizedBox(width: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: widget.colors.primary,
+                                          borderRadius:
+                                              BorderRadius.circular(3),
+                                        ),
+                                        child: Text(
+                                          'REF',
+                                          style: TextStyle(
+                                            color: widget.colors.surface,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  _iterationsPerFilter > 1
+                                      ? 'Avg: ${entry.value}'
+                                      : 'Pos: ${entry.value}',
+                                  style: TextStyle(
+                                    color: widget.colors.textSecondary,
+                                    fontSize: 12,
                                   ),
-                                ],
-                              ],
-                            ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 80,
+                                child: Text(
+                                  isRef
+                                      ? '--'
+                                      : (offset > 0
+                                          ? '+$offset'
+                                          : '$offset'),
+                                  style: TextStyle(
+                                    color: isRef
+                                        ? widget.colors.textMuted
+                                        : widget.colors.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ],
                           ),
-                          Expanded(
-                            child: Text(
-                              'Pos: ${entry.value}',
-                              style: TextStyle(
-                                color: widget.colors.textSecondary,
-                                fontSize: 12,
+                          // Show individual run positions if multiple iterations
+                          if (_iterationsPerFilter > 1 &&
+                              runPositions.length > 1)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                'Runs: ${runPositions.join(', ')}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: widget.colors.textMuted,
+                                ),
                               ),
                             ),
-                          ),
-                          SizedBox(
-                            width: 80,
-                            child: Text(
-                              isRef
-                                  ? '--'
-                                  : (offset > 0 ? '+$offset' : '$offset'),
-                              style: TextStyle(
-                                color: isRef
-                                    ? widget.colors.textMuted
-                                    : widget.colors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
                         ],
                       ),
                     );

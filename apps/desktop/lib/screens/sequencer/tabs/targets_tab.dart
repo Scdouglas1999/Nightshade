@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:drift/drift.dart' hide Column; // For Value
 import 'package:file_selector/file_selector.dart' as file_selector;
@@ -46,14 +45,24 @@ class TargetsTab extends ConsumerWidget {
                 var filtered = targets;
                 if (searchQuery.isNotEmpty) {
                   filtered = filtered.where((t) {
-                    final nameMatch = t.name.toLowerCase().contains(searchQuery.toLowerCase());
-                    final catalogMatch = t.catalogId?.toLowerCase().contains(searchQuery.toLowerCase()) ?? false;
-                    final constMatch = t.constellation?.toLowerCase().contains(searchQuery.toLowerCase()) ?? false;
+                    final nameMatch = t.name
+                        .toLowerCase()
+                        .contains(searchQuery.toLowerCase());
+                    final catalogMatch = t.catalogId
+                            ?.toLowerCase()
+                            .contains(searchQuery.toLowerCase()) ??
+                        false;
+                    final constMatch = t.constellation
+                            ?.toLowerCase()
+                            .contains(searchQuery.toLowerCase()) ??
+                        false;
                     return nameMatch || catalogMatch || constMatch;
                   }).toList();
                 }
                 if (typeFilter != null && typeFilter != 'All') {
-                  filtered = filtered.where((t) => t.objectType == typeFilter).toList();
+                  filtered = filtered
+                      .where((t) => t.objectType == typeFilter)
+                      .toList();
                 }
 
                 if (filtered.isEmpty) {
@@ -78,7 +87,8 @@ class TargetsTab extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.alertTriangle, size: 48, color: colors.error),
+                    Icon(LucideIcons.alertTriangle,
+                        size: 48, color: colors.error),
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load targets',
@@ -134,7 +144,8 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+                Icon(LucideIcons.search,
+                    size: 16, color: widget.colors.textMuted),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -163,7 +174,8 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
                       _searchController.clear();
                       ref.read(targetSearchProvider.notifier).state = '';
                     },
-                    child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+                    child: Icon(LucideIcons.x,
+                        size: 16, color: widget.colors.textMuted),
                   ),
               ],
             ),
@@ -185,9 +197,11 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
               value: typeFilter,
               hint: Text(
                 'All Types',
-                style: TextStyle(fontSize: 13, color: widget.colors.textSecondary),
+                style:
+                    TextStyle(fontSize: 13, color: widget.colors.textSecondary),
               ),
-              icon: Icon(LucideIcons.chevronDown, size: 16, color: widget.colors.textMuted),
+              icon: Icon(LucideIcons.chevronDown,
+                  size: 16, color: widget.colors.textMuted),
               dropdownColor: widget.colors.surface,
               style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
               items: const [
@@ -236,19 +250,19 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
                   ),
                 ],
               );
-              
+
               if (file == null) return;
-              
+
               final content = await file.readAsString();
               final extension = file.name.split('.').last.toLowerCase();
-              
+
               int importedCount = 0;
               if (extension == 'csv') {
                 importedCount = await _importTargetsFromCsv(content);
               } else if (extension == 'json') {
                 importedCount = await _importTargetsFromJson(content);
               }
-              
+
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -279,39 +293,41 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
   Future<int> _importTargetsFromCsv(String content) async {
     final lines = content.split('\n');
     if (lines.isEmpty) return 0;
-    
+
     // Skip header if present
     int startIndex = 0;
-    if (lines[0].toLowerCase().contains('name') || 
+    if (lines[0].toLowerCase().contains('name') ||
         lines[0].toLowerCase().contains('ra') ||
         lines[0].toLowerCase().contains('dec')) {
       startIndex = 1;
     }
-    
+
     int imported = 0;
     final targetsDao = ref.read(targetsDaoProvider);
-    
+
     for (int i = startIndex; i < lines.length; i++) {
       final line = lines[i].trim();
       if (line.isEmpty) continue;
-      
+
       final parts = line.split(',').map((p) => p.trim()).toList();
       if (parts.length < 3) continue; // Need at least name, RA, Dec
-      
+
       try {
         final name = parts[0];
         final ra = double.tryParse(parts[1]);
         final dec = double.tryParse(parts[2]);
-        
+
         if (ra == null || dec == null) continue;
-        
+
         await targetsDao.createTarget(
           TargetsCompanion.insert(
             name: name,
-            catalogId: parts.length > 3 ? Value(parts[3]) : const Value.absent(),
+            catalogId:
+                parts.length > 3 ? Value(parts[3]) : const Value.absent(),
             ra: ra,
             dec: dec,
-            objectType: parts.length > 4 ? Value(parts[4]) : const Value.absent(),
+            objectType:
+                parts.length > 4 ? Value(parts[4]) : const Value.absent(),
           ),
         );
         imported++;
@@ -320,7 +336,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
         continue;
       }
     }
-    
+
     return imported;
   }
 
@@ -328,7 +344,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
     try {
       final json = jsonDecode(content) as dynamic;
       final List<dynamic> targetsList;
-      
+
       if (json is List) {
         targetsList = json;
       } else if (json is Map && json['targets'] != null) {
@@ -336,20 +352,20 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
       } else {
         return 0;
       }
-      
+
       int imported = 0;
       final targetsDao = ref.read(targetsDaoProvider);
-      
+
       for (final targetJson in targetsList) {
         if (targetJson is! Map<String, dynamic>) continue;
-        
+
         try {
           final name = targetJson['name'] as String?;
           final ra = (targetJson['ra'] as num?)?.toDouble();
           final dec = (targetJson['dec'] as num?)?.toDouble();
-          
+
           if (name == null || ra == null || dec == null) continue;
-          
+
           await targetsDao.createTarget(
             TargetsCompanion.insert(
               name: name,
@@ -357,7 +373,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
               ra: ra,
               dec: dec,
               objectType: Value(targetJson['objectType'] as String?),
-              magnitude: targetJson['magnitude'] != null 
+              magnitude: targetJson['magnitude'] != null
                   ? Value((targetJson['magnitude'] as num).toDouble())
                   : const Value.absent(),
               constellation: Value(targetJson['constellation'] as String?),
@@ -370,7 +386,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
           continue;
         }
       }
-      
+
       return imported;
     } catch (e) {
       return 0;
@@ -402,6 +418,8 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryForeground = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -413,7 +431,7 @@ class _ActionButtonState extends State<_ActionButton> {
           decoration: BoxDecoration(
             color: widget.isPrimary
                 ? _isHovered
-                    ? widget.colors.primary.withOpacity(0.9)
+                    ? widget.colors.primary.withValues(alpha: 0.9)
                     : widget.colors.primary
                 : _isHovered
                     ? widget.colors.surfaceAlt
@@ -430,7 +448,7 @@ class _ActionButtonState extends State<_ActionButton> {
                 widget.icon,
                 size: 14,
                 color: widget.isPrimary
-                    ? Colors.white
+                    ? primaryForeground
                     : widget.colors.textSecondary,
               ),
               const SizedBox(width: 8),
@@ -440,7 +458,7 @@ class _ActionButtonState extends State<_ActionButton> {
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
-                      ? Colors.white
+                      ? primaryForeground
                       : widget.colors.textSecondary,
                 ),
               ),
@@ -454,7 +472,8 @@ class _ActionButtonState extends State<_ActionButton> {
 
 class _TargetCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-  final dynamic target; // Using dynamic since Target is a database generated type
+  final dynamic
+      target; // Using dynamic since Target is a database generated type
 
   const _TargetCard({required this.colors, required this.target});
 
@@ -468,23 +487,35 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
 
   IconData _getTypeIcon() {
     switch (widget.target.objectType) {
-      case 'Galaxy': return LucideIcons.sparkles;
-      case 'Nebula': return LucideIcons.cloud;
-      case 'Cluster': return LucideIcons.sparkle;
-      case 'Star': return LucideIcons.star;
-      case 'Planet': return LucideIcons.globe;
-      default: return LucideIcons.circle;
+      case 'Galaxy':
+        return LucideIcons.sparkles;
+      case 'Nebula':
+        return LucideIcons.cloud;
+      case 'Cluster':
+        return LucideIcons.sparkle;
+      case 'Star':
+        return LucideIcons.star;
+      case 'Planet':
+        return LucideIcons.globe;
+      default:
+        return LucideIcons.circle;
     }
   }
 
   Color _getTypeColor() {
     switch (widget.target.objectType) {
-      case 'Galaxy': return widget.colors.accent;
-      case 'Nebula': return widget.colors.info;
-      case 'Cluster': return widget.colors.warning;
-      case 'Star': return widget.colors.success;
-      case 'Planet': return widget.colors.error;
-      default: return widget.colors.textMuted;
+      case 'Galaxy':
+        return widget.colors.accent;
+      case 'Nebula':
+        return widget.colors.info;
+      case 'Cluster':
+        return widget.colors.warning;
+      case 'Star':
+        return widget.colors.success;
+      case 'Planet':
+        return widget.colors.error;
+      default:
+        return widget.colors.textMuted;
     }
   }
 
@@ -521,15 +552,17 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: widget.colors.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: _isHovered ? typeColor.withOpacity(0.5) : widget.colors.border,
+            color: _isHovered
+                ? typeColor.withValues(alpha: 0.5)
+                : widget.colors.border,
             width: _isHovered ? 2 : 1,
           ),
           boxShadow: _isHovered
               ? [
                   BoxShadow(
-                    color: typeColor.withOpacity(0.1),
+                    color: typeColor.withValues(alpha: 0.1),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -541,7 +574,7 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
             // Main content
             InkWell(
               onTap: () => setState(() => _isExpanded = !_isExpanded),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -551,8 +584,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: typeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         _getTypeIcon(),
@@ -589,9 +622,10 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                               ],
                               const SizedBox(width: 12),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: typeColor.withOpacity(0.15),
+                                  color: typeColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -632,7 +666,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                 _InfoChip(
                                   colors: widget.colors,
                                   label: 'Mag',
-                                  value: widget.target.magnitude!.toStringAsFixed(1),
+                                  value: widget.target.magnitude!
+                                      .toStringAsFixed(1),
                                 ),
                               ],
                               if (widget.target.constellation != null) ...[
@@ -655,14 +690,17 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                       children: [
                         Row(
                           children: [
-                            Icon(LucideIcons.camera, size: 12, color: widget.colors.textMuted),
+                            Icon(LucideIcons.camera,
+                                size: 12, color: widget.colors.textMuted),
                             const SizedBox(width: 4),
                             Text(
                               '${widget.target.capturedSubs ?? 0} subs',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: widget.colors.textSecondary,
-                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
                               ),
                             ),
                           ],
@@ -670,14 +708,18 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(LucideIcons.timer, size: 12, color: widget.colors.textMuted),
+                            Icon(LucideIcons.timer,
+                                size: 12, color: widget.colors.textMuted),
                             const SizedBox(width: 4),
                             Text(
-                              _formatIntegration(widget.target.totalIntegrationSecs ?? 0),
+                              _formatIntegration(
+                                  widget.target.totalIntegrationSecs ?? 0),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: widget.colors.textSecondary,
-                                fontFeatures: const [FontFeature.tabularFigures()],
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
                               ),
                             ),
                           ],
@@ -691,11 +733,15 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                     if (_isHovered) ...[
                       _IconButton(
                         colors: widget.colors,
-                        icon: widget.target.isFavorite ? LucideIcons.heart : LucideIcons.heartHandshake,
+                        icon: widget.target.isFavorite
+                            ? LucideIcons.heart
+                            : LucideIcons.heartHandshake,
                         tooltip: 'Toggle Favorite',
                         color: widget.colors.error,
                         onPressed: () {
-                          ref.read(targetsDaoProvider).toggleFavorite(widget.target.id);
+                          ref
+                              .read(targetsDaoProvider)
+                              .toggleFavorite(widget.target.id);
                         },
                       ),
                       _IconButton(
@@ -705,12 +751,13 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         onPressed: () {
                           // Add target to sequence
                           ref.read(currentSequenceProvider.notifier).addNode(
-                            TargetGroupNode(
-                              targetName: widget.target.catalogId ?? widget.target.name,
-                              raHours: widget.target.ra,
-                              decDegrees: widget.target.dec,
-                            ),
-                          );
+                                TargetGroupNode(
+                                  targetName: widget.target.catalogId ??
+                                      widget.target.name,
+                                  raHours: widget.target.ra,
+                                  decDegrees: widget.target.dec,
+                                ),
+                              );
                         },
                       ),
                       _IconButton(
@@ -733,13 +780,17 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         tooltip: 'Delete',
                         color: widget.colors.error,
                         onPressed: () {
-                          ref.read(targetsDaoProvider).deleteTarget(widget.target.id);
+                          ref
+                              .read(targetsDaoProvider)
+                              .deleteTarget(widget.target.id);
                         },
                       ),
                     ],
 
                     Icon(
-                      _isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                      _isExpanded
+                          ? LucideIcons.chevronUp
+                          : LucideIcons.chevronDown,
                       size: 16,
                       color: widget.colors.textMuted,
                     ),
@@ -757,7 +808,8 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                   children: [
                     Divider(color: widget.colors.border),
                     const SizedBox(height: 12),
-                    if (widget.target.notes != null && widget.target.notes!.isNotEmpty) ...[
+                    if (widget.target.notes != null &&
+                        widget.target.notes!.isNotEmpty) ...[
                       Text(
                         'Notes',
                         style: TextStyle(
@@ -783,13 +835,16 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                             label: 'Add to Sequence',
                             icon: LucideIcons.plus,
                             onPressed: () {
-                              ref.read(currentSequenceProvider.notifier).addNode(
-                                TargetGroupNode(
-                                  targetName: widget.target.catalogId ?? widget.target.name,
-                                  raHours: widget.target.ra,
-                                  decDegrees: widget.target.dec,
-                                ),
-                              );
+                              ref
+                                  .read(currentSequenceProvider.notifier)
+                                  .addNode(
+                                    TargetGroupNode(
+                                      targetName: widget.target.catalogId ??
+                                          widget.target.name,
+                                      raHours: widget.target.ra,
+                                      decDegrees: widget.target.dec,
+                                    ),
+                                  );
                             },
                           ),
                         ),
@@ -801,23 +856,26 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                             variant: ButtonVariant.outline,
                             onPressed: () async {
                               try {
-                                final deviceService = ref.read(deviceServiceProvider);
+                                final deviceService =
+                                    ref.read(deviceServiceProvider);
                                 await deviceService.slewMountToCoordinates(
                                   widget.target.ra,
                                   widget.target.dec,
                                 );
-                                
+
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Slewing to ${widget.target.name}'),
+                                      content: Text(
+                                          'Slewing to ${widget.target.name}'),
                                     ),
                                   );
                                 }
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to slew: $e')),
+                                    SnackBar(
+                                        content: Text('Failed to slew: $e')),
                                   );
                                 }
                               }
@@ -918,7 +976,9 @@ class _IconButtonState extends State<_IconButton> {
             height: 32,
             margin: const EdgeInsets.only(left: 4),
             decoration: BoxDecoration(
-              color: _isHovered ? color.withOpacity(0.1) : Colors.transparent,
+              color: _isHovered
+                  ? color.withValues(alpha: 0.1)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
@@ -1009,7 +1069,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
         width: 400,
         padding: const EdgeInsets.all(24),
@@ -1032,12 +1092,11 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
               ],
             ),
             const SizedBox(height: 24),
-
             _buildField('Name', _nameController, 'e.g., Orion Nebula'),
-            _buildField('Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
+            _buildField(
+                'Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
             _buildField('RA (hours)', _raController, 'e.g., 5.588'),
             _buildField('Dec (degrees)', _decController, 'e.g., -5.391'),
-
             Text(
               'Object Type',
               style: TextStyle(
@@ -1060,9 +1119,18 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                   value: _objectType,
                   isExpanded: true,
                   dropdownColor: widget.colors.surface,
-                  style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
-                  items: ['Galaxy', 'Nebula', 'Cluster', 'Star', 'Planet', 'Other']
-                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                  style:
+                      TextStyle(fontSize: 13, color: widget.colors.textPrimary),
+                  items: [
+                    'Galaxy',
+                    'Nebula',
+                    'Cluster',
+                    'Star',
+                    'Planet',
+                    'Other'
+                  ]
+                      .map((type) =>
+                          DropdownMenuItem(value: type, child: Text(type)))
                       .toList(),
                   onChanged: (value) {
                     if (value != null) setState(() => _objectType = value);
@@ -1070,7 +1138,6 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -1089,17 +1156,21 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                   onPressed: () {
                     final ra = double.tryParse(_raController.text);
                     final dec = double.tryParse(_decController.text);
-                    
-                    if (_nameController.text.isNotEmpty && ra != null && dec != null) {
+
+                    if (_nameController.text.isNotEmpty &&
+                        ra != null &&
+                        dec != null) {
                       ref.read(targetsDaoProvider).createTarget(
-                        TargetsCompanion.insert(
-                          name: _nameController.text,
-                          catalogId: Value(_catalogIdController.text.isEmpty ? null : _catalogIdController.text),
-                          ra: ra,
-                          dec: dec,
-                          objectType: Value(_objectType),
-                        ),
-                      );
+                            TargetsCompanion.insert(
+                              name: _nameController.text,
+                              catalogId: Value(_catalogIdController.text.isEmpty
+                                  ? null
+                                  : _catalogIdController.text),
+                              ra: ra,
+                              dec: dec,
+                              objectType: Value(_objectType),
+                            ),
+                          );
                       Navigator.pop(context);
                     }
                   },
@@ -1112,7 +1183,8 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, String hint) {
+  Widget _buildField(
+      String label, TextEditingController controller, String hint) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1139,7 +1211,8 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
               style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: TextStyle(fontSize: 13, color: widget.colors.textMuted),
+                hintStyle:
+                    TextStyle(fontSize: 13, color: widget.colors.textMuted),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
@@ -1155,7 +1228,8 @@ class EditTargetDialog extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final dynamic target;
 
-  const EditTargetDialog({super.key, required this.colors, required this.target});
+  const EditTargetDialog(
+      {super.key, required this.colors, required this.target});
 
   @override
   ConsumerState<EditTargetDialog> createState() => _EditTargetDialogState();
@@ -1172,7 +1246,8 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.target.name);
-    _catalogIdController = TextEditingController(text: widget.target.catalogId ?? '');
+    _catalogIdController =
+        TextEditingController(text: widget.target.catalogId ?? '');
     _raController = TextEditingController(text: widget.target.ra.toString());
     _decController = TextEditingController(text: widget.target.dec.toString());
     _objectType = widget.target.objectType ?? 'Nebula';
@@ -1191,7 +1266,7 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
         width: 400,
         padding: const EdgeInsets.all(24),
@@ -1214,12 +1289,11 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
               ],
             ),
             const SizedBox(height: 24),
-
             _buildField('Name', _nameController, 'e.g., Orion Nebula'),
-            _buildField('Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
+            _buildField(
+                'Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
             _buildField('RA (hours)', _raController, 'e.g., 5.588'),
             _buildField('Dec (degrees)', _decController, 'e.g., -5.391'),
-
             Text(
               'Object Type',
               style: TextStyle(
@@ -1242,9 +1316,18 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
                   value: _objectType,
                   isExpanded: true,
                   dropdownColor: widget.colors.surface,
-                  style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
-                  items: ['Galaxy', 'Nebula', 'Cluster', 'Star', 'Planet', 'Other']
-                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                  style:
+                      TextStyle(fontSize: 13, color: widget.colors.textPrimary),
+                  items: [
+                    'Galaxy',
+                    'Nebula',
+                    'Cluster',
+                    'Star',
+                    'Planet',
+                    'Other'
+                  ]
+                      .map((type) =>
+                          DropdownMenuItem(value: type, child: Text(type)))
                       .toList(),
                   onChanged: (value) {
                     if (value != null) setState(() => _objectType = value);
@@ -1252,7 +1335,6 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -1271,17 +1353,21 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
                   onPressed: () {
                     final ra = double.tryParse(_raController.text);
                     final dec = double.tryParse(_decController.text);
-                    
-                    if (_nameController.text.isNotEmpty && ra != null && dec != null) {
+
+                    if (_nameController.text.isNotEmpty &&
+                        ra != null &&
+                        dec != null) {
                       ref.read(targetsDaoProvider).updateTarget(
-                        widget.target.copyWith(
-                          name: _nameController.text,
-                          catalogId: _catalogIdController.text.isEmpty ? null : _catalogIdController.text,
-                          ra: ra,
-                          dec: dec,
-                          objectType: _objectType,
-                        ),
-                      );
+                            widget.target.copyWith(
+                              name: _nameController.text,
+                              catalogId: _catalogIdController.text.isEmpty
+                                  ? null
+                                  : _catalogIdController.text,
+                              ra: ra,
+                              dec: dec,
+                              objectType: _objectType,
+                            ),
+                          );
                       Navigator.pop(context);
                     }
                   },
@@ -1294,7 +1380,8 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, String hint) {
+  Widget _buildField(
+      String label, TextEditingController controller, String hint) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1321,7 +1408,8 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
               style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: TextStyle(fontSize: 13, color: widget.colors.textMuted),
+                hintStyle:
+                    TextStyle(fontSize: 13, color: widget.colors.textMuted),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),

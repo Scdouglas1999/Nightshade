@@ -10,6 +10,7 @@ import '../providers/database_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/unified_discovery_provider.dart';
+import '../utils/json_validation.dart';
 import 'device_service.dart';
 
 /// Result of validating a profile's devices against discovered devices
@@ -95,6 +96,7 @@ class ProfileService {
     checkDevice(profile.rotatorId, 'Rotator');
     checkDevice(profile.domeId, 'Dome');
     checkDevice(profile.weatherId, 'Weather');
+    checkDevice(profile.coverCalibratorId, 'Cover Calibrator');
 
     return ProfileValidationResult(
       isValid: missingDevices.isEmpty,
@@ -111,10 +113,10 @@ class ProfileService {
   /// Load and activate a profile, optionally connecting devices
   Future<void> loadProfile(int profileId, {bool autoConnect = false}) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
-    
+
     // Set this profile as active
     await dao.setActiveProfile(profileId);
-    
+
     // Auto-connect if requested
     if (autoConnect) {
       final profile = await dao.getProfileById(profileId);
@@ -123,102 +125,124 @@ class ProfileService {
       }
     }
   }
-  
+
+  /// Set or clear the default startup profile.
+  Future<void> setDefaultProfile(int? profileId, {bool makeActive = true}) async {
+    final dao = _ref.read(equipmentProfilesDaoProvider);
+    if (profileId == null) {
+      await dao.clearDefaultProfile();
+      return;
+    }
+    await dao.setDefaultProfile(profileId, makeActive: makeActive);
+  }
+
   /// Connect devices from a profile
   Future<void> _connectProfileDevices(EquipmentProfile profile) async {
     final deviceService = _ref.read(deviceServiceProvider);
-    
-    await deviceService.connectProfile(
-      cameraId: profile.cameraId,
-      mountId: profile.mountId,
-      focuserId: profile.focuserId,
-      filterWheelId: profile.filterWheelId,
-      guiderId: profile.guiderId,
-    );
+    final connections = <Future<void> Function()>[
+      if (profile.cameraId != null) () => deviceService.connectCamera(profile.cameraId!),
+      if (profile.mountId != null) () => deviceService.connectMount(profile.mountId!),
+      if (profile.focuserId != null) () => deviceService.connectFocuser(profile.focuserId!),
+      if (profile.filterWheelId != null)
+        () => deviceService.connectFilterWheel(profile.filterWheelId!),
+      if (profile.guiderId != null) () => deviceService.connectGuider(profile.guiderId!),
+      if (profile.rotatorId != null) () => deviceService.connectRotator(profile.rotatorId!),
+      if (profile.domeId != null) () => deviceService.connectDome(profile.domeId!),
+      if (profile.weatherId != null) () => deviceService.connectWeather(profile.weatherId!),
+      if (profile.coverCalibratorId != null)
+        () => deviceService.connectCoverCalibrator(profile.coverCalibratorId!),
+    ];
+
+    for (final connect in connections) {
+      await connect();
+    }
   }
-  
+
   /// Auto-connect to active profile's devices on startup
   Future<void> autoConnectOnStartup() async {
     final autoConnect = await _ref.read(autoConnectSettingsProvider.future);
-    
+
     if (!autoConnect) return;
-    
+
     final dao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await dao.getActiveProfile();
-    
+    final activeProfile =
+        await dao.getDefaultProfile() ?? await dao.getActiveProfile();
+
     if (activeProfile != null) {
       await _connectProfileDevices(activeProfile);
     }
   }
-  
+
   // ===========================================================================
   // Profile Import/Export
   // ===========================================================================
-  
+
   /// Export a profile to JSON
   Future<String> exportProfileToJson(int profileId) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getProfileById(profileId);
-    
+
     if (profile == null) {
       throw Exception('Profile not found');
     }
-    
+
     final exportData = ProfileExportData.fromDatabase(profile);
     return jsonEncode(exportData.toJson());
   }
-  
+
   /// Export a profile to a file
   Future<void> exportProfileToFile(int profileId, String filePath) async {
     final json = await exportProfileToJson(profileId);
     final file = File(filePath);
     await file.writeAsString(json);
   }
-  
+
   /// Export all profiles to JSON
   Future<String> exportAllProfilesToJson() async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profiles = await dao.getAllProfiles();
-    
-    final exportData = profiles.map((p) => ProfileExportData.fromDatabase(p).toJson()).toList();
+
+    final exportData = profiles
+        .map((p) => ProfileExportData.fromDatabase(p).toJson())
+        .toList();
     return jsonEncode({
       'version': 1,
       'exportDate': DateTime.now().toIso8601String(),
       'profiles': exportData,
     });
   }
-  
+
   /// Export all profiles to a file
   Future<void> exportAllProfilesToFile(String filePath) async {
     final json = await exportAllProfilesToJson();
     final file = File(filePath);
     await file.writeAsString(json);
   }
-  
+
   /// Import a profile from JSON
   Future<int> importProfileFromJson(String json) async {
     final data = jsonDecode(json);
-    
+
     // Handle single profile export
     final profileData = data is Map && data.containsKey('profiles')
         ? data['profiles'][0]
         : data;
-    
+
     final exportData = ProfileExportData.fromJson(profileData);
     return await _createProfileFromExport(exportData);
   }
-  
+
   /// Import a profile from a file
   Future<int> importProfileFromFile(String filePath) async {
     final file = File(filePath);
     final json = await file.readAsString();
     return await importProfileFromJson(json);
   }
-  
+
   /// Import all profiles from JSON (batch import)
   Future<List<int>> importAllProfilesFromJson(String json) async {
     final data = jsonDecode(json);
-    
+
     List<dynamic> profilesData;
     if (data is Map && data.containsKey('profiles')) {
       profilesData = data['profiles'];
@@ -228,28 +252,28 @@ class ProfileService {
       // Single profile
       profilesData = [data];
     }
-    
+
     final ids = <int>[];
     for (final profileJson in profilesData) {
       final exportData = ProfileExportData.fromJson(profileJson);
       final id = await _createProfileFromExport(exportData);
       ids.add(id);
     }
-    
+
     return ids;
   }
-  
+
   /// Import all profiles from a file
   Future<List<int>> importAllProfilesFromFile(String filePath) async {
     final file = File(filePath);
     final json = await file.readAsString();
     return await importAllProfilesFromJson(json);
   }
-  
+
   /// Create a profile from export data
   Future<int> _createProfileFromExport(ProfileExportData data) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
-    
+
     // Check for name conflicts and rename if needed
     final existingProfiles = await dao.getAllProfiles();
     var name = data.name;
@@ -258,7 +282,7 @@ class ProfileService {
       name = '${data.name} ($suffix)';
       suffix++;
     }
-    
+
     return await dao.createProfile(
       EquipmentProfilesCompanion.insert(
         name: name,
@@ -271,6 +295,7 @@ class ProfileService {
         rotatorId: Value(data.rotatorId),
         domeId: Value(data.domeId),
         weatherId: Value(data.weatherId),
+        coverCalibratorId: Value(data.coverCalibratorId),
         focalLength: Value(data.focalLength),
         aperture: Value(data.aperture),
         focalRatio: Value(data.focalRatio),
@@ -279,20 +304,23 @@ class ProfileService {
         defaultBinX: Value(data.defaultBinX),
         defaultBinY: Value(data.defaultBinY),
         defaultCoolingTemp: Value(data.defaultCoolingTemp),
-        filterNames: Value(data.filterNames != null ? jsonEncode(data.filterNames) : null),
-        filterFocusOffsets: Value(data.filterFocusOffsets != null ? jsonEncode(data.filterFocusOffsets) : null),
+        filterNames: Value(
+            data.filterNames != null ? jsonEncode(data.filterNames) : null),
+        filterFocusOffsets: Value(data.filterFocusOffsets != null
+            ? jsonEncode(data.filterFocusOffsets)
+            : null),
       ),
     );
   }
-  
+
   // ===========================================================================
   // Profile Management
   // ===========================================================================
-  
+
   /// Create a new empty profile
   Future<int> createProfile(String name, {String? description}) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
-    
+
     return await dao.createProfile(
       EquipmentProfilesCompanion.insert(
         name: name,
@@ -300,19 +328,19 @@ class ProfileService {
       ),
     );
   }
-  
+
   /// Duplicate an existing profile
   Future<int> duplicateProfile(int sourceId, String newName) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     return await dao.duplicateProfile(sourceId, newName);
   }
-  
+
   /// Delete a profile
   Future<void> deleteProfile(int profileId) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     await dao.deleteProfile(profileId);
   }
-  
+
   /// Clear specific device assignments from a profile
   ///
   /// [deviceTypes] is a set of device type names (e.g., 'Camera', 'Mount')
@@ -329,14 +357,33 @@ class ProfileService {
     }
 
     await dao.updateProfile(profile.copyWith(
-      cameraId: deviceTypes.contains('Camera') ? const Value(null) : Value(profile.cameraId),
-      mountId: deviceTypes.contains('Mount') ? const Value(null) : Value(profile.mountId),
-      focuserId: deviceTypes.contains('Focuser') ? const Value(null) : Value(profile.focuserId),
-      filterWheelId: deviceTypes.contains('Filter Wheel') ? const Value(null) : Value(profile.filterWheelId),
-      guiderId: deviceTypes.contains('Guider') ? const Value(null) : Value(profile.guiderId),
-      rotatorId: deviceTypes.contains('Rotator') ? const Value(null) : Value(profile.rotatorId),
-      domeId: deviceTypes.contains('Dome') ? const Value(null) : Value(profile.domeId),
-      weatherId: deviceTypes.contains('Weather') ? const Value(null) : Value(profile.weatherId),
+      cameraId: deviceTypes.contains('Camera')
+          ? const Value(null)
+          : Value(profile.cameraId),
+      mountId: deviceTypes.contains('Mount')
+          ? const Value(null)
+          : Value(profile.mountId),
+      focuserId: deviceTypes.contains('Focuser')
+          ? const Value(null)
+          : Value(profile.focuserId),
+      filterWheelId: deviceTypes.contains('Filter Wheel')
+          ? const Value(null)
+          : Value(profile.filterWheelId),
+      guiderId: deviceTypes.contains('Guider')
+          ? const Value(null)
+          : Value(profile.guiderId),
+      rotatorId: deviceTypes.contains('Rotator')
+          ? const Value(null)
+          : Value(profile.rotatorId),
+      domeId: deviceTypes.contains('Dome')
+          ? const Value(null)
+          : Value(profile.domeId),
+      weatherId: deviceTypes.contains('Weather')
+          ? const Value(null)
+          : Value(profile.weatherId),
+      coverCalibratorId: deviceTypes.contains('Cover Calibrator')
+          ? const Value(null)
+          : Value(profile.coverCalibratorId),
       updatedAt: DateTime.now(),
     ));
   }
@@ -352,14 +399,15 @@ class ProfileService {
     String? rotatorId,
     String? domeId,
     String? weatherId,
+    String? coverCalibratorId,
   }) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getProfileById(profileId);
-    
+
     if (profile == null) {
       throw Exception('Profile not found');
     }
-    
+
     await dao.updateProfile(profile.copyWith(
       cameraId: Value(cameraId ?? profile.cameraId),
       mountId: Value(mountId ?? profile.mountId),
@@ -369,10 +417,12 @@ class ProfileService {
       rotatorId: Value(rotatorId ?? profile.rotatorId),
       domeId: Value(domeId ?? profile.domeId),
       weatherId: Value(weatherId ?? profile.weatherId),
+      coverCalibratorId:
+          Value(coverCalibratorId ?? profile.coverCalibratorId),
       updatedAt: DateTime.now(),
     ));
   }
-  
+
   /// Update profile optical configuration
   Future<void> updateProfileOptics(
     int profileId, {
@@ -382,11 +432,11 @@ class ProfileService {
   }) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getProfileById(profileId);
-    
+
     if (profile == null) {
       throw Exception('Profile not found');
     }
-    
+
     await dao.updateProfile(profile.copyWith(
       focalLength: focalLength ?? profile.focalLength,
       aperture: aperture ?? profile.aperture,
@@ -394,7 +444,7 @@ class ProfileService {
       updatedAt: DateTime.now(),
     ));
   }
-  
+
   /// Update profile default camera settings
   Future<void> updateProfileCameraDefaults(
     int profileId, {
@@ -406,21 +456,22 @@ class ProfileService {
   }) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getProfileById(profileId);
-    
+
     if (profile == null) {
       throw Exception('Profile not found');
     }
-    
+
     await dao.updateProfile(profile.copyWith(
       defaultGain: Value(defaultGain ?? profile.defaultGain),
       defaultOffset: Value(defaultOffset ?? profile.defaultOffset),
       defaultBinX: defaultBinX ?? profile.defaultBinX,
       defaultBinY: defaultBinY ?? profile.defaultBinY,
-      defaultCoolingTemp: Value(defaultCoolingTemp ?? profile.defaultCoolingTemp),
+      defaultCoolingTemp:
+          Value(defaultCoolingTemp ?? profile.defaultCoolingTemp),
       updatedAt: DateTime.now(),
     ));
   }
-  
+
   /// Save all currently connected devices to the active profile
   ///
   /// Reads current device states and updates the active profile with
@@ -443,6 +494,7 @@ class ProfileService {
     final rotatorState = _ref.read(rotatorStateProvider);
     final domeState = _ref.read(domeStateProvider);
     final weatherState = _ref.read(weatherStateProvider);
+    final coverCalibratorState = _ref.read(coverCalibratorStateProvider);
 
     // Collect connected device IDs
     String? cameraId;
@@ -453,6 +505,7 @@ class ProfileService {
     String? rotatorId;
     String? domeId;
     String? weatherId;
+    String? coverCalibratorId;
 
     if (cameraState.connectionState == DeviceConnectionState.connected) {
       cameraId = cameraState.deviceId;
@@ -478,6 +531,10 @@ class ProfileService {
     if (weatherState.connectionState == DeviceConnectionState.connected) {
       weatherId = weatherState.deviceId;
     }
+    if (coverCalibratorState.connectionState ==
+        DeviceConnectionState.connected) {
+      coverCalibratorId = coverCalibratorState.deviceId;
+    }
 
     // Check if any devices are connected
     final hasConnectedDevices = cameraId != null ||
@@ -487,7 +544,8 @@ class ProfileService {
         guiderId != null ||
         rotatorId != null ||
         domeId != null ||
-        weatherId != null;
+        weatherId != null ||
+        coverCalibratorId != null;
 
     if (!hasConnectedDevices) {
       debugPrint('ProfileService: No connected devices to save');
@@ -504,10 +562,13 @@ class ProfileService {
       rotatorId: Value(rotatorId ?? activeProfile.rotatorId),
       domeId: Value(domeId ?? activeProfile.domeId),
       weatherId: Value(weatherId ?? activeProfile.weatherId),
+      coverCalibratorId:
+          Value(coverCalibratorId ?? activeProfile.coverCalibratorId),
       updatedAt: DateTime.now(),
     ));
 
-    debugPrint('ProfileService: Saved connected devices to profile "${activeProfile.name}"');
+    debugPrint(
+        'ProfileService: Saved connected devices to profile "${activeProfile.name}"');
     return true;
   }
 
@@ -525,8 +586,11 @@ class ProfileService {
     }
 
     await dao.updateProfile(profile.copyWith(
-      filterNames: Value(filterNames != null ? jsonEncode(filterNames) : profile.filterNames),
-      filterFocusOffsets: Value(filterFocusOffsets != null ? jsonEncode(filterFocusOffsets) : profile.filterFocusOffsets),
+      filterNames: Value(
+          filterNames != null ? jsonEncode(filterNames) : profile.filterNames),
+      filterFocusOffsets: Value(filterFocusOffsets != null
+          ? jsonEncode(filterFocusOffsets)
+          : profile.filterFocusOffsets),
       updatedAt: DateTime.now(),
     ));
   }
@@ -560,8 +624,11 @@ class ProfileService {
     Map<String, int> existingOffsets = {};
     if (activeProfile.filterFocusOffsets != null) {
       try {
-        existingOffsets = (jsonDecode(activeProfile.filterFocusOffsets!) as Map)
-            .cast<String, int>();
+        existingOffsets = decodeStringIntMapJson(
+          activeProfile.filterFocusOffsets,
+          context:
+              'equipment_profiles.filter_focus_offsets for "${activeProfile.name}"',
+        );
       } catch (error, stack) {
         debugPrint(
           'ProfileService: Failed to parse filterFocusOffsets for profile '
@@ -583,7 +650,8 @@ class ProfileService {
       updatedAt: DateTime.now(),
     ));
 
-    debugPrint('ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"');
+    debugPrint(
+        'ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"');
     return true;
   }
 
@@ -611,8 +679,11 @@ class ProfileService {
     Map<String, int> existingOffsets = {};
     if (profile.filterFocusOffsets != null) {
       try {
-        existingOffsets = (jsonDecode(profile.filterFocusOffsets!) as Map)
-            .cast<String, int>();
+        existingOffsets = decodeStringIntMapJson(
+          profile.filterFocusOffsets,
+          context:
+              'equipment_profiles.filter_focus_offsets for "${profile.name}"',
+        );
       } catch (error, stack) {
         debugPrint(
           'ProfileService: Failed to parse filterFocusOffsets for profile '
@@ -650,6 +721,7 @@ class ProfileExportData {
   final String? rotatorId;
   final String? domeId;
   final String? weatherId;
+  final String? coverCalibratorId;
   final double focalLength;
   final double aperture;
   final double? focalRatio;
@@ -660,7 +732,7 @@ class ProfileExportData {
   final double? defaultCoolingTemp;
   final List<String>? filterNames;
   final Map<String, int>? filterFocusOffsets;
-  
+
   ProfileExportData({
     required this.name,
     this.description,
@@ -672,6 +744,7 @@ class ProfileExportData {
     this.rotatorId,
     this.domeId,
     this.weatherId,
+    this.coverCalibratorId,
     required this.focalLength,
     required this.aperture,
     this.focalRatio,
@@ -683,14 +756,17 @@ class ProfileExportData {
     this.filterNames,
     this.filterFocusOffsets,
   });
-  
+
   factory ProfileExportData.fromDatabase(EquipmentProfile profile) {
     List<String>? filterNames;
     Map<String, int>? filterOffsets;
-    
+
     if (profile.filterNames != null) {
       try {
-        filterNames = (jsonDecode(profile.filterNames!) as List).cast<String>();
+        filterNames = decodeStringListJson(
+          profile.filterNames,
+          context: 'equipment_profiles.filter_names for "${profile.name}"',
+        );
       } catch (e) {
         // Malformed filter names JSON - skip
         debugPrint('ProfileService: Failed to parse filterNames: $e');
@@ -699,13 +775,17 @@ class ProfileExportData {
 
     if (profile.filterFocusOffsets != null) {
       try {
-        filterOffsets = (jsonDecode(profile.filterFocusOffsets!) as Map).cast<String, int>();
+        filterOffsets = decodeStringIntMapJson(
+          profile.filterFocusOffsets,
+          context:
+              'equipment_profiles.filter_focus_offsets for "${profile.name}"',
+        );
       } catch (e) {
         // Malformed filter offsets JSON - skip
         debugPrint('ProfileService: Failed to parse filterFocusOffsets: $e');
       }
     }
-    
+
     return ProfileExportData(
       name: profile.name,
       description: profile.description,
@@ -717,6 +797,7 @@ class ProfileExportData {
       rotatorId: profile.rotatorId,
       domeId: profile.domeId,
       weatherId: profile.weatherId,
+      coverCalibratorId: profile.coverCalibratorId,
       focalLength: profile.focalLength,
       aperture: profile.aperture,
       focalRatio: profile.focalRatio,
@@ -729,7 +810,7 @@ class ProfileExportData {
       filterFocusOffsets: filterOffsets,
     );
   }
-  
+
   factory ProfileExportData.fromJson(Map<String, dynamic> json) {
     return ProfileExportData(
       name: json['name'] as String,
@@ -742,19 +823,25 @@ class ProfileExportData {
       rotatorId: json['rotatorId'] as String?,
       domeId: json['domeId'] as String?,
       weatherId: json['weatherId'] as String?,
+      coverCalibratorId: json['coverCalibratorId'] as String?,
       focalLength: (json['focalLength'] as num?)?.toDouble() ?? 0.0,
       aperture: (json['aperture'] as num?)?.toDouble() ?? 0.0,
       focalRatio: (json['focalRatio'] as num?)?.toDouble(),
-      defaultGain: json['defaultGain'] as int?,
-      defaultOffset: json['defaultOffset'] as int?,
-      defaultBinX: json['defaultBinX'] as int? ?? 1,
-      defaultBinY: json['defaultBinY'] as int? ?? 1,
+      defaultGain: (json['defaultGain'] as num?)?.toInt(),
+      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
+      defaultBinX: (json['defaultBinX'] as num?)?.toInt() ?? 1,
+      defaultBinY: (json['defaultBinY'] as num?)?.toInt() ?? 1,
       defaultCoolingTemp: (json['defaultCoolingTemp'] as num?)?.toDouble(),
       filterNames: (json['filterNames'] as List?)?.cast<String>(),
-      filterFocusOffsets: (json['filterFocusOffsets'] as Map?)?.cast<String, int>(),
+      filterFocusOffsets: (json['filterFocusOffsets'] as Map?)?.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          (value as num).toInt(),
+        ),
+      ),
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -767,6 +854,7 @@ class ProfileExportData {
       'rotatorId': rotatorId,
       'domeId': domeId,
       'weatherId': weatherId,
+      'coverCalibratorId': coverCalibratorId,
       'focalLength': focalLength,
       'aperture': aperture,
       'focalRatio': focalRatio,

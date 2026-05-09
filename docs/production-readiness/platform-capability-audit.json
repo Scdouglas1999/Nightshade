@@ -1,0 +1,127 @@
+{
+  "generatedAt": "2026-05-06T11:13:31.889592Z",
+  "passed": true,
+  "fileCount": 13,
+  "issueCount": 0,
+  "issues": [],
+  "files": [
+    {
+      "path": "packages/nightshade_core/lib/src/models/backend/platform_capabilities.dart",
+      "label": "Platform capability model",
+      "exists": true,
+      "sizeBytes": 4972,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "packages/nightshade_core/test/models/platform_capabilities_test.dart",
+      "label": "Platform capability model tests",
+      "exists": true,
+      "sizeBytes": 3702,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "apps/desktop/lib/headless_api_server.dart",
+      "label": "Headless capability API",
+      "exists": true,
+      "sizeBytes": 99266,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "apps/desktop/lib/headless_api/handlers/equipment_handlers.dart",
+      "label": "Equipment capability API handlers",
+      "exists": true,
+      "sizeBytes": 8864,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "apps/desktop/test/headless_api/equipment_handlers_test.dart",
+      "label": "Equipment capability API handler tests",
+      "exists": true,
+      "sizeBytes": 3261,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "apps/desktop/test/headless_api/auth_middleware_test.dart",
+      "label": "Headless capability API tests",
+      "exists": true,
+      "sizeBytes": 16754,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "packages/nightshade_app/lib/screens/equipment/widgets/backend_selector_chips.dart",
+      "label": "Backend selector platform gating",
+      "exists": true,
+      "sizeBytes": 11755,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "packages/nightshade_app/test/screens/equipment/backend_selector_chips_test.dart",
+      "label": "Backend selector platform gating tests",
+      "exists": true,
+      "sizeBytes": 1759,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "packages/nightshade_app/lib/screens/settings/widgets/connection_settings.dart",
+      "label": "Settings platform capability view",
+      "exists": true,
+      "sizeBytes": 16097,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "packages/nightshade_app/test/screens/settings/platform_capabilities_settings_test.dart",
+      "label": "Settings platform capability tests",
+      "exists": true,
+      "sizeBytes": 2429,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/supported-hardware-by-platform.md",
+      "label": "Supported hardware platform docs",
+      "exists": true,
+      "sizeBytes": 6412,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/production-readiness/feature-parity-matrix.md",
+      "label": "Feature parity platform matrix",
+      "exists": true,
+      "sizeBytes": 2925,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    },
+    {
+      "path": "docs/api/web-server-api.md",
+      "label": "Headless API docs",
+      "exists": true,
+      "sizeBytes": 13670,
+      "missingText": [],
+      "missingTextCount": 0,
+      "passed": true
+    }
+  ],
+  "policy": "Platform capability clarity requires a shared model, headless API exposure, settings UI visibility, backend selector gating, docs, and tests to stay aligned for ASCOM, Alpaca, INDI, Native SDK, and simulator availability."
+}

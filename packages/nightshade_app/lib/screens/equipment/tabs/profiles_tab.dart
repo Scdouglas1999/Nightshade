@@ -6,6 +6,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 
+import '../../../localization/nightshade_localizations.dart';
+import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../dialogs/profile_wizard_dialog.dart';
 
@@ -55,38 +57,40 @@ class ProfilesTab extends ConsumerWidget {
           // Profiles grid
           Expanded(
             child: ref.watch(allProfilesProvider).when(
-              data: (profiles) {
-                if (profiles.isEmpty) {
-                  return _ProfilesEmptyState(colors: colors);
-                }
-                return GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1.4,
-                  ),
-                  itemCount: profiles.length + 1, // include quick-create tile
-                  itemBuilder: (context, index) {
-                    if (index == profiles.length) {
-                      return _EmptyProfileCard(colors: colors);
+                  data: (profiles) {
+                    if (profiles.isEmpty) {
+                      return _ProfilesEmptyState(colors: colors);
                     }
-                    final profile = profiles[index];
-                    return _ProfileCard(
-                      profile: profile,
-                      colors: colors,
+                    return GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: 1.4,
+                      ),
+                      itemCount:
+                          profiles.length + 1, // include quick-create tile
+                      itemBuilder: (context, index) {
+                        if (index == profiles.length) {
+                          return _EmptyProfileCard(colors: colors);
+                        }
+                        final profile = profiles[index];
+                        return _ProfileCard(
+                          profile: profile,
+                          colors: colors,
+                        );
+                      },
                     );
                   },
-                );
-              },
-              loading: () => Center(
-                child: CircularProgressIndicator(color: colors.primary),
-              ),
-              error: (error, stack) => _ProfilesError(
-                error: error,
-                colors: colors,
-              ),
-            ),
+                  loading: () => Center(
+                    child: CircularProgressIndicator(color: colors.primary),
+                  ),
+                  error: (error, stack) => _ProfilesError(
+                    colors: colors,
+                    onRetry: () => ref.invalidate(allProfilesProvider),
+                  ),
+                ),
           ),
         ],
       ),
@@ -100,7 +104,8 @@ class _CreateProfileButton extends ConsumerStatefulWidget {
   const _CreateProfileButton({required this.colors});
 
   @override
-  ConsumerState<_CreateProfileButton> createState() => _CreateProfileButtonState();
+  ConsumerState<_CreateProfileButton> createState() =>
+      _CreateProfileButtonState();
 }
 
 class _CreateProfileButtonState extends ConsumerState<_CreateProfileButton> {
@@ -108,6 +113,8 @@ class _CreateProfileButtonState extends ConsumerState<_CreateProfileButton> {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -134,16 +141,16 @@ class _CreateProfileButtonState extends ConsumerState<_CreateProfileButton> {
                   ]
                 : null,
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(LucideIcons.plus, size: 16, color: Colors.white),
-              SizedBox(width: 8),
+              Icon(LucideIcons.plus, size: 16, color: onPrimary),
+              const SizedBox(width: 8),
               Text(
                 'Create Profile',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: onPrimary,
                 ),
               ),
             ],
@@ -193,10 +200,13 @@ class _ProfilesEmptyState extends StatelessWidget {
 }
 
 class _ProfilesError extends StatelessWidget {
-  final Object error;
   final NightshadeColors colors;
+  final VoidCallback onRetry;
 
-  const _ProfilesError({required this.error, required this.colors});
+  const _ProfilesError({
+    required this.colors,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +217,7 @@ class _ProfilesError extends StatelessWidget {
           Icon(LucideIcons.alertTriangle, size: 48, color: colors.error),
           const SizedBox(height: 12),
           Text(
-            'Failed to load profiles',
+            context.l10n.text('equipmentProfilesLoadFailedTitle'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -216,12 +226,19 @@ class _ProfilesError extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            error.toString(),
+            context.l10n.text('equipmentProfilesLoadFailedBody'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
               color: colors.textSecondary,
             ),
+          ),
+          const SizedBox(height: 16),
+          NightshadeButton(
+            label: context.l10n.text('plannerRetry'),
+            icon: LucideIcons.refreshCw,
+            size: ButtonSize.small,
+            onPressed: onRetry,
           ),
         ],
       ),
@@ -260,7 +277,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: widget.colors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: profile.isActive
                 ? widget.colors.primary
@@ -345,7 +362,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
                     ),
                     decoration: BoxDecoration(
                       color: widget.colors.success.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: widget.colors.success.withValues(alpha: 0.3),
                       ),
@@ -404,7 +421,8 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
               children: [
                 Expanded(
                   child: _ProfileAction(
-                    icon: profile.isActive ? LucideIcons.check : LucideIcons.play,
+                    icon:
+                        profile.isActive ? LucideIcons.check : LucideIcons.play,
                     label: profile.isActive
                         ? 'Active'
                         : _isWorking
@@ -439,16 +457,16 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
   List<String> _buildEquipmentList(db.EquipmentProfile profile) {
     final items = <String>[];
     if (profile.cameraId != null) {
-      items.add('Camera: ${_formatDeviceId(profile.cameraId!)}');
+      items.add('Camera: ${formatDeviceId(profile.cameraId!)}');
     }
     if (profile.mountId != null) {
-      items.add('Mount: ${_formatDeviceId(profile.mountId!)}');
+      items.add('Mount: ${formatDeviceId(profile.mountId!)}');
     }
     if (profile.focuserId != null) {
-      items.add('Focuser: ${_formatDeviceId(profile.focuserId!)}');
+      items.add('Focuser: ${formatDeviceId(profile.focuserId!)}');
     }
     if (profile.filterWheelId != null) {
-      items.add('Filter Wheel: ${_formatDeviceId(profile.filterWheelId!)}');
+      items.add('Filter Wheel: ${formatDeviceId(profile.filterWheelId!)}');
     }
     if (items.isEmpty) {
       items.add('No equipment assigned');
@@ -464,120 +482,16 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     if (profile.focalLength <= 0 && profile.aperture <= 0) {
       return null;
     }
-    final focal = profile.focalLength > 0 ? '${profile.focalLength.toStringAsFixed(0)}mm' : '--';
-    final aperture = profile.aperture > 0 ? '${profile.aperture.toStringAsFixed(0)}mm' : '--';
+    final focal = profile.focalLength > 0
+        ? '${profile.focalLength.toStringAsFixed(0)}mm'
+        : '--';
+    final aperture = profile.aperture > 0
+        ? '${profile.aperture.toStringAsFixed(0)}mm'
+        : '--';
     final ratio = profile.focalRatio != null
         ? 'f/${profile.focalRatio!.toStringAsFixed(1)}'
         : '--';
     return 'Optics: $focal · $aperture · $ratio';
-  }
-
-  String _formatDeviceId(String id) {
-    final lowerId = id.toLowerCase();
-
-    // Handle native device IDs: native:vendor:index or native:vendor_type:index
-    if (lowerId.startsWith('native:')) {
-      final parts = id.substring(7).split(':');
-      if (parts.isNotEmpty) {
-        final devicePart = parts[0];
-        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-
-        // Handle vendor_type format (e.g., zwo_eaf)
-        if (devicePart.contains('_')) {
-          final subParts = devicePart.split('_');
-          final vendor = _capitalizeVendor(subParts[0]);
-          final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
-          return '$vendor $type';
-        }
-
-        // Simple vendor format
-        final vendor = _capitalizeVendor(devicePart);
-        if (index != null) {
-          return '$vendor #${index + 1}';
-        }
-        return vendor;
-      }
-    }
-
-    // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type or ASCOM.Vendor.Type
-    if (lowerId.startsWith('ascom:') || lowerId.startsWith('ascom.')) {
-      final ascomId = lowerId.startsWith('ascom:') ? id.substring(6) : id;
-      final parts = ascomId.split('.');
-      if (parts.length >= 2) {
-        final vendorPart = parts.length > 1 ? parts[1] : parts[0];
-        return _formatAscomVendor(vendorPart);
-      }
-    }
-
-    // Handle Alpaca device IDs
-    if (lowerId.startsWith('alpaca:')) {
-      final alpacaPart = id.substring(7);
-      return 'Alpaca: $alpacaPart';
-    }
-
-    // Handle PHD2
-    if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
-      return 'PHD2';
-    }
-
-    // Handle underscore-separated IDs
-    if (id.contains('_')) {
-      return id.split('_').map(_capitalizeWord).join(' ');
-    }
-
-    // Fallback: if contains dot, use last segment
-    if (id.contains('.')) {
-      return id.split('.').last;
-    }
-
-    return id;
-  }
-
-  String _capitalizeVendor(String vendor) {
-    const knownVendors = {
-      'zwo': 'ZWO',
-      'asi': 'ZWO ASI',
-      'qhy': 'QHY',
-      'playerone': 'PlayerOne',
-      'svbony': 'SVBony',
-      'atik': 'Atik',
-      'fli': 'FLI',
-      'moravian': 'Moravian',
-      'touptek': 'Touptek',
-      'pegasus': 'Pegasus',
-      'pegasusastro': 'Pegasus Astro',
-      'ioptron': 'iOptron',
-      'skywatcher': 'Sky-Watcher',
-      'celestron': 'Celestron',
-      'meade': 'Meade',
-      'losmandy': 'Losmandy',
-      'moonlite': 'MoonLite',
-      'optec': 'Optec',
-      'lacerta': 'Lacerta',
-      'esatto': 'Esatto',
-      'primaluce': 'PrimaLuce',
-    };
-
-    final lower = vendor.toLowerCase();
-    if (knownVendors.containsKey(lower)) {
-      return knownVendors[lower]!;
-    }
-
-    if (vendor.isEmpty) return vendor;
-    return vendor[0].toUpperCase() + vendor.substring(1);
-  }
-
-  String _formatAscomVendor(String vendor) {
-    final spaced = vendor.replaceAllMapped(
-      RegExp(r'([a-z])([A-Z0-9])'),
-      (m) => '${m.group(1)} ${m.group(2)}',
-    );
-    return spaced;
-  }
-
-  String _capitalizeWord(String word) {
-    if (word.isEmpty) return word;
-    return word[0].toUpperCase() + word.substring(1).toLowerCase();
   }
 
   Future<void> _loadProfile() async {
@@ -616,20 +530,26 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
             validation.missingDeviceIds.keys.toSet(),
           );
           if (mounted) {
-            context.showSuccessSnackBar('Removed missing devices from "${profile.name}"');
+            context.showSuccessSnackBar(
+                'Removed missing devices from "${profile.name}"');
           }
         }
         // action == _ValidationAction.proceedAnyway falls through to load
       }
 
-      final autoConnectSetting = ref.read(appSettingsProvider).valueOrNull?.autoConnectEquipment ?? false;
-      await profileService.loadProfile(profile.id, autoConnect: autoConnectSetting);
+      final autoConnectSetting =
+          ref.read(appSettingsProvider).valueOrNull?.autoConnectEquipment ??
+              false;
+      await profileService.loadProfile(profile.id,
+          autoConnect: autoConnectSetting);
       if (mounted) {
         context.showSuccessSnackBar('Loaded "${profile.name}"');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to load profile: $e');
+        context.showErrorSnackBar(
+          'Could not load that equipment profile.',
+        );
       }
     } finally {
       if (mounted) {
@@ -643,13 +563,17 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     setState(() => _isWorking = true);
     try {
       final newName = '${profile.name} Copy';
-      await ref.read(profileServiceProvider).duplicateProfile(profile.id, newName);
+      await ref
+          .read(profileServiceProvider)
+          .duplicateProfile(profile.id, newName);
       if (mounted) {
         context.showSuccessSnackBar('Duplicated "${profile.name}"');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to duplicate profile: $e');
+        context.showErrorSnackBar(
+          'Could not duplicate that equipment profile.',
+        );
       }
     } finally {
       if (mounted) {
@@ -704,9 +628,11 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
       if (mounted) {
         context.showSuccessSnackBar('Deleted "${profile.name}"');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to delete profile: $e');
+        context.showErrorSnackBar(
+          'Could not delete that equipment profile.',
+        );
       }
     } finally {
       if (mounted) {
@@ -743,6 +669,8 @@ class _ProfileActionState extends ConsumerState<_ProfileAction> {
   @override
   Widget build(BuildContext context) {
     final canInteract = widget.onTap != null && !widget.isBusy;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) {
         if (canInteract) setState(() => _isHovered = true);
@@ -776,7 +704,9 @@ class _ProfileActionState extends ConsumerState<_ProfileAction> {
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      widget.isPrimary ? Colors.white : widget.colors.textSecondary,
+                      widget.isPrimary
+                          ? onPrimary
+                          : widget.colors.textSecondary,
                     ),
                   ),
                 ),
@@ -786,7 +716,7 @@ class _ProfileActionState extends ConsumerState<_ProfileAction> {
                   widget.icon,
                   size: 12,
                   color: widget.isPrimary
-                      ? Colors.white
+                      ? onPrimary
                       : widget.colors.textSecondary,
                 ),
                 const SizedBox(width: 6),
@@ -797,7 +727,7 @@ class _ProfileActionState extends ConsumerState<_ProfileAction> {
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
-                      ? Colors.white
+                      ? onPrimary
                       : widget.colors.textSecondary,
                 ),
               ),
@@ -888,7 +818,7 @@ class _EmptyProfileCardState extends ConsumerState<_EmptyProfileCard> {
             color: _isHovered
                 ? widget.colors.surfaceAlt
                 : widget.colors.background,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: _isHovered
                   ? widget.colors.primary.withValues(alpha: 0.5)
@@ -964,7 +894,7 @@ class _MissingDevicesDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       title: Row(
         children: [
           Icon(LucideIcons.alertTriangle, color: colors.warning, size: 22),
@@ -1008,7 +938,8 @@ class _MissingDevicesDialog extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
-                      Icon(LucideIcons.xCircle, size: 14, color: colors.warning),
+                      Icon(LucideIcons.xCircle,
+                          size: 14, color: colors.warning),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -1058,13 +989,15 @@ class _MissingDevicesDialog extends StatelessWidget {
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: () => Navigator.pop(context, _ValidationAction.updateProfile),
+          onPressed: () =>
+              Navigator.pop(context, _ValidationAction.updateProfile),
           label: 'Update Profile',
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: () => Navigator.pop(context, _ValidationAction.proceedAnyway),
+          onPressed: () =>
+              Navigator.pop(context, _ValidationAction.proceedAnyway),
           label: 'Proceed Anyway',
           variant: ButtonVariant.primary,
         ),

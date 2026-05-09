@@ -29,4 +29,6 @@ mixin _$ScienceDaoMixin on DatabaseAccessor<NightshadeDatabase> {
       attachedDatabase.movingObjectCandidates;
   $LineRatioProductsTable get lineRatioProducts =>
       attachedDatabase.lineRatioProducts;
+  $PhotometricTransformsTable get photometricTransforms =>
+      attachedDatabase.photometricTransforms;
 }

@@ -85,18 +85,23 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             const SizedBox(height: 16),
 
             // Main content area
-            if (_isCentering || _result != null || centeringStatus.iterationHistory.isNotEmpty)
+            if (_isCentering ||
+                _result != null ||
+                centeringStatus.iterationHistory.isNotEmpty)
               Flexible(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Left: Image preview
-                    if (currentImage != null && (_isCentering || _result != null))
+                    if (currentImage != null &&
+                        (_isCentering || _result != null))
                       Expanded(
                         flex: 1,
-                        child: _buildImagePreview(currentImage, colorScheme, theme),
+                        child: _buildImagePreview(
+                            currentImage, colorScheme, theme),
                       ),
-                    if (currentImage != null && (_isCentering || _result != null))
+                    if (currentImage != null &&
+                        (_isCentering || _result != null))
                       const SizedBox(width: 16),
 
                     // Right: Status and info
@@ -107,10 +112,13 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // Coordinates
-                            if (widget.targetRa != null && widget.targetDec != null)
-                              _buildCoordinatesCompact(centeringStatus, colorScheme, theme),
+                            if (widget.targetRa != null &&
+                                widget.targetDec != null)
+                              _buildCoordinatesCompact(
+                                  centeringStatus, colorScheme, theme),
 
-                            if (widget.targetRa != null && widget.targetDec != null)
+                            if (widget.targetRa != null &&
+                                widget.targetDec != null)
                               const SizedBox(height: 12),
 
                             // Exposure settings
@@ -126,9 +134,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                               _buildResultSection(_result!, colorScheme),
 
                             // Iteration history
-                            if (centeringStatus.iterationHistory.isNotEmpty) ...[
+                            if (centeringStatus
+                                .iterationHistory.isNotEmpty) ...[
                               const SizedBox(height: 12),
-                              _buildIterationHistory(centeringStatus.iterationHistory, colorScheme),
+                              _buildIterationHistory(
+                                  centeringStatus.iterationHistory,
+                                  colorScheme),
                             ],
                           ],
                         ),
@@ -212,11 +223,15 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildImagePreview(CapturedImageData imageData, ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildImagePreview(
+    CapturedImageData imageData,
+    ColorScheme colorScheme,
+    ThemeData theme,
+  ) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 400),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: colorScheme.scrim,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: colorScheme.outline.withValues(alpha: 0.3),
@@ -270,7 +285,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildCoordinatesCompact(CenteringStatus status, ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildCoordinatesCompact(
+      CenteringStatus status, ColorScheme colorScheme, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -303,7 +319,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           ),
           if (status.solvedRa != null && status.solvedDec != null) ...[
             const SizedBox(height: 8),
-            Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
+            Divider(
+                height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -342,7 +359,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.camera, size: 16, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+          Icon(LucideIcons.camera,
+              size: 16, color: colorScheme.onSurface.withValues(alpha: 0.6)),
           const SizedBox(width: 8),
           Text(
             'Solve exposure:',
@@ -357,7 +375,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             child: TextField(
               controller: _exposureController,
               enabled: !_isCentering,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
@@ -365,14 +384,17 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               ),
               decoration: InputDecoration(
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                  borderSide: BorderSide(
+                      color: colorScheme.outline.withValues(alpha: 0.3)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                  borderSide: BorderSide(
+                      color: colorScheme.outline.withValues(alpha: 0.3)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
@@ -508,9 +530,13 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: (status.currentOffsetArcsec! / _centeringConfig.toleranceArcsec).clamp(0.0, 2.0) / 2.0,
+                      value: (status.currentOffsetArcsec! /
+                                  _centeringConfig.toleranceArcsec)
+                              .clamp(0.0, 2.0) /
+                          2.0,
                       backgroundColor: colorScheme.surfaceContainerHighest,
-                      color: status.currentOffsetArcsec! <= _centeringConfig.toleranceArcsec
+                      color: status.currentOffsetArcsec! <=
+                              _centeringConfig.toleranceArcsec
                           ? colorScheme.tertiary
                           : colorScheme.primary,
                       minHeight: 6,
@@ -523,7 +549,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontFeatures: [const FontFeature.tabularFigures()],
-                    color: status.currentOffsetArcsec! <= _centeringConfig.toleranceArcsec
+                    color: status.currentOffsetArcsec! <=
+                            _centeringConfig.toleranceArcsec
                         ? colorScheme.tertiary
                         : colorScheme.onSurface,
                   ),
@@ -591,7 +618,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildIterationHistory(List<CenteringIteration> history, ColorScheme colorScheme) {
+  Widget _buildIterationHistory(
+      List<CenteringIteration> history, ColorScheme colorScheme) {
     final theme = Theme.of(context);
 
     return Column(
@@ -676,7 +704,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final centeringService = ref.read(centeringServiceProvider);
 
     final appSettings = ref.read(appSettingsProvider).value;
-    final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+    final executablePath =
+        await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,

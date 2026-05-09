@@ -144,6 +144,9 @@ pub enum NightshadeError {
     #[error("File I/O error: {0}")]
     IoError(String),
 
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
     #[error("Plate solving failed: {0}")]
     PlateSolveError(String),
 
@@ -640,6 +643,7 @@ impl NightshadeError {
             | NightshadeError::Cancelled
             | NightshadeError::RuntimeInitFailed(_)
             | NightshadeError::ResourceExhausted { .. }
+            | NightshadeError::SerializationError(_)
             | NightshadeError::OperationFailed(_) => "system",
         }
     }

@@ -22,6 +22,12 @@ class BackendSelectorChips extends StatelessWidget {
   /// Whether the selector is enabled
   final bool isEnabled;
 
+  /// Current platform for launch-time backend availability checks.
+  ///
+  /// Pass [Platform.operatingSystem] from UI code that can import `dart:io`.
+  /// Tests may pass a normalized platform string directly.
+  final String? currentPlatform;
+
   const BackendSelectorChips({
     super.key,
     required this.availableBackends,
@@ -29,6 +35,7 @@ class BackendSelectorChips extends StatelessWidget {
     required this.recommendedBackend,
     required this.onBackendSelected,
     this.isEnabled = true,
+    this.currentPlatform,
   });
 
   @override
@@ -41,7 +48,8 @@ class BackendSelectorChips extends StatelessWidget {
 
     // Sort backends by priority (Native first)
     final sortedBackends = List<DriverType>.from(availableBackends);
-    sortedBackends.sort((a, b) => _backendPriority(a).compareTo(_backendPriority(b)));
+    sortedBackends
+        .sort((a, b) => _backendPriority(a).compareTo(_backendPriority(b)));
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -60,12 +68,16 @@ class BackendSelectorChips extends StatelessWidget {
           children: sortedBackends.map((backend) {
             final isSelected = backend == selectedBackend;
             final isRecommended = backend == recommendedBackend;
+            final unsupportedReason =
+                _unsupportedReasonFor(backend, currentPlatform);
+            final backendEnabled = isEnabled && unsupportedReason == null;
 
             return _BackendChip(
               backend: backend,
               isSelected: isSelected,
               isRecommended: isRecommended,
-              isEnabled: isEnabled,
+              isEnabled: backendEnabled,
+              unsupportedReason: unsupportedReason,
               onTap: () => onBackendSelected(backend),
             );
           }).toList(),
@@ -88,6 +100,9 @@ class BackendSelectorChips extends StatelessWidget {
         return 4;
     }
   }
+
+  String? _unsupportedReasonFor(DriverType backend, String? platform) =>
+      unsupportedBackendReasonFor(backend, platform);
 }
 
 class _BackendChip extends StatefulWidget {
@@ -95,6 +110,7 @@ class _BackendChip extends StatefulWidget {
   final bool isSelected;
   final bool isRecommended;
   final bool isEnabled;
+  final String? unsupportedReason;
   final VoidCallback onTap;
 
   const _BackendChip({
@@ -102,6 +118,7 @@ class _BackendChip extends StatefulWidget {
     required this.isSelected,
     required this.isRecommended,
     required this.isEnabled,
+    required this.unsupportedReason,
     required this.onTap,
   });
 
@@ -138,18 +155,21 @@ class _BackendChipState extends State<_BackendChip> {
             ? colors.surfaceHover
             : colors.surfaceAlt;
 
-    final borderColor = widget.isSelected
-        ? backendColor.withValues(alpha: 0.5)
-        : colors.border;
+    final borderColor =
+        widget.isSelected ? backendColor.withValues(alpha: 0.5) : colors.border;
 
     final textColor = widget.isSelected
         ? backendColor
         : widget.isEnabled
             ? colors.textSecondary
             : colors.textMuted;
+    final unsupportedReason = widget.unsupportedReason;
+    final tooltipMessage = unsupportedReason == null
+        ? widget.backend.description
+        : '${widget.backend.description}\nUnsupported: $unsupportedReason';
 
     return Tooltip(
-      message: widget.backend.description,
+      message: tooltipMessage,
       waitDuration: const Duration(milliseconds: 500),
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
@@ -164,7 +184,7 @@ class _BackendChipState extends State<_BackendChip> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: borderColor, width: 1),
             ),
             child: Row(
@@ -187,6 +207,14 @@ class _BackendChipState extends State<_BackendChip> {
                     color: textColor,
                   ),
                 ),
+                if (unsupportedReason != null) ...[
+                  const SizedBox(width: 3),
+                  Icon(
+                    Icons.block,
+                    size: 10,
+                    color: colors.textMuted,
+                  ),
+                ],
                 if (widget.isSelected) ...[
                   const SizedBox(width: 3),
                   Icon(
@@ -211,6 +239,7 @@ class CompactBackendSelector extends StatelessWidget {
   final DriverType recommendedBackend;
   final ValueChanged<DriverType> onBackendSelected;
   final bool isEnabled;
+  final String? currentPlatform;
 
   const CompactBackendSelector({
     super.key,
@@ -219,6 +248,7 @@ class CompactBackendSelector extends StatelessWidget {
     required this.recommendedBackend,
     required this.onBackendSelected,
     this.isEnabled = true,
+    this.currentPlatform,
   });
 
   @override
@@ -254,8 +284,11 @@ class CompactBackendSelector extends StatelessWidget {
       itemBuilder: (context) {
         return availableBackends.map((backend) {
           final isRecommended = backend == recommendedBackend;
+          final unsupportedReason =
+              _unsupportedReasonFor(backend, currentPlatform);
           return PopupMenuItem<DriverType>(
             value: backend,
+            enabled: unsupportedReason == null,
             child: Row(
               children: [
                 if (isRecommended)
@@ -265,7 +298,12 @@ class CompactBackendSelector extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(backend.displayName),
                 const Spacer(),
-                if (backend == selectedBackend)
+                if (unsupportedReason != null)
+                  Tooltip(
+                    message: unsupportedReason,
+                    child: Icon(Icons.block, size: 14, color: colors.textMuted),
+                  )
+                else if (backend == selectedBackend)
                   Icon(Icons.check, size: 14, color: colors.success),
               ],
             ),
@@ -300,4 +338,24 @@ class CompactBackendSelector extends StatelessWidget {
       ),
     );
   }
+
+  String? _unsupportedReasonFor(DriverType backend, String? platform) =>
+      unsupportedBackendReasonFor(backend, platform);
+}
+
+@visibleForTesting
+String? unsupportedBackendReasonFor(DriverType backend, String? platform) {
+  if (platform == null || platform.trim().isEmpty) {
+    return null;
+  }
+  for (final capability in PlatformCapabilityMatrix.rows) {
+    if (capability.backend != backend.name) {
+      continue;
+    }
+    if (capability.isAvailableOn(platform)) {
+      return null;
+    }
+    return capability.reasonFor(platform);
+  }
+  return null;
 }

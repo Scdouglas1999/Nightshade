@@ -26,6 +26,11 @@ Nightshade is a comprehensive astronomical imaging application with multiple API
 - [Planetarium API](./planetarium-api.md) - Sky rendering, catalogs, and planning
 - [Web Server API](./web-server-api.md) - REST API for remote control
 - [Plugin API](./plugin-api.md) - Plugin system for extending functionality
+- [Headless Secure Setup](../headless-secure-setup.md) - Authenticated LAN setup and verification
+- [Supported Hardware By Platform](../supported-hardware-by-platform.md) - Driver and device support matrix
+- [Known Limitations](../known-limitations.md) - Accepted release limitations and unsupported-platform summary
+- [Release Notes Template](../release-notes-template.md) - Public release note evidence template
+- [Migration, Backup, and Restore Guide](../migration-backup-restore.md) - Backup format, restore routes, and migration verification
 
 ### Reference
 
@@ -111,9 +116,12 @@ Nightshade supports multiple device driver protocols:
 
 - **ASCOM** - Windows-only, industry standard
 - **Alpaca** - Cross-platform, network-based
-- **INDI** - Linux-focused, open source
-- **Native** - Direct SDK access (ZWO ASI, QHY, PlayerOne, SVBony, Atik, FLI, Moravian, Touptek)
+- **INDI** - INDI-server based device access, with device capability depth set by each driver
+- **Native** - Capability-gated SDK access where vendor libraries are packaged and verified
 - **Simulator** - For testing and development
+
+See [Supported Hardware By Platform](../supported-hardware-by-platform.md)
+before treating a driver backend or native SDK as a public release guarantee.
 
 ## Contributing
 

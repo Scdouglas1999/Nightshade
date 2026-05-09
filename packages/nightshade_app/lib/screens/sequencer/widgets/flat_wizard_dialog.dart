@@ -170,7 +170,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
         child: Container(
           decoration: BoxDecoration(
             color: colors.background.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border, width: 1),
             boxShadow: [
               BoxShadow(

@@ -32,15 +32,22 @@ class FocuserControls extends ConsumerStatefulWidget {
 
 class _FocuserControlsState extends ConsumerState<FocuserControls> {
   bool _isRunningAutofocus = false;
+  bool _isMoving = false;
 
   FocuserState? get _focuserState => ref.watch(focuserStateProvider);
   bool get _isConnected => _focuserState?.connectionState == DeviceConnectionState.connected;
 
   Future<void> _moveRelative(int steps) async {
+    if (_isMoving) return;
+    _isMoving = true;
+    setState(() {});
     try {
       await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Failed to move focuser: $e');
+    } finally {
+      _isMoving = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -55,6 +62,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
   Future<void> _runAutofocus() async {
     setState(() => _isRunningAutofocus = true);
     ref.read(sessionStateProvider.notifier).setAutofocusing(true);
+    // Notify overlay that AF is starting
+    ref.read(autofocusOverlayProvider.notifier).onAutofocusStarted();
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
@@ -65,6 +74,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
         binning: 1,
       );
       ref.read(autofocusResultProvider.notifier).state = result;
+      // Notify overlay of completion
+      ref.read(autofocusOverlayProvider.notifier).onAutofocusCompleted(result);
       if (mounted) {
         context.showSuccessSnackBar(
           'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}'
@@ -72,6 +83,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
         widget.onAutofocusComplete?.call();
       }
     } catch (e) {
+      // Notify overlay of failure
+      ref.read(autofocusOverlayProvider.notifier).onAutofocusFailed('$e');
       if (mounted) context.showErrorSnackBar('Autofocus failed: $e');
     } finally {
       if (mounted) {
@@ -88,6 +101,8 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
     final stepSize = focusSettings.stepSize;
     final buttonSize = widget.compact ? 32.0 : 40.0;
 
+    final canMove = _isConnected && !_isMoving;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -97,13 +112,13 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
             _MoveButton(
               icon: LucideIcons.chevronsLeft,
               size: buttonSize,
-              onPressed: _isConnected ? () => _moveRelative(-stepSize * 10) : null,
+              onPressed: canMove ? () => _moveRelative(-stepSize * 10) : null,
             ),
             const SizedBox(width: 4),
             _MoveButton(
               icon: LucideIcons.chevronLeft,
               size: buttonSize,
-              onPressed: _isConnected ? () => _moveRelative(-stepSize) : null,
+              onPressed: canMove ? () => _moveRelative(-stepSize) : null,
             ),
             const SizedBox(width: 4),
             _MoveButton(
@@ -116,13 +131,13 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
             _MoveButton(
               icon: LucideIcons.chevronRight,
               size: buttonSize,
-              onPressed: _isConnected ? () => _moveRelative(stepSize) : null,
+              onPressed: canMove ? () => _moveRelative(stepSize) : null,
             ),
             const SizedBox(width: 4),
             _MoveButton(
               icon: LucideIcons.chevronsRight,
               size: buttonSize,
-              onPressed: _isConnected ? () => _moveRelative(stepSize * 10) : null,
+              onPressed: canMove ? () => _moveRelative(stepSize * 10) : null,
             ),
           ],
         ),

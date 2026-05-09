@@ -266,9 +266,8 @@ class ExampleSequencePlugin extends SequencePlugin {
           category: 'Example',
           description: 'Wait for a custom duration',
           createNode: (params) {
-            // In a real plugin, create and return a sequence node instance
-            // that implements the required interface
-            return null;
+            final durationMs = params['durationMs'] as int? ?? 5000;
+            return _ExampleWaitNode(durationMs: durationMs);
           },
         ),
         SequenceNodeDefinition(
@@ -277,8 +276,57 @@ class ExampleSequencePlugin extends SequencePlugin {
           category: 'Example',
           description: 'Send a custom notification',
           createNode: (params) {
-            return null;
+            final message = params['message'] as String? ?? 'Notification';
+            return _ExampleNotifyNode(message: message);
           },
         ),
       ];
+}
+
+/// Example wait node that pauses execution for a specified duration
+class _ExampleWaitNode implements PluginSequenceNode {
+  final int durationMs;
+
+  _ExampleWaitNode({required this.durationMs});
+
+  @override
+  Future<bool> execute(PluginContext context) async {
+    context.logger.info('Waiting for ${durationMs}ms...');
+    await Future<void>.delayed(Duration(milliseconds: durationMs));
+    context.logger.info('Wait complete');
+    return true;
+  }
+
+  @override
+  String? validate() {
+    if (durationMs <= 0) {
+      return 'Duration must be positive';
+    }
+    return null;
+  }
+}
+
+/// Example notify node that emits a notification event
+class _ExampleNotifyNode implements PluginSequenceNode {
+  final String message;
+
+  _ExampleNotifyNode({required this.message});
+
+  @override
+  Future<bool> execute(PluginContext context) async {
+    context.logger.info('Sending notification: $message');
+    context.eventBus.emit('plugin.notification', {
+      'message': message,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+    return true;
+  }
+
+  @override
+  String? validate() {
+    if (message.isEmpty) {
+      return 'Message must not be empty';
+    }
+    return null;
+  }
 }

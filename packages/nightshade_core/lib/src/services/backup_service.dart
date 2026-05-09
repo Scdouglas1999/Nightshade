@@ -72,15 +72,24 @@ class BackupMetadata {
   });
 
   factory BackupMetadata.fromJson(Map<String, dynamic> json) {
+    final metadata = json['metadata'] as Map<String, dynamic>?;
     return BackupMetadata(
       version: json['version'] as String? ?? '1.0',
       createdAt: DateTime.parse(json['createdAt'] as String),
       appVersion: json['appVersion'] as String? ?? 'unknown',
       platform: json['platform'] as String? ?? 'unknown',
-      settingsCount: json['settingsCount'] as int? ?? 0,
-      profilesCount: json['profilesCount'] as int? ?? 0,
-      sequencesCount: json['sequencesCount'] as int? ?? 0,
-      targetsCount: json['targetsCount'] as int? ?? 0,
+      settingsCount: metadata?['settingsCount'] as int? ??
+          json['settingsCount'] as int? ??
+          0,
+      profilesCount: metadata?['profilesCount'] as int? ??
+          json['profilesCount'] as int? ??
+          0,
+      sequencesCount: metadata?['sequencesCount'] as int? ??
+          json['sequencesCount'] as int? ??
+          0,
+      targetsCount: metadata?['targetsCount'] as int? ??
+          json['targetsCount'] as int? ??
+          0,
     );
   }
 
@@ -105,7 +114,7 @@ class BackupService {
   final LoggingService _logger;
 
   static const String backupVersion = '2.0';
-  static const String appVersion = '2.2.0'; // Should be from package info
+  static const String appVersion = '2.5.0'; // Must match version.yaml
 
   BackupService({
     required this.database,
@@ -187,7 +196,7 @@ class BackupService {
         itemsBackedUp: totalItems,
       );
     } catch (e, stackTrace) {
-      _logger.debug('Backup failed: $e\n$stackTrace');
+      _logger.error('Backup failed: $e\n$stackTrace', source: 'BackupService');
       return BackupResult(
         success: false,
         errorMessage: e.toString(),
@@ -297,7 +306,7 @@ class BackupService {
         categoryCounts: categoryCounts,
       );
     } catch (e, stackTrace) {
-      _logger.debug('Restore failed: $e\n$stackTrace');
+      _logger.error('Restore failed: $e\n$stackTrace', source: 'BackupService');
       return RestoreResult(
         success: false,
         errorMessage: e.toString(),
@@ -333,8 +342,9 @@ class BackupService {
       final files = await backupDir
           .list()
           .where((entity) =>
-              entity is File && entity.path.endsWith('.nsbackup') ||
-              entity.path.endsWith('.json'))
+              entity is File &&
+              (entity.path.endsWith('.nsbackup') ||
+                  entity.path.endsWith('.json')))
           .map((entity) => entity as File)
           .toList();
 
@@ -469,7 +479,7 @@ class BackupService {
         'ditherEvery': node.ditherEvery,
         'frameType': node.frameType.name,
       });
-    } else if (node is TargetGroupNode) {
+    } else if (node is TargetHeaderNode) {
       base.addAll({
         'targetName': node.targetName,
         'raHours': node.raHours,
@@ -503,7 +513,7 @@ class BackupService {
     int count = 0;
 
     for (final entry in settingsMap.entries) {
-      await settingsDao.setSetting(entry.key, entry.value as String);
+      await settingsDao.setSetting(entry.key, entry.value?.toString() ?? '');
       count++;
     }
 
@@ -520,28 +530,28 @@ class BackupService {
       await database.into(database.equipmentProfiles).insert(
             EquipmentProfilesCompanion.insert(
               name: profile['name'] as String,
-              description: Value(profile['description'] as String?),
+              description: Value(_stringOrNull(profile['description'])),
               isActive: Value(profile['isActive'] as bool? ?? false),
-              cameraId: Value(profile['cameraId'] as String?),
-              mountId: Value(profile['mountId'] as String?),
-              focuserId: Value(profile['focuserId'] as String?),
-              filterWheelId: Value(profile['filterWheelId'] as String?),
-              guiderId: Value(profile['guiderId'] as String?),
-              rotatorId: Value(profile['rotatorId'] as String?),
-              domeId: Value(profile['domeId'] as String?),
-              weatherId: Value(profile['weatherId'] as String?),
-              focalLength: Value(profile['focalLength'] as double? ?? 0.0),
-              aperture: Value(profile['aperture'] as double? ?? 0.0),
-              focalRatio: Value(profile['focalRatio'] as double?),
-              defaultGain: Value(profile['defaultGain'] as int?),
-              defaultOffset: Value(profile['defaultOffset'] as int?),
-              defaultBinX: Value(profile['defaultBinX'] as int? ?? 1),
-              defaultBinY: Value(profile['defaultBinY'] as int? ?? 1),
+              cameraId: Value(_stringOrNull(profile['cameraId'])),
+              mountId: Value(_stringOrNull(profile['mountId'])),
+              focuserId: Value(_stringOrNull(profile['focuserId'])),
+              filterWheelId: Value(_stringOrNull(profile['filterWheelId'])),
+              guiderId: Value(_stringOrNull(profile['guiderId'])),
+              rotatorId: Value(_stringOrNull(profile['rotatorId'])),
+              domeId: Value(_stringOrNull(profile['domeId'])),
+              weatherId: Value(_stringOrNull(profile['weatherId'])),
+              focalLength: Value(_doubleOrDefault(profile['focalLength'], 0.0)),
+              aperture: Value(_doubleOrDefault(profile['aperture'], 0.0)),
+              focalRatio: Value(_doubleOrNull(profile['focalRatio'])),
+              defaultGain: Value(_intOrNull(profile['defaultGain'])),
+              defaultOffset: Value(_intOrNull(profile['defaultOffset'])),
+              defaultBinX: Value(_intOrDefault(profile['defaultBinX'], 1)),
+              defaultBinY: Value(_intOrDefault(profile['defaultBinY'], 1)),
               defaultCoolingTemp:
-                  Value(profile['defaultCoolingTemp'] as double?),
-              filterNames: Value(profile['filterNames'] as String?),
+                  Value(_doubleOrNull(profile['defaultCoolingTemp'])),
+              filterNames: Value(_stringOrNull(profile['filterNames'])),
               filterFocusOffsets:
-                  Value(profile['filterFocusOffsets'] as String?),
+                  Value(_stringOrNull(profile['filterFocusOffsets'])),
             ),
             mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
           );
@@ -576,16 +586,16 @@ class BackupService {
       await database.into(database.targets).insert(
             TargetsCompanion.insert(
               name: target['name'] as String,
-              catalogId: Value(target['catalogId'] as String?),
-              ra: target['ra'] as double,
-              dec: target['dec'] as double,
-              constellation: Value(target['constellation'] as String?),
-              objectType: Value(target['objectType'] as String?),
-              magnitude: Value(target['magnitude'] as double?),
-              sizeArcmin: Value(target['sizeArcmin'] as double?),
-              notes: Value(target['notes'] as String?),
+              catalogId: Value(_stringOrNull(target['catalogId'])),
+              ra: _doubleOrDefault(target['ra'], 0.0),
+              dec: _doubleOrDefault(target['dec'], 0.0),
+              constellation: Value(_stringOrNull(target['constellation'])),
+              objectType: Value(_stringOrNull(target['objectType'])),
+              magnitude: Value(_doubleOrNull(target['magnitude'])),
+              sizeArcmin: Value(_doubleOrNull(target['sizeArcmin'])),
+              notes: Value(_stringOrNull(target['notes'])),
               isFavorite: Value(target['isFavorite'] as bool? ?? false),
-              priority: Value(target['priority'] as int? ?? 0),
+              priority: Value(_intOrDefault(target['priority'], 0)),
             ),
             mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
           );
@@ -658,8 +668,9 @@ class BackupService {
             isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
+        case 'TargetHeader':
         case 'targetGroup':
-          return TargetGroupNode(
+          return TargetHeaderNode(
             id: json['id'] as String,
             name: json['name'] as String,
             targetName: json['targetName'] as String,
@@ -739,6 +750,8 @@ class BackupService {
     return Directory(path.join(docsDir.path, 'Nightshade', 'backups'));
   }
 
+  Future<Directory> getBackupDirectory() => _getBackupDirectory();
+
   Future<void> _clearAllData() async {
     // Clear all tables (except settings if desired)
     await database.delete(database.equipmentProfiles).go();
@@ -748,6 +761,29 @@ class BackupService {
     // Note: Not clearing imaging_sessions and captured_images to preserve historical data
     _logger.debug('Cleared existing data');
   }
+}
+
+String? _stringOrNull(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  return value.toString();
+}
+
+double? _doubleOrNull(Object? value) {
+  return (value as num?)?.toDouble();
+}
+
+double _doubleOrDefault(Object? value, double fallback) {
+  return (value as num?)?.toDouble() ?? fallback;
+}
+
+int? _intOrNull(Object? value) {
+  return (value as num?)?.toInt();
+}
+
+int _intOrDefault(Object? value, int fallback) {
+  return (value as num?)?.toInt() ?? fallback;
 }
 
 /// Provider for BackupService

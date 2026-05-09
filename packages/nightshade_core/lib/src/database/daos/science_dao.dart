@@ -17,6 +17,7 @@ part 'science_dao.g.dart';
   AstrometryResidualVectors,
   MovingObjectCandidates,
   LineRatioProducts,
+  PhotometricTransforms,
 ])
 class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ScienceDaoMixin {
@@ -27,32 +28,34 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
       return;
     }
 
-    final existing = await (select(scienceSessionConfig)
-          ..where((tbl) => tbl.sessionId.equals(config.sessionId!)))
-        .getSingleOrNull();
+    await transaction(() async {
+      final existing = await (select(scienceSessionConfig)
+            ..where((tbl) => tbl.sessionId.equals(config.sessionId!)))
+          .getSingleOrNull();
 
-    final companion = ScienceSessionConfigCompanion(
-      sessionId: Value(config.sessionId),
-      photometryEnabled: Value(config.photometryEnabled),
-      calibrationEnabled: Value(config.calibrationEnabled),
-      transparencyEnabled: Value(config.transparencyEnabled),
-      psfMapEnabled: Value(config.psfMapEnabled),
-      residualsEnabled: Value(config.residualsEnabled),
-      movingObjectsEnabled: Value(config.movingObjectsEnabled),
-      narrowbandEnabled: Value(config.narrowbandEnabled),
-      psfGridRows: Value(config.psfGridRows),
-      psfGridCols: Value(config.psfGridCols),
-      transparencyAlertThreshold: Value(config.transparencyAlertThreshold),
-      updatedAt: Value(DateTime.now()),
-    );
+      final companion = ScienceSessionConfigCompanion(
+        sessionId: Value(config.sessionId),
+        photometryEnabled: Value(config.photometryEnabled),
+        calibrationEnabled: Value(config.calibrationEnabled),
+        transparencyEnabled: Value(config.transparencyEnabled),
+        psfMapEnabled: Value(config.psfMapEnabled),
+        residualsEnabled: Value(config.residualsEnabled),
+        movingObjectsEnabled: Value(config.movingObjectsEnabled),
+        narrowbandEnabled: Value(config.narrowbandEnabled),
+        psfGridRows: Value(config.psfGridRows),
+        psfGridCols: Value(config.psfGridCols),
+        transparencyAlertThreshold: Value(config.transparencyAlertThreshold),
+        updatedAt: Value(DateTime.now()),
+      );
 
-    if (existing == null) {
-      await into(scienceSessionConfig).insert(companion);
-    } else {
-      await (update(scienceSessionConfig)
-            ..where((tbl) => tbl.id.equals(existing.id)))
-          .write(companion);
-    }
+      if (existing == null) {
+        await into(scienceSessionConfig).insert(companion);
+      } else {
+        await (update(scienceSessionConfig)
+              ..where((tbl) => tbl.id.equals(existing.id)))
+            .write(companion);
+      }
+    });
   }
 
   Stream<ScienceSessionConfigRow?> watchSessionConfig(int sessionId) {
@@ -103,6 +106,14 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<PhotometryMeasurementRow>> getPhotometryForSession(
+      int sessionId) {
+    return (select(photometryMeasurements)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
+  }
+
   Future<void> insertFrameCalibration(
       FramePhotometricCalibrationCompanion calibration) {
     return into(framePhotometricCalibration).insert(calibration);
@@ -124,6 +135,14 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .watch();
+  }
+
+  Future<List<FramePhotometricCalibrationRow>> getCalibrationsForSession(
+      int sessionId) {
+    return (select(framePhotometricCalibration)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
   }
 
   Future<List<FramePhotometricCalibrationRow>> getRecentCalibrations(
@@ -160,6 +179,14 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<TransparencySampleRow>> getTransparencyForSession(
+      int sessionId) {
+    return (select(transparencySamples)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
+  }
+
   Future<void> replacePsfTilesForImage(
     int capturedImageId,
     List<PsfFieldTilesCompanion> tiles,
@@ -186,6 +213,17 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<PsfFieldTileRow>> getPsfTilesForSession(int sessionId) {
+    return (select(psfFieldTiles)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .get();
+  }
+
   Future<void> insertFrameQualityMetrics(
       ScienceFrameQualityMetricsCompanion metrics) {
     return into(scienceFrameQualityMetrics).insert(metrics);
@@ -207,6 +245,14 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
         .watch();
+  }
+
+  Future<List<ScienceFrameQualityMetricsRow>>
+      getFrameQualityMetricsForSession(int sessionId) {
+    return (select(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
   }
 
   Stream<ScienceFrameQualityMetricsRow?> watchFrameQualityMetricsForImage(
@@ -272,6 +318,17 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<ScienceTileMetricRow>> getTileMetricsForSession(int sessionId) {
+    return (select(scienceTileMetrics)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .get();
+  }
+
   Stream<List<ScienceTileMetricRow>> watchTileMetricsForSessionLayer(
     int sessionId,
     String layerType,
@@ -310,6 +367,14 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<AstrometryResidualVectorRow>> getResidualsForSession(
+      int sessionId) {
+    return (select(astrometryResidualVectors)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
+  }
+
   Future<void> insertMovingObjectCandidates(
       List<MovingObjectCandidatesCompanion> candidates) async {
     if (candidates.isEmpty) {
@@ -343,6 +408,33 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  Future<List<MovingObjectCandidateRow>> getMovingObjectsForSession(
+      int sessionId) {
+    return (select(movingObjectCandidates)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)]))
+        .get();
+  }
+
+  /// Get all moving object candidates matching a candidateId across all
+  /// sessions. Used for multi-night linking -- finding the same object
+  /// across different imaging nights for MPC reporting.
+  Future<List<MovingObjectCandidateRow>> getMovingObjectsByCandidateId(
+      String candidateId) async {
+    return (select(movingObjectCandidates)
+          ..where((tbl) => tbl.candidateId.equals(candidateId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Get all moving object candidates across all sessions, ordered by
+  /// timestamp. Used for MPC export multi-night linking.
+  Future<List<MovingObjectCandidateRow>> getAllMovingObjectCandidates() async {
+    return (select(movingObjectCandidates)
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .get();
+  }
+
   Future<void> insertLineRatioProduct(LineRatioProductsCompanion product) {
     return into(lineRatioProducts).insert(product);
   }
@@ -352,6 +444,13 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..where((tbl) => tbl.sessionId.equals(sessionId))
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
         .watch();
+  }
+
+  Future<List<LineRatioProductRow>> getLineRatiosForSession(int sessionId) {
+    return (select(lineRatioProducts)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
+        .get();
   }
 
   // =========================================================================
@@ -411,8 +510,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<AstrometryResidualVectorRow>>
-      watchSessionlessResidualsRecent({int limit = 200}) {
+  Stream<List<AstrometryResidualVectorRow>> watchSessionlessResidualsRecent(
+      {int limit = 200}) {
     return (select(astrometryResidualVectors)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -420,8 +519,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<MovingObjectCandidateRow>>
-      watchSessionlessMovingObjectsRecent({int limit = 50}) {
+  Stream<List<MovingObjectCandidateRow>> watchSessionlessMovingObjectsRecent(
+      {int limit = 50}) {
     return (select(movingObjectCandidates)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)])
@@ -429,8 +528,8 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
-  Stream<List<PhotometryMeasurementRow>>
-      watchSessionlessPhotometryRecent({int limit = 200}) {
+  Stream<List<PhotometryMeasurementRow>> watchSessionlessPhotometryRecent(
+      {int limit = 200}) {
     return (select(photometryMeasurements)
           ..where((tbl) => tbl.sessionId.isNull())
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
@@ -456,5 +555,65 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
       ..where(scienceFrameQualityMetrics.sessionId.isNull());
     final result = await query.getSingle();
     return (result.read(countExp) ?? 0) > 0;
+  }
+
+  // =========================================================================
+  // Photometric Transform Coefficients
+  // =========================================================================
+
+  Future<int> insertPhotometricTransform(
+      PhotometricTransformsCompanion transform) {
+    return into(photometricTransforms).insert(transform);
+  }
+
+  Future<void> deletePhotometricTransform(int id) {
+    return (delete(photometricTransforms)..where((tbl) => tbl.id.equals(id)))
+        .go();
+  }
+
+  Stream<List<PhotometricTransformRow>> watchAllTransforms() {
+    return (select(photometricTransforms)
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
+        .watch();
+  }
+
+  Future<List<PhotometricTransformRow>> getAllTransforms() {
+    return (select(photometricTransforms)
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
+        .get();
+  }
+
+  Future<PhotometricTransformRow?> getTransformForFilter(
+    String filterName, {
+    int? equipmentProfileId,
+  }) {
+    final query = select(photometricTransforms)
+      ..where((tbl) => tbl.filterName.equals(filterName))
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)])
+      ..limit(1);
+    if (equipmentProfileId != null) {
+      query.where(
+        (tbl) =>
+            tbl.equipmentProfileId.equals(equipmentProfileId) |
+            tbl.equipmentProfileId.isNull(),
+      );
+    }
+    return query.getSingleOrNull();
+  }
+
+  Stream<List<PhotometricTransformRow>> watchTransformsForProfile(
+      int? equipmentProfileId) {
+    if (equipmentProfileId == null) {
+      return (select(photometricTransforms)
+            ..where((tbl) => tbl.equipmentProfileId.isNull())
+            ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
+          .watch();
+    }
+    return (select(photometricTransforms)
+          ..where((tbl) =>
+              tbl.equipmentProfileId.equals(equipmentProfileId) |
+              tbl.equipmentProfileId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
+        .watch();
   }
 }

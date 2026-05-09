@@ -136,11 +136,11 @@ class TargetsTab extends ConsumerWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: colors.border),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(8),
                 child: const _NightTimeline(),
               ),
             ),
@@ -572,7 +572,7 @@ class _TargetListItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -707,7 +707,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,
@@ -743,7 +743,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                   filled: true,
                   fillColor: colors.surfaceAlt,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -891,7 +891,7 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,
@@ -976,7 +976,7 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: colors.border),
                   ),
                   child: _optimizedOrder == null

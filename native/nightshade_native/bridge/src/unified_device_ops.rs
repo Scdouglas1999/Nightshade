@@ -43,9 +43,23 @@
 //! executor.set_device_ops(ops);
 //! ```
 
+fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
+    if sorted.is_empty() {
+        return None;
+    }
+
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 0 {
+        Some((sorted[mid - 1] + sorted[mid]) / 2.0)
+    } else {
+        Some(sorted[mid])
+    }
+}
+
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::api::*;
 use crate::event::*;
+use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::FitsWriteHeader;
 use async_trait::async_trait;
@@ -117,8 +131,6 @@ impl DeviceOps for UnifiedDeviceOps {
             ));
         }
 
-        // Map bayer pattern to sensor_type and bayer_offset
-
         result
     }
 
@@ -182,8 +194,6 @@ impl DeviceOps for UnifiedDeviceOps {
             ));
         }
 
-        // Map bayer pattern to sensor_type and bayer_offset
-
         result
     }
 
@@ -202,8 +212,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 EventPayload::Equipment(EquipmentEvent::MountUnparked),
             ));
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
 
         result
     }
@@ -372,11 +380,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 },
                 EventSeverity::Info,
             );
-
-            // Map bayer pattern to sensor_type and bayer_offset
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
 
         // Download image
         let native_image = mgr.camera_download_image(camera_id).await.map_err(|e| {
@@ -426,8 +430,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 tracing::warn!("[CAMERA] Image validation warning: {}", warning);
             }
 
-            // Map bayer pattern to sensor_type and bayer_offset
-
             // Fail on validation errors (corrupted/unusable images)
             if !validation.is_valid {
                 let error_msg = validation.errors.join("; ");
@@ -438,11 +440,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 );
                 return Err(format!("Image validation failed: {}", error_msg));
             }
-
-            // Map bayer pattern to sensor_type and bayer_offset
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
         let (sensor_type, bayer_offset) = match &native_image.bayer_pattern {
             Some(pattern) => {
                 let offset = match pattern {
@@ -453,8 +451,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 };
                 (Some("Color".to_string()), Some(offset))
             }
-
-            // Map bayer pattern to sensor_type and bayer_offset
             None => (Some("Monochrome".to_string()), None),
         };
 
@@ -499,7 +495,11 @@ impl DeviceOps for UnifiedDeviceOps {
                 sorted.par_sort_unstable_by(|a, b| {
                     a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                 });
-                let median = sorted[sorted.len() / 2];
+                if sorted.is_empty() {
+                    return Err("Empty image data for median calculation".to_string());
+                }
+                let median = median_from_sorted_f64(&sorted)
+                    .ok_or_else(|| "Empty image data for median calculation".to_string())?;
                 let unified_params = nightshade_imaging::StretchParams {
                     shadows: (median - 0.1).max(0.0),
                     highlights: (median + 0.3).min(1.0),
@@ -637,8 +637,6 @@ impl DeviceOps for UnifiedDeviceOps {
             ));
         }
 
-        // Map bayer pattern to sensor_type and bayer_offset
-
         api_set_camera_cooler(camera_id.to_string(), enabled as u8, Some(target_temp))
             .await
             .map_err(|e| format!("Cooler control failed: {}", e))
@@ -691,8 +689,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 EventPayload::Equipment(EquipmentEvent::FocuserMoveCompleted { position }),
             ));
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
 
         result
     }
@@ -763,8 +759,6 @@ impl DeviceOps for UnifiedDeviceOps {
             ));
         }
 
-        // Map bayer pattern to sensor_type and bayer_offset
-
         result
     }
 
@@ -787,11 +781,15 @@ impl DeviceOps for UnifiedDeviceOps {
         let names = self.filterwheel_get_names(fw_id).await?;
 
         // Find the filter position by name (case-insensitive)
-        let position = names
-            .iter()
-            .position(|n| n.eq_ignore_ascii_case(name))
-            .map(|p| (p + 1) as i32)
+        let index = find_filter_match(&names, name)
             .ok_or_else(|| format!("Filter '{}' not found", name))?;
+
+        // INDI filter slots are 1-based; ASCOM/Alpaca/Native use 0-based positions
+        let position = if fw_id.starts_with("indi:") {
+            (index + 1) as i32
+        } else {
+            index as i32
+        };
 
         self.filterwheel_set_position(fw_id, position).await?;
         Ok(position)
@@ -824,8 +822,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 EventPayload::Equipment(EquipmentEvent::RotatorMoveCompleted { angle }),
             ));
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
 
         result
     }
@@ -873,7 +869,11 @@ impl DeviceOps for UnifiedDeviceOps {
             settle_time
         );
 
-        api_phd2_dither(
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_dither(
+            guider_id,
             pixels,
             ra_only as u8,
             settle_pixels,
@@ -885,7 +885,10 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
-        let status = api_phd2_get_status()
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let status = api_guider_get_status(guider_id)
             .await
             .map_err(|e| format!("Failed to get guiding status: {}", e))?;
 
@@ -905,7 +908,10 @@ impl DeviceOps for UnifiedDeviceOps {
     ) -> DeviceResult<()> {
         tracing::info!("Starting guiding");
 
-        api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout)
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_start_guiding(guider_id, settle_pixels, settle_time, settle_timeout)
             .await
             .map_err(|e| format!("Start guiding failed: {}", e))
     }
@@ -913,7 +919,10 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn guider_stop(&self) -> DeviceResult<()> {
         tracing::info!("Stopping guiding");
 
-        api_phd2_stop_guiding()
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_stop(guider_id)
             .await
             .map_err(|e| format!("Stop guiding failed: {}", e))
     }
@@ -931,9 +940,7 @@ impl DeviceOps for UnifiedDeviceOps {
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("Plate solving image");
 
-        // Use platform-appropriate temp directory
-        let temp_dir = std::env::temp_dir();
-        let temp_file = temp_dir.join("nightshade_platesolve_temp.fits");
+        let temp_file = create_unique_temp_fits_path("nightshade_platesolve_temp");
         let temp_path = temp_file.to_string_lossy().to_string();
 
         // Save the image data to the temp file first
@@ -1164,7 +1171,7 @@ impl DeviceOps for UnifiedDeviceOps {
 
         // Calculate hour angle
         let ha = lst - ra_hours;
-        let ha_rad = ha * 15.0_f64.to_radians();
+        let ha_rad = (ha * 15.0_f64).to_radians();
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
 
@@ -1185,20 +1192,16 @@ impl DeviceOps for UnifiedDeviceOps {
                 Some((location.latitude, location.longitude))
             }
 
-            // Map bayer pattern to sensor_type and bayer_offset
             Ok(None) => {
                 tracing::debug!("Observer location not set in settings, will retry");
                 None
             }
 
-            // Map bayer pattern to sensor_type and bayer_offset
             Err(e) => {
                 tracing::warn!("Failed to get observer location: {}", e);
                 None
-            } // Map bayer pattern to sensor_type and bayer_offset
+            }
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
@@ -1216,11 +1219,9 @@ impl DeviceOps for UnifiedDeviceOps {
                             "No safety/weather device configured for sequencer safety checks"
                                 .to_string(),
                         );
-                    } // Map bayer pattern to sensor_type and bayer_offset
+                    }
                 }
-
-                // Map bayer pattern to sensor_type and bayer_offset
-            } // Map bayer pattern to sensor_type and bayer_offset
+            }
         };
 
         tracing::debug!("Checking safety status for device: {}", device_id);
@@ -1236,14 +1237,11 @@ impl DeviceOps for UnifiedDeviceOps {
                 Ok(is_safe)
             }
 
-            // Map bayer pattern to sensor_type and bayer_offset
             Err(e) => {
                 tracing::error!("Failed to check safety monitor {}: {} - returning error for fail-mode handling", device_id, e);
                 Err(format!("Safety check failed for {}: {}", device_id, e))
-            } // Map bayer pattern to sensor_type and bayer_offset
+            }
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
     }
 
     // =========================================================================
@@ -1267,8 +1265,6 @@ impl DeviceOps for UnifiedDeviceOps {
         if stars.is_empty() {
             return Ok(None);
         }
-
-        // Map bayer pattern to sensor_type and bayer_offset
 
         // Calculate average HFR
         let total_hfr: f64 = stars.iter().map(|s| s.hfr).sum();

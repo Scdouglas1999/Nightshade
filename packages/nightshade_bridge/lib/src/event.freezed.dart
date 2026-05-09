@@ -22293,9 +22293,10 @@ mixin _$SequencerEvent {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -22303,6 +22304,9 @@ mixin _$SequencerEvent {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -22316,9 +22320,10 @@ mixin _$SequencerEvent {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -22326,6 +22331,8 @@ mixin _$SequencerEvent {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22339,15 +22346,17 @@ mixin _$SequencerEvent {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22372,6 +22381,7 @@ mixin _$SequencerEvent {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) =>
@@ -22392,6 +22402,7 @@ mixin _$SequencerEvent {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) =>
@@ -22411,6 +22422,7 @@ mixin _$SequencerEvent {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -22517,9 +22529,10 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -22527,6 +22540,9 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -22543,9 +22559,10 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -22553,6 +22570,8 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22569,15 +22588,17 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22608,6 +22629,7 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -22631,6 +22653,7 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -22653,6 +22676,7 @@ class _$SequencerEvent_StartedImpl extends SequencerEvent_Started {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -22727,9 +22751,10 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -22737,6 +22762,9 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -22753,9 +22781,10 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -22763,6 +22792,8 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22779,15 +22810,17 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22818,6 +22851,7 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -22841,6 +22875,7 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -22863,6 +22898,7 @@ class _$SequencerEvent_PausedImpl extends SequencerEvent_Paused {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -22929,9 +22965,10 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -22939,6 +22976,9 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -22955,9 +22995,10 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -22965,6 +23006,8 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -22981,15 +23024,17 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23020,6 +23065,7 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -23043,6 +23089,7 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -23065,6 +23112,7 @@ class _$SequencerEvent_ResumedImpl extends SequencerEvent_Resumed {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -23131,9 +23179,10 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -23141,6 +23190,9 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -23157,9 +23209,10 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -23167,6 +23220,8 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23183,15 +23238,17 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23222,6 +23279,7 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -23245,6 +23303,7 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -23267,6 +23326,7 @@ class _$SequencerEvent_StoppedImpl extends SequencerEvent_Stopped {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -23333,9 +23393,10 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -23343,6 +23404,9 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -23359,9 +23423,10 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -23369,6 +23434,8 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23385,15 +23452,17 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23424,6 +23493,7 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -23447,6 +23517,7 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -23469,6 +23540,7 @@ class _$SequencerEvent_CompletedImpl extends SequencerEvent_Completed {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -23573,9 +23645,10 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -23583,6 +23656,9 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -23599,9 +23675,10 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -23609,6 +23686,8 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23625,15 +23704,17 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -23664,6 +23745,7 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -23687,6 +23769,7 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -23709,6 +23792,7 @@ class _$SequencerEvent_NodeStartedImpl extends SequencerEvent_NodeStarted {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -23743,7 +23827,7 @@ abstract class _$$SequencerEvent_NodeCompletedImplCopyWith<$Res> {
           $Res Function(_$SequencerEvent_NodeCompletedImpl) then) =
       __$$SequencerEvent_NodeCompletedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({String nodeId, bool success});
+  $Res call({String nodeId, String status});
 }
 
 /// @nodoc
@@ -23762,17 +23846,17 @@ class __$$SequencerEvent_NodeCompletedImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? nodeId = null,
-    Object? success = null,
+    Object? status = null,
   }) {
     return _then(_$SequencerEvent_NodeCompletedImpl(
       nodeId: null == nodeId
           ? _value.nodeId
           : nodeId // ignore: cast_nullable_to_non_nullable
               as String,
-      success: null == success
-          ? _value.success
-          : success // ignore: cast_nullable_to_non_nullable
-              as bool,
+      status: null == status
+          ? _value.status
+          : status // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -23781,17 +23865,19 @@ class __$$SequencerEvent_NodeCompletedImplCopyWithImpl<$Res>
 
 class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
   const _$SequencerEvent_NodeCompletedImpl(
-      {required this.nodeId, required this.success})
+      {required this.nodeId, required this.status})
       : super._();
 
   @override
   final String nodeId;
+
+  /// Completion status: "success", "failed", "cancelled", or "skipped"
   @override
-  final bool success;
+  final String status;
 
   @override
   String toString() {
-    return 'SequencerEvent.nodeCompleted(nodeId: $nodeId, success: $success)';
+    return 'SequencerEvent.nodeCompleted(nodeId: $nodeId, status: $status)';
   }
 
   @override
@@ -23800,11 +23886,11 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
         (other.runtimeType == runtimeType &&
             other is _$SequencerEvent_NodeCompletedImpl &&
             (identical(other.nodeId, nodeId) || other.nodeId == nodeId) &&
-            (identical(other.success, success) || other.success == success));
+            (identical(other.status, status) || other.status == status));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, nodeId, success);
+  int get hashCode => Object.hash(runtimeType, nodeId, status);
 
   /// Create a copy of SequencerEvent
   /// with the given fields replaced by the non-null parameter values.
@@ -23825,9 +23911,10 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -23835,11 +23922,14 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
   }) {
-    return nodeCompleted(nodeId, success);
+    return nodeCompleted(nodeId, status);
   }
 
   @override
@@ -23851,9 +23941,10 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -23861,11 +23952,13 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
   }) {
-    return nodeCompleted?.call(nodeId, success);
+    return nodeCompleted?.call(nodeId, status);
   }
 
   @override
@@ -23877,22 +23970,24 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
     required TResult orElse(),
   }) {
     if (nodeCompleted != null) {
-      return nodeCompleted(nodeId, success);
+      return nodeCompleted(nodeId, status);
     }
     return orElse();
   }
@@ -23916,6 +24011,7 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -23939,6 +24035,7 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -23961,6 +24058,7 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -23975,11 +24073,13 @@ class _$SequencerEvent_NodeCompletedImpl extends SequencerEvent_NodeCompleted {
 abstract class SequencerEvent_NodeCompleted extends SequencerEvent {
   const factory SequencerEvent_NodeCompleted(
       {required final String nodeId,
-      required final bool success}) = _$SequencerEvent_NodeCompletedImpl;
+      required final String status}) = _$SequencerEvent_NodeCompletedImpl;
   const SequencerEvent_NodeCompleted._() : super._();
 
   String get nodeId;
-  bool get success;
+
+  /// Completion status: "success", "failed", "cancelled", or "skipped"
+  String get status;
 
   /// Create a copy of SequencerEvent
   /// with the given fields replaced by the non-null parameter values.
@@ -24076,9 +24176,10 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -24086,6 +24187,9 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -24102,9 +24206,10 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -24112,6 +24217,8 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24128,15 +24235,17 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24167,6 +24276,7 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -24190,6 +24300,7 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -24212,6 +24323,7 @@ class _$SequencerEvent_ProgressImpl extends SequencerEvent_Progress {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -24246,7 +24358,7 @@ abstract class _$$SequencerEvent_TargetChangedImplCopyWith<$Res> {
           $Res Function(_$SequencerEvent_TargetChangedImpl) then) =
       __$$SequencerEvent_TargetChangedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({String targetName});
+  $Res call({String targetName, double? ra, double? dec});
 }
 
 /// @nodoc
@@ -24265,12 +24377,22 @@ class __$$SequencerEvent_TargetChangedImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? targetName = null,
+    Object? ra = freezed,
+    Object? dec = freezed,
   }) {
     return _then(_$SequencerEvent_TargetChangedImpl(
       targetName: null == targetName
           ? _value.targetName
           : targetName // ignore: cast_nullable_to_non_nullable
               as String,
+      ra: freezed == ra
+          ? _value.ra
+          : ra // ignore: cast_nullable_to_non_nullable
+              as double?,
+      dec: freezed == dec
+          ? _value.dec
+          : dec // ignore: cast_nullable_to_non_nullable
+              as double?,
     ));
   }
 }
@@ -24278,15 +24400,24 @@ class __$$SequencerEvent_TargetChangedImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
-  const _$SequencerEvent_TargetChangedImpl({required this.targetName})
+  const _$SequencerEvent_TargetChangedImpl(
+      {required this.targetName, this.ra, this.dec})
       : super._();
 
   @override
   final String targetName;
 
+  /// Right Ascension in hours (0-24), if available from the target header
+  @override
+  final double? ra;
+
+  /// Declination in degrees (-90 to +90), if available from the target header
+  @override
+  final double? dec;
+
   @override
   String toString() {
-    return 'SequencerEvent.targetChanged(targetName: $targetName)';
+    return 'SequencerEvent.targetChanged(targetName: $targetName, ra: $ra, dec: $dec)';
   }
 
   @override
@@ -24295,11 +24426,13 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
         (other.runtimeType == runtimeType &&
             other is _$SequencerEvent_TargetChangedImpl &&
             (identical(other.targetName, targetName) ||
-                other.targetName == targetName));
+                other.targetName == targetName) &&
+            (identical(other.ra, ra) || other.ra == ra) &&
+            (identical(other.dec, dec) || other.dec == dec));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, targetName);
+  int get hashCode => Object.hash(runtimeType, targetName, ra, dec);
 
   /// Create a copy of SequencerEvent
   /// with the given fields replaced by the non-null parameter values.
@@ -24320,9 +24453,10 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -24330,11 +24464,14 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
   }) {
-    return targetChanged(targetName);
+    return targetChanged(targetName, ra, dec);
   }
 
   @override
@@ -24346,9 +24483,10 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -24356,11 +24494,13 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
   }) {
-    return targetChanged?.call(targetName);
+    return targetChanged?.call(targetName, ra, dec);
   }
 
   @override
@@ -24372,22 +24512,24 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
     required TResult orElse(),
   }) {
     if (targetChanged != null) {
-      return targetChanged(targetName);
+      return targetChanged(targetName, ra, dec);
     }
     return orElse();
   }
@@ -24411,6 +24553,7 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -24434,6 +24577,7 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -24456,6 +24600,7 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -24469,10 +24614,18 @@ class _$SequencerEvent_TargetChangedImpl extends SequencerEvent_TargetChanged {
 
 abstract class SequencerEvent_TargetChanged extends SequencerEvent {
   const factory SequencerEvent_TargetChanged(
-      {required final String targetName}) = _$SequencerEvent_TargetChangedImpl;
+      {required final String targetName,
+      final double? ra,
+      final double? dec}) = _$SequencerEvent_TargetChangedImpl;
   const SequencerEvent_TargetChanged._() : super._();
 
   String get targetName;
+
+  /// Right Ascension in hours (0-24), if available from the target header
+  double? get ra;
+
+  /// Declination in degrees (-90 to +90), if available from the target header
+  double? get dec;
 
   /// Create a copy of SequencerEvent
   /// with the given fields replaced by the non-null parameter values.
@@ -24564,9 +24717,10 @@ class _$SequencerEvent_TargetCompletedImpl
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -24574,6 +24728,9 @@ class _$SequencerEvent_TargetCompletedImpl
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -24590,9 +24747,10 @@ class _$SequencerEvent_TargetCompletedImpl
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -24600,6 +24758,8 @@ class _$SequencerEvent_TargetCompletedImpl
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24616,15 +24776,17 @@ class _$SequencerEvent_TargetCompletedImpl
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24655,6 +24817,7 @@ class _$SequencerEvent_TargetCompletedImpl
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -24678,6 +24841,7 @@ class _$SequencerEvent_TargetCompletedImpl
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -24700,6 +24864,7 @@ class _$SequencerEvent_TargetCompletedImpl
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -24838,9 +25003,10 @@ class _$SequencerEvent_ExposureStartedImpl
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -24848,6 +25014,9 @@ class _$SequencerEvent_ExposureStartedImpl
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -24864,9 +25033,10 @@ class _$SequencerEvent_ExposureStartedImpl
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -24874,6 +25044,8 @@ class _$SequencerEvent_ExposureStartedImpl
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24890,15 +25062,17 @@ class _$SequencerEvent_ExposureStartedImpl
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -24929,6 +25103,7 @@ class _$SequencerEvent_ExposureStartedImpl
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -24952,6 +25127,7 @@ class _$SequencerEvent_ExposureStartedImpl
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -24974,6 +25150,7 @@ class _$SequencerEvent_ExposureStartedImpl
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -25106,9 +25283,10 @@ class _$SequencerEvent_ExposureCompletedImpl
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -25116,6 +25294,9 @@ class _$SequencerEvent_ExposureCompletedImpl
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -25132,9 +25313,10 @@ class _$SequencerEvent_ExposureCompletedImpl
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -25142,6 +25324,8 @@ class _$SequencerEvent_ExposureCompletedImpl
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25158,15 +25342,17 @@ class _$SequencerEvent_ExposureCompletedImpl
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25197,6 +25383,7 @@ class _$SequencerEvent_ExposureCompletedImpl
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -25220,6 +25407,7 @@ class _$SequencerEvent_ExposureCompletedImpl
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -25242,6 +25430,7 @@ class _$SequencerEvent_ExposureCompletedImpl
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -25349,9 +25538,10 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -25359,6 +25549,9 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -25375,9 +25568,10 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -25385,6 +25579,8 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25401,15 +25597,17 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25440,6 +25638,7 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -25463,6 +25662,7 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -25485,6 +25685,7 @@ class _$SequencerEvent_ErrorImpl extends SequencerEvent_Error {
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),
@@ -25507,6 +25708,293 @@ abstract class SequencerEvent_Error extends SequencerEvent {
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$SequencerEvent_ErrorImplCopyWith<_$SequencerEvent_ErrorImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$SequencerEvent_TriggerFiredImplCopyWith<$Res> {
+  factory _$$SequencerEvent_TriggerFiredImplCopyWith(
+          _$SequencerEvent_TriggerFiredImpl value,
+          $Res Function(_$SequencerEvent_TriggerFiredImpl) then) =
+      __$$SequencerEvent_TriggerFiredImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String triggerId, String triggerName, String action});
+}
+
+/// @nodoc
+class __$$SequencerEvent_TriggerFiredImplCopyWithImpl<$Res>
+    extends _$SequencerEventCopyWithImpl<$Res,
+        _$SequencerEvent_TriggerFiredImpl>
+    implements _$$SequencerEvent_TriggerFiredImplCopyWith<$Res> {
+  __$$SequencerEvent_TriggerFiredImplCopyWithImpl(
+      _$SequencerEvent_TriggerFiredImpl _value,
+      $Res Function(_$SequencerEvent_TriggerFiredImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of SequencerEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? triggerId = null,
+    Object? triggerName = null,
+    Object? action = null,
+  }) {
+    return _then(_$SequencerEvent_TriggerFiredImpl(
+      triggerId: null == triggerId
+          ? _value.triggerId
+          : triggerId // ignore: cast_nullable_to_non_nullable
+              as String,
+      triggerName: null == triggerName
+          ? _value.triggerName
+          : triggerName // ignore: cast_nullable_to_non_nullable
+              as String,
+      action: null == action
+          ? _value.action
+          : action // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$SequencerEvent_TriggerFiredImpl extends SequencerEvent_TriggerFired {
+  const _$SequencerEvent_TriggerFiredImpl(
+      {required this.triggerId,
+      required this.triggerName,
+      required this.action})
+      : super._();
+
+  /// Unique trigger identifier
+  @override
+  final String triggerId;
+
+  /// Human-readable trigger name
+  @override
+  final String triggerName;
+
+  /// Action taken (e.g., "Autofocus", "Dither", "PauseSequence")
+  @override
+  final String action;
+
+  @override
+  String toString() {
+    return 'SequencerEvent.triggerFired(triggerId: $triggerId, triggerName: $triggerName, action: $action)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequencerEvent_TriggerFiredImpl &&
+            (identical(other.triggerId, triggerId) ||
+                other.triggerId == triggerId) &&
+            (identical(other.triggerName, triggerName) ||
+                other.triggerName == triggerName) &&
+            (identical(other.action, action) || other.action == action));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, triggerId, triggerName, action);
+
+  /// Create a copy of SequencerEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequencerEvent_TriggerFiredImplCopyWith<_$SequencerEvent_TriggerFiredImpl>
+      get copyWith => __$$SequencerEvent_TriggerFiredImplCopyWithImpl<
+          _$SequencerEvent_TriggerFiredImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(String sequenceName) started,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function() stopped,
+    required TResult Function() completed,
+    required TResult Function(String nodeId, String nodeType) nodeStarted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
+    required TResult Function(int current, int total) progress,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
+    required TResult Function(String targetName) targetCompleted,
+    required TResult Function(
+            int frame, int total, String? filter, double durationSecs)
+        exposureStarted,
+    required TResult Function(int frame, int total, double durationSecs)
+        exposureCompleted,
+    required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
+    required TResult Function(String nodeId, String instruction,
+            double progressPercent, String detail)
+        instructionProgress,
+  }) {
+    return triggerFired(triggerId, triggerName, action);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(String sequenceName)? started,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function()? stopped,
+    TResult? Function()? completed,
+    TResult? Function(String nodeId, String nodeType)? nodeStarted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
+    TResult? Function(int current, int total)? progress,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
+    TResult? Function(String targetName)? targetCompleted,
+    TResult? Function(
+            int frame, int total, String? filter, double durationSecs)?
+        exposureStarted,
+    TResult? Function(int frame, int total, double durationSecs)?
+        exposureCompleted,
+    TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
+    TResult? Function(String nodeId, String instruction, double progressPercent,
+            String detail)?
+        instructionProgress,
+  }) {
+    return triggerFired?.call(triggerId, triggerName, action);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(String sequenceName)? started,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function()? stopped,
+    TResult Function()? completed,
+    TResult Function(String nodeId, String nodeType)? nodeStarted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
+    TResult Function(int current, int total)? progress,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
+    TResult Function(String targetName)? targetCompleted,
+    TResult Function(int frame, int total, String? filter, double durationSecs)?
+        exposureStarted,
+    TResult Function(int frame, int total, double durationSecs)?
+        exposureCompleted,
+    TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
+    TResult Function(String nodeId, String instruction, double progressPercent,
+            String detail)?
+        instructionProgress,
+    required TResult orElse(),
+  }) {
+    if (triggerFired != null) {
+      return triggerFired(triggerId, triggerName, action);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(SequencerEvent_Started value) started,
+    required TResult Function(SequencerEvent_Paused value) paused,
+    required TResult Function(SequencerEvent_Resumed value) resumed,
+    required TResult Function(SequencerEvent_Stopped value) stopped,
+    required TResult Function(SequencerEvent_Completed value) completed,
+    required TResult Function(SequencerEvent_NodeStarted value) nodeStarted,
+    required TResult Function(SequencerEvent_NodeCompleted value) nodeCompleted,
+    required TResult Function(SequencerEvent_Progress value) progress,
+    required TResult Function(SequencerEvent_TargetChanged value) targetChanged,
+    required TResult Function(SequencerEvent_TargetCompleted value)
+        targetCompleted,
+    required TResult Function(SequencerEvent_ExposureStarted value)
+        exposureStarted,
+    required TResult Function(SequencerEvent_ExposureCompleted value)
+        exposureCompleted,
+    required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
+    required TResult Function(SequencerEvent_InstructionProgress value)
+        instructionProgress,
+  }) {
+    return triggerFired(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(SequencerEvent_Started value)? started,
+    TResult? Function(SequencerEvent_Paused value)? paused,
+    TResult? Function(SequencerEvent_Resumed value)? resumed,
+    TResult? Function(SequencerEvent_Stopped value)? stopped,
+    TResult? Function(SequencerEvent_Completed value)? completed,
+    TResult? Function(SequencerEvent_NodeStarted value)? nodeStarted,
+    TResult? Function(SequencerEvent_NodeCompleted value)? nodeCompleted,
+    TResult? Function(SequencerEvent_Progress value)? progress,
+    TResult? Function(SequencerEvent_TargetChanged value)? targetChanged,
+    TResult? Function(SequencerEvent_TargetCompleted value)? targetCompleted,
+    TResult? Function(SequencerEvent_ExposureStarted value)? exposureStarted,
+    TResult? Function(SequencerEvent_ExposureCompleted value)?
+        exposureCompleted,
+    TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
+    TResult? Function(SequencerEvent_InstructionProgress value)?
+        instructionProgress,
+  }) {
+    return triggerFired?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(SequencerEvent_Started value)? started,
+    TResult Function(SequencerEvent_Paused value)? paused,
+    TResult Function(SequencerEvent_Resumed value)? resumed,
+    TResult Function(SequencerEvent_Stopped value)? stopped,
+    TResult Function(SequencerEvent_Completed value)? completed,
+    TResult Function(SequencerEvent_NodeStarted value)? nodeStarted,
+    TResult Function(SequencerEvent_NodeCompleted value)? nodeCompleted,
+    TResult Function(SequencerEvent_Progress value)? progress,
+    TResult Function(SequencerEvent_TargetChanged value)? targetChanged,
+    TResult Function(SequencerEvent_TargetCompleted value)? targetCompleted,
+    TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
+    TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
+    TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
+    TResult Function(SequencerEvent_InstructionProgress value)?
+        instructionProgress,
+    required TResult orElse(),
+  }) {
+    if (triggerFired != null) {
+      return triggerFired(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class SequencerEvent_TriggerFired extends SequencerEvent {
+  const factory SequencerEvent_TriggerFired(
+      {required final String triggerId,
+      required final String triggerName,
+      required final String action}) = _$SequencerEvent_TriggerFiredImpl;
+  const SequencerEvent_TriggerFired._() : super._();
+
+  /// Unique trigger identifier
+  String get triggerId;
+
+  /// Human-readable trigger name
+  String get triggerName;
+
+  /// Action taken (e.g., "Autofocus", "Dither", "PauseSequence")
+  String get action;
+
+  /// Create a copy of SequencerEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$SequencerEvent_TriggerFiredImplCopyWith<_$SequencerEvent_TriggerFiredImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 
@@ -25633,9 +26121,10 @@ class _$SequencerEvent_InstructionProgressImpl
     required TResult Function() stopped,
     required TResult Function() completed,
     required TResult Function(String nodeId, String nodeType) nodeStarted,
-    required TResult Function(String nodeId, bool success) nodeCompleted,
+    required TResult Function(String nodeId, String status) nodeCompleted,
     required TResult Function(int current, int total) progress,
-    required TResult Function(String targetName) targetChanged,
+    required TResult Function(String targetName, double? ra, double? dec)
+        targetChanged,
     required TResult Function(String targetName) targetCompleted,
     required TResult Function(
             int frame, int total, String? filter, double durationSecs)
@@ -25643,6 +26132,9 @@ class _$SequencerEvent_InstructionProgressImpl
     required TResult Function(int frame, int total, double durationSecs)
         exposureCompleted,
     required TResult Function(String message) error,
+    required TResult Function(
+            String triggerId, String triggerName, String action)
+        triggerFired,
     required TResult Function(String nodeId, String instruction,
             double progressPercent, String detail)
         instructionProgress,
@@ -25659,9 +26151,10 @@ class _$SequencerEvent_InstructionProgressImpl
     TResult? Function()? stopped,
     TResult? Function()? completed,
     TResult? Function(String nodeId, String nodeType)? nodeStarted,
-    TResult? Function(String nodeId, bool success)? nodeCompleted,
+    TResult? Function(String nodeId, String status)? nodeCompleted,
     TResult? Function(int current, int total)? progress,
-    TResult? Function(String targetName)? targetChanged,
+    TResult? Function(String targetName, double? ra, double? dec)?
+        targetChanged,
     TResult? Function(String targetName)? targetCompleted,
     TResult? Function(
             int frame, int total, String? filter, double durationSecs)?
@@ -25669,6 +26162,8 @@ class _$SequencerEvent_InstructionProgressImpl
     TResult? Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult? Function(String message)? error,
+    TResult? Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult? Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25686,15 +26181,17 @@ class _$SequencerEvent_InstructionProgressImpl
     TResult Function()? stopped,
     TResult Function()? completed,
     TResult Function(String nodeId, String nodeType)? nodeStarted,
-    TResult Function(String nodeId, bool success)? nodeCompleted,
+    TResult Function(String nodeId, String status)? nodeCompleted,
     TResult Function(int current, int total)? progress,
-    TResult Function(String targetName)? targetChanged,
+    TResult Function(String targetName, double? ra, double? dec)? targetChanged,
     TResult Function(String targetName)? targetCompleted,
     TResult Function(int frame, int total, String? filter, double durationSecs)?
         exposureStarted,
     TResult Function(int frame, int total, double durationSecs)?
         exposureCompleted,
     TResult Function(String message)? error,
+    TResult Function(String triggerId, String triggerName, String action)?
+        triggerFired,
     TResult Function(String nodeId, String instruction, double progressPercent,
             String detail)?
         instructionProgress,
@@ -25725,6 +26222,7 @@ class _$SequencerEvent_InstructionProgressImpl
     required TResult Function(SequencerEvent_ExposureCompleted value)
         exposureCompleted,
     required TResult Function(SequencerEvent_Error value) error,
+    required TResult Function(SequencerEvent_TriggerFired value) triggerFired,
     required TResult Function(SequencerEvent_InstructionProgress value)
         instructionProgress,
   }) {
@@ -25748,6 +26246,7 @@ class _$SequencerEvent_InstructionProgressImpl
     TResult? Function(SequencerEvent_ExposureCompleted value)?
         exposureCompleted,
     TResult? Function(SequencerEvent_Error value)? error,
+    TResult? Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult? Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
   }) {
@@ -25770,6 +26269,7 @@ class _$SequencerEvent_InstructionProgressImpl
     TResult Function(SequencerEvent_ExposureStarted value)? exposureStarted,
     TResult Function(SequencerEvent_ExposureCompleted value)? exposureCompleted,
     TResult Function(SequencerEvent_Error value)? error,
+    TResult Function(SequencerEvent_TriggerFired value)? triggerFired,
     TResult Function(SequencerEvent_InstructionProgress value)?
         instructionProgress,
     required TResult orElse(),

@@ -47,6 +47,8 @@ class TutorialKeys {
   static final navFlatWizard = GlobalKey(debugLabel: 'nav_flat_wizard');
   static final navAnalytics = GlobalKey(debugLabel: 'nav_analytics');
   static final navWeather = GlobalKey(debugLabel: 'nav_weather');
+  static final navPlanner = GlobalKey(debugLabel: 'nav_planner');
+  static final navDiagnostics = GlobalKey(debugLabel: 'nav_diagnostics');
   static final navSettings = GlobalKey(debugLabel: 'nav_settings');
   static final navPolarAlignment = GlobalKey(debugLabel: 'nav_polar_alignment');
 
@@ -1112,7 +1114,7 @@ class _TooltipWidget extends StatelessWidget {
             padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
               boxShadow: [
                 BoxShadow(

@@ -32,6 +32,15 @@ mixin _$WeatherSettings {
   /// Enable weather safety monitoring
   bool get weatherSafetyEnabled => throw _privateConstructorUsedError;
 
+  /// Maximum safe humidity before weather safety pauses imaging
+  double get maxHumidityPercent => throw _privateConstructorUsedError;
+
+  /// Maximum safe wind speed before weather safety pauses imaging
+  double get maxWindSpeedKph => throw _privateConstructorUsedError;
+
+  /// Maximum safe cloud cover before weather safety pauses imaging
+  double get maxCloudCoverPercent => throw _privateConstructorUsedError;
+
   /// Automatically park mount when weather threatens
   bool get autoParkEnabled => throw _privateConstructorUsedError;
 
@@ -61,6 +70,9 @@ abstract class $WeatherSettingsCopyWith<$Res> {
       double cloudDensityThreshold,
       int leadTimeMinutes,
       bool weatherSafetyEnabled,
+      double maxHumidityPercent,
+      double maxWindSpeedKph,
+      double maxCloudCoverPercent,
       bool autoParkEnabled,
       bool autoResumeEnabled,
       RadarProviderType preferredProvider,
@@ -84,6 +96,9 @@ class _$WeatherSettingsCopyWithImpl<$Res, $Val extends WeatherSettings>
     Object? cloudDensityThreshold = null,
     Object? leadTimeMinutes = null,
     Object? weatherSafetyEnabled = null,
+    Object? maxHumidityPercent = null,
+    Object? maxWindSpeedKph = null,
+    Object? maxCloudCoverPercent = null,
     Object? autoParkEnabled = null,
     Object? autoResumeEnabled = null,
     Object? preferredProvider = null,
@@ -106,6 +121,18 @@ class _$WeatherSettingsCopyWithImpl<$Res, $Val extends WeatherSettings>
           ? _value.weatherSafetyEnabled
           : weatherSafetyEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      maxHumidityPercent: null == maxHumidityPercent
+          ? _value.maxHumidityPercent
+          : maxHumidityPercent // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxWindSpeedKph: null == maxWindSpeedKph
+          ? _value.maxWindSpeedKph
+          : maxWindSpeedKph // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxCloudCoverPercent: null == maxCloudCoverPercent
+          ? _value.maxCloudCoverPercent
+          : maxCloudCoverPercent // ignore: cast_nullable_to_non_nullable
+              as double,
       autoParkEnabled: null == autoParkEnabled
           ? _value.autoParkEnabled
           : autoParkEnabled // ignore: cast_nullable_to_non_nullable
@@ -139,6 +166,9 @@ abstract class _$$WeatherSettingsImplCopyWith<$Res>
       double cloudDensityThreshold,
       int leadTimeMinutes,
       bool weatherSafetyEnabled,
+      double maxHumidityPercent,
+      double maxWindSpeedKph,
+      double maxCloudCoverPercent,
       bool autoParkEnabled,
       bool autoResumeEnabled,
       RadarProviderType preferredProvider,
@@ -160,6 +190,9 @@ class __$$WeatherSettingsImplCopyWithImpl<$Res>
     Object? cloudDensityThreshold = null,
     Object? leadTimeMinutes = null,
     Object? weatherSafetyEnabled = null,
+    Object? maxHumidityPercent = null,
+    Object? maxWindSpeedKph = null,
+    Object? maxCloudCoverPercent = null,
     Object? autoParkEnabled = null,
     Object? autoResumeEnabled = null,
     Object? preferredProvider = null,
@@ -182,6 +215,18 @@ class __$$WeatherSettingsImplCopyWithImpl<$Res>
           ? _value.weatherSafetyEnabled
           : weatherSafetyEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      maxHumidityPercent: null == maxHumidityPercent
+          ? _value.maxHumidityPercent
+          : maxHumidityPercent // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxWindSpeedKph: null == maxWindSpeedKph
+          ? _value.maxWindSpeedKph
+          : maxWindSpeedKph // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxCloudCoverPercent: null == maxCloudCoverPercent
+          ? _value.maxCloudCoverPercent
+          : maxCloudCoverPercent // ignore: cast_nullable_to_non_nullable
+              as double,
       autoParkEnabled: null == autoParkEnabled
           ? _value.autoParkEnabled
           : autoParkEnabled // ignore: cast_nullable_to_non_nullable
@@ -210,6 +255,9 @@ class _$WeatherSettingsImpl implements _WeatherSettings {
       this.cloudDensityThreshold = 60.0,
       this.leadTimeMinutes = 15,
       this.weatherSafetyEnabled = true,
+      this.maxHumidityPercent = 90.0,
+      this.maxWindSpeedKph = 30.0,
+      this.maxCloudCoverPercent = 80.0,
       this.autoParkEnabled = true,
       this.autoResumeEnabled = false,
       this.preferredProvider = RadarProviderType.auto,
@@ -238,6 +286,21 @@ class _$WeatherSettingsImpl implements _WeatherSettings {
   @JsonKey()
   final bool weatherSafetyEnabled;
 
+  /// Maximum safe humidity before weather safety pauses imaging
+  @override
+  @JsonKey()
+  final double maxHumidityPercent;
+
+  /// Maximum safe wind speed before weather safety pauses imaging
+  @override
+  @JsonKey()
+  final double maxWindSpeedKph;
+
+  /// Maximum safe cloud cover before weather safety pauses imaging
+  @override
+  @JsonKey()
+  final double maxCloudCoverPercent;
+
   /// Automatically park mount when weather threatens
   @override
   @JsonKey()
@@ -260,7 +323,7 @@ class _$WeatherSettingsImpl implements _WeatherSettings {
 
   @override
   String toString() {
-    return 'WeatherSettings(triggerDistanceKm: $triggerDistanceKm, cloudDensityThreshold: $cloudDensityThreshold, leadTimeMinutes: $leadTimeMinutes, weatherSafetyEnabled: $weatherSafetyEnabled, autoParkEnabled: $autoParkEnabled, autoResumeEnabled: $autoResumeEnabled, preferredProvider: $preferredProvider, refreshIntervalSeconds: $refreshIntervalSeconds)';
+    return 'WeatherSettings(triggerDistanceKm: $triggerDistanceKm, cloudDensityThreshold: $cloudDensityThreshold, leadTimeMinutes: $leadTimeMinutes, weatherSafetyEnabled: $weatherSafetyEnabled, maxHumidityPercent: $maxHumidityPercent, maxWindSpeedKph: $maxWindSpeedKph, maxCloudCoverPercent: $maxCloudCoverPercent, autoParkEnabled: $autoParkEnabled, autoResumeEnabled: $autoResumeEnabled, preferredProvider: $preferredProvider, refreshIntervalSeconds: $refreshIntervalSeconds)';
   }
 
   @override
@@ -276,6 +339,12 @@ class _$WeatherSettingsImpl implements _WeatherSettings {
                 other.leadTimeMinutes == leadTimeMinutes) &&
             (identical(other.weatherSafetyEnabled, weatherSafetyEnabled) ||
                 other.weatherSafetyEnabled == weatherSafetyEnabled) &&
+            (identical(other.maxHumidityPercent, maxHumidityPercent) ||
+                other.maxHumidityPercent == maxHumidityPercent) &&
+            (identical(other.maxWindSpeedKph, maxWindSpeedKph) ||
+                other.maxWindSpeedKph == maxWindSpeedKph) &&
+            (identical(other.maxCloudCoverPercent, maxCloudCoverPercent) ||
+                other.maxCloudCoverPercent == maxCloudCoverPercent) &&
             (identical(other.autoParkEnabled, autoParkEnabled) ||
                 other.autoParkEnabled == autoParkEnabled) &&
             (identical(other.autoResumeEnabled, autoResumeEnabled) ||
@@ -294,6 +363,9 @@ class _$WeatherSettingsImpl implements _WeatherSettings {
       cloudDensityThreshold,
       leadTimeMinutes,
       weatherSafetyEnabled,
+      maxHumidityPercent,
+      maxWindSpeedKph,
+      maxCloudCoverPercent,
       autoParkEnabled,
       autoResumeEnabled,
       preferredProvider,
@@ -320,6 +392,9 @@ abstract class _WeatherSettings implements WeatherSettings {
       final double cloudDensityThreshold,
       final int leadTimeMinutes,
       final bool weatherSafetyEnabled,
+      final double maxHumidityPercent,
+      final double maxWindSpeedKph,
+      final double maxCloudCoverPercent,
       final bool autoParkEnabled,
       final bool autoResumeEnabled,
       final RadarProviderType preferredProvider,
@@ -344,6 +419,18 @@ abstract class _WeatherSettings implements WeatherSettings {
 
   /// Enable weather safety monitoring
   bool get weatherSafetyEnabled;
+  @override
+
+  /// Maximum safe humidity before weather safety pauses imaging
+  double get maxHumidityPercent;
+  @override
+
+  /// Maximum safe wind speed before weather safety pauses imaging
+  double get maxWindSpeedKph;
+  @override
+
+  /// Maximum safe cloud cover before weather safety pauses imaging
+  double get maxCloudCoverPercent;
   @override
 
   /// Automatically park mount when weather threatens

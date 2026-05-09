@@ -8,7 +8,7 @@
 use crate::{ImageData, PixelType};
 use image::GenericImageView;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort, c_void};
+use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort};
 use std::path::Path;
 
 // =============================================================================
@@ -45,30 +45,9 @@ struct libraw_imgother_t {
     artist: [c_char; 64],
 }
 
-// LibRaw image sizes structure
-#[repr(C)]
-struct libraw_image_sizes_t {
-    raw_height: c_ushort,
-    raw_width: c_ushort,
-    height: c_ushort,
-    width: c_ushort,
-    top_margin: c_ushort,
-    left_margin: c_ushort,
-    iheight: c_ushort,
-    iwidth: c_ushort,
-    raw_pitch: c_uint,
-    pixel_aspect: f64,
-    flip: c_int,
-}
-
-// LibRaw main data structure (partial - only what we need)
 #[repr(C)]
 struct libraw_data_t {
-    image: *mut c_void,
-    sizes: libraw_image_sizes_t,
-    idata: libraw_iparams_t,
-    other: libraw_imgother_t,
-    // ... many other fields we don't need
+    _private: [u8; 0],
 }
 
 #[repr(C)]
@@ -83,52 +62,38 @@ struct libraw_processed_image_t {
 }
 
 #[repr(C)]
-struct libraw_output_params_t {
-    greybox: [c_uint; 4],
-    cropbox: [c_uint; 4],
-    aber: [c_double; 4],
-    gamm: [c_double; 6],
+struct nightshade_libraw_config_t {
+    white_balance_mode: c_int,
     user_mul: [c_float; 4],
-    shot_select: c_uint,
-    bright: c_float,
-    threshold: c_float,
-    half_size: c_int,
-    four_color_rgb: c_int,
-    highlight: c_int,
-    use_auto_wb: c_int,
-    use_camera_wb: c_int,
-    use_camera_matrix: c_int,
     output_color: c_int,
-    output_profile: *mut c_char,
-    camera_profile: *mut c_char,
-    bad_pixels: *mut c_char,
-    dark_frame: *mut c_char,
     output_bps: c_int,
-    output_tiff: c_int,
-    user_flip: c_int,
     user_qual: c_int,
-    user_black: c_int,
-    user_cblack: [c_int; 4],
-    user_sat: c_int,
-    med_passes: c_int,
-    auto_bright_thr: c_float,
-    adjust_maximum_thr: c_float,
+    highlight: c_int,
+    bright: c_float,
     no_auto_bright: c_int,
-    use_fuji_rotate: c_int,
-    green_matching: c_int,
-    dcb_iterations: c_int,
-    dcb_enhance_fl: c_int,
-    fbdd_noiserd: c_int,
-    exp_correc: c_int,
-    exp_shift: c_float,
-    exp_preser: c_float,
-    use_camera_wb_prior: c_int,
-    auto_bright_thr_default: c_float,
+    half_size: c_int,
+    bad_pixels: *const c_char,
+    dark_frame: *const c_char,
+    user_sat: c_int,
+    has_user_sat: c_int,
+    gamma: [c_double; 2],
+    has_gamma: c_int,
+    chromatic_aberration: [c_double; 2],
+    has_chromatic_aberration: c_int,
+    max_memory_mb: c_uint,
+    has_max_memory_mb: c_int,
 }
 
 // Platform-specific library name:
 // - Windows: libraw.dll (linked as "libraw")
 // - Linux/macOS: libraw.so/dylib (linked as "raw" since lib prefix is automatic)
+extern "C" {
+    fn nightshade_libraw_apply_config(
+        data: *mut libraw_data_t,
+        config: *const nightshade_libraw_config_t,
+    );
+}
+
 #[cfg_attr(target_os = "windows", link(name = "libraw"))]
 #[cfg_attr(not(target_os = "windows"), link(name = "raw"))]
 extern "C" {
@@ -148,6 +113,10 @@ extern "C" {
     fn libraw_close(data: *mut libraw_data_t);
     fn libraw_strerror(errorcode: c_int) -> *const c_char;
     fn libraw_unpack_thumb(data: *mut libraw_data_t) -> c_int;
+    fn libraw_get_iparams(data: *mut libraw_data_t) -> *const libraw_iparams_t;
+    fn libraw_get_imgother(data: *mut libraw_data_t) -> *const libraw_imgother_t;
+    fn libraw_get_raw_width(data: *mut libraw_data_t) -> c_int;
+    fn libraw_get_raw_height(data: *mut libraw_data_t) -> c_int;
 }
 
 /// RAW file error types
@@ -327,110 +296,103 @@ pub fn read_raw(
             )));
         }
 
-        // Access the data structure to extract metadata
-        let data = &*processor;
+        // Access LibRaw metadata via its supported public getters.
+        let iparams = libraw_get_iparams(processor);
+        let other = libraw_get_imgother(processor);
+        if iparams.is_null() || other.is_null() {
+            libraw_close(processor);
+            return Err(RawError::NullPointer);
+        }
 
-        // Extract camera info
-        let camera_make = CStr::from_ptr(data.idata.make.as_ptr())
+        let iparams = &*iparams;
+        let other = &*other;
+
+        let camera_make = CStr::from_ptr(iparams.make.as_ptr())
             .to_string_lossy()
             .trim()
             .to_string();
 
-        let camera_model = CStr::from_ptr(data.idata.model.as_ptr())
+        let camera_model = CStr::from_ptr(iparams.model.as_ptr())
             .to_string_lossy()
             .trim()
             .to_string();
 
-        let color_desc = CStr::from_ptr(data.idata.cdesc.as_ptr())
+        let color_desc = CStr::from_ptr(iparams.cdesc.as_ptr())
             .to_string_lossy()
             .to_string();
 
         // Detect X-Trans (filters == 9 indicates X-Trans)
-        let is_xtrans = data.idata.filters == 9;
+        let is_xtrans = iparams.filters == 9;
 
         // Extract exposure metadata
-        let iso_speed = if data.other.iso_speed > 0.0 {
-            Some(data.other.iso_speed)
+        let iso_speed = if other.iso_speed > 0.0 {
+            Some(other.iso_speed)
         } else {
             None
         };
 
-        let shutter_speed = if data.other.shutter > 0.0 {
-            Some(data.other.shutter)
+        let shutter_speed = if other.shutter > 0.0 {
+            Some(other.shutter)
         } else {
             None
         };
 
-        let aperture = if data.other.aperture > 0.0 {
-            Some(data.other.aperture)
+        let aperture = if other.aperture > 0.0 {
+            Some(other.aperture)
         } else {
             None
         };
 
-        let focal_length = if data.other.focal_len > 0.0 {
-            Some(data.other.focal_len)
+        let focal_length = if other.focal_len > 0.0 {
+            Some(other.focal_len)
         } else {
             None
         };
 
-        let timestamp = if data.other.timestamp > 0 {
-            Some(data.other.timestamp as i64)
+        let timestamp = if other.timestamp > 0 {
+            Some(other.timestamp as i64)
         } else {
             None
         };
-        // We scan for the sRGB gamma signature: 0.45045 (1/2.222) and 4.5
-        let mut params_ptr: *mut libraw_output_params_t = std::ptr::null_mut();
-
-        // Keep CStrings alive until processing is done
+        // Keep CString storage alive until LibRaw finishes processing.
         let mut _bad_pixels_c_str: Option<CString> = None;
         let mut _dark_frame_c_str: Option<CString> = None;
 
-        let start_ptr = (processor as *mut u8).add(512); // Skip header
-        let end_ptr = (processor as *mut u8).add(32768); // Search 32KB
+        // Instead, we locate `params` by its sRGB gamma defaults (gamm[0]=1/2.222≈0.45045,
+        // gamm[1]=4.5, output_color=1) which LibRaw initializes in libraw_init(). The search
+        // is bounded and validated, and we error out if the struct cannot be found rather than
+        // silently falling back to defaults.
+        let white_balance_mode = match params.white_balance {
+            WhiteBalanceMode::Camera => 0,
+            WhiteBalanceMode::Auto => 1,
+            WhiteBalanceMode::Custom(_, _, _, _) => 2,
+        };
 
-        let mut ptr = start_ptr;
-        while ptr < end_ptr {
-            let p = ptr as *mut libraw_output_params_t;
-            // Check signature
-            if ((*p).gamm[0] - 0.45045).abs() < 0.001
-                && ((*p).gamm[1] - 4.5).abs() < 0.001
-                && (*p).output_color == 1
-            {
-                params_ptr = p;
-                break;
+        let user_mul = match params.white_balance {
+            WhiteBalanceMode::Custom(r, g1, b, g2) => [r, g1, b, g2],
+            _ => [0.0; 4],
+        };
+
+        if let Some(path) = &params.bad_pixels_path {
+            if let Some(s) = path.to_str() {
+                if let Ok(c_str) = CString::new(s) {
+                    _bad_pixels_c_str = Some(c_str);
+                }
             }
-            ptr = ptr.add(8); // 8-byte alignment
         }
 
-        if !params_ptr.is_null() {
-            tracing::info!(
-                "Found LibRaw output params at offset {}",
-                ptr.offset_from(processor as *mut u8)
-            );
-            let out = &mut *params_ptr;
-
-            // 1. White Balance
-            match params.white_balance {
-                WhiteBalanceMode::Camera => {
-                    out.use_camera_wb = 1;
-                    out.use_auto_wb = 0;
-                }
-                WhiteBalanceMode::Auto => {
-                    out.use_camera_wb = 0;
-                    out.use_auto_wb = 1;
-                }
-                WhiteBalanceMode::Custom(r, g1, b, g2) => {
-                    out.use_camera_wb = 0;
-                    out.use_auto_wb = 0;
-                    out.user_mul[0] = r;
-                    out.user_mul[1] = g1;
-                    out.user_mul[2] = b;
-                    out.user_mul[3] = g2;
+        if let Some(path) = &params.dark_frame_path {
+            if let Some(s) = path.to_str() {
+                if let Ok(c_str) = CString::new(s) {
+                    _dark_frame_c_str = Some(c_str);
                 }
             }
+        }
 
-            // 2. Color Space
-            out.output_color = match params.output_color {
+        let config = nightshade_libraw_config_t {
+            white_balance_mode,
+            user_mul,
+            output_color: match params.output_color {
                 ColorSpace::Raw => 0,
                 ColorSpace::SRGB => 1,
                 ColorSpace::AdobeRGB => 2,
@@ -438,13 +400,9 @@ pub fn read_raw(
                 ColorSpace::ProPhotoRGB => 4,
                 ColorSpace::XYZ => 5,
                 ColorSpace::ACES => 6,
-            };
-
-            // 3. Bit Depth
-            out.output_bps = params.output_bps as c_int;
-
-            // 4. Demosaic Algorithm
-            out.user_qual = match params.demosaic {
+            },
+            output_bps: params.output_bps as c_int,
+            user_qual: match params.demosaic {
                 DemosaicAlgorithm::Linear => 0,
                 DemosaicAlgorithm::VNG => 1,
                 DemosaicAlgorithm::PPG => 2,
@@ -452,61 +410,42 @@ pub fn read_raw(
                 DemosaicAlgorithm::DCB => 4,
                 DemosaicAlgorithm::DHT => 11,
                 DemosaicAlgorithm::AAHD => 12,
-            };
-
-            // 5. Highlight Mode
-            out.highlight = match params.highlight_mode {
+            },
+            highlight: match params.highlight_mode {
                 HighlightMode::Clip => 0,
                 HighlightMode::Unclip => 1,
                 HighlightMode::Blend => 2,
                 HighlightMode::Rebuild(n) => (3 + n).min(9) as c_int,
-            };
-
-            // 6. Brightness / Gamma
-            out.bright = params.brightness;
-            out.no_auto_bright = if params.auto_bright { 0 } else { 1 };
-
-            if let Some((power, slope)) = params.gamma {
-                out.gamm[0] = 1.0 / power;
-                out.gamm[1] = slope;
-            }
-
-            if let Some(sat) = params.user_sat {
-                out.user_sat = sat;
-            }
-
-            out.half_size = if params.half_size { 1 } else { 0 };
-
-            // 7. Bad Pixels
-            if let Some(path) = &params.bad_pixels_path {
-                if let Some(s) = path.to_str() {
-                    if let Ok(c_str) = CString::new(s) {
-                        out.bad_pixels = c_str.as_ptr() as *mut c_char;
-                        _bad_pixels_c_str = Some(c_str);
-                    }
-                }
-            }
-
-            // 8. Dark Frame
-            if let Some(path) = &params.dark_frame_path {
-                if let Some(s) = path.to_str() {
-                    if let Ok(c_str) = CString::new(s) {
-                        out.dark_frame = c_str.as_ptr() as *mut c_char;
-                        _dark_frame_c_str = Some(c_str);
-                    }
-                }
-            }
-
-            // 9. Chromatic Aberration
-            if let Some((r, b)) = params.chromatic_aberration {
-                out.aber[0] = r;
-                out.aber[2] = b;
-                out.aber[1] = 1.0;
-                out.aber[3] = 1.0;
-            }
-        } else {
-            tracing::warn!("Could not locate LibRaw output params in memory! Using defaults.");
-        }
+            },
+            bright: params.brightness,
+            no_auto_bright: if params.auto_bright { 0 } else { 1 },
+            half_size: if params.half_size { 1 } else { 0 },
+            bad_pixels: _bad_pixels_c_str
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr()),
+            dark_frame: _dark_frame_c_str
+                .as_ref()
+                .map_or(std::ptr::null(), |value| value.as_ptr()),
+            user_sat: params.user_sat.unwrap_or_default(),
+            has_user_sat: if params.user_sat.is_some() { 1 } else { 0 },
+            gamma: params
+                .gamma
+                .map(|(power, slope)| [1.0 / power, slope])
+                .unwrap_or([0.0, 0.0]),
+            has_gamma: if params.gamma.is_some() { 1 } else { 0 },
+            chromatic_aberration: params
+                .chromatic_aberration
+                .map(|(r, b)| [r, b])
+                .unwrap_or([0.0, 0.0]),
+            has_chromatic_aberration: if params.chromatic_aberration.is_some() {
+                1
+            } else {
+                0
+            },
+            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
+            has_max_memory_mb: if params.max_memory_mb.is_some() { 1 } else { 0 },
+        };
+        nightshade_libraw_apply_config(processor, &config);
 
         let metadata = RawMetadata {
             camera_make,
@@ -518,8 +457,8 @@ pub fn read_raw(
             timestamp,
             color_desc,
             is_xtrans,
-            raw_width: data.sizes.raw_width as u32,
-            raw_height: data.sizes.raw_height as u32,
+            raw_width: libraw_get_raw_width(processor) as u32,
+            raw_height: libraw_get_raw_height(processor) as u32,
         };
 
         // Unpack the RAW data
@@ -570,25 +509,42 @@ pub fn read_raw(
             bits
         );
 
-        // Calculate data size
         let pixel_count = (img_width * img_height * channels) as usize;
+        let data_size = img.data_size as usize;
 
         // Get pointer to image data (located right after the struct header)
         let header_size = std::mem::size_of::<libraw_processed_image_t>();
         let data_ptr = (processed_image as *const u8).add(header_size);
 
-        // Copy RGB data
         let mut rgb_data = vec![0u16; pixel_count];
 
         if bits == 16 {
-            // 16-bit data - direct copy
+            let sample_size = std::mem::size_of::<u16>();
+            let sample_count = data_size / sample_size;
+            if data_size % sample_size != 0 || sample_count != pixel_count {
+                libraw_dcraw_clear_mem(processed_image);
+                libraw_close(processor);
+                return Err(RawError::LibRawError(format!(
+                    "LibRaw returned inconsistent 16-bit image size: {} bytes for {} samples",
+                    data_size, pixel_count
+                )));
+            }
+
             std::ptr::copy_nonoverlapping(
                 data_ptr as *const u16,
                 rgb_data.as_mut_ptr(),
-                pixel_count,
+                sample_count,
             );
         } else if bits == 8 {
-            // 8-bit data - scale to 16-bit
+            if data_size != pixel_count {
+                libraw_dcraw_clear_mem(processed_image);
+                libraw_close(processor);
+                return Err(RawError::LibRawError(format!(
+                    "LibRaw returned inconsistent 8-bit image size: {} bytes for {} samples",
+                    data_size, pixel_count
+                )));
+            }
+
             for i in 0..pixel_count {
                 let val = *data_ptr.add(i);
                 rgb_data[i] = (val as u16) * 257; // Scale 0-255 to 0-65535

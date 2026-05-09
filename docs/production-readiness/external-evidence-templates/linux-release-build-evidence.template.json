@@ -1,0 +1,50 @@
+{
+  "platform": "linux",
+  "metadataSchemaVersion": 2,
+  "buildCommand": "dart run melos run build:desktop:linux --no-select",
+  "toolVersions": {
+    "operatingSystem": "linux",
+    "dartVersion": "replace with dart --version output",
+    "flutterVersion": "replace with flutter --version output",
+    "rustcVersion": "replace with rustc --version output"
+  },
+  "buildPassed": true,
+  "packageArtifactPath": "/path/to/nightshade-linux-artifact",
+  "packageSizeBytes": 1,
+  "packageSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "packageSha256Path": "/path/to/nightshade-linux-artifact.sha256",
+  "metadataPath": "docs/production-readiness/linux-release-package-metadata.json",
+  "runtimeSmokePassed": true,
+  "runtimeSmokeArtifact": "docs/production-readiness/linux-runtime-smoke.log",
+  "runtimeSmokeChecks": [
+    {
+      "check": "headless_process_started",
+      "passed": true,
+      "evidence": "process PID and listening port recorded in smoke log"
+    },
+    {
+      "check": "api_info_ok",
+      "passed": true,
+      "evidence": "/api/info returned HTTP 200 with version metadata"
+    },
+    {
+      "check": "openapi_ok",
+      "passed": true,
+      "evidence": "/api/openapi.json returned HTTP 200"
+    },
+    {
+      "check": "dashboard_asset_ok",
+      "passed": true,
+      "evidence": "dashboard HTML/JS/CSS assets returned HTTP 200"
+    }
+  ],
+  "nativeLibraryNotes": [
+    "replace with ldd/native shared library findings from the Linux artifact",
+    "replace with bundled or runtime vendor SDK library notes"
+  ],
+  "linuxPermissionNotes": [
+    "replace with udev rules and dialout/plugdev/video group checks from the smoke host",
+    "replace with local or remote INDI server package/source and driver notes"
+  ],
+  "notes": "Replace placeholder values with actual Linux build evidence. The package artifact and runtime smoke log must exist when this verifier runs."
+}

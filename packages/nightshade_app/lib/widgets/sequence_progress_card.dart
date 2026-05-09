@@ -25,14 +25,19 @@ class SequenceProgressCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(sequenceProgressProvider);
+    final theme = Theme.of(context);
     final colors = Theme.of(context).extension<NightshadeColors>();
 
     // Safe color access with fallbacks
-    final surfaceColor = colors?.surface ?? Theme.of(context).cardColor;
-    final borderColor = colors?.border ?? Colors.grey.shade300;
-    final textColor = colors?.textPrimary ?? Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
-    final textSecondary = colors?.textSecondary ?? Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
-    final primaryColor = colors?.primary ?? Theme.of(context).colorScheme.primary;
+    final surfaceColor = colors?.surface ?? theme.cardColor;
+    final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
+    final textColor = colors?.textPrimary ??
+        theme.textTheme.bodyLarge?.color ??
+        theme.colorScheme.onSurface;
+    final textSecondary = colors?.textSecondary ??
+        theme.textTheme.bodyMedium?.color ??
+        theme.colorScheme.onSurfaceVariant;
+    final primaryColor = colors?.primary ?? theme.colorScheme.primary;
 
     // Don't show card if sequence is idle
     if (progress.state == SequenceExecutionState.idle) {
@@ -47,7 +52,7 @@ class SequenceProgressCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
@@ -69,7 +74,12 @@ class SequenceProgressCard extends ConsumerWidget {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(progress.state, primaryColor),
+                  color: _getStatusColor(
+                    progress.state,
+                    colors,
+                    primaryColor,
+                    textSecondary,
+                  ),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -272,20 +282,25 @@ class SequenceProgressCard extends ConsumerWidget {
     );
   }
 
-  Color _getStatusColor(SequenceExecutionState state, Color primaryColor) {
+  Color _getStatusColor(
+    SequenceExecutionState state,
+    NightshadeColors? colors,
+    Color primaryColor,
+    Color mutedColor,
+  ) {
     switch (state) {
       case SequenceExecutionState.idle:
-        return Colors.grey;
+        return colors?.textMuted ?? mutedColor;
       case SequenceExecutionState.running:
-        return Colors.green;
+        return colors?.success ?? primaryColor;
       case SequenceExecutionState.paused:
-        return Colors.orange;
+        return colors?.warning ?? primaryColor;
       case SequenceExecutionState.stopping:
-        return Colors.red;
+        return colors?.error ?? primaryColor;
       case SequenceExecutionState.completed:
-        return Colors.blue;
+        return colors?.info ?? primaryColor;
       case SequenceExecutionState.failed:
-        return Colors.red;
+        return colors?.error ?? primaryColor;
     }
   }
 

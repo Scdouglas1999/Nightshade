@@ -1,10 +1,16 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../screens/imaging/imaging_science_state.dart';
 import '../utils/preview_transform.dart';
+
+const _annotationOverlayTextColor = Color(0xFFFFFFFF);
+const _annotationOverlayShadowColor = Color(0xFF000000);
 
 /// Enhanced annotation overlay with fade effects, click-to-identify, hover tooltips, and customizable styles
 class AnnotationOverlay extends ConsumerStatefulWidget {
@@ -44,10 +50,18 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
   late Animation<double> _fadeAnimation;
   bool _isHovering = false;
 
+  /// On touch platforms (iOS/Android), annotations are toggled on/off by
+  /// tapping anywhere on the image instead of using mouse hover fade.
+  bool _touchAnnotationsVisible = true;
+
   // Hover detection state
   CelestialObjectAnnotation? _currentHoveredObject;
   Timer? _hoverDebounceTimer;
   static const _hoverDebounceMs = 75; // Delay before showing tooltip
+
+  static bool get _isTouchPlatform =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.android;
 
   Animation<double> _createFadeAnimation(AnnotationSettings settings) {
     return Tween<double>(
@@ -203,7 +217,6 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
   void _onTapUp(TapUpDetails details) {
     final settings = ref.read(annotationSettingsProvider).valueOrNull ??
         const AnnotationSettings();
-    if (!settings.clickToIdentify) return;
 
     final localPosition = details.localPosition;
 
@@ -231,7 +244,16 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
       }
     }
 
-    // No object hit, trigger identify at position
+    // On touch platforms, tapping empty space toggles annotation visibility
+    if (_isTouchPlatform) {
+      setState(() {
+        _touchAnnotationsVisible = !_touchAnnotationsVisible;
+      });
+      return;
+    }
+
+    // On desktop, no object hit triggers identify at position
+    if (!settings.clickToIdentify) return;
     widget.onIdentifyAt?.call(imagePoint.dx, imagePoint.dy);
   }
 
@@ -251,37 +273,254 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
       return const SizedBox.shrink();
     }
 
-    return MouseRegion(
-      onEnter: (_) => _onHoverChanged(true),
-      onExit: (_) => _onHoverChanged(false),
-      onHover: _onHoverMove,
-      child: GestureDetector(
-        onTapUp: _onTapUp,
-        behavior: HitTestBehavior.translucent,
-        child: AnimatedBuilder(
-          animation: _fadeAnimation,
-          builder: (context, child) {
-            final opacity = settings.fadeWhenNotHovering
-                ? _fadeAnimation.value
-                : settings.hoverOpacity;
+    final annotationPaint = CustomPaint(
+      painter: EnhancedAnnotationPainter(
+        annotation: widget.annotation!,
+        settings: settings,
+        markerStyle: markerStyle,
+        zoomLevel: widget.zoomLevel,
+        imageOffset: widget.imageOffset,
+      ),
+      size: Size.infinite,
+    );
 
-            return Opacity(
-              opacity: opacity,
-              child: CustomPaint(
-                painter: EnhancedAnnotationPainter(
-                  annotation: widget.annotation!,
-                  settings: settings,
-                  markerStyle: markerStyle,
-                  zoomLevel: widget.zoomLevel,
-                  imageOffset: widget.imageOffset,
-                ),
-                size: Size.infinite,
-              ),
-            );
-          },
+    // On touch platforms: no fade, use tap-to-toggle visibility instead
+    if (_isTouchPlatform) {
+      return Stack(
+        children: [
+          GestureDetector(
+            onTapUp: _onTapUp,
+            behavior: HitTestBehavior.translucent,
+            child: Opacity(
+              opacity: _touchAnnotationsVisible ? settings.hoverOpacity : 0.0,
+              child: annotationPaint,
+            ),
+          ),
+          _MarkerPulseOverlay(
+            annotation: widget.annotation!,
+            zoomLevel: widget.zoomLevel,
+            imageOffset: widget.imageOffset,
+            markerStyle: markerStyle,
+          ),
+        ],
+      );
+    }
+
+    // On desktop: use mouse hover fade behavior
+    return Stack(
+      children: [
+        MouseRegion(
+          onEnter: (_) => _onHoverChanged(true),
+          onExit: (_) => _onHoverChanged(false),
+          onHover: _onHoverMove,
+          child: GestureDetector(
+            onTapUp: _onTapUp,
+            behavior: HitTestBehavior.translucent,
+            child: AnimatedBuilder(
+              animation: _fadeAnimation,
+              builder: (context, child) {
+                final opacity = settings.fadeWhenNotHovering
+                    ? _fadeAnimation.value
+                    : settings.hoverOpacity;
+
+                return Opacity(
+                  opacity: opacity,
+                  child: annotationPaint,
+                );
+              },
+            ),
+          ),
         ),
+        _MarkerPulseOverlay(
+          annotation: widget.annotation!,
+          zoomLevel: widget.zoomLevel,
+          imageOffset: widget.imageOffset,
+          markerStyle: markerStyle,
+        ),
+      ],
+    );
+  }
+}
+
+/// Overlay that shows a pulse animation on a specific marker when triggered
+/// from the annotation list panel.
+class _MarkerPulseOverlay extends ConsumerStatefulWidget {
+  final ImageAnnotation annotation;
+  final double zoomLevel;
+  final Offset imageOffset;
+  final AnnotationMarkerStyle markerStyle;
+
+  const _MarkerPulseOverlay({
+    required this.annotation,
+    required this.zoomLevel,
+    required this.imageOffset,
+    required this.markerStyle,
+  });
+
+  @override
+  ConsumerState<_MarkerPulseOverlay> createState() =>
+      _MarkerPulseOverlayState();
+}
+
+class _MarkerPulseOverlayState extends ConsumerState<_MarkerPulseOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+  String? _currentPulseId;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.5)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween:
+            Tween(begin: 1.5, end: 1.0).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 50,
+      ),
+    ]).animate(_pulseController);
+
+    _opacityAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: 0.6)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween(0.6),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween:
+            Tween(begin: 0.6, end: 0.0).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 30,
+      ),
+    ]).animate(_pulseController);
+
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        // Clear the pulse provider after animation completes
+        ref.read(annotationPulseObjectProvider.notifier).state = null;
+        setState(() {
+          _currentPulseId = null;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pulseId = ref.watch(annotationPulseObjectProvider);
+
+    // Trigger animation when a new pulse ID arrives
+    if (pulseId != null && pulseId != _currentPulseId) {
+      _currentPulseId = pulseId;
+      _pulseController.forward(from: 0.0);
+    }
+
+    if (_currentPulseId == null || !_pulseController.isAnimating) {
+      return const SizedBox.shrink();
+    }
+
+    // Find the object to pulse
+    final object = widget.annotation.objects
+        .where((obj) => obj.id == _currentPulseId)
+        .firstOrNull;
+
+    if (object == null) return const SizedBox.shrink();
+
+    final screenPos = imageToViewport(
+      imagePoint: Offset(object.x, object.y),
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
+
+    final baseMarkerSize =
+        (widget.markerStyle.scaleBySize && object.size != null)
+            ? (object.size! * 2.0).clamp(
+                  widget.markerStyle.minMarkerSize,
+                  widget.markerStyle.maxMarkerSize,
+                ) *
+                widget.zoomLevel
+            : widget.markerStyle.minMarkerSize;
+
+    // Use a SizedBox.expand wrapped with IgnorePointer so the pulse overlay
+    // doesn't interfere with pointer events on the annotation overlay.
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final scale = _scaleAnimation.value;
+          final opacity = _opacityAnimation.value;
+          final pulseRadius = baseMarkerSize * scale;
+
+          return CustomPaint(
+            painter: _PulseCirclePainter(
+              center: screenPos,
+              radius: pulseRadius,
+              opacity: opacity,
+            ),
+            size: Size.infinite,
+          );
+        },
       ),
     );
+  }
+}
+
+/// Painter for the pulse circle highlight on selected annotations
+class _PulseCirclePainter extends CustomPainter {
+  final Offset center;
+  final double radius;
+  final double opacity;
+
+  _PulseCirclePainter({
+    required this.center,
+    required this.radius,
+    required this.opacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0.0 || radius <= 0.0) return;
+
+    // Outer ring
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..color = Colors.white.withValues(alpha: opacity);
+    canvas.drawCircle(center, radius, ringPaint);
+
+    // Glow
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0
+      ..color = Colors.white.withValues(alpha: opacity * 0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
+    canvas.drawCircle(center, radius, glowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PulseCirclePainter oldDelegate) {
+    return oldDelegate.center != center ||
+        oldDelegate.radius != radius ||
+        oldDelegate.opacity != opacity;
   }
 }
 
@@ -549,12 +788,12 @@ class EnhancedAnnotationPainter extends CustomPainter {
         shadows: const [
           Shadow(
             blurRadius: 3,
-            color: Colors.black,
+            color: _annotationOverlayShadowColor,
             offset: Offset(1, 1),
           ),
           Shadow(
             blurRadius: 6,
-            color: Colors.black,
+            color: _annotationOverlayShadowColor,
             offset: Offset(0, 0),
           ),
         ],
@@ -589,7 +828,7 @@ class EnhancedAnnotationPainter extends CustomPainter {
 }
 
 /// Compact object info tooltip widget
-class ObjectInfoTooltip extends StatelessWidget {
+class ObjectInfoTooltip extends ConsumerWidget {
   final CelestialObjectAnnotation object;
   final VoidCallback? onClose;
   final VoidCallback? onMoreInfo;
@@ -601,8 +840,73 @@ class ObjectInfoTooltip extends StatelessWidget {
     this.onMoreInfo,
   });
 
+  void _addToObservingList(WidgetRef ref, BuildContext context) async {
+    final lists =
+        ref.read(observingListsProvider).valueOrNull ?? <ObservingList>[];
+    final notifier = ref.read(observingListNotifierProvider.notifier);
+
+    int? targetListId;
+    if (lists.isEmpty) {
+      // Create a default list
+      targetListId = await notifier.createList(name: 'My Observing List');
+    } else {
+      // Use the active list, or the first available
+      targetListId = ref.read(activeObservingListIdProvider) ?? lists.first.id;
+    }
+
+    if (targetListId == null) return;
+
+    await notifier.addItem(
+      listId: targetListId,
+      objectName: object.commonName ?? object.name,
+      catalogId: object.catalogId ?? object.name,
+      objectType: object.type.name,
+      ra: object.ra / 15.0, // Convert degrees to hours for the table
+      dec: object.dec,
+      magnitude: object.magnitude,
+      sizeArcmin: object.size,
+    );
+
+    final uiState = ref.read(observingListNotifierProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(uiState.errorMessage ??
+              uiState.statusMessage ??
+              'Added ${object.name}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _createSequenceForObject(WidgetRef ref, BuildContext context) {
+    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
+
+    // RA stored in degrees in annotation, sequence needs hours
+    final raHours = object.ra / 15.0;
+
+    final targetNode = TargetHeaderNode(
+      targetName: object.commonName ?? object.name,
+      raHours: raHours,
+      decDegrees: object.dec,
+    );
+
+    sequenceNotifier.addTargetHeader(targetNode);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Created sequence target for ${object.commonName ?? object.name}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.all(12),
@@ -634,7 +938,7 @@ class ObjectInfoTooltip extends StatelessWidget {
                     Text(
                       object.commonName ?? object.name,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: _annotationOverlayTextColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -678,8 +982,29 @@ class ObjectInfoTooltip extends StatelessWidget {
             label: 'Dec',
             value: _formatDec(object.dec),
           ),
+          const SizedBox(height: 8),
+          // Action buttons row
+          Row(
+            children: [
+              Expanded(
+                child: _TooltipActionButton(
+                  icon: Icons.playlist_add,
+                  label: 'Add to List',
+                  onTap: () => _addToObservingList(ref, context),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _TooltipActionButton(
+                  icon: Icons.auto_fix_high,
+                  label: 'Sequence',
+                  onTap: () => _createSequenceForObject(ref, context),
+                ),
+              ),
+            ],
+          ),
           if (onMoreInfo != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
@@ -773,6 +1098,52 @@ class _ObjectTypeIcon extends StatelessWidget {
   }
 }
 
+class _TooltipActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _TooltipActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: Colors.white.withValues(alpha: 0.8)),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -796,7 +1167,7 @@ class _InfoRow extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
+              color: _annotationOverlayTextColor,
               fontSize: 11,
               fontWeight: FontWeight.w500,
             ),

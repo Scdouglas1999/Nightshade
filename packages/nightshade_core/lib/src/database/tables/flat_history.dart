@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import 'equipment_profiles.dart';
+
 /// Stores historical flat frame calibration results for learned exposure suggestions
 @DataClassName('FlatHistoryEntry')
 @TableIndex(name: 'idx_flat_history_profile', columns: {#equipmentProfileId})
@@ -9,7 +11,7 @@ class FlatHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// Reference to equipment profile used
-  IntColumn get equipmentProfileId => integer().nullable()();
+  IntColumn get equipmentProfileId => integer().nullable().references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
 
   /// Filter name (e.g., "L", "R", "Ha")
   TextColumn get filterName => text()();

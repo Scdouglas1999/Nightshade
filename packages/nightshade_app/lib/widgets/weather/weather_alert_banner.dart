@@ -152,6 +152,7 @@ class _BannerContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundColor = _getBackgroundColor();
+    final onError = Theme.of(context).colorScheme.onError;
     final icon = _getIcon();
     final title = _getTitle();
     final message = actions.reason ?? 'Adverse weather conditions detected';
@@ -187,7 +188,7 @@ class _BannerContent extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: Colors.white,
+                color: onError,
               ),
 
             const SizedBox(width: 12),
@@ -200,10 +201,10 @@ class _BannerContent extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: onError,
                     ),
                   ),
                   const SizedBox(height: 2),

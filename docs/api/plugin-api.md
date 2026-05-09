@@ -25,11 +25,17 @@ abstract class NightshadePlugin {
   /// Plugin author
   String get author;
   
-  /// Initialize the plugin
-  Future<void> initialize();
-  
-  /// Dispose of plugin resources
-  Future<void> dispose();
+  /// Called when plugin is first loaded into memory
+  Future<void> onLoad(PluginContext context);
+
+  /// Called when plugin is enabled
+  Future<void> onEnable();
+
+  /// Called when plugin is disabled
+  Future<void> onDisable();
+
+  /// Called when plugin is unloaded
+  Future<void> onUnload();
 }
 ```
 
@@ -52,12 +58,12 @@ class MyPlugin extends NightshadePlugin {
   String get author => 'John Doe';
   
   @override
-  Future<void> initialize() async {
+  Future<void> onLoad(PluginContext context) async {
     // Initialize plugin
   }
   
   @override
-  Future<void> dispose() async {
+  Future<void> onUnload() async {
     // Cleanup
   }
 }
@@ -211,8 +217,8 @@ Plugins are managed by the `PluginHost` class.
 
 ```dart
 class PluginHost {
-  Future<void> loadPlugin(NightshadePlugin plugin);
-  Future<void> unloadPlugin(String pluginId);
+  Future<void> registerPlugin(NightshadePlugin plugin, {bool enabled = true});
+  Future<void> unregisterPlugin(String pluginId);
   List<NightshadePlugin> getLoadedPlugins();
   NightshadePlugin? getPlugin(String pluginId);
 }
@@ -220,17 +226,17 @@ class PluginHost {
 
 ## Plugin Lifecycle
 
-1. **Discovery** - Plugins are discovered and loaded
-2. **Initialization** - `initialize()` is called
-3. **Active** - Plugin is active and can be used
-4. **Disposal** - `dispose()` is called when unloading
+1. **Registration** - `registerPlugin()` creates plugin context and calls `onLoad()`
+2. **Enablement** - `onEnable()` runs when the plugin starts enabled or is enabled later
+3. **Disablement** - `onDisable()` runs when the plugin is disabled
+4. **Unregistration** - `unregisterPlugin()` calls `onUnload()` and removes the plugin
 
 ## Best Practices
 
 1. **Unique IDs** - Use reverse domain notation (e.g., `com.example.myplugin`)
 2. **Versioning** - Follow semantic versioning
-3. **Error Handling** - Handle errors gracefully in `initialize()` and `dispose()`
-4. **Resource Cleanup** - Always clean up resources in `dispose()`
+3. **Error Handling** - Handle errors gracefully in `onLoad()` and `onUnload()`
+4. **Resource Cleanup** - Always clean up resources in `onUnload()`
 5. **Thread Safety** - Ensure thread-safe operations
 
 ## Example: Complete Plugin
@@ -262,12 +268,12 @@ class WeatherMonitorPlugin extends UiPlugin {
   ];
   
   @override
-  Future<void> initialize() async {
+  Future<void> onLoad(PluginContext context) async {
     // Start weather monitoring
   }
   
   @override
-  Future<void> dispose() async {
+  Future<void> onUnload() async {
     // Stop weather monitoring
   }
 }

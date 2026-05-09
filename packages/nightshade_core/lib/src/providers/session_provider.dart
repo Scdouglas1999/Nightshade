@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:equatable/equatable.dart';
 
@@ -169,6 +171,9 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
       targetId: targetId,
       profileId: profileId,
     );
+    if (dbId <= 0) {
+      throw StateError('SessionService returned invalid session id: $dbId');
+    }
 
     _autofocusCount = 0;
 
@@ -205,6 +210,10 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
   /// Recover a previously interrupted session
   Future<void> recoverSession(SessionRecoveryInfo recoveryInfo) async {
+    if (recoveryInfo.sessionId <= 0) {
+      throw StateError(
+          'Cannot recover session with invalid id ${recoveryInfo.sessionId}');
+    }
     final sessionService = _ref.read(sessionServiceProvider);
     await sessionService.recoverSession(recoveryInfo.sessionId);
 
@@ -279,6 +288,11 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
     _updateSessionServiceStats();
   }
 
+  /// Update target coordinates when the sequencer switches targets mid-sequence
+  void updateTargetCoordinates({required double ra, required double dec}) {
+    state = state.copyWith(targetRa: ra, targetDec: dec);
+  }
+
   /// Update the expected total exposures
   void setTotalExposures(int total) {
     state = state.copyWith(totalExposures: total);
@@ -323,21 +337,26 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
 
   /// Helper to update session service with current stats
   Future<void> _updateSessionServiceStats() async {
-    if (!state.isActive || state.dbSessionId == null) return;
+    final snapshot = state;
+    if (!snapshot.isActive || snapshot.dbSessionId == null) return;
 
     final sessionService = _ref.read(sessionServiceProvider);
 
     // Calculate combined guiding RMS (RMS of both axes)
     double? combinedGuidingRms;
-    if (state.avgGuidingRmsRa != null && state.avgGuidingRmsDec != null) {
-      combinedGuidingRms = (state.avgGuidingRmsRa! + state.avgGuidingRmsDec!) / 2.0;
+    if (snapshot.avgGuidingRmsRa != null &&
+        snapshot.avgGuidingRmsDec != null) {
+      combinedGuidingRms = math.sqrt(
+        snapshot.avgGuidingRmsRa! * snapshot.avgGuidingRmsRa! +
+            snapshot.avgGuidingRmsDec! * snapshot.avgGuidingRmsDec!,
+      );
     }
 
     final stats = SessionStats(
-      completedExposures: state.completedExposures,
-      failedExposures: state.failedExposures,
-      totalIntegrationSecs: state.totalIntegrationSecs,
-      avgHfr: state.avgHfr,
+      completedExposures: snapshot.completedExposures,
+      failedExposures: snapshot.failedExposures,
+      totalIntegrationSecs: snapshot.totalIntegrationSecs,
+      avgHfr: snapshot.avgHfr,
       avgGuidingRms: combinedGuidingRms,
       autofocusCount: _autofocusCount,
       lastUpdated: DateTime.now(),

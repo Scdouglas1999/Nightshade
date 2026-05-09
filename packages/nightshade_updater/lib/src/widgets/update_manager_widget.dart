@@ -1,5 +1,6 @@
 // ignore_for_file: unused_local_variable
 
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
@@ -31,6 +32,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   String _bannerVersion = '';
   String? _errorMessage;
   late final Stream<LanPushEvent> _lanPushStream;
+  StreamSubscription<LanPushEvent>? _lanPushSubscription;
   static const _disabledUpdatesLog =
       '[UpdateManager] Update server not configured, skipping update checks';
 
@@ -51,7 +53,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
     // Listen to LAN push events
     _lanPushStream = LanPushNotifier.stream;
-    _lanPushStream.listen(_onLanPushEvent);
+    _lanPushSubscription = _lanPushStream.listen(_onLanPushEvent);
   }
 
   Future<void> _checkForStagedUpdate() async {
@@ -219,6 +221,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
   @override
   void dispose() {
+    _lanPushSubscription?.cancel();
     super.dispose();
   }
 

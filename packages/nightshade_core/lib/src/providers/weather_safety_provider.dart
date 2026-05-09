@@ -6,6 +6,7 @@ import '../models/settings/app_settings.dart';
 import 'weather_providers.dart';
 import 'equipment_provider.dart';
 import 'settings_provider.dart';
+import 'ui_notification_provider.dart';
 
 /// Weather safety status for sequencer integration
 enum WeatherSafetyStatus {
@@ -42,12 +43,16 @@ class WeatherSafetyActions {
 enum SafetyDataSource {
   /// Data from external weather API (Open-Meteo, radar, etc.)
   weatherApi,
+
   /// Data from connected hardware weather device
   hardwareWeather,
+
   /// Data from connected safety monitor device
   safetyMonitor,
+
   /// Combined evaluation of multiple sources
   combined,
+
   /// No data source available (using fail mode)
   unavailable,
 }
@@ -113,7 +118,8 @@ class WeatherSafetyState {
       hardwareWeatherSafe: hardwareWeatherSafe ?? this.hardwareWeatherSafe,
       safetyMonitorSafe: safetyMonitorSafe ?? this.safetyMonitorSafe,
       apiWeatherSafe: apiWeatherSafe ?? this.apiWeatherSafe,
-      failModeWarning: clearWarning ? null : (failModeWarning ?? this.failModeWarning),
+      failModeWarning:
+          clearWarning ? null : (failModeWarning ?? this.failModeWarning),
       lastEvaluation: lastEvaluation ?? this.lastEvaluation,
     );
   }
@@ -154,6 +160,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     final weatherSettings = _ref.read(weatherSettingsProvider);
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
     final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
+    var shouldShowFailModeWarning = false;
 
     // Get hardware weather device state
     final weatherDeviceState = _ref.read(weatherStateProvider);
@@ -198,14 +205,17 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     bool useFailMode = false;
 
     // If no data sources are available, apply fail mode
-    if (!isWeatherDeviceConnected && !isSafetyMonitorConnected && currentAlert == null) {
+    if (!isWeatherDeviceConnected &&
+        !isSafetyMonitorConnected &&
+        currentAlert == null) {
       useFailMode = true;
       dataSource = SafetyDataSource.unavailable;
       failModeWarning = 'No weather data sources available';
     }
 
     // Combine all sources for final safety determination
-    final allSourcesSafe = hardwareWeatherSafe && safetyMonitorSafe && apiWeatherSafe;
+    final allSourcesSafe =
+        hardwareWeatherSafe && safetyMonitorSafe && apiWeatherSafe;
 
     WeatherSafetyStatus finalStatus;
     WeatherSafetyActions finalActions;
@@ -221,9 +231,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.safe;
       finalActions = WeatherSafetyActions.safe;
     } else if (useFailMode) {
-      // Strict fail-closed: unavailable safety data is always unsafe.
       switch (failMode) {
-        case SafetyFailMode.failOpen:
+        case SafetyFailMode.failClosed:
+          // Most conservative: treat unavailable data as unsafe, block operations.
           finalStatus = WeatherSafetyStatus.unsafe;
           finalActions = WeatherSafetyActions(
             shouldPause: true,
@@ -231,21 +241,16 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
             reason: failModeWarning,
           );
           break;
-        case SafetyFailMode.failClosed:
-          finalStatus = WeatherSafetyStatus.unsafe;
-          finalActions = WeatherSafetyActions(
-            shouldPause: true,
-            shouldPark: weatherSettings.autoParkEnabled,
-            reason: failModeWarning,
-          );
+        case SafetyFailMode.failOpen:
+          // Permissive: treat unavailable data as safe, allow operations to continue.
+          finalStatus = WeatherSafetyStatus.safe;
+          finalActions = WeatherSafetyActions.safe;
           break;
         case SafetyFailMode.warnOnly:
-          finalStatus = WeatherSafetyStatus.unsafe;
-          finalActions = WeatherSafetyActions(
-            shouldPause: true,
-            shouldPark: weatherSettings.autoParkEnabled,
-            reason: failModeWarning,
-          );
+          // Permissive with notification: treat as safe but emit a UI warning.
+          finalStatus = WeatherSafetyStatus.safe;
+          finalActions = WeatherSafetyActions.safe;
+          shouldShowFailModeWarning = true;
           break;
       }
     } else if (allSourcesSafe) {
@@ -283,22 +288,36 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       failModeWarning: failModeWarning,
       lastEvaluation: DateTime.now(),
     );
+
+    if (shouldShowFailModeWarning) {
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        _ref.read(uiNotificationProvider.notifier).showWarning(
+              failModeWarning ?? 'No weather data sources available',
+              title: 'Weather Safety',
+              duration: const Duration(seconds: 10),
+            );
+      });
+    }
   }
 
   /// Evaluate hardware weather device for safety
   bool _evaluateHardwareWeather(WeatherState weatherState) {
+    final settings = _ref.read(weatherSettingsProvider);
     // Check various weather metrics if available
-    // These thresholds could be made configurable
-    if (weatherState.humidity != null && weatherState.humidity! > 90) {
+    if (weatherState.humidity != null &&
+        weatherState.humidity! > settings.maxHumidityPercent) {
       return false; // Too humid
     }
-    if (weatherState.windSpeed != null && weatherState.windSpeed! > 30) {
-      return false; // Too windy (30 km/h threshold)
+    if (weatherState.windSpeed != null &&
+        weatherState.windSpeed! > settings.maxWindSpeedKph) {
+      return false; // Too windy
     }
     if (weatherState.rainRate != null && weatherState.rainRate! > 0) {
       return false; // Any rain is unsafe
     }
-    if (weatherState.cloudCover != null && weatherState.cloudCover! > 80) {
+    if (weatherState.cloudCover != null &&
+        weatherState.cloudCover! > settings.maxCloudCoverPercent) {
       return false; // Too cloudy
     }
     return true;

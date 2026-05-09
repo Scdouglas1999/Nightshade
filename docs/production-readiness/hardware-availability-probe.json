@@ -1,0 +1,178 @@
+{
+  "generatedAt": "2026-05-05T14:48:42.040807Z",
+  "hostPlatform": "windows",
+  "executable": "C:\\Users\\scdou\\Documents\\Nightshade2\\apps/desktop/build/windows/x64/runner/Release/nightshade_desktop.exe",
+  "requiredDeviceTypes": {
+    "camera": "Camera",
+    "mount": "Mount",
+    "focuser": "Focuser",
+    "filterWheel": "Filter wheel",
+    "rotator": "Rotator",
+    "guider": "Guider",
+    "dome": "Dome",
+    "weather": "Weather",
+    "safetyMonitor": "Safety monitor"
+  },
+  "fullCoverage": false,
+  "fullNonSimulatorCoverage": false,
+  "fullRealOrSimulatorCoverage": false,
+  "missingDeviceTypes": [
+    "filterWheel",
+    "rotator",
+    "dome",
+    "safetyMonitor"
+  ],
+  "missingRealOrSimulatorDeviceTypes": [
+    "filterWheel",
+    "rotator",
+    "dome",
+    "safetyMonitor"
+  ],
+  "missingNonSimulatorDeviceTypes": [
+    "filterWheel",
+    "rotator",
+    "dome",
+    "safetyMonitor"
+  ],
+  "note": "This is a discovery/availability probe only. It does not connect to devices or prove command/control smoke.",
+  "deviceTypes": {
+    "camera": {
+      "label": "Camera",
+      "deviceCount": 3,
+      "nonSimulatorCount": 2,
+      "simulatorCount": 1,
+      "devices": [
+        {
+          "id": "ascom:ASCOM.DSLR.Camera",
+          "name": "ASCOM Camera Driver for DSLR",
+          "deviceType": "camera",
+          "driverType": "ascom",
+          "description": "ASCOM Camera Driver for DSLR"
+        },
+        {
+          "id": "ascom:ASCOM.ScdouglasFujifilm.Camera",
+          "name": "Fujifilm Camera (Scdouglas)",
+          "deviceType": "camera",
+          "driverType": "ascom",
+          "description": "Fujifilm Camera (Scdouglas)"
+        },
+        {
+          "id": "sim_camera_1",
+          "name": "Simulated Camera",
+          "deviceType": "camera",
+          "driverType": "simulator",
+          "description": "Internal Simulator"
+        }
+      ]
+    },
+    "mount": {
+      "label": "Mount",
+      "deviceCount": 2,
+      "nonSimulatorCount": 2,
+      "simulatorCount": 0,
+      "devices": [
+        {
+          "id": "ascom:ASCOMDome.Telescope",
+          "name": "ASCOM Dome Control",
+          "deviceType": "mount",
+          "driverType": "ascom",
+          "description": "ASCOM Dome Control"
+        },
+        {
+          "id": "ascom:ASCOM.ScdouglasFujifilm.Telescope",
+          "name": "ASCOM Telescope Driver for ScdouglasFujifilm",
+          "deviceType": "mount",
+          "driverType": "ascom",
+          "description": "ASCOM Telescope Driver for ScdouglasFujifilm"
+        }
+      ]
+    },
+    "focuser": {
+      "label": "Focuser",
+      "deviceCount": 1,
+      "nonSimulatorCount": 1,
+      "simulatorCount": 0,
+      "devices": [
+        {
+          "id": "ascom:ASCOM.GeminiFocuserPro.Focuser",
+          "name": "Gemini Focuser Pro",
+          "deviceType": "focuser",
+          "driverType": "ascom",
+          "description": "Gemini Focuser Pro"
+        }
+      ]
+    },
+    "filterWheel": {
+      "label": "Filter wheel",
+      "deviceCount": 0,
+      "nonSimulatorCount": 0,
+      "simulatorCount": 0,
+      "devices": []
+    },
+    "rotator": {
+      "label": "Rotator",
+      "deviceCount": 0,
+      "nonSimulatorCount": 0,
+      "simulatorCount": 0,
+      "devices": []
+    },
+    "guider": {
+      "label": "Guider",
+      "deviceCount": 2,
+      "nonSimulatorCount": 2,
+      "simulatorCount": 0,
+      "devices": [
+        {
+          "id": "native:builtin_guider:multi_star",
+          "name": "Built-in Multi-Star Guider",
+          "deviceType": "guider",
+          "driverType": "native",
+          "description": "Software guider using Nightshade star tracking and mount pulse guide"
+        },
+        {
+          "id": "phd2_guider",
+          "name": "PHD2 Guiding",
+          "deviceType": "guider",
+          "driverType": "native",
+          "description": "PHD2 Guiding (Installed)"
+        }
+      ]
+    },
+    "dome": {
+      "label": "Dome",
+      "deviceCount": 0,
+      "nonSimulatorCount": 0,
+      "simulatorCount": 0,
+      "devices": []
+    },
+    "weather": {
+      "label": "Weather",
+      "deviceCount": 2,
+      "nonSimulatorCount": 2,
+      "simulatorCount": 0,
+      "devices": [
+        {
+          "id": "ascom:ASCOM.OCH.ObservingConditions",
+          "name": "ASCOM Observing Conditions Hub (OCH)",
+          "deviceType": "weather",
+          "driverType": "ascom",
+          "description": "ASCOM Observing Conditions Hub (OCH)"
+        },
+        {
+          "id": "ascom:ASCOM.OpenWeatherMap.ObservingConditions",
+          "name": "OpenWeatherMap ObservingConditions",
+          "deviceType": "weather",
+          "driverType": "ascom",
+          "description": "OpenWeatherMap ObservingConditions"
+        }
+      ]
+    },
+    "safetyMonitor": {
+      "label": "Safety monitor",
+      "deviceCount": 0,
+      "nonSimulatorCount": 0,
+      "simulatorCount": 0,
+      "devices": []
+    }
+  }
+}

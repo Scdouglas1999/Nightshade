@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -17,6 +16,7 @@ import 'profiles_provider.dart';
 import 'session_provider.dart';
 import 'settings_provider.dart';
 import 'imaging_provider.dart';
+import 'sequence_stats_provider.dart';
 import '../services/imaging_service.dart';
 import 'backend_provider.dart';
 import '../backend/nightshade_backend.dart';
@@ -71,6 +71,7 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     int? completedExposures,
     double? completedIntegrationSecs,
     double? elapsedSecs,
+    double? estimatedRemainingSecs,
     String? currentTarget,
     String? currentFilter,
     String? message,
@@ -82,6 +83,7 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
       completedExposures: completedExposures,
       completedIntegrationSecs: completedIntegrationSecs,
       elapsedSecs: elapsedSecs,
+      estimatedRemainingSecs: estimatedRemainingSecs,
       currentTarget: currentTarget,
       currentFilter: currentFilter,
       message: message,
@@ -622,7 +624,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final childIds =
         (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? true;
+    final isEnabled = json['isEnabled'] as bool? ?? false;
 
     switch (nodeType) {
       case 'targetheader':
@@ -642,22 +644,11 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         );
 
       case 'loop':
-        final loopCondition = _parseLoopType(json['conditionType']);
-        DateTime? repeatUntil;
-        if (json['repeatUntil'] != null) {
-          final millis = (json['repeatUntil'] as num).toInt();
-          repeatUntil = DateTime.fromMillisecondsSinceEpoch(millis);
-        }
         return LoopNode(
           id: id,
           name: name ?? 'Loop',
-          conditionType: loopCondition,
+          conditionType: _parseLoopType(json['conditionType']),
           repeatCount: (json['repeatCount'] as num?)?.toInt(),
-          repeatUntil: repeatUntil,
-          repeatUntilAltitude:
-              (json['repeatUntilAltitude'] as num?)?.toDouble(),
-          integrationTimeTarget:
-              (json['integrationTimeTarget'] as num?)?.toDouble(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -693,12 +684,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           name: name ?? 'Recovery',
           recoveryAction: _parseRecoveryAction(json['recoveryAction']),
           maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
-          triggerType: _parseTriggerType(json['triggerType']),
-          triggerThreshold: (json['triggerThreshold'] as num?)?.toDouble(),
-          hfrThresholdPercent:
-              (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
-          hfrConsecutiveFrames:
-              (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -720,7 +705,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return SlewNode(
           id: id,
           name: name ?? 'Slew to Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
           parentId: parentId,
@@ -734,13 +719,9 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return CenterNode(
           id: id,
           name: name ?? 'Center Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
-          customRa: (json['customRa'] as num?)?.toDouble(),
-          customDec: (json['customDec'] as num?)?.toDouble(),
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
-          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 5.0,
-          filter: json['filter'] as String?,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -790,8 +771,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           pixels: (json['pixels'] as num?)?.toDouble() ?? 5.0,
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
-          settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 120.0,
-          raOnly: json['raOnly'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -805,7 +784,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
-          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -853,7 +832,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return WarmCameraNode(
           id: id,
           name: name ?? 'Warm Camera',
-          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 2.0,
+          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 5.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -884,22 +863,11 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return MeridianFlipNode(
           id: id,
           name: name ?? 'Meridian Flip',
-          triggerMethod: _parseMeridianTriggerMethod(
-              json['triggerMethod'] as String?),
           minutesPastMeridian:
               (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
-          minutesBeforeLimit:
-              (json['minutesBeforeLimit'] as num?)?.toDouble() ?? 10.0,
-          hourAngleThreshold:
-              (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
-          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
-          autoCenter: json['autoCenter'] as bool? ?? true,
-          refocusAfter: json['refocusAfter'] as bool? ?? false,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? false,
+          autoCenter: json['autoCenter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
-          resumeGuiding: json['resumeGuiding'] as bool? ?? true,
-          maxRetries: json['maxRetries'] as int? ?? 3,
-          failureAction: _parseFlipFailureAction(
-              json['failureAction'] as String?),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -924,104 +892,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           title: json['title'] as String? ?? 'Notification',
           message: json['message'] as String? ?? '',
           level: _parseNotificationLevel(json['level']),
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'waitfortime':
-      case 'waittime':
-        return WaitTimeNode(
-          id: id,
-          name: name ?? 'Wait for Time',
-          waitUntil: json['waitUntil'] != null
-              ? DateTime.tryParse(json['waitUntil'] as String)
-              : null,
-          waitForTwilight: _parseTwilightType(json['waitForTwilight']),
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'moverotator':
-      case 'rotator':
-        return RotatorNode(
-          id: id,
-          name: name ?? 'Move Rotator',
-          targetAngle: (json['targetAngle'] as num?)?.toDouble() ?? 0.0,
-          relative: json['relative'] as bool? ?? false,
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'runscript':
-      case 'script':
-        return ScriptNode(
-          id: id,
-          name: name ?? 'Run Script',
-          scriptPath: json['scriptPath'] as String? ?? '',
-          arguments: (json['arguments'] as List<dynamic>?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
-              const [],
-          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt(),
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'opendome':
-        return OpenDomeNode(
-          id: id,
-          name: name ?? 'Open Dome',
-          shutterOnly: json['shutterOnly'] as bool? ?? false,
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'closedome':
-        return CloseDomeNode(
-          id: id,
-          name: name ?? 'Close Dome',
-          shutterOnly: json['shutterOnly'] as bool? ?? false,
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'parkdome':
-        return ParkDomeNode(
-          id: id,
-          name: name ?? 'Park Dome',
-          shutterOnly: json['shutterOnly'] as bool? ?? false,
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
-        );
-
-      case 'polaralignment':
-        return PolarAlignmentNode(
-          id: id,
-          name: name ?? 'Polar Alignment',
-          exposureDuration:
-              (json['exposureDuration'] as num?)?.toDouble() ?? 2.0,
-          binning: (json['binning'] as num?)?.toInt() ?? 2,
-          startAltitude: (json['startAltitude'] as num?)?.toDouble() ?? 45.0,
-          rotationStep: (json['rotationStep'] as num?)?.toDouble() ?? 20.0,
-          gain: (json['gain'] as num?)?.toInt(),
-          offset: (json['offset'] as num?)?.toInt(),
-          startFromCurrent: json['startFromCurrent'] as bool? ?? true,
-          isNorth: json['isNorth'] as bool? ?? true,
-          manualSlew: json['manualSlew'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -1068,15 +938,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
-  TriggerType? _parseTriggerType(dynamic value) {
-    if (value == null) return null;
-    final str = value.toString().toLowerCase();
-    return TriggerType.values.cast<TriggerType?>().firstWhere(
-      (e) => e?.name.toLowerCase() == str,
-      orElse: () => null,
-    );
-  }
-
   FrameType _parseFrameTypeForSnippet(dynamic value) {
     if (value == null) return FrameType.light;
     final str = value.toString().toLowerCase();
@@ -1097,9 +958,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
 
   AutofocusMethod _parseAutofocusMethodForSnippet(dynamic value) {
     if (value == null) return AutofocusMethod.vCurve;
-    var str = value.toString().toLowerCase();
-    // Backward compatibility: 'parabolic' was renamed to 'quadratic'
-    if (str == 'parabolic') str = 'quadratic';
+    final str = value.toString().toLowerCase();
     return AutofocusMethod.values.firstWhere(
       (e) => e.name.toLowerCase() == str,
       orElse: () => AutofocusMethod.vCurve,
@@ -1112,33 +971,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     return NotificationLevel.values.firstWhere(
       (e) => e.name.toLowerCase() == str,
       orElse: () => NotificationLevel.info,
-    );
-  }
-
-  MeridianTriggerMethod _parseMeridianTriggerMethod(dynamic value) {
-    if (value == null) return MeridianTriggerMethod.minutesPastMeridian;
-    final str = value.toString().toLowerCase();
-    return MeridianTriggerMethod.values.firstWhere(
-      (e) => e.name.toLowerCase() == str,
-      orElse: () => MeridianTriggerMethod.minutesPastMeridian,
-    );
-  }
-
-  TwilightType? _parseTwilightType(dynamic value) {
-    if (value == null) return null;
-    final str = value.toString().toLowerCase();
-    return TwilightType.values.cast<TwilightType?>().firstWhere(
-      (e) => e?.name.toLowerCase() == str,
-      orElse: () => null,
-    );
-  }
-
-  FlipFailureAction _parseFlipFailureAction(dynamic value) {
-    if (value == null) return FlipFailureAction.pauseAndAlert;
-    final str = value.toString().toLowerCase();
-    return FlipFailureAction.values.firstWhere(
-      (e) => e.name.toLowerCase() == str,
-      orElse: () => FlipFailureAction.pauseAndAlert,
     );
   }
 
@@ -1282,6 +1114,14 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (parent == null) return;
 
     final children = List<String>.from(parent.childIds);
+
+    // Validate all children exist before mutating
+    for (final childId in children) {
+      if (!newNodes.containsKey(childId)) {
+        throw StateError('Reorder failed: node $childId not found');
+      }
+    }
+
     final item = children.removeAt(oldIndex);
     children.insert(newIndex, item);
 
@@ -1522,6 +1362,227 @@ final selectedNodeProvider = Provider<SequenceNode?>((ref) {
 });
 
 // =============================================================================
+// MULTI-SELECT
+// =============================================================================
+
+/// Set of currently multi-selected node IDs.
+final multiSelectedNodeIdsProvider =
+    StateNotifierProvider<MultiSelectNotifier, Set<String>>(
+  (ref) => MultiSelectNotifier(ref),
+);
+
+/// Whether multi-select mode is active (has >0 selections).
+final isMultiSelectActiveProvider = Provider<bool>((ref) {
+  return ref.watch(multiSelectedNodeIdsProvider).isNotEmpty;
+});
+
+/// Clipboard for batch copy/paste operations.
+/// Stores serialized node trees ready for pasting.
+final nodeCopyClipboardProvider =
+    StateProvider<List<Map<String, dynamic>>?>((ref) => null);
+
+class MultiSelectNotifier extends StateNotifier<Set<String>> {
+  final Ref ref;
+
+  MultiSelectNotifier(this.ref) : super({});
+
+  /// Toggle a single node in the selection (Ctrl+Click).
+  void toggle(String nodeId) {
+    if (state.contains(nodeId)) {
+      state = Set.from(state)..remove(nodeId);
+    } else {
+      state = Set.from(state)..add(nodeId);
+    }
+  }
+
+  /// Range select: select all siblings between the last selected node
+  /// and the clicked node (Shift+Click).
+  void rangeSelect(String nodeId) {
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+
+    final node = sequence.nodes[nodeId];
+    if (node == null || node.parentId == null) return;
+
+    // Find the anchor: last single-selected node or first in current selection
+    final anchor = ref.read(selectedNodeIdProvider) ?? state.lastOrNull;
+    if (anchor == null) {
+      // No anchor, just select this node
+      state = {nodeId};
+      return;
+    }
+
+    final anchorNode = sequence.nodes[anchor];
+    if (anchorNode == null ||
+        anchorNode.parentId == null ||
+        anchorNode.parentId != node.parentId) {
+      // Different parents or invalid anchor — just toggle
+      state = {nodeId};
+      return;
+    }
+
+    // Get siblings sorted by orderIndex
+    final siblings = sequence.getChildren(node.parentId!);
+    final anchorIndex =
+        siblings.indexWhere((n) => n.id == anchor);
+    final targetIndex =
+        siblings.indexWhere((n) => n.id == nodeId);
+
+    if (anchorIndex < 0 || targetIndex < 0) {
+      state = {nodeId};
+      return;
+    }
+
+    final start =
+        anchorIndex < targetIndex ? anchorIndex : targetIndex;
+    final end =
+        anchorIndex < targetIndex ? targetIndex : anchorIndex;
+
+    final rangeIds = <String>{};
+    for (int i = start; i <= end; i++) {
+      rangeIds.add(siblings[i].id);
+    }
+
+    state = rangeIds;
+  }
+
+  /// Clear all selections.
+  void clear() {
+    state = {};
+  }
+
+  /// Select specific nodes.
+  void selectAll(Iterable<String> nodeIds) {
+    state = Set.from(nodeIds);
+  }
+
+  /// Delete all selected nodes.
+  void deleteSelected() {
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    for (final nodeId in state) {
+      notifier.removeNode(nodeId);
+    }
+    clear();
+    ref.read(selectedNodeIdProvider.notifier).state = null;
+  }
+
+  /// Enable all selected nodes.
+  void enableSelected() {
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+
+    for (final nodeId in state) {
+      final node = sequence.nodes[nodeId];
+      if (node != null && !node.isEnabled) {
+        notifier.updateNode(node.copyWith(isEnabled: true));
+      }
+    }
+  }
+
+  /// Disable all selected nodes.
+  void disableSelected() {
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+
+    for (final nodeId in state) {
+      final node = sequence.nodes[nodeId];
+      if (node != null && node.isEnabled) {
+        notifier.updateNode(node.copyWith(isEnabled: false));
+      }
+    }
+  }
+
+  /// Copy selected nodes to clipboard.
+  void copySelected() {
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+
+    final clipboard = <Map<String, dynamic>>[];
+    for (final nodeId in state) {
+      final tree = _serializeNodeTree(sequence, nodeId);
+      if (tree != null) {
+        clipboard.add(tree);
+      }
+    }
+
+    if (clipboard.isNotEmpty) {
+      ref.read(nodeCopyClipboardProvider.notifier).state = clipboard;
+    }
+  }
+
+  /// Paste nodes from clipboard into the currently selected parent.
+  void pasteFromClipboard() {
+    final clipboard = ref.read(nodeCopyClipboardProvider);
+    if (clipboard == null || clipboard.isEmpty) return;
+
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+
+    final notifier = ref.read(currentSequenceProvider.notifier);
+
+    // Determine paste target: the single selected node's parent, or root
+    final selectedId = ref.read(selectedNodeIdProvider);
+    String? parentId;
+    if (selectedId != null) {
+      final selectedNode = sequence.nodes[selectedId];
+      parentId = selectedNode?.parentId;
+    }
+    parentId ??= sequence.rootNode?.id;
+    if (parentId == null) return;
+
+    for (final tree in clipboard) {
+      _pasteNodeTree(notifier, sequence, tree, parentId);
+    }
+  }
+
+  /// Serialize a node and its children to a map for clipboard storage.
+  Map<String, dynamic>? _serializeNodeTree(
+      Sequence sequence, String nodeId) {
+    final node = sequence.nodes[nodeId];
+    if (node == null) return null;
+
+    final children = <Map<String, dynamic>>[];
+    for (final childId in node.childIds) {
+      final childTree = _serializeNodeTree(sequence, childId);
+      if (childTree != null) {
+        children.add(childTree);
+      }
+    }
+
+    return {
+      'node': node,
+      'children': children,
+    };
+  }
+
+  /// Paste a serialized node tree, creating new IDs.
+  void _pasteNodeTree(
+    CurrentSequenceNotifier notifier,
+    Sequence sequence,
+    Map<String, dynamic> tree,
+    String parentId,
+  ) {
+    final originalNode = tree['node'] as SequenceNode;
+    final children = tree['children'] as List<Map<String, dynamic>>;
+
+    // Create a new copy with a fresh ID
+    final newNode = originalNode.copyWith(
+      id: const Uuid().v4(),
+      parentId: parentId,
+      childIds: [],
+    );
+    notifier.addNode(newNode, parentId: parentId);
+
+    // Recursively paste children
+    for (final childTree in children) {
+      _pasteNodeTree(notifier, sequence, childTree, newNode.id);
+    }
+  }
+}
+
+// =============================================================================
 // SEQUENCE EXECUTOR
 // =============================================================================
 
@@ -1551,6 +1612,9 @@ class SequenceExecutor {
   bool _isPaused = false;
   StreamSubscription? _nativeEventSubscription;
   Timer? _checkpointTimer;
+  bool _runFinalized = false;
+  /// Subscriptions for propagating settings changes to the backend mid-sequence
+  final List<ProviderSubscription> _settingsSubscriptions = [];
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
   SequenceExecutor(this._ref);
@@ -1641,6 +1705,7 @@ class SequenceExecutor {
   /// Convert a Dart node to native config format
   Map<String, dynamic> _nodeToConfig(SequenceNode node) {
     if (node is ExposureNode) {
+      final defaults = _ref.read(sequencerDefaultsProvider);
       // Auto-populate filter_index from profile if not set
       final filterIndex = node.filterIndex ?? _lookupFilterIndex(node.filter);
       return {
@@ -1653,6 +1718,11 @@ class SequenceExecutor {
         'offset': node.offset,
         'binning': _binningToString(node.binning),
         'dither_every': node.ditherEvery,
+        'dither_pixels': defaults.ditherPixels,
+        'dither_settle_pixels': defaults.ditherSettlePixels,
+        'dither_settle_time': defaults.ditherSettleTime,
+        'dither_settle_timeout': defaults.ditherSettleTimeout,
+        'dither_ra_only': defaults.ditherRaOnly,
         'save_to': null,
       };
     } else if (node is SlewNode) {
@@ -1666,12 +1736,10 @@ class SequenceExecutor {
       return {
         'type': 'CenterTarget',
         'use_target_coords': node.useTargetCoords,
-        'custom_ra': node.customRa,
-        'custom_dec': node.customDec,
         'accuracy_arcsec': node.accuracyArcsec,
         'max_attempts': node.maxAttempts,
-        'exposure_duration': node.exposureDuration,
-        'filter': node.filter,
+        'exposure_duration': 3.0, // Default exposure for centering
+        'filter': null,
       };
     } else if (node is AutofocusNode) {
       return {
@@ -1721,6 +1789,7 @@ class SequenceExecutor {
       return {
         'type': 'WarmCamera',
         'rate_per_min': node.ratePerMin,
+        'target_temp': node.targetTemp,
       };
     } else if (node is RotatorNode) {
       return {
@@ -1735,10 +1804,7 @@ class SequenceExecutor {
     } else if (node is WaitTimeNode) {
       return {
         'type': 'WaitForTime',
-        // Rust expects Unix timestamp in seconds, not milliseconds
-        'wait_until': node.waitUntil != null
-            ? node.waitUntil!.millisecondsSinceEpoch ~/ 1000
-            : null,
+        'wait_until': node.waitUntil?.millisecondsSinceEpoch,
         'wait_for_twilight': node.waitForTwilight != null
             ? _twilightToString(node.waitForTwilight!)
             : null,
@@ -1772,13 +1838,8 @@ class SequenceExecutor {
         'min_altitude': node.minAltitude,
         'max_altitude': node.maxAltitude,
         'priority': node.priority,
-        // Rust expects Unix timestamp in seconds, not milliseconds
-        'start_after': node.startAfter != null
-            ? node.startAfter!.millisecondsSinceEpoch ~/ 1000
-            : null,
-        'end_before': node.endBefore != null
-            ? node.endBefore!.millisecondsSinceEpoch ~/ 1000
-            : null,
+        'start_after': node.startAfter?.millisecondsSinceEpoch,
+        'end_before': node.endBefore?.millisecondsSinceEpoch,
         'mosaic_panel': node.mosaicPanel?.toJson(),
       };
     } else if (node is InstructionSetNode) {
@@ -1797,17 +1858,14 @@ class SequenceExecutor {
           conditionValue = node.repeatCount;
           break;
         case LoopConditionType.untilTime:
-          // Rust expects Unix timestamp in seconds, not milliseconds
-          conditionValue = node.repeatUntil != null
-              ? node.repeatUntil!.millisecondsSinceEpoch ~/ 1000
-              : null;
+          conditionValue = node.repeatUntil?.millisecondsSinceEpoch;
           break;
         case LoopConditionType.untilAltitude:
         case LoopConditionType.altitudeAbove:
           conditionValue = node.repeatUntilAltitude;
           break;
         case LoopConditionType.integrationTime:
-          conditionValue = node.integrationTimeTarget;
+          conditionValue = node.repeatCount;
           break;
         case LoopConditionType.forever:
         case LoopConditionType.whileDark:
@@ -1852,97 +1910,19 @@ class SequenceExecutor {
         },
       };
     } else if (node is RecoveryNode) {
-      // Build the trigger config for the native side
-      Map<String, dynamic>? triggerConfig;
-      if (node.triggerType != null) {
-        switch (node.triggerType!) {
-          case TriggerType.hfrDegraded:
-            triggerConfig = {
-              'HfrDegraded': {
-                'threshold_percent': node.hfrThresholdPercent,
-                'absolute_threshold': node.triggerThreshold ?? 0.0,
-                'consecutive_frames': node.hfrConsecutiveFrames,
-              },
-            };
-            break;
-          case TriggerType.altitudeLimit:
-            triggerConfig = {
-              'AltitudeLimit': {
-                'min_altitude': node.triggerThreshold ?? 30.0,
-              },
-            };
-            break;
-          case TriggerType.guidingFailed:
-            triggerConfig = {
-              'GuidingFailed': {
-                'rms_threshold': node.triggerThreshold ?? 2.0,
-                'duration_secs': 30.0,
-              },
-            };
-            break;
-          case TriggerType.weatherUnsafe:
-            triggerConfig = {'WeatherUnsafe': null};
-            break;
-          case TriggerType.temperatureShift:
-            triggerConfig = {
-              'TemperatureShift': {
-                'degrees': node.triggerThreshold ?? 2.0,
-              },
-            };
-            break;
-          case TriggerType.meridianFlip:
-            triggerConfig = {
-              'MeridianFlip': {
-                'config': {
-                  'trigger_method': 'MinutesPastMeridian',
-                  'minutes_past_meridian': 5.0,
-                  'minutes_before_limit': 10.0,
-                  'hour_angle_threshold': 0.5,
-                  'pause_guiding': true,
-                  'auto_center': true,
-                  'refocus_after': false,
-                  'settle_time': 10.0,
-                  'resume_guiding': true,
-                  'max_retries': 3,
-                  'retry_delays_secs': [30.0, 60.0, 120.0],
-                  'failure_action': 'PauseAndAlert',
-                },
-              },
-            };
-            break;
-          case TriggerType.filterChange:
-            triggerConfig = {'FilterChange': null};
-            break;
-          case TriggerType.dawnApproaching:
-            triggerConfig = {
-              'DawnApproaching': {
-                'minutes_before': node.triggerThreshold ?? 30.0,
-              },
-            };
-            break;
-        }
-      }
       return {
         'type': 'Recovery',
-        'trigger': triggerConfig,
+        'trigger': null,
         'recovery_action': _recoveryActionToString(node.recoveryAction),
         'max_retries': node.maxRetries,
       };
     } else if (node is MeridianFlipNode) {
       return {
         'type': 'MeridianFlip',
-        'trigger_method': _meridianTriggerMethodToString(node.triggerMethod),
         'minutes_past_meridian': node.minutesPastMeridian,
-        'minutes_before_limit': node.minutesBeforeLimit,
-        'hour_angle_threshold': node.hourAngleThreshold,
         'pause_guiding': node.pauseGuiding,
         'auto_center': node.autoCenter,
-        'refocus_after': node.refocusAfter,
         'settle_time': node.settleTime,
-        'resume_guiding': node.resumeGuiding,
-        'max_retries': node.maxRetries,
-        'retry_delays_secs': [30.0, 60.0, 120.0],
-        'failure_action': _flipFailureActionToString(node.failureAction),
       };
     } else if (node is OpenDomeNode) {
       return {
@@ -1971,9 +1951,34 @@ class SequenceExecutor {
         'offset': node.offset,
         'binning': node.binning,
       };
+    } else if (node is OpenCoverNode) {
+      return {
+        'type': 'OpenCover',
+        'timeout_secs': node.timeoutSecs,
+      };
+    } else if (node is CloseCoverNode) {
+      return {
+        'type': 'CloseCover',
+        'timeout_secs': node.timeoutSecs,
+      };
+    } else if (node is CalibratorOnNode) {
+      return {
+        'type': 'CalibratorOn',
+        'brightness': node.brightness,
+        'timeout_secs': node.timeoutSecs,
+      };
+    } else if (node is CalibratorOffNode) {
+      return {
+        'type': 'CalibratorOff',
+        'timeout_secs': node.timeoutSecs,
+      };
     }
 
-    return {'type': 'Unknown'};
+    throw StateError(
+      'Unrecognized sequence node type "${node.runtimeType}" (name="${node.name}", id="${node.id}"). '
+      'This node cannot be converted to a native executor config. '
+      'Ensure all node types are handled in _nodeToConfig().',
+    );
   }
 
   String _binningToString(BinningMode binning) {
@@ -2083,26 +2088,6 @@ class SequenceExecutor {
     }
   }
 
-  String _meridianTriggerMethodToString(MeridianTriggerMethod method) {
-    switch (method) {
-      case MeridianTriggerMethod.minutesPastMeridian:
-        return 'MinutesPastMeridian';
-      case MeridianTriggerMethod.minutesBeforeLimit:
-        return 'MinutesBeforeLimit';
-      case MeridianTriggerMethod.hourAngleThreshold:
-        return 'HourAngleThreshold';
-    }
-  }
-
-  String _flipFailureActionToString(FlipFailureAction action) {
-    switch (action) {
-      case FlipFailureAction.pauseAndAlert:
-        return 'PauseAndAlert';
-      case FlipFailureAction.abortAndPark:
-        return 'AbortAndPark';
-    }
-  }
-
   /// Validate sequence before execution
   /// Returns a list of validation issues (warnings and errors)
   List<SequenceValidationIssue> validateSequence(Sequence sequence) {
@@ -2175,6 +2160,16 @@ class SequenceExecutor {
             nodeId: node.id,
           ));
         }
+      }
+
+      // Check unbounded loops without safety limits
+      if (node is LoopNode && node.isUnbounded && node.maxSafetyIterations == null) {
+        issues.add(SequenceValidationIssue(
+          severity: ValidationSeverity.warning,
+          message:
+              'Loop "${node.name}" has no safety iteration limit and could run indefinitely',
+          nodeId: node.id,
+        ));
       }
 
       // Check slew coordinates
@@ -2250,16 +2245,40 @@ class SequenceExecutor {
           : null,
     );
     sessionNotifier.setTotalExposures(sequence.totalExposures);
+    final runId = await _ref.read(sequenceRunsDaoProvider).startRun(
+          sequenceId: sequence.databaseId,
+          sequenceName: sequence.name,
+        );
+    _ref.read(currentRunIdProvider.notifier).state = runId;
+    _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
+    _runFinalized = false;
 
     _startTime = DateTime.now();
     _isPaused = false;
 
-    // Start progress timer
+    // Start progress timer with ETA computation
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
         final elapsed =
             DateTime.now().difference(_startTime!).inSeconds.toDouble();
-        progressNotifier.updateProgress(elapsedSecs: elapsed);
+        final progress = _ref.read(sequenceProgressProvider);
+        final completedFrames = progress.completedExposures;
+        final totalFrames = progress.totalExposures;
+        double? eta;
+        if (completedFrames > 0 && totalFrames > 0) {
+          final remainingFrames = totalFrames - completedFrames;
+          if (remainingFrames > 0) {
+            // Wall-clock elapsed includes overhead (download, dither, slew, etc.)
+            final avgSecsPerFrame = elapsed / completedFrames;
+            eta = avgSecsPerFrame * remainingFrames;
+          } else {
+            eta = 0.0;
+          }
+        }
+        progressNotifier.updateProgress(
+          elapsedSecs: elapsed,
+          estimatedRemainingSecs: eta,
+        );
       }
     });
 
@@ -2364,19 +2383,12 @@ class SequenceExecutor {
             ? rotatorState.deviceId
             : null;
 
-    // Get filter focus offsets from the active equipment profile
-    final activeProfile = _ref.read(activeEquipmentProfileProvider);
-    final filterFocusOffsets = activeProfile?.filterFocusOffsets;
-
     await backend.sequencerSetDevices(
       cameraId: cameraId,
       mountId: mountId,
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
-      filterFocusOffsets: (filterFocusOffsets != null && filterFocusOffsets.isNotEmpty)
-          ? filterFocusOffsets
-          : null,
     );
 
     // Convert sequence to JSON and load into native executor via backend
@@ -2393,8 +2405,100 @@ class SequenceExecutor {
           _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
     );
 
+    // Watch for settings changes during execution and propagate to backend
+    _startSettingsWatchers(backend);
+
     // Start the execution via backend
     await backend.sequencerStart();
+  }
+
+  /// Start watching for settings changes that should be propagated to the
+  /// backend executor during sequence execution (dither config, location,
+  /// filter offsets).
+  void _startSettingsWatchers(NightshadeBackend backend) {
+    _stopSettingsWatchers(); // Clean up any existing watchers
+
+    // Watch dither settings changes
+    _settingsSubscriptions.add(
+      _ref.listen(sequencerDefaultsProvider, (previous, next) {
+        if (previous == null) return;
+        if (previous.ditherPixels != next.ditherPixels ||
+            previous.ditherSettlePixels != next.ditherSettlePixels ||
+            previous.ditherSettleTime != next.ditherSettleTime ||
+            previous.ditherSettleTimeout != next.ditherSettleTimeout ||
+            previous.ditherRaOnly != next.ditherRaOnly) {
+          _logger.debug(
+            'Dither settings changed during execution, propagating to backend',
+            source: 'SequenceExecutor',
+          );
+          backend.sequencerUpdateDitherConfig(
+            pixels: next.ditherPixels,
+            settlePixels: next.ditherSettlePixels,
+            settleTime: next.ditherSettleTime,
+            settleTimeout: next.ditherSettleTimeout,
+            raOnly: next.ditherRaOnly,
+          );
+        }
+      }),
+    );
+
+    // Watch location changes
+    _settingsSubscriptions.add(
+      _ref.listen(appSettingsProvider, (previous, next) {
+        final prevSettings = previous?.valueOrNull;
+        final nextSettings = next.valueOrNull;
+        if (prevSettings == null || nextSettings == null) return;
+        if (prevSettings.latitude != nextSettings.latitude ||
+            prevSettings.longitude != nextSettings.longitude) {
+          _logger.debug(
+            'Location changed during execution, propagating to backend',
+            source: 'SequenceExecutor',
+          );
+          backend.sequencerUpdateLocation(
+            latitude: nextSettings.latitude,
+            longitude: nextSettings.longitude,
+          );
+        }
+      }),
+    );
+
+    // Watch filter focus offset changes from active equipment profile
+    _settingsSubscriptions.add(
+      _ref.listen(activeEquipmentProfileProvider, (previous, next) {
+        if (previous == null || next == null) return;
+        final prevRaw = previous.filterFocusOffsets;
+        final nextRaw = next.filterFocusOffsets;
+        if (prevRaw != nextRaw) {
+          _logger.debug(
+            'Filter focus offsets changed during execution, propagating to backend',
+            source: 'SequenceExecutor',
+          );
+          // filterFocusOffsets is a JSON-encoded string; decode to Map<String, int>
+          Map<String, int> offsets = {};
+          if (nextRaw != null && nextRaw.isNotEmpty) {
+            try {
+              final decoded = json.decode(nextRaw) as Map<String, dynamic>;
+              offsets = decoded.map((k, v) => MapEntry(k, (v as num).toInt()));
+            } catch (e) {
+              _logger.error(
+                'Failed to decode filter focus offsets: $e',
+                source: 'SequenceExecutor',
+              );
+              return;
+            }
+          }
+          backend.sequencerUpdateFilterOffsets(offsets);
+        }
+      }),
+    );
+  }
+
+  /// Stop all settings watchers
+  void _stopSettingsWatchers() {
+    for (final sub in _settingsSubscriptions) {
+      sub.close();
+    }
+    _settingsSubscriptions.clear();
   }
 
   /// Handle events from the backend (native or remote)
@@ -2441,12 +2545,15 @@ class SequenceExecutor {
       case 'NodeCompleted':
         final nodeId =
             event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
-        final success = event.data['success'] as bool? ?? false;
+        final statusStr = event.data['status'] as String? ?? 'failed';
+        final nodeStatus = switch (statusStr) {
+          'success' => NodeStatus.success,
+          'skipped' => NodeStatus.skipped,
+          'cancelled' => NodeStatus.skipped,
+          _ => NodeStatus.failure,
+        };
         if (nodeId != null) {
-          progressNotifier.updateNodeStatus(
-            nodeId,
-            success ? NodeStatus.success : NodeStatus.failure,
-          );
+          progressNotifier.updateNodeStatus(nodeId, nodeStatus);
         }
         break;
 
@@ -2477,6 +2584,11 @@ class SequenceExecutor {
         final total = event.data['total'] as int? ?? 1;
         final durationSecs =
             (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
+        _recordRunFrame(
+          exposureSecs: durationSecs,
+          filter: event.data['filter'] as String?,
+          accepted: true,
+        );
         // Calculate new completed integration time
         final newCompletedIntegration =
             _ref.read(sequenceProgressProvider).completedIntegrationSecs +
@@ -2511,10 +2623,21 @@ class SequenceExecutor {
       case 'TargetChanged':
         final name = event.data['target_name'] as String? ??
             event.data['name'] as String?;
+        final ra = (event.data['ra'] as num?)?.toDouble();
+        final dec = (event.data['dec'] as num?)?.toDouble();
         progressNotifier.updateProgress(
           currentTarget: name,
           message: name != null ? 'Started target: $name' : null,
         );
+        // Update session with target coordinates if available
+        if (name != null && ra != null && dec != null) {
+          _logger.debug(
+            'Target changed: $name (RA=${ra.toStringAsFixed(4)}h, Dec=${dec.toStringAsFixed(4)}°)',
+            source: 'SequenceExecutor',
+          );
+          final sessionNotifier = _ref.read(sessionStateProvider.notifier);
+          sessionNotifier.updateTargetCoordinates(ra: ra, dec: dec);
+        }
         break;
 
       case 'TargetCompleted':
@@ -2527,6 +2650,7 @@ class SequenceExecutor {
 
       case 'Error':
         final message = event.data['message'] as String? ?? 'Unknown error';
+        _recordRunError(message);
         progressNotifier.updateProgress(message: 'Error: $message');
         // Update node-specific progress with error message for progress panels
         final errorNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
@@ -2563,6 +2687,19 @@ class SequenceExecutor {
         }
         break;
 
+      case 'TriggerFired':
+        final triggerName =
+            event.data['trigger_name'] as String? ?? 'Unknown trigger';
+        final action = event.data['action'] as String? ?? '';
+        _incrementRunStat((stats) => stats.recordTriggerFire());
+        _logger.info(
+            'Trigger fired: $triggerName -> $action',
+            source: 'SequenceExecutor');
+        progressNotifier.updateProgress(
+          message: 'Trigger "$triggerName" fired: $action',
+        );
+        break;
+
       case 'Started':
         progressNotifier.updateState(SequenceExecutionState.running);
         _ref.read(sequenceExecutionStateProvider.notifier).state =
@@ -2584,6 +2721,8 @@ class SequenceExecutor {
       case 'Completed':
       case 'SequenceCompleted':
         _progressTimer?.cancel();
+        _stopSettingsWatchers();
+        _finalizeRun('completed');
         progressNotifier.updateState(SequenceExecutionState.completed);
         _ref.read(sequenceExecutionStateProvider.notifier).state =
             SequenceExecutionState.completed;
@@ -2591,6 +2730,9 @@ class SequenceExecutor {
 
       case 'SequenceFailed':
         final error = event.data['error'] as String? ?? 'Unknown error';
+        _stopSettingsWatchers();
+        _recordRunError(error);
+        _finalizeRun('failed');
         progressNotifier.updateProgress(message: error);
         progressNotifier.updateState(SequenceExecutionState.failed);
         _ref.read(sequenceExecutionStateProvider.notifier).state =
@@ -2600,11 +2742,73 @@ class SequenceExecutor {
       case 'Stopped':
       case 'SequenceStopped':
         _progressTimer?.cancel();
+        _stopSettingsWatchers();
+        _finalizeRun('stopped');
         progressNotifier.updateState(SequenceExecutionState.idle);
         _ref.read(sequenceExecutionStateProvider.notifier).state =
             SequenceExecutionState.idle;
         break;
     }
+  }
+
+  void _recordRunFrame({
+    required double exposureSecs,
+    required bool accepted,
+    String? filter,
+  }) {
+    _incrementRunStat((stats) {
+      final progress = _ref.read(sequenceProgressProvider);
+      stats.recordFrame(
+        target: progress.currentTarget ??
+            _ref.read(currentSequenceProvider)?.name ??
+            'Sequence',
+        filter: (filter != null && filter.isNotEmpty) ? filter : 'Unknown',
+        exposureSecs: exposureSecs,
+        accepted: accepted,
+      );
+    });
+  }
+
+  void _recordRunError(String message) {
+    _incrementRunStat((stats) => stats.recordError(message));
+  }
+
+  void _incrementRunStat(void Function(SequenceRunStats stats) update) {
+    final stats = _ref.read(liveSequenceStatsProvider);
+    if (stats == null) {
+      return;
+    }
+    update(stats);
+    _ref.read(liveSequenceStatsProvider.notifier).state = stats;
+    _persistLiveRunStats();
+  }
+
+  void _persistLiveRunStats() {
+    final runId = _ref.read(currentRunIdProvider);
+    final stats = _ref.read(liveSequenceStatsProvider);
+    if (runId == null || stats == null) {
+      return;
+    }
+    unawaited(
+      _ref.read(sequenceRunsDaoProvider).updateStats(runId, stats.toJson()),
+    );
+  }
+
+  void _finalizeRun(String status) {
+    if (_runFinalized) {
+      return;
+    }
+    final runId = _ref.read(currentRunIdProvider);
+    final stats = _ref.read(liveSequenceStatsProvider);
+    if (runId == null || stats == null) {
+      return;
+    }
+    _runFinalized = true;
+    stats.endTime = DateTime.now();
+    final statsJson = stats.toJson();
+    unawaited(
+      _ref.read(sequenceRunsDaoProvider).finishRun(runId, status, statsJson),
+    );
   }
 
   /// Fetch the last captured image and update the UI providers
@@ -2774,6 +2978,7 @@ class SequenceExecutor {
     _checkpointTimer = null;
     _nativeEventSubscription?.cancel();
     _nativeEventSubscription = null;
+    _stopSettingsWatchers();
     _startTime = null;
     _isPaused = false;
     _ref
@@ -2781,6 +2986,7 @@ class SequenceExecutor {
         .updateState(SequenceExecutionState.idle);
     _ref.read(sequenceExecutionStateProvider.notifier).state =
         SequenceExecutionState.idle;
+    _finalizeRun('stopped');
 
     // End session
     _ref.read(sessionStateProvider.notifier).endSession(status: 'stopped');
@@ -2893,12 +3099,28 @@ class SequenceExecutor {
     _startTime = DateTime.now();
     _isPaused = false;
 
-    // Start progress timer
+    // Start progress timer with ETA computation
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
         final elapsed =
             DateTime.now().difference(_startTime!).inSeconds.toDouble();
-        progressNotifier.updateProgress(elapsedSecs: elapsed);
+        final progress = _ref.read(sequenceProgressProvider);
+        final completedFrames = progress.completedExposures;
+        final totalFrames = progress.totalExposures;
+        double? eta;
+        if (completedFrames > 0 && totalFrames > 0) {
+          final remainingFrames = totalFrames - completedFrames;
+          if (remainingFrames > 0) {
+            final avgSecsPerFrame = elapsed / completedFrames;
+            eta = avgSecsPerFrame * remainingFrames;
+          } else {
+            eta = 0.0;
+          }
+        }
+        progressNotifier.updateProgress(
+          elapsedSecs: elapsed,
+          estimatedRemainingSecs: eta,
+        );
       }
     });
 
@@ -2959,6 +3181,8 @@ class SequencerDefaults {
   final double ditherPixels;
   final double ditherSettleTime;
   final double ditherSettlePixels;
+  final double ditherSettleTimeout;
+  final bool ditherRaOnly;
 
   // Exposure defaults
   final double exposureDuration;
@@ -2976,6 +3200,8 @@ class SequencerDefaults {
     this.ditherPixels = 5.0,
     this.ditherSettleTime = 30.0,
     this.ditherSettlePixels = 1.5,
+    this.ditherSettleTimeout = 120.0,
+    this.ditherRaOnly = false,
     this.exposureDuration = 60.0,
     this.exposureCount = 10,
     this.exposureFilter,
@@ -2992,6 +3218,8 @@ class SequencerDefaults {
     double? ditherPixels,
     double? ditherSettleTime,
     double? ditherSettlePixels,
+    double? ditherSettleTimeout,
+    bool? ditherRaOnly,
     double? exposureDuration,
     int? exposureCount,
     String? exposureFilter,
@@ -3008,6 +3236,8 @@ class SequencerDefaults {
       ditherPixels: ditherPixels ?? this.ditherPixels,
       ditherSettleTime: ditherSettleTime ?? this.ditherSettleTime,
       ditherSettlePixels: ditherSettlePixels ?? this.ditherSettlePixels,
+      ditherSettleTimeout: ditherSettleTimeout ?? this.ditherSettleTimeout,
+      ditherRaOnly: ditherRaOnly ?? this.ditherRaOnly,
       exposureDuration: exposureDuration ?? this.exposureDuration,
       exposureCount: exposureCount ?? this.exposureCount,
       exposureFilter: exposureFilter ?? this.exposureFilter,
@@ -3053,6 +3283,13 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
             await settingsDao.getSetting('sequencer_dither_settle_pixels') ??
                 '1.5') ??
         1.5;
+    final ditherSettleTimeout = double.tryParse(
+            await settingsDao.getSetting('sequencer_dither_settle_timeout') ??
+                '120.0') ??
+        120.0;
+    final ditherRaOnly =
+        (await settingsDao.getSetting('sequencer_dither_ra_only') ?? 'false') ==
+            'true';
 
     final exposureDurationDefault = double.tryParse(
             await settingsDao.getSetting('sequencer_exposure_duration') ??
@@ -3089,6 +3326,8 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       ditherPixels: ditherPixels,
       ditherSettleTime: ditherSettleTime,
       ditherSettlePixels: ditherSettlePixels,
+      ditherSettleTimeout: ditherSettleTimeout,
+      ditherRaOnly: ditherRaOnly,
       exposureDuration: exposureDurationDefault,
       exposureCount: exposureCount,
       exposureFilter: exposureFilter,
@@ -3130,6 +3369,8 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     double? pixels,
     double? settleTime,
     double? settlePixels,
+    double? settleTimeout,
+    bool? raOnly,
   }) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     final updates = <String, String>{};
@@ -3145,6 +3386,14 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     if (settlePixels != null) {
       updates['sequencer_dither_settle_pixels'] = settlePixels.toString();
       state = state.copyWith(ditherSettlePixels: settlePixels);
+    }
+    if (settleTimeout != null) {
+      updates['sequencer_dither_settle_timeout'] = settleTimeout.toString();
+      state = state.copyWith(ditherSettleTimeout: settleTimeout);
+    }
+    if (raOnly != null) {
+      updates['sequencer_dither_ra_only'] = raOnly.toString();
+      state = state.copyWith(ditherRaOnly: raOnly);
     }
 
     if (updates.isNotEmpty) {
@@ -3280,6 +3529,8 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             pixels: defaults.ditherPixels,
             settleTime: defaults.ditherSettleTime,
             settlePixels: defaults.ditherSettlePixels,
+            settleTimeout: defaults.ditherSettleTimeout,
+            raOnly: defaults.ditherRaOnly,
           ),
         ),
       ],
@@ -3366,6 +3617,36 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       ],
     ),
     NodePaletteCategory(
+      name: 'Flat Panel',
+      icon: 'lightbulb',
+      items: [
+        NodePaletteItem(
+          name: 'Open Cover',
+          icon: 'door-open',
+          description: 'Open dust cover / flat panel lid',
+          createNode: () => OpenCoverNode(),
+        ),
+        NodePaletteItem(
+          name: 'Close Cover',
+          icon: 'door-closed',
+          description: 'Close dust cover / flat panel lid',
+          createNode: () => CloseCoverNode(),
+        ),
+        NodePaletteItem(
+          name: 'Calibrator On',
+          icon: 'lightbulb',
+          description: 'Turn on flat panel at brightness',
+          createNode: () => CalibratorOnNode(),
+        ),
+        NodePaletteItem(
+          name: 'Calibrator Off',
+          icon: 'lightbulb-off',
+          description: 'Turn off flat panel light',
+          createNode: () => CalibratorOffNode(),
+        ),
+      ],
+    ),
+    NodePaletteCategory(
       name: 'Focus',
       icon: 'focus',
       items: [
@@ -3378,27 +3659,6 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             stepsOut: defaults.autofocusStepsOut,
             exposureDuration: defaults.autofocusExposureDuration,
           ),
-        ),
-        NodePaletteItem(
-          name: 'HFR Triggered AF',
-          icon: 'shield-check',
-          description: 'Auto-refocus when HFR degrades above threshold',
-          createNode: () => RecoveryNode(
-            name: 'HFR Triggered AF',
-            recoveryAction: RecoveryActionType.autofocus,
-            maxRetries: 3,
-            triggerType: TriggerType.hfrDegraded,
-            triggerThreshold: 0.0,
-            hfrThresholdPercent: 20.0,
-            hfrConsecutiveFrames: 3,
-          ),
-          createChildren: () => [
-            AutofocusNode(
-              stepSize: defaults.autofocusStepSize,
-              stepsOut: defaults.autofocusStepsOut,
-              exposureDuration: defaults.autofocusExposureDuration,
-            ),
-          ],
         ),
       ],
     ),
@@ -3518,9 +3778,6 @@ class NodePaletteItem {
   final String icon;
   final String description;
   final SequenceNode Function() createNode;
-
-  /// Optional callback that returns child nodes to be added inside the parent.
-  /// Each child will be added with the parent node as its parent.
   final List<SequenceNode> Function()? createChildren;
 
   NodePaletteItem({

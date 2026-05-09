@@ -117,7 +117,24 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
     // Normalize to 0-360
     final normalized = degrees % 360;
 
-    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const directions = [
+      'N',
+      'NNE',
+      'NE',
+      'ENE',
+      'E',
+      'ESE',
+      'SE',
+      'SSE',
+      'S',
+      'SSW',
+      'SW',
+      'WSW',
+      'W',
+      'WNW',
+      'NW',
+      'NNW'
+    ];
     final index = ((normalized + 11.25) / 22.5).floor() % 16;
     return directions[index];
   }
@@ -156,7 +173,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -263,7 +280,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -315,7 +332,8 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
     final remaining = eta.difference(now);
 
     // Pulsing animation for critical alerts and imminent arrivals
-    final shouldPulse = alertLevel == AlertLevel.critical || remaining.inMinutes < 5;
+    final shouldPulse =
+        alertLevel == AlertLevel.critical || remaining.inMinutes < 5;
 
     Widget content = Container(
       padding: const EdgeInsets.all(16),
@@ -326,7 +344,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
             _getAlertColor(alertLevel, colors).withValues(alpha: 0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: _getAlertColor(alertLevel, colors).withValues(alpha: 0.3),
         ),
@@ -388,7 +406,8 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
           children: [
             _CloudMetric(
               label: 'Density',
-              value: '${widget.alert?.cloudDensityPercent.toStringAsFixed(0) ?? '0'}%',
+              value:
+                  '${widget.alert?.cloudDensityPercent.toStringAsFixed(0) ?? '0'}%',
               colors: colors,
             ),
             _CloudMetric(
@@ -493,7 +512,9 @@ class _DirectionArrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.rotate(
-      angle: (directionDegrees - 90) * math.pi / 180, // Rotate arrow to point in direction
+      angle: (directionDegrees - 90) *
+          math.pi /
+          180, // Rotate arrow to point in direction
       child: Icon(
         LucideIcons.arrowRight,
         size: 16,

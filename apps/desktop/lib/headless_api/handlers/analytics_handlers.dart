@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for session management and analytics
 class AnalyticsHandlers {
   final ProviderContainer container;
@@ -27,18 +29,12 @@ class AnalyticsHandlers {
       final database = container.read(databaseProvider);
       final sessions = await database.sessionsDao.getAllSessions();
 
-      return Response.ok(
-        jsonEncode({
-          "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get all sessions error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -54,22 +50,13 @@ class AnalyticsHandlers {
       final session = await database.sessionsDao.getSessionById(sessionId);
 
       if (session == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Session not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Session not found: $id"});
       }
 
-      return Response.ok(
-        jsonEncode({"session": _sessionToJson(session)}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"session": _sessionToJson(session)});
     } catch (e) {
       _logError('[API] Get session by ID error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -84,23 +71,14 @@ class AnalyticsHandlers {
       final activeSessions = await database.sessionsDao.getActiveSessions();
 
       if (activeSessions.isEmpty) {
-        return Response.ok(
-          jsonEncode({"session": null}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonOk({"session": null});
       }
 
       // Return the most recent active session
-      return Response.ok(
-        jsonEncode({"session": _sessionToJson(activeSessions.first)}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"session": _sessionToJson(activeSessions.first)});
     } catch (e) {
       _logError('[API] Get active session error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -117,18 +95,12 @@ class AnalyticsHandlers {
       final sessions =
           await database.sessionsDao.getRecentSessions(limit: limit);
 
-      return Response.ok(
-        jsonEncode({
-          "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get recent sessions error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -149,16 +121,10 @@ class AnalyticsHandlers {
         sequenceId: payload['sequenceId'] as int?,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "created", "id": id}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "created", "id": id});
     } catch (e) {
       _logError('[API] Create session error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -206,16 +172,10 @@ class AnalyticsHandlers {
             .updateSessionStatus(sessionId, payload['status'] as String);
       }
 
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update session error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -233,16 +193,10 @@ class AnalyticsHandlers {
 
       await database.sessionsDao.endSession(sessionId, status: status);
 
-      return Response.ok(
-        jsonEncode({"status": "ended"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ended"});
     } catch (e) {
       _logError('[API] End session error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -258,22 +212,13 @@ class AnalyticsHandlers {
 
       final deleted = await database.sessionsDao.deleteSession(sessionId);
       if (deleted == 0) {
-        return Response.notFound(
-          jsonEncode({"error": "Session not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Session not found: $id"});
       }
 
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete session error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -289,10 +234,7 @@ class AnalyticsHandlers {
       final session = await database.sessionsDao.getSessionById(sessionId);
 
       if (session == null) {
-        return Response.notFound(
-          jsonEncode({"error": "Session not found: $id"}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonNotFound({"error": "Session not found: $id"});
       }
 
       // Get images for this session
@@ -333,36 +275,68 @@ class AnalyticsHandlers {
         }
       }
 
-      return Response.ok(
-        jsonEncode({
-          "stats": {
-            "totalExposures": session.totalExposures,
-            "successfulExposures": session.successfulExposures,
-            "failedExposures": session.failedExposures,
-            "totalIntegrationSecs": session.totalIntegrationSecs,
-            "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : null,
-            "avgGuidingRms": session.avgGuidingRms,
-            "autofocusCount": session.autofocusCount,
-            "frameBreakdown": {
-              "light": lightCount,
-              "dark": darkCount,
-              "flat": flatCount,
-              "bias": biasCount,
-            },
-            "filterBreakdown": filterCounts,
-            "durationSecs": session.endTime != null
-                ? session.endTime!.difference(session.startTime).inSeconds
-                : DateTime.now().difference(session.startTime).inSeconds,
+      return jsonOk({
+        "stats": {
+          "totalExposures": session.totalExposures,
+          "successfulExposures": session.successfulExposures,
+          "failedExposures": session.failedExposures,
+          "totalIntegrationSecs": session.totalIntegrationSecs,
+          "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : null,
+          "avgGuidingRms": session.avgGuidingRms,
+          "autofocusCount": session.autofocusCount,
+          "frameBreakdown": {
+            "light": lightCount,
+            "dark": darkCount,
+            "flat": flatCount,
+            "bias": biasCount,
           },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+          "filterBreakdown": filterCounts,
+          "durationSecs": session.endTime != null
+              ? session.endTime!.difference(session.startTime).inSeconds
+              : DateTime.now().difference(session.startTime).inSeconds,
+        },
+      });
     } catch (e) {
       _logError('[API] Get session stats error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  // ===========================================================================
+  // Session Science Data
+  // ===========================================================================
+
+  Future<Response> handleGetSessionPsfTiles(Request request, String id) async {
+    _logInfo('[API] GET /api/sessions/$id/psf-tiles');
+    try {
+      final sessionId = int.parse(id);
+      final database = container.read(databaseProvider);
+      final psfTiles =
+          await database.scienceDao.getPsfTilesForSession(sessionId);
+
+      return jsonOk({
+        'psfTiles': psfTiles.map(_psfTileToJson).toList(),
+      });
+    } catch (e) {
+      _logError('[API] Get session PSF tiles error: $e');
+      return jsonInternalServerError({'error': e.toString()});
+    }
+  }
+
+  Future<Response> handleGetSessionResiduals(Request request, String id) async {
+    _logInfo('[API] GET /api/sessions/$id/residuals');
+    try {
+      final sessionId = int.parse(id);
+      final database = container.read(databaseProvider);
+      final residuals =
+          await database.scienceDao.getResidualsForSession(sessionId);
+
+      return jsonOk({
+        'residuals': residuals.map(_residualVectorToJson).toList(),
+      });
+    } catch (e) {
+      _logError('[API] Get session residuals error: $e');
+      return jsonInternalServerError({'error': e.toString()});
     }
   }
 
@@ -392,23 +366,17 @@ class AnalyticsHandlers {
       // Calculate summary stats
       final totalStats = await database.sessionsDao.getTotalStatistics();
 
-      return Response.ok(
-        jsonEncode({
-          "summary": {
-            "totalSessions": totalStats['totalSessions'],
-            "totalExposures": totalStats['totalExposures'],
-            "totalIntegrationHours": totalStats['totalIntegrationHours'],
-            "sessionsInRange": sessions.length,
-          },
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "summary": {
+          "totalSessions": totalStats['totalSessions'],
+          "totalExposures": totalStats['totalExposures'],
+          "totalIntegrationHours": totalStats['totalIntegrationHours'],
+          "sessionsInRange": sessions.length,
+        },
+      });
     } catch (e) {
       _logError('[API] Get analytics summary error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -422,19 +390,13 @@ class AnalyticsHandlers {
       final database = container.read(databaseProvider);
       final stats = await database.sessionsDao.getTotalStatistics();
 
-      return Response.ok(
-        jsonEncode({
-          "totalIntegrationSecs": stats['totalIntegrationHours']! * 3600,
-          "totalIntegrationHours": stats['totalIntegrationHours'],
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "totalIntegrationSecs": stats['totalIntegrationHours']! * 3600,
+        "totalIntegrationHours": stats['totalIntegrationHours'],
+      });
     } catch (e) {
       _logError('[API] Get total integration time error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -450,16 +412,10 @@ class AnalyticsHandlers {
       final database = container.read(databaseProvider);
       final stats = await database.sessionsDao.getTargetStatistics(tid);
 
-      return Response.ok(
-        jsonEncode({"stats": stats}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"stats": stats});
     } catch (e) {
       _logError('[API] Get target statistics error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -475,18 +431,12 @@ class AnalyticsHandlers {
       final database = container.read(databaseProvider);
       final sessions = await database.sessionsDao.getSessionsForTarget(tid);
 
-      return Response.ok(
-        jsonEncode({
-          "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+      });
     } catch (e) {
       _logError('[API] Get sessions for target error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -516,6 +466,39 @@ class AnalyticsHandlers {
       'avgSeeing': session.avgSeeing,
       'notes': session.notes,
       'equipmentSnapshot': session.equipmentSnapshot,
+    };
+  }
+
+  Map<String, dynamic> _psfTileToJson(PsfFieldTileRow tile) {
+    return {
+      'id': tile.id,
+      'capturedImageId': tile.capturedImageId,
+      'sessionId': tile.sessionId,
+      'tileRow': tile.tileRow,
+      'tileCol': tile.tileCol,
+      'starCount': tile.starCount,
+      'medianFwhm': tile.medianFwhm,
+      'medianHfr': tile.medianHfr,
+      'medianEccentricity': tile.medianEccentricity,
+      'roundness': tile.roundness,
+      'timestamp': tile.timestamp.millisecondsSinceEpoch,
+    };
+  }
+
+  Map<String, dynamic> _residualVectorToJson(
+    AstrometryResidualVectorRow residual,
+  ) {
+    return {
+      'id': residual.id,
+      'capturedImageId': residual.capturedImageId,
+      'sessionId': residual.sessionId,
+      'x': residual.x,
+      'y': residual.y,
+      'dxArcsec': residual.dxArcsec,
+      'dyArcsec': residual.dyArcsec,
+      'magnitudeArcsec': residual.magnitudeArcsec,
+      'recommendationCode': residual.recommendationCode,
+      'timestamp': residual.timestamp.millisecondsSinceEpoch,
     };
   }
 }

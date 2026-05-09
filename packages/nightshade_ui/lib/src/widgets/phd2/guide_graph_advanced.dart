@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/nightshade_colors.dart';
+
 /// A single guide data point for the graph
 class GuideDataPoint {
   final DateTime timestamp;
@@ -91,6 +93,8 @@ class GuideGraphAdvanced extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
     return Column(
       children: [
         // Graph controls and RMS stats
@@ -100,8 +104,8 @@ class GuideGraphAdvanced extends StatelessWidget {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.black,
-              border: Border.all(color: Colors.grey.shade700),
+              color: colors.background,
+              border: Border.all(color: colors.border),
               borderRadius: BorderRadius.circular(4),
             ),
             padding: const EdgeInsets.all(8),
@@ -110,6 +114,7 @@ class GuideGraphAdvanced extends StatelessWidget {
                 return CustomPaint(
                   size: Size(constraints.maxWidth, constraints.maxHeight),
                   painter: _GraphPainter(
+                    colors: colors,
                     data: data,
                     timeScale: timeScale,
                     yScale: yScale,
@@ -129,6 +134,7 @@ class GuideGraphAdvanced extends StatelessWidget {
   Widget _buildControlsBar(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final colors = Theme.of(context).extension<NightshadeColors>()!;
         final isCompact = constraints.maxWidth < 450;
         final isVeryCompact = constraints.maxWidth < 350;
 
@@ -138,7 +144,7 @@ class GuideGraphAdvanced extends StatelessWidget {
             vertical: 4,
           ),
           decoration: BoxDecoration(
-            color: Colors.grey.shade900,
+            color: colors.surfaceAlt,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
@@ -147,12 +153,13 @@ class GuideGraphAdvanced extends StatelessWidget {
               if (!isVeryCompact)
                 Flexible(
                   child: ClipRect(
-                    child: _buildRmsStats(compact: isCompact),
+                    child: _buildRmsStats(colors: colors, compact: isCompact),
                   ),
                 ),
               if (!isVeryCompact) SizedBox(width: isCompact ? 6 : 8),
               // Time scale selector
               _buildScaleSelector(
+                colors: colors,
                 label: isCompact ? 'T:' : 'Time:',
                 value: timeScale.label,
                 items: GraphTimeScale.values,
@@ -164,6 +171,7 @@ class GuideGraphAdvanced extends StatelessWidget {
               SizedBox(width: isCompact ? 8 : 16),
               // Y scale selector
               _buildScaleSelector(
+                colors: colors,
                 label: isCompact ? 'Y:' : 'Scale:',
                 value: yScale.label,
                 items: GraphYScale.values,
@@ -179,21 +187,50 @@ class GuideGraphAdvanced extends StatelessWidget {
     );
   }
 
-  Widget _buildRmsStats({bool compact = false}) {
+  Widget _buildRmsStats({
+    required NightshadeColors colors,
+    bool compact = false,
+  }) {
     final spacing = compact ? 8.0 : 16.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildRmsValue('RA', rmsRa, Colors.red.shade400, compact: compact),
+        _buildRmsValue(
+          'RA',
+          rmsRa,
+          colors.error,
+          colors: colors,
+          compact: compact,
+        ),
         SizedBox(width: spacing),
-        _buildRmsValue('Dec', rmsDec, Colors.blue.shade400, compact: compact),
+        _buildRmsValue(
+          'Dec',
+          rmsDec,
+          colors.info,
+          colors: colors,
+          compact: compact,
+        ),
         SizedBox(width: spacing),
-        _buildRmsValue('Tot', rmsTotal, Colors.white, bold: true, compact: compact),
+        _buildRmsValue(
+          'Tot',
+          rmsTotal,
+          colors.textPrimary,
+          colors: colors,
+          bold: true,
+          compact: compact,
+        ),
       ],
     );
   }
 
-  Widget _buildRmsValue(String label, double value, Color color, {bool bold = false, bool compact = false}) {
+  Widget _buildRmsValue(
+    String label,
+    double value,
+    Color color, {
+    required NightshadeColors colors,
+    bool bold = false,
+    bool compact = false,
+  }) {
     final fontSize = compact ? 10.0 : 12.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -201,7 +238,7 @@ class GuideGraphAdvanced extends StatelessWidget {
         Text(
           '$label:',
           style: TextStyle(
-            color: Colors.grey.shade400,
+            color: colors.textSecondary,
             fontSize: fontSize,
           ),
         ),
@@ -219,6 +256,7 @@ class GuideGraphAdvanced extends StatelessWidget {
   }
 
   Widget _buildScaleSelector<T>({
+    required NightshadeColors colors,
     required String label,
     required String value,
     required List<T> items,
@@ -235,7 +273,7 @@ class GuideGraphAdvanced extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.grey.shade400, fontSize: fontSize),
+          style: TextStyle(color: colors.textSecondary, fontSize: fontSize),
         ),
         const SizedBox(width: 4),
         PopupMenuButton<T>(
@@ -247,7 +285,7 @@ class GuideGraphAdvanced extends StatelessWidget {
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: Colors.grey.shade800,
+              color: colors.surfaceHover,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Row(
@@ -255,9 +293,14 @@ class GuideGraphAdvanced extends StatelessWidget {
               children: [
                 Text(
                   value,
-                  style: TextStyle(color: Colors.white, fontSize: fontSize),
+                  style:
+                      TextStyle(color: colors.textPrimary, fontSize: fontSize),
                 ),
-                Icon(Icons.arrow_drop_down, color: Colors.white, size: compact ? 14 : 16),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: colors.textPrimary,
+                  size: compact ? 14 : 16,
+                ),
               ],
             ),
           ),
@@ -274,6 +317,7 @@ class GuideGraphAdvanced extends StatelessWidget {
 }
 
 class _GraphPainter extends CustomPainter {
+  final NightshadeColors colors;
   final List<GuideDataPoint> data;
   final GraphTimeScale timeScale;
   final GraphYScale yScale;
@@ -287,6 +331,7 @@ class _GraphPainter extends CustomPainter {
   static const double rightMargin = 5;
 
   _GraphPainter({
+    required this.colors,
     required this.data,
     required this.timeScale,
     required this.yScale,
@@ -332,7 +377,7 @@ class _GraphPainter extends CustomPainter {
 
   void _drawGrid(Canvas canvas, Size size, Rect graphRect) {
     final paint = Paint()
-      ..color = Colors.grey.shade800
+      ..color = colors.border.withValues(alpha: 0.8)
       ..strokeWidth = 0.5;
 
     // Draw vertical grid lines (time divisions)
@@ -352,10 +397,10 @@ class _GraphPainter extends CustomPainter {
       final y = graphRect.top + (graphRect.height / numHorizontalLines) * i;
       // Highlight zero line
       if (i == numHorizontalLines ~/ 2) {
-        paint.color = Colors.grey.shade600;
+        paint.color = colors.borderHighlight;
         paint.strokeWidth = 1;
       } else {
-        paint.color = Colors.grey.shade800;
+        paint.color = colors.border.withValues(alpha: 0.8);
         paint.strokeWidth = 0.5;
       }
       canvas.drawLine(
@@ -382,7 +427,7 @@ class _GraphPainter extends CustomPainter {
     for (int i = 0; i < labels.length; i++) {
       textPainter.text = TextSpan(
         text: labels[i],
-        style: TextStyle(color: Colors.grey.shade500, fontSize: 9),
+        style: TextStyle(color: colors.textMuted, fontSize: 9),
       );
       textPainter.layout();
 
@@ -403,13 +448,16 @@ class _GraphPainter extends CustomPainter {
     const numLabels = 5;
 
     for (int i = 0; i < numLabels; i++) {
-      final offsetMs = timeScale.duration.inMilliseconds * (numLabels - 1 - i) ~/ (numLabels - 1);
+      final offsetMs = timeScale.duration.inMilliseconds *
+          (numLabels - 1 - i) ~/
+          (numLabels - 1);
       final time = now.subtract(Duration(milliseconds: offsetMs));
-      final label = '${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+      final label =
+          '${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
 
       textPainter.text = TextSpan(
         text: label,
-        style: TextStyle(color: Colors.grey.shade500, fontSize: 9),
+        style: TextStyle(color: colors.textMuted, fontSize: 9),
       );
       textPainter.layout();
 
@@ -425,7 +473,7 @@ class _GraphPainter extends CustomPainter {
     if (data.isEmpty) return;
 
     final paint = Paint()
-      ..color = isRa ? Colors.red.shade400 : Colors.blue.shade400
+      ..color = isRa ? colors.error : colors.info
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round;
@@ -438,13 +486,16 @@ class _GraphPainter extends CustomPainter {
     for (final point in data) {
       if (point.timestamp.isBefore(startTime)) continue;
 
-      final timeFraction = point.timestamp.difference(startTime).inMilliseconds /
-          timeScale.duration.inMilliseconds;
+      final timeFraction =
+          point.timestamp.difference(startTime).inMilliseconds /
+              timeScale.duration.inMilliseconds;
       final x = graphRect.left + graphRect.width * timeFraction.clamp(0.0, 1.0);
 
       final error = isRa ? point.raError : point.decError;
       final errorFraction = (error / yScale.arcsec).clamp(-1.0, 1.0);
-      final y = graphRect.top + graphRect.height / 2 - (errorFraction * graphRect.height / 2);
+      final y = graphRect.top +
+          graphRect.height / 2 -
+          (errorFraction * graphRect.height / 2);
 
       if (first) {
         path.moveTo(x, y);
@@ -460,9 +511,10 @@ class _GraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GraphPainter oldDelegate) {
     return data != oldDelegate.data ||
-           timeScale != oldDelegate.timeScale ||
-           yScale != oldDelegate.yScale ||
-           showRa != oldDelegate.showRa ||
-           showDec != oldDelegate.showDec;
+        colors != oldDelegate.colors ||
+        timeScale != oldDelegate.timeScale ||
+        yScale != oldDelegate.yScale ||
+        showRa != oldDelegate.showRa ||
+        showDec != oldDelegate.showDec;
   }
 }

@@ -11,6 +11,7 @@ enum ProfileConnectionState {
   connected,
   error,
   partiallyConnected,
+
   /// Devices are connected but don't match the profile's device IDs
   mismatch,
 }
@@ -84,6 +85,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     final (indicatorColor, indicatorIcon) = _getIndicatorStyle(colors);
 
@@ -103,7 +105,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                 : _isHovered
                     ? colors.surfaceAlt
                     : colors.background,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: widget.isSelected
                   ? colors.primary
@@ -148,12 +150,12 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                               height: 10,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(indicatorColor),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    indicatorColor),
                               ),
                             )
                           : indicatorIcon != null
-                              ? Icon(indicatorIcon, size: 6, color: Colors.white)
+                              ? Icon(indicatorIcon, size: 6, color: onPrimary)
                               : null,
                     ),
                   );
@@ -166,7 +168,8 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                 widget.profile.name,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight:
+                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: widget.isSelected
                       ? colors.textPrimary
                       : colors.textSecondary,
@@ -280,7 +283,7 @@ class _AddProfileChipState extends State<AddProfileChip> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceAlt : colors.background,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: _isHovered
                   ? colors.primary.withValues(alpha: 0.5)

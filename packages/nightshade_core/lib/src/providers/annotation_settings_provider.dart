@@ -3,6 +3,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/annotation_settings.dart';
 import 'database_provider.dart';
 
+/// Built-in annotation presets
+const builtInAnnotationPresets = <AnnotationPreset>[
+  AnnotationPreset(
+    name: 'Deep Field',
+    visibleTypes: {AnnotationObjectFilter.galaxies},
+    minMagnitude: 10.0,
+    magnitudeCutoff: 18.0,
+    showLabels: true,
+    showMagnitudes: true,
+    isBuiltIn: true,
+  ),
+  AnnotationPreset(
+    name: 'Wide Field',
+    visibleTypes: {
+      AnnotationObjectFilter.galaxies,
+      AnnotationObjectFilter.nebulae,
+      AnnotationObjectFilter.starClusters,
+      AnnotationObjectFilter.planetaryNebulae,
+    },
+    minMagnitude: -5.0,
+    magnitudeCutoff: 12.0,
+    showLabels: true,
+    showMagnitudes: false,
+    isBuiltIn: true,
+  ),
+  AnnotationPreset(
+    name: 'Star Field',
+    visibleTypes: {AnnotationObjectFilter.stars},
+    minMagnitude: -5.0,
+    magnitudeCutoff: 15.0,
+    showLabels: false,
+    showMagnitudes: false,
+    isBuiltIn: true,
+  ),
+];
+
 /// Provider for annotation display settings (persisted to database)
 final annotationSettingsProvider =
     AsyncNotifierProvider<AnnotationSettingsNotifier, AnnotationSettings>(() {
@@ -169,6 +205,61 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
     state = AsyncData(updated);
   }
 
+  Future<void> setCompassEnabled(bool enabled) async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final updated = current.copyWith(compassEnabled: enabled);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> setScaleBarEnabled(bool enabled) async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final updated = current.copyWith(scaleBarEnabled: enabled);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> setGridType(GridType gridType) async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final updated = current.copyWith(gridType: gridType);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> setShowSolveResiduals(bool show) async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final updated = current.copyWith(showSolveResiduals: show);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  /// Apply an annotation preset to current settings
+  Future<void> applyPreset(AnnotationPreset preset) async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final updated = current.copyWith(
+      visibleTypes: preset.visibleTypes,
+      minMagnitude: preset.minMagnitude,
+      magnitudeCutoff: preset.magnitudeCutoff,
+      showLabels: preset.showLabels,
+      showMagnitudes: preset.showMagnitudes,
+    );
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  /// Cycle through grid types: none -> pixel -> celestial -> none
+  Future<void> cycleGridType() async {
+    final current = state.valueOrNull ?? const AnnotationSettings();
+    final next = switch (current.gridType) {
+      GridType.none => GridType.pixel,
+      GridType.pixel => GridType.celestial,
+      GridType.celestial => GridType.none,
+    };
+    final updated = current.copyWith(gridType: next);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
   Future<void> reset() async {
     const defaults = AnnotationSettings();
     await _save(defaults);
@@ -284,5 +375,108 @@ class AnnotationMarkerStyleNotifier extends AsyncNotifier<AnnotationMarkerStyle>
     const defaults = AnnotationMarkerStyle();
     await _save(defaults);
     state = const AsyncData(defaults);
+  }
+}
+
+/// Provider for user-created annotation presets (persisted to database)
+final annotationPresetsProvider =
+    AsyncNotifierProvider<AnnotationPresetsNotifier, List<AnnotationPreset>>(
+        () {
+  return AnnotationPresetsNotifier();
+});
+
+class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
+  static const _settingsKey = 'annotation_presets';
+
+  @override
+  Future<List<AnnotationPreset>> build() async {
+    final dao = ref.read(settingsDaoProvider);
+    final jsonStr = await dao.getSetting(_settingsKey);
+
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        final jsonList = jsonDecode(jsonStr) as List<dynamic>;
+        return jsonList
+            .map((e) => AnnotationPreset.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        return const [];
+      }
+    }
+    return const [];
+  }
+
+  Future<void> _save(List<AnnotationPreset> presets) async {
+    final dao = ref.read(settingsDaoProvider);
+    final jsonStr = jsonEncode(presets.map((p) => p.toJson()).toList());
+    await dao.setSetting(_settingsKey, jsonStr);
+  }
+
+  /// Save the current annotation settings as a named preset
+  Future<void> saveCurrentAsPreset(String name) async {
+    final settingsNotifier = ref.read(annotationSettingsProvider.notifier);
+    final settings =
+        settingsNotifier.state.valueOrNull ?? const AnnotationSettings();
+
+    final preset = AnnotationPreset(
+      name: name,
+      visibleTypes: settings.visibleTypes,
+      minMagnitude: settings.minMagnitude,
+      magnitudeCutoff: settings.magnitudeCutoff,
+      showLabels: settings.showLabels,
+      showMagnitudes: settings.showMagnitudes,
+      isBuiltIn: false,
+    );
+
+    final current = state.valueOrNull ?? [];
+    // Replace existing preset with same name, or append
+    final updated = current
+        .where((p) => p.name != name)
+        .toList()
+      ..add(preset);
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> deletePreset(String name) async {
+    final current = state.valueOrNull ?? [];
+    final updated = current.where((p) => p.name != name).toList();
+    await _save(updated);
+    state = AsyncData(updated);
+  }
+}
+
+/// Provider for custom user-drawn annotations on the current image.
+/// These are in-memory and scoped to the current image.
+final customAnnotationsProvider =
+    StateNotifierProvider<CustomAnnotationsNotifier, List<CustomAnnotation>>(
+        (ref) {
+  return CustomAnnotationsNotifier();
+});
+
+/// Active drawing tool for custom annotations (null = no tool active)
+final customAnnotationToolProvider =
+    StateProvider<CustomAnnotationType?>((ref) => null);
+
+class CustomAnnotationsNotifier extends StateNotifier<List<CustomAnnotation>> {
+  CustomAnnotationsNotifier() : super(const []);
+
+  void add(CustomAnnotation annotation) {
+    state = [...state, annotation];
+  }
+
+  void remove(String id) {
+    state = state.where((a) => a.id != id).toList();
+  }
+
+  void updateLabel(String id, String label) {
+    state = state.map((a) {
+      if (a.id == id) return a.copyWith(label: label);
+      return a;
+    }).toList();
+  }
+
+  void clear() {
+    state = const [];
   }
 }

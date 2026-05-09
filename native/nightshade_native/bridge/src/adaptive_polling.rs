@@ -393,31 +393,31 @@ impl<T: PartialEq + Clone + Send> SyncAdaptivePoller<T> {
 
     /// Process a polled value and return the next wait duration (thread-safe)
     pub fn tick(&self, current_value: &T) -> Duration {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.tick(current_value)
     }
 
     /// Force reset to base interval (thread-safe)
     pub fn reset(&self) {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.reset();
     }
 
     /// Get the current polling interval (thread-safe)
     pub fn current_interval(&self) -> Duration {
-        let guard = self.inner.lock().unwrap();
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.current_interval()
     }
 
     /// Get a snapshot of the metrics (thread-safe)
     pub fn metrics(&self) -> PollerMetrics {
-        let guard = self.inner.lock().unwrap();
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.metrics().clone()
     }
 
     /// Check if the poller is currently at max backoff (thread-safe)
     pub fn is_at_max(&self) -> bool {
-        let guard = self.inner.lock().unwrap();
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.is_at_max()
     }
 }

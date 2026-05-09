@@ -52,7 +52,7 @@ class PluginsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -200,7 +200,7 @@ class _PluginCardState extends State<_PluginCard> {
     return Container(
       decoration: BoxDecoration(
         color: widget.colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: hasError
               ? widget.colors.error.withValues(alpha: 0.5)
@@ -212,7 +212,7 @@ class _PluginCardState extends State<_PluginCard> {
           // Main plugin info
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -225,7 +225,7 @@ class _PluginCardState extends State<_PluginCard> {
                       color: widget.plugin.enabled
                           ? widget.colors.primary.withValues(alpha: 0.1)
                           : widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: widget.plugin.enabled
                             ? widget.colors.primary.withValues(alpha: 0.3)
@@ -287,8 +287,7 @@ class _PluginCardState extends State<_PluginCard> {
                             color: widget.colors.textSecondary,
                           ),
                           maxLines: _expanded ? null : 2,
-                          overflow:
-                              _expanded ? null : TextOverflow.ellipsis,
+                          overflow: _expanded ? null : TextOverflow.ellipsis,
                         ),
                         if (hasError) ...[
                           const SizedBox(height: 8),
@@ -416,7 +415,7 @@ class _PluginToggle extends StatelessWidget {
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: enabled ? colors.primary : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: enabled ? colors.primary : colors.border,
           ),
@@ -427,8 +426,8 @@ class _PluginToggle extends StatelessWidget {
           child: Container(
             width: 18,
             height: 18,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: colors.background,
               shape: BoxShape.circle,
             ),
           ),
@@ -494,7 +493,7 @@ class _DeveloperInfo extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(

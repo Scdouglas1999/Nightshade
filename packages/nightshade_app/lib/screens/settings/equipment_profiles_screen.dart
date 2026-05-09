@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../utils/confirm_dialog.dart';
+import '../../utils/device_format_utils.dart';
 import '../../utils/snackbar_helper.dart';
 
 /// Screen for managing equipment profiles
@@ -18,10 +19,12 @@ class EquipmentProfilesScreen extends ConsumerStatefulWidget {
   const EquipmentProfilesScreen({super.key, this.isMobile = false});
 
   @override
-  ConsumerState<EquipmentProfilesScreen> createState() => _EquipmentProfilesScreenState();
+  ConsumerState<EquipmentProfilesScreen> createState() =>
+      _EquipmentProfilesScreenState();
 }
 
-class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScreen> {
+class _EquipmentProfilesScreenState
+    extends ConsumerState<EquipmentProfilesScreen> {
   EquipmentProfileModel? _selectedProfile;
   bool _isEditing = false;
   // For mobile: track whether we're viewing the detail
@@ -37,7 +40,9 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (state) {
         // Auto-select active profile if none selected (desktop only)
-        if (!widget.isMobile && _selectedProfile == null && state.activeProfile != null) {
+        if (!widget.isMobile &&
+            _selectedProfile == null &&
+            state.activeProfile != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             setState(() => _selectedProfile = state.activeProfile);
           });
@@ -52,7 +57,8 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
     );
   }
 
-  Widget _buildMobileLayout(EquipmentProfilesState state, NightshadeColors colors) {
+  Widget _buildMobileLayout(
+      EquipmentProfilesState state, NightshadeColors colors) {
     // Show detail view if a profile is selected and we're viewing detail
     if (_showingDetail && _selectedProfile != null) {
       return _ProfileDetails(
@@ -63,7 +69,9 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
         onBack: () => setState(() => _showingDetail = false),
         onEdit: () => setState(() => _isEditing = true),
         onSave: (updatedProfile) async {
-          await ref.read(equipmentProfilesProvider.notifier).updateProfile(updatedProfile);
+          await ref
+              .read(equipmentProfilesProvider.notifier)
+              .updateProfile(updatedProfile);
           setState(() {
             _selectedProfile = updatedProfile;
             _isEditing = false;
@@ -72,10 +80,13 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
         onCancel: () => setState(() => _isEditing = false),
         onSetActive: () async {
           if (_selectedProfile?.id != null) {
-            await ref.read(equipmentProfilesProvider.notifier).setActiveProfile(_selectedProfile!.id!);
+            await ref
+                .read(equipmentProfilesProvider.notifier)
+                .setActiveProfile(_selectedProfile!.id!);
           }
         },
-        onDuplicate: () => _duplicateProfile(context, colors, _selectedProfile!),
+        onDuplicate: () =>
+            _duplicateProfile(context, colors, _selectedProfile!),
         onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
         onExport: () => _exportProfile(context, _selectedProfile!),
         onRefresh: () {
@@ -110,7 +121,8 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
     );
   }
 
-  Widget _buildDesktopLayout(EquipmentProfilesState state, NightshadeColors colors) {
+  Widget _buildDesktopLayout(
+      EquipmentProfilesState state, NightshadeColors colors) {
     return Row(
       children: [
         // Profile list sidebar
@@ -138,7 +150,9 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
                   isEditing: _isEditing,
                   onEdit: () => setState(() => _isEditing = true),
                   onSave: (updatedProfile) async {
-                    await ref.read(equipmentProfilesProvider.notifier).updateProfile(updatedProfile);
+                    await ref
+                        .read(equipmentProfilesProvider.notifier)
+                        .updateProfile(updatedProfile);
                     setState(() {
                       _selectedProfile = updatedProfile;
                       _isEditing = false;
@@ -147,11 +161,15 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
                   onCancel: () => setState(() => _isEditing = false),
                   onSetActive: () async {
                     if (_selectedProfile?.id != null) {
-                      await ref.read(equipmentProfilesProvider.notifier).setActiveProfile(_selectedProfile!.id!);
+                      await ref
+                          .read(equipmentProfilesProvider.notifier)
+                          .setActiveProfile(_selectedProfile!.id!);
                     }
                   },
-                  onDuplicate: () => _duplicateProfile(context, colors, _selectedProfile!),
-                  onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
+                  onDuplicate: () =>
+                      _duplicateProfile(context, colors, _selectedProfile!),
+                  onDelete: () =>
+                      _deleteProfile(context, colors, _selectedProfile!),
                   onExport: () => _exportProfile(context, _selectedProfile!),
                   onRefresh: () {
                     ref.invalidate(equipmentProfilesProvider);
@@ -170,15 +188,17 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
     );
   }
 
-  Future<void> _showCreateProfileDialog(BuildContext context, NightshadeColors colors) async {
+  Future<void> _showCreateProfileDialog(
+      BuildContext context, NightshadeColors colors) async {
     final nameController = TextEditingController();
     final descController = TextEditingController();
-    
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
-        title: Text('Create New Profile', style: TextStyle(color: colors.textPrimary)),
+        title: Text('Create New Profile',
+            style: TextStyle(color: colors.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -235,13 +255,15 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
         ],
       ),
     );
-    
+
     if (result == true && nameController.text.isNotEmpty) {
-      final id = await ref.read(equipmentProfilesProvider.notifier).createProfile(
-        name: nameController.text,
-        description: descController.text.isEmpty ? null : descController.text,
-      );
-      
+      final id =
+          await ref.read(equipmentProfilesProvider.notifier).createProfile(
+                name: nameController.text,
+                description:
+                    descController.text.isEmpty ? null : descController.text,
+              );
+
       // Wait for state to update and select the new profile
       await Future.delayed(const Duration(milliseconds: 100));
       final profiles = ref.read(equipmentProfileListProvider);
@@ -253,14 +275,17 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
     }
   }
 
-  Future<void> _duplicateProfile(BuildContext context, NightshadeColors colors, EquipmentProfileModel profile) async {
-    final nameController = TextEditingController(text: '${profile.name} (Copy)');
-    
+  Future<void> _duplicateProfile(BuildContext context, NightshadeColors colors,
+      EquipmentProfileModel profile) async {
+    final nameController =
+        TextEditingController(text: '${profile.name} (Copy)');
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
-        title: Text('Duplicate Profile', style: TextStyle(color: colors.textPrimary)),
+        title: Text('Duplicate Profile',
+            style: TextStyle(color: colors.textPrimary)),
         content: TextField(
           controller: nameController,
           autofocus: true,
@@ -292,10 +317,14 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
         ],
       ),
     );
-    
-    if (result == true && nameController.text.isNotEmpty && profile.id != null) {
-      final id = await ref.read(equipmentProfilesProvider.notifier).duplicateProfile(profile.id!, nameController.text);
-      
+
+    if (result == true &&
+        nameController.text.isNotEmpty &&
+        profile.id != null) {
+      final id = await ref
+          .read(equipmentProfilesProvider.notifier)
+          .duplicateProfile(profile.id!, nameController.text);
+
       await Future.delayed(const Duration(milliseconds: 100));
       final profiles = ref.read(equipmentProfileListProvider);
       final newProfile = profiles.firstWhere((p) => p.id == id);
@@ -303,30 +332,37 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
     }
   }
 
-  Future<void> _deleteProfile(BuildContext context, NightshadeColors colors, EquipmentProfileModel profile) async {
+  Future<void> _deleteProfile(BuildContext context, NightshadeColors colors,
+      EquipmentProfileModel profile) async {
     final confirm = await ConfirmDialog.delete(
       context: context,
       itemName: 'profile "${profile.name}"',
     );
 
     if (confirm && profile.id != null) {
-      await ref.read(equipmentProfilesProvider.notifier).deleteProfile(profile.id!);
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .deleteProfile(profile.id!);
       setState(() => _selectedProfile = null);
     }
   }
 
-  Future<void> _exportProfile(BuildContext context, EquipmentProfileModel profile) async {
+  Future<void> _exportProfile(
+      BuildContext context, EquipmentProfileModel profile) async {
     try {
-      final json = await ref.read(equipmentProfilesProvider.notifier).exportProfile(profile.id!);
-      
-      final fileName = '${profile.name.replaceAll(RegExp(r'[^\w\s-]'), '_')}_profile.json';
+      final json = await ref
+          .read(equipmentProfilesProvider.notifier)
+          .exportProfile(profile.id!);
+
+      final fileName =
+          '${profile.name.replaceAll(RegExp(r'[^\w\s-]'), '_')}_profile.json';
       final location = await getSaveLocation(
         suggestedName: fileName,
         acceptedTypeGroups: [
           const XTypeGroup(label: 'JSON files', extensions: ['json']),
         ],
       );
-      
+
       if (location != null) {
         final file = XFile.fromData(
           utf8.encode(json),
@@ -335,45 +371,45 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
         );
         await file.saveTo(location.path);
 
-        if (mounted) {
-          context.showSuccessSnackBar('Profile exported to ${location.path}');
-        }
+        if (!context.mounted) return;
+        context.showSuccessSnackBar('Profile exported to ${location.path}');
       }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Export failed: $e');
-      }
+      if (!context.mounted) return;
+      context.showErrorSnackBar('Export failed: $e');
     }
   }
 
-  Future<void> _importProfiles(BuildContext context, NightshadeColors colors) async {
+  Future<void> _importProfiles(
+      BuildContext context, NightshadeColors colors) async {
     try {
       const jsonGroup = XTypeGroup(
         label: 'JSON files',
         extensions: ['json'],
       );
-      
+
       final file = await openFile(acceptedTypeGroups: [jsonGroup]);
       if (file != null) {
         final json = await file.readAsString();
-        final ids = await ref.read(equipmentProfilesProvider.notifier).importProfiles(json);
+        final ids = await ref
+            .read(equipmentProfilesProvider.notifier)
+            .importProfiles(json);
 
-        if (mounted) {
-          context.showSuccessSnackBar('Imported ${ids.length} profile(s)');
-        }
+        if (!context.mounted) return;
+        context.showSuccessSnackBar('Imported ${ids.length} profile(s)');
 
         // Select the first imported profile
         if (ids.isNotEmpty) {
           await Future.delayed(const Duration(milliseconds: 100));
+          if (!mounted) return;
           final profiles = ref.read(equipmentProfileListProvider);
           final imported = profiles.firstWhere((p) => p.id == ids.first);
           setState(() => _selectedProfile = imported);
         }
       }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Import failed: $e');
-      }
+      if (!context.mounted) return;
+      context.showErrorSnackBar('Import failed: $e');
     }
   }
 }
@@ -453,7 +489,8 @@ class _ProfileList extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: onImportProfiles,
-                icon: Icon(LucideIcons.download, color: colors.textSecondary, size: 18),
+                icon: Icon(LucideIcons.download,
+                    color: colors.textSecondary, size: 18),
                 tooltip: 'Import profiles',
                 style: IconButton.styleFrom(
                   backgroundColor: colors.surfaceAlt,
@@ -482,7 +519,8 @@ class _ProfileList extends StatelessWidget {
                   itemCount: profiles.length,
                   itemBuilder: (context, index) {
                     final profile = profiles[index];
-                    final isSelected = !isMobile && profile.id == selectedProfile?.id;
+                    final isSelected =
+                        !isMobile && profile.id == selectedProfile?.id;
                     final isActive = profile.id == activeProfile?.id;
 
                     return _ProfileListItem(
@@ -558,7 +596,8 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: widget.isSelected
-                ? Border.all(color: widget.colors.primary.withValues(alpha: 0.3))
+                ? Border.all(
+                    color: widget.colors.primary.withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(
@@ -567,7 +606,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: widget.isActive 
+                  color: widget.isActive
                       ? widget.colors.primary.withValues(alpha: 0.2)
                       : widget.colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
@@ -575,7 +614,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                 child: Icon(
                   LucideIcons.aperture,
                   size: 18,
-                  color: widget.isActive 
+                  color: widget.isActive
                       ? widget.colors.primary
                       : widget.colors.textSecondary,
                 ),
@@ -601,9 +640,11 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         if (widget.isActive) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: widget.colors.primary.withValues(alpha: 0.2),
+                              color:
+                                  widget.colors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -765,23 +806,32 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
   void _initControllers() {
     _nameController = TextEditingController(text: widget.profile.name);
-    _descController = TextEditingController(text: widget.profile.description ?? '');
-    _focalLengthController = TextEditingController(text: widget.profile.focalLength.toStringAsFixed(0));
-    _apertureController = TextEditingController(text: widget.profile.aperture.toStringAsFixed(0));
-    _gainController = TextEditingController(text: widget.profile.defaultGain?.toString() ?? '');
-    _offsetController = TextEditingController(text: widget.profile.defaultOffset?.toString() ?? '');
-    _coolingController = TextEditingController(text: widget.profile.defaultCoolingTemp?.toString() ?? '');
+    _descController =
+        TextEditingController(text: widget.profile.description ?? '');
+    _focalLengthController = TextEditingController(
+        text: widget.profile.focalLength.toStringAsFixed(0));
+    _apertureController =
+        TextEditingController(text: widget.profile.aperture.toStringAsFixed(0));
+    _gainController = TextEditingController(
+        text: widget.profile.defaultGain?.toString() ?? '');
+    _offsetController = TextEditingController(
+        text: widget.profile.defaultOffset?.toString() ?? '');
+    _coolingController = TextEditingController(
+        text: widget.profile.defaultCoolingTemp?.toString() ?? '');
     _binX = widget.profile.defaultBinX;
     _binY = widget.profile.defaultBinY;
     _filterControllers = widget.profile.filterNames.isEmpty
         ? [TextEditingController()]
-        : widget.profile.filterNames.map((f) => TextEditingController(text: f)).toList();
+        : widget.profile.filterNames
+            .map((f) => TextEditingController(text: f))
+            .toList();
 
     // Initialize filter focus offset controllers
     _filterOffsetControllers = {};
     for (final filterName in widget.profile.filterNames) {
       final offset = widget.profile.filterFocusOffsets[filterName] ?? 0;
-      _filterOffsetControllers[filterName] = TextEditingController(text: offset.toString());
+      _filterOffsetControllers[filterName] =
+          TextEditingController(text: offset.toString());
     }
 
     // Initialize device IDs
@@ -859,7 +909,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
     try {
       final profileService = ref.read(profileServiceProvider);
-      final synced = await profileService.syncFiltersToProfile(widget.profile.id!);
+      final synced =
+          await profileService.syncFiltersToProfile(widget.profile.id!);
 
       if (synced) {
         // Refresh the profile to get the updated filter names
@@ -898,56 +949,65 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
     setState(() {
       // Copy camera ID if connected
-      if (cameraState.connectionState == DeviceConnectionState.connected && cameraState.deviceId != null) {
+      if (cameraState.connectionState == DeviceConnectionState.connected &&
+          cameraState.deviceId != null) {
         _cameraId = cameraState.deviceId;
         copiedCount++;
       }
 
       // Copy mount ID if connected
-      if (mountState.connectionState == DeviceConnectionState.connected && mountState.deviceId != null) {
+      if (mountState.connectionState == DeviceConnectionState.connected &&
+          mountState.deviceId != null) {
         _mountId = mountState.deviceId;
         copiedCount++;
       }
 
       // Copy focuser ID if connected (uses deviceName as ID)
-      if (focuserState.connectionState == DeviceConnectionState.connected && focuserState.deviceName != null) {
+      if (focuserState.connectionState == DeviceConnectionState.connected &&
+          focuserState.deviceName != null) {
         _focuserId = focuserState.deviceName;
         copiedCount++;
       }
 
       // Copy filter wheel ID if connected (uses deviceName as ID)
-      if (filterWheelState.connectionState == DeviceConnectionState.connected && filterWheelState.deviceName != null) {
+      if (filterWheelState.connectionState == DeviceConnectionState.connected &&
+          filterWheelState.deviceName != null) {
         _filterWheelId = filterWheelState.deviceName;
         copiedCount++;
       }
 
       // Copy guider ID if connected (uses deviceName as ID)
-      if (guiderState.connectionState == DeviceConnectionState.connected && guiderState.deviceName != null) {
+      if (guiderState.connectionState == DeviceConnectionState.connected &&
+          guiderState.deviceName != null) {
         _guiderId = guiderState.deviceName;
         copiedCount++;
       }
 
       // Copy rotator ID if connected
-      if (rotatorState.connectionState == DeviceConnectionState.connected && rotatorState.deviceId != null) {
+      if (rotatorState.connectionState == DeviceConnectionState.connected &&
+          rotatorState.deviceId != null) {
         _rotatorId = rotatorState.deviceId;
         copiedCount++;
       }
 
       // Copy dome ID if connected
-      if (domeState.connectionState == DeviceConnectionState.connected && domeState.deviceId != null) {
+      if (domeState.connectionState == DeviceConnectionState.connected &&
+          domeState.deviceId != null) {
         _domeId = domeState.deviceId;
         copiedCount++;
       }
 
       // Copy weather ID if connected
-      if (weatherState.connectionState == DeviceConnectionState.connected && weatherState.deviceId != null) {
+      if (weatherState.connectionState == DeviceConnectionState.connected &&
+          weatherState.deviceId != null) {
         _weatherId = weatherState.deviceId;
         copiedCount++;
       }
     });
 
     if (copiedCount > 0) {
-      context.showSuccessSnackBar('Copied $copiedCount device(s) from connected equipment');
+      context.showSuccessSnackBar(
+          'Copied $copiedCount device(s) from connected equipment');
     } else {
       context.showWarningSnackBar('No devices currently connected');
     }
@@ -1030,7 +1090,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                     try {
                       await widget.onSave(_buildUpdatedProfile());
                       if (context.mounted) {
-                        context.showSuccessSnackBar('Profile saved successfully');
+                        context
+                            .showSuccessSnackBar('Profile saved successfully');
                       }
                     } catch (e) {
                       if (context.mounted) {
@@ -1050,7 +1111,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   ),
                 const SizedBox(width: 8),
                 PopupMenuButton<String>(
-                  icon: Icon(LucideIcons.moreVertical, color: widget.colors.textSecondary),
+                  icon: Icon(LucideIcons.moreVertical,
+                      color: widget.colors.textSecondary),
                   color: widget.colors.surface,
                   onSelected: (value) {
                     switch (value) {
@@ -1073,9 +1135,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(LucideIcons.pencil, size: 16, color: widget.colors.textSecondary),
+                          Icon(LucideIcons.pencil,
+                              size: 16, color: widget.colors.textSecondary),
                           const SizedBox(width: 8),
-                          Text('Edit', style: TextStyle(color: widget.colors.textPrimary)),
+                          Text('Edit',
+                              style:
+                                  TextStyle(color: widget.colors.textPrimary)),
                         ],
                       ),
                     ),
@@ -1083,9 +1148,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       value: 'duplicate',
                       child: Row(
                         children: [
-                          Icon(LucideIcons.copy, size: 16, color: widget.colors.textSecondary),
+                          Icon(LucideIcons.copy,
+                              size: 16, color: widget.colors.textSecondary),
                           const SizedBox(width: 8),
-                          Text('Duplicate', style: TextStyle(color: widget.colors.textPrimary)),
+                          Text('Duplicate',
+                              style:
+                                  TextStyle(color: widget.colors.textPrimary)),
                         ],
                       ),
                     ),
@@ -1093,9 +1161,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       value: 'export',
                       child: Row(
                         children: [
-                          Icon(LucideIcons.upload, size: 16, color: widget.colors.textSecondary),
+                          Icon(LucideIcons.upload,
+                              size: 16, color: widget.colors.textSecondary),
                           const SizedBox(width: 8),
-                          Text('Export', style: TextStyle(color: widget.colors.textPrimary)),
+                          Text('Export',
+                              style:
+                                  TextStyle(color: widget.colors.textPrimary)),
                         ],
                       ),
                     ),
@@ -1104,9 +1175,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(LucideIcons.trash2, size: 16, color: widget.colors.error),
+                          Icon(LucideIcons.trash2,
+                              size: 16, color: widget.colors.error),
                           const SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: widget.colors.error)),
+                          Text('Delete',
+                              style: TextStyle(color: widget.colors.error)),
                         ],
                       ),
                     ),
@@ -1116,7 +1189,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             ],
           ),
           const SizedBox(height: 32),
-          
+
           // Optical Configuration
           _Section(
             title: 'Optical Configuration',
@@ -1132,8 +1205,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             Expanded(
                               child: _FieldCard(
                                 label: 'Focal Length',
-                                value: widget.isEditing ? null : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
-                                controller: widget.isEditing ? _focalLengthController : null,
+                                value: widget.isEditing
+                                    ? null
+                                    : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                                controller: widget.isEditing
+                                    ? _focalLengthController
+                                    : null,
                                 suffix: 'mm',
                                 colors: widget.colors,
                               ),
@@ -1142,8 +1219,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             Expanded(
                               child: _FieldCard(
                                 label: 'Aperture',
-                                value: widget.isEditing ? null : '${widget.profile.aperture.toStringAsFixed(0)} mm',
-                                controller: widget.isEditing ? _apertureController : null,
+                                value: widget.isEditing
+                                    ? null
+                                    : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                                controller: widget.isEditing
+                                    ? _apertureController
+                                    : null,
                                 suffix: 'mm',
                                 colors: widget.colors,
                               ),
@@ -1166,8 +1247,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         Expanded(
                           child: _FieldCard(
                             label: 'Focal Length',
-                            value: widget.isEditing ? null : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
-                            controller: widget.isEditing ? _focalLengthController : null,
+                            value: widget.isEditing
+                                ? null
+                                : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                            controller: widget.isEditing
+                                ? _focalLengthController
+                                : null,
                             suffix: 'mm',
                             colors: widget.colors,
                           ),
@@ -1176,8 +1261,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         Expanded(
                           child: _FieldCard(
                             label: 'Aperture',
-                            value: widget.isEditing ? null : '${widget.profile.aperture.toStringAsFixed(0)} mm',
-                            controller: widget.isEditing ? _apertureController : null,
+                            value: widget.isEditing
+                                ? null
+                                : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                            controller:
+                                widget.isEditing ? _apertureController : null,
                             suffix: 'mm',
                             colors: widget.colors,
                           ),
@@ -1198,7 +1286,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Camera Defaults
           _Section(
             title: 'Camera Defaults',
@@ -1214,8 +1302,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             Expanded(
                               child: _FieldCard(
                                 label: 'Default Gain',
-                                value: widget.isEditing ? null : (widget.profile.defaultGain?.toString() ?? 'Not set'),
-                                controller: widget.isEditing ? _gainController : null,
+                                value: widget.isEditing
+                                    ? null
+                                    : (widget.profile.defaultGain?.toString() ??
+                                        'Not set'),
+                                controller:
+                                    widget.isEditing ? _gainController : null,
                                 hint: 'e.g., 100',
                                 colors: widget.colors,
                               ),
@@ -1224,8 +1316,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             Expanded(
                               child: _FieldCard(
                                 label: 'Default Offset',
-                                value: widget.isEditing ? null : (widget.profile.defaultOffset?.toString() ?? 'Not set'),
-                                controller: widget.isEditing ? _offsetController : null,
+                                value: widget.isEditing
+                                    ? null
+                                    : (widget.profile.defaultOffset
+                                            ?.toString() ??
+                                        'Not set'),
+                                controller:
+                                    widget.isEditing ? _offsetController : null,
                                 hint: 'e.g., 10',
                                 colors: widget.colors,
                               ),
@@ -1235,10 +1332,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         const SizedBox(height: 12),
                         _FieldCard(
                           label: 'Cooling Temp',
-                          value: widget.isEditing ? null : (widget.profile.defaultCoolingTemp != null
-                              ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
-                              : 'Not set'),
-                          controller: widget.isEditing ? _coolingController : null,
+                          value: widget.isEditing
+                              ? null
+                              : (widget.profile.defaultCoolingTemp != null
+                                  ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
+                                  : 'Not set'),
+                          controller:
+                              widget.isEditing ? _coolingController : null,
                           suffix: '°C',
                           hint: 'e.g., -10',
                           colors: widget.colors,
@@ -1250,8 +1350,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         Expanded(
                           child: _FieldCard(
                             label: 'Default Gain',
-                            value: widget.isEditing ? null : (widget.profile.defaultGain?.toString() ?? 'Not set'),
-                            controller: widget.isEditing ? _gainController : null,
+                            value: widget.isEditing
+                                ? null
+                                : (widget.profile.defaultGain?.toString() ??
+                                    'Not set'),
+                            controller:
+                                widget.isEditing ? _gainController : null,
                             hint: 'e.g., 100',
                             colors: widget.colors,
                           ),
@@ -1260,8 +1364,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         Expanded(
                           child: _FieldCard(
                             label: 'Default Offset',
-                            value: widget.isEditing ? null : (widget.profile.defaultOffset?.toString() ?? 'Not set'),
-                            controller: widget.isEditing ? _offsetController : null,
+                            value: widget.isEditing
+                                ? null
+                                : (widget.profile.defaultOffset?.toString() ??
+                                    'Not set'),
+                            controller:
+                                widget.isEditing ? _offsetController : null,
                             hint: 'e.g., 10',
                             colors: widget.colors,
                           ),
@@ -1270,10 +1378,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         Expanded(
                           child: _FieldCard(
                             label: 'Cooling Temp',
-                            value: widget.isEditing ? null : (widget.profile.defaultCoolingTemp != null
-                                ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
-                                : 'Not set'),
-                            controller: widget.isEditing ? _coolingController : null,
+                            value: widget.isEditing
+                                ? null
+                                : (widget.profile.defaultCoolingTemp != null
+                                    ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
+                                    : 'Not set'),
+                            controller:
+                                widget.isEditing ? _coolingController : null,
                             suffix: '°C',
                             hint: 'e.g., -10',
                             colors: widget.colors,
@@ -1333,7 +1444,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Filter Configuration
           _Section(
             title: 'Filter Configuration',
@@ -1351,17 +1462,20 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(widget.colors.primary),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                widget.colors.primary),
                           ),
                         )
                       : IconButton(
-                          icon: Icon(LucideIcons.refreshCw, size: 16, color: widget.colors.primary),
+                          icon: Icon(LucideIcons.refreshCw,
+                              size: 16, color: widget.colors.primary),
                           onPressed: _syncFiltersFromHardware,
                           tooltip: 'Sync from filter wheel',
                         ),
                 if (widget.isEditing)
                   IconButton(
-                    icon: Icon(LucideIcons.plus, size: 16, color: widget.colors.primary),
+                    icon: Icon(LucideIcons.plus,
+                        size: 16, color: widget.colors.primary),
                     onPressed: () {
                       setState(() {
                         _filterControllers.add(TextEditingController());
@@ -1372,7 +1486,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
               ],
             ),
             children: [
-              if (_filterControllers.isEmpty || 
+              if (_filterControllers.isEmpty ||
                   (!widget.isEditing && widget.profile.filterNames.isEmpty))
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -1392,7 +1506,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    for (int i = 0; i < (widget.isEditing ? _filterControllers.length : widget.profile.filterNames.length); i++)
+                    for (int i = 0;
+                        i <
+                            (widget.isEditing
+                                ? _filterControllers.length
+                                : widget.profile.filterNames.length);
+                        i++)
                       widget.isEditing
                           ? _EditableFilterChip(
                               controller: _filterControllers[i],
@@ -1424,7 +1543,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
-                  style: TextStyle(color: widget.colors.textMuted, fontSize: 12),
+                  style:
+                      TextStyle(color: widget.colors.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -1468,14 +1588,46 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   spacing: 12,
                   runSpacing: 12,
                   children: [
-                    _buildDeviceAssignment('Camera', widget.isEditing ? _cameraId : widget.profile.cameraId, (val) => setState(() => _cameraId = val)),
-                    _buildDeviceAssignment('Mount', widget.isEditing ? _mountId : widget.profile.mountId, (val) => setState(() => _mountId = val)),
-                    _buildDeviceAssignment('Focuser', widget.isEditing ? _focuserId : widget.profile.focuserId, (val) => setState(() => _focuserId = val)),
-                    _buildDeviceAssignment('Filter Wheel', widget.isEditing ? _filterWheelId : widget.profile.filterWheelId, (val) => setState(() => _filterWheelId = val)),
-                    _buildDeviceAssignment('Guider', widget.isEditing ? _guiderId : widget.profile.guiderId, (val) => setState(() => _guiderId = val)),
-                    _buildDeviceAssignment('Rotator', widget.isEditing ? _rotatorId : widget.profile.rotatorId, (val) => setState(() => _rotatorId = val)),
-                    _buildDeviceAssignment('Dome', widget.isEditing ? _domeId : widget.profile.domeId, (val) => setState(() => _domeId = val)),
-                    _buildDeviceAssignment('Weather', widget.isEditing ? _weatherId : widget.profile.weatherId, (val) => setState(() => _weatherId = val)),
+                    _buildDeviceAssignment(
+                        'Camera',
+                        widget.isEditing ? _cameraId : widget.profile.cameraId,
+                        (val) => setState(() => _cameraId = val)),
+                    _buildDeviceAssignment(
+                        'Mount',
+                        widget.isEditing ? _mountId : widget.profile.mountId,
+                        (val) => setState(() => _mountId = val)),
+                    _buildDeviceAssignment(
+                        'Focuser',
+                        widget.isEditing
+                            ? _focuserId
+                            : widget.profile.focuserId,
+                        (val) => setState(() => _focuserId = val)),
+                    _buildDeviceAssignment(
+                        'Filter Wheel',
+                        widget.isEditing
+                            ? _filterWheelId
+                            : widget.profile.filterWheelId,
+                        (val) => setState(() => _filterWheelId = val)),
+                    _buildDeviceAssignment(
+                        'Guider',
+                        widget.isEditing ? _guiderId : widget.profile.guiderId,
+                        (val) => setState(() => _guiderId = val)),
+                    _buildDeviceAssignment(
+                        'Rotator',
+                        widget.isEditing
+                            ? _rotatorId
+                            : widget.profile.rotatorId,
+                        (val) => setState(() => _rotatorId = val)),
+                    _buildDeviceAssignment(
+                        'Dome',
+                        widget.isEditing ? _domeId : widget.profile.domeId,
+                        (val) => setState(() => _domeId = val)),
+                    _buildDeviceAssignment(
+                        'Weather',
+                        widget.isEditing
+                            ? _weatherId
+                            : widget.profile.weatherId,
+                        (val) => setState(() => _weatherId = val)),
                   ].whereType<Widget>().toList(),
                 ),
               if (widget.isEditing)
@@ -1483,7 +1635,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
-                    style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                    style:
+                        TextStyle(color: widget.colors.textMuted, fontSize: 11),
                   ),
                 ),
             ],
@@ -1508,7 +1661,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(LucideIcons.arrowLeft, color: widget.colors.textPrimary),
+                      icon: Icon(LucideIcons.arrowLeft,
+                          color: widget.colors.textPrimary),
                       onPressed: widget.onBack,
                     ),
                     const SizedBox(width: 8),
@@ -1561,10 +1715,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     return _hasDeviceAssignments();
   }
 
-  Widget? _buildDeviceAssignment(String type, String? deviceId, void Function(String?) onClear) {
+  Widget? _buildDeviceAssignment(
+      String type, String? deviceId, void Function(String?) onClear) {
     if (deviceId == null) return null;
 
-    final displayId = _formatDeviceId(deviceId);
+    final displayId = formatDeviceId(deviceId);
 
     if (widget.isEditing) {
       return _EditableDeviceChip(
@@ -1579,117 +1734,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     return _DeviceChip(type: type, id: displayId, colors: widget.colors);
   }
 
-  /// Format a device ID into a user-friendly display name
-  String _formatDeviceId(String id) {
-    final lowerId = id.toLowerCase();
-
-    // Handle native device IDs: native:vendor:index or native:vendor_type:index
-    if (lowerId.startsWith('native:')) {
-      final parts = id.substring(7).split(':');
-      if (parts.isNotEmpty) {
-        final devicePart = parts[0];
-        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-
-        // Handle vendor_type format (e.g., zwo_eaf)
-        if (devicePart.contains('_')) {
-          final subParts = devicePart.split('_');
-          final vendor = _capitalizeVendor(subParts[0]);
-          final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
-          return '$vendor $type';
-        }
-
-        // Simple vendor format
-        final vendor = _capitalizeVendor(devicePart);
-        if (index != null) {
-          return '$vendor #${index + 1}';
-        }
-        return vendor;
-      }
-    }
-
-    // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type or ASCOM.Vendor.Type
-    if (lowerId.startsWith('ascom:') || lowerId.startsWith('ascom.')) {
-      final ascomId = lowerId.startsWith('ascom:') ? id.substring(6) : id;
-      final parts = ascomId.split('.');
-      if (parts.length >= 2) {
-        // Extract vendor part (after ASCOM. prefix)
-        final vendorPart = parts.length > 1 ? parts[1] : parts[0];
-        return _formatAscomVendor(vendorPart);
-      }
-    }
-
-    // Handle Alpaca device IDs
-    if (lowerId.startsWith('alpaca:')) {
-      final alpacaPart = id.substring(7);
-      return 'Alpaca: $alpacaPart';
-    }
-
-    // Handle PHD2
-    if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
-      return 'PHD2';
-    }
-
-    // Handle underscore-separated IDs
-    if (id.contains('_')) {
-      return id.split('_').map(_capitalizeWord).join(' ');
-    }
-
-    // For longer names, try to truncate intelligently
-    if (id.length > 30) {
-      return '${id.substring(0, 27)}...';
-    }
-    return id;
-  }
-
-  String _capitalizeVendor(String vendor) {
-    const knownVendors = {
-      'zwo': 'ZWO',
-      'asi': 'ZWO ASI',
-      'qhy': 'QHY',
-      'playerone': 'PlayerOne',
-      'svbony': 'SVBony',
-      'atik': 'Atik',
-      'fli': 'FLI',
-      'moravian': 'Moravian',
-      'touptek': 'Touptek',
-      'pegasus': 'Pegasus',
-      'pegasusastro': 'Pegasus Astro',
-      'ioptron': 'iOptron',
-      'skywatcher': 'Sky-Watcher',
-      'celestron': 'Celestron',
-      'meade': 'Meade',
-      'losmandy': 'Losmandy',
-      'moonlite': 'MoonLite',
-      'optec': 'Optec',
-      'lacerta': 'Lacerta',
-      'esatto': 'Esatto',
-      'primaluce': 'PrimaLuce',
-    };
-
-    final lower = vendor.toLowerCase();
-    if (knownVendors.containsKey(lower)) {
-      return knownVendors[lower]!;
-    }
-
-    // Default: capitalize first letter
-    if (vendor.isEmpty) return vendor;
-    return vendor[0].toUpperCase() + vendor.substring(1);
-  }
-
-  String _formatAscomVendor(String vendor) {
-    // Insert spaces before capital letters and numbers
-    final spaced = vendor.replaceAllMapped(
-      RegExp(r'([a-z])([A-Z0-9])'),
-      (m) => '${m.group(1)} ${m.group(2)}',
-    );
-    return spaced;
-  }
-
-  String _capitalizeWord(String word) {
-    if (word.isEmpty) return word;
-    return word[0].toUpperCase() + word.substring(1).toLowerCase();
-  }
-
   bool _hasFilters() {
     if (widget.isEditing) {
       return _filterControllers.any((c) => c.text.trim().isNotEmpty);
@@ -1700,7 +1744,10 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
   List<Widget> _buildFilterOffsetRows() {
     // Get current filter names (from controllers if editing, otherwise from profile)
     final filterNames = widget.isEditing
-        ? _filterControllers.map((c) => c.text.trim()).where((f) => f.isNotEmpty).toList()
+        ? _filterControllers
+            .map((c) => c.text.trim())
+            .where((f) => f.isNotEmpty)
+            .toList()
         : widget.profile.filterNames;
 
     final filterNameWidth = widget.isMobile ? 100.0 : 120.0;
@@ -1746,7 +1793,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                 width: inputWidth,
                 child: TextFormField(
                   controller: controller,
-                  keyboardType: const TextInputType.numberWithOptions(signed: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(signed: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                   ],
@@ -1775,7 +1823,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: widget.colors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: widget.colors.primary, width: 2),
                     ),
                   ),
                 ),
@@ -1912,7 +1961,8 @@ class _FieldCard extends StatelessWidget {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 hintText: hint,
                 hintStyle: TextStyle(color: colors.textMuted),
                 suffixText: suffix,
@@ -1996,7 +2046,8 @@ class _BinningSelector extends StatelessWidget {
                         color: value == i ? colors.primary : Colors.transparent,
                         borderRadius: BorderRadius.horizontal(
                           left: i == 1 ? const Radius.circular(5) : Radius.zero,
-                          right: i == 4 ? const Radius.circular(5) : Radius.zero,
+                          right:
+                              i == 4 ? const Radius.circular(5) : Radius.zero,
                         ),
                       ),
                       child: Center(
@@ -2005,7 +2056,9 @@ class _BinningSelector extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: value == i ? Colors.white : colors.textSecondary,
+                            color: value == i
+                                ? colors.background
+                                : colors.textSecondary,
                           ),
                         ),
                       ),
@@ -2031,18 +2084,21 @@ class _FilterChip extends StatelessWidget {
 
   Color _getFilterColor(String name) {
     final lowerName = name.toLowerCase();
-    if (lowerName.contains('red') || lowerName == 'r' || lowerName == 'ha' || lowerName.contains('h-alpha')) {
-      return Colors.red;
+    if (lowerName.contains('red') ||
+        lowerName == 'r' ||
+        lowerName == 'ha' ||
+        lowerName.contains('h-alpha')) {
+      return const Color(0xFFEF4444);
     } else if (lowerName.contains('green') || lowerName == 'g') {
-      return Colors.green;
+      return const Color(0xFF22C55E);
     } else if (lowerName.contains('blue') || lowerName == 'b') {
-      return Colors.blue;
+      return const Color(0xFF3B82F6);
     } else if (lowerName.contains('lum') || lowerName == 'l') {
-      return Colors.grey;
+      return const Color(0xFFA1A1AA);
     } else if (lowerName.contains('oiii') || lowerName.contains('o3')) {
-      return Colors.cyan;
+      return const Color(0xFF06B6D4);
     } else if (lowerName.contains('sii') || lowerName.contains('s2')) {
-      return Colors.orange;
+      return const Color(0xFFF97316);
     }
     return colors.primary;
   }
@@ -2050,7 +2106,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final filterColor = _getFilterColor(name);
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -2293,4 +2349,3 @@ class _EditableField extends StatelessWidget {
     );
   }
 }
-

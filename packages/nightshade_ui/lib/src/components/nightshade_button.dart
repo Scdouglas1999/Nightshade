@@ -161,7 +161,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>()!;
+    final colorScheme = theme.colorScheme;
     final isDisabled = widget.onPressed == null || widget.isLoading;
 
     // Determine colors based on variant
@@ -174,24 +176,22 @@ class _NightshadeButtonState extends State<NightshadeButton>
     switch (widget.variant) {
       case ButtonVariant.primary:
         baseColor = isDisabled
-            ? colors.primary
-                .withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            ? colors.surfaceAlt
             : _isPressed
                 ? _darkenColor(colors.primary, 0.1)
                 : colors.primary;
-        foregroundColor = Colors.white;
-        borderColor = Colors.transparent;
+        foregroundColor = isDisabled ? colors.textMuted : colorScheme.onPrimary;
+        borderColor = isDisabled ? colors.border : Colors.transparent;
         useGradient = !isDisabled && !_isPressed;
         showGlow = _isHovered && !isDisabled && !_isPressed;
       case ButtonVariant.destructive:
         baseColor = isDisabled
-            ? colors.error
-                .withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            ? colors.surfaceAlt
             : _isPressed
                 ? _darkenColor(colors.error, 0.1)
                 : colors.error;
-        foregroundColor = Colors.white;
-        borderColor = Colors.transparent;
+        foregroundColor = isDisabled ? colors.textMuted : colorScheme.onError;
+        borderColor = isDisabled ? colors.border : Colors.transparent;
         useGradient = !isDisabled && !_isPressed;
         showGlow = _isHovered && !isDisabled && !_isPressed;
       case ButtonVariant.outline:

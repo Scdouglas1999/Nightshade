@@ -72,7 +72,7 @@ class _ErrorDialogState extends State<ErrorDialog> {
       child: AlertDialog(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
         ),
         title: Semantics(
@@ -133,7 +133,9 @@ class _ErrorDialogState extends State<ErrorDialog> {
                 const SizedBox(height: 16),
                 Semantics(
                   button: true,
-                  label: _showDetails ? 'Hide technical details' : 'Show technical details',
+                  label: _showDetails
+                      ? 'Hide technical details'
+                      : 'Show technical details',
                   child: InkWell(
                     onTap: () => setState(() => _showDetails = !_showDetails),
                     borderRadius: BorderRadius.circular(8),
@@ -205,16 +207,11 @@ class _ErrorDialogState extends State<ErrorDialog> {
           Semantics(
             button: true,
             label: 'Close error dialog',
-            child: TextButton(
+            child: NightshadeButton(
+              label: 'Close',
               onPressed: widget.onDismiss,
-              style: TextButton.styleFrom(
-                foregroundColor: colors.textMuted,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              child: const Text('Close'),
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.medium,
             ),
           ),
 

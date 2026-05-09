@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'plugin_api.dart';
 import 'plugin_context.dart';
@@ -92,7 +93,14 @@ class PluginInfo {
 /// - Error handling and recovery
 class PluginHost {
   final Map<String, LoadedPlugin> _plugins = {};
-  final PluginContextFactory _contextFactory = PluginContextFactory();
+  final PluginContextFactory _contextFactory;
+  final Duration _lifecycleTimeout;
+
+  PluginHost({
+    PluginContextFactory? contextFactory,
+    Duration lifecycleTimeout = const Duration(seconds: 5),
+  })  : _contextFactory = contextFactory ?? PluginContextFactory(),
+        _lifecycleTimeout = lifecycleTimeout;
 
   /// Get all loaded plugins
   List<NightshadePlugin> get plugins =>
@@ -160,7 +168,7 @@ class PluginHost {
 
     try {
       // Call onLoad lifecycle method
-      await plugin.onLoad(context);
+      await _runLifecycle(plugin, context, 'onLoad', () => plugin.onLoad(context));
 
       // Store loaded plugin
       _plugins[plugin.id] = LoadedPlugin(
@@ -171,7 +179,7 @@ class PluginHost {
 
       // Call onEnable if starting enabled
       if (enabled) {
-        await plugin.onEnable();
+        await _runLifecycle(plugin, context, 'onEnable', plugin.onEnable);
       }
 
       context.logger.info('Plugin registered successfully');
@@ -200,11 +208,21 @@ class PluginHost {
     try {
       // Disable if enabled
       if (loaded.enabled) {
-        await loaded.plugin.onDisable();
+        await _runLifecycle(
+          loaded.plugin,
+          loaded.context,
+          'onDisable',
+          loaded.plugin.onDisable,
+        );
       }
 
       // Unload plugin
-      await loaded.plugin.onUnload();
+      await _runLifecycle(
+        loaded.plugin,
+        loaded.context,
+        'onUnload',
+        loaded.plugin.onUnload,
+      );
 
       loaded.context.logger.info('Plugin unregistered successfully');
     } catch (e, stackTrace) {
@@ -233,10 +251,20 @@ class PluginHost {
 
     try {
       if (enabled) {
-        await loaded.plugin.onEnable();
+        await _runLifecycle(
+          loaded.plugin,
+          loaded.context,
+          'onEnable',
+          loaded.plugin.onEnable,
+        );
         loaded.context.logger.info('Plugin enabled');
       } else {
-        await loaded.plugin.onDisable();
+        await _runLifecycle(
+          loaded.plugin,
+          loaded.context,
+          'onDisable',
+          loaded.plugin.onDisable,
+        );
         loaded.context.logger.info('Plugin disabled');
       }
 
@@ -277,6 +305,46 @@ class PluginHost {
 
     _contextFactory.dispose();
     _plugins.clear();
+  }
+
+  Future<void> _runLifecycle(
+    NightshadePlugin plugin,
+    PluginContext context,
+    String phase,
+    Future<void> Function() action,
+  ) async {
+    final completer = Completer<void>();
+
+    runZonedGuarded(() async {
+      try {
+        await action();
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      }
+    }, (error, stackTrace) {
+      if (!completer.isCompleted) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+
+    try {
+      await completer.future.timeout(_lifecycleTimeout);
+    } on TimeoutException catch (error) {
+      context.logger.error(
+        'Plugin lifecycle timed out during $phase',
+        error,
+      );
+      throw PluginException(
+        'Plugin ${plugin.id} timed out during $phase after '
+        '${_lifecycleTimeout.inSeconds}s',
+        error,
+      );
+    }
   }
 }
 

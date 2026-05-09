@@ -1,0 +1,184 @@
+{
+  "generatedAt": "2026-05-06T14:38:13.927557Z",
+  "decision": "NOT_READY",
+  "ready": false,
+  "passedCount": 18,
+  "blockerCount": 7,
+  "checks": [
+    {
+      "id": "production_analyzer",
+      "label": "Production analyzer",
+      "passed": true,
+      "evidence": "docs/production-readiness/analyzer-rollup.json",
+      "detail": "Production analyzer errors=0 warnings=0."
+    },
+    {
+      "id": "placeholder_audit",
+      "label": "Placeholder audit",
+      "passed": true,
+      "evidence": ".audit_highrisk.txt",
+      "detail": "High-risk marker hits=0."
+    },
+    {
+      "id": "fail_closed",
+      "label": "Fail-closed policy",
+      "passed": true,
+      "evidence": "docs/production-readiness/fail-closed-audit.json",
+      "detail": "Fail-closed violations=0."
+    },
+    {
+      "id": "ui_consistency",
+      "label": "UI consistency audit",
+      "passed": true,
+      "evidence": "docs/production-readiness/ui-consistency-audit.json; .ui_consistency_audit.txt",
+      "detail": "findings=203 blockingFindings=0 rawButtonStyle=0 largeRadius=0 emptyCallback=0 fakeCallback=0 stubCallback=0 headlessRouteNotAdvertised=0 designSystemGalleryReady=true designSystemGalleryMissing=0 semanticRawMaterialColors=0 intentionalImageOverlayColors=203."
+    },
+    {
+      "id": "developer_quality",
+      "label": "Developer quality audit",
+      "passed": true,
+      "evidence": "docs/production-readiness/developer-quality-audit.json",
+      "detail": "issues=0 ui_consistency: passed=true metrics=findingCount=203,blockingFindingCount=0,rawButtonStyle=0,largeRadius=0,emptyCallback=0,fakeCallback=0,stubCallback=0,headlessRouteNotAdvertised=0,designSystemGalleryReady=true,designSystemGalleryMissing=0,rawMaterialColor=203,semanticRawMaterialColor=0,intentionalImageOverlayColor=203 headless_api_contract: passed=true metrics=registeredRouteCount=295,advertisedRouteCount=295,openApiOperationCount=293,networkBackendRouteCount=255,networkBackendMissingOnServer=0,openApiMetadataCoverage=9/9,webSocketContractCoverage=4/4,networkBackendContractCoverage=3/3,versionNegotiationCoverage=10/10 headless_route_policy: passed=true metrics=issueCount=0,highRiskPolicyCount=19,defaultLimitedPolicyCount=9,ordinaryReadLimited=false,fileBrowseAuditAction=file_browse,bodyLimitRouteCount=6,bodyLimitedApiWriteRouteCount=161,serverMiddlewareTestCount=4 headless_response_helpers: passed=true metrics=issueCount=0,rawResponseCallCount=2,intentionalRawResponseCallCount=2,unclassifiedRawResponseCallCount=0,jsonContentTypeCount=1,helperImportCount=26,helperCallCount=759 oversized_files: passed=true metrics=scannedFileCount=716,warningFileCount=65,criticalFileCount=16,prioritySplitCandidateCount=6,warningLineLimit=1000,criticalLineLimit=2500,releaseBlocking=false structured_logging: passed=true metrics=requiredFileCount=4,missingTextCount=0,requestCorrelationFieldsRequired=true,auditCorrelationFieldsRequired=true,networkBackendCorrelationRequired=true."
+    },
+    {
+      "id": "windows_bundle",
+      "label": "Windows bundle audit",
+      "passed": true,
+      "evidence": "docs/production-readiness/windows-bundle-audit.json",
+      "detail": "bundle=apps/desktop/build/windows/x64/runner/Release files=57 missingRequired=0 disallowed=0."
+    },
+    {
+      "id": "dependency_hygiene",
+      "label": "Dependency hygiene",
+      "passed": true,
+      "evidence": "docs/production-readiness/dependency-hygiene.json",
+      "detail": "packages=10 violations=0."
+    },
+    {
+      "id": "headless_api_contract",
+      "label": "Headless API contract",
+      "passed": true,
+      "evidence": "docs/production-readiness/headless-api-contract-audit.json",
+      "detail": "registered=295 advertised=295 advertisedHttp=293 openApiPaths=270 networkBackendRoutes=255 registeredNotAdvertised=0 advertisedNotRegistered=0 networkBackendMissingOnServer=0 advertisedHttpMissingOpenApi=0 openApiMetadataCoverage=9/9 webSocketContractCoverage=4/4 versionNegotiationCoverage=10/10."
+    },
+    {
+      "id": "headless_route_policy",
+      "label": "Headless route policy",
+      "passed": true,
+      "evidence": "docs/production-readiness/headless-route-policy-audit.json",
+      "detail": "issues=0 bodyLimitRoutes=6 highRiskPolicies=19 defaultLimitedPolicies=9 ordinaryReadLimited=false fileBrowseAuditAction=file_browse serverMiddlewareTests=4/4."
+    },
+    {
+      "id": "headless_response_helpers",
+      "label": "Headless JSON response helpers",
+      "passed": true,
+      "evidence": "docs/production-readiness/headless-response-helper-audit.json",
+      "detail": "issues=0 helperMissing=0 testMissing=0 rawResponseCalls=2 intentionalRawResponseCalls=2 unclassifiedRawResponseCalls=0 jsonContentTypeMentions=1 helperImports=26 helperCalls=759. Remaining raw responses are classified stream, attachment, binary, static asset, or preflight behavior."
+    },
+    {
+      "id": "docs_links",
+      "label": "Docs local links",
+      "passed": true,
+      "evidence": "docs/production-readiness/docs-link-audit.json",
+      "detail": "Markdown files=117 checkedLocalLinks=145 brokenLocalLinks=0."
+    },
+    {
+      "id": "release_docs",
+      "label": "Release documentation coverage",
+      "passed": true,
+      "evidence": "docs/production-readiness/release-docs-audit.json",
+      "detail": "documents=6 issues=0."
+    },
+    {
+      "id": "platform_capabilities",
+      "label": "Platform capability clarity",
+      "passed": true,
+      "evidence": "docs/production-readiness/platform-capability-audit.json",
+      "detail": "files=13 issues=0. ASCOM/Alpaca/INDI/native capability model, headless API exposure, settings UI, backend selector gating, docs, and tests are aligned."
+    },
+    {
+      "id": "public_release_self_tests",
+      "label": "Public release verifier self-tests",
+      "passed": true,
+      "evidence": "docs/production-readiness/public-release-self-tests.json",
+      "detail": "passed=true selfTests=25 expected=25 passedCount=25 failedCount=0 failedScripts=."
+    },
+    {
+      "id": "release_staging",
+      "label": "Clean release branch / PR staging",
+      "passed": false,
+      "evidence": "docs/production-readiness/release-staging-audit.json; docs/production-readiness/release-pr-split-plan.json; docs/production-readiness/release-pr-staged-branch-validation.json",
+      "detail": "branch=main entryCount=913 untrackedReleaseCritical=336. Split plan buckets=10 pathspecFiles=10 pathspecLines=913 uniquePathspecLines=913. Split-plan pathspec coverage is exact. Staged-branch validation mode=index passed=false observed=7 issues=1 warnings=2 matrixSourceMatches=true pathspecs=10. A clean non-main release branch/PR is still required."
+    },
+    {
+      "id": "linux_release_workflow",
+      "label": "Linux release workflow automation",
+      "passed": true,
+      "evidence": "docs/production-readiness/linux-release-workflow-audit.json",
+      "detail": "issues=0 workflowExists=true workflowMissing=0 metadataToolExists=true metadataToolMissing=0 ciRecipeExists=true ciRecipeMissing=0 packageSha256=true perFileSha256=true sourceGitHead=true githubRunContext=true schemaVersion=true toolVersions=true sha256Sidecar=true checkout=true timeoutMinutes=true failOnMissingArtifacts=true artifactRetention=true recipeRuntimeSmokeGate=true. This verifies automation wiring and the CI recipe only; a real Linux workflow run remains required."
+    },
+    {
+      "id": "linux_release_build",
+      "label": "Linux release build/package evidence",
+      "passed": false,
+      "evidence": "docs/production-readiness/linux-environment-probe.json; docs/production-readiness/public-release-external-evidence.json",
+      "detail": "Linux build environment is unavailable on this host; validated Linux release build/package evidence is missing. External evidence validator did not pass for docs/production-readiness/linux-release-build-evidence.json. Template: docs/production-readiness/external-evidence-templates/linux-release-build-evidence.template.json. Evidence file is missing or is not valid JSON."
+    },
+    {
+      "id": "hardware_control_smoke",
+      "label": "Full hardware/control smoke",
+      "passed": false,
+      "evidence": "docs/production-readiness/hardware-availability-probe.json; docs/production-readiness/public-release-external-evidence.json",
+      "detail": "Required real-or-simulator classes missing on this host: filterWheel, rotator, dome, safetyMonitor. Non-simulator gaps: filterWheel, rotator, dome, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON."
+    },
+    {
+      "id": "synthetic_migration_regression",
+      "label": "Synthetic migration regression coverage",
+      "passed": true,
+      "evidence": "docs/production-readiness/migration-regression-audit.json",
+      "detail": "issues=0 fixtureMissing=0 testMissing=0 manualProbeMissing=0 manualRealArtifactGatePreserved=true. Real older-profile migration remains a separate blocker."
+    },
+    {
+      "id": "manual_migration",
+      "label": "Older real profile/database migration",
+      "passed": false,
+      "evidence": "docs/production-readiness/manual-migration-probe.json",
+      "detail": "artifactProvided=false sourceExists=false sourceSizeBytes=0 sourceSha256Recorded=false copiedSourceSha256Matches=false qualifiesAsOlderProfile=false migrationVerified=false expectedTableCount=0 migratedTableCount=0 defaultSettingCount=0 missingTables=0 missingDefaultSettings=0."
+    },
+    {
+      "id": "mobile_remote_smoke",
+      "label": "Android emulator remote smoke",
+      "passed": true,
+      "evidence": "docs/production-readiness/android-emulator-remote-smoke-log.txt, docs/production-readiness/android-emulator-remote-smoke.png, docs/production-readiness/mobile-remote-window-connected.xml",
+      "detail": "Android emulator remote smoke artifacts are present."
+    },
+    {
+      "id": "mobile_reconnect_smoke",
+      "label": "Android emulator reconnect smoke",
+      "passed": true,
+      "evidence": "docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt",
+      "detail": "Reconnect log exists; reconnect markers present=true."
+    },
+    {
+      "id": "second_device_lan_firewall",
+      "label": "Second-device LAN/firewall smoke",
+      "passed": false,
+      "evidence": "docs/production-readiness/public-release-external-evidence.json; docs/production-readiness/public-release-audit-report.md; docs/production-readiness/public-release-master-checklist.md",
+      "detail": "No validated artifact proves access from a second physical device/browser through the real firewall/router path. External evidence validator did not pass for docs/production-readiness/second-device-lan-firewall-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/second-device-lan-firewall-smoke-evidence.template.json. Evidence file is missing or is not valid JSON."
+    },
+    {
+      "id": "real_remote_control_actions",
+      "label": "Real remote-control actions",
+      "passed": false,
+      "evidence": "docs/production-readiness/public-release-external-evidence.json; docs/production-readiness/hardware-availability-probe.json; docs/production-readiness/public-release-audit-report.md",
+      "detail": "No validated artifact proves actual remote control actions against real or simulator-backed devices. External evidence validator did not pass for docs/production-readiness/real-remote-control-actions-evidence.json. Template: docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json. Evidence file is missing or is not valid JSON."
+    },
+    {
+      "id": "final_checklist",
+      "label": "Final release checklist/sign-off",
+      "passed": false,
+      "evidence": "docs/production-readiness/public-release-master-checklist.md; docs/production-readiness/public-release-checklist-audit.json; docs/production-readiness/public-release-external-evidence.json",
+      "detail": "Checklist items=284 checked=0 unchecked=284 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON."
+    }
+  ]
+}

@@ -28,10 +28,12 @@ class AnnotationCatalogDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<AnnotationCatalogDialog> createState() => _AnnotationCatalogDialogState();
+  ConsumerState<AnnotationCatalogDialog> createState() =>
+      _AnnotationCatalogDialogState();
 }
 
-class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialog> {
+class _AnnotationCatalogDialogState
+    extends ConsumerState<AnnotationCatalogDialog> {
   AnnotationPackage _selectedPackage = AnnotationPackage.standard;
   bool _isDownloading = false;
   double _progress = 0;
@@ -80,7 +82,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
     });
 
     try {
-      setState(() => _statusMessage = 'Downloading HyperLEDA Galaxy Catalog...');
+      setState(
+          () => _statusMessage = 'Downloading HyperLEDA Galaxy Catalog...');
 
       final success = await CatalogManager.instance.downloadAnnotationCatalog(
         package: _selectedPackage,
@@ -124,7 +127,7 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
         width: 550,
         padding: const EdgeInsets.all(32),
@@ -139,7 +142,7 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     LucideIcons.tag,
@@ -154,10 +157,11 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                     children: [
                       Text(
                         'Annotation Catalog',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -191,13 +195,17 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                     style: TextStyle(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
-                  _buildFeatureRow(colors, LucideIcons.search, 'Deep object identification'),
+                  _buildFeatureRow(
+                      colors, LucideIcons.search, 'Deep object identification'),
                   const SizedBox(height: 8),
-                  _buildFeatureRow(colors, LucideIcons.mousePointerClick, 'Click-to-identify any object'),
+                  _buildFeatureRow(colors, LucideIcons.mousePointerClick,
+                      'Click-to-identify any object'),
                   const SizedBox(height: 8),
-                  _buildFeatureRow(colors, LucideIcons.database, 'HyperLEDA galaxy database'),
+                  _buildFeatureRow(colors, LucideIcons.database,
+                      'HyperLEDA galaxy database'),
                   const SizedBox(height: 8),
-                  _buildFeatureRow(colors, LucideIcons.sparkles, 'Messier & NGC/IC catalog enrichment'),
+                  _buildFeatureRow(colors, LucideIcons.sparkles,
+                      'Messier & NGC/IC catalog enrichment'),
                 ],
               ),
             ),
@@ -213,8 +221,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                 ),
               ),
               const SizedBox(height: 12),
-              ...AnnotationPackage.values.map((package) =>
-                _buildPackageOption(colors, package)),
+              ...AnnotationPackage.values
+                  .map((package) => _buildPackageOption(colors, package)),
               const SizedBox(height: 24),
             ],
 
@@ -259,18 +267,23 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: colors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: colors.error.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(LucideIcons.alertCircle, color: Colors.red, size: 20),
+                    Icon(
+                      LucideIcons.alertCircle,
+                      color: colors.error,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                        style: TextStyle(color: colors.error, fontSize: 13),
                       ),
                     ),
                   ],
@@ -293,7 +306,9 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                 const SizedBox(width: 12),
                 NightshadeButton(
                   onPressed: _isDownloading ? null : _downloadCatalog,
-                  icon: _isDownloading ? LucideIcons.loader2 : LucideIcons.download,
+                  icon: _isDownloading
+                      ? LucideIcons.loader2
+                      : LucideIcons.download,
                   label: _isDownloading ? 'Downloading...' : 'Download',
                   isLoading: _isDownloading,
                 ),
@@ -321,7 +336,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
     );
   }
 
-  Widget _buildPackageOption(NightshadeColors colors, AnnotationPackage package) {
+  Widget _buildPackageOption(
+      NightshadeColors colors, AnnotationPackage package) {
     final isSelected = _selectedPackage == package;
     final description = _getPackageDescription(package);
     final sizeMB = _getPackageSizeMB(package);
@@ -358,7 +374,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                   Row(
                     children: [
                       Text(
-                        package.name[0].toUpperCase() + package.name.substring(1),
+                        package.name[0].toUpperCase() +
+                            package.name.substring(1),
                         style: TextStyle(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
@@ -367,7 +384,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
                           borderRadius: BorderRadius.circular(4),
@@ -383,7 +401,8 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
                           borderRadius: BorderRadius.circular(4),

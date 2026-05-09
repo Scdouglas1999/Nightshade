@@ -70,12 +70,16 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Toggle favorite status
   Future<void> toggleFavorite(int id) async {
-    final target = await getTargetById(id);
-    if (target != null) {
-      await (update(targets)..where((t) => t.id.equals(id))).write(
-        TargetsCompanion(isFavorite: Value(!target.isFavorite)),
-      );
-    }
+    await customStatement(
+      '''
+      UPDATE targets
+      SET
+        is_favorite = CASE is_favorite WHEN 1 THEN 0 ELSE 1 END,
+        updated_at = ?
+      WHERE id = ?
+      ''',
+      [DateTime.now().millisecondsSinceEpoch ~/ 1000, id],
+    );
   }
 
   /// Update imaging progress
@@ -83,6 +87,7 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     int id, {
     int? capturedSubs,
     double? totalIntegrationSecs,
+    double? goalIntegrationSecs,
     String? filterProgress,
   }) async {
     final updates = TargetsCompanion(
@@ -91,12 +96,26 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
       totalIntegrationSecs: totalIntegrationSecs != null
           ? Value(totalIntegrationSecs)
           : const Value.absent(),
+      goalIntegrationSecs: goalIntegrationSecs != null
+          ? Value(goalIntegrationSecs)
+          : const Value.absent(),
       filterProgress:
           filterProgress != null ? Value(filterProgress) : const Value.absent(),
       updatedAt: Value(DateTime.now()),
     );
 
     await (update(targets)..where((t) => t.id.equals(id))).write(updates);
+  }
+
+  /// Set the target's multi-night integration goal in seconds.
+  Future<void> setGoalIntegrationSecs(
+      int id, double goalIntegrationSecs) async {
+    await (update(targets)..where((t) => t.id.equals(id))).write(
+      TargetsCompanion(
+        goalIntegrationSecs: Value(goalIntegrationSecs),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   /// Get targets ordered by priority
@@ -136,7 +155,7 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     final lstDeg =
         _localSiderealTimeDegrees(atUtc: atUtc, longitudeDeg: longitudeDeg);
     final raDeg = raHours * 15.0;
-    final hourAngleDeg = _normalizeDegrees(lstDeg - raDeg);
+    final hourAngleDeg = _normalizeHa(lstDeg - raDeg);
 
     final latRad = latitudeDeg * math.pi / 180.0;
     final decRad = decDeg * math.pi / 180.0;
@@ -153,7 +172,7 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     required double longitudeDeg,
   }) {
     final gmstDeg = _greenwichMeanSiderealTimeDegrees(atUtc);
-    return _normalizeDegrees(gmstDeg + longitudeDeg);
+    return _normalizeLst(gmstDeg + longitudeDeg);
   }
 
   double _greenwichMeanSiderealTimeDegrees(DateTime atUtc) {
@@ -163,7 +182,7 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
         360.98564736629 * (jd - 2451545.0) +
         0.000387933 * t * t -
         (t * t * t) / 38710000.0;
-    return _normalizeDegrees(gmst);
+    return _normalizeLst(gmst);
   }
 
   double _julianDate(DateTime atUtc) {
@@ -191,10 +210,18 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
         1524.5;
   }
 
-  double _normalizeDegrees(double value) {
-    var normalized = value % 360.0;
-    if (normalized < -180.0) normalized += 360.0;
-    if (normalized > 180.0) normalized -= 360.0;
-    return normalized;
+  /// Normalize an angle into [0, 360) — appropriate for LST and GMST.
+  double _normalizeLst(double degrees) {
+    var n = degrees % 360.0;
+    if (n < 0) n += 360.0;
+    return n;
+  }
+
+  /// Normalize an angle into [-180, 180] — appropriate for hour angle.
+  double _normalizeHa(double degrees) {
+    var n = degrees % 360.0;
+    if (n < 0) n += 360.0;
+    if (n > 180) n -= 360.0;
+    return n;
   }
 }

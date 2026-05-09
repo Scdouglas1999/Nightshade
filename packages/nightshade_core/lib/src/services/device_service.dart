@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
@@ -17,6 +16,7 @@ import '../providers/current_screen_provider.dart';
 import 'smart_notification_service.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
+import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../models/sequence/sequence_models.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
@@ -95,6 +95,7 @@ class DeviceService {
   StreamSubscription? _eventSubscription;
   Timer? _temperaturePollingTimer;
   String? _connectedCameraId;
+  int _temperaturePollingGeneration = 0;
   Timer? _warmingTimer;
   bool _warmingCancelled = false;
 
@@ -105,6 +106,15 @@ class DeviceService {
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
 
+  /// Tracks the last applied filter focus offset so that filter changes apply
+  /// delta adjustments (remove old offset, apply new offset) rather than
+  /// cumulative offsets.
+  int _lastAppliedFilterOffset = 0;
+
+  /// Guard against concurrent autofocus runs. Only one AF can run at a time
+  /// since the focuser and camera are shared hardware resources.
+  bool _isAutofocusRunning = false;
+
   DeviceService(this._ref, this._backend) {
     _initEventListening();
   }
@@ -112,28 +122,37 @@ class DeviceService {
   /// Start polling camera temperature every 5 seconds
   void _startTemperaturePolling(String deviceId) {
     _connectedCameraId = deviceId;
+    final generation = ++_temperaturePollingGeneration;
     _temperaturePollingTimer?.cancel();
     _temperaturePollingTimer =
         Timer.periodic(const Duration(seconds: 5), (_) async {
-      await _pollCameraTemperature();
+      await _pollCameraTemperature(deviceId, generation);
     });
     // Poll immediately on start
-    _pollCameraTemperature();
+    unawaited(_pollCameraTemperature(deviceId, generation));
   }
 
   /// Stop temperature polling
   void _stopTemperaturePolling() {
+    _temperaturePollingGeneration++;
     _temperaturePollingTimer?.cancel();
     _temperaturePollingTimer = null;
     _connectedCameraId = null;
   }
 
   /// Poll camera temperature and update providers
-  Future<void> _pollCameraTemperature() async {
-    if (_connectedCameraId == null) return;
+  Future<void> _pollCameraTemperature(String deviceId, int generation) async {
+    if (_connectedCameraId != deviceId ||
+        _temperaturePollingGeneration != generation) {
+      return;
+    }
 
     try {
-      final status = await _backend.getCameraStatus(_connectedCameraId!);
+      final status = await _backend.getCameraStatus(deviceId);
+      if (_connectedCameraId != deviceId ||
+          _temperaturePollingGeneration != generation) {
+        return;
+      }
 
       // Use typed CameraStatus accessors
       final temp = status.sensorTemp;
@@ -163,6 +182,10 @@ class DeviceService {
             );
       }
     } catch (e) {
+      if (_connectedCameraId != deviceId ||
+          _temperaturePollingGeneration != generation) {
+        return;
+      }
       // Log polling errors for debugging
       try {
         final logger = _ref.read(loggingServiceProvider);
@@ -1226,40 +1249,43 @@ class DeviceService {
     final notifier = _ref.read(cameraStateProvider.notifier);
     final state = _ref.read(cameraStateProvider);
 
-    // Use the connected device's ID from state, not the profile
-    final deviceId = state.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      // Stop heartbeat monitoring
-      try {
-        await _backend.stopDeviceHeartbeat(deviceId);
+    try {
+      // Use the connected device's ID from state, not the profile
+      final deviceId = state.deviceId;
+      if (deviceId != null && deviceId.isNotEmpty) {
+        // Stop heartbeat monitoring
+        try {
+          await _backend.stopDeviceHeartbeat(deviceId);
 
-        // Log successful heartbeat stop
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Stopped heartbeat monitoring for Camera ($deviceId)',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
+          // Log successful heartbeat stop
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.info(
+              'Stopped heartbeat monitoring for Camera ($deviceId)',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
+        } catch (e) {
+          // Ignore errors during cleanup but log them
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Error stopping heartbeat monitoring for Camera ($deviceId): $e',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
         }
-      } catch (e) {
-        // Ignore errors during cleanup but log them
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Error stopping heartbeat monitoring for Camera ($deviceId): $e',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
-        }
+
+        // Disconnect device
+        await _backend.disconnectDevice(DeviceType.camera, deviceId);
       }
-
-      // Disconnect device
-      await _backend.disconnectDevice(DeviceType.camera, deviceId);
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a mount
@@ -1343,42 +1369,45 @@ class DeviceService {
     final notifier = _ref.read(mountStateProvider.notifier);
     final state = _ref.read(mountStateProvider);
 
-    // Use the connected device's ID from state, not the profile
-    final deviceId = state.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      // Stop heartbeat monitoring
-      try {
-        await _backend.stopDeviceHeartbeat(deviceId);
+    try {
+      // Use the connected device's ID from state, not the profile
+      final deviceId = state.deviceId;
+      if (deviceId != null && deviceId.isNotEmpty) {
+        // Stop heartbeat monitoring
+        try {
+          await _backend.stopDeviceHeartbeat(deviceId);
 
-        // Log successful heartbeat stop
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Stopped heartbeat monitoring for Mount ($deviceId)',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
+          // Log successful heartbeat stop
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.info(
+              'Stopped heartbeat monitoring for Mount ($deviceId)',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
+        } catch (e) {
+          // Ignore errors during cleanup but log them
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Error stopping heartbeat monitoring for Mount ($deviceId): $e',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
         }
-      } catch (e) {
-        // Ignore errors during cleanup but log them
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Error stopping heartbeat monitoring for Mount ($deviceId): $e',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
-        }
+
+        await _backend.disconnectDevice(
+          DeviceType.mount,
+          deviceId,
+        );
       }
-
-      await _backend.disconnectDevice(
-        DeviceType.mount,
-        deviceId,
-      );
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a focuser
@@ -1421,20 +1450,24 @@ class DeviceService {
     final notifier = _ref.read(focuserStateProvider.notifier);
     final state = _ref.read(focuserStateProvider);
 
-    // Use the connected device's ID from state, not the profile
-    final deviceId = state.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      await _backend.disconnectDevice(
-        DeviceType.focuser,
-        deviceId,
-      );
+    try {
+      // Use the connected device's ID from state, not the profile
+      final deviceId = state.deviceId;
+      if (deviceId != null && deviceId.isNotEmpty) {
+        await _backend.disconnectDevice(
+          DeviceType.focuser,
+          deviceId,
+        );
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a filter wheel
   Future<void> connectFilterWheel(String deviceId) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
+    final logger = _ref.read(loggingServiceProvider);
 
     // Derive a friendly name from the device ID without running discovery.
     // Discovery opens/closes hardware (e.g. ZWO EFW via native SDK) which
@@ -1458,20 +1491,29 @@ class DeviceService {
       const pollDelay = Duration(milliseconds: 500);
 
       status = await _backend.getFilterWheelStatus(deviceId);
-      debugPrint(
-          '[DeviceService] connectFilterWheel poll #0: position=${status.position}, moving=${status.moving}');
+      logger.debug(
+        'Filter wheel poll #0: position=${status.position}, '
+        'moving=${status.moving}',
+        source: 'DeviceService',
+      );
 
       // Keep polling while position is -1 (moving/initializing)
       while (status.position < 0 && pollAttempts < maxPolls) {
         pollAttempts++;
         await Future.delayed(pollDelay);
         status = await _backend.getFilterWheelStatus(deviceId);
-        debugPrint(
-            '[DeviceService] connectFilterWheel poll #$pollAttempts: position=${status.position}, moving=${status.moving}');
+        logger.debug(
+          'Filter wheel poll #$pollAttempts: position=${status.position}, '
+          'moving=${status.moving}',
+          source: 'DeviceService',
+        );
       }
 
-      debugPrint(
-          '[DeviceService] connectFilterWheel: final status - ${status.filterNames.length} filter names: ${status.filterNames}, position: ${status.position}');
+      logger.debug(
+        'Filter wheel final status: ${status.filterNames.length} filter '
+        'names=${status.filterNames}, position=${status.position}',
+        source: 'DeviceService',
+      );
 
       notifier.setConnected(
         filterNames: status.filterNames,
@@ -1500,15 +1542,18 @@ class DeviceService {
   Future<void> _syncFilterNamesToDriver(
       String deviceId, List<String> driverNames) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
+    final logger = _ref.read(loggingServiceProvider);
 
     try {
       // Priority 1: Check active profile filter names
       final activeProfile = _ref.read(activeEquipmentProfileProvider);
       if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
         final profileFilterNames = activeProfile.filterNames;
-        debugPrint(
-            '[DeviceService] Profile has ${profileFilterNames.length} filter names, '
-            'driver has ${driverNames.length} slots');
+        logger.debug(
+          'Profile has ${profileFilterNames.length} filter names; '
+          'driver has ${driverNames.length} slots',
+          source: 'DeviceService',
+        );
 
         // Pad or trim profile names to match the wheel's actual slot count
         final List<String> syncedNames;
@@ -1517,8 +1562,11 @@ class DeviceService {
             ...profileFilterNames,
             ...driverNames.sublist(profileFilterNames.length),
           ];
-          debugPrint(
-              '[DeviceService] Padded profile names to ${syncedNames.length}: $syncedNames');
+          logger.debug(
+            'Padded profile filter names to ${syncedNames.length}: '
+            '$syncedNames',
+            source: 'DeviceService',
+          );
         } else if (profileFilterNames.length > driverNames.length &&
             driverNames.isNotEmpty) {
           syncedNames = profileFilterNames.sublist(0, driverNames.length);
@@ -1532,17 +1580,21 @@ class DeviceService {
         );
 
         notifier.setConnected(filterNames: syncedNames);
-        debugPrint(
-            '[DeviceService] Profile filter names synced: $syncedNames');
+        logger.debug(
+          'Profile filter names synced: $syncedNames',
+          source: 'DeviceService',
+        );
         return;
       }
 
       // Priority 2: Check session filter names
       final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
       if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
-        debugPrint(
-            '[DeviceService] Session has ${sessionFilterNames.length} filter names, '
-            'driver has ${driverNames.length} slots');
+        logger.debug(
+          'Session has ${sessionFilterNames.length} filter names; '
+          'driver has ${driverNames.length} slots',
+          source: 'DeviceService',
+        );
 
         // Pad or trim session names to match the wheel's actual slot count
         final List<String> syncedNames;
@@ -1564,17 +1616,24 @@ class DeviceService {
         );
 
         notifier.setConnected(filterNames: syncedNames);
-        debugPrint(
-            '[DeviceService] Session filter names synced: $syncedNames');
+        logger.debug(
+          'Session filter names synced: $syncedNames',
+          source: 'DeviceService',
+        );
         return;
       }
 
       // Priority 3: Use driver-reported names (already set, no sync needed)
-      debugPrint(
-          '[DeviceService] No profile or session filter names - using driver-reported names');
+      logger.debug(
+        'No profile or session filter names; using driver-reported names',
+        source: 'DeviceService',
+      );
     } catch (e) {
       // Don't fail connection if filter name sync fails - log the error
-      debugPrint('[DeviceService] Failed to sync filter names: $e');
+      logger.warning(
+        'Failed to sync filter names: $e',
+        source: 'DeviceService',
+      );
     }
   }
 
@@ -1613,23 +1672,30 @@ class DeviceService {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
     final state = _ref.read(filterWheelStateProvider);
 
-    // Use the connected device's ID from state, not the profile
-    final deviceId = state.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      await _backend.disconnectDevice(
-        DeviceType.filterWheel,
-        deviceId,
-      );
+    try {
+      // Use the connected device's ID from state, not the profile
+      final deviceId = state.deviceId;
+      if (deviceId != null && deviceId.isNotEmpty) {
+        await _backend.disconnectDevice(
+          DeviceType.filterWheel,
+          deviceId,
+        );
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a guider
   Future<void> connectGuider(String deviceId) async {
     final notifier = _ref.read(guiderStateProvider.notifier);
+    final isPhd2 = deviceId == 'phd2_guider' ||
+        deviceId == 'phd2' ||
+        deviceId.startsWith('phd2:') ||
+        deviceId.startsWith('phd2://');
 
     // Special handling for PHD2 guider - uses different connection method
-    if (deviceId == 'phd2_guider') {
+    if (isPhd2) {
       notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
       try {
         final settings = await _ref.read(appSettingsProvider.future);
@@ -1668,20 +1734,26 @@ class DeviceService {
     final notifier = _ref.read(guiderStateProvider.notifier);
     final state = _ref.read(guiderStateProvider);
 
-    // Use the connected device's ID from state, not the profile
-    final deviceId = state.deviceId;
-    if (deviceId != null && deviceId.isNotEmpty) {
-      // Special handling for PHD2
-      if (deviceId == 'phd2_guider') {
-        await _backend.phd2Disconnect();
-      } else {
-        await _backend.disconnectDevice(
-          DeviceType.guider,
-          deviceId,
-        );
+    try {
+      // Use the connected device's ID from state, not the profile
+      final deviceId = state.deviceId;
+      if (deviceId != null && deviceId.isNotEmpty) {
+        // Special handling for PHD2
+        if (deviceId == 'phd2_guider' ||
+            deviceId == 'phd2' ||
+            deviceId.startsWith('phd2:') ||
+            deviceId.startsWith('phd2://')) {
+          await _backend.phd2Disconnect();
+        } else {
+          await _backend.disconnectDevice(
+            DeviceType.guider,
+            deviceId,
+          );
+        }
       }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a dome
@@ -1709,10 +1781,13 @@ class DeviceService {
   Future<void> disconnectDome() async {
     final notifier = _ref.read(domeStateProvider.notifier);
     final state = _ref.read(domeStateProvider);
-    if (state.deviceId != null) {
-      await _backend.disconnectDevice(DeviceType.dome, state.deviceId!);
+    try {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(DeviceType.dome, state.deviceId!);
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a weather device
@@ -1740,10 +1815,13 @@ class DeviceService {
   Future<void> disconnectWeather() async {
     final notifier = _ref.read(weatherStateProvider.notifier);
     final state = _ref.read(weatherStateProvider);
-    if (state.deviceId != null) {
-      await _backend.disconnectDevice(DeviceType.weather, state.deviceId!);
+    try {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(DeviceType.weather, state.deviceId!);
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a safety monitor
@@ -1771,11 +1849,14 @@ class DeviceService {
   Future<void> disconnectSafetyMonitor() async {
     final notifier = _ref.read(safetyMonitorStateProvider.notifier);
     final state = _ref.read(safetyMonitorStateProvider);
-    if (state.deviceId != null) {
-      await _backend.disconnectDevice(
-          DeviceType.safetyMonitor, state.deviceId!);
+    try {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(
+            DeviceType.safetyMonitor, state.deviceId!);
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a rotator
@@ -1803,10 +1884,13 @@ class DeviceService {
   Future<void> disconnectRotator() async {
     final notifier = _ref.read(rotatorStateProvider.notifier);
     final state = _ref.read(rotatorStateProvider);
-    if (state.deviceId != null) {
-      await _backend.disconnectDevice(DeviceType.rotator, state.deviceId!);
+    try {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(DeviceType.rotator, state.deviceId!);
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect to a cover calibrator (flat panel)
@@ -1834,11 +1918,14 @@ class DeviceService {
   Future<void> disconnectCoverCalibrator() async {
     final notifier = _ref.read(coverCalibratorStateProvider.notifier);
     final state = _ref.read(coverCalibratorStateProvider);
-    if (state.deviceId != null) {
-      await _backend.disconnectDevice(
-          DeviceType.coverCalibrator, state.deviceId!);
+    try {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(
+            DeviceType.coverCalibrator, state.deviceId!);
+      }
+    } finally {
+      notifier.setDisconnected();
     }
-    notifier.setDisconnected();
   }
 
   /// Connect all devices from a profile
@@ -2087,6 +2174,58 @@ class DeviceService {
     mountNotifier.setSlewing(false);
   }
 
+  /// Slew mount to horizontal (alt/az) coordinates
+  Future<void> slewMountToAltAz(double altitude, double azimuth) async {
+    final deviceId = await _getMountDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No mount connected');
+    }
+
+    final mountNotifier = _ref.read(mountStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
+    mountNotifier.setSlewing(true);
+    operationsNotifier.startOperation(
+      type: OperationType.slewToTarget,
+      description:
+          'Slewing to Alt ${altitude.toStringAsFixed(1)}, Az ${azimuth.toStringAsFixed(1)}',
+      canCancel: true,
+    );
+
+    try {
+      await _backend.mountSlewAltAz(deviceId, altitude, azimuth);
+      mountNotifier.setParked(false);
+    } finally {
+      mountNotifier.setSlewing(false);
+      operationsNotifier.completeOperation(OperationType.slewToTarget);
+    }
+  }
+
+  /// Find mount home position
+  Future<void> findMountHome() async {
+    final deviceId = await _getMountDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No mount connected');
+    }
+
+    final mountNotifier = _ref.read(mountStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
+    mountNotifier.setSlewing(true);
+    operationsNotifier.startOperation(
+      type: OperationType.slewToTarget,
+      description: 'Finding mount home position',
+    );
+
+    try {
+      await _backend.mountFindHome(deviceId);
+      mountNotifier.setParked(false);
+    } finally {
+      mountNotifier.setSlewing(false);
+      operationsNotifier.completeOperation(OperationType.slewToTarget);
+    }
+  }
+
   /// Pulse guide the mount in a given direction for a duration
   Future<void> pulseGuidMount({
     required String direction,
@@ -2273,15 +2412,174 @@ class DeviceService {
     }
   }
 
+  // ===========================================================================
+  // Rotator Control
+  // ===========================================================================
+
+  /// Get the connected rotator device ID.
+  /// First checks the currently connected rotator state, then falls back to active profile.
+  Future<String?> _getRotatorDeviceId() async {
+    final rotatorState = _ref.read(rotatorStateProvider);
+    if (rotatorState.connectionState == DeviceConnectionState.connected &&
+        rotatorState.deviceId != null &&
+        rotatorState.deviceId!.isNotEmpty) {
+      return rotatorState.deviceId;
+    }
+
+    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
+    final activeProfile = await profilesDao.getActiveProfile();
+    return activeProfile?.rotatorId;
+  }
+
+  /// Move rotator to an absolute angle (0-360 degrees).
+  Future<void> moveRotatorTo(double angle) async {
+    final deviceId = await _getRotatorDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No rotator connected');
+    }
+
+    final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
+    rotatorNotifier.setMoving(true);
+    operationsNotifier.startOperation(
+      type: OperationType.rotatorMove,
+      description: 'Moving rotator to ${angle.toStringAsFixed(1)}°',
+    );
+
+    try {
+      await _backend.rotatorMoveTo(deviceId, angle);
+      // Poll until movement completes
+      await _verifyRotatorPosition(deviceId: deviceId, targetAngle: angle);
+    } finally {
+      rotatorNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.rotatorMove);
+    }
+  }
+
+  /// Move rotator by a relative angle (degrees).
+  Future<void> moveRotatorRelative(double delta) async {
+    final deviceId = await _getRotatorDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No rotator connected');
+    }
+
+    final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
+    final direction = delta > 0 ? 'CW' : 'CCW';
+    rotatorNotifier.setMoving(true);
+    operationsNotifier.startOperation(
+      type: OperationType.rotatorMove,
+      description: 'Rotating ${delta.abs().toStringAsFixed(1)}° $direction',
+    );
+
+    try {
+      // Get current angle to compute target for verification
+      final currentAngle = await _backend.rotatorGetAngle(deviceId);
+      final targetAngle = (currentAngle + delta) % 360.0;
+
+      await _backend.rotatorMoveRelative(deviceId, delta);
+      await _verifyRotatorPosition(
+          deviceId: deviceId, targetAngle: targetAngle);
+    } finally {
+      rotatorNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.rotatorMove);
+    }
+  }
+
+  /// Halt rotator movement.
+  Future<void> haltRotator() async {
+    final deviceId = await _getRotatorDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No rotator connected');
+    }
+
+    final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+
+    try {
+      await _backend.rotatorHalt(deviceId);
+      // Query actual angle from device after halt
+      final angle = await _backend.rotatorGetAngle(deviceId);
+      rotatorNotifier.updatePosition(angle);
+    } finally {
+      rotatorNotifier.setMoving(false);
+    }
+  }
+
+  /// Verify rotator reached target angle with polling and timeout.
+  ///
+  /// Polls the rotator angle every 500ms until it reaches the target
+  /// (within 0.5 degree tolerance). Times out after 120 seconds.
+  static const Duration _rotatorMoveTimeout = Duration(seconds: 120);
+  static const Duration _rotatorMovePollInterval = Duration(milliseconds: 500);
+
+  Future<void> _verifyRotatorPosition({
+    required String deviceId,
+    required double targetAngle,
+  }) async {
+    final deadline = DateTime.now().add(_rotatorMoveTimeout);
+    final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+
+    while (true) {
+      final status = await _backend.getRotatorStatus(deviceId);
+      rotatorNotifier.updatePosition(status.position,
+          mechanicalPosition: status.mechanicalPosition);
+      rotatorNotifier.setMoving(status.moving);
+
+      // Check if we're within tolerance (handle wraparound at 0/360)
+      final diff = (status.position - targetAngle).abs();
+      final wrappedDiff = (360.0 - diff).abs();
+      final effectiveDiff = diff < wrappedDiff ? diff : wrappedDiff;
+
+      if (effectiveDiff < 0.5) {
+        rotatorNotifier.setMoving(false);
+        return;
+      }
+
+      // Check if rotator stopped moving but hasn't reached target (stall)
+      if (!status.moving && effectiveDiff >= 0.5) {
+        throw Exception(
+          'Rotator stalled at ${status.position.toStringAsFixed(1)}°, '
+          'target was ${targetAngle.toStringAsFixed(1)}° '
+          '(diff: ${effectiveDiff.toStringAsFixed(1)}°).',
+        );
+      }
+
+      if (DateTime.now().isAfter(deadline)) {
+        throw Exception(
+          'Rotator did not reach ${targetAngle.toStringAsFixed(1)}° within '
+          '${_rotatorMoveTimeout.inSeconds}s '
+          '(last reported angle: ${status.position.toStringAsFixed(1)}°).',
+        );
+      }
+
+      await Future.delayed(_rotatorMovePollInterval);
+    }
+  }
+
   /// Run autofocus routine
-  /// Returns full autofocus result including focus curve data
+  ///
+  /// When [useSettingsDefaults] is true (the default), the persisted autofocus
+  /// settings from [appSettingsProvider] are used. The explicit parameters serve
+  /// as overrides only when [useSettingsDefaults] is false.
+  ///
+  /// If `afDisableGuidingDuringAf` is enabled in settings, guiding is
+  /// paused before the AF run and resumed afterwards.
   Future<AutofocusResult> runAutofocus({
     required double exposureTime,
     required int stepSize,
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    bool useSettingsDefaults = true,
   }) async {
+    if (_isAutofocusRunning) {
+      throw Exception(
+          'Autofocus is already running. Wait for it to complete before starting another.');
+    }
+    _isAutofocusRunning = true;
+
     final focuserDeviceId = await _getFocuserDeviceId();
     if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
       throw Exception('No focuser connected');
@@ -2293,26 +2591,124 @@ class DeviceService {
       throw Exception('No camera connected');
     }
 
+    // Resolve effective AF parameters from settings or explicit values
+    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+
+    final double effectiveExposureTime;
+    final int effectiveStepSize;
+    final int effectiveStepsOut;
+    final String effectiveMethod;
+    final int effectiveBinning;
+    final String effectiveCurveFitting;
+    final int effectiveNumberOfAttempts;
+    final int effectiveExposuresPerPoint;
+    final double effectiveRSquaredThreshold;
+    final double effectiveOuterCropRatio;
+    final double effectiveInnerCropRatio;
+    final int effectiveUseBrightestNStars;
+    final int effectiveFocuserSettleTimeMs;
+    final String effectiveBacklashCompMethod;
+    final int effectiveBacklashIn;
+    final int effectiveBacklashOut;
+    final bool disableGuidingDuringAf;
+
+    if (useSettingsDefaults && appSettings == null) {
+      // Settings not yet loaded from DB — don't silently fall back to hardcoded
+      // defaults because the user's persisted configuration would be ignored.
+      throw Exception(
+          'Cannot run autofocus with settings defaults: AppSettings not yet loaded. '
+          'Wait for the app to finish initializing before running autofocus.');
+    }
+
+    if (useSettingsDefaults && appSettings != null) {
+      effectiveExposureTime = appSettings.afExposureTime;
+      effectiveStepSize = appSettings.afStepSize;
+      effectiveStepsOut = appSettings.afInitialOffsetSteps;
+      effectiveMethod = appSettings.afMethod;
+      effectiveBinning = appSettings.afBinning;
+      effectiveCurveFitting = appSettings.afCurveFitting;
+      effectiveNumberOfAttempts = appSettings.afNumberOfAttempts;
+      effectiveExposuresPerPoint = appSettings.afExposuresPerPoint;
+      effectiveRSquaredThreshold = appSettings.afRSquaredThreshold;
+      effectiveOuterCropRatio = appSettings.afOuterCropRatio;
+      effectiveInnerCropRatio = appSettings.afInnerCropRatio;
+      effectiveUseBrightestNStars = appSettings.afUseBrightestNStars;
+      effectiveFocuserSettleTimeMs = appSettings.afFocuserSettleTimeMs;
+      effectiveBacklashCompMethod = appSettings.afBacklashCompMethod;
+      effectiveBacklashIn = appSettings.afBacklashIn;
+      effectiveBacklashOut = appSettings.afBacklashOut;
+      disableGuidingDuringAf = appSettings.afDisableGuidingDuringAf;
+    } else {
+      effectiveExposureTime = exposureTime;
+      effectiveStepSize = stepSize;
+      effectiveStepsOut = stepsOut;
+      effectiveMethod = method;
+      effectiveBinning = binning;
+      effectiveCurveFitting = 'Hyperbolic';
+      effectiveNumberOfAttempts = 1;
+      effectiveExposuresPerPoint = 1;
+      effectiveRSquaredThreshold = 0.7;
+      effectiveOuterCropRatio = 1.0;
+      effectiveInnerCropRatio = 0.0;
+      effectiveUseBrightestNStars = 0;
+      effectiveFocuserSettleTimeMs = 500;
+      effectiveBacklashCompMethod = 'Overshoot';
+      effectiveBacklashIn = 350;
+      effectiveBacklashOut = 0;
+      disableGuidingDuringAf = false;
+    }
+
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
 
     focuserNotifier.setMoving(true);
     operationsNotifier.startOperation(
       type: OperationType.autofocus,
-      description: 'Running autofocus ($method)',
+      description: 'Running autofocus ($effectiveMethod)',
       currentStep: 'Initializing...',
       canCancel: true,
     );
+
+    // Pause guiding if configured and guiding is active
+    final guiderState = _ref.read(guiderStateProvider);
+    final wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
+    if (wasGuiding) {
+      try {
+        final loggingService = _ref.read(loggingServiceProvider);
+        loggingService.info(
+          'Pausing guiding for autofocus run',
+          source: 'DeviceService',
+        );
+        await stopGuiding();
+      } catch (e) {
+        final loggingService = _ref.read(loggingServiceProvider);
+        loggingService.warning(
+          'Failed to pause guiding before autofocus: $e',
+          source: 'DeviceService',
+        );
+      }
+    }
 
     try {
       final result = await _backend.autofocusStart(
         deviceId: focuserDeviceId,
         cameraId: cameraDeviceId,
-        exposureTime: exposureTime,
-        stepSize: stepSize,
-        stepsOut: stepsOut,
-        method: method,
-        binning: binning,
+        exposureTime: effectiveExposureTime,
+        stepSize: effectiveStepSize,
+        stepsOut: effectiveStepsOut,
+        method: effectiveMethod,
+        binning: effectiveBinning,
+        curveFitting: effectiveCurveFitting,
+        numberOfAttempts: effectiveNumberOfAttempts,
+        exposuresPerPoint: effectiveExposuresPerPoint,
+        rSquaredThreshold: effectiveRSquaredThreshold,
+        outerCropRatio: effectiveOuterCropRatio,
+        innerCropRatio: effectiveInnerCropRatio,
+        useBrightestNStars: effectiveUseBrightestNStars,
+        focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
+        backlashCompMethod: effectiveBacklashCompMethod,
+        backlashIn: effectiveBacklashIn,
+        backlashOut: effectiveBacklashOut,
       );
 
       // Smart notification for autofocus completion
@@ -2329,8 +2725,27 @@ class DeviceService {
 
       return result;
     } finally {
+      _isAutofocusRunning = false;
       focuserNotifier.setMoving(false);
       operationsNotifier.completeOperation(OperationType.autofocus);
+
+      // Resume guiding if it was paused
+      if (wasGuiding) {
+        try {
+          final loggingService = _ref.read(loggingServiceProvider);
+          loggingService.info(
+            'Resuming guiding after autofocus run',
+            source: 'DeviceService',
+          );
+          await startGuiding();
+        } catch (e) {
+          final loggingService = _ref.read(loggingServiceProvider);
+          loggingService.warning(
+            'Failed to resume guiding after autofocus: $e',
+            source: 'DeviceService',
+          );
+        }
+      }
     }
   }
 
@@ -2360,10 +2775,7 @@ class DeviceService {
   /// Changes the filter wheel to the specified position and automatically
   /// applies focus offset if configured for the selected filter.
   Future<void> setFilterWheelPosition(int position) async {
-    debugPrint(
-        '[DeviceService] setFilterWheelPosition called with position: $position');
     final deviceId = await _getFilterWheelDeviceId();
-    debugPrint('[DeviceService] Filter wheel deviceId: $deviceId');
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No filter wheel connected');
     }
@@ -2386,10 +2798,12 @@ class DeviceService {
 
     try {
       // Move the filter wheel
-      debugPrint(
-          '[DeviceService] Calling backend.filterWheelSetPosition($deviceId, $position)');
+      _ref.read(loggingServiceProvider).debug(
+            'Changing filter wheel $deviceId to $filterName '
+            '(position $position)',
+            source: 'DeviceService',
+          );
       await _backend.filterWheelSetPosition(deviceId, position);
-      debugPrint('[DeviceService] Backend call completed, verifying position');
 
       await _verifyFilterWheelPosition(
         deviceId: deviceId,
@@ -2458,12 +2872,34 @@ class DeviceService {
   ///
   /// Checks if there's a configured offset for this filter and moves
   /// the focuser accordingly. This is called automatically by setFilterWheelPosition.
+  /// Respects the `useFilterFocusOffsets` toggle from AppSettings.
+  ///
+  /// Uses delta-based offset application: when switching from filter A to
+  /// filter B, the focuser is moved by (B_offset - A_offset) rather than
+  /// cumulative addition, preventing drift over multiple filter changes.
+  ///
+  /// Per-filter autofocus config `focusOffset` values from AppSettings take
+  /// precedence over the general filter offset provider values.
   Future<void> _applyFilterFocusOffset(String filterName) async {
     try {
+      // Check if filter focus offsets are enabled in settings.
+      // If settings haven't loaded yet, skip offsets (fail closed) rather than
+      // applying offsets the user may have disabled.
+      final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+      if (appSettings == null || !appSettings.useFilterFocusOffsets) {
+        final loggingService = _ref.read(loggingServiceProvider);
+        loggingService.debug(
+          appSettings == null
+              ? 'Filter focus offsets skipped: settings not yet loaded for "$filterName"'
+              : 'Filter focus offsets disabled in settings, skipping offset for "$filterName"',
+          source: 'DeviceService',
+        );
+        return;
+      }
+
       // Check if focuser is connected
       final focuserDeviceId = await _getFocuserDeviceId();
       if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
-        // No focuser connected, skip offset application
         return;
       }
 
@@ -2473,18 +2909,36 @@ class DeviceService {
         return;
       }
 
-      // Get filter offset
-      final filterOffsetState = _ref.read(filterOffsetProvider);
-      final offset = filterOffsetState.offsets[filterName];
+      // Resolve the effective offset for this filter.
+      // Per-filter AF config focusOffset takes precedence if set.
+      int newOffset = 0;
 
-      if (offset == null || offset == 0) {
-        // No offset configured for this filter
+      final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
+          appSettings.afFilterSettingsJson);
+      final perFilterConfig = afFilterSettings[filterName];
+      if (perFilterConfig != null && perFilterConfig.focusOffset != 0) {
+        newOffset = perFilterConfig.focusOffset;
+      } else {
+        final filterOffsetState = _ref.read(filterOffsetProvider);
+        newOffset = filterOffsetState.offsets[filterName] ?? 0;
+      }
+
+      // Calculate delta from last applied offset
+      final delta = newOffset - _lastAppliedFilterOffset;
+
+      if (delta == 0) {
+        // No movement needed
+        final loggingService = _ref.read(loggingServiceProvider);
+        loggingService.debug(
+          'Filter "$filterName" offset ($newOffset) same as previous, no focuser move needed',
+          source: 'DeviceService',
+        );
         return;
       }
 
-      // Move focuser by the offset amount
+      // Move focuser by the delta amount
       final currentPosition = focuserState.position ?? 0;
-      final targetPosition = currentPosition + offset;
+      final targetPosition = currentPosition + delta;
 
       final focuserNotifier = _ref.read(focuserStateProvider.notifier);
       focuserNotifier.setMoving(true);
@@ -2492,19 +2946,24 @@ class DeviceService {
       try {
         await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
         focuserNotifier.updatePosition(targetPosition);
+        _lastAppliedFilterOffset = newOffset;
 
-        // Log the offset application
         final loggingService = _ref.read(loggingServiceProvider);
         loggingService.info(
-            'Applied focus offset for filter "$filterName": $offset steps (moved to position $targetPosition)');
+          'Applied focus offset for filter "$filterName": delta=$delta steps '
+          '(offset=$newOffset, moved to position $targetPosition)',
+          source: 'DeviceService',
+        );
       } finally {
         focuserNotifier.setMoving(false);
       }
     } catch (e) {
       // Don't fail filter change if focus offset fails
       final loggingService = _ref.read(loggingServiceProvider);
-      loggingService
-          .error('Failed to apply focus offset for filter "$filterName": $e');
+      loggingService.error(
+        'Failed to apply focus offset for filter "$filterName": $e',
+        source: 'DeviceService',
+      );
     }
   }
 

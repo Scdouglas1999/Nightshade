@@ -1,0 +1,120 @@
+Yes. Here’s the remaining work I’d put on the board, as exhaustively as I can without inventing fake blockers.
+
+**P0 Before Public Release**
+- Create a clean release branch/PR from the dirty worktree so the final artifact is reviewable.
+- Split generated/binary/native changes from Dart/UI changes where possible.
+- Do a Linux release build on an actual Linux environment, not inferred from Windows.
+- Run a full hardware smoke pass with real or simulator-backed camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety devices.
+- Verify upgrade/migration from an older Nightshade profile/database.
+- Verify headless auth, LAN opt-in, dashboard, mobile remote client, and WebSocket reconnect behavior together.
+- Produce a release checklist with “known unsupported by platform” items clearly documented.
+
+**UI Consistency**
+- Replace remaining hand-styled `ElevatedButton.styleFrom`, `OutlinedButton.styleFrom`, `FilledButton.styleFrom`, and raw `ButtonStyle` islands with shared `NightshadeButton` or theme defaults.
+- Audit all raw `Colors.green/red/blue/orange/purple/white/black` usages and classify them as either “semantic theme color” or “intentional image/overlay color.”
+- Reduce rounded cards/panels still using `12`, `16`, or `20` radius where they are ordinary tool surfaces.
+- Make dashboard, imaging, sequencer, equipment, planetarium, analytics, settings, and headless dashboard share the same density rules.
+- Review red-night mode screen by screen; some image/sky overlays may still use non-red accents.
+- Standardize empty states, error panels, loading states, disabled states, and “not connected” states.
+- Standardize modal widths, dialog headers, footer button order, and destructive action treatment.
+- Check long labels and translated text in compact panels.
+- Add a small design-system gallery/snapshot test page for buttons, cards, inputs, tabs, chips, alerts, and status pills.
+
+**Headless And Remote**
+- Add automated contract tests for every `NetworkBackend` endpoint against `HeadlessApiServer`.
+- Add OpenAPI or generated API docs from the route table.
+- Add version negotiation between mobile/remote clients and headless server.
+- Add graceful “server too old/new” errors.
+- Add request body size limits beyond backup upload, especially image-processing JSON payloads.
+- Add per-endpoint rate limiting for control APIs exposed over LAN.
+- Add audit logging for high-risk remote commands: slew, park, unpark, restore backup, file browsing, device connect, sequence start.
+- Add role/scoped tokens eventually: view-only, imaging-control, admin.
+- Add stronger WebSocket heartbeat/reconnect semantics.
+- Add a headless self-test endpoint that reports backend, platform, device-driver availability, storage paths, and auth mode.
+
+**Platform Parity**
+- Clearly label ASCOM as Windows-only in UI, docs, and remote capability responses.
+- Verify INDI feature parity for camera, mount, focuser, filter wheel, rotator, dome, weather, cover/calibrator.
+- Verify Alpaca parity against multiple vendor implementations.
+- Audit native vendor SDK availability by OS: ZWO, QHY, Player One, ToupTek, Moravian, Atik, DSLR/gphoto2, etc.
+- Ensure unavailable platform features degrade to disabled controls, not runtime errors.
+- Add a platform capability matrix in-app, not only in docs.
+- Verify Linux packaging includes required native libraries and udev/group instructions.
+- Verify Windows package includes all DLLs and VC/runtime dependencies.
+- Add macOS support status clarity if not targeting it yet.
+
+**Hardware Workflows**
+- Add connection preflight: driver reachable, device not busy, clock/location set, storage writable.
+- Add optical train validation: camera pixel size, focal length, rotator, filter offsets, guider relationship.
+- Add safer mount command confirmation near horizon, sun/moon, pier side/meridian edge cases.
+- Improve disconnect recovery for every device type, including partial disconnects.
+- Add per-device command timeout settings.
+- Add device capability probing cache invalidation.
+- Improve “simulator mode” so every main workflow can be rehearsed without hardware.
+- Add profile import/export and profile diff tools.
+- Add conflict detection when two clients try to control the same rig.
+
+**Sequencer**
+- Expand validation before sequence start: missing devices, unsafe weather, invalid paths, target below horizon, meridian timing, filter mismatch.
+- Add richer recovery UX for interrupted sequences.
+- Add sequence dry-run mode.
+- Add better visual timeline conflict warnings.
+- Add reusable condition/action blocks comparable to advanced NINA sequences.
+- Add target rotation/framing verification steps.
+- Add autofocus/dither/meridian flip summaries after each run.
+- Add run history with “why did it stop?” diagnostics.
+
+**Imaging And Processing**
+- Replace large JSON image payload paths with binary streaming or server-side processing handles.
+- Add backpressure/cancellation for long image operations.
+- Add stronger memory cleanup around image caches and last-capture buffers.
+- Add debayer/stretch/HFR/star-detection performance benchmarks.
+- Add calibration-frame library matching improvements.
+- Add bad-frame rejection policy controls.
+- Improve live stacking status, rejection reasons, and calibration state.
+- Add more complete FITS/XISF metadata verification.
+- Add thumbnail/cache invalidation rules.
+
+**Math And Astronomy**
+- Continue fuzz testing alt/az, rise/set, twilight, moon, airmass, mosaic, meridian, and WCS at poles/date boundaries.
+- Verify sidereal time and longitude sign conventions against external references.
+- Add atmospheric refraction options.
+- Add horizon profile support.
+- Add target constraints: altitude windows, moon separation, nautical/astro twilight, obstruction zones.
+- Add better polar alignment math documentation and edge-case handling.
+- Add plate-solve centering convergence guardrails.
+
+**Competitor-Parity Features**
+- Advanced sequencer blocks like loops, conditionals, switches, triggers, recovery branches.
+- Framing assistant with survey image download/cache, rotation assistant, mosaic panel visualization.
+- Three-point polar alignment equivalent.
+- Flat wizard with panel/device automation and dark-flat handling.
+- Autofocus trend model with temperature/filter/backlash compensation.
+- Weather/safety integration with automatic pause/park/roof logic.
+- Plugin marketplace/discovery UX.
+- Observation planning calendar and multi-night target scheduler.
+- Equipment profile wizard and first-night guided setup.
+- Session report export suitable for troubleshooting and sharing.
+- Remote/mobile “night watch” mode with notifications and emergency stop.
+
+**Performance And Code Quality**
+- Break up very large Dart files such as big screen widgets and `NetworkBackend`.
+- Move repeated JSON response parsing into typed helpers.
+- Add generated client/server API contract types.
+- Centralize headless response/error helpers more aggressively.
+- Remove remaining duplicated logic between desktop headless, WebRTC server, network backend, and dashboard JS.
+- Add structured logging with correlation IDs through backend calls.
+- Add performance tracing for capture, download, save, solve, autofocus, and sequence steps.
+- Add lint rules preventing raw colors, fake empty callbacks, and unaudited API routes.
+- Keep generated files out of human review diffs where practical.
+
+**Docs And Release UX**
+- Write “supported hardware by platform” docs.
+- Write “headless secure setup” docs.
+- Write “first imaging run” guide.
+- Write migration/backup/restore guide.
+- Add troubleshooting pages for INDI, Alpaca, ASCOM, PHD2, permissions, drivers, and firewall.
+- Add a public release notes template.
+- Add a known limitations page.
+
+The short version: I’d ship the current app after live platform/hardware verification, but these are the things I’d keep grinding down to make it feel less like a powerful beta and more like a calm, professional rig-control product.

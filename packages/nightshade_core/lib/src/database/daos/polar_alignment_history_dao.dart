@@ -38,7 +38,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   /// If [profileId] is null, returns all history entries.
   /// Results are ordered by completion time, most recent first.
   Future<List<PolarAlignmentHistoryEntry>> getHistoryForProfile(
-    String? profileId, {
+    int? profileId, {
     int limit = 20,
   }) {
     final query = select(polarAlignmentHistory)
@@ -53,7 +53,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Get the most recent alignment for a profile
-  Future<PolarAlignmentHistoryEntry?> getLastAlignment(String? profileId) async {
+  Future<PolarAlignmentHistoryEntry?> getLastAlignment(int? profileId) async {
     final query = select(polarAlignmentHistory)
       ..orderBy([(t) => OrderingTerm.desc(t.completedAt)])
       ..limit(1);
@@ -70,7 +70,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   ///
   /// Returns a stream that emits whenever the history changes.
   Stream<List<PolarAlignmentHistoryEntry>> watchHistory(
-    String? profileId, {
+    int? profileId, {
     int limit = 20,
   }) {
     final query = select(polarAlignmentHistory)
@@ -87,7 +87,7 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   /// Get alignment statistics for a profile
   ///
   /// Returns average initial and final errors, plus improvement percentage.
-  Future<PolarAlignmentStats?> getStats(String? profileId) async {
+  Future<PolarAlignmentStats?> getStats(int? profileId) async {
     final history = await getHistoryForProfile(profileId, limit: 100);
     if (history.isEmpty) return null;
 
@@ -125,44 +125,46 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Delete old history entries, keeping the most recent N per profile
   Future<void> pruneHistory({int keepPerProfile = 50}) async {
-    // Get distinct profile IDs
-    final profiles = await (selectOnly(polarAlignmentHistory, distinct: true)
-          ..addColumns([polarAlignmentHistory.equipmentProfileId]))
-        .map((row) => row.read(polarAlignmentHistory.equipmentProfileId))
-        .get();
+    await transaction(() async {
+      // Get distinct profile IDs
+      final profiles = await (selectOnly(polarAlignmentHistory, distinct: true)
+            ..addColumns([polarAlignmentHistory.equipmentProfileId]))
+          .map((row) => row.read(polarAlignmentHistory.equipmentProfileId))
+          .get();
 
-    for (final profileId in profiles) {
-      // Get IDs to keep for this profile
-      final query = select(polarAlignmentHistory)
-        ..orderBy([(t) => OrderingTerm.desc(t.completedAt)])
-        ..limit(keepPerProfile);
+      for (final profileId in profiles) {
+        // Get IDs to keep for this profile
+        final query = select(polarAlignmentHistory)
+          ..orderBy([(t) => OrderingTerm.desc(t.completedAt)])
+          ..limit(keepPerProfile);
 
-      if (profileId != null) {
-        query.where((t) => t.equipmentProfileId.equals(profileId));
-      } else {
-        query.where((t) => t.equipmentProfileId.isNull());
+        if (profileId != null) {
+          query.where((t) => t.equipmentProfileId.equals(profileId));
+        } else {
+          query.where((t) => t.equipmentProfileId.isNull());
+        }
+
+        final keepIds = await query.map((e) => e.id).get();
+
+        if (keepIds.isNotEmpty) {
+          // Delete entries not in keep list
+          await (delete(polarAlignmentHistory)
+                ..where((t) {
+                  if (profileId != null) {
+                    return t.equipmentProfileId.equals(profileId) &
+                        t.id.isNotIn(keepIds);
+                  } else {
+                    return t.equipmentProfileId.isNull() & t.id.isNotIn(keepIds);
+                  }
+                }))
+              .go();
+        }
       }
-
-      final keepIds = await query.map((e) => e.id).get();
-
-      if (keepIds.isNotEmpty) {
-        // Delete entries not in keep list
-        await (delete(polarAlignmentHistory)
-              ..where((t) {
-                if (profileId != null) {
-                  return t.equipmentProfileId.equals(profileId) &
-                      t.id.isNotIn(keepIds);
-                } else {
-                  return t.equipmentProfileId.isNull() & t.id.isNotIn(keepIds);
-                }
-              }))
-            .go();
-      }
-    }
+    });
   }
 
   /// Delete all history for a specific profile
-  Future<int> deleteHistoryForProfile(String profileId) {
+  Future<int> deleteHistoryForProfile(int profileId) {
     return (delete(polarAlignmentHistory)
           ..where((t) => t.equipmentProfileId.equals(profileId)))
         .go();

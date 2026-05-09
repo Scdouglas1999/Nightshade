@@ -143,8 +143,27 @@ pub async fn perform_polar_alignment(
                 tracing::warn!("Failed to slew to start position: {}", e);
                 // Continue anyway - user can manually position if needed
             } else {
-                // Wait for slew to complete
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                // Wait for slew to complete by polling mount_is_slewing
+                let slew_timeout = tokio::time::Instant::now() + Duration::from_secs(300);
+                loop {
+                    if let Some(result) = ctx.check_cancelled() {
+                        return result;
+                    }
+                    if !ctx
+                        .device_ops
+                        .mount_is_slewing(mount_id)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    if tokio::time::Instant::now() > slew_timeout {
+                        return InstructionResult::failure(
+                            "Slew to alignment start position timed out after 5 minutes",
+                        );
+                    }
+                    sleep(Duration::from_secs(1)).await;
+                }
             }
         }
     }
@@ -273,8 +292,27 @@ pub async fn perform_polar_alignment(
                     return InstructionResult::failure(format!("Failed to rotate mount: {}", e));
                 }
 
-                // Wait for slew to settle
-                sleep(Duration::from_secs(2)).await;
+                // Wait for slew to complete by polling mount_is_slewing
+                let slew_timeout = tokio::time::Instant::now() + Duration::from_secs(300);
+                loop {
+                    if let Some(result) = ctx.check_cancelled() {
+                        return result;
+                    }
+                    if !ctx
+                        .device_ops
+                        .mount_is_slewing(&mount_id)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    if tokio::time::Instant::now() > slew_timeout {
+                        return InstructionResult::failure(
+                            "Mount rotation for polar alignment timed out after 5 minutes",
+                        );
+                    }
+                    sleep(Duration::from_secs(1)).await;
+                }
             }
         }
     }
@@ -296,6 +334,17 @@ pub async fn perform_polar_alignment(
     let threshold_arcmin = threshold_arcsec / 60.0;
     let mut below_threshold_start: Option<std::time::Instant> = None;
     const AUTO_COMPLETE_HOLD_SECS: u64 = 3;
+    let (observer_latitude, observer_longitude) = match (ctx.latitude, ctx.longitude) {
+        (Some(lat), Some(lon)) => (lat, lon),
+        _ => match ctx.device_ops.get_observer_location() {
+            Some(location) => location,
+            None => {
+                return InstructionResult::failure(
+                    "Polar alignment requires observer latitude/longitude to calculate azimuth and altitude error",
+                );
+            }
+        },
+    };
 
     loop {
         if let Some(result) = ctx.check_cancelled() {
@@ -396,7 +445,16 @@ pub async fn perform_polar_alignment(
         let az_error_am = ra_error_deg * center_dec.to_radians().cos() * 60.0;
 
         // Total error uses Pythagorean theorem
-        let total_error_am = (az_error_am.powi(2) + alt_error_am.powi(2)).sqrt();
+        let _legacy_total_error_am = (az_error_am.powi(2) + alt_error_am.powi(2)).sqrt();
+
+        let (az_error_am, alt_error_am, total_error_am) = calculate_alignment_error_arcmin(
+            center_ra,
+            center_dec,
+            config.is_north,
+            observer_latitude,
+            observer_longitude,
+            chrono::Utc::now(),
+        );
 
         let result = PolarAlignResult {
             azimuth_error: az_error_am,
@@ -519,6 +577,73 @@ fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
     (center_ra, center_dec)
 }
 
+fn calculate_alignment_error_arcmin(
+    axis_ra_degrees: f64,
+    axis_dec_degrees: f64,
+    is_north: bool,
+    observer_latitude: f64,
+    observer_longitude: f64,
+    when: chrono::DateTime<chrono::Utc>,
+) -> (f64, f64, f64) {
+    let (axis_altitude, axis_azimuth) = equatorial_to_horizontal(
+        axis_ra_degrees,
+        axis_dec_degrees,
+        observer_latitude,
+        observer_longitude,
+        when,
+    );
+
+    let pole_altitude = if is_north {
+        observer_latitude
+    } else {
+        -observer_latitude
+    };
+    let pole_azimuth = if is_north { 0.0 } else { 180.0 };
+
+    let altitude_error_arcmin = (pole_altitude - axis_altitude) * 60.0;
+    let azimuth_error_arcmin = normalize_signed_angle_degrees(pole_azimuth - axis_azimuth) * 60.0;
+    let total_error_arcmin = (altitude_error_arcmin.powi(2) + azimuth_error_arcmin.powi(2)).sqrt();
+
+    (
+        azimuth_error_arcmin,
+        altitude_error_arcmin,
+        total_error_arcmin,
+    )
+}
+
+fn equatorial_to_horizontal(
+    ra_degrees: f64,
+    dec_degrees: f64,
+    observer_latitude: f64,
+    observer_longitude: f64,
+    when: chrono::DateTime<chrono::Utc>,
+) -> (f64, f64) {
+    let lst_hours = crate::local_sidereal_time(crate::julian_day(&when), observer_longitude);
+    let hour_angle_rad = ((lst_hours * 15.0) - ra_degrees).to_radians();
+    let dec_rad = dec_degrees.to_radians();
+    let lat_rad = observer_latitude.to_radians();
+
+    let altitude = (lat_rad.sin() * dec_rad.sin()
+        + lat_rad.cos() * dec_rad.cos() * hour_angle_rad.cos())
+    .asin();
+
+    let azimuth = (-hour_angle_rad.sin() * dec_rad.cos())
+        .atan2(dec_rad.sin() * lat_rad.cos() - dec_rad.cos() * lat_rad.sin() * hour_angle_rad.cos())
+        .to_degrees()
+        .rem_euclid(360.0);
+
+    (altitude.to_degrees(), azimuth)
+}
+
+fn normalize_signed_angle_degrees(angle_degrees: f64) -> f64 {
+    let wrapped = angle_degrees.rem_euclid(360.0);
+    if wrapped > 180.0 {
+        wrapped - 360.0
+    } else {
+        wrapped
+    }
+}
+
 /// Prepare image data for display by applying debayering (if color) and stretching,
 /// then encoding to JPEG format for efficient transmission to the UI.
 ///
@@ -597,6 +722,7 @@ pub fn prepare_image_for_display(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
 
     #[test]
     fn test_calculate_center_of_rotation() {
@@ -616,5 +742,16 @@ mod tests {
         // This corresponds to Dec = 89, RA = 0 (or 180 depending on definition).
 
         // Verify the simple case as a regression guard for the current math path.
+    }
+
+    #[test]
+    fn test_alignment_error_zero_at_true_pole() {
+        let when = chrono::Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let (az_error, alt_error, total_error) =
+            calculate_alignment_error_arcmin(123.0, 90.0, true, 45.0, -122.0, when);
+
+        assert!(az_error.abs() < 1e-6);
+        assert!(alt_error.abs() < 1e-6);
+        assert!(total_error.abs() < 1e-6);
     }
 }

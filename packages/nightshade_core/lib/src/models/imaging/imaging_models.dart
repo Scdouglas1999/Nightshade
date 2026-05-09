@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:equatable/equatable.dart';
 import 'dart:typed_data';
 
@@ -121,7 +123,20 @@ class ImageStats extends Equatable {
   }
 
   @override
-  List<Object?> get props => [hfr, fwhm, starCount, median, mean, stdDev, min, max, mad, snr, background, noise];
+  List<Object?> get props => [
+        hfr,
+        fwhm,
+        starCount,
+        median,
+        mean,
+        stdDev,
+        min,
+        max,
+        mad,
+        snr,
+        background,
+        noise
+      ];
 }
 
 /// Detected star information
@@ -171,7 +186,8 @@ class StarDetectionResult extends Equatable {
   });
 
   @override
-  List<Object?> get props => [stars, starCount, medianHfr, medianFwhm, medianSnr, background, noise];
+  List<Object?> get props =>
+      [stars, starCount, medianHfr, medianFwhm, medianSnr, background, noise];
 }
 
 /// Stretch parameters for image display
@@ -249,7 +265,16 @@ class ExposureSettings extends Equatable {
   }
 
   @override
-  List<Object?> get props => [exposureTime, gain, offset, binningX, binningY, filter, frameType, fastReadout];
+  List<Object?> get props => [
+        exposureTime,
+        gain,
+        offset,
+        binningX,
+        binningY,
+        filter,
+        frameType,
+        fastReadout
+      ];
 }
 
 /// Cooling settings
@@ -301,21 +326,27 @@ class CoolingStatus extends Equatable {
   });
 
   @override
-  List<Object?> get props => [currentTemp, targetTemp, coolerPower, isAtTarget, isCooling];
+  List<Object?> get props =>
+      [currentTemp, targetTemp, coolerPower, isAtTarget, isCooling];
 }
 
 /// Focus/Autofocus settings (persists across navigation)
 class FocusSettings extends Equatable {
   /// Manual focus step size
   final int stepSize;
+
   /// Autofocus method
   final String method;
+
   /// Autofocus step size
   final int afStepSize;
+
   /// Number of steps out from center
   final int stepsOut;
+
   /// Exposures per focus point
   final int exposuresPerPoint;
+
   /// Exposure time for autofocus
   final double exposureTime;
 
@@ -347,17 +378,21 @@ class FocusSettings extends Equatable {
   }
 
   @override
-  List<Object?> get props => [stepSize, method, afStepSize, stepsOut, exposuresPerPoint, exposureTime];
+  List<Object?> get props =>
+      [stepSize, method, afStepSize, stepsOut, exposuresPerPoint, exposureTime];
 }
 
 /// Dither/Settle settings for guiding (persists across navigation)
 class DitherSettings extends Equatable {
   /// Dither amount in pixels
   final double ditherAmount;
+
   /// Settle threshold in pixels
   final double settlePixels;
+
   /// Settle time in seconds
   final double settleTime;
+
   /// Whether to settle after dither
   final bool settleAfterDither;
 
@@ -383,13 +418,15 @@ class DitherSettings extends Equatable {
   }
 
   @override
-  List<Object?> get props => [ditherAmount, settlePixels, settleTime, settleAfterDither];
+  List<Object?> get props =>
+      [ditherAmount, settlePixels, settleTime, settleAfterDither];
 }
 
 /// Slew coordinates for mount tab (persists across navigation)
 class SlewCoordinates extends Equatable {
   /// Right Ascension in hours
   final String raText;
+
   /// Declination in degrees
   final String decText;
 
@@ -488,14 +525,15 @@ extension ImageFileFormatSettingsX on ImageFileFormat {
 class CapturedImageData extends Equatable {
   final int width;
   final int height;
-  final Uint8List displayData;  // Always RGBA (width*height*4), alpha=255
+  final Uint8List displayData; // Always RGBA (width*height*4), alpha=255
   final List<int> histogram;
   final ImageStats stats;
   final DateTime capturedAt;
   final ExposureSettings settings;
   final String? targetName;
   final String? filePath;
-  final bool isColor;  // true if source was color (RGB), false if grayscale — displayData is always RGBA
+  final bool
+      isColor; // true if source was color (RGB), false if grayscale — displayData is always RGBA
 
   const CapturedImageData({
     required this.width,
@@ -507,11 +545,22 @@ class CapturedImageData extends Equatable {
     required this.settings,
     this.targetName,
     this.filePath,
-    this.isColor = false,  // default to grayscale for backward compatibility
+    this.isColor = false, // default to grayscale for backward compatibility
   });
 
   @override
-  List<Object?> get props => [width, height, displayData, histogram, stats, capturedAt, settings, targetName, filePath, isColor];
+  List<Object?> get props => [
+        width,
+        height,
+        displayData,
+        histogram,
+        stats,
+        capturedAt,
+        settings,
+        targetName,
+        filePath,
+        isColor
+      ];
 }
 
 /// Captured image metadata (without pixel data)
@@ -535,7 +584,8 @@ class CapturedImage extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, filePath, capturedAt, settings, stats, targetName, format];
+  List<Object?> get props =>
+      [id, filePath, capturedAt, settings, stats, targetName, format];
 }
 
 /// Exposure progress
@@ -566,7 +616,8 @@ class ExposureProgress extends Equatable {
   }
 
   @override
-  List<Object?> get props => [elapsed, remaining, percent, frameNumber, totalFrames, isDownloading];
+  List<Object?> get props =>
+      [elapsed, remaining, percent, frameNumber, totalFrames, isDownloading];
 }
 
 /// Capture mode
@@ -658,5 +709,265 @@ class StarDetectionConfig extends Equatable {
   });
 
   @override
-  List<Object?> get props => [detectionSigma, minArea, maxArea, maxEccentricity, saturationLimit, hfrRadius];
+  List<Object?> get props => [
+        detectionSigma,
+        minArea,
+        maxArea,
+        maxEccentricity,
+        saturationLimit,
+        hfrRadius
+      ];
+}
+
+/// Per-filter autofocus configuration
+///
+/// Stores autofocus overrides for a specific filter. This allows different
+/// filters to have their own AF exposure times, binning, gain/offset, and
+/// focus offset values.
+class FilterAutofocusConfig extends Equatable {
+  /// Absolute focus offset for this filter (in focuser steps)
+  final int focusOffset;
+
+  /// Override AF exposure time for this filter (null = use default from settings)
+  final double? afExposureTime;
+
+  /// Which filter to actually use for AF when this filter is active
+  /// (null = use the designated autofocus filter from settings)
+  final String? afFilterName;
+
+  /// AF binning for this filter
+  final int binning;
+
+  /// AF gain override (null = use camera default)
+  final int? gain;
+
+  /// AF offset override (null = use camera default)
+  final int? offset;
+
+  const FilterAutofocusConfig({
+    this.focusOffset = 0,
+    this.afExposureTime,
+    this.afFilterName,
+    this.binning = 1,
+    this.gain,
+    this.offset,
+  });
+
+  FilterAutofocusConfig copyWith({
+    int? focusOffset,
+    double? afExposureTime,
+    bool clearAfExposureTime = false,
+    String? afFilterName,
+    bool clearAfFilterName = false,
+    int? binning,
+    int? gain,
+    bool clearGain = false,
+    int? offset,
+    bool clearOffset = false,
+  }) {
+    return FilterAutofocusConfig(
+      focusOffset: focusOffset ?? this.focusOffset,
+      afExposureTime:
+          clearAfExposureTime ? null : (afExposureTime ?? this.afExposureTime),
+      afFilterName:
+          clearAfFilterName ? null : (afFilterName ?? this.afFilterName),
+      binning: binning ?? this.binning,
+      gain: clearGain ? null : (gain ?? this.gain),
+      offset: clearOffset ? null : (offset ?? this.offset),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'focusOffset': focusOffset,
+        'afExposureTime': afExposureTime,
+        'afFilterName': afFilterName,
+        'binning': binning,
+        'gain': gain,
+        'offset': offset,
+      };
+
+  factory FilterAutofocusConfig.fromJson(Map<String, dynamic> json) =>
+      FilterAutofocusConfig(
+        focusOffset: json['focusOffset'] as int? ?? 0,
+        afExposureTime: (json['afExposureTime'] as num?)?.toDouble(),
+        afFilterName: json['afFilterName'] as String?,
+        binning: json['binning'] as int? ?? 1,
+        gain: json['gain'] as int?,
+        offset: json['offset'] as int?,
+      );
+
+  @override
+  List<Object?> get props =>
+      [focusOffset, afExposureTime, afFilterName, binning, gain, offset];
+}
+
+/// Comprehensive autofocus settings grouped into a single typed object.
+///
+/// This is derived from AppSettings autofocus fields and provides a
+/// convenient, typed view for the autofocus subsystem.
+class AutofocusSettings extends Equatable {
+  // General AF parameters
+  final String method;
+  final String curveFitting;
+  final int stepSize;
+  final double exposureTime;
+  final int initialOffsetSteps;
+  final int numberOfAttempts;
+  final int useBrightestNStars;
+  final double outerCropRatio;
+  final double innerCropRatio;
+  final int binning;
+  final double rSquaredThreshold;
+  final bool disableGuidingDuringAf;
+  final int focuserSettleTimeMs;
+  final int exposuresPerPoint;
+
+  // Backlash compensation
+  final String backlashCompMethod;
+  final int backlashIn;
+  final int backlashOut;
+
+  // Filter-specific
+  final String autofocusFilterName;
+  final Map<String, FilterAutofocusConfig> filterSettings;
+
+  const AutofocusSettings({
+    this.method = 'Star HFR',
+    this.curveFitting = 'Hyperbolic',
+    this.stepSize = 50,
+    this.exposureTime = 4.0,
+    this.initialOffsetSteps = 4,
+    this.numberOfAttempts = 1,
+    this.useBrightestNStars = 0,
+    this.outerCropRatio = 1.0,
+    this.innerCropRatio = 0.0,
+    this.binning = 1,
+    this.rSquaredThreshold = 0.7,
+    this.disableGuidingDuringAf = false,
+    this.focuserSettleTimeMs = 500,
+    this.exposuresPerPoint = 1,
+    this.backlashCompMethod = 'Overshoot',
+    this.backlashIn = 350,
+    this.backlashOut = 0,
+    this.autofocusFilterName = '',
+    this.filterSettings = const {},
+  });
+
+  AutofocusSettings copyWith({
+    String? method,
+    String? curveFitting,
+    int? stepSize,
+    double? exposureTime,
+    int? initialOffsetSteps,
+    int? numberOfAttempts,
+    int? useBrightestNStars,
+    double? outerCropRatio,
+    double? innerCropRatio,
+    int? binning,
+    double? rSquaredThreshold,
+    bool? disableGuidingDuringAf,
+    int? focuserSettleTimeMs,
+    int? exposuresPerPoint,
+    String? backlashCompMethod,
+    int? backlashIn,
+    int? backlashOut,
+    String? autofocusFilterName,
+    Map<String, FilterAutofocusConfig>? filterSettings,
+  }) {
+    return AutofocusSettings(
+      method: method ?? this.method,
+      curveFitting: curveFitting ?? this.curveFitting,
+      stepSize: stepSize ?? this.stepSize,
+      exposureTime: exposureTime ?? this.exposureTime,
+      initialOffsetSteps: initialOffsetSteps ?? this.initialOffsetSteps,
+      numberOfAttempts: numberOfAttempts ?? this.numberOfAttempts,
+      useBrightestNStars: useBrightestNStars ?? this.useBrightestNStars,
+      outerCropRatio: outerCropRatio ?? this.outerCropRatio,
+      innerCropRatio: innerCropRatio ?? this.innerCropRatio,
+      binning: binning ?? this.binning,
+      rSquaredThreshold: rSquaredThreshold ?? this.rSquaredThreshold,
+      disableGuidingDuringAf:
+          disableGuidingDuringAf ?? this.disableGuidingDuringAf,
+      focuserSettleTimeMs: focuserSettleTimeMs ?? this.focuserSettleTimeMs,
+      exposuresPerPoint: exposuresPerPoint ?? this.exposuresPerPoint,
+      backlashCompMethod: backlashCompMethod ?? this.backlashCompMethod,
+      backlashIn: backlashIn ?? this.backlashIn,
+      backlashOut: backlashOut ?? this.backlashOut,
+      autofocusFilterName: autofocusFilterName ?? this.autofocusFilterName,
+      filterSettings: filterSettings ?? this.filterSettings,
+    );
+  }
+
+  /// Parse filter settings from a JSON string stored in the database.
+  ///
+  /// Returns an empty map if the JSON is malformed rather than crashing,
+  /// but logs a warning so the corruption is visible.
+  static Map<String, FilterAutofocusConfig> parseFilterSettingsJson(
+      String jsonStr) {
+    if (jsonStr.isEmpty || jsonStr == '{}') return {};
+    try {
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final result = <String, FilterAutofocusConfig>{};
+      for (final entry in decoded.entries) {
+        try {
+          result[entry.key] = FilterAutofocusConfig.fromJson(
+              entry.value as Map<String, dynamic>);
+        } catch (e) {
+          // Skip malformed individual filter entries rather than losing all data
+          assert(() {
+            developer.log(
+              'Skipping malformed filter config for "${entry.key}": $e',
+              name: 'ImagingModels',
+              level: 900,
+            );
+            return true;
+          }());
+        }
+      }
+      return result;
+    } catch (e) {
+      // Corrupted JSON in DB — return empty rather than crashing the app.
+      // The next save will overwrite the corrupt data with valid JSON.
+      assert(() {
+        developer.log(
+          'Failed to parse af_filter_settings JSON: $e',
+          name: 'ImagingModels',
+          level: 900,
+        );
+        return true;
+      }());
+      return {};
+    }
+  }
+
+  /// Serialize filter settings to a JSON string for database storage.
+  static String encodeFilterSettingsJson(
+      Map<String, FilterAutofocusConfig> settings) {
+    if (settings.isEmpty) return '{}';
+    final map = settings.map((key, value) => MapEntry(key, value.toJson()));
+    return jsonEncode(map);
+  }
+
+  @override
+  List<Object?> get props => [
+        method,
+        curveFitting,
+        stepSize,
+        exposureTime,
+        initialOffsetSteps,
+        numberOfAttempts,
+        useBrightestNStars,
+        outerCropRatio,
+        innerCropRatio,
+        binning,
+        rSquaredThreshold,
+        disableGuidingDuringAf,
+        focuserSettleTimeMs,
+        exposuresPerPoint,
+        backlashCompMethod,
+        backlashIn,
+        backlashOut,
+        autofocusFilterName,
+        filterSettings,
+      ];
 }

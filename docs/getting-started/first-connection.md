@@ -1,10 +1,30 @@
 # Connecting Your First Device
 
-This guide will walk you through connecting your camera and mount to Nightshade 2.0 for the first time.
+This guide walks through connecting your camera and mount to Nightshade 2.0 for
+the first time. Start with one device, verify each connection, and keep
+unsupported or unsafe equipment disconnected until its release support status is
+clear.
+
+## Release Scope Notes
+
+Before connecting hardware, review:
+
+- [Supported Hardware By Platform](../supported-hardware-by-platform.md)
+- [Known Limitations](../known-limitations.md)
+- [Migration, Backup, and Restore Guide](../migration-backup-restore.md)
+
+The visible protocol list is not a promise that every driver works on every
+operating system. ASCOM COM is Windows-only, INDI requires a reachable INDI
+server, Alpaca requires a reachable network device or bridge, and native SDK
+support is available only where the release package includes and verifies the
+needed vendor libraries. During release-candidate validation, record disabled or
+missing controls as evidence instead of bypassing them.
 
 ## Understanding Device Protocols
 
-Nightshade supports multiple ways to connect to your equipment. Choose the method that works best for your setup:
+Nightshade supports multiple ways to connect to equipment. Choose the method
+that matches the release notes, support matrix, and drivers available for your
+setup:
 
 ### ASCOM (Windows Only)
 - **Best for**: Windows users with ASCOM-compatible devices
@@ -13,21 +33,21 @@ Nightshade supports multiple ways to connect to your equipment. Choose the metho
 - **Setup**: Install ASCOM Platform and your device's ASCOM driver
 
 ### Native
-- **Best for**: Direct USB connections to supported cameras
-- **Requirements**: Vendor SDK libraries (QHY, ZWO, etc.)
-- **Advantages**: Fastest performance, direct hardware access
-- **Setup**: No additional drivers needed, plug and play for supported devices
+- **Best for**: Direct USB connections when the release includes the needed SDK
+- **Requirements**: Packaged vendor SDK libraries and supported OS drivers
+- **Advantages**: Direct hardware access where verified
+- **Setup**: Follow release notes for the specific vendor and platform
 
 ### Alpaca
-- **Best for**: Network-connected devices, remote imaging, cross-platform
+- **Best for**: Network-connected devices and ASCOM bridges
 - **Requirements**: Device with Alpaca server (or ASCOM Remote running on Windows)
-- **Advantages**: Works over network, platform-independent
+- **Advantages**: Works over network; device capabilities are reported by the Alpaca server
 - **Setup**: Know the IP address and port of your Alpaca device
 
 ### INDI (Linux/macOS)
-- **Best for**: Linux and macOS users
-- **Requirements**: INDI server installed and running
-- **Advantages**: Wide hardware support on Unix systems
+- **Best for**: Users with a verified INDI server and driver stack
+- **Requirements**: INDI server installed, running, and reachable
+- **Advantages**: Broad driver ecosystem where device properties are exposed
 - **Setup**: Install INDI platform and start INDI server with appropriate drivers
 
 ## Connecting a Camera
@@ -43,7 +63,7 @@ Nightshade supports multiple ways to connect to your equipment. Choose the metho
 At the top of the Equipment screen, you'll see protocol buttons. Select the one appropriate for your setup:
 
 - **ASCOM** (Windows with ASCOM drivers)
-- **Native** (Direct USB connection)
+- **Native** (Direct USB connection where SDK support is shipped)
 - **Alpaca** (Network devices)
 - **INDI** (Linux/macOS)
 
@@ -66,10 +86,15 @@ At the top of the Equipment screen, you'll see protocol buttons. Select the one 
 1. Connect your camera via USB
 2. Select the **Native** protocol
 3. Click on the **Connections** tab
-4. In the **Camera** section, Nightshade will automatically scan for connected devices
+4. In the **Camera** section, Nightshade will scan for connected devices if the
+   vendor SDK path is available for this release
 5. Your camera should appear in the device list
 6. Click **Connect** next to your camera
 7. The camera status should change to "Connected"
+
+If no device appears, check the release notes before treating it as a defect.
+The vendor library, OS driver, or native device class may be out of scope for
+the artifact you installed.
 
 #### Using Alpaca (Network)
 
@@ -82,6 +107,9 @@ At the top of the Equipment screen, you'll see protocol buttons. Select the one 
 6. Select your camera
 7. Click **Connect**
 8. The camera status should change to "Connected"
+
+If discovery works but a feature is missing, use the Alpaca server's own status
+page or driver settings to confirm whether that capability is exposed.
 
 #### Using INDI (Linux/macOS)
 
@@ -96,6 +124,9 @@ At the top of the Equipment screen, you'll see protocol buttons. Select the one 
 6. Click **Connect**
 7. Your camera will appear in the device list
 8. Click **Connect** on the camera
+
+If the camera appears but controls are disabled, verify the INDI driver exposes
+the required properties and record the limitation for release validation.
 
 ### Step 4: Verify Camera Connection
 
@@ -117,7 +148,8 @@ Once connected:
 
 1. Ensure mount is powered on
 2. Mount should be physically set up and polar aligned (rough alignment is fine for testing)
-3. For ASCOM, ensure mount driver is installed
+3. For ASCOM, ensure the mount driver is installed on Windows
+4. Confirm the mount is safe to move before testing control commands
 
 ### Step 2: Connect the Mount
 
@@ -128,7 +160,8 @@ The process is similar to connecting a camera:
 3. Click the **Connections** tab
 4. In the **Mount** section:
    - For ASCOM: Click **Choose** and select your mount driver
-   - For Native: Select from detected mounts
+   - For Native: Select from detected mounts only where that native path is
+     listed as verified for the release
    - For Alpaca: Discover or manually add your mount
    - For INDI: Connect to server, then connect to mount device
 
@@ -152,10 +185,12 @@ Once connected:
 
 To verify the mount is responding:
 
-1. In the **Mount** tab, find the direction controls
-2. Try a small movement in any direction
-3. The mount should move and coordinates should update
-4. Click **Stop** to halt movement
+1. Confirm the telescope has clearance, the mount is not near a hard stop, and
+   any remote observer is aware of the test
+2. In the **Mount** tab, find the direction controls
+3. Try the smallest available movement in a safe direction
+4. The mount should move and coordinates should update
+5. Click **Stop** to halt movement
 
 **Note**: If your mount has a home/park position, you may need to unpark it first before it will accept movement commands.
 
@@ -167,12 +202,18 @@ To verify the mount is responding:
 2. In the **Focuser** section, follow the same protocol-specific steps
 3. Once connected, you can control it from the **Imaging** > **Focus** tab
 
+If the focuser controls are disabled, confirm that the connected driver exposes
+position and movement capabilities before continuing.
+
 ### Filter Wheel
 
 1. Go to Equipment > Connections
-2. In the **Filter Wheel** section, connect using your protocol
+2. In the **Filter Wheel** section, connect using a verified protocol path
 3. Define your filters in Equipment > Settings
 4. Control it from the **Imaging** > **Camera** tab
+
+Do not include filter-wheel movement in release smoke evidence unless the driver
+path is listed as supported or explicitly being validated.
 
 ### Guide Camera (PHD2)
 
@@ -183,6 +224,9 @@ Nightshade integrates with PHD2 for autoguiding:
 3. In Nightshade, go to **Imaging** > **Guiding** tab
 4. Click **Connect to PHD2**
 5. PHD2 status should show "Connected"
+
+PHD2 is the primary public-release guiding path. Direct guide camera behavior is
+driver-dependent and should be verified separately before being advertised.
 
 ## Saving Equipment Profiles
 
@@ -197,7 +241,8 @@ Next time you use this equipment:
 1. Go to Equipment > Profiles
 2. Select your saved profile
 3. Click **Load Profile**
-4. All devices will connect automatically
+4. Devices will reconnect where their drivers and saved settings are still
+   available
 
 ## Common Connection Issues
 
@@ -206,6 +251,8 @@ Next time you use this equipment:
 - **Driver installed**: Verify ASCOM driver or vendor SDK is installed
 - **Device powered**: Some cameras need external power
 - **Permissions**: On Linux, you may need udev rules for USB access
+- **Release scope**: Check whether the installed artifact includes the needed
+  native SDK or platform backend
 
 ### Mount won't connect
 - **COM port conflict**: Check if another application is using the mount's COM port
@@ -235,6 +282,8 @@ Now that your equipment is connected:
 - [Capture Your First Image](first-image.md) - Take your first exposure
 - [Configure Equipment Settings](../features/imaging.md) - Fine-tune your device settings
 - [Create an Imaging Sequence](../features/sequencing.md) - Automate your imaging session
+- [Headless Secure Setup](../headless-secure-setup.md) - Enable LAN or remote
+  access only after local hardware behavior is verified
 
 ## Tips for Success
 
@@ -242,11 +291,15 @@ Now that your equipment is connected:
 2. **Save Profiles**: Once working, save your configuration to quickly reconnect
 3. **Test Movement**: Always test mount movement with small slews before automated sequences
 4. **Check Logs**: If something fails, check Equipment > Settings for connection logs
-5. **Simulator Mode**: Practice with ASCOM simulator devices (free drivers for testing)
+5. **Simulator Mode**: Practice with ASCOM, Alpaca, or INDI simulator drivers
+   where they are listed in the release validation plan
 
 ## Getting Help
 
 If you're having trouble connecting devices:
 - Check the [Troubleshooting Guide](../troubleshooting/common-issues.md)
+- Check [Driver Troubleshooting](../troubleshooting/drivers.md)
+- Check [Firewall Troubleshooting](../troubleshooting/firewall.md) for network
+  devices or remote access
 - Review your device's ASCOM/INDI driver documentation
 - Report issues on [GitHub](https://github.com/Scodouglas1999/Nightshade/issues) with specific error messages

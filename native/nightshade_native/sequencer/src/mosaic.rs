@@ -57,17 +57,20 @@ pub fn calculate_mosaic_panels(config: &MosaicConfig) -> Vec<MosaicPanel> {
                 (ra_offset_deg, dec_offset)
             };
 
+            let panel_dec = config.center_dec + rotated_dec_offset;
+
             // Calculate final RA accounting for declination compression
-            // RA offset needs to be divided by cos(dec) to account for projection
-            let dec_rad = config.center_dec.to_radians();
+            // RA offset needs to be divided by the panel declination cosine,
+            // not the mosaic center declination, to keep spacing consistent.
+            let dec_rad = panel_dec.to_radians();
             let ra_correction = if dec_rad.cos().abs() > 0.001 {
                 1.0 / dec_rad.cos()
             } else {
                 1.0
             };
 
-            let panel_dec = config.center_dec + rotated_dec_offset;
-            let panel_ra = config.center_ra + (rotated_ra_offset * ra_correction / 15.0); // Convert deg to hours
+            let panel_ra =
+                (config.center_ra + (rotated_ra_offset * ra_correction / 15.0)).rem_euclid(24.0);
 
             panels.push(MosaicPanel {
                 ra_hours: panel_ra,
@@ -99,7 +102,45 @@ pub fn estimate_mosaic_time(
 ) -> f64 {
     let total_panels = config.panels_horizontal * config.panels_vertical;
     let time_per_panel = exposure_secs * exposures_per_panel as f64;
-    let overhead_per_panel = 60.0; // Slew + center + settle time estimate
+    let overhead_per_panel = config.panel_overhead_secs;
 
     total_panels as f64 * (time_per_panel + overhead_per_panel)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_spacing_uses_panel_declination_for_ra_correction() {
+        let config = MosaicConfig {
+            center_ra: 12.0,
+            center_dec: 70.0,
+            panel_width_arcmin: 120.0,
+            panel_height_arcmin: 120.0,
+            overlap_percent: 0.0,
+            rotation: 45.0,
+            panels_horizontal: 2,
+            panels_vertical: 2,
+            panel_overhead_secs: 30.0,
+        };
+
+        let panels = calculate_mosaic_panels(&config);
+        assert_eq!(panels.len(), 4);
+        assert_ne!(panels[0].ra_hours, panels[1].ra_hours);
+        assert_ne!(panels[0].dec_degrees, panels[1].dec_degrees);
+    }
+
+    #[test]
+    fn mosaic_time_uses_configured_panel_overhead() {
+        let config = MosaicConfig {
+            panels_horizontal: 2,
+            panels_vertical: 3,
+            panel_overhead_secs: 12.5,
+            ..MosaicConfig::default()
+        };
+
+        let estimate = estimate_mosaic_time(&config, 30.0, 4);
+        assert_eq!(estimate, 6.0 * (120.0 + 12.5));
+    }
 }

@@ -48,11 +48,12 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       ref.read(polarAlignmentStateProvider.notifier).reset();
+      final colors = Theme.of(context).extension<NightshadeColors>()!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+        SnackBar(
+          content: const Text(
               'Camera not connected. Please connect a camera before starting polar alignment.'),
-          backgroundColor: Colors.red,
+          backgroundColor: colors.error,
         ),
       );
       return;
@@ -60,11 +61,12 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
     if (mountState.connectionState != DeviceConnectionState.connected) {
       ref.read(polarAlignmentStateProvider.notifier).reset();
+      final colors = Theme.of(context).extension<NightshadeColors>()!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+        SnackBar(
+          content: const Text(
               'Mount not connected. Please connect a mount before starting polar alignment.'),
-          backgroundColor: Colors.red,
+          backgroundColor: colors.error,
         ),
       );
       return;
@@ -101,8 +103,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       screenId: 'polar_alignment',
       tourCategory: TutorialCategory.polarAlignmentTour,
       title: 'Polar Alignment Tour',
-      description:
-          'Learn how to polar align your mount for accurate tracking.',
+      description: 'Learn how to polar align your mount for accurate tracking.',
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       child: Scaffold(
@@ -208,7 +209,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           NightshadeButton(
             label: 'History',
             icon: LucideIcons.history,
-            variant: _showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
+            variant:
+                _showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
             size: ButtonSize.small,
             onPressed: () =>
                 setState(() => _showHistoryPanel = !_showHistoryPanel),
@@ -265,7 +267,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Essential settings - always visible
-                  _buildSectionHeader(colors, 'Essential', LucideIcons.settings),
+                  _buildSectionHeader(
+                      colors, 'Essential', LucideIcons.settings),
                   const SizedBox(height: 12),
                   _buildEssentialSettings(colors, config, isRunning),
 
@@ -345,14 +348,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               ButtonSegment(value: false, label: Text('South')),
             ],
             selected: {config.isNorth},
-            onSelectionChanged: isRunning
-                ? null
-                : (v) => configNotifier.setIsNorth(v.first),
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              textStyle:
-                  WidgetStateProperty.all(const TextStyle(fontSize: 11)),
-            ),
+            onSelectionChanged:
+                isRunning ? null : (v) => configNotifier.setIsNorth(v.first),
           ),
         ),
         const SizedBox(height: 12),
@@ -434,11 +431,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               selected: {config.binning},
               onSelectionChanged:
                   isRunning ? null : (v) => configNotifier.setBinning(v.first),
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle:
-                    WidgetStateProperty.all(const TextStyle(fontSize: 11)),
-              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -489,11 +481,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               onSelectionChanged: isRunning
                   ? null
                   : (v) => configNotifier.setRotateEast(v.first),
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle:
-                    WidgetStateProperty.all(const TextStyle(fontSize: 11)),
-              ),
             ),
           ),
         ],
@@ -537,9 +524,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             colors: colors,
             child: Switch(
               value: config.manualRotation,
-              onChanged: isRunning
-                  ? null
-                  : (v) => configNotifier.setManualRotation(v),
+              onChanged:
+                  isRunning ? null : (v) => configNotifier.setManualRotation(v),
             ),
           ),
           const SizedBox(height: 12),
@@ -588,11 +574,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               onSelectionChanged: isRunning
                   ? null
                   : (v) => configNotifier.setStartFromCurrent(v.first),
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle:
-                    WidgetStateProperty.all(const TextStyle(fontSize: 11)),
-              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -787,10 +768,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
   /// Task 4.6: History panel widget
   Widget _buildHistoryPanel(NightshadeColors colors) {
-    final profileId =
-        ref.watch(activeEquipmentProfileProvider)?.id?.toString();
-    final historyAsync =
-        ref.watch(polarAlignmentHistoryProvider(profileId));
+    final profileId = ref.watch(activeEquipmentProfileProvider)?.id;
+    final historyAsync = ref.watch(polarAlignmentHistoryProvider(profileId));
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -836,13 +815,12 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
               return Column(
                 children: history.take(5).map((entry) {
-                  final improvementPercent =
-                      entry.initialTotalError > 0
-                          ? ((entry.initialTotalError - entry.finalTotalError) /
-                                  entry.initialTotalError *
-                                  100)
-                              .clamp(0.0, 100.0)
-                          : 0.0;
+                  final improvementPercent = entry.initialTotalError > 0
+                      ? ((entry.initialTotalError - entry.finalTotalError) /
+                              entry.initialTotalError *
+                              100)
+                          .clamp(0.0, 100.0)
+                      : 0.0;
 
                   final dateStr = _formatDate(entry.completedAt);
 
@@ -993,7 +971,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     );
   }
 
-  Widget _buildProgressSteps(NightshadeColors colors, PolarAlignmentState state) {
+  Widget _buildProgressSteps(
+      NightshadeColors colors, PolarAlignmentState state) {
     final point = state.currentPoint;
     final phase = state.phase;
 
@@ -1595,7 +1574,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                           LucideIcons.target,
                           size: 14,
                           color: error != null &&
-                                  error.totalError < config.autoCompleteThreshold
+                                  error.totalError <
+                                      config.autoCompleteThreshold
                               ? colors.success
                               : colors.textMuted,
                         ),
@@ -1603,7 +1583,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                         Expanded(
                           child: Text(
                             error != null &&
-                                    error.totalError < config.autoCompleteThreshold
+                                    error.totalError <
+                                        config.autoCompleteThreshold
                                 ? 'Below threshold!'
                                 : 'Adjust to threshold',
                             style: TextStyle(
@@ -1629,7 +1610,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   }
 
   /// Task 4.3: Before/After Summary Card
-  Widget _buildCompleteStatus(NightshadeColors colors, PolarAlignmentState state) {
+  Widget _buildCompleteStatus(
+      NightshadeColors colors, PolarAlignmentState state) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1676,7 +1658,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -1903,7 +1885,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           ),
 
           // Task 4.5: Error trend sparkline chart (only in adjustment phase)
-          if (state.phase == PolarAlignPhase.adjusting && errorHistory.length > 2)
+          if (state.phase == PolarAlignPhase.adjusting &&
+              errorHistory.length > 2)
             Container(
               height: 100,
               padding: const EdgeInsets.all(12),
@@ -1955,7 +1938,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     );
   }
 
-  Widget _buildErrorValues(NightshadeColors colors, PolarAlignmentError? error) {
+  Widget _buildErrorValues(
+      NightshadeColors colors, PolarAlignmentError? error) {
     if (error == null) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -2316,7 +2300,8 @@ class _MeasurementProgressItem extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isComplete || isActive ? colors.textPrimary : colors.textMuted,
+            color:
+                isComplete || isActive ? colors.textPrimary : colors.textMuted,
           ),
         ),
         if (isComplete) ...[
@@ -2803,8 +2788,8 @@ class _BullseyeOverlayPainter extends CustomPainter {
     // Draw error position
     if (azimuthError != null && altitudeError != null) {
       final errorX = azimuthError!.clamp(-120.0, 120.0) * scale;
-      final errorY =
-          -altitudeError!.clamp(-120.0, 120.0) * scale; // Negative because screen Y is inverted
+      final errorY = -altitudeError!.clamp(-120.0, 120.0) *
+          scale; // Negative because screen Y is inverted
       final errorPos = Offset(center.dx + errorX, center.dy + errorY);
 
       // Draw line from center to error position

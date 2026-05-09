@@ -61,20 +61,30 @@ class PaginatedImageLoader {
 
   /// Load a specific page (1-indexed)
   Future<List<CapturedImage>> loadPage(int page) async {
-    final offset = (page - 1) * pageSize;
-
-    if (_sessionId != null) {
-      return _imagesDao.getImagesForSessionPaginated(
-        sessionId: _sessionId!,
-        limit: pageSize,
-        offset: offset,
-      );
-    } else {
-      return _imagesDao.getAllImagesPaginated(
-        limit: pageSize,
-        offset: offset,
-      );
+    if (page < 1) {
+      throw ArgumentError.value(page, 'page', 'Page numbers are 1-indexed');
     }
+
+    final offset = (page - 1) * pageSize;
+    final totalCount = await getTotalCount();
+
+    final pageImages = _sessionId != null
+        ? await _imagesDao.getImagesForSessionPaginated(
+            sessionId: _sessionId!,
+            limit: pageSize,
+            offset: offset,
+          )
+        : await _imagesDao.getAllImagesPaginated(
+            limit: pageSize,
+            offset: offset,
+          );
+
+    _loadedImages
+      ..clear()
+      ..addAll(pageImages);
+    _currentPage = page;
+    _hasMore = offset + pageImages.length < totalCount;
+    return pageImages;
   }
 
   /// Get all currently loaded images
@@ -179,7 +189,7 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final newImages = await _loader.loadNextPage();
+      await _loader.loadNextPage();
 
       state = state.copyWith(
         images: _loader.loadedImages,
@@ -209,6 +219,7 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
       state = state.copyWith(
         images: pageImages,
         isLoading: false,
+        hasMore: _loader.hasMore,
         currentPage: page,
       );
     } catch (e) {

@@ -1,7 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../services/focus_model_service.dart';
 import 'profiles_provider.dart';
 import 'equipment_provider.dart';
+import 'settings_provider.dart';
+
+/// Offset interpretation mode for filter focus offsets.
+enum FilterOffsetMode {
+  /// Offsets are relative to a reference filter (default / classic behavior).
+  relative,
+
+  /// Offsets are absolute focuser positions per filter.
+  absolute,
+}
 
 /// Filter offset state for the current profile
 class FilterOffsetState {
@@ -10,11 +23,15 @@ class FilterOffsetState {
   final bool isLoading;
   final String? error;
 
+  /// Whether offsets represent absolute positions or relative-to-reference.
+  final FilterOffsetMode offsetMode;
+
   const FilterOffsetState({
     this.offsets = const {},
     this.referenceFilter,
     this.isLoading = false,
     this.error,
+    this.offsetMode = FilterOffsetMode.relative,
   });
 
   FilterOffsetState copyWith({
@@ -23,12 +40,14 @@ class FilterOffsetState {
     bool? isLoading,
     String? error,
     bool clearError = false,
+    FilterOffsetMode? offsetMode,
   }) {
     return FilterOffsetState(
       offsets: offsets ?? this.offsets,
       referenceFilter: referenceFilter ?? this.referenceFilter,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
+      offsetMode: offsetMode ?? this.offsetMode,
     );
   }
 }
@@ -37,9 +56,15 @@ class FilterOffsetState {
 class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
   final Ref _ref;
   String? _currentProfileId;
+  int _loadGeneration = 0;
 
-  FilterOffsetNotifier(this._ref) : super(const FilterOffsetState()) {
-    _init();
+  FilterOffsetNotifier(this._ref)
+      : super(const FilterOffsetState(isLoading: true)) {
+    unawaited(_init());
+    // Reload offsets whenever the active equipment profile changes
+    _ref.listen(activeEquipmentProfileProvider, (_, __) {
+      unawaited(_loadOffsetsForActiveProfile());
+    });
   }
 
   /// Initialize by loading offsets for active profile
@@ -47,18 +72,43 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
     await _loadOffsetsForActiveProfile();
   }
 
+  /// Determine the offset mode from AppSettings.
+  ///
+  /// When `useFilterFocusOffsets` is enabled AND per-filter AF configs contain
+  /// absolute focus positions, we operate in absolute mode. Otherwise we use
+  /// relative mode (offsets relative to a reference filter).
+  FilterOffsetMode _resolveOffsetMode() {
+    final settingsAsync = _ref.read(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull;
+    if (settings == null) return FilterOffsetMode.relative;
+
+    if (!settings.useFilterFocusOffsets) return FilterOffsetMode.relative;
+
+    // Check if the AF backlash compensation method is 'Absolute' as a hint
+    // that the user wants absolute offsets.
+    if (settings.afBacklashCompMethod == 'Absolute') {
+      return FilterOffsetMode.absolute;
+    }
+    return FilterOffsetMode.relative;
+  }
+
   /// Load offsets for the currently active profile
   Future<void> _loadOffsetsForActiveProfile() async {
+    final generation = ++_loadGeneration;
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
       final activeProfile = _ref.read(activeEquipmentProfileProvider);
       if (activeProfile == null) {
-        state = const FilterOffsetState();
+        if (generation == _loadGeneration) {
+          state = const FilterOffsetState();
+        }
         return;
       }
 
       _currentProfileId = activeProfile.id.toString();
+
+      final offsetMode = _resolveOffsetMode();
 
       // Get focus data from service
       final focusService = _ref.read(focusModelServiceProvider);
@@ -67,30 +117,57 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
       final focusData = focusService.getProfileData(_currentProfileId!);
 
       if (focusData == null) {
-        state = FilterOffsetState(
-          offsets: {},
-          referenceFilter: null,
-          isLoading: false,
-        );
+        if (generation == _loadGeneration) {
+          state = FilterOffsetState(
+            offsets: {},
+            referenceFilter: null,
+            isLoading: false,
+            offsetMode: offsetMode,
+          );
+        }
         return;
       }
 
-      // Convert FilterOffset objects to simple int map
       final offsetMap = <String, int>{};
-      for (final entry in focusData.filterOffsets.entries) {
-        offsetMap[entry.key] = entry.value.offsetSteps;
+
+      if (offsetMode == FilterOffsetMode.absolute) {
+        // In absolute mode, use ONLY the per-filter AF config focusOffset
+        // values from AppSettings. The focusData.filterOffsets are relative
+        // to a reference filter and must NOT be mixed with absolute positions.
+        final settingsAsync = _ref.read(appSettingsProvider);
+        final settings = settingsAsync.valueOrNull;
+        if (settings != null) {
+          final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
+              settings.afFilterSettingsJson);
+          for (final entry in afFilterSettings.entries) {
+            if (entry.value.focusOffset != 0) {
+              offsetMap[entry.key] = entry.value.focusOffset;
+            }
+          }
+        }
+      } else {
+        // In relative mode, convert FilterOffset objects to simple int map.
+        // These offsets are relative to the reference filter.
+        for (final entry in focusData.filterOffsets.entries) {
+          offsetMap[entry.key] = entry.value.offsetSteps;
+        }
       }
 
-      state = FilterOffsetState(
-        offsets: offsetMap,
-        referenceFilter: focusData.referenceFilter,
-        isLoading: false,
-      );
+      if (generation == _loadGeneration) {
+        state = FilterOffsetState(
+          offsets: offsetMap,
+          referenceFilter: focusData.referenceFilter,
+          isLoading: false,
+          offsetMode: offsetMode,
+        );
+      }
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to load filter offsets: $e',
-      );
+      if (generation == _loadGeneration) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Failed to load filter offsets: $e',
+        );
+      }
     }
   }
 

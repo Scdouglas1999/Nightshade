@@ -5,6 +5,7 @@
 
 use crate::api::*;
 use crate::event::{EquipmentEvent, EventSeverity};
+use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::unified_device_ops::create_unified_device_ops;
 use async_trait::async_trait;
@@ -419,9 +420,17 @@ impl DeviceOps for BridgeDeviceOps {
 
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for event
-        let from_position = filter_wheel_get_position(fw_id.to_string())
-            .await
-            .unwrap_or(0);
+        let from_position = match filter_wheel_get_position(fw_id.to_string()).await {
+            Ok(position) => position,
+            Err(err) => {
+                tracing::warn!(
+                    "Unable to read current filter wheel position for {} before change: {}",
+                    fw_id,
+                    err
+                );
+                -1
+            }
+        };
 
         // Emit changing event
         self.app_state.publish_equipment_event(
@@ -476,10 +485,15 @@ impl DeviceOps for BridgeDeviceOps {
         );
 
         // Find the filter position by name (case-insensitive)
-        let position = names
-            .iter()
-            .position(|n| n.eq_ignore_ascii_case(name))
-            .map(|p| (p + 1) as i32) // Filter positions are 1-based
+        // INDI filter slots are 1-based; ASCOM/Alpaca/Native use 0-based positions
+        let position = find_filter_match(&names, name)
+            .map(|p| {
+                if fw_id.starts_with("indi:") {
+                    (p + 1) as i32
+                } else {
+                    p as i32
+                }
+            })
             .ok_or_else(|| format!("Filter '{}' not found. Available: {:?}", name, names))?;
 
         self.filterwheel_set_position(fw_id, position).await?;
@@ -559,7 +573,11 @@ impl DeviceOps for BridgeDeviceOps {
             settle_time
         );
 
-        api_phd2_dither(
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_dither(
+            guider_id,
             pixels,
             ra_only as u8,
             settle_pixels,
@@ -571,7 +589,10 @@ impl DeviceOps for BridgeDeviceOps {
     }
 
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
-        let status = api_phd2_get_status()
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let status = api_guider_get_status(guider_id)
             .await
             .map_err(|e| format!("Failed to get guider status: {}", e))?;
 
@@ -596,7 +617,10 @@ impl DeviceOps for BridgeDeviceOps {
             settle_timeout
         );
 
-        api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout)
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_start_guiding(guider_id, settle_pixels, settle_time, settle_timeout)
             .await
             .map_err(|e| format!("Start guiding failed: {}", e))
     }
@@ -604,7 +628,10 @@ impl DeviceOps for BridgeDeviceOps {
     async fn guider_stop(&self) -> DeviceResult<()> {
         tracing::info!("Stopping guiding");
 
-        api_phd2_stop_guiding()
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        api_guider_stop(guider_id)
             .await
             .map_err(|e| format!("Stop guiding failed: {}", e))
     }
@@ -622,9 +649,7 @@ impl DeviceOps for BridgeDeviceOps {
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("Plate solving image");
 
-        // Use platform-appropriate temp directory
-        let temp_dir = std::env::temp_dir();
-        let temp_file = temp_dir.join("nightshade_platesolve_temp.fits");
+        let temp_file = create_unique_temp_fits_path("nightshade_platesolve_temp");
         let temp_path = temp_file.to_string_lossy().to_string();
 
         // Convert to imaging::ImageData
@@ -877,7 +902,7 @@ impl DeviceOps for BridgeDeviceOps {
 
         // Calculate hour angle
         let ha = lst - ra_hours;
-        let ha_rad = ha * 15.0_f64.to_radians(); // Convert to radians
+        let ha_rad = (ha * 15.0_f64).to_radians(); // Convert hour angle to radians
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
 

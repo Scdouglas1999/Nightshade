@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import 'captured_images.dart';
+import 'equipment_profiles.dart';
 import 'imaging_sessions.dart';
 
 @DataClassName('ScienceSessionConfigRow')
@@ -57,6 +58,7 @@ class PhotometryMeasurements extends Table {
   RealColumn get y => real()();
   RealColumn get flux => real()();
   RealColumn get differentialMagnitude => real().nullable()();
+  RealColumn get standardMagnitude => real().nullable()();
   RealColumn get snr => real().nullable()();
   RealColumn get uncertainty => real().nullable()();
   BoolColumn get isOutlier => boolean().withDefault(const Constant(false))();
@@ -260,6 +262,35 @@ class MovingObjectCandidates extends Table {
   TextColumn get source => text().withDefault(const Constant('local'))();
 
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DataClassName('PhotometricTransformRow')
+@TableIndex(
+    name: 'idx_photometric_transforms_filter', columns: {#filterName})
+@TableIndex(
+    name: 'idx_photometric_transforms_date', columns: {#dateComputed})
+@TableIndex(
+    name: 'idx_photometric_transforms_profile', columns: {#equipmentProfileId})
+class PhotometricTransforms extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get equipmentProfileId => integer()
+      .nullable()
+      .references(EquipmentProfiles, #id, onDelete: KeyAction.setNull)();
+
+  TextColumn get filterName => text()();
+  RealColumn get colorTerm => real()();
+  RealColumn get extinctionCoefficient => real()();
+  RealColumn get zeroPoint => real()();
+  RealColumn get rmsResidual => real()();
+  IntColumn get matchedStarCount => integer().withDefault(const Constant(0))();
+  TextColumn get catalogSource => text().withDefault(const Constant('auto'))();
+
+  /// JSON array of {catalogMag, instrumentalMag, colorIndex, airmass, residual}
+  /// for the individual star matches used in the fit.
+  TextColumn get fitDataJson => text().nullable()();
+
+  DateTimeColumn get dateComputed =>
+      dateTime().withDefault(currentDateAndTime)();
 }
 
 @DataClassName('LineRatioProductRow')

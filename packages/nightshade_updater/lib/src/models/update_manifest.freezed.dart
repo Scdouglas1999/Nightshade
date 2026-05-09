@@ -220,13 +220,16 @@ mixin _$UpdateManifest {
   /// Compressed package size in bytes
   int get compressedSize => throw _privateConstructorUsedError;
 
+  /// SHA-256 hash of the downloaded package archive
+  String? get packageSha256 => throw _privateConstructorUsedError;
+
   /// Download URL for the update package
   String get downloadUrl => throw _privateConstructorUsedError;
 
   /// Release notes (markdown)
   String? get releaseNotes => throw _privateConstructorUsedError;
 
-  /// Optional signature for verification
+  /// Ed25519 signature for the canonical manifest payload
   String? get signature => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -251,6 +254,7 @@ abstract class $UpdateManifestCopyWith<$Res> {
       Map<String, UpdateFileInfo> files,
       int totalSize,
       int compressedSize,
+      String? packageSha256,
       String downloadUrl,
       String? releaseNotes,
       String? signature});
@@ -278,6 +282,7 @@ class _$UpdateManifestCopyWithImpl<$Res, $Val extends UpdateManifest>
     Object? files = null,
     Object? totalSize = null,
     Object? compressedSize = null,
+    Object? packageSha256 = freezed,
     Object? downloadUrl = null,
     Object? releaseNotes = freezed,
     Object? signature = freezed,
@@ -319,6 +324,10 @@ class _$UpdateManifestCopyWithImpl<$Res, $Val extends UpdateManifest>
           ? _value.compressedSize
           : compressedSize // ignore: cast_nullable_to_non_nullable
               as int,
+      packageSha256: freezed == packageSha256
+          ? _value.packageSha256
+          : packageSha256 // ignore: cast_nullable_to_non_nullable
+              as String?,
       downloadUrl: null == downloadUrl
           ? _value.downloadUrl
           : downloadUrl // ignore: cast_nullable_to_non_nullable
@@ -353,6 +362,7 @@ abstract class _$$UpdateManifestImplCopyWith<$Res>
       Map<String, UpdateFileInfo> files,
       int totalSize,
       int compressedSize,
+      String? packageSha256,
       String downloadUrl,
       String? releaseNotes,
       String? signature});
@@ -378,6 +388,7 @@ class __$$UpdateManifestImplCopyWithImpl<$Res>
     Object? files = null,
     Object? totalSize = null,
     Object? compressedSize = null,
+    Object? packageSha256 = freezed,
     Object? downloadUrl = null,
     Object? releaseNotes = freezed,
     Object? signature = freezed,
@@ -419,6 +430,10 @@ class __$$UpdateManifestImplCopyWithImpl<$Res>
           ? _value.compressedSize
           : compressedSize // ignore: cast_nullable_to_non_nullable
               as int,
+      packageSha256: freezed == packageSha256
+          ? _value.packageSha256
+          : packageSha256 // ignore: cast_nullable_to_non_nullable
+              as String?,
       downloadUrl: null == downloadUrl
           ? _value.downloadUrl
           : downloadUrl // ignore: cast_nullable_to_non_nullable
@@ -448,6 +463,7 @@ class _$UpdateManifestImpl extends _UpdateManifest {
       required final Map<String, UpdateFileInfo> files,
       required this.totalSize,
       required this.compressedSize,
+      this.packageSha256,
       required this.downloadUrl,
       this.releaseNotes,
       this.signature})
@@ -500,6 +516,10 @@ class _$UpdateManifestImpl extends _UpdateManifest {
   @override
   final int compressedSize;
 
+  /// SHA-256 hash of the downloaded package archive
+  @override
+  final String? packageSha256;
+
   /// Download URL for the update package
   @override
   final String downloadUrl;
@@ -508,13 +528,13 @@ class _$UpdateManifestImpl extends _UpdateManifest {
   @override
   final String? releaseNotes;
 
-  /// Optional signature for verification
+  /// Ed25519 signature for the canonical manifest payload
   @override
   final String? signature;
 
   @override
   String toString() {
-    return 'UpdateManifest(version: $version, buildNumber: $buildNumber, releaseDate: $releaseDate, platform: $platform, arch: $arch, minVersion: $minVersion, files: $files, totalSize: $totalSize, compressedSize: $compressedSize, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, signature: $signature)';
+    return 'UpdateManifest(version: $version, buildNumber: $buildNumber, releaseDate: $releaseDate, platform: $platform, arch: $arch, minVersion: $minVersion, files: $files, totalSize: $totalSize, compressedSize: $compressedSize, packageSha256: $packageSha256, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, signature: $signature)';
   }
 
   @override
@@ -537,6 +557,8 @@ class _$UpdateManifestImpl extends _UpdateManifest {
                 other.totalSize == totalSize) &&
             (identical(other.compressedSize, compressedSize) ||
                 other.compressedSize == compressedSize) &&
+            (identical(other.packageSha256, packageSha256) ||
+                other.packageSha256 == packageSha256) &&
             (identical(other.downloadUrl, downloadUrl) ||
                 other.downloadUrl == downloadUrl) &&
             (identical(other.releaseNotes, releaseNotes) ||
@@ -558,6 +580,7 @@ class _$UpdateManifestImpl extends _UpdateManifest {
       const DeepCollectionEquality().hash(_files),
       totalSize,
       compressedSize,
+      packageSha256,
       downloadUrl,
       releaseNotes,
       signature);
@@ -588,6 +611,7 @@ abstract class _UpdateManifest extends UpdateManifest {
       required final Map<String, UpdateFileInfo> files,
       required final int totalSize,
       required final int compressedSize,
+      final String? packageSha256,
       required final String downloadUrl,
       final String? releaseNotes,
       final String? signature}) = _$UpdateManifestImpl;
@@ -634,6 +658,10 @@ abstract class _UpdateManifest extends UpdateManifest {
   int get compressedSize;
   @override
 
+  /// SHA-256 hash of the downloaded package archive
+  String? get packageSha256;
+  @override
+
   /// Download URL for the update package
   String get downloadUrl;
   @override
@@ -642,7 +670,7 @@ abstract class _UpdateManifest extends UpdateManifest {
   String? get releaseNotes;
   @override
 
-  /// Optional signature for verification
+  /// Ed25519 signature for the canonical manifest payload
   String? get signature;
   @override
   @JsonKey(ignore: true)

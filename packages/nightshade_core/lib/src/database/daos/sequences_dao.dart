@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database.dart';
 import '../tables/sequences.dart';
@@ -69,6 +70,9 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Duplicate a sequence
+  ///
+  /// Generates fresh UUIDs for all duplicated nodes and remaps parent-child
+  /// references (parentNodeId) and the sequence's rootNodeId to the new IDs.
   Future<int> duplicateSequence(int sourceId, String newName) async {
     final source = await getSequenceById(sourceId);
     if (source == null) {
@@ -76,23 +80,40 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
     }
 
     final sourceNodes = await getNodesForSequence(sourceId);
+    const uuid = Uuid();
+
+    // Build mapping from old nodeId → new nodeId
+    final idMapping = <String, String>{};
+    for (final node in sourceNodes) {
+      idMapping[node.nodeId] = uuid.v4();
+    }
+
+    // Remap rootNodeId
+    final newRootNodeId = source.rootNodeId != null
+        ? idMapping[source.rootNodeId!] ?? source.rootNodeId
+        : null;
 
     return transaction(() async {
-      // Create new sequence
+      // Create new sequence with remapped root
       final newId = await into(sequences).insert(
         SequencesCompanion.insert(
           name: newName,
           description: Value(source.description),
-          rootNodeId: Value(source.rootNodeId),
+          rootNodeId: Value(newRootNodeId),
           isTemplate: Value(source.isTemplate),
         ),
       );
 
-      // Copy all nodes
+      // Copy all nodes with new UUIDs and remapped parent references
       for (final node in sourceNodes) {
+        final newNodeId = idMapping[node.nodeId]!;
+        final newParentNodeId = node.parentNodeId != null
+            ? idMapping[node.parentNodeId!] ?? node.parentNodeId
+            : null;
+
         await into(sequenceNodes).insert(
           SequenceNodesCompanion.insert(
-            nodeId: node.nodeId,
+            nodeId: newNodeId,
             sequenceId: newId,
             targetId: Value(node.targetId),
             nodeType: node.nodeType,
@@ -100,7 +121,7 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
             name: node.name,
             properties: Value(node.properties),
             recoveryConfig: Value(node.recoveryConfig),
-            parentNodeId: Value(node.parentNodeId),
+            parentNodeId: Value(newParentNodeId),
             orderIndex: Value(node.orderIndex),
             isEnabled: Value(node.isEnabled),
           ),

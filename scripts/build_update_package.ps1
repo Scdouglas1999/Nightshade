@@ -130,7 +130,9 @@ try {
     Copy-Item $packagePath $tempPackagePath
 
     $compressedSize = (Get-Item $packagePath).Length
+    $packageSha256 = (Get-FileHash $packagePath -Algorithm SHA256).Hash.ToLower()
     Write-Host "  Compressed: $([math]::Round($compressedSize/1024/1024, 1)) MB" -ForegroundColor Gray
+    Write-Host "  Package SHA-256: $packageSha256" -ForegroundColor Gray
 
     # Create manifest
     Write-Host "`nGenerating manifest..." -ForegroundColor Yellow
@@ -145,8 +147,57 @@ try {
         files = $files
         totalSize = $totalSize
         compressedSize = $compressedSize
+        packageSha256 = $packageSha256
         downloadUrl = "https://updates.nightshade.app/releases/$version/$packageName"
         releaseNotes = "Update to version $version"
+    }
+
+    $privateKeyBase64 = $env:NIGHTSHADE_UPDATE_PRIVATE_KEY
+    if ($privateKeyBase64) {
+        Write-Host "  Signing manifest with NIGHTSHADE_UPDATE_PRIVATE_KEY" -ForegroundColor Gray
+        $payload = [ordered]@{
+            version = $manifest.version
+            buildNumber = $manifest.buildNumber
+            releaseDate = $manifest.releaseDate
+            platform = $manifest.platform
+            arch = $manifest.arch
+            minVersion = $manifest.minVersion
+            files = $manifest.files
+            totalSize = $manifest.totalSize
+            compressedSize = $manifest.compressedSize
+            packageSha256 = $manifest.packageSha256
+            downloadUrl = $manifest.downloadUrl
+            releaseNotes = $manifest.releaseNotes
+        }
+
+        $payloadJson = $payload | ConvertTo-Json -Depth 10 -Compress
+        $tempScript = Join-Path $OutputDir "sign_manifest.dart"
+        $packageConfig = Join-Path $PSScriptRoot "..\packages\nightshade_updater\.dart_tool\package_config.json"
+@"
+import 'dart:convert';
+import 'dart:io';
+import 'package:cryptography/cryptography.dart';
+
+Future<void> main(List<String> args) async {
+  final payload = args[0];
+  final privateKey = base64Decode(args[1]);
+  final algorithm = Ed25519();
+  final seed = privateKey.length >= 32 ? privateKey.sublist(0, 32) : privateKey;
+  if (seed.length != 32) {
+    stderr.writeln('Expected 32-byte Ed25519 private key seed');
+    exit(1);
+  }
+  final keyPair = await algorithm.newKeyPairFromSeed(seed);
+  final signature = await algorithm.sign(utf8.encode(payload), keyPair: keyPair);
+  stdout.write(base64Encode(signature.bytes));
+}
+"@ | Set-Content $tempScript -Encoding UTF8
+        $signature = dart --packages $packageConfig $tempScript $payloadJson $privateKeyBase64
+        Remove-Item $tempScript -Force
+        if ($LASTEXITCODE -ne 0) {
+            throw "Manifest signing failed"
+        }
+        $manifest.signature = $signature.Trim()
     }
 
     $manifestPath = Join-Path $OutputDir "manifest.json"

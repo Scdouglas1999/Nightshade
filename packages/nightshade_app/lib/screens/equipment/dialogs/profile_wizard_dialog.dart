@@ -26,7 +26,8 @@ class ProfileWizardDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<ProfileWizardDialog> createState() => _ProfileWizardDialogState();
+  ConsumerState<ProfileWizardDialog> createState() =>
+      _ProfileWizardDialogState();
 }
 
 class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
@@ -73,12 +74,18 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
     final rotatorState = ref.read(rotatorStateProvider);
 
     setState(() {
-      _includeCamera = cameraState.connectionState == DeviceConnectionState.connected;
-      _includeMount = mountState.connectionState == DeviceConnectionState.connected;
-      _includeFocuser = focuserState.connectionState == DeviceConnectionState.connected;
-      _includeFilterWheel = filterWheelState.connectionState == DeviceConnectionState.connected;
-      _includeGuider = guiderState.connectionState == DeviceConnectionState.connected;
-      _includeRotator = rotatorState.connectionState == DeviceConnectionState.connected;
+      _includeCamera =
+          cameraState.connectionState == DeviceConnectionState.connected;
+      _includeMount =
+          mountState.connectionState == DeviceConnectionState.connected;
+      _includeFocuser =
+          focuserState.connectionState == DeviceConnectionState.connected;
+      _includeFilterWheel =
+          filterWheelState.connectionState == DeviceConnectionState.connected;
+      _includeGuider =
+          guiderState.connectionState == DeviceConnectionState.connected;
+      _includeRotator =
+          rotatorState.connectionState == DeviceConnectionState.connected;
 
       // Initialize filter slots from connected filter wheel
       if (filterWheelState.connectionState == DeviceConnectionState.connected) {
@@ -197,12 +204,18 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
       }
 
       // Enable all connected devices
-      _includeCamera = cameraState.connectionState == DeviceConnectionState.connected;
-      _includeMount = mountState.connectionState == DeviceConnectionState.connected;
-      _includeFocuser = focuserState.connectionState == DeviceConnectionState.connected;
-      _includeFilterWheel = filterWheelState.connectionState == DeviceConnectionState.connected;
-      _includeGuider = guiderState.connectionState == DeviceConnectionState.connected;
-      _includeRotator = rotatorState.connectionState == DeviceConnectionState.connected;
+      _includeCamera =
+          cameraState.connectionState == DeviceConnectionState.connected;
+      _includeMount =
+          mountState.connectionState == DeviceConnectionState.connected;
+      _includeFocuser =
+          focuserState.connectionState == DeviceConnectionState.connected;
+      _includeFilterWheel =
+          filterWheelState.connectionState == DeviceConnectionState.connected;
+      _includeGuider =
+          guiderState.connectionState == DeviceConnectionState.connected;
+      _includeRotator =
+          rotatorState.connectionState == DeviceConnectionState.connected;
 
       // Copy optical settings from active profile if available
       if (activeProfile != null) {
@@ -259,22 +272,29 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
         description: _descriptionController.text.trim().isNotEmpty
             ? _descriptionController.text.trim()
             : null,
-        cameraId: _includeCamera && cameraState.connectionState == DeviceConnectionState.connected
+        cameraId: _includeCamera &&
+                cameraState.connectionState == DeviceConnectionState.connected
             ? cameraState.deviceId
             : null,
-        mountId: _includeMount && mountState.connectionState == DeviceConnectionState.connected
+        mountId: _includeMount &&
+                mountState.connectionState == DeviceConnectionState.connected
             ? mountState.deviceId
             : null,
-        focuserId: _includeFocuser && focuserState.connectionState == DeviceConnectionState.connected
+        focuserId: _includeFocuser &&
+                focuserState.connectionState == DeviceConnectionState.connected
             ? focuserState.deviceId
             : null,
-        filterWheelId: _includeFilterWheel && filterWheelState.connectionState == DeviceConnectionState.connected
+        filterWheelId: _includeFilterWheel &&
+                filterWheelState.connectionState ==
+                    DeviceConnectionState.connected
             ? filterWheelState.deviceId
             : null,
-        guiderId: _includeGuider && guiderState.connectionState == DeviceConnectionState.connected
+        guiderId: _includeGuider &&
+                guiderState.connectionState == DeviceConnectionState.connected
             ? guiderState.deviceId
             : null,
-        rotatorId: _includeRotator && rotatorState.connectionState == DeviceConnectionState.connected
+        rotatorId: _includeRotator &&
+                rotatorState.connectionState == DeviceConnectionState.connected
             ? rotatorState.deviceId
             : null,
         focalLength: double.tryParse(_focalLengthController.text.trim()) ?? 0.0,
@@ -311,7 +331,7 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
         constraints: const BoxConstraints(maxHeight: 700),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.border),
           boxShadow: [
             BoxShadow(
@@ -438,9 +458,8 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
                 Container(
                   width: 40,
                   height: 2,
-                  color: isCompleted || isActive
-                      ? colors.primary
-                      : colors.border,
+                  color:
+                      isCompleted || isActive ? colors.primary : colors.border,
                 ),
               _StepDot(
                 index: index + 1,
@@ -479,7 +498,7 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: colors.primary.withValues(alpha: 0.2),
             ),
@@ -619,86 +638,99 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
           ),
         ),
         const SizedBox(height: 20),
-
         _DeviceCheckbox(
           title: 'Camera',
-          subtitle: cameraState.connectionState == DeviceConnectionState.connected
-              ? cameraState.deviceName ?? cameraState.deviceId ?? 'Unknown'
-              : 'Not connected',
+          subtitle:
+              cameraState.connectionState == DeviceConnectionState.connected
+                  ? cameraState.deviceName ?? cameraState.deviceId ?? 'Unknown'
+                  : 'Not connected',
           icon: LucideIcons.camera,
           isChecked: _includeCamera,
-          isEnabled: cameraState.connectionState == DeviceConnectionState.connected,
+          isEnabled:
+              cameraState.connectionState == DeviceConnectionState.connected,
           colors: colors,
           onChanged: (value) => setState(() => _includeCamera = value ?? false),
         ),
-
         _DeviceCheckbox(
           title: 'Mount',
-          subtitle: mountState.connectionState == DeviceConnectionState.connected
-              ? mountState.deviceName ?? mountState.deviceId ?? 'Unknown'
-              : 'Not connected',
+          subtitle:
+              mountState.connectionState == DeviceConnectionState.connected
+                  ? mountState.deviceName ?? mountState.deviceId ?? 'Unknown'
+                  : 'Not connected',
           icon: LucideIcons.compass,
           isChecked: _includeMount,
-          isEnabled: mountState.connectionState == DeviceConnectionState.connected,
+          isEnabled:
+              mountState.connectionState == DeviceConnectionState.connected,
           colors: colors,
           onChanged: (value) => setState(() => _includeMount = value ?? false),
         ),
-
         _DeviceCheckbox(
           title: 'Focuser',
-          subtitle: focuserState.connectionState == DeviceConnectionState.connected
+          subtitle: focuserState.connectionState ==
+                  DeviceConnectionState.connected
               ? focuserState.deviceName ?? focuserState.deviceId ?? 'Unknown'
               : 'Not connected',
           icon: LucideIcons.focus,
           isChecked: _includeFocuser,
-          isEnabled: focuserState.connectionState == DeviceConnectionState.connected,
+          isEnabled:
+              focuserState.connectionState == DeviceConnectionState.connected,
           colors: colors,
-          onChanged: (value) => setState(() => _includeFocuser = value ?? false),
+          onChanged: (value) =>
+              setState(() => _includeFocuser = value ?? false),
         ),
-
         _DeviceCheckbox(
           title: 'Filter Wheel',
-          subtitle: filterWheelState.connectionState == DeviceConnectionState.connected
-              ? filterWheelState.deviceName ?? filterWheelState.deviceId ?? 'Unknown'
+          subtitle: filterWheelState.connectionState ==
+                  DeviceConnectionState.connected
+              ? filterWheelState.deviceName ??
+                  filterWheelState.deviceId ??
+                  'Unknown'
               : 'Not connected',
           icon: LucideIcons.disc,
           isChecked: _includeFilterWheel,
-          isEnabled: filterWheelState.connectionState == DeviceConnectionState.connected,
+          isEnabled: filterWheelState.connectionState ==
+              DeviceConnectionState.connected,
           colors: colors,
           onChanged: (value) {
             setState(() {
               _includeFilterWheel = value ?? false;
-              if (_includeFilterWheel && filterWheelState.connectionState == DeviceConnectionState.connected) {
+              if (_includeFilterWheel &&
+                  filterWheelState.connectionState ==
+                      DeviceConnectionState.connected) {
                 final filterNames = filterWheelState.filterNames;
-                _filterSlotCount = filterNames.isNotEmpty ? filterNames.length : 5;
+                _filterSlotCount =
+                    filterNames.isNotEmpty ? filterNames.length : 5;
                 _initializeFilterControllers(filterNames);
               }
             });
           },
         ),
-
         _DeviceCheckbox(
           title: 'Guider',
-          subtitle: guiderState.connectionState == DeviceConnectionState.connected
-              ? guiderState.deviceName ?? guiderState.deviceId ?? 'Unknown'
-              : 'Not connected',
+          subtitle:
+              guiderState.connectionState == DeviceConnectionState.connected
+                  ? guiderState.deviceName ?? guiderState.deviceId ?? 'Unknown'
+                  : 'Not connected',
           icon: LucideIcons.crosshair,
           isChecked: _includeGuider,
-          isEnabled: guiderState.connectionState == DeviceConnectionState.connected,
+          isEnabled:
+              guiderState.connectionState == DeviceConnectionState.connected,
           colors: colors,
           onChanged: (value) => setState(() => _includeGuider = value ?? false),
         ),
-
         _DeviceCheckbox(
           title: 'Rotator',
-          subtitle: rotatorState.connectionState == DeviceConnectionState.connected
+          subtitle: rotatorState.connectionState ==
+                  DeviceConnectionState.connected
               ? rotatorState.deviceName ?? rotatorState.deviceId ?? 'Unknown'
               : 'Not connected',
           icon: LucideIcons.rotateCcw,
           isChecked: _includeRotator,
-          isEnabled: rotatorState.connectionState == DeviceConnectionState.connected,
+          isEnabled:
+              rotatorState.connectionState == DeviceConnectionState.connected,
           colors: colors,
-          onChanged: (value) => setState(() => _includeRotator = value ?? false),
+          onChanged: (value) =>
+              setState(() => _includeRotator = value ?? false),
         ),
       ],
     );
@@ -791,7 +823,7 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -917,7 +949,7 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
         Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -1088,14 +1120,11 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
 
           // Back button
           if (_canGoBack)
-            OutlinedButton.icon(
+            NightshadeButton(
               onPressed: _isCreating ? null : _goBack,
-              icon: const Icon(LucideIcons.arrowLeft, size: 16),
-              label: const Text('Back'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors.textSecondary,
-                side: BorderSide(color: colors.border),
-              ),
+              icon: LucideIcons.arrowLeft,
+              label: 'Back',
+              variant: ButtonVariant.outline,
             ),
 
           const SizedBox(width: 12),
@@ -1134,14 +1163,14 @@ class _StepDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return Container(
       width: 32,
       height: 32,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isActive || isCompleted
-            ? colors.primary
-            : colors.surfaceAlt,
+        color: isActive || isCompleted ? colors.primary : colors.surfaceAlt,
         border: Border.all(
           color: isActive
               ? colors.primary
@@ -1153,17 +1182,17 @@ class _StepDot extends StatelessWidget {
       ),
       child: Center(
         child: isCompleted
-            ? const Icon(
+            ? Icon(
                 LucideIcons.check,
                 size: 14,
-                color: Colors.white,
+                color: onPrimary,
               )
             : Text(
                 '$index',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isActive ? Colors.white : colors.textMuted,
+                  color: isActive ? onPrimary : colors.textMuted,
                 ),
               ),
       ),
@@ -1243,9 +1272,8 @@ class _DeviceCheckbox extends StatelessWidget {
                   Text(
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: isEnabled
-                          ? colors.textSecondary
-                          : colors.textMuted,
+                      color:
+                          isEnabled ? colors.textSecondary : colors.textMuted,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1256,7 +1284,7 @@ class _DeviceCheckbox extends StatelessWidget {
               value: isChecked && isEnabled,
               onChanged: isEnabled ? onChanged : null,
               activeColor: colors.primary,
-              checkColor: Colors.white,
+              checkColor: Theme.of(context).colorScheme.onPrimary,
               side: BorderSide(color: colors.border),
             ),
           ],

@@ -107,14 +107,14 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
         }
     }
 
-    tracing::info!("Starting native device discovery sequence...");
+    tracing::debug!("Starting native device discovery sequence...");
     let mut devices = Vec::new();
 
     // Discover ZWO devices
-    tracing::info!("Discovering ZWO cameras...");
+    tracing::debug!("Discovering ZWO cameras...");
     // ZWO SDK doesn't expose serial numbers, so we use discovery index for disambiguation
     if let Ok(zwo_devices) = crate::vendor::zwo::discover_devices().await {
-        tracing::info!("Found {} ZWO cameras", zwo_devices.len());
+        tracing::debug!("Found {} ZWO cameras", zwo_devices.len());
         devices.extend(zwo_devices.into_iter().map(|info| {
             // ZWO doesn't have serial numbers, use index for disambiguation
             let display_name = NativeDeviceInfo::generate_display_name(
@@ -133,17 +133,17 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("ZWO camera discovery complete.");
+    tracing::debug!("ZWO camera discovery complete.");
 
     // Discover QHY devices
     // Note: QHY SDK discovery was previously disabled due to initialization issues.
     // It has been re-enabled with proper error handling - discovery failures are
     // logged but don't prevent other vendors from being discovered.
-    tracing::info!("Discovering QHY cameras...");
+    tracing::debug!("Discovering QHY cameras...");
     // QHY ID format typically includes serial: "ModelName-SerialNumber"
     match crate::vendor::qhy::discover_devices().await {
         Ok(qhy_devices) => {
-            tracing::info!("Found {} QHY cameras", qhy_devices.len());
+            tracing::debug!("Found {} QHY cameras", qhy_devices.len());
             devices.extend(qhy_devices.into_iter().map(|info| {
                 let display_name = NativeDeviceInfo::generate_display_name(
                     &info.name,
@@ -167,13 +167,13 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             tracing::debug!("QHY camera discovery skipped: {}", e);
         }
     }
-    tracing::info!("QHY camera discovery complete.");
+    tracing::debug!("QHY camera discovery complete.");
 
     // Discover Player One devices
-    tracing::info!("Discovering Player One cameras...");
+    tracing::debug!("Discovering Player One cameras...");
     // Player One SDK provides serial number in POACameraProperties.sn
     if let Ok(po_devices) = crate::vendor::player_one::discover_devices().await {
-        tracing::info!("Found {} Player One cameras", po_devices.len());
+        tracing::debug!("Found {} Player One cameras", po_devices.len());
         devices.extend(po_devices.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -191,12 +191,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("Player One camera discovery complete.");
+    tracing::debug!("Player One camera discovery complete.");
 
     // Discover ZWO EAF focusers
-    tracing::info!("Discovering ZWO EAF focusers...");
+    tracing::debug!("Discovering ZWO EAF focusers...");
     if let Ok(zwo_focusers) = crate::vendor::zwo::discover_focusers().await {
-        tracing::info!("Found {} ZWO EAF focusers", zwo_focusers.len());
+        tracing::debug!("Found {} ZWO EAF focusers", zwo_focusers.len());
         devices.extend(zwo_focusers.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -215,12 +215,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("ZWO EAF discovery complete.");
+    tracing::debug!("ZWO EAF discovery complete.");
 
     // Discover ZWO EFW filter wheels
-    tracing::info!("Discovering ZWO EFW filter wheels...");
+    tracing::debug!("Discovering ZWO EFW filter wheels...");
     if let Ok(zwo_filterwheels) = crate::vendor::zwo::discover_filter_wheels().await {
-        tracing::info!("Found {} ZWO EFW filter wheels", zwo_filterwheels.len());
+        tracing::debug!("Found {} ZWO EFW filter wheels", zwo_filterwheels.len());
         devices.extend(zwo_filterwheels.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -239,14 +239,14 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("ZWO EFW discovery complete.");
+    tracing::debug!("ZWO EFW discovery complete.");
 
     // Discover QHY CFW filter wheels (attached to cameras)
     // Note: QHY CFW discovery was previously disabled. Re-enabled with proper error handling.
-    tracing::info!("Discovering QHY filter wheels...");
+    tracing::debug!("Discovering QHY filter wheels...");
     match crate::vendor::qhy::discover_filter_wheels().await {
         Ok(qhy_filterwheels) => {
-            tracing::info!("Found {} QHY filter wheels", qhy_filterwheels.len());
+            tracing::debug!("Found {} QHY filter wheels", qhy_filterwheels.len());
             devices.extend(qhy_filterwheels.into_iter().map(|info| {
                 let display_name = format!("{} ({})", info.name, info.camera_id);
                 NativeDeviceInfo {
@@ -266,13 +266,13 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             tracing::debug!("QHY CFW discovery skipped: {}", e);
         }
     }
-    tracing::info!("QHY CFW discovery complete.");
+    tracing::debug!("QHY CFW discovery complete.");
 
     // Discover SVBony cameras
-    tracing::info!("Discovering SVBony cameras...");
+    tracing::debug!("Discovering SVBony cameras...");
     // SVBony SDK provides serial number in camera properties
     if let Ok(svbony_devices) = crate::vendor::svbony::discover_devices().await {
-        tracing::info!("Found {} SVBony cameras", svbony_devices.len());
+        tracing::debug!("Found {} SVBony cameras", svbony_devices.len());
         devices.extend(svbony_devices.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -290,12 +290,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("SVBony camera discovery complete.");
+    tracing::debug!("SVBony camera discovery complete.");
 
     // Discover Atik cameras
-    tracing::info!("Discovering Atik cameras...");
+    tracing::debug!("Discovering Atik cameras...");
     if let Ok(atik_devices) = crate::vendor::atik::discover_devices().await {
-        tracing::info!("Found {} Atik cameras", atik_devices.len());
+        tracing::debug!("Found {} Atik cameras", atik_devices.len());
         devices.extend(atik_devices.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -313,12 +313,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("Atik camera discovery complete.");
+    tracing::debug!("Atik camera discovery complete.");
 
     // Discover FLI cameras
-    tracing::info!("Discovering FLI cameras...");
+    tracing::debug!("Discovering FLI cameras...");
     if let Ok(fli_cameras) = crate::vendor::fli::discover_cameras().await {
-        tracing::info!("Found {} FLI cameras", fli_cameras.len());
+        tracing::debug!("Found {} FLI cameras", fli_cameras.len());
         devices.extend(fli_cameras.into_iter().map(|info| {
             let path_safe = info.device_path.replace("/", "_").replace("\\", "_");
             let display_name = NativeDeviceInfo::generate_display_name(
@@ -337,12 +337,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("FLI camera discovery complete.");
+    tracing::debug!("FLI camera discovery complete.");
 
     // Discover FLI focusers
-    tracing::info!("Discovering FLI focusers...");
+    tracing::debug!("Discovering FLI focusers...");
     if let Ok(fli_focusers) = crate::vendor::fli::discover_focusers().await {
-        tracing::info!("Found {} FLI focusers", fli_focusers.len());
+        tracing::debug!("Found {} FLI focusers", fli_focusers.len());
         devices.extend(fli_focusers.into_iter().map(|info| {
             let path_safe = info.device_path.replace("/", "_").replace("\\", "_");
             let display_name = NativeDeviceInfo::generate_display_name(
@@ -361,12 +361,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("FLI focuser discovery complete.");
+    tracing::debug!("FLI focuser discovery complete.");
 
     // Discover FLI filter wheels
-    tracing::info!("Discovering FLI filter wheels...");
+    tracing::debug!("Discovering FLI filter wheels...");
     if let Ok(fli_filterwheels) = crate::vendor::fli::discover_filter_wheels().await {
-        tracing::info!("Found {} FLI filter wheels", fli_filterwheels.len());
+        tracing::debug!("Found {} FLI filter wheels", fli_filterwheels.len());
         devices.extend(fli_filterwheels.into_iter().map(|info| {
             let path_safe = info.device_path.replace("/", "_").replace("\\", "_");
             let display_name = NativeDeviceInfo::generate_display_name(
@@ -385,12 +385,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("FLI filter wheel discovery complete.");
+    tracing::debug!("FLI filter wheel discovery complete.");
 
     // Discover Touptek/OGMA cameras (across all white-label brands)
-    tracing::info!("Discovering Touptek/OGMA cameras...");
+    tracing::debug!("Discovering Touptek/OGMA cameras...");
     if let Ok(touptek_devices) = crate::vendor::touptek::discover_devices().await {
-        tracing::info!("Found {} Touptek cameras", touptek_devices.len());
+        tracing::debug!("Found {} Touptek cameras", touptek_devices.len());
         devices.extend(touptek_devices.into_iter().map(|info| {
             let brand_lower = info.brand.to_lowercase();
             let display_name = NativeDeviceInfo::generate_display_name(
@@ -409,12 +409,12 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("Touptek discovery complete.");
+    tracing::debug!("Touptek discovery complete.");
 
     // Discover Moravian cameras
-    tracing::info!("Discovering Moravian cameras...");
+    tracing::debug!("Discovering Moravian cameras...");
     if let Ok(moravian_devices) = crate::vendor::moravian::discover_devices().await {
-        tracing::info!("Found {} Moravian cameras", moravian_devices.len());
+        tracing::debug!("Found {} Moravian cameras", moravian_devices.len());
         devices.extend(moravian_devices.into_iter().map(|info| {
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
@@ -432,15 +432,15 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("Moravian discovery complete.");
+    tracing::debug!("Moravian discovery complete.");
 
     // Discover Fujifilm cameras (Windows only - X Acquire SDK)
     #[cfg(target_os = "windows")]
     {
-        tracing::info!("Discovering Fujifilm cameras...");
+        tracing::debug!("Discovering Fujifilm cameras...");
         match crate::vendor::fujifilm::discover_devices().await {
             Ok(fuji_devices) => {
-                tracing::info!("Found {} Fujifilm cameras", fuji_devices.len());
+                tracing::debug!("Found {} Fujifilm cameras", fuji_devices.len());
                 devices.extend(fuji_devices.into_iter().map(|info| {
                     let display_name = NativeDeviceInfo::generate_display_name(
                         &info.name,
@@ -466,17 +466,38 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 tracing::debug!("Fujifilm camera discovery skipped: {}", e);
             }
         }
-        tracing::info!("Fujifilm camera discovery complete.");
+        tracing::debug!("Fujifilm camera discovery complete.");
     }
+
+    // Discover gPhoto2 DSLR/Mirrorless cameras (all platforms)
+    tracing::debug!("Discovering gPhoto2 DSLR/mirrorless cameras...");
+    {
+        let gp_cameras = crate::vendor::gphoto2::detect_gphoto2_cameras();
+        tracing::debug!("Found {} gPhoto2 cameras", gp_cameras.len());
+        for cam in gp_cameras {
+            let display_name =
+                NativeDeviceInfo::generate_display_name(&cam.model, None, Some(cam.index));
+            devices.push(NativeDeviceInfo {
+                id: cam.device_id.clone(),
+                name: cam.model.clone(),
+                vendor: NativeVendor::GPhoto2,
+                device_type: DeviceType::Camera,
+                serial_number: None,
+                sdk_version: None,
+                display_name,
+            });
+        }
+    }
+    tracing::debug!("gPhoto2 camera discovery complete.");
 
     // =========================================================================
     // MOUNT DISCOVERY (Serial Protocol Mounts)
     // =========================================================================
 
     // Discover Sky-Watcher mounts (SynScan protocol)
-    tracing::info!("Discovering Sky-Watcher mounts...");
+    tracing::debug!("Discovering Sky-Watcher mounts...");
     if let Ok(skywatcher_mounts) = crate::vendor::skywatcher::discover_mounts().await {
-        tracing::info!("Found {} Sky-Watcher mounts", skywatcher_mounts.len());
+        tracing::debug!("Found {} Sky-Watcher mounts", skywatcher_mounts.len());
         devices.extend(skywatcher_mounts.into_iter().map(|info| {
             let port_safe = info.port.replace("/", "_").replace("\\", "_");
             // Include baud rate in the ID so we can use it when connecting
@@ -492,16 +513,16 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("Sky-Watcher discovery complete.");
+    tracing::debug!("Sky-Watcher discovery complete.");
 
     // Give Windows time to fully release COM ports before next vendor discovery
     // This prevents "Access denied" errors when the same ports are probed
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     // Discover iOptron mounts
-    tracing::info!("Discovering iOptron mounts...");
+    tracing::debug!("Discovering iOptron mounts...");
     if let Ok(ioptron_mounts) = crate::vendor::ioptron::discover_mounts().await {
-        tracing::info!("Found {} iOptron mounts", ioptron_mounts.len());
+        tracing::debug!("Found {} iOptron mounts", ioptron_mounts.len());
         devices.extend(ioptron_mounts.into_iter().map(|info| {
             let port_safe = info.port.replace("/", "_").replace("\\", "_");
             // Include baud rate in the ID so we can use it when connecting
@@ -517,15 +538,15 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("iOptron discovery complete.");
+    tracing::debug!("iOptron discovery complete.");
 
     // Give Windows time to fully release COM ports before next vendor discovery
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     // Discover LX200-compatible mounts (Meade, OnStep/Pegasus, Losmandy, etc.)
-    tracing::info!("Discovering LX200 mounts...");
+    tracing::debug!("Discovering LX200 mounts...");
     if let Ok(lx200_mounts) = crate::vendor::lx200::discover_mounts().await {
-        tracing::info!("Found {} LX200 mounts", lx200_mounts.len());
+        tracing::debug!("Found {} LX200 mounts", lx200_mounts.len());
         devices.extend(lx200_mounts.into_iter().map(|info| {
             let port_safe = info.port.replace("/", "_").replace("\\", "_");
             let vendor = info.mount_type.vendor();
@@ -549,10 +570,10 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
             }
         }));
     }
-    tracing::info!("LX200 discovery complete.");
+    tracing::debug!("LX200 discovery complete.");
 
     tracing::info!(
-        "Native device discovery finished. Found {} total devices.",
+        "Native discovery complete: found {} total devices",
         devices.len()
     );
 

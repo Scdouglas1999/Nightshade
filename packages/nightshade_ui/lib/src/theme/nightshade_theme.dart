@@ -6,10 +6,13 @@ import 'nightshade_colors.dart';
 enum AppThemeMode {
   /// Standard dark theme
   dark,
+
   /// Light theme
   light,
+
   /// Red night vision theme - preserves dark-adapted eyes
   redNight,
+
   /// Follow system setting (maps to light/dark only)
   system,
 }
@@ -18,7 +21,8 @@ enum AppThemeMode {
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 
 /// App-specific theme mode provider (includes red night)
-final appThemeModeProvider = StateProvider<AppThemeMode>((ref) => AppThemeMode.dark);
+final appThemeModeProvider =
+    StateProvider<AppThemeMode>((ref) => AppThemeMode.dark);
 
 /// Get the appropriate ThemeData for the current app theme mode
 ThemeData getThemeForMode(AppThemeMode mode, Brightness systemBrightness) {
@@ -43,6 +47,13 @@ class NightshadeTheme {
   // Monospace fonts (JetBrains Mono) are available via NightshadeTypography.mono* styles
   static const _fontFamily = 'Inter';
 
+  static Color _primaryForeground(NightshadeColors colors) {
+    if (identical(colors, NightshadeColors.redNight)) {
+      return colors.background;
+    }
+    return const Color(0xFFFFFFFF);
+  }
+
   static ThemeData get dark {
     const colors = NightshadeColors.dark;
 
@@ -53,9 +64,11 @@ class NightshadeTheme {
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.dark(
         primary: colors.primary,
+        onPrimary: _primaryForeground(colors),
         secondary: colors.accent,
         surface: colors.surface,
         error: colors.error,
+        onError: _primaryForeground(colors),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surface,
@@ -66,7 +79,7 @@ class NightshadeTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colors.border),
         ),
       ),
@@ -85,13 +98,27 @@ class NightshadeTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: colors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         hintStyle: TextStyle(color: colors.textMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: _primaryForeground(colors),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colors.primary,
+          foregroundColor: _primaryForeground(colors),
+          disabledBackgroundColor: colors.surfaceAlt,
+          disabledForegroundColor: colors.textMuted,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -144,9 +171,11 @@ class NightshadeTheme {
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.light(
         primary: colors.primary,
+        onPrimary: _primaryForeground(colors),
         secondary: colors.accent,
         surface: colors.surface,
         error: colors.error,
+        onError: _primaryForeground(colors),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surface,
@@ -157,7 +186,7 @@ class NightshadeTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colors.border),
         ),
       ),
@@ -176,13 +205,27 @@ class NightshadeTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: colors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         hintStyle: TextStyle(color: colors.textMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: _primaryForeground(colors),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colors.primary,
+          foregroundColor: _primaryForeground(colors),
+          disabledBackgroundColor: colors.surfaceAlt,
+          disabledForegroundColor: colors.textMuted,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -236,9 +279,11 @@ class NightshadeTheme {
       scaffoldBackgroundColor: colors.background,
       colorScheme: ColorScheme.dark(
         primary: colors.primary,
+        onPrimary: _primaryForeground(colors),
         secondary: colors.accent,
         surface: colors.surface,
         error: colors.error,
+        onError: _primaryForeground(colors),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surface,
@@ -249,7 +294,7 @@ class NightshadeTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colors.border),
         ),
       ),
@@ -268,13 +313,27 @@ class NightshadeTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: colors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         hintStyle: TextStyle(color: colors.textMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: _primaryForeground(colors),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colors.primary,
+          foregroundColor: _primaryForeground(colors),
+          disabledBackgroundColor: colors.surfaceAlt,
+          disabledForegroundColor: colors.textMuted,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -365,15 +424,19 @@ class NightshadeTheme {
       colorScheme: brightness == Brightness.dark
           ? ColorScheme.dark(
               primary: colors.primary,
+              onPrimary: _primaryForeground(colors),
               secondary: colors.accent,
               surface: colors.surface,
               error: colors.error,
+              onError: _primaryForeground(colors),
             )
           : ColorScheme.light(
               primary: colors.primary,
+              onPrimary: _primaryForeground(colors),
               secondary: colors.accent,
               surface: colors.surface,
               error: colors.error,
+              onError: _primaryForeground(colors),
             ),
       appBarTheme: AppBarTheme(
         backgroundColor: colors.surface,
@@ -384,7 +447,7 @@ class NightshadeTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: colors.border),
         ),
       ),
@@ -403,13 +466,27 @@ class NightshadeTheme {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: colors.primary, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         hintStyle: TextStyle(color: colors.textMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.primary,
-          foregroundColor: Colors.white,
+          foregroundColor: _primaryForeground(colors),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colors.primary,
+          foregroundColor: _primaryForeground(colors),
+          disabledBackgroundColor: colors.surfaceAlt,
+          disabledForegroundColor: colors.textMuted,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -452,4 +529,3 @@ class NightshadeTheme {
     );
   }
 }
-

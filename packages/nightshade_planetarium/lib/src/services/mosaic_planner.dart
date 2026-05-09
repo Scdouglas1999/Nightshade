@@ -6,15 +6,15 @@ import '../astronomy/astronomy_calculations.dart';
 class MosaicOverlap {
   /// Horizontal overlap percentage (0-1)
   final double horizontal;
-  
+
   /// Vertical overlap percentage (0-1)
   final double vertical;
-  
+
   const MosaicOverlap({
     this.horizontal = 0.15,
     this.vertical = 0.15,
   });
-  
+
   MosaicOverlap copyWith({
     double? horizontal,
     double? vertical,
@@ -30,11 +30,13 @@ class MosaicOverlap {
 enum MosaicRotation {
   /// No rotation - camera aligned with RA/Dec
   none(0),
+
   /// 90 degree rotation
   rotate90(90),
+
   /// Optimal rotation to minimize panels
   optimal(-1);
-  
+
   final int degrees;
   const MosaicRotation(this.degrees);
 }
@@ -43,34 +45,34 @@ enum MosaicRotation {
 class MosaicPanel {
   /// Panel index (0-based, row-major)
   final int index;
-  
+
   /// Row index (0-based)
   final int row;
-  
+
   /// Column index (0-based)
   final int column;
-  
+
   /// Center coordinates
   final CelestialCoordinate center;
-  
+
   /// Camera rotation angle (degrees)
   final double rotation;
-  
+
   /// Field of view width (degrees)
   final double fovWidth;
-  
+
   /// Field of view height (degrees)
   final double fovHeight;
-  
+
   /// Panel priority (lower = higher priority)
   final int priority;
-  
+
   /// Estimated imaging time (minutes)
   double? imagingTimeMinutes;
-  
+
   /// Custom label for the panel
   String? label;
-  
+
   MosaicPanel({
     required this.index,
     required this.row,
@@ -83,39 +85,39 @@ class MosaicPanel {
     this.imagingTimeMinutes,
     this.label,
   });
-  
+
   /// Get panel name (e.g., "Panel 1", "A1", etc.)
   String get name => label ?? 'Panel ${index + 1}';
-  
+
   /// Get corner coordinates (RA/Dec)
   List<CelestialCoordinate> get corners {
     final halfW = fovWidth / 2;
     final halfH = fovHeight / 2;
     final rotRad = rotation * math.pi / 180;
-    
+
     final offsets = [
       (-halfW, -halfH), // Bottom-left
-      (halfW, -halfH),  // Bottom-right
-      (halfW, halfH),   // Top-right
-      (-halfW, halfH),  // Top-left
+      (halfW, -halfH), // Bottom-right
+      (halfW, halfH), // Top-right
+      (-halfW, halfH), // Top-left
     ];
-    
+
     return offsets.map((offset) {
       // Apply rotation
       final x = offset.$1 * math.cos(rotRad) - offset.$2 * math.sin(rotRad);
       final y = offset.$1 * math.sin(rotRad) + offset.$2 * math.cos(rotRad);
-      
+
       // Convert to celestial coordinates (simplified for small FOV)
-      final dRa = x / 15 / math.cos(center.dec * math.pi / 180);
+      final dRa = MosaicPlanner._raOffsetHoursFromDegrees(x, center.dec);
       final dDec = y;
-      
+
       return CelestialCoordinate(
-        ra: (center.ra + dRa) % 24,
+        ra: MosaicPlanner._normalizeRaHours(center.ra + dRa),
         dec: (center.dec + dDec).clamp(-90, 90),
       );
     }).toList();
   }
-  
+
   MosaicPanel copyWith({
     int? index,
     int? row,
@@ -147,31 +149,31 @@ class MosaicPanel {
 class MosaicConfig {
   /// Center coordinate of the mosaic
   final CelestialCoordinate center;
-  
+
   /// Total mosaic width (degrees)
   final double totalWidth;
-  
+
   /// Total mosaic height (degrees)
   final double totalHeight;
-  
+
   /// Single panel FOV width (degrees)
   final double panelFovWidth;
-  
+
   /// Single panel FOV height (degrees)
   final double panelFovHeight;
-  
+
   /// Overlap configuration
   final MosaicOverlap overlap;
-  
+
   /// Camera rotation (degrees)
   final double rotation;
-  
+
   /// Number of rows (calculated or specified)
   int? rows;
-  
+
   /// Number of columns (calculated or specified)
   int? columns;
-  
+
   MosaicConfig({
     required this.center,
     required this.totalWidth,
@@ -183,7 +185,7 @@ class MosaicConfig {
     this.rows,
     this.columns,
   });
-  
+
   MosaicConfig copyWith({
     CelestialCoordinate? center,
     double? totalWidth,
@@ -213,25 +215,25 @@ class MosaicConfig {
 class MosaicPlan {
   /// Configuration used to generate this plan
   final MosaicConfig config;
-  
+
   /// All panels in the mosaic
   final List<MosaicPanel> panels;
-  
+
   /// Total number of rows
   final int rows;
-  
+
   /// Total number of columns
   final int columns;
-  
+
   /// Effective total width after adding all panels
   final double effectiveWidth;
-  
+
   /// Effective total height after adding all panels
   final double effectiveHeight;
-  
+
   /// Panel capture order (indices)
   List<int> captureOrder;
-  
+
   MosaicPlan({
     required this.config,
     required this.panels,
@@ -240,27 +242,26 @@ class MosaicPlan {
     required this.effectiveWidth,
     required this.effectiveHeight,
     List<int>? captureOrder,
-  }) : captureOrder = captureOrder ?? 
-         List.generate(panels.length, (i) => i);
-  
+  }) : captureOrder = captureOrder ?? List.generate(panels.length, (i) => i);
+
   /// Get total number of panels
   int get panelCount => panels.length;
-  
+
   /// Get estimated total imaging time (minutes)
   double? get totalImagingTime {
     final times = panels.map((p) => p.imagingTimeMinutes).whereType<double>();
     if (times.isEmpty) return null;
     return times.reduce((a, b) => a + b);
   }
-  
+
   /// Get center coordinates
   CelestialCoordinate get center => config.center;
-  
+
   /// Get all panel corners for outline drawing
   List<List<CelestialCoordinate>> get panelOutlines {
     return panels.map((p) => p.corners).toList();
   }
-  
+
   /// Reorder panels for optimal capture (minimize slew time)
   void optimizeCaptureOrder({bool snakePattern = true}) {
     if (snakePattern) {
@@ -269,7 +270,7 @@ class MosaicPlan {
       for (var row = 0; row < rows; row++) {
         final rowPanels = panels.where((p) => p.row == row).toList();
         rowPanels.sort((a, b) => a.column.compareTo(b.column));
-        
+
         if (row.isEven) {
           captureOrder.addAll(rowPanels.map((p) => p.index));
         } else {
@@ -281,7 +282,7 @@ class MosaicPlan {
       captureOrder = List.generate(panels.length, (i) => i);
     }
   }
-  
+
   /// Get panels in capture order
   List<MosaicPanel> get panelsInCaptureOrder {
     return captureOrder.map((i) => panels[i]).toList();
@@ -290,6 +291,20 @@ class MosaicPlan {
 
 /// Mosaic planner service
 class MosaicPlanner {
+  static double _normalizeRaHours(double ra) {
+    final normalized = ra % 24.0;
+    return normalized < 0 ? normalized + 24.0 : normalized;
+  }
+
+  static double _raOffsetHoursFromDegrees(
+      double eastOffsetDegrees, double decDegrees) {
+    final cosDec = math.cos(decDegrees * math.pi / 180.0);
+    if (cosDec.abs() < 1e-6) {
+      return 0.0;
+    }
+    return eastOffsetDegrees / 15.0 / cosDec;
+  }
+
   /// Calculate required number of panels to cover an area
   static (int rows, int cols) calculatePanelCount({
     required double totalWidth,
@@ -301,14 +316,14 @@ class MosaicPlanner {
     // Effective step size accounting for overlap
     final stepWidth = panelWidth * (1 - overlap.horizontal);
     final stepHeight = panelHeight * (1 - overlap.vertical);
-    
+
     // Calculate minimum panels needed
     final cols = (totalWidth / stepWidth).ceil().clamp(1, 100);
     final rows = (totalHeight / stepHeight).ceil().clamp(1, 100);
-    
+
     return (rows, cols);
   }
-  
+
   /// Generate a mosaic plan
   static MosaicPlan generateMosaic(MosaicConfig config) {
     // Calculate panel counts if not specified
@@ -319,49 +334,46 @@ class MosaicPlanner {
       panelHeight: config.panelFovHeight,
       overlap: config.overlap,
     );
-    
+
     final rows = config.rows ?? calcRows;
     final cols = config.columns ?? calcCols;
-    
+
     // Effective step sizes
     final stepWidth = config.panelFovWidth * (1 - config.overlap.horizontal);
     final stepHeight = config.panelFovHeight * (1 - config.overlap.vertical);
-    
+
     // Calculate actual covered dimensions
     final effectiveWidth = config.panelFovWidth + (cols - 1) * stepWidth;
     final effectiveHeight = config.panelFovHeight + (rows - 1) * stepHeight;
-    
+
     // Starting offset from center
     final startOffsetX = -effectiveWidth / 2 + config.panelFovWidth / 2;
     final startOffsetY = -effectiveHeight / 2 + config.panelFovHeight / 2;
-    
+
     // Generate panels
     final panels = <MosaicPanel>[];
     var index = 0;
-    
+
     for (var row = 0; row < rows; row++) {
       for (var col = 0; col < cols; col++) {
         // Calculate panel center offset from mosaic center
         final offsetX = startOffsetX + col * stepWidth;
         final offsetY = startOffsetY + row * stepHeight;
-        
+
         // Apply rotation
         final rotRad = config.rotation * math.pi / 180;
         final rotX = offsetX * math.cos(rotRad) - offsetY * math.sin(rotRad);
         final rotY = offsetX * math.sin(rotRad) + offsetY * math.cos(rotRad);
-        
+
         // Convert offset to RA/Dec (accounting for cos(dec) factor)
-        final cosDec = math.cos(config.center.dec * math.pi / 180);
-        final dRa = rotX / 15 / cosDec;
+        final dRa = _raOffsetHoursFromDegrees(rotX, config.center.dec);
         final dDec = rotY;
-        
+
         // Calculate panel center
-        var panelRa = config.center.ra + dRa;
-        if (panelRa < 0) panelRa += 24;
-        if (panelRa >= 24) panelRa -= 24;
-        
+        final panelRa = _normalizeRaHours(config.center.ra + dRa);
+
         final panelDec = (config.center.dec + dDec).clamp(-90.0, 90.0);
-        
+
         panels.add(MosaicPanel(
           index: index,
           row: row,
@@ -372,11 +384,11 @@ class MosaicPlanner {
           fovHeight: config.panelFovHeight,
           priority: row * cols + col,
         ));
-        
+
         index++;
       }
     }
-    
+
     final plan = MosaicPlan(
       config: config,
       panels: panels,
@@ -385,13 +397,13 @@ class MosaicPlanner {
       effectiveWidth: effectiveWidth,
       effectiveHeight: effectiveHeight,
     );
-    
+
     // Optimize capture order by default
     plan.optimizeCaptureOrder(snakePattern: true);
-    
+
     return plan;
   }
-  
+
   /// Generate a simple rectangular grid mosaic
   static MosaicPlan generateRectangularMosaic({
     required CelestialCoordinate center,
@@ -405,11 +417,11 @@ class MosaicPlanner {
     // Calculate effective step sizes
     final stepWidth = panelFovWidth * (1 - overlap.horizontal);
     final stepHeight = panelFovHeight * (1 - overlap.vertical);
-    
+
     // Calculate total dimensions
     final totalWidth = panelFovWidth + (columns - 1) * stepWidth;
     final totalHeight = panelFovHeight + (rows - 1) * stepHeight;
-    
+
     return generateMosaic(MosaicConfig(
       center: center,
       totalWidth: totalWidth,
@@ -422,7 +434,7 @@ class MosaicPlanner {
       columns: columns,
     ));
   }
-  
+
   /// Calculate slew distance between two panels
   static double slewDistance(MosaicPanel from, MosaicPanel to) {
     return AstronomyCalculations.angularSeparation(
@@ -432,41 +444,43 @@ class MosaicPlanner {
       dec2Deg: to.center.dec,
     );
   }
-  
+
   /// Calculate total slew time for a capture order
   static double totalSlewDistance(MosaicPlan plan) {
     var total = 0.0;
     final orderedPanels = plan.panelsInCaptureOrder;
-    
+
     for (var i = 1; i < orderedPanels.length; i++) {
       total += slewDistance(orderedPanels[i - 1], orderedPanels[i]);
     }
-    
+
     return total;
   }
-  
+
   /// Check if two panels overlap
   static bool panelsOverlap(MosaicPanel a, MosaicPanel b) {
     // Simple AABB check (doesn't account for rotation properly)
     final aCorners = a.corners;
     final bCorners = b.corners;
-    
+
     // Get bounding boxes
     final aMinRa = aCorners.map((c) => c.ra).reduce(math.min);
     final aMaxRa = aCorners.map((c) => c.ra).reduce(math.max);
     final aMinDec = aCorners.map((c) => c.dec).reduce(math.min);
     final aMaxDec = aCorners.map((c) => c.dec).reduce(math.max);
-    
+
     final bMinRa = bCorners.map((c) => c.ra).reduce(math.min);
     final bMaxRa = bCorners.map((c) => c.ra).reduce(math.max);
     final bMinDec = bCorners.map((c) => c.dec).reduce(math.min);
     final bMaxDec = bCorners.map((c) => c.dec).reduce(math.max);
-    
+
     // Check overlap
-    return !(aMaxRa < bMinRa || bMaxRa < aMinRa ||
-             aMaxDec < bMinDec || bMaxDec < aMinDec);
+    return !(aMaxRa < bMinRa ||
+        bMaxRa < aMinRa ||
+        aMaxDec < bMinDec ||
+        bMaxDec < aMinDec);
   }
-  
+
   /// Calculate optimal rotation angle to minimize number of panels
   static double findOptimalRotation({
     required double targetWidth,
@@ -477,16 +491,16 @@ class MosaicPlanner {
   }) {
     var minPanels = double.infinity;
     var optimalAngle = 0.0;
-    
+
     // Try angles from 0 to 90 degrees
     for (var angle = 0.0; angle <= 90; angle += 5) {
       // Rotate the target dimensions
       final rad = angle * math.pi / 180;
-      final rotWidth = targetWidth * math.cos(rad).abs() + 
-                       targetHeight * math.sin(rad).abs();
-      final rotHeight = targetWidth * math.sin(rad).abs() + 
-                        targetHeight * math.cos(rad).abs();
-      
+      final rotWidth = targetWidth * math.cos(rad).abs() +
+          targetHeight * math.sin(rad).abs();
+      final rotHeight = targetWidth * math.sin(rad).abs() +
+          targetHeight * math.cos(rad).abs();
+
       final (rows, cols) = calculatePanelCount(
         totalWidth: rotWidth,
         totalHeight: rotHeight,
@@ -494,14 +508,14 @@ class MosaicPlanner {
         panelHeight: panelHeight,
         overlap: overlap,
       );
-      
+
       final panelCount = rows * cols;
       if (panelCount < minPanels) {
         minPanels = panelCount.toDouble();
         optimalAngle = angle;
       }
     }
-    
+
     return optimalAngle;
   }
 }
@@ -518,19 +532,21 @@ enum MosaicExportFormat {
 class MosaicExporter {
   /// Export mosaic plan to JSON
   static String toJson(MosaicPlan plan) {
-    final panels = plan.panelsInCaptureOrder.map((p) => {
-      'index': p.index,
-      'name': p.name,
-      'row': p.row,
-      'column': p.column,
-      'ra_hours': p.center.ra,
-      'ra_deg': p.center.ra * 15,
-      'dec_deg': p.center.dec,
-      'rotation_deg': p.rotation,
-      'fov_width_deg': p.fovWidth,
-      'fov_height_deg': p.fovHeight,
-    }).toList();
-    
+    final panels = plan.panelsInCaptureOrder
+        .map((p) => {
+              'index': p.index,
+              'name': p.name,
+              'row': p.row,
+              'column': p.column,
+              'ra_hours': p.center.ra,
+              'ra_deg': p.center.ra * 15,
+              'dec_deg': p.center.dec,
+              'rotation_deg': p.rotation,
+              'fov_width_deg': p.fovWidth,
+              'fov_height_deg': p.fovHeight,
+            })
+        .toList();
+
     final data = {
       'center_ra_hours': plan.center.ra,
       'center_dec_deg': plan.center.dec,
@@ -544,56 +560,50 @@ class MosaicExporter {
       'rotation_deg': plan.config.rotation,
       'panels': panels,
     };
-    
+
     // Simple JSON serialization
     return _encodeJson(data);
   }
-  
+
   /// Export mosaic panel coordinates to CSV
   static String toCsv(MosaicPlan plan) {
     final buffer = StringBuffer();
     buffer.writeln('Panel,Row,Column,RA_Hours,RA_Degrees,Dec_Degrees,Rotation');
-    
+
     for (final panel in plan.panelsInCaptureOrder) {
-      buffer.writeln(
-        '${panel.name},${panel.row},${panel.column},'
-        '${panel.center.ra.toStringAsFixed(6)},'
-        '${(panel.center.ra * 15).toStringAsFixed(6)},'
-        '${panel.center.dec.toStringAsFixed(6)},'
-        '${panel.rotation.toStringAsFixed(1)}'
-      );
+      buffer.writeln('${panel.name},${panel.row},${panel.column},'
+          '${panel.center.ra.toStringAsFixed(6)},'
+          '${(panel.center.ra * 15).toStringAsFixed(6)},'
+          '${panel.center.dec.toStringAsFixed(6)},'
+          '${panel.rotation.toStringAsFixed(1)}');
     }
-    
+
     return buffer.toString();
   }
-  
+
   static String _encodeJson(dynamic value, [int indent = 0]) {
     final prefix = '  ' * indent;
     final childPrefix = '  ' * (indent + 1);
-    
+
     if (value == null) return 'null';
     if (value is bool) return value.toString();
     if (value is num) return value.toString();
     if (value is String) return '"$value"';
-    
+
     if (value is List) {
       if (value.isEmpty) return '[]';
-      final items = value.map((e) => '$childPrefix${_encodeJson(e, indent + 1)}');
+      final items =
+          value.map((e) => '$childPrefix${_encodeJson(e, indent + 1)}');
       return '[\n${items.join(',\n')}\n$prefix]';
     }
-    
+
     if (value is Map) {
       if (value.isEmpty) return '{}';
-      final items = value.entries.map((e) => 
-        '$childPrefix"${e.key}": ${_encodeJson(e.value, indent + 1)}');
+      final items = value.entries.map(
+          (e) => '$childPrefix"${e.key}": ${_encodeJson(e.value, indent + 1)}');
       return '{\n${items.join(',\n')}\n$prefix}';
     }
-    
+
     return value.toString();
   }
 }
-
-
-
-
-

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -43,38 +44,46 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
     try {
       final results = <FramingTarget>[];
       final qLower = query.toLowerCase().trim();
-      
+
       // Normalize query
       final normalizedQuery = qLower.replaceAll(RegExp(r'\s+'), '');
 
       // Search DSOs using the planetarium's loaded database
       try {
         final loadedDsos = await _ref.read(loadedDsosProvider.future);
-        
-        final matchingDsos = loadedDsos.where((o) {
-          final idLower = o.id.toLowerCase();
-          final nameLower = o.name.toLowerCase();
-          
-          // Direct matches
-          if (idLower.contains(qLower) || nameLower.contains(qLower)) return true;
-          if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) return true;
-          
-          // Normalized matches
-          final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
-          if (normalizedId.contains(normalizedQuery)) return true;
-          
-          final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
-          if (normalizedName.contains(normalizedQuery)) return true;
-          
-          if (o.catalogIds.any((c) {
-            final cNormalized = c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-            return cNormalized.contains(normalizedQuery);
-          })) {
-            return true;
-          }
-          
-          return false;
-        }).take(50).toList();
+
+        final matchingDsos = loadedDsos
+            .where((o) {
+              final idLower = o.id.toLowerCase();
+              final nameLower = o.name.toLowerCase();
+
+              // Direct matches
+              if (idLower.contains(qLower) || nameLower.contains(qLower)) {
+                return true;
+              }
+              if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) {
+                return true;
+              }
+
+              // Normalized matches
+              final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
+              if (normalizedId.contains(normalizedQuery)) return true;
+
+              final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
+              if (normalizedName.contains(normalizedQuery)) return true;
+
+              if (o.catalogIds.any((c) {
+                final cNormalized =
+                    c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+                return cNormalized.contains(normalizedQuery);
+              })) {
+                return true;
+              }
+
+              return false;
+            })
+            .take(50)
+            .toList();
 
         // Convert to FramingTarget
         for (final dso in matchingDsos) {
@@ -122,7 +131,7 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
           ));
         }
       } catch (e) {
-        print('Framing search error: $e');
+        debugPrint('Framing search error: $e');
       }
 
       // Sort results
@@ -132,16 +141,16 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
         final bName = b.name.toLowerCase();
         final aId = a.catalogId?.toLowerCase();
         final bId = b.catalogId?.toLowerCase();
-        
+
         // Check exact match
         bool isExact(String val) => val == qLower || val == normalizedQuery;
-        
+
         final aExact = isExact(aName) || (aId != null && isExact(aId));
         final bExact = isExact(bName) || (bId != null && isExact(bId));
-        
+
         if (aExact && !bExact) return -1;
         if (!aExact && bExact) return 1;
-        
+
         // Then by magnitude (brighter first)
         return (a.magnitude ?? 99).compareTo(b.magnitude ?? 99);
       });
@@ -165,6 +174,7 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
   }
 }
 
-final targetSearchProvider = StateNotifierProvider<TargetSearchNotifier, TargetSearchState>((ref) {
+final targetSearchProvider =
+    StateNotifierProvider<TargetSearchNotifier, TargetSearchState>((ref) {
   return TargetSearchNotifier(ref);
 });

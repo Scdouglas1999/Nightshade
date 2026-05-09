@@ -5,6 +5,8 @@ import 'package:nightshade_core/database_entities.dart' as settings_models;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for profile and settings endpoints
 class ProfileHandlers {
   final ProviderContainer container;
@@ -26,16 +28,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       final profiles = await backend.getProfiles();
-      return Response.ok(
-        jsonEncode({"profiles": profiles.map((p) => p.toJson()).toList()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"profiles": profiles.map((p) => p.toJson()).toList()});
     } catch (e) {
       _logError('[API] Get profiles error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -48,16 +44,10 @@ class ProfileHandlers {
 
       final backend = container.read(backendProvider);
       await backend.saveProfile(profile);
-      return Response.ok(
-        jsonEncode({"status": "saved"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "saved"});
     } catch (e) {
       _logError('[API] Save profile error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -67,16 +57,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.deleteProfile(profileId);
-      return Response.ok(
-        jsonEncode({"status": "deleted"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "deleted"});
     } catch (e) {
       _logError('[API] Delete profile error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -85,16 +69,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.loadProfile(profileId);
-      return Response.ok(
-        jsonEncode({"status": "loaded"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "loaded"});
     } catch (e) {
       _logError('[API] Load profile error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -102,16 +80,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       final profile = await backend.getActiveProfile();
-      return Response.ok(
-        jsonEncode({"profile": profile?.toJson()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"profile": profile?.toJson()});
     } catch (e) {
       _logError('[API] Get active profile error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -123,16 +95,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       final settings = await backend.getSettings();
-      return Response.ok(
-        jsonEncode({"settings": settings.toJson()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"settings": settings.toJson()});
     } catch (e) {
       _logError('[API] Get settings error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -145,16 +111,10 @@ class ProfileHandlers {
 
       final backend = container.read(backendProvider);
       await backend.updateSettings(settings);
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Update settings error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -162,16 +122,10 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       final location = await backend.getLocation();
-      return Response.ok(
-        jsonEncode({"location": location?.toJson()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"location": location?.toJson()});
     } catch (e) {
       _logError('[API] Get location error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -186,16 +140,10 @@ class ProfileHandlers {
 
       final backend = container.read(backendProvider);
       await backend.setLocation(location);
-      return Response.ok(
-        jsonEncode({"status": "updated"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "updated"});
     } catch (e) {
       _logError('[API] Set location error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -203,20 +151,14 @@ class ProfileHandlers {
     try {
       final backend = container.read(backendProvider);
       final location = await backend.getLocationFromInternet();
-      return Response.ok(
-        jsonEncode({
-          "latitude": location.latitude,
-          "longitude": location.longitude,
-          "elevation": location.elevation,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "latitude": location.latitude,
+        "longitude": location.longitude,
+        "elevation": location.elevation,
+      });
     } catch (e) {
       _logError('[API] Get location from internet error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

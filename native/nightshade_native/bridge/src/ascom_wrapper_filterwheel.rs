@@ -70,7 +70,10 @@ impl AscomFilterWheelWrapper {
             // Filter count will be updated after connect() when we can actually
             // read device properties.
             let _ = init_tx.send(Ok(()));
-            tracing::info!("ASCOM FilterWheel COM object created for: {}", prog_id_clone);
+            tracing::info!(
+                "ASCOM FilterWheel COM object created for: {}",
+                prog_id_clone
+            );
 
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
@@ -112,14 +115,10 @@ impl AscomFilterWheelWrapper {
                     AscomFilterWheelCommand::GetPosition(reply) => {
                         let result = fw.position().map_err(|e| e.to_string());
                         match &result {
-                            Ok(pos) => tracing::info!(
-                                "[ASCOM FW] GetPosition returned position={}",
-                                pos
-                            ),
-                            Err(e) => tracing::error!(
-                                "[ASCOM FW] GetPosition failed: {}",
-                                e
-                            ),
+                            Ok(pos) => {
+                                tracing::info!("[ASCOM FW] GetPosition returned position={}", pos)
+                            }
+                            Err(e) => tracing::error!("[ASCOM FW] GetPosition failed: {}", e),
                         }
                         let _ = reply.send(result);
                     }

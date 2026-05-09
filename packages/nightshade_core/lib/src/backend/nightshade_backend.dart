@@ -117,6 +117,10 @@ abstract class NightshadeBackend {
     double? targetTemp,
   });
 
+  /// Set camera readout mode by index
+  /// modeIndex: 0 = default/high quality, 1 = fast readout, etc.
+  Future<void> cameraSetReadoutMode(String deviceId, int modeIndex);
+
   /// Set camera gain
   Future<void> cameraSetGain(String deviceId, int gain);
 
@@ -163,6 +167,12 @@ abstract class NightshadeBackend {
   /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
   Future<void> mountMoveAxis(String deviceId, int axis, double rate);
 
+  /// Slew mount to alt/az coordinates (altitude in degrees, azimuth in degrees)
+  Future<void> mountSlewAltAz(String deviceId, double altitude, double azimuth);
+
+  /// Find mount home position
+  Future<void> mountFindHome(String deviceId);
+
   // =========================================================================
   // Focuser Control
   // =========================================================================
@@ -186,6 +196,17 @@ abstract class NightshadeBackend {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    String curveFitting = 'Hyperbolic',
+    int numberOfAttempts = 1,
+    int exposuresPerPoint = 1,
+    double rSquaredThreshold = 0.7,
+    double outerCropRatio = 1.0,
+    double innerCropRatio = 0.0,
+    int useBrightestNStars = 0,
+    int focuserSettleTimeMs = 500,
+    String backlashCompMethod = 'Overshoot',
+    int backlashIn = 350,
+    int backlashOut = 0,
   });
 
   /// Cancel autofocus
@@ -329,6 +350,38 @@ abstract class NightshadeBackend {
     double settleTimeout = 60.0,
   });
 
+  /// Start guide-camera looping without issuing guide corrections.
+  Future<void> guiderLoop({required String deviceId});
+
+  /// Automatically select a guide star.
+  Future<(double, double)> guiderFindStar({required String deviceId});
+
+  /// Set the guide-star lock position.
+  Future<void> guiderSetLockPosition({
+    required String deviceId,
+    required double x,
+    required double y,
+    bool exact = false,
+  });
+
+  /// Get the current guide-star lock position.
+  Future<(double, double)> guiderGetLockPosition({required String deviceId});
+
+  /// Deselect the current guide star.
+  Future<void> guiderDeselectStar({required String deviceId});
+
+  /// Fetch the latest guide star image/crop.
+  Future<Phd2StarImage> guiderGetStarImage({
+    required String deviceId,
+    int size = 50,
+  });
+
+  /// Get the built-in guider configuration.
+  Future<BuiltinGuiderConfig> builtinGuiderGetConfig();
+
+  /// Set the built-in guider configuration.
+  Future<void> builtinGuiderSetConfig(BuiltinGuiderConfig config);
+
   // =========================================================================
   // Plate Solving
   // =========================================================================
@@ -393,6 +446,27 @@ abstract class NightshadeBackend {
   /// This is the base directory where captured images will be saved.
   /// If null or empty, images will NOT be saved to disk.
   Future<void> sequencerSetSavePath(String? path);
+
+  /// Update dither configuration at runtime during sequence execution.
+  /// Values are propagated to the Rust executor for use by subsequent operations.
+  Future<void> sequencerUpdateDitherConfig({
+    required double pixels,
+    required double settlePixels,
+    required double settleTime,
+    required double settleTimeout,
+    required bool raOnly,
+  });
+
+  /// Update observer location at runtime during sequence execution.
+  /// Updates the executor's stored location for altitude-based trigger evaluation.
+  Future<void> sequencerUpdateLocation({
+    required double latitude,
+    required double longitude,
+  });
+
+  /// Update filter focus offsets at runtime during sequence execution.
+  /// Propagates new offsets to the executor for focus compensation.
+  Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets);
 
   // =========================================================================
   // Checkpoint / Crash Recovery

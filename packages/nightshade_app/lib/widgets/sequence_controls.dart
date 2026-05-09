@@ -13,12 +13,15 @@ class SequenceControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sequenceExecutionStateProvider);
+    final theme = Theme.of(context);
     final colors = Theme.of(context).extension<NightshadeColors>();
 
-    final surfaceColor = colors?.surface ?? Theme.of(context).cardColor;
-    final borderColor = colors?.border ?? Colors.grey.shade300;
-    final primaryColor =
-        colors?.primary ?? Theme.of(context).colorScheme.primary;
+    final surfaceColor = colors?.surface ?? theme.cardColor;
+    final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
+    final primaryColor = colors?.primary ?? theme.colorScheme.primary;
+    final warningColor = colors?.warning ?? theme.colorScheme.secondary;
+    final successColor = colors?.success ?? theme.colorScheme.primary;
+    final errorColor = colors?.error ?? theme.colorScheme.error;
 
     // Don't show controls if sequence is idle or completed
     if (state == SequenceExecutionState.idle ||
@@ -35,7 +38,7 @@ class SequenceControls extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
       ),
       child: Row(
@@ -46,7 +49,7 @@ class SequenceControls extends ConsumerWidget {
             child: _ControlButton(
               icon: isPaused ? Icons.play_arrow : Icons.pause,
               label: isPaused ? 'Resume' : 'Pause',
-              color: isPaused ? Colors.green : Colors.orange,
+              color: isPaused ? successColor : warningColor,
               enabled: canControl,
               onPressed: () async {
                 final service = ref.read(sequenceActionServiceProvider);
@@ -65,7 +68,7 @@ class SequenceControls extends ConsumerWidget {
             child: _ControlButton(
               icon: Icons.stop,
               label: 'Stop',
-              color: Colors.red,
+              color: errorColor,
               enabled: canControl,
               onPressed: () async {
                 final confirmed = await _confirmStop(context);
@@ -144,13 +147,14 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: enabled ? color.withValues(alpha: 0.65) : Colors.grey.shade700,
+          color: enabled ? color.withValues(alpha: 0.65) : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -159,7 +163,7 @@ class _ControlButton extends StatelessWidget {
             Icon(
               icon,
               size: 24,
-              color: enabled ? Colors.white : Colors.grey.shade500,
+              color: enabled ? colors.background : colors.textMuted,
             ),
             const SizedBox(height: 4),
             Text(
@@ -167,7 +171,7 @@ class _ControlButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: enabled ? Colors.white : Colors.grey.shade500,
+                color: enabled ? colors.background : colors.textMuted,
               ),
             ),
           ],

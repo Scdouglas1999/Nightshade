@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-05-06T04:10:44.881023Z",
+  "passed": true,
+  "packageCount": 10,
+  "violationCount": 0,
+  "workspaceRoots": [
+    "apps",
+    "packages"
+  ],
+  "violations": [],
+  "packages": [
+    {
+      "packageName": "nightshade_desktop",
+      "path": "apps/desktop",
+      "importedPackageCount": 19,
+      "declaredDependencyCount": 41,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_mobile",
+      "path": "apps/mobile",
+      "importedPackageCount": 16,
+      "declaredDependencyCount": 35,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_app",
+      "path": "packages/nightshade_app",
+      "importedPackageCount": 29,
+      "declaredDependencyCount": 33,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_bridge",
+      "path": "packages/nightshade_bridge",
+      "importedPackageCount": 7,
+      "declaredDependencyCount": 14,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_core",
+      "path": "packages/nightshade_core",
+      "importedPackageCount": 16,
+      "declaredDependencyCount": 28,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_planetarium",
+      "path": "packages/nightshade_planetarium",
+      "importedPackageCount": 7,
+      "declaredDependencyCount": 11,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_plugins",
+      "path": "packages/nightshade_plugins",
+      "importedPackageCount": 3,
+      "declaredDependencyCount": 5,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_ui",
+      "path": "packages/nightshade_ui",
+      "importedPackageCount": 6,
+      "declaredDependencyCount": 8,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_updater",
+      "path": "packages/nightshade_updater",
+      "importedPackageCount": 10,
+      "declaredDependencyCount": 21,
+      "missingDirectDependencies": []
+    },
+    {
+      "packageName": "nightshade_webrtc",
+      "path": "packages/nightshade_webrtc",
+      "importedPackageCount": 9,
+      "declaredDependencyCount": 16,
+      "missingDirectDependencies": []
+    }
+  ]
+}

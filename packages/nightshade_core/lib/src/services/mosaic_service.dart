@@ -133,6 +133,14 @@ class MosaicValidation {
 class MosaicService {
   const MosaicService();
 
+  double _normalizeRaHours(double raHours) {
+    var normalized = raHours % 24.0;
+    if (normalized < 0) {
+      normalized += 24.0;
+    }
+    return normalized;
+  }
+
   /// Convert int binning to BinningMode enum
   BinningMode _intToBinningMode(int binning) {
     switch (binning) {
@@ -202,7 +210,7 @@ class MosaicService {
             : dRaDeg;
         
         // Convert RA offset from degrees to hours (15 degrees = 1 hour)
-        final raHours = config.centerRa + (raAdjustDeg / 15.0);
+        final raHours = _normalizeRaHours(config.centerRa + (raAdjustDeg / 15.0));
         final decDegrees = config.centerDec + dDecDeg;
         
         panels.add(MosaicPanel(

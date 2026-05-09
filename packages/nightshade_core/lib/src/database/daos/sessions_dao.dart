@@ -131,18 +131,19 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     return (delete(imagingSessions)..where((s) => s.id.equals(id))).go();
   }
 
-  /// Get total statistics
+  /// Get total statistics using SQL aggregation.
   Future<Map<String, dynamic>> getTotalStatistics() async {
-    final sessions = await getAllSessions();
+    final countExp = imagingSessions.id.count();
+    final sumExposures = imagingSessions.totalExposures.sum();
+    final sumIntegration = imagingSessions.totalIntegrationSecs.sum();
 
-    int totalSessions = sessions.length;
-    int totalExposures = 0;
-    double totalIntegration = 0;
+    final query = selectOnly(imagingSessions)
+      ..addColumns([countExp, sumExposures, sumIntegration]);
 
-    for (final session in sessions) {
-      totalExposures += session.totalExposures;
-      totalIntegration += session.totalIntegrationSecs;
-    }
+    final row = await query.getSingle();
+    final totalSessions = row.read(countExp) ?? 0;
+    final totalExposures = row.read(sumExposures) ?? 0;
+    final totalIntegration = row.read(sumIntegration) ?? 0.0;
 
     return {
       'totalSessions': totalSessions,
@@ -186,30 +187,28 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
         .get();
   }
 
-  /// Get session statistics for a specific target
+  /// Get session statistics for a specific target using SQL aggregation.
   Future<Map<String, dynamic>> getTargetStatistics(int targetId) async {
-    final sessions = await getSessionsForTarget(targetId);
+    final countExp = imagingSessions.id.count();
+    final sumExposures = imagingSessions.successfulExposures.sum();
+    final sumIntegration = imagingSessions.totalIntegrationSecs.sum();
+    final avgHfrExp = imagingSessions.avgHfr.avg();
 
-    int totalSessions = sessions.length;
-    int totalExposures = 0;
-    double totalIntegration = 0;
-    double totalHfr = 0;
-    int hfrCount = 0;
+    final query = selectOnly(imagingSessions)
+      ..addColumns([countExp, sumExposures, sumIntegration, avgHfrExp])
+      ..where(imagingSessions.targetId.equals(targetId));
 
-    for (final session in sessions) {
-      totalExposures += session.successfulExposures;
-      totalIntegration += session.totalIntegrationSecs;
-      if (session.avgHfr != null) {
-        totalHfr += session.avgHfr!;
-        hfrCount++;
-      }
-    }
+    final row = await query.getSingle();
+    final totalSessions = row.read(countExp) ?? 0;
+    final totalExposures = row.read(sumExposures) ?? 0;
+    final totalIntegration = row.read(sumIntegration) ?? 0.0;
+    final avgHfr = row.read(avgHfrExp);
 
     return {
       'totalSessions': totalSessions,
       'totalExposures': totalExposures,
       'totalIntegrationHours': totalIntegration / 3600,
-      'avgHfr': hfrCount > 0 ? totalHfr / hfrCount : null,
+      'avgHfr': avgHfr,
     };
   }
 

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
+import '../widgets/quick_start_wizard_dialog.dart';
 
 /// Provider for templates list - loads from database with built-in fallbacks
 final sequenceTemplatesProvider = FutureProvider<List<Sequence>>((ref) async {
@@ -1457,8 +1458,6 @@ Map<String, SequenceNode> _createUnattendedNodes() {
       maxRetries: 3,
       triggerType: TriggerType.hfrDegraded,
       triggerThreshold: 4.0,
-      hfrThresholdPercent: 20.0,
-      hfrConsecutiveFrames: 3,
       parentId: loopId,
       orderIndex: 0,
       childIds: const [recoveryFocusId],
@@ -2431,7 +2430,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.accent.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.accent.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -2537,6 +2536,19 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                 ),
               ),
             ),
+            // Quick-start wizard
+            NightshadeButton(
+              label: 'Wizard',
+              icon: LucideIcons.wand2,
+              size: ButtonSize.small,
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const QuickStartWizardDialog(),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
             // Save current as template button
             NightshadeButton(
               label: 'Save',
@@ -2691,6 +2703,22 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
 
             const SizedBox(width: 16),
 
+            // Quick-start wizard button
+            _ActionButton(
+              colors: widget.colors,
+              icon: LucideIcons.wand2,
+              label: 'Quick-Start Wizard',
+              isPrimary: false,
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const QuickStartWizardDialog(),
+                );
+              },
+            ),
+
+            const SizedBox(width: 8),
+
             // Save current as template button
             _ActionButton(
               colors: widget.colors,
@@ -2795,6 +2823,8 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -2822,9 +2852,8 @@ class _ActionButtonState extends State<_ActionButton> {
               Icon(
                 widget.icon,
                 size: 14,
-                color: widget.isPrimary
-                    ? Colors.white
-                    : widget.colors.textSecondary,
+                color:
+                    widget.isPrimary ? onPrimary : widget.colors.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
@@ -2833,7 +2862,7 @@ class _ActionButtonState extends State<_ActionButton> {
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
-                      ? Colors.white
+                      ? onPrimary
                       : widget.colors.textSecondary,
                 ),
               ),
@@ -2886,29 +2915,35 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final name = widget.template.name.toLowerCase();
     // Beginner templates
     if (name.contains('first light')) return LucideIcons.sparkles;
-    if (name.contains('osc') || name.contains('one-shot'))
+    if (name.contains('osc') || name.contains('one-shot')) {
       return LucideIcons.camera;
+    }
     if (name.contains('quick')) return LucideIcons.zap;
     if (name.contains('beginner')) return LucideIcons.graduationCap;
     // Intermediate templates
-    if (name.contains('ha-oiii') || name.contains('bicolor'))
+    if (name.contains('ha-oiii') || name.contains('bicolor')) {
       return LucideIcons.contrast;
-    if (name.contains('sho') || name.contains('hubble'))
+    }
+    if (name.contains('sho') || name.contains('hubble')) {
       return LucideIcons.waves;
+    }
     if (name.contains('lrgb')) return LucideIcons.palette;
     if (name.contains('narrowband')) return LucideIcons.waves;
     if (name.contains('multi-target')) return LucideIcons.list;
     if (name.contains('mosaic')) return LucideIcons.layoutGrid;
     // Specialized templates
     if (name.contains('planetary')) return LucideIcons.orbit;
-    if (name.contains('unattended') || name.contains('all-night'))
+    if (name.contains('unattended') || name.contains('all-night')) {
       return LucideIcons.moon;
-    if (name.contains('comet') || name.contains('asteroid'))
+    }
+    if (name.contains('comet') || name.contains('asteroid')) {
       return LucideIcons.move;
+    }
     if (name.contains('solar')) return LucideIcons.sun;
     if (name.contains('lunar')) return LucideIcons.moonStar;
-    if (name.contains('remote') || name.contains('observatory'))
+    if (name.contains('remote') || name.contains('observatory')) {
       return LucideIcons.radio;
+    }
     return LucideIcons.fileStack;
   }
 
@@ -2916,34 +2951,42 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final name = widget.template.name.toLowerCase();
     // Beginner templates - green/info
     if (name.contains('first light')) return widget.colors.success;
-    if (name.contains('osc') || name.contains('one-shot'))
+    if (name.contains('osc') || name.contains('one-shot')) {
       return widget.colors.info;
+    }
     if (name.contains('quick')) return widget.colors.success;
     if (name.contains('beginner')) return widget.colors.info;
     // Intermediate templates - primary/accent
-    if (name.contains('ha-oiii') || name.contains('bicolor'))
+    if (name.contains('ha-oiii') || name.contains('bicolor')) {
       return widget.colors.accent;
-    if (name.contains('sho') || name.contains('hubble'))
+    }
+    if (name.contains('sho') || name.contains('hubble')) {
       return widget.colors.accent;
+    }
     if (name.contains('lrgb')) return widget.colors.primary;
     if (name.contains('narrowband')) return widget.colors.accent;
     if (name.contains('multi-target')) return widget.colors.primary;
     if (name.contains('mosaic')) return widget.colors.warning;
     // Specialized templates - warning
     if (name.contains('planetary')) return widget.colors.warning;
-    if (name.contains('unattended') || name.contains('all-night'))
+    if (name.contains('unattended') || name.contains('all-night')) {
       return widget.colors.warning;
-    if (name.contains('comet') || name.contains('asteroid'))
+    }
+    if (name.contains('comet') || name.contains('asteroid')) {
       return widget.colors.warning;
+    }
     if (name.contains('solar')) return widget.colors.warning;
     if (name.contains('lunar')) return widget.colors.warning;
-    if (name.contains('remote') || name.contains('observatory'))
+    if (name.contains('remote') || name.contains('observatory')) {
       return widget.colors.warning;
+    }
     return widget.colors.textMuted;
   }
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     final templateColor = _getTemplateColor();
 
     return MouseRegion(
@@ -2961,7 +3004,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: widget.colors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: _isHovered
                   ? templateColor.withValues(alpha: 0.6)
@@ -2980,7 +3023,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           ),
           child: InkWell(
             onTap: () => _useTemplate(context),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -2994,7 +3037,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                         height: 48,
                         decoration: BoxDecoration(
                           color: templateColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           _getTemplateIcon(),
@@ -3110,18 +3153,18 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                             color: templateColor,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(LucideIcons.play,
-                                  size: 12, color: Colors.white),
-                              SizedBox(width: 6),
+                                  size: 12, color: onPrimary),
+                              const SizedBox(width: 6),
                               Text(
                                 'Use',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: onPrimary,
                                 ),
                               ),
                             ],
@@ -3163,7 +3206,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Row(
           children: [
             Icon(LucideIcons.target, size: 20, color: widget.colors.warning),
@@ -3375,7 +3418,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Text(
           'Delete Template',
           style: TextStyle(color: widget.colors.textPrimary),
@@ -3613,7 +3656,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,

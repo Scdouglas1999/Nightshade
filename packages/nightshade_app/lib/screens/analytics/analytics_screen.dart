@@ -1,19 +1,28 @@
 // ignore_for_file: unused_element_parameter
 
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
+// ignore: implementation_imports
 import 'package:nightshade_core/src/database/database.dart'
     show CapturedImage, ImagingSession;
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
+import 'widgets/science_export_hub.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
+import 'widgets/project_tracking_panel.dart';
 import 'widgets/science_analytics_tab.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
@@ -26,67 +35,103 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   int _currentSubTab = 0;
 
-  static const _tabs = ['Session', 'History', 'Equipment Stats', 'Science'];
+  List<String> _tabs(BuildContext context) {
+    final l10n = context.l10n;
+    return [
+      l10n.text('analyticsSession'),
+      l10n.text('analyticsHistory'),
+      l10n.text('analyticsProjects'),
+      l10n.text('analyticsEquipmentStats'),
+      l10n.text('analyticsScience'),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final l10n = context.l10n;
+    final tabs = _tabs(context);
 
     return ContextualTourPrompt(
       screenId: 'analytics',
       tourCategory: TutorialCategory.analyticsTour,
-      title: 'Analytics Tour',
-      description:
-          'Learn how to analyze your imaging data and session statistics.',
+      title: l10n.text('analyticsTourTitle'),
+      description: l10n.text('analyticsTourDescription'),
       durationMinutes: 2,
       alignment: Alignment.bottomRight,
-      child: Column(
-        children: [
-          // Sub-tabs
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              border: Border(bottom: BorderSide(color: colors.border)),
+      child: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: Column(
+          children: [
+            // Sub-tabs
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  ...tabs.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final label = entry.value;
+                    // Attach tutorial keys to the tab buttons, not content
+                    final Key? key = switch (index) {
+                      0 => AnalyticsTutorialKeys.sessionTab,
+                      1 => AnalyticsTutorialKeys.historyTab,
+                      3 => AnalyticsTutorialKeys.equipmentTab,
+                      _ => null,
+                    };
+                    return SubTabButton(
+                      key: key,
+                      label: label,
+                      isSelected: index == _currentSubTab,
+                      onTap: () => setState(() => _currentSubTab = index),
+                    );
+                  }),
+                  const Spacer(),
+                  if (_currentSubTab == 4) ...[
+                    Tooltip(
+                      message: 'Export science data',
+                      child: IconButton(
+                        icon: Icon(
+                          LucideIcons.database,
+                          size: 16,
+                          color: colors.textSecondary,
+                        ),
+                        onPressed: () => showDialog(
+                          context: context,
+                          builder: (_) => const ScienceExportHub(),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                const SizedBox(width: 16),
-                ..._tabs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final label = entry.value;
-                  // Attach tutorial keys to the tab buttons, not content
-                  final Key? key = switch (index) {
-                    0 => AnalyticsTutorialKeys.sessionTab,
-                    1 => AnalyticsTutorialKeys.historyTab,
-                    2 => AnalyticsTutorialKeys.equipmentTab,
-                    _ => null,
-                  };
-                  return SubTabButton(
-                    key: key,
-                    label: label,
-                    isSelected: index == _currentSubTab,
-                    onTap: () => setState(() => _currentSubTab = index),
-                  );
-                }),
-                const Spacer(),
-              ],
-            ),
-          ),
 
-          // Content
-          Expanded(
-            child: IndexedStack(
-              index: _currentSubTab,
-              children: const [
-                _SessionTab(),
-                _HistoryTab(),
-                _EquipmentStatsTab(),
-                ScienceAnalyticsTab(),
-              ],
+            // Content
+            Expanded(
+              child: IndexedStack(
+                index: _currentSubTab,
+                children: const [
+                  _SessionTab(),
+                  _HistoryTab(),
+                  _ProjectsTab(),
+                  _EquipmentStatsTab(),
+                  ScienceAnalyticsTab(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -100,26 +145,40 @@ class _SessionTab extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sessionState = ref.watch(sessionStateProvider);
     final duration = ref.watch(sessionDurationProvider);
+    final l10n = context.l10n;
 
     // Get current session images if active, otherwise show standalone captures
     final bool isStandaloneMode = sessionState.dbSessionId == null;
     final imagesAsyncValue = sessionState.dbSessionId != null
         ? ref.watch(sessionImagesProvider(sessionState.dbSessionId!))
         : ref.watch(standaloneImagesProvider);
+    void retryImages() {
+      if (sessionState.dbSessionId != null) {
+        ref.invalidate(sessionImagesProvider(sessionState.dbSessionId!));
+      } else {
+        ref.invalidate(standaloneImagesProvider);
+      }
+    }
 
     final String headerTitle;
     final String headerSubtitle;
     if (sessionState.isActive) {
-      headerTitle = 'Current Session';
+      headerTitle = l10n.text('analyticsCurrentSession');
       headerSubtitle = sessionState.startTime != null
-          ? 'Started: ${DateFormat('MMM d, yyyy HH:mm').format(sessionState.startTime!)}'
-          : 'Session in progress';
+          ? l10n.text(
+              'analyticsStarted',
+              params: {
+                'time': DateFormat('MMM d, yyyy HH:mm')
+                    .format(sessionState.startTime!),
+              },
+            )
+          : l10n.text('analyticsSessionInProgress');
     } else if (isStandaloneMode) {
-      headerTitle = 'Quick Capture';
-      headerSubtitle = 'Standalone snapshots taken outside sequences';
+      headerTitle = l10n.text('analyticsQuickCapture');
+      headerSubtitle = l10n.text('analyticsQuickCaptureSubtitle');
     } else {
-      headerTitle = 'No Active Session';
-      headerSubtitle = 'No session in progress';
+      headerTitle = l10n.text('analyticsNoActiveSession');
+      headerSubtitle = l10n.text('analyticsNoSessionInProgress');
     }
 
     return SingleChildScrollView(
@@ -154,24 +213,27 @@ class _SessionTab extends ConsumerWidget {
                   ),
                   Row(
                     children: [
-                      _SummaryItem(label: 'Duration', value: duration),
+                      _SummaryItem(
+                        label: l10n.text('analyticsDuration'),
+                        value: duration,
+                      ),
                       const SizedBox(width: 32),
                       _SummaryItem(
-                        label: 'Exposures',
+                        label: l10n.text('analyticsExposures'),
                         value: sessionState.isActive
                             ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
                             : '---',
                       ),
                       const SizedBox(width: 32),
                       _SummaryItem(
-                        label: 'Integration',
+                        label: l10n.text('analyticsIntegration'),
                         value: sessionState.isActive
                             ? '${(sessionState.totalIntegrationSecs / 60).toStringAsFixed(1)}m'
                             : '---',
                       ),
                       const SizedBox(width: 32),
                       _SummaryItem(
-                        label: 'Avg HFR',
+                        label: l10n.text('analyticsAvgHfr'),
                         value: sessionState.avgHfr != null
                             ? sessionState.avgHfr!.toStringAsFixed(2)
                             : '---',
@@ -212,12 +274,17 @@ class _SessionTab extends ConsumerWidget {
                 ),
               ],
             ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(
-              child: Text(
-                'Error loading charts: $err',
-                style: TextStyle(color: colors.error),
-              ),
+            loading: () => _AnalyticsAsyncState(
+              colors: colors,
+              icon: LucideIcons.lineChart,
+              message: 'Loading analytics charts...',
+            ),
+            error: (err, stack) => _AnalyticsAsyncState(
+              colors: colors,
+              icon: LucideIcons.alertTriangle,
+              message: 'Failed to load analytics charts',
+              detail: err.toString(),
+              onRetry: retryImages,
             ),
           ),
 
@@ -231,7 +298,7 @@ class _SessionTab extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Captured Images',
+                    l10n.text('analyticsCapturedImages'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -240,7 +307,7 @@ class _SessionTab extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Quality labels are advisory only. No frames are deleted or auto-rejected.',
+                    l10n.text('analyticsQualityAdvisory'),
                     style: TextStyle(
                       fontSize: 11,
                       color: colors.textMuted,
@@ -250,17 +317,24 @@ class _SessionTab extends ConsumerWidget {
                   imagesAsyncValue.when(
                     data: (images) => ImageThumbnailStrip(
                         key: AnalyticsTutorialKeys.thumbnails, images: images),
-                    loading: () => const SizedBox(
+                    loading: () => SizedBox(
                       height: 100,
-                      child: Center(child: CircularProgressIndicator()),
+                      child: _AnalyticsAsyncState(
+                        colors: colors,
+                        icon: LucideIcons.image,
+                        message: 'Loading images...',
+                        compact: true,
+                      ),
                     ),
                     error: (err, stack) => SizedBox(
                       height: 100,
-                      child: Center(
-                        child: Text(
-                          'Error loading images: $err',
-                          style: TextStyle(color: colors.error),
-                        ),
+                      child: _AnalyticsAsyncState(
+                        colors: colors,
+                        icon: LucideIcons.alertTriangle,
+                        message: 'Failed to load images',
+                        detail: err.toString(),
+                        compact: true,
+                        onRetry: retryImages,
                       ),
                     ),
                   ),
@@ -274,15 +348,96 @@ class _SessionTab extends ConsumerWidget {
   }
 }
 
+class _AnalyticsAsyncState extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String message;
+  final String? detail;
+  final VoidCallback? onRetry;
+  final bool compact;
+
+  const _AnalyticsAsyncState({
+    required this.colors,
+    required this.icon,
+    required this.message,
+    this.detail,
+    this.onRetry,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(compact ? 12 : 20),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: onRetry == null ? colors.primary : colors.error,
+            ),
+            SizedBox(height: compact ? 8 : 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: compact ? 12 : 14,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            if (detail != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                detail!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: compact ? 11 : 12,
+                  color: colors.textSecondary,
+                ),
+                maxLines: compact ? 2 : 4,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            if (onRetry != null) ...[
+              SizedBox(height: compact ? 8 : 12),
+              NightshadeButton(
+                label: 'Retry',
+                icon: LucideIcons.refreshCw,
+                size: compact ? ButtonSize.small : ButtonSize.medium,
+                onPressed: onRetry,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Provider for watching session images
 final sessionImagesProvider =
     StreamProvider.family<List<CapturedImage>, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteSessionImages(backend, sessionId);
+  }
   return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
 });
 
 /// Provider for watching standalone (sessionless) images
-final standaloneImagesProvider =
-    StreamProvider<List<CapturedImage>>((ref) {
+final standaloneImagesProvider = StreamProvider<List<CapturedImage>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteStandaloneImages(backend);
+  }
   return ref.watch(imagesDaoProvider).watchStandaloneImages();
 });
 
@@ -324,6 +479,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
+    final l10n = context.l10n;
 
     // Get target list from sessions, fallback to default if loading/error
     final targetList = targetNamesAsync.when(
@@ -350,7 +506,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
             children: [
               Expanded(
                 child: NightshadeTextField(
-                  hint: 'Search sessions...',
+                  hint: l10n.text('analyticsSearchSessions'),
                   prefixIcon: LucideIcons.search,
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
@@ -386,13 +542,13 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                             size: 48, color: colors.textMuted),
                         const SizedBox(height: 16),
                         Text(
-                          'No session history',
+                          l10n.text('analyticsNoSessionHistory'),
                           style: TextStyle(
                               fontSize: 14, color: colors.textSecondary),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Complete an imaging session to see history here',
+                          l10n.text('analyticsNoSessionHistoryDesc'),
                           style:
                               TextStyle(fontSize: 12, color: colors.textMuted),
                         ),
@@ -460,6 +616,18 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
   }
 }
 
+class _ProjectsTab extends StatelessWidget {
+  const _ProjectsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(24),
+      child: ProjectTrackingPanel(),
+    );
+  }
+}
+
 /// Session history card widget
 class _SessionHistoryCard extends ConsumerWidget {
   final ImagingSession session;
@@ -492,7 +660,8 @@ class _SessionHistoryCard extends ConsumerWidget {
                       Row(
                         children: [
                           Text(
-                            session.name ?? 'Unnamed Session',
+                            session.name ??
+                                context.l10n.text('analyticsUnnamedSession'),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -511,10 +680,10 @@ class _SessionHistoryCard extends ConsumerWidget {
                             ),
                             child: Text(
                               session.status.toUpperCase(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: colors.background,
                               ),
                             ),
                           ),
@@ -577,11 +746,11 @@ class _SessionHistoryCard extends ConsumerWidget {
   Color _getStatusColor(String status, NightshadeColors colors) {
     switch (status.toLowerCase()) {
       case 'completed':
-        return Colors.green;
+        return colors.success;
       case 'active':
-        return Colors.blue;
+        return colors.info;
       case 'aborted':
-        return Colors.orange;
+        return colors.warning;
       case 'error':
         return colors.error;
       default:
@@ -655,6 +824,7 @@ class _SessionDetailDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final imagesAsyncValue = ref.watch(sessionImagesProvider(session.id));
+    final l10n = context.l10n;
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -678,7 +848,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          session.name ?? 'Unnamed Session',
+                          session.name ?? l10n.text('analyticsUnnamedSession'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -699,17 +869,22 @@ class _SessionDetailDialog extends ConsumerWidget {
                   IconButton(
                     icon: const Icon(LucideIcons.fileJson, size: 18),
                     onPressed: () => _exportJson(context, ref),
-                    tooltip: 'Export to JSON',
+                    tooltip: l10n.text('analyticsExportJson'),
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.fileSpreadsheet, size: 18),
                     onPressed: () => _exportCsv(context, ref),
-                    tooltip: 'Export to CSV',
+                    tooltip: l10n.text('analyticsExportCsv'),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.fileText, size: 18),
+                    onPressed: () => _exportReport(context, ref),
+                    tooltip: l10n.text('analyticsExportHtml'),
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.share, size: 18),
                     onPressed: () => _exportAndShare(context, ref),
-                    tooltip: 'Share',
+                    tooltip: l10n.text('share'),
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.x, size: 18),
@@ -727,12 +902,13 @@ class _SessionDetailDialog extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Statistics
-                    _buildStatisticsSection(colors),
+                    _buildStatisticsSection(context, colors),
                     const SizedBox(height: 16),
 
                     // Images
                     imagesAsyncValue.when(
-                      data: (images) => _buildImagesSection(colors, images),
+                      data: (images) =>
+                          _buildImagesSection(context, colors, images),
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),
                       error: (err, stack) => Text(
@@ -750,12 +926,14 @@ class _SessionDetailDialog extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatisticsSection(NightshadeColors colors) {
+  Widget _buildStatisticsSection(
+      BuildContext context, NightshadeColors colors) {
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Statistics',
+          l10n.text('analyticsStatistics'),
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -768,20 +946,37 @@ class _SessionDetailDialog extends ConsumerWidget {
           runSpacing: 8,
           children: [
             _buildStat(
-                'Total Exposures', session.totalExposures.toString(), colors),
+              l10n.text('analyticsTotalExposures'),
+              session.totalExposures.toString(),
+              colors,
+            ),
             _buildStat(
-                'Successful', session.successfulExposures.toString(), colors),
-            _buildStat('Failed', session.failedExposures.toString(), colors),
+              l10n.text('analyticsSuccessful'),
+              session.successfulExposures.toString(),
+              colors,
+            ),
             _buildStat(
-              'Integration',
+              l10n.text('analyticsFailed'),
+              session.failedExposures.toString(),
+              colors,
+            ),
+            _buildStat(
+              l10n.text('analyticsIntegration'),
               '${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)}h',
               colors,
             ),
             if (session.avgHfr != null)
-              _buildStat('Avg HFR', session.avgHfr!.toStringAsFixed(2), colors),
+              _buildStat(
+                l10n.text('analyticsAvgHfr'),
+                session.avgHfr!.toStringAsFixed(2),
+                colors,
+              ),
             if (session.avgGuidingRms != null)
               _buildStat(
-                  'Avg RMS', session.avgGuidingRms!.toStringAsFixed(2), colors),
+                l10n.text('analyticsAvgRms'),
+                session.avgGuidingRms!.toStringAsFixed(2),
+                colors,
+              ),
           ],
         ),
       ],
@@ -809,12 +1004,18 @@ class _SessionDetailDialog extends ConsumerWidget {
   }
 
   Widget _buildImagesSection(
-      NightshadeColors colors, List<CapturedImage> images) {
+    BuildContext context,
+    NightshadeColors colors,
+    List<CapturedImage> images,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Images (${images.length})',
+          context.l10n.text(
+            'analyticsImages',
+            params: {'count': images.length.toString()},
+          ),
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -829,6 +1030,14 @@ class _SessionDetailDialog extends ConsumerWidget {
 
   Future<void> _exportJson(BuildContext context, WidgetRef ref) async {
     try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final filePath = await _saveRemoteExport(backend, session.id, 'json');
+        if (context.mounted) {
+          context.showSuccessSnackBar('Exported to: $filePath');
+        }
+        return;
+      }
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
@@ -848,6 +1057,14 @@ class _SessionDetailDialog extends ConsumerWidget {
 
   Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
     try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final filePath = await _saveRemoteExport(backend, session.id, 'csv');
+        if (context.mounted) {
+          context.showSuccessSnackBar('Exported to: $filePath');
+        }
+        return;
+      }
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
@@ -867,6 +1084,13 @@ class _SessionDetailDialog extends ConsumerWidget {
 
   Future<void> _exportAndShare(BuildContext context, WidgetRef ref) async {
     try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final filePath = await _saveRemoteExport(backend, session.id, 'csv');
+        await Share.shareXFiles([XFile(filePath)],
+            text: 'Session data for ${session.name ?? "session"}');
+        return;
+      }
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
@@ -884,6 +1108,87 @@ class _SessionDetailDialog extends ConsumerWidget {
       }
     }
   }
+
+  Future<void> _exportReport(BuildContext context, WidgetRef ref) async {
+    try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final filePath = await _saveRemoteExport(backend, session.id, 'html');
+        if (context.mounted) {
+          context.showSuccessSnackBar('Report exported to: $filePath');
+        }
+        return;
+      }
+      final exportService = SessionExportService(
+        sessionsDao: ref.read(sessionsDaoProvider),
+        imagesDao: ref.read(imagesDaoProvider),
+      );
+
+      final filePath = await exportService.exportToHtml(session.id);
+
+      if (context.mounted) {
+        context.showSuccessSnackBar('Report exported to: $filePath');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Report export failed: $e');
+      }
+    }
+  }
+}
+
+Stream<List<CapturedImage>> _pollRemoteSessionImages(
+  NetworkBackend backend,
+  int sessionId,
+) async* {
+  yield await _fetchRemoteSessionImages(backend, sessionId);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteSessionImages(backend, sessionId);
+  }
+}
+
+Stream<List<CapturedImage>> _pollRemoteStandaloneImages(
+  NetworkBackend backend,
+) async* {
+  yield await _fetchRemoteStandaloneImages(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteStandaloneImages(backend);
+  }
+}
+
+Future<List<CapturedImage>> _fetchRemoteSessionImages(
+  NetworkBackend backend,
+  int sessionId,
+) async {
+  final rows = await backend.getSessionImageRows(sessionId);
+  return rows.map(CapturedImage.fromJson).toList(growable: false);
+}
+
+Future<List<CapturedImage>> _fetchRemoteStandaloneImages(
+  NetworkBackend backend,
+) async {
+  final rows = await backend.getStandaloneImageRows();
+  return rows.map(CapturedImage.fromJson).toList(growable: false);
+}
+
+Future<String> _saveRemoteExport(
+  NetworkBackend backend,
+  int sessionId,
+  String format,
+) async {
+  final bytes = await backend.downloadSessionExport(sessionId, format);
+  final docsDir = await getApplicationDocumentsDirectory();
+  final exportDir = Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+  if (!await exportDir.exists()) {
+    await exportDir.create(recursive: true);
+  }
+  final fileName =
+      'session_${sessionId}_${DateTime.now().millisecondsSinceEpoch}.$format';
+  final filePath = path.join(exportDir.path, fileName);
+  await File(filePath).writeAsBytes(bytes, flush: true);
+  return filePath;
 }
 
 class _EquipmentStatsTab extends StatelessWidget {

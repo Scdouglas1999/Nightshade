@@ -57,13 +57,21 @@ class ImagingForegroundService {
     _percentComplete = 0.0;
 
     if (await FlutterForegroundTask.isRunningService) {
-      return await FlutterForegroundTask.restartService();
+      final restarted = await FlutterForegroundTask.restartService();
+      if (restarted) {
+        _isRunning = true;
+      }
+      return restarted;
     } else {
-      return await FlutterForegroundTask.startService(
+      final started = await FlutterForegroundTask.startService(
         notificationTitle: 'Imaging $targetName',
         notificationText: 'Starting sequence... (0/$totalExposures)',
         callback: startCallback,
       );
+      if (started) {
+        _isRunning = true;
+      }
+      return started;
     }
   }
 

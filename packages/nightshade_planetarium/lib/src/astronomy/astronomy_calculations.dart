@@ -12,6 +12,7 @@ class AstronomyCalculations {
 
   static const double _deg2rad = math.pi / 180;
   static const double _rad2deg = 180 / math.pi;
+  static const double _epsilon = 1e-12;
   static const double _j2000 = 2451545.0;
 
   // Obliquity of ecliptic at J2000 (degrees)
@@ -183,15 +184,13 @@ class AstronomyCalculations {
         math.cos(dec) * math.cos(lat) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
 
-    // Calculate azimuth
-    final cosAz = (math.sin(dec) - math.sin(alt) * math.sin(lat)) /
-        (math.cos(alt) * math.cos(lat));
-    var az = math.acos(cosAz.clamp(-1.0, 1.0));
-
-    // Correct for quadrant
-    if (math.sin(ha) > 0) {
-      az = 2 * math.pi - az;
-    }
+    // Calculate azimuth with atan2 to stay finite at zenith/nadir and
+    // near the poles, where acos-based forms divide by cos(alt) * cos(lat).
+    final y = -math.sin(ha) * math.cos(dec);
+    final x = math.sin(dec) * math.cos(lat) -
+        math.cos(dec) * math.sin(lat) * math.cos(ha);
+    var az = math.atan2(y, x);
+    if (az < 0) az += 2 * math.pi;
 
     return (alt * _rad2deg, az * _rad2deg);
   }
@@ -213,16 +212,14 @@ class AstronomyCalculations {
         math.cos(alt) * math.cos(lat) * math.cos(az);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
-    // Calculate hour angle
-    final cosHa = (math.sin(alt) - math.sin(dec) * math.sin(lat)) /
-        (math.cos(dec) * math.cos(lat));
-    var ha = math.acos(cosHa.clamp(-1.0, 1.0));
+    // Calculate hour angle with atan2 so azimuths near zenith/nadir do not
+    // produce NaN from tiny denominators.
+    final y = -math.sin(az) * math.cos(alt);
+    final x = math.sin(alt) * math.cos(lat) -
+        math.cos(alt) * math.sin(lat) * math.cos(az);
+    final ha = math.atan2(y, x);
 
-    if (math.sin(az) > 0) {
-      ha = 2 * math.pi - ha;
-    }
-
-    // Convert to RA
+    // Convert to RA, normalizing to [0, 360).
     var ra = lstHours * 15 - ha * _rad2deg;
     ra = ra % 360;
     if (ra < 0) ra += 360;
@@ -249,6 +246,42 @@ class AstronomyCalculations {
     final x = math.cos(lon);
     var ra = math.atan2(y, x) * _rad2deg;
     ra = ra % 360; // Ensure proper modulo
+    if (ra < 0) ra += 360;
+
+    return (ra, dec * _rad2deg);
+  }
+
+  /// Convert galactic coordinates to equatorial (J2000) coordinates.
+  /// Uses the IAU 1958 galactic coordinate system:
+  ///   - North galactic pole at RA 12h51m26.28s, Dec +27°07'41.7" (J2000)
+  ///   - Galactic center direction at RA 17h45m37.2s, Dec -28°56'10.2" (J2000)
+  ///   - Ascending node of galactic plane on equator at RA 282.8595°
+  /// Returns (ra, dec) in degrees.
+  static (double ra, double dec) galacticToEquatorial({
+    required double lonDeg,
+    required double latDeg,
+  }) {
+    // IAU galactic pole and ascending node constants (J2000)
+    const double alphaGP = 192.85948; // RA of north galactic pole (degrees)
+    const double deltaGP = 27.12825; // Dec of north galactic pole (degrees)
+    const double lOmega = 32.93192; // Galactic longitude of ascending node
+
+    final l = lonDeg * _deg2rad;
+    final b = latDeg * _deg2rad;
+    final dGP = deltaGP * _deg2rad;
+    final lO = lOmega * _deg2rad;
+
+    // Declination
+    final sinDec = math.sin(b) * math.sin(dGP) +
+        math.cos(b) * math.cos(dGP) * math.sin(l - lO);
+    final dec = math.asin(sinDec.clamp(-1.0, 1.0));
+
+    // Right ascension
+    final y = math.cos(b) * math.cos(l - lO);
+    final x = math.sin(b) * math.cos(dGP) -
+        math.cos(b) * math.sin(dGP) * math.sin(l - lO);
+    var ra = math.atan2(y, x) * _rad2deg + alphaGP;
+    ra = ra % 360;
     if (ra < 0) ra += 360;
 
     return (ra, dec * _rad2deg);
@@ -338,6 +371,24 @@ class AstronomyCalculations {
   }) {
     var t1 = startTime;
     var t2 = endTime;
+    final startAlt = sunAltitude(
+      dt: t1,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
+    final endAlt = sunAltitude(
+      dt: t2,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
+    final startDelta = startAlt - targetAlt;
+    final endDelta = endAlt - targetAlt;
+
+    if (startDelta.abs() < 0.001) return t1;
+    if (endDelta.abs() < 0.001) return t2;
+    if (startDelta.sign == endDelta.sign) {
+      return null;
+    }
 
     for (var i = 0; i < 50; i++) {
       final tMid =
@@ -709,9 +760,25 @@ class AstronomyCalculations {
     final sinDec = math.sin(decDeg * _deg2rad);
     final cosLat = math.cos(latitudeDeg * _deg2rad);
     final sinLat = math.sin(latitudeDeg * _deg2rad);
+    final denominator = cosDec * cosLat;
 
-    final cosH0 = (math.sin(minAltitude * _deg2rad) - sinDec * sinLat) /
-        (cosDec * cosLat);
+    final transitAltitude =
+        (90 - (latitudeDeg - decDeg).abs()).clamp(-90.0, 90.0);
+
+    if (denominator.abs() < _epsilon) {
+      final aboveMin = transitAltitude >= minAltitude;
+      return ObjectVisibility(
+        riseTime: null,
+        transitTime: null,
+        setTime: null,
+        transitAltitude: transitAltitude,
+        isCircumpolar: aboveMin,
+        neverRises: !aboveMin,
+      );
+    }
+
+    final cosH0 =
+        (math.sin(minAltitude * _deg2rad) - sinDec * sinLat) / denominator;
 
     bool isCircumpolar = false;
     bool neverRises = false;
@@ -724,7 +791,6 @@ class AstronomyCalculations {
 
     // Calculate transit time (when object crosses meridian)
     DateTime? transitTime;
-    double? transitAltitude;
 
     // Transit occurs when LST = RA
     final lst0 = localSiderealTime(localNoon, longitudeDeg);
@@ -735,9 +801,6 @@ class AstronomyCalculations {
     transitTime = localNoon.add(Duration(
       seconds: (hoursTillTransit * 3600).round(),
     ));
-
-    // Transit altitude
-    transitAltitude = 90 - (latitudeDeg - decDeg).abs();
 
     DateTime? riseTime;
     DateTime? setTime;

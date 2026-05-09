@@ -154,31 +154,31 @@ pub async fn execute_temperature_compensation(
         config.thermal_coefficient
     );
 
-    // Get current focuser position
+    let existing_baseline_position = trigger_state.baseline_focuser_position;
+    drop(trigger_state);
+
+    // Get current focuser position without holding the trigger-state write lock.
     let current_position = match ctx.device_ops.focuser_get_position(&focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
-            drop(trigger_state);
             return InstructionResult::failure(format!("Failed to get focuser position: {}", e));
         }
     };
 
     tracing::debug!("Current focuser position: {}", current_position);
 
-    // Calculate new position based on mode
+    // Calculate new position based on mode.
     let new_position = match config.mode {
-        CompensationMode::Relative => {
-            // Move relative to current position
-            current_position + position_delta
-        }
+        CompensationMode::Relative => current_position + position_delta,
         CompensationMode::Absolute => {
-            let baseline_position = match trigger_state.baseline_focuser_position {
+            let baseline_position = match existing_baseline_position {
                 Some(pos) => pos,
                 None => {
                     tracing::info!(
                         "Establishing focuser baseline position for absolute compensation: {}",
                         current_position
                     );
+                    let mut trigger_state = trigger_state_lock.write().await;
                     trigger_state.baseline_focuser_position = Some(current_position);
                     current_position
                 }
@@ -201,9 +201,6 @@ pub async fn execute_temperature_compensation(
             format!("Moving focuser by {:+} steps", position_delta),
         );
     }
-
-    // Drop the write lock before device operation
-    drop(trigger_state);
 
     // Check for cancellation
     if let Some(result) = ctx.check_cancelled() {

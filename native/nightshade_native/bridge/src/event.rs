@@ -382,7 +382,8 @@ pub enum SequencerEvent {
     },
     NodeCompleted {
         node_id: String,
-        success: bool,
+        /// Completion status: "success", "failed", "cancelled", or "skipped"
+        status: String,
     },
     Progress {
         current: u32,
@@ -390,6 +391,10 @@ pub enum SequencerEvent {
     },
     TargetChanged {
         target_name: String,
+        /// Right Ascension in hours (0-24), if available from the target header
+        ra: Option<f64>,
+        /// Declination in degrees (-90 to +90), if available from the target header
+        dec: Option<f64>,
     },
     TargetCompleted {
         target_name: String,
@@ -407,6 +412,15 @@ pub enum SequencerEvent {
     },
     Error {
         message: String,
+    },
+    /// A trigger watchdog fired during sequence execution
+    TriggerFired {
+        /// Unique trigger identifier
+        trigger_id: String,
+        /// Human-readable trigger name
+        trigger_name: String,
+        /// Action taken (e.g., "Autofocus", "Dither", "PauseSequence")
+        action: String,
     },
     /// Progress update for long-running instructions (cooling, autofocus, slewing)
     InstructionProgress {

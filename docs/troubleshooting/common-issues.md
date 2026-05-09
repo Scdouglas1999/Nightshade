@@ -1,6 +1,21 @@
 # Troubleshooting Common Issues
 
-This guide covers the most common problems users encounter with Nightshade 2.0 and their solutions.
+This guide covers common Nightshade 2.0 problems and first-pass fixes.
+
+For public-release validation, confirm the feature is in scope before treating a
+failure as a defect. Platform support, native SDK support, remote access, and
+driver coverage must match the release notes, [supported hardware matrix](../supported-hardware-by-platform.md),
+and [known limitations](../known-limitations.md).
+
+## Protocol-Specific Guides
+
+- [ASCOM Troubleshooting](ascom.md)
+- [INDI Troubleshooting](indi.md)
+- [Alpaca Troubleshooting](alpaca.md)
+- [PHD2 Troubleshooting](phd2.md)
+- [Driver Troubleshooting](drivers.md)
+- [Permissions Troubleshooting](permissions.md)
+- [Firewall Troubleshooting](firewall.md)
 
 ## Equipment Connection Issues
 
@@ -30,8 +45,14 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 5. For Native mode:
    - Reinstall camera vendor's SDK/drivers
    - Check vendor website for latest drivers
+   - Confirm the installed Nightshade release includes the required native SDK
+     library for your OS
 
 **Linux-Specific**
+
+Use this section only when the release notes list Linux as a shipped artifact
+or you are validating a Linux build from source.
+
 1. Check USB permissions:
    ```bash
    lsusb  # Verify camera appears
@@ -48,7 +69,12 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
    # Log out and back in
    ```
 
-**INDI Server (Linux/macOS)**
+**INDI Server**
+
+INDI requires a reachable server and a driver that exposes the needed device
+properties. It can run locally or on another machine; support still depends on
+the release scope and the INDI driver.
+
 1. Verify INDI server is running:
    ```bash
    ps aux | grep indiserver
@@ -67,6 +93,7 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 - Restart Nightshade
 - Restart computer
 - Try camera with vendor's test software to rule out hardware issues
+- Review [Driver Troubleshooting](drivers.md) for backend-specific checks
 
 ---
 
@@ -128,6 +155,8 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
    - "Celestron Unified" for modern mounts
    - Specific model driver for older mounts
 3. Check vendor website for recommended ASCOM driver
+4. If using Alpaca or INDI, confirm the server exposes mount movement, tracking,
+   park, and unpark capabilities before expecting Nightshade controls to enable
 
 ---
 
@@ -157,6 +186,8 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 2. Ensure your user account has "Write" permission
 3. Linux: Check folder permissions with `ls -la`
 4. Try saving to Documents folder to test
+5. Review [Permissions Troubleshooting](permissions.md) for platform-specific
+   save-path checks
 
 **File Naming Issues**
 1. Check file naming template doesn't have invalid characters
@@ -271,8 +302,8 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 
 **PHD2 Version**
 1. Ensure PHD2 is up to date
-2. Nightshade requires PHD2 2.6.9 or later
-3. Download latest from PHD2 website
+2. Use a PHD2 version compatible with the Nightshade release notes
+3. Download latest from the PHD2 website when compatibility is unclear
 
 ---
 
@@ -526,25 +557,29 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 
 **Check Logs**
 1. Windows: `%APPDATA%\Nightshade\logs\`
-2. macOS: `~/Library/Application Support/Nightshade/logs/`
-3. Linux: `~/.local/share/nightshade/logs/`
+2. macOS: `~/Library/Application Support/Nightshade/logs/` when macOS is
+   shipped or being validated
+3. Linux: `~/.local/share/nightshade/logs/` when Linux is shipped or being
+   validated
 4. Open latest log file for error messages
 
 **Graphics Driver Issue**
 1. Update graphics drivers
-2. Nightshade requires OpenGL 3.3+ (Linux/macOS) or DirectX 11+ (Windows)
+2. Check the runtime requirements in the release notes for your platform
 3. Older integrated graphics may not be supported
 
 **Missing Dependencies**
 1. Windows: Install Visual C++ Redistributable
-2. Windows: Install .NET Framework 4.8
-3. Linux: `ldd nightshade` to check missing libraries
+2. Windows: Install .NET Framework 4.8 if ASCOM COM support is in scope
+3. Linux: `ldd nightshade` to check missing libraries when validating a Linux
+   package
 
 **Corrupted Settings**
 1. Rename or delete settings folder:
    - Windows: `%APPDATA%\Nightshade\settings.db`
-   - macOS: `~/Library/Application Support/Nightshade/settings.db`
-   - Linux: `~/.local/share/nightshade/settings.db`
+   - macOS: `~/Library/Application Support/Nightshade/settings.db` when macOS
+     is in scope
+   - Linux: `~/.local/share/nightshade/settings.db` when Linux is in scope
 2. Nightshade will recreate with defaults
 
 **Permission Issues**
@@ -654,6 +689,9 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 
 ### macOS: "App is damaged" Message
 
+Use this section only when the completed release notes list a macOS artifact as
+shipped or limited for the build you installed.
+
 **Solutions**
 1. This is Gatekeeper security feature
 2. Open Terminal and run:
@@ -663,6 +701,9 @@ This guide covers the most common problems users encounter with Nightshade 2.0 a
 3. Try launching again
 
 ### Linux: Permission Denied Errors
+
+Use this section only when the completed release notes list a Linux artifact as
+shipped or you are validating a Linux build from source.
 
 **Solutions**
 1. Add user to dialout group for serial ports:
@@ -691,6 +732,8 @@ When asking for help, provide:
 5. **Steps to Reproduce**: What were you doing when issue occurred?
 6. **Equipment**: Camera, mount, focuser models
 7. **Connection Method**: ASCOM/INDI/Alpaca/Native
+8. **Release Scope**: Whether the platform/backend/device is listed as shipped,
+   limited, or unsupported in the release notes
 
 ### Support Resources
 
@@ -739,4 +782,5 @@ If you've tried these solutions and still experiencing problems:
 1. Post detailed issue on [GitHub Issues](https://github.com/Scodouglas1999/Nightshade/issues) with logs
 2. Include Nightshade version, OS, equipment, and steps to reproduce
 
-We're here to help!
+Use the exact error text and evidence above so support can distinguish a bug
+from an unsupported platform, driver, or release artifact.

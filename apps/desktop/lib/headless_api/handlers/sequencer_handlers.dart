@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for sequencer control endpoints
 class SequencerHandlers {
   final ProviderContainer container;
@@ -19,21 +21,15 @@ class SequencerHandlers {
       final backend = container.read(backendProvider);
       final status = await backend.sequencerGetStatus();
 
-      return Response.ok(
-        jsonEncode({
-          "state": status.state,
-          "currentNodeId": status.currentNodeId,
-          "currentNodeName": status.currentNodeName,
-          "progress": status.progress,
-          "message": status.message
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "state": status.state,
+        "currentNodeId": status.currentNodeId,
+        "currentNodeName": status.currentNodeName,
+        "progress": status.progress,
+        "message": status.message
+      });
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -42,15 +38,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerStart();
-      return Response.ok(
-        jsonEncode({"status": "started"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "started"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -59,15 +49,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerStop();
-      return Response.ok(
-        jsonEncode({"status": "stopped"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "stopped"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -76,15 +60,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerPause();
-      return Response.ok(
-        jsonEncode({"status": "paused"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "paused"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -93,15 +71,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerResume();
-      return Response.ok(
-        jsonEncode({"status": "resumed"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "resumed"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -110,15 +82,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerSkip();
-      return Response.ok(
-        jsonEncode({"status": "skipped"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "skipped"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -127,15 +93,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerReset();
-      return Response.ok(
-        jsonEncode({"status": "reset"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "reset"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -147,15 +107,9 @@ class SequencerHandlers {
 
       final backend = container.read(backendProvider);
       await backend.sequencerLoadJson(json);
-      return Response.ok(
-        jsonEncode({"status": "loaded"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "loaded"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -167,15 +121,9 @@ class SequencerHandlers {
 
       final backend = container.read(backendProvider);
       await backend.sequencerSetSimulationMode(enabled);
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -191,16 +139,14 @@ class SequencerHandlers {
         focuserId: payload['focuserId'] as String?,
         filterwheelId: payload['filterwheelId'] as String?,
         rotatorId: payload['rotatorId'] as String?,
+        filterNames: (payload['filterNames'] as List?)?.cast<String>(),
+        filterFocusOffsets: (payload['filterFocusOffsets'] as Map?)?.map(
+          (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+        ),
       );
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -212,15 +158,71 @@ class SequencerHandlers {
 
       final backend = container.read(backendProvider);
       await backend.sequencerSetSafetyFailMode(mode);
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleSequencerSetSavePath(Request request) async {
+    _logInfo('[API] POST /api/sequencer/save-path');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final backend = container.read(backendProvider);
+      await backend.sequencerSetSavePath(payload['path'] as String?);
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleSequencerUpdateDitherConfig(Request request) async {
+    _logInfo('[API] POST /api/sequencer/update-dither-config');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final backend = container.read(backendProvider);
+      await backend.sequencerUpdateDitherConfig(
+        pixels: (payload['pixels'] as num).toDouble(),
+        settlePixels: (payload['settlePixels'] as num).toDouble(),
+        settleTime: (payload['settleTime'] as num).toDouble(),
+        settleTimeout: (payload['settleTimeout'] as num).toDouble(),
+        raOnly: payload['raOnly'] as bool? ?? false,
       );
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleSequencerUpdateLocation(Request request) async {
+    _logInfo('[API] POST /api/sequencer/update-location');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final backend = container.read(backendProvider);
+      await backend.sequencerUpdateLocation(
+        latitude: (payload['latitude'] as num).toDouble(),
+        longitude: (payload['longitude'] as num).toDouble(),
+      );
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleSequencerUpdateFilterOffsets(Request request) async {
+    _logInfo('[API] POST /api/sequencer/update-filter-offsets');
+    try {
+      final payload = jsonDecode(await request.readAsString());
+      final rawOffsets = payload['offsets'] as Map? ?? const {};
+      final offsets = rawOffsets.map(
+        (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+      );
+
+      final backend = container.read(backendProvider);
+      await backend.sequencerUpdateFilterOffsets(offsets);
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -232,15 +234,9 @@ class SequencerHandlers {
 
       final backend = container.read(backendProvider);
       await backend.sequencerSetCheckpointDir(path);
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -248,15 +244,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       final hasCheckpoint = await backend.hasCheckpoint();
-      return Response.ok(
-        jsonEncode({"hasCheckpoint": hasCheckpoint}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"hasCheckpoint": hasCheckpoint});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -264,15 +254,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       final info = await backend.getCheckpointInfo();
-      return Response.ok(
-        jsonEncode({"info": info?.toJson()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"info": info?.toJson()});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -281,15 +265,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.resumeFromCheckpoint();
-      return Response.ok(
-        jsonEncode({"status": "resumed"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "resumed"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -298,15 +276,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.discardCheckpoint();
-      return Response.ok(
-        jsonEncode({"status": "discarded"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "discarded"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -315,15 +287,9 @@ class SequencerHandlers {
     try {
       final backend = container.read(backendProvider);
       await backend.saveCheckpoint();
-      return Response.ok(
-        jsonEncode({"status": "saved"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "saved"});
     } catch (e) {
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

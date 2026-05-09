@@ -260,6 +260,7 @@ class _CountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayText = count > 9 ? '9+' : count.toString();
+    final onError = Theme.of(context).colorScheme.onError;
 
     return Container(
       constraints: const BoxConstraints(
@@ -285,8 +286,8 @@ class _CountBadge extends StatelessWidget {
       child: Center(
         child: Text(
           displayText,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: onError,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             height: 1,
@@ -544,6 +545,8 @@ class _AlertListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -627,12 +630,12 @@ class _AlertListItem extends StatelessWidget {
                 color: colors.primary,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text(
+              child: Text(
                 'NEW',
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: onPrimary,
                   letterSpacing: 0.5,
                 ),
               ),

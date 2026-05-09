@@ -37,7 +37,7 @@ class DashboardWeatherWidget extends ConsumerWidget {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border),
             boxShadow: [
               BoxShadow(
@@ -772,11 +772,27 @@ class _WeatherStatusDisplay extends StatelessWidget {
   }
 
   (IconData, String, String?) _getStatusInfo() {
+    final alert = weatherStatus.activeAlert;
     final motion = weatherStatus.motion;
 
     if (weatherStatus.currentLevel == AlertLevel.critical) {
-      return (LucideIcons.alertTriangle, 'Critical conditions', 'Check radar');
+      // Show real cloud density if available from the evaluated alert
+      final density = alert?.cloudDensityPercent;
+      final subtext = density != null
+          ? 'Cloud cover: ${density.toStringAsFixed(0)}%'
+          : 'Check radar';
+      return (LucideIcons.alertTriangle, 'Critical conditions', subtext);
     } else if (weatherStatus.currentLevel == AlertLevel.warning) {
+      if (alert?.eta != null) {
+        final etaDiff = alert!.eta!.difference(DateTime.now());
+        if (!etaDiff.isNegative) {
+          return (
+            LucideIcons.cloudRain,
+            'Clouds approaching',
+            '~${etaDiff.inMinutes} min away'
+          );
+        }
+      }
       if (motion?.etaToLocation != null) {
         final minutes = motion!.etaToLocation!.inMinutes;
         return (
@@ -785,11 +801,24 @@ class _WeatherStatusDisplay extends StatelessWidget {
           '~$minutes min away'
         );
       }
-      return (LucideIcons.alertTriangle, 'Warning', 'Monitor conditions');
+      final density = alert?.cloudDensityPercent;
+      final subtext = density != null
+          ? 'Cloud cover: ${density.toStringAsFixed(0)}%'
+          : 'Monitor conditions';
+      return (LucideIcons.alertTriangle, 'Warning', subtext);
     } else if (weatherStatus.currentLevel == AlertLevel.watch) {
-      return (LucideIcons.eye, 'Watching', 'Conditions changing');
+      final density = alert?.cloudDensityPercent;
+      final subtext = density != null
+          ? 'Cloud cover: ${density.toStringAsFixed(0)}%'
+          : 'Conditions changing';
+      return (LucideIcons.eye, 'Watching', subtext);
     } else {
-      return (LucideIcons.checkCircle, 'Skies clear', 'Good for imaging');
+      // Clear - show actual cloud cover if available
+      final density = alert?.cloudDensityPercent;
+      final subtext = density != null
+          ? 'Cloud cover: ${density.toStringAsFixed(0)}%'
+          : 'Good for imaging';
+      return (LucideIcons.checkCircle, 'Skies clear', subtext);
     }
   }
 

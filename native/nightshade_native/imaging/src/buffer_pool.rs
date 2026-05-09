@@ -283,7 +283,7 @@ where
     /// A PooledBuffer that can be used like a Vec<T> and returns to pool on drop
     pub fn get_buffer(&self, min_size: usize) -> PooledBuffer<T> {
         let (buffer, bucket_size, was_hit) = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             let bucket_size = inner.find_bucket_size(min_size);
 
             if let Some(mut buffer) = inner.try_get(bucket_size) {
@@ -312,10 +312,11 @@ where
         self.metrics.active_buffers.fetch_add(1, Ordering::Relaxed);
 
         PooledBuffer {
-            buffer: Some(buffer),
+            buffer,
             bucket_size,
             pool: Arc::downgrade(&self.inner),
             metrics: Arc::clone(&self.metrics),
+            detached: false,
         }
     }
 
@@ -334,7 +335,7 @@ where
     /// This does not affect currently checked-out buffers. When they are
     /// returned, they will be added back to the pool (up to max_capacity).
     pub fn clear(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let pool_size: usize = inner.buckets.values().map(|b| b.len()).sum();
         inner.buckets.values_mut().for_each(|b| b.clear());
         self.metrics
@@ -344,7 +345,7 @@ where
 
     /// Get the current number of buffers in the pool
     pub fn pool_size(&self) -> usize {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.total_pool_size()
     }
 
@@ -368,10 +369,11 @@ where
 /// This wrapper ensures the buffer is returned to the pool when dropped.
 /// It implements Deref and DerefMut to allow using it like a Vec<T>.
 pub struct PooledBuffer<T: Default + Clone> {
-    buffer: Option<Vec<T>>,
+    buffer: Vec<T>,
     bucket_size: usize,
     pool: Weak<Mutex<PoolInner<T>>>,
     metrics: Arc<BufferPoolMetrics>,
+    detached: bool,
 }
 
 impl<T> PooledBuffer<T>
@@ -380,31 +382,22 @@ where
 {
     /// Get the buffer as a slice
     pub fn as_slice(&self) -> &[T] {
-        self.buffer
-            .as_ref()
-            .expect("buffer already taken")
-            .as_slice()
+        self.buffer.as_slice()
     }
 
     /// Get the buffer as a mutable slice
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        self.buffer
-            .as_mut()
-            .expect("buffer already taken")
-            .as_mut_slice()
+        self.buffer.as_mut_slice()
     }
 
     /// Get the length of the buffer
     pub fn len(&self) -> usize {
-        self.buffer.as_ref().expect("buffer already taken").len()
+        self.buffer.len()
     }
 
     /// Check if the buffer is empty
     pub fn is_empty(&self) -> bool {
-        self.buffer
-            .as_ref()
-            .expect("buffer already taken")
-            .is_empty()
+        self.buffer.is_empty()
     }
 
     /// Consume the PooledBuffer and return the inner Vec
@@ -414,7 +407,8 @@ where
     /// about pool reuse (e.g., final image output).
     pub fn into_vec(mut self) -> Vec<T> {
         self.metrics.active_buffers.fetch_sub(1, Ordering::Relaxed);
-        self.buffer.take().expect("buffer already taken")
+        self.detached = true;
+        std::mem::take(&mut self.buffer)
     }
 
     /// Resize the buffer
@@ -422,31 +416,22 @@ where
     /// If the new size is larger than the current capacity, this may
     /// reallocate. The buffer will still return to the pool on drop.
     pub fn resize(&mut self, new_len: usize) {
-        self.buffer
-            .as_mut()
-            .expect("buffer already taken")
-            .resize(new_len, T::default());
+        self.buffer.resize(new_len, T::default());
     }
 
     /// Truncate the buffer to a smaller length
     pub fn truncate(&mut self, len: usize) {
-        self.buffer
-            .as_mut()
-            .expect("buffer already taken")
-            .truncate(len);
+        self.buffer.truncate(len);
     }
 
     /// Get an iterator over the buffer
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
-        self.buffer.as_ref().expect("buffer already taken").iter()
+        self.buffer.iter()
     }
 
     /// Get a mutable iterator over the buffer
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
-        self.buffer
-            .as_mut()
-            .expect("buffer already taken")
-            .iter_mut()
+        self.buffer.iter_mut()
     }
 }
 
@@ -454,29 +439,24 @@ impl<T: Default + Clone> Deref for PooledBuffer<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        self.buffer
-            .as_ref()
-            .expect("buffer already taken")
-            .as_slice()
+        self.buffer.as_slice()
     }
 }
 
 impl<T: Default + Clone> DerefMut for PooledBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.buffer
-            .as_mut()
-            .expect("buffer already taken")
-            .as_mut_slice()
+        self.buffer.as_mut_slice()
     }
 }
 
 impl<T: Default + Clone> Drop for PooledBuffer<T> {
     fn drop(&mut self) {
-        if let Some(buffer) = self.buffer.take() {
+        if !self.detached {
+            let buffer = std::mem::take(&mut self.buffer);
             // Try to return to pool
             if let Some(pool) = self.pool.upgrade() {
                 let returned = {
-                    let mut inner = pool.lock().unwrap();
+                    let mut inner = pool.lock().unwrap_or_else(|e| e.into_inner());
                     inner.return_buffer(buffer, self.bucket_size)
                 };
 
@@ -487,7 +467,6 @@ impl<T: Default + Clone> Drop for PooledBuffer<T> {
                 }
             }
             // If pool is gone, buffer is dropped (deallocated)
-
             self.metrics.active_buffers.fetch_sub(1, Ordering::Relaxed);
         }
     }

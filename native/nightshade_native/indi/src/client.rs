@@ -34,6 +34,10 @@ pub const INDI_PROTOCOL_VERSIONS: &[&str] = &["1.7", "1.8", "1.9"];
 /// Default protocol version to use
 pub const DEFAULT_PROTOCOL_VERSION: &str = "1.7";
 
+const EVENT_CHANNEL_CAPACITY: usize = 1024;
+
+static RAND_STATE: std::sync::OnceLock<AtomicU64> = std::sync::OnceLock::new();
+
 /// INDI client event
 #[derive(Debug, Clone)]
 pub enum IndiEvent {
@@ -238,11 +242,27 @@ impl ReconnectionConfig {
 /// Uses a simple approach based on system time nanoseconds
 fn rand_simple() -> f64 {
     use std::time::SystemTime;
-    let nanos = SystemTime::now()
+
+    let seed = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    (nanos as f64 % 1000.0) / 1000.0
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0x9e37_79b9_7f4a_7c15);
+    let state = RAND_STATE.get_or_init(|| AtomicU64::new(seed | 1));
+
+    let mut current = state.load(Ordering::Relaxed);
+    loop {
+        let mut next = current ^ seed.rotate_left(13);
+        next ^= next << 13;
+        next ^= next >> 7;
+        next ^= next << 17;
+        if state
+            .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            return (next as f64) / (u64::MAX as f64);
+        }
+        current = state.load(Ordering::Relaxed);
+    }
 }
 
 /// INDI client for communicating with an INDI server
@@ -254,6 +274,7 @@ pub struct IndiClient {
     properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
     property_values: Arc<RwLock<PropertyValueMap>>,
     number_limits: Arc<RwLock<NumberLimitsMap>>,
+    latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
     tx: Option<mpsc::Sender<String>>,
     event_tx: broadcast::Sender<IndiEvent>,
     timeout_config: IndiTimeoutConfig,
@@ -295,7 +316,7 @@ impl IndiClient {
         port: Option<u16>,
         timeout_config: IndiTimeoutConfig,
     ) -> Self {
-        let (event_tx, _) = broadcast::channel(100);
+        let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
         Self {
             host: host.to_string(),
@@ -305,6 +326,7 @@ impl IndiClient {
             properties: Arc::new(RwLock::new(HashMap::new())),
             property_values: Arc::new(RwLock::new(HashMap::new())),
             number_limits: Arc::new(RwLock::new(HashMap::new())),
+            latest_blobs: Arc::new(RwLock::new(HashMap::new())),
             tx: None,
             event_tx,
             timeout_config,
@@ -350,7 +372,7 @@ impl IndiClient {
         reconnection_config: ReconnectionConfig,
         reader_task_config: ReaderTaskConfig,
     ) -> Self {
-        let (event_tx, _) = broadcast::channel(100);
+        let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
         Self {
             host: host.to_string(),
@@ -360,6 +382,7 @@ impl IndiClient {
             properties: Arc::new(RwLock::new(HashMap::new())),
             property_values: Arc::new(RwLock::new(HashMap::new())),
             number_limits: Arc::new(RwLock::new(HashMap::new())),
+            latest_blobs: Arc::new(RwLock::new(HashMap::new())),
             tx: None,
             event_tx,
             timeout_config,
@@ -438,6 +461,22 @@ impl IndiClient {
         self.event_tx.subscribe()
     }
 
+    pub async fn clear_blob(&self, device: &str, property: &str, element: &str) {
+        self.latest_blobs.write().await.remove(&(
+            device.to_string(),
+            property.to_string(),
+            element.to_string(),
+        ));
+    }
+
+    pub async fn take_blob(&self, device: &str, property: &str, element: &str) -> Option<Vec<u8>> {
+        self.latest_blobs.write().await.remove(&(
+            device.to_string(),
+            property.to_string(),
+            element.to_string(),
+        ))
+    }
+
     /// Connect to the INDI server
     pub async fn connect(&mut self) -> IndiResult<()> {
         let addr = format!("{}:{}", self.host, self.port);
@@ -486,6 +525,7 @@ impl IndiClient {
         let properties = self.properties.clone();
         let property_values = self.property_values.clone();
         let number_limits = self.number_limits.clone();
+        let latest_blobs = self.latest_blobs.clone();
         let connected = self.connected.clone();
         let event_tx = self.event_tx.clone();
         let reader_status = self.reader_status.clone();
@@ -515,6 +555,7 @@ impl IndiClient {
                 properties,
                 property_values,
                 number_limits,
+                latest_blobs,
                 connected,
                 event_tx,
                 reader_status,
@@ -572,6 +613,7 @@ impl IndiClient {
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
+        latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
         connected: Arc<AtomicBool>,
         event_tx: broadcast::Sender<IndiEvent>,
         reader_status: Arc<RwLock<ReaderStatus>>,
@@ -590,6 +632,7 @@ impl IndiClient {
                 properties,
                 property_values,
                 number_limits,
+                latest_blobs,
                 connected.clone(),
                 event_tx.clone(),
                 server_version,
@@ -684,6 +727,7 @@ impl IndiClient {
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
+        latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
         connected: Arc<AtomicBool>,
         event_tx: broadcast::Sender<IndiEvent>,
         server_version: Arc<RwLock<Option<String>>>,
@@ -767,26 +811,28 @@ impl IndiClient {
                     // Reset incomplete message tracking on successful event
                     incomplete_message_start = None;
                     incomplete_message_bytes = 0;
-                    let name = e.name();
-                    let name_str = String::from_utf8_lossy(name.as_ref()).to_string();
+                    // Work with raw bytes to avoid allocating a String for every XML element name.
+                    // INDI element names are always ASCII, so byte comparison is safe and efficient.
+                    let qname = e.name();
+                    let name_bytes: &[u8] = qname.as_ref();
 
                     // Handle property definitions (def*Vector)
-                    if name_str.starts_with("def") && name_str.ends_with("Vector") {
+                    if name_bytes.starts_with(b"def") && name_bytes.ends_with(b"Vector") {
                         if let Some(dev) = get_attribute(&e, "device") {
-                            current_device = dev.clone();
+                            current_device = dev;
                             if let Some(prop) = get_attribute(&e, "name") {
-                                current_property = prop.clone();
+                                current_property = prop;
 
-                                // Determine type
-                                let prop_type = if name_str.contains("Switch") {
+                                // Determine type from the byte slice (avoids String allocation)
+                                let prop_type = if name_bytes == b"defSwitchVector" {
                                     IndiPropertyType::Switch
-                                } else if name_str.contains("Number") {
+                                } else if name_bytes == b"defNumberVector" {
                                     IndiPropertyType::Number
-                                } else if name_str.contains("Text") {
+                                } else if name_bytes == b"defTextVector" {
                                     IndiPropertyType::Text
-                                } else if name_str.contains("Light") {
+                                } else if name_bytes == b"defLightVector" {
                                     IndiPropertyType::Light
-                                } else if name_str.contains("BLOB") {
+                                } else if name_bytes == b"defBLOBVector" {
                                     IndiPropertyType::Blob
                                 } else {
                                     IndiPropertyType::Text
@@ -845,21 +891,21 @@ impl IndiClient {
                         }
                     }
                     // Handle element definitions (defText, defNumber, etc. inside Vector)
-                    else if name_str.starts_with("def") && !name_str.ends_with("Vector") {
+                    else if name_bytes.starts_with(b"def") && !name_bytes.ends_with(b"Vector") {
                         if !current_device.is_empty() && !current_property.is_empty() {
                             if let Some(elem_name) = get_attribute(&e, "name") {
                                 current_element = elem_name.clone();
 
                                 // Add element to property
                                 let mut props = properties.write().await;
-                                if let Some(prop) = props
-                                    .get_mut(&(current_device.clone(), current_property.clone()))
+                                if let Some(prop) =
+                                    map_get_mut_2(&mut props, &current_device, &current_property)
                                 {
                                     prop.elements.push(elem_name.clone());
                                 }
 
                                 // Extract min/max/step/format for number elements
-                                if name_str == "defNumber" {
+                                if name_bytes == b"defNumber" {
                                     let limits = NumberLimits {
                                         min: get_attribute(&e, "min").and_then(|s| s.parse().ok()),
                                         max: get_attribute(&e, "max").and_then(|s| s.parse().ok()),
@@ -891,8 +937,8 @@ impl IndiClient {
                         }
                     }
                     // Handle property updates (set*Vector, new*Vector)
-                    else if (name_str.starts_with("set") || name_str.starts_with("new"))
-                        && name_str.ends_with("Vector")
+                    else if (name_bytes.starts_with(b"set") || name_bytes.starts_with(b"new"))
+                        && name_bytes.ends_with(b"Vector")
                     {
                         if let Some(dev) = get_attribute(&e, "device") {
                             current_device = dev;
@@ -903,10 +949,11 @@ impl IndiClient {
                                 if let Some(state_str) = get_attribute(&e, "state") {
                                     let state = parse_state(&state_str);
                                     let mut props = properties.write().await;
-                                    if let Some(p) = props.get_mut(&(
-                                        current_device.clone(),
-                                        current_property.clone(),
-                                    )) {
+                                    if let Some(p) = map_get_mut_2(
+                                        &mut props,
+                                        &current_device,
+                                        &current_property,
+                                    ) {
                                         p.state = state;
                                     }
                                 }
@@ -914,7 +961,7 @@ impl IndiClient {
                         }
                     }
                     // Handle BLOB elements with format attribute
-                    else if name_str == "oneBLOB" {
+                    else if name_bytes == b"oneBLOB" {
                         if let Some(elem) = get_attribute(&e, "name") {
                             current_element = elem;
                         }
@@ -936,13 +983,13 @@ impl IndiClient {
                         );
                     }
                     // Handle elements values (oneSwitch, oneNumber, etc.)
-                    else if name_str.starts_with("one") && name_str != "oneBLOB" {
+                    else if name_bytes.starts_with(b"one") && name_bytes != b"oneBLOB" {
                         if let Some(elem) = get_attribute(&e, "name") {
                             current_element = elem;
                         }
                     }
                     // Detect protocol version from server response
-                    else if name_str == "getProperties" {
+                    else if name_bytes == b"getProperties" {
                         if let Some(version) = get_attribute(&e, "version") {
                             let mut sv = server_version.write().await;
                             *sv = Some(version.clone());
@@ -997,6 +1044,15 @@ impl IndiClient {
                                     let validated_format =
                                         validate_blob_format(&current_blob_format, &data);
 
+                                    latest_blobs.write().await.insert(
+                                        (
+                                            current_device.clone(),
+                                            current_property.clone(),
+                                            current_element.clone(),
+                                        ),
+                                        data.clone(),
+                                    );
+
                                     let _ = event_tx.send(IndiEvent::BlobReceived {
                                         device: current_device.clone(),
                                         property: current_property.clone(),
@@ -1030,15 +1086,17 @@ impl IndiClient {
                     // Reset incomplete message tracking on successful event
                     incomplete_message_start = None;
                     incomplete_message_bytes = 0;
-                    let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                    if name.starts_with("set") || name.starts_with("new") {
+                    // Use byte comparison to avoid allocating a String for every end tag
+                    let end_qname = e.name();
+                    let end_name = end_qname.as_ref();
+                    if end_name.starts_with(b"set") || end_name.starts_with(b"new") {
                         // Property update complete
                         let _ = event_tx.send(IndiEvent::PropertyUpdated(
                             current_device.clone(),
                             current_property.clone(),
                         ));
                         current_property.clear();
-                    } else if name.starts_with("one") || name.starts_with("def") {
+                    } else if end_name.starts_with(b"one") || end_name.starts_with(b"def") {
                         current_element.clear();
                     }
                 }
@@ -1054,7 +1112,20 @@ impl IndiClient {
                         e,
                         String::from_utf8_lossy(&buf[..buf.len().min(200)])
                     );
-                    // Continue on parse errors, try to recover
+                    let _ = event_tx.send(IndiEvent::Error(format!("XML parse error: {}", e)));
+                    buf.clear();
+                    current_device.clear();
+                    current_property.clear();
+                    current_element.clear();
+                    current_blob_format.clear();
+                    current_blob_size = 0;
+                    blob_start_time = None;
+                    incomplete_message_start = None;
+                    incomplete_message_bytes = 0;
+
+                    let inner = reader.into_inner();
+                    reader = quick_xml::reader::Reader::from_reader(inner);
+                    reader.trim_text(true);
                 }
                 Err(_) => {
                     // Read timeout - check if connection is still alive
@@ -1198,11 +1269,8 @@ impl IndiClient {
 
     /// Get a property
     pub async fn get_property(&self, device: &str, property: &str) -> Option<IndiProperty> {
-        self.properties
-            .read()
-            .await
-            .get(&(device.to_string(), property.to_string()))
-            .cloned()
+        let props = self.properties.read().await;
+        map_get_2(&props, device, property).cloned()
     }
 
     /// Get a property value
@@ -1212,15 +1280,8 @@ impl IndiClient {
         property: &str,
         element: &str,
     ) -> Option<String> {
-        self.property_values
-            .read()
-            .await
-            .get(&(
-                device.to_string(),
-                property.to_string(),
-                element.to_string(),
-            ))
-            .cloned()
+        let vals = self.property_values.read().await;
+        map_get_3(&vals, device, property, element).cloned()
     }
 
     /// Get number limits for a property element
@@ -1230,15 +1291,8 @@ impl IndiClient {
         property: &str,
         element: &str,
     ) -> Option<NumberLimits> {
-        self.number_limits
-            .read()
-            .await
-            .get(&(
-                device.to_string(),
-                property.to_string(),
-                element.to_string(),
-            ))
-            .cloned()
+        let limits = self.number_limits.read().await;
+        map_get_3(&limits, device, property, element).cloned()
     }
 
     /// Get a number property value
@@ -1261,11 +1315,8 @@ impl IndiClient {
         device: &str,
         property: &str,
     ) -> Option<IndiPropertyState> {
-        self.properties
-            .read()
-            .await
-            .get(&(device.to_string(), property.to_string()))
-            .map(|p| p.state)
+        let props = self.properties.read().await;
+        map_get_2(&props, device, property).map(|p| p.state)
     }
 
     /// Get property permission
@@ -1274,11 +1325,8 @@ impl IndiClient {
         device: &str,
         property: &str,
     ) -> Option<IndiPermission> {
-        self.properties
-            .read()
-            .await
-            .get(&(device.to_string(), property.to_string()))
-            .map(|p| p.perm)
+        let props = self.properties.read().await;
+        map_get_2(&props, device, property).map(|p| p.perm)
     }
 
     /// Check if a property is in the busy state
@@ -1291,10 +1339,8 @@ impl IndiClient {
 
     /// Check if a property exists for a device
     pub async fn has_property(&self, device: &str, property: &str) -> bool {
-        self.properties
-            .read()
-            .await
-            .contains_key(&(device.to_string(), property.to_string()))
+        let props = self.properties.read().await;
+        map_contains_2(&props, device, property)
     }
 
     /// Get a light property state value (0=Idle, 1=Ok, 2=Busy, 3=Alert)
@@ -1917,6 +1963,52 @@ fn current_time_ms() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+// =========================================================================
+// Zero-allocation lookup helpers for HashMap with tuple keys
+// =========================================================================
+// std::collections::HashMap requires owned keys for lookups via .get(),
+// which forces allocating Strings from &str just to perform a lookup.
+// These helpers iterate the map and compare borrowed keys directly,
+// avoiding the allocation. INDI property maps are small (typically <150 entries)
+// so the linear scan is not a concern vs. the allocation savings on every
+// property read in the polling hot path.
+
+/// Look up a value in a HashMap<(String, String), V> using borrowed &str keys
+fn map_get_2<'a, V>(map: &'a HashMap<(String, String), V>, k1: &str, k2: &str) -> Option<&'a V> {
+    map.iter()
+        .find(|((a, b), _)| a.as_str() == k1 && b.as_str() == k2)
+        .map(|(_, v)| v)
+}
+
+/// Look up a mutable value in a HashMap<(String, String), V> using borrowed &str keys
+fn map_get_mut_2<'a, V>(
+    map: &'a mut HashMap<(String, String), V>,
+    k1: &str,
+    k2: &str,
+) -> Option<&'a mut V> {
+    map.iter_mut()
+        .find(|((a, b), _)| a.as_str() == k1 && b.as_str() == k2)
+        .map(|(_, v)| v)
+}
+
+/// Check if a HashMap<(String, String), V> contains a key using borrowed &str keys
+fn map_contains_2<V>(map: &HashMap<(String, String), V>, k1: &str, k2: &str) -> bool {
+    map.iter()
+        .any(|((a, b), _)| a.as_str() == k1 && b.as_str() == k2)
+}
+
+/// Look up a value in a HashMap<(String, String, String), V> using borrowed &str keys
+fn map_get_3<'a, V>(
+    map: &'a HashMap<(String, String, String), V>,
+    k1: &str,
+    k2: &str,
+    k3: &str,
+) -> Option<&'a V> {
+    map.iter()
+        .find(|((a, b, c), _)| a.as_str() == k1 && b.as_str() == k2 && c.as_str() == k3)
+        .map(|(_, v)| v)
 }
 
 /// Helper to get attribute from XML event

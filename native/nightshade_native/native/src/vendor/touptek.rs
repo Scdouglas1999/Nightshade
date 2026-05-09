@@ -302,7 +302,7 @@ fn get_sdks() -> &'static Mutex<HashMap<String, Result<TouptekSdk, String>>> {
 
 fn get_sdk_for_brand(brand: &str) -> Result<(), NativeError> {
     let sdks = get_sdks();
-    let mut map = sdks.lock().unwrap();
+    let mut map = sdks.lock().unwrap_or_else(|e| e.into_inner());
     if map.contains_key(brand) {
         return map
             .get(brand)
@@ -337,7 +337,7 @@ where
 {
     get_sdk_for_brand(brand)?;
     let sdks = get_sdks();
-    let map = sdks.lock().unwrap();
+    let map = sdks.lock().unwrap_or_else(|e| e.into_inner());
     let sdk = map
         .get(brand)
         .unwrap()
@@ -366,6 +366,51 @@ pub struct TouptekDeviceInfo {
     pub brand: String,
 }
 
+fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<TouptekDeviceInfo> {
+    let mut devices = Vec::new();
+    let mut arr: Vec<OgmacamDeviceV2> = vec![unsafe { std::mem::zeroed() }; OGMACAM_MAX];
+    let count = unsafe { (sdk.enum_v2)(arr.as_mut_ptr()) };
+
+    for i in 0..count as usize {
+        let dev = &arr[i];
+
+        let name = String::from_utf16_lossy(
+            &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)],
+        );
+        let id =
+            String::from_utf16_lossy(&dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)]);
+
+        let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
+            let model = unsafe { &*dev.model };
+            let res = model.res[0];
+            (
+                model.flag,
+                res.width,
+                res.height,
+                model.xpixsz,
+                model.ypixsz,
+            )
+        } else {
+            (0, 0, 0, 0.0, 0.0)
+        };
+
+        devices.push(TouptekDeviceInfo {
+            camera_id: id,
+            name,
+            serial_number: None,
+            discovery_index: i,
+            model_flags: flags,
+            width,
+            height,
+            pixel_size_x: pixel_x,
+            pixel_size_y: pixel_y,
+            brand: brand.to_string(),
+        });
+    }
+
+    devices
+}
+
 /// Discover connected Touptek cameras across all supported brands
 ///
 /// Iterates over all known Touptek white-label SDKs, attempts to load each,
@@ -388,54 +433,7 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
         }
 
         let brand_devices = with_sdk(brand_name, |sdk| {
-            let mut brand_devs = Vec::new();
-
-            let mut arr: Vec<OgmacamDeviceV2> = vec![unsafe { std::mem::zeroed() }; OGMACAM_MAX];
-            let count = unsafe { (sdk.enum_v2)(arr.as_mut_ptr()) };
-
-            for i in 0..count as usize {
-                let dev = &arr[i];
-
-                // Convert wide string display name to String
-                let name = String::from_utf16_lossy(
-                    &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)],
-                );
-
-                // Convert wide string ID to String
-                let id = String::from_utf16_lossy(
-                    &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)],
-                );
-
-                // Get model info
-                let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
-                    let model = unsafe { &*dev.model };
-                    let res = model.res[0]; // Primary resolution
-                    (
-                        model.flag,
-                        res.width,
-                        res.height,
-                        model.xpixsz,
-                        model.ypixsz,
-                    )
-                } else {
-                    (0, 0, 0, 0.0, 0.0)
-                };
-
-                brand_devs.push(TouptekDeviceInfo {
-                    camera_id: id,
-                    name,
-                    serial_number: None, // Will be populated on connect
-                    discovery_index: i,
-                    model_flags: flags,
-                    width,
-                    height,
-                    pixel_size_x: pixel_x,
-                    pixel_size_y: pixel_y,
-                    brand: brand_name.to_string(),
-                });
-            }
-
-            Ok(brand_devs)
+            Ok(enumerate_brand_devices_from_sdk(sdk, brand_name))
         })?;
 
         if !brand_devices.is_empty() {
@@ -456,47 +454,7 @@ pub async fn discover_devices_for_brand(
     get_sdk_for_brand(brand)?;
 
     with_sdk(brand, |sdk| {
-        let mut devices = Vec::new();
-        let mut arr: Vec<OgmacamDeviceV2> = vec![unsafe { std::mem::zeroed() }; OGMACAM_MAX];
-        let count = unsafe { (sdk.enum_v2)(arr.as_mut_ptr()) };
-
-        for i in 0..count as usize {
-            let dev = &arr[i];
-            let name = String::from_utf16_lossy(
-                &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)],
-            );
-            let id = String::from_utf16_lossy(
-                &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)],
-            );
-            let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
-                let model = unsafe { &*dev.model };
-                let res = model.res[0];
-                (
-                    model.flag,
-                    res.width,
-                    res.height,
-                    model.xpixsz,
-                    model.ypixsz,
-                )
-            } else {
-                (0, 0, 0, 0.0, 0.0)
-            };
-
-            devices.push(TouptekDeviceInfo {
-                camera_id: id,
-                name,
-                serial_number: None,
-                discovery_index: i,
-                model_flags: flags,
-                width,
-                height,
-                pixel_size_x: pixel_x,
-                pixel_size_y: pixel_y,
-                brand: brand.to_string(),
-            });
-        }
-
-        Ok(devices)
+        Ok(enumerate_brand_devices_from_sdk(sdk, brand))
     })
 }
 
@@ -506,7 +464,9 @@ pub async fn discover_devices_for_brand(
 
 struct HandleWrapper(HOgmacam);
 unsafe impl Send for HandleWrapper {}
-unsafe impl Sync for HandleWrapper {}
+// Note: Sync is intentionally omitted. HandleWrapper contains a raw pointer
+// (*mut c_void) that is not safe to share via &-references across threads. The Mutex<HandleWrapper>
+// provides synchronized access, and Mutex<T> only requires T: Send (not Sync) to be Sync itself.
 
 // ============================================================================
 // Camera Implementation
@@ -530,6 +490,7 @@ pub struct TouptekCamera {
     cooler_on: bool,
     target_temp: f64,
     exposure_duration: f64,
+    exposure_started_at: Option<std::time::Instant>,
     model_flags: u64,
     /// Which brand SDK this camera uses
     brand: String,
@@ -564,6 +525,7 @@ impl TouptekCamera {
             cooler_on: false,
             target_temp: -10.0,
             exposure_duration: 0.0,
+            exposure_started_at: None,
             model_flags: 0,
             brand: brand.to_string(),
         }
@@ -603,13 +565,27 @@ impl NativeDevice for TouptekCamera {
         get_sdk_for_brand(&self.brand)?;
 
         let brand = self.brand.clone();
+        let device_index = self.device_index;
 
-        // First phase: Open camera and get basic info (needs mutex)
-        {
+        // Open the device and capture its discovery snapshot under the same SDK lock.
+        // This avoids re-enumerating after releasing the mutex, which could otherwise
+        // pick up a different camera if USB topology changes mid-connect.
+        let (device_info, serial_number) = {
             // Acquire global SDK mutex for thread safety
             let _lock = touptek_mutex().lock().await;
 
-            let device_index = self.device_index;
+            let device_info = with_sdk(&brand, |sdk| {
+                enumerate_brand_devices_from_sdk(sdk, &brand)
+                    .into_iter()
+                    .nth(device_index)
+                    .ok_or_else(|| {
+                        NativeError::SdkError(format!(
+                            "{} camera index {} disappeared during connect",
+                            brand, device_index
+                        ))
+                    })
+            })?;
+
             let handle = with_sdk(&brand, |sdk| {
                 let h = unsafe { (sdk.open_by_index)(device_index as c_uint) };
                 if h.is_null() {
@@ -627,22 +603,23 @@ impl NativeDevice for TouptekCamera {
 
             // Store handle
             {
-                let mut h = self.handle.lock().unwrap();
+                let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
                 *h = HandleWrapper(handle);
             }
 
             // Get serial number, resolution, and gain range (all synchronous)
-            {
-                let handle_val = self.handle.lock().unwrap().0;
+            let serial_number = {
+                let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
                 with_sdk(&brand, |sdk| {
                     let mut sn_buf = [0i8; 64];
+                    let mut serial = None;
                     if unsafe { (sdk.get_serial_number)(handle_val, sn_buf.as_mut_ptr()) } >= 0 {
                         let sn = unsafe { CStr::from_ptr(sn_buf.as_ptr()) }
                             .to_string_lossy()
                             .to_string();
                         if !sn.is_empty() {
-                            self.name = format!("{} ({})", self.name, sn);
+                            serial = Some(sn);
                         }
                     }
 
@@ -662,32 +639,32 @@ impl NativeDevice for TouptekCamera {
                         )
                     };
                     self.current_gain = gain_def as i32;
-                    Ok(())
-                })?;
-            }
-        } // Release mutex before discover_devices
+                    Ok(serial)
+                })?
+            };
 
-        // Discover camera from info to get model flags (has its own mutex lock)
-        if let Ok(devices) = discover_devices().await {
-            if let Some(dev) = devices.get(self.device_index) {
-                self.model_flags = dev.model_flags;
-                self.sensor_info = SensorInfo {
-                    width: dev.width,
-                    height: dev.height,
-                    pixel_size_x: dev.pixel_size_x as f64,
-                    pixel_size_y: dev.pixel_size_y as f64,
-                    max_adu: 65535,
-                    bit_depth: 16,
-                    color: (dev.model_flags & OGMACAM_FLAG_MONO) == 0,
-                    bayer_pattern: if (dev.model_flags & OGMACAM_FLAG_MONO) == 0 {
-                        Some(crate::camera::BayerPattern::Rggb)
-                    } else {
-                        None
-                    },
-                };
-                self.name = dev.name.clone();
-            }
-        }
+            (device_info, serial_number)
+        };
+
+        self.model_flags = device_info.model_flags;
+        self.sensor_info = SensorInfo {
+            width: device_info.width,
+            height: device_info.height,
+            pixel_size_x: device_info.pixel_size_x as f64,
+            pixel_size_y: device_info.pixel_size_y as f64,
+            max_adu: 65535,
+            bit_depth: 16,
+            color: (device_info.model_flags & OGMACAM_FLAG_MONO) == 0,
+            bayer_pattern: if (device_info.model_flags & OGMACAM_FLAG_MONO) == 0 {
+                Some(crate::camera::BayerPattern::Rggb)
+            } else {
+                None
+            },
+        };
+        self.name = match serial_number {
+            Some(serial) => format!("{} ({})", device_info.name, serial),
+            None => device_info.name.clone(),
+        };
 
         // Set capabilities based on flags
         let can_cool = (self.model_flags & OGMACAM_FLAG_TEC) != 0;
@@ -712,7 +689,7 @@ impl NativeDevice for TouptekCamera {
         // Set 16-bit raw mode (get fresh handle after await, needs mutex)
         {
             let _lock = touptek_mutex().lock().await;
-            let handle_val = self.handle.lock().unwrap().0;
+            let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
             with_sdk(&brand, |sdk| {
                 let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_RAW, 1) };
                 let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_BITDEPTH, 1) }; // 1 = 16-bit
@@ -743,7 +720,7 @@ impl NativeDevice for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Stop any capture and close camera
         with_sdk(&brand, |sdk| {
@@ -753,11 +730,12 @@ impl NativeDevice for TouptekCamera {
         })?;
 
         {
-            let mut h = self.handle.lock().unwrap();
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *h = HandleWrapper(std::ptr::null_mut());
         }
         self.connected = false;
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
 
         tracing::info!("Disconnected from Touptek camera: {}", self.name);
 
@@ -785,7 +763,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Get current temperature
         let current_temp = with_sdk(&brand, |sdk| {
@@ -807,7 +785,9 @@ impl NativeCamera for TouptekCamera {
 
         // Calculate exposure remaining
         let exposure_remaining = if self.state == CameraState::Exposing {
-            Some(self.exposure_duration) // Simplified - would need actual tracking
+            self.exposure_started_at.map(|started_at| {
+                (self.exposure_duration - started_at.elapsed().as_secs_f64()).max(0.0)
+            })
         } else {
             None
         };
@@ -848,7 +828,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Set exposure time and start snap, all within SDK lock
         let name = self.name.clone();
@@ -883,6 +863,7 @@ impl NativeCamera for TouptekCamera {
         })?;
 
         self.exposure_duration = params.duration_secs;
+        self.exposure_started_at = Some(std::time::Instant::now());
         self.state = CameraState::Exposing;
 
         Ok(())
@@ -898,7 +879,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
@@ -918,6 +899,7 @@ impl NativeCamera for TouptekCamera {
         })?;
 
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
         tracing::info!("Aborted exposure on Touptek camera '{}'", self.name);
         Ok(())
     }
@@ -932,7 +914,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Calculate buffer size
         let width = self.sensor_info.width as usize;
@@ -977,6 +959,7 @@ impl NativeCamera for TouptekCamera {
             .collect();
 
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
 
         let metadata = ImageMetadata {
             exposure_time: self.exposure_duration,
@@ -1024,7 +1007,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Enable/disable TEC
         let name = self.name.clone();
@@ -1080,7 +1063,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
@@ -1127,7 +1110,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
@@ -1169,7 +1152,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Touptek uses combined binning value
         let bin_mode = bin_x.max(bin_y);
@@ -1206,7 +1189,7 @@ impl NativeCamera for TouptekCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = touptek_mutex().lock().await;
 
-        let handle = self.handle.lock().unwrap().0;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let name = self.name.clone();
         let sensor_w = self.sensor_info.width;

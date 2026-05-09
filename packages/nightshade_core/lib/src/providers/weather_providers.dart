@@ -54,7 +54,8 @@ final weatherAlertServiceProvider = Provider<WeatherAlertService>((ref) {
 ///
 /// Watches the weather settings row in the database and emits updates
 /// whenever settings change. Returns null if no settings row exists yet.
-final weatherSettingsStreamProvider = StreamProvider<db.WeatherSettingRow?>((ref) {
+final weatherSettingsStreamProvider =
+    StreamProvider<db.WeatherSettingRow?>((ref) {
   final database = ref.watch(databaseProvider);
   return database.weatherSettingsDao.watchSettings();
 });
@@ -77,6 +78,9 @@ final weatherSettingsProvider = Provider<WeatherSettings>((ref) {
     cloudDensityThreshold: row.cloudDensityThreshold,
     leadTimeMinutes: row.leadTimeMinutes,
     weatherSafetyEnabled: row.weatherSafetyEnabled,
+    maxHumidityPercent: row.maxHumidityPercent,
+    maxWindSpeedKph: row.maxWindSpeedKph,
+    maxCloudCoverPercent: row.maxCloudCoverPercent,
     autoParkEnabled: row.autoParkEnabled,
     autoResumeEnabled: row.autoResumeEnabled,
     preferredProvider: _parseProviderType(row.preferredProvider),
@@ -111,14 +115,13 @@ RadarProviderType _parseProviderType(String providerString) {
 /// Fetches real-time cloud cover data independent of the visual satellite overlay.
 /// Returns a percentage 0-100 where 0 = clear skies, 100 = fully overcast.
 final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
-  final appSettings = ref.watch(appSettingsProvider).valueOrNull;
-
-  if (appSettings == null) {
+  final observerLocation = ref.watch(appObserverLocationProvider);
+  if (observerLocation == null) {
     return null;
   }
 
-  final latitude = appSettings.latitude;
-  final longitude = appSettings.longitude;
+  final latitude = observerLocation.latitude;
+  final longitude = observerLocation.longitude;
 
   // Skip if location not set
   if (latitude == 0.0 && longitude == 0.0) {
@@ -140,7 +143,8 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
       final response = await client.get(uri);
 
       if (response.statusCode != 200) {
-        developer.log('Cloud cover fetch failed: ${response.statusCode}', name: 'Weather', level: 900);
+        developer.log('Cloud cover fetch failed: ${response.statusCode}',
+            name: 'Weather', level: 900);
         return null;
       }
 
@@ -153,7 +157,8 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
 
       final cloudCover = current['cloud_cover'];
       if (cloudCover is num) {
-        developer.log('Current cloud cover: ${cloudCover.toDouble()}%', name: 'Weather');
+        developer.log('Current cloud cover: ${cloudCover.toDouble()}%',
+            name: 'Weather');
         return cloudCover.toDouble();
       }
 
@@ -162,7 +167,8 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
       client.close();
     }
   } catch (e) {
-    developer.log('Error fetching cloud cover: $e', name: 'Weather', level: 1000);
+    developer.log('Error fetching cloud cover: $e',
+        name: 'Weather', level: 1000);
     return null;
   }
 });
@@ -175,16 +181,16 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
 ///
 /// Watches the user's location from app settings and fetches radar frames
 /// from the appropriate provider. Re-fetches when invalidated.
-final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async {
-  final appSettings = ref.watch(appSettingsProvider).valueOrNull;
-
-  if (appSettings == null) {
+final weatherRadarFramesProvider =
+    FutureProvider<List<RadarFrame>>((ref) async {
+  final observerLocation = ref.watch(appObserverLocationProvider);
+  if (observerLocation == null) {
     developer.log('No app settings yet, returning empty', name: 'WeatherRadar');
     return [];
   }
 
-  final latitude = appSettings.latitude;
-  final longitude = appSettings.longitude;
+  final latitude = observerLocation.latitude;
+  final longitude = observerLocation.longitude;
 
   // Skip fetch if location not set
   if (latitude == 0.0 && longitude == 0.0) {
@@ -192,7 +198,8 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async 
     return [];
   }
 
-  developer.log('Fetching for location ($latitude, $longitude)', name: 'WeatherRadar');
+  developer.log('Fetching for location ($latitude, $longitude)',
+      name: 'WeatherRadar');
 
   final radarService = ref.read(weatherRadarServiceProvider);
 
@@ -209,7 +216,8 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async 
     developer.log('Got ${result.frames.length} frames', name: 'WeatherRadar');
     return result.frames;
   } else {
-    developer.log('Fetch failed - ${result.errorMessage}', name: 'WeatherRadar', level: 900);
+    developer.log('Fetch failed - ${result.errorMessage}',
+        name: 'WeatherRadar', level: 900);
     // Return empty list instead of throwing to avoid breaking the UI
     return [];
   }
@@ -239,12 +247,21 @@ final currentAlertLevelProvider = Provider<AlertLevel>((ref) {
 
 /// Combined weather status provider for UI consumption
 ///
-/// Aggregates radar frames, alerts, and settings into a single status object
-/// for convenient access in UI widgets. Handles async state properly and
-/// provides loading/error information.
+/// Aggregates radar frames, evaluated alert conditions, and settings into a
+/// single status object for convenient access in UI widgets. Watches the
+/// evaluated conditions provider directly so that the alert level reflects
+/// real cloud cover and motion data rather than relying on the alert stream
+/// (which only emits after debouncing and explicit evaluation calls).
 final weatherStatusProvider = Provider<WeatherStatus>((ref) {
   final framesAsync = ref.watch(weatherRadarFramesProvider);
-  final alertAsync = ref.watch(weatherAlertStreamProvider);
+
+  // Watch evaluated conditions directly - this is the source of truth for
+  // current weather alert level, incorporating real cloud cover from Open-Meteo
+  // and cloud motion analysis from radar frames.
+  final evaluatedAsync = ref.watch(evaluateWeatherConditionsProvider);
+
+  // Also watch the stream for debounced alerts (used for notifications)
+  final streamAlertAsync = ref.watch(weatherAlertStreamProvider);
 
   // Determine loading state
   final isLoading = framesAsync.isLoading;
@@ -253,15 +270,26 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
   String? errorMessage;
   if (framesAsync.hasError) {
     errorMessage = framesAsync.error.toString();
-  } else if (alertAsync.hasError) {
-    errorMessage = alertAsync.error.toString();
   }
+  // Don't treat evaluation errors as weather errors - they just mean
+  // we can't determine conditions yet (e.g., location not set)
 
-  // Get current alert or null
-  final activeAlert = alertAsync.valueOrNull;
+  // Use the evaluated alert as the primary source of truth for current level.
+  // Fall back to the stream alert if evaluation hasn't completed yet.
+  // Only default to clear if neither source has data.
+  final WeatherAlert? activeAlert;
+  final AlertLevel currentLevel;
 
-  // Get current alert level
-  final currentLevel = activeAlert?.level ?? AlertLevel.clear;
+  if (evaluatedAsync.hasValue) {
+    activeAlert = evaluatedAsync.value;
+    currentLevel = activeAlert?.level ?? AlertLevel.clear;
+  } else if (streamAlertAsync.hasValue) {
+    activeAlert = streamAlertAsync.value;
+    currentLevel = activeAlert?.level ?? AlertLevel.clear;
+  } else {
+    activeAlert = null;
+    currentLevel = AlertLevel.clear;
+  }
 
   // Get radar frames or empty list
   final radarFrames = framesAsync.valueOrNull ?? [];
@@ -288,13 +316,13 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
 /// Call ref.read(fetchWeatherProvider) to trigger a radar data fetch.
 /// Automatically uses location from app settings. Auto-disposes after use.
 final fetchWeatherProvider = FutureProvider.autoDispose<void>((ref) async {
-  final appSettings = ref.watch(appSettingsProvider).valueOrNull;
-  if (appSettings == null) {
+  final observerLocation = ref.watch(appObserverLocationProvider);
+  if (observerLocation == null) {
     return;
   }
 
-  final latitude = appSettings.latitude;
-  final longitude = appSettings.longitude;
+  final latitude = observerLocation.latitude;
+  final longitude = observerLocation.longitude;
 
   // Skip fetch if location not set
   if (latitude == 0.0 && longitude == 0.0) {
@@ -312,14 +340,15 @@ final fetchWeatherProvider = FutureProvider.autoDispose<void>((ref) async {
 ///
 /// Call ref.read(analyzeCloudMotionProvider) to trigger motion analysis.
 /// Returns CloudMotion result or null if insufficient data. Auto-disposes.
-final analyzeCloudMotionProvider = FutureProvider.autoDispose<CloudMotion?>((ref) async {
-  final appSettings = ref.watch(appSettingsProvider).valueOrNull;
-  if (appSettings == null) {
+final analyzeCloudMotionProvider =
+    FutureProvider.autoDispose<CloudMotion?>((ref) async {
+  final observerLocation = ref.watch(appObserverLocationProvider);
+  if (observerLocation == null) {
     return null;
   }
 
-  final latitude = appSettings.latitude;
-  final longitude = appSettings.longitude;
+  final latitude = observerLocation.latitude;
+  final longitude = observerLocation.longitude;
 
   // Skip analysis if location not set
   if (latitude == 0.0 && longitude == 0.0) {
@@ -345,13 +374,15 @@ final analyzeCloudMotionProvider = FutureProvider.autoDispose<CloudMotion?>((ref
 ///
 /// Call ref.read(evaluateWeatherConditionsProvider) to evaluate current
 /// conditions and generate an alert. Auto-disposes after use.
-final evaluateWeatherConditionsProvider = FutureProvider.autoDispose<WeatherAlert>((ref) async {
+final evaluateWeatherConditionsProvider =
+    FutureProvider.autoDispose<WeatherAlert>((ref) async {
   final weatherSettings = ref.watch(weatherSettingsProvider);
   final motion = await ref.watch(analyzeCloudMotionProvider.future);
 
   // Get actual cloud cover percentage from Open-Meteo API
   // This is the real-time cloud cover at the user's location
-  final cloudCoverPercent = await ref.watch(cloudCoverPercentageProvider.future);
+  final cloudCoverPercent =
+      await ref.watch(cloudCoverPercentageProvider.future);
 
   // Use actual cloud cover if available, otherwise fall back to 0 (clear)
   final currentCloudDensity = cloudCoverPercent ?? 0.0;

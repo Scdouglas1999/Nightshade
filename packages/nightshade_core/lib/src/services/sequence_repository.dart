@@ -1,10 +1,13 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../database/database.dart' as db;
 import '../database/daos/sequences_dao.dart';
 import '../models/sequence/sequence_models.dart';
 import '../providers/database_provider.dart';
+import '../utils/json_validation.dart';
 
 /// Repository for saving and loading sequences from the database
 class SequenceRepository {
@@ -70,9 +73,69 @@ class SequenceRepository {
       ),
     );
 
-    // Delete existing nodes and recreate
-    await _dao.deleteSequence(sequenceId);
-    await _createSequence(sequence, isTemplate);
+    // Get existing nodes to diff against incoming nodes
+    final existingNodes = await _dao.getNodesForSequence(sequenceId);
+    final existingNodeIds = existingNodes.map((n) => n.nodeId).toSet();
+    final incomingNodeIds = sequence.nodes.keys.toSet();
+
+    // Determine which nodes to update, insert, or delete
+    final toUpdate = existingNodeIds.intersection(incomingNodeIds);
+    final toInsert = incomingNodeIds.difference(existingNodeIds);
+    final toDelete = existingNodeIds.difference(incomingNodeIds);
+
+    // Build a lookup from nodeId to database row for existing nodes
+    final existingNodeMap = {
+      for (final n in existingNodes) n.nodeId: n,
+    };
+
+    // Update existing nodes in place (preserves database row IDs)
+    for (final nodeId in toUpdate) {
+      final node = sequence.nodes[nodeId]!;
+      final dbNode = existingNodeMap[nodeId]!;
+      await _dao.updateNode(
+        db.SequenceNode(
+          id: dbNode.id,
+          nodeId: node.id,
+          sequenceId: sequenceId,
+          targetId: dbNode.targetId,
+          nodeType: _getNodeCategory(node),
+          specificType: node.nodeType,
+          name: node.name,
+          properties: jsonEncode(_nodeToPropertiesWithComment(node)),
+          // `recoveryConfig` is a legacy persistence field that is no longer
+          // surfaced in the runtime model. Clearing it on save prevents stale
+          // node-id references from surviving deletes and subsequent edits.
+          recoveryConfig: null,
+          parentNodeId: node.parentId,
+          orderIndex: node.orderIndex,
+          isEnabled: node.isEnabled,
+        ),
+      );
+    }
+
+    // Insert new nodes
+    for (final nodeId in toInsert) {
+      final node = sequence.nodes[nodeId]!;
+      await _dao.createNode(
+        db.SequenceNodesCompanion.insert(
+          nodeId: node.id,
+          sequenceId: sequenceId,
+          nodeType: _getNodeCategory(node),
+          specificType: node.nodeType,
+          name: node.name,
+          properties: Value(jsonEncode(_nodeToPropertiesWithComment(node))),
+          parentNodeId: Value(node.parentId),
+          orderIndex: Value(node.orderIndex),
+          isEnabled: Value(node.isEnabled),
+        ),
+      );
+    }
+
+    // Delete removed nodes
+    for (final nodeId in toDelete) {
+      final dbNode = existingNodeMap[nodeId]!;
+      await _dao.deleteNode(dbNode.id);
+    }
   }
 
   Future<void> _saveNodes(
@@ -85,7 +148,7 @@ class SequenceRepository {
           nodeType: _getNodeCategory(node),
           specificType: node.nodeType,
           name: node.name,
-          properties: Value(jsonEncode(_nodeToProperties(node))),
+          properties: Value(jsonEncode(_nodeToPropertiesWithComment(node))),
           parentNodeId: Value(node.parentId),
           orderIndex: Value(node.orderIndex),
           isEnabled: Value(node.isEnabled),
@@ -117,9 +180,13 @@ class SequenceRepository {
     final nodes = <String, SequenceNode>{};
     for (final dbNode in dbNodes) {
       final node = _dbNodeToModel(dbNode);
-      if (node != null) {
-        nodes[node.id] = node;
+      if (node == null) {
+        throw StateError(
+          'Unsupported sequence node type '
+          '"${dbNode.specificType}" for node ${dbNode.nodeId}',
+        );
       }
+      nodes[node.id] = node;
     }
 
     // Build child relationships
@@ -180,14 +247,72 @@ class SequenceRepository {
     await _dao.deleteSequence(sequenceId);
   }
 
-  /// Duplicate a sequence
+  /// Duplicate a sequence with fresh UUIDs for all nodes.
+  ///
+  /// Generates new UUIDs for every node and remaps all parent/child references
+  /// so the duplicated sequence is fully independent from the original.
   Future<Sequence?> duplicateSequence(int sequenceId, String newName) async {
-    final newId = await _dao.duplicateSequence(sequenceId, newName);
-    return loadSequence(newId);
+    // Load the source sequence with its full node tree
+    final source = await loadSequence(sequenceId);
+    if (source == null) {
+      throw Exception('Sequence $sequenceId not found');
+    }
+
+    const uuid = Uuid();
+
+    // Build a mapping from old node ID to new node ID
+    final idMapping = <String, String>{};
+    for (final oldId in source.nodes.keys) {
+      idMapping[oldId] = uuid.v4();
+    }
+
+    // Remap the root node ID
+    final newRootNodeId = source.rootNodeId != null
+        ? idMapping[source.rootNodeId] ?? source.rootNodeId
+        : null;
+
+    // Rebuild nodes with new IDs, remapping parent and child references
+    final newNodes = <String, SequenceNode>{};
+    for (final entry in source.nodes.entries) {
+      final oldNode = entry.value;
+      final newId = idMapping[entry.key]!;
+      final newParentId = oldNode.parentId != null
+          ? idMapping[oldNode.parentId] ?? oldNode.parentId
+          : null;
+      final newChildIds = oldNode.childIds
+          .map((childId) => idMapping[childId] ?? childId)
+          .toList();
+
+      final remappedNode = oldNode.copyWith(
+        id: newId,
+        parentId: newParentId,
+        childIds: newChildIds,
+      );
+      newNodes[newId] = remappedNode;
+    }
+
+    // Create a new sequence with the remapped nodes
+    final duplicated = Sequence(
+      id: uuid.v4(),
+      name: newName,
+      description: source.description,
+      nodes: newNodes,
+      rootNodeId: newRootNodeId,
+      isTemplate: source.isTemplate,
+      createdAt: DateTime.now(),
+      modifiedAt: DateTime.now(),
+    );
+
+    final newDbId = await _createSequence(duplicated, source.isTemplate);
+    return loadSequence(newDbId);
   }
 
   SequenceNode? _dbNodeToModel(db.SequenceNode dbNode) {
-    final props = jsonDecode(dbNode.properties) as Map<String, dynamic>;
+    final props = decodeJsonObjectString(
+      dbNode.properties,
+      context:
+          'sequence_nodes.properties for node ${dbNode.nodeId} (${dbNode.specificType})',
+    );
 
     switch (dbNode.specificType) {
       case 'exposure':
@@ -206,6 +331,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'slew':
@@ -219,6 +345,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'center':
@@ -229,8 +356,7 @@ class SequenceRepository {
           useTargetCoords: props['useTargetCoords'] as bool? ?? true,
           customRa: (props['customRa'] as num?)?.toDouble(),
           customDec: (props['customDec'] as num?)?.toDouble(),
-          accuracyArcsec:
-              (props['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          accuracyArcsec: (props['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (props['maxAttempts'] as num?)?.toInt() ?? 5,
           exposureDuration:
               (props['exposureDuration'] as num?)?.toDouble() ?? 5.0,
@@ -238,6 +364,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'autofocus':
@@ -250,9 +377,13 @@ class SequenceRepository {
           stepsOut: (props['stepsOut'] as num?)?.toInt() ?? 7,
           exposureDuration:
               (props['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          useSettingsDefaults: props['useSettingsDefaults'] as bool? ?? true,
+          maxDurationSecs:
+              (props['maxDurationSecs'] as num?)?.toDouble() ?? 600.0,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'dither':
@@ -263,12 +394,12 @@ class SequenceRepository {
           pixels: (props['pixels'] as num?)?.toDouble() ?? 5.0,
           settlePixels: (props['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 30.0,
-          settleTimeout:
-              (props['settleTimeout'] as num?)?.toDouble() ?? 120.0,
+          settleTimeout: (props['settleTimeout'] as num?)?.toDouble() ?? 120.0,
           raOnly: props['raOnly'] as bool? ?? false,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'filterChange':
@@ -281,6 +412,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'coolCamera':
@@ -293,6 +425,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'warmCamera':
@@ -301,9 +434,11 @@ class SequenceRepository {
           id: dbNode.nodeId,
           name: dbNode.name,
           ratePerMin: (props['ratePerMin'] as num?)?.toDouble() ?? 2.0,
+          targetTemp: (props['targetTemp'] as num?)?.toDouble() ?? 20.0,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'rotator':
@@ -316,6 +451,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'park':
@@ -326,6 +462,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'unpark':
@@ -336,6 +473,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'waitTime':
@@ -351,6 +489,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'delay':
@@ -362,6 +501,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'notification':
@@ -375,6 +515,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'script':
@@ -389,6 +530,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'targetGroup':
@@ -412,6 +554,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'loop':
@@ -432,6 +575,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'parallel':
@@ -443,6 +587,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'conditional':
@@ -460,6 +605,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'recovery':
@@ -479,6 +625,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'startGuiding':
@@ -488,12 +635,12 @@ class SequenceRepository {
           name: dbNode.name,
           settlePixels: (props['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 10.0,
-          settleTimeout:
-              (props['settleTimeout'] as num?)?.toDouble() ?? 60.0,
+          settleTimeout: (props['settleTimeout'] as num?)?.toDouble() ?? 60.0,
           autoSelectStar: props['autoSelectStar'] as bool? ?? true,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'stopGuiding':
@@ -504,6 +651,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'meridianFlip':
@@ -511,8 +659,8 @@ class SequenceRepository {
         return MeridianFlipNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          triggerMethod: _stringToMeridianTriggerMethod(
-              props['triggerMethod'] as String?),
+          triggerMethod:
+              _stringToMeridianTriggerMethod(props['triggerMethod'] as String?),
           minutesPastMeridian:
               (props['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
           minutesBeforeLimit:
@@ -525,11 +673,12 @@ class SequenceRepository {
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 10.0,
           resumeGuiding: props['resumeGuiding'] as bool? ?? true,
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
-          failureAction: _stringToFlipFailureAction(
-              props['failureAction'] as String?),
+          failureAction:
+              _stringToFlipFailureAction(props['failureAction'] as String?),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'openDome':
@@ -541,6 +690,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'closeDome':
@@ -552,6 +702,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'parkDome':
@@ -563,6 +714,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'polarAlignment':
@@ -573,10 +725,8 @@ class SequenceRepository {
           exposureDuration:
               (props['exposureDuration'] as num?)?.toDouble() ?? 2.0,
           binning: (props['binning'] as num?)?.toInt() ?? 2,
-          startAltitude:
-              (props['startAltitude'] as num?)?.toDouble() ?? 45.0,
-          rotationStep:
-              (props['rotationStep'] as num?)?.toDouble() ?? 20.0,
+          startAltitude: (props['startAltitude'] as num?)?.toDouble() ?? 45.0,
+          rotationStep: (props['rotationStep'] as num?)?.toDouble() ?? 20.0,
           gain: (props['gain'] as num?)?.toInt(),
           offset: (props['offset'] as num?)?.toInt(),
           startFromCurrent: props['startFromCurrent'] as bool? ?? true,
@@ -585,6 +735,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       case 'instructionSet':
@@ -595,6 +746,7 @@ class SequenceRepository {
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
         );
 
       default:
@@ -636,6 +788,8 @@ class SequenceRepository {
         'stepSize': node.stepSize,
         'stepsOut': node.stepsOut,
         'exposureDuration': node.exposureDuration,
+        'useSettingsDefaults': node.useSettingsDefaults,
+        'maxDurationSecs': node.maxDurationSecs,
       };
     } else if (node is DitherNode) {
       return {
@@ -658,6 +812,7 @@ class SequenceRepository {
     } else if (node is WarmCameraNode) {
       return {
         'ratePerMin': node.ratePerMin,
+        'targetTemp': node.targetTemp,
       };
     } else if (node is RotatorNode) {
       return {
@@ -773,6 +928,15 @@ class SequenceRepository {
       };
     }
     return {};
+  }
+
+  /// Wraps _nodeToProperties to include base-class fields like comment
+  Map<String, dynamic> _nodeToPropertiesWithComment(SequenceNode node) {
+    final props = _nodeToProperties(node);
+    if (node.comment != null && node.comment!.isNotEmpty) {
+      props['comment'] = node.comment;
+    }
+    return props;
   }
 
   // Helper methods for enum conversion

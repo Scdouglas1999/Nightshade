@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:io';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +9,13 @@ import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 // ignore: implementation_imports
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
+import 'mpc_export_panel.dart';
+import 'period_analysis_panel.dart';
+import 'photometric_calibration_wizard.dart';
+import 'quick_csv_export.dart';
 import 'science_insights_panel.dart';
 import 'science_kpi_strip.dart';
 import 'science_overlay_composer.dart';
@@ -38,8 +45,8 @@ class ScienceAnalyticsTab extends ConsumerWidget {
 
     if (activeSessionId != null) {
       final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
-      lightCurve = ref.watch(
-          sessionLightCurveProvider((activeSessionId, targetObjectId)));
+      lightCurve = ref
+          .watch(sessionLightCurveProvider((activeSessionId, targetObjectId)));
       transparency =
           ref.watch(sessionTransparencyTrendProvider(activeSessionId));
       transparencyRows = ref
@@ -69,52 +76,73 @@ class ScienceAnalyticsTab extends ConsumerWidget {
               .watch(sessionFrameQualityMetricsProvider(activeSessionId))
               .valueOrNull ??
           const [];
-      tileMetrics = ref
-              .watch(sessionTileMetricsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
+      tileMetrics =
+          ref.watch(sessionTileMetricsProvider(activeSessionId)).valueOrNull ??
+              const [];
     } else {
       // No session available — show standalone/quick capture science data
       final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
       lightCurve = ref.watch(sessionlessLightCurveProvider(targetObjectId));
       transparency = ref.watch(sessionlessTransparencyTrendProvider);
-      transparencyRows = ref
-              .watch(sessionlessTransparencySamplesProvider)
-              .valueOrNull ??
-          const [];
-      calibrations = ref
-              .watch(sessionlessCalibrationsProvider)
-              .valueOrNull ??
-          const [];
-      psfTiles = ref
-              .watch(sessionlessPsfTilesProvider)
-              .valueOrNull ??
-          const [];
-      residuals = ref
-              .watch(sessionlessResidualVectorsProvider)
-              .valueOrNull ??
-          const [];
-      moving = ref
-              .watch(sessionlessMovingObjectCandidatesProvider)
-              .valueOrNull ??
-          const [];
-      lineRatios = ref
-              .watch(sessionlessLineRatioProductsProvider)
-              .valueOrNull ??
-          const [];
-      frameMetrics = ref
-              .watch(sessionlessFrameQualityMetricsProvider)
-              .valueOrNull ??
-          const [];
-      tileMetrics = ref
-              .watch(sessionlessTileMetricsProvider)
-              .valueOrNull ??
-          const [];
+      transparencyRows =
+          ref.watch(sessionlessTransparencySamplesProvider).valueOrNull ??
+              const [];
+      calibrations =
+          ref.watch(sessionlessCalibrationsProvider).valueOrNull ?? const [];
+      psfTiles = ref.watch(sessionlessPsfTilesProvider).valueOrNull ?? const [];
+      residuals =
+          ref.watch(sessionlessResidualVectorsProvider).valueOrNull ?? const [];
+      moving =
+          ref.watch(sessionlessMovingObjectCandidatesProvider).valueOrNull ??
+              const [];
+      lineRatios =
+          ref.watch(sessionlessLineRatioProductsProvider).valueOrNull ??
+              const [];
+      frameMetrics =
+          ref.watch(sessionlessFrameQualityMetricsProvider).valueOrNull ??
+              const [];
+      tileMetrics =
+          ref.watch(sessionlessTileMetricsProvider).valueOrNull ?? const [];
     }
 
     final latestPsfTiles = _latestPsfSnapshot(psfTiles);
     final latestResiduals = _latestResidualSnapshot(residuals);
     final latestTileMetrics = _latestTileMetricSnapshot(tileMetrics);
+    final diagnostics = const OpticalTrainDiagnosticsService().analyze(
+      psfTiles: latestPsfTiles,
+      residualVectors: latestResiduals,
+    );
+    final cameraState = ref.watch(cameraStateProvider);
+    final guiderState = ref.watch(guiderStateProvider);
+    final mountState = ref.watch(mountStateProvider);
+    final allSessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
+    final healthReport = const EquipmentHealthService().analyze(
+      sessions: allSessions,
+      deviceHealth: [
+        if (cameraState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: cameraState.deviceId!,
+            lastSuccessfulTimestampMs: cameraState
+                    .lastSuccessfulCommunication?.millisecondsSinceEpoch ??
+                DateTime.now().millisecondsSinceEpoch,
+            isHealthy: cameraState.isHealthy,
+          ),
+        if (mountState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: mountState.deviceId!,
+            lastSuccessfulTimestampMs: DateTime.now().millisecondsSinceEpoch,
+            isHealthy:
+                mountState.connectionState == DeviceConnectionState.connected,
+          ),
+        if (guiderState.deviceId != null)
+          DeviceHealthSnapshot(
+            deviceId: guiderState.deviceId!,
+            lastSuccessfulTimestampMs: DateTime.now().millisecondsSinceEpoch,
+            isHealthy:
+                guiderState.connectionState == DeviceConnectionState.connected,
+          ),
+      ],
+    );
 
     final latestCal = calibrations.isEmpty ? null : calibrations.last;
     final latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
@@ -153,6 +181,8 @@ class ScienceAnalyticsTab extends ConsumerWidget {
               frameMetrics: latestFrameQuality,
               latestCalibration: latestCal,
               latestTransparency: latestTransparencyRow,
+              diagnostics: diagnostics,
+              healthReport: healthReport,
             ),
           ] else
             Row(
@@ -181,6 +211,8 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                         frameMetrics: latestFrameQuality,
                         latestCalibration: latestCal,
                         latestTransparency: latestTransparencyRow,
+                        diagnostics: diagnostics,
+                        healthReport: healthReport,
                       ),
                     ],
                   ),
@@ -194,6 +226,9 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                 child: _LightCurveChartCard(
                   colors: colors,
                   lightCurve: lightCurve,
+                  buildExportRows: lightCurve.isEmpty
+                      ? null
+                      : () async => _buildPhotometryExportRows(lightCurve),
                 ),
               ),
               const SizedBox(width: 12),
@@ -206,7 +241,50 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                       .map((point) => _ChartPoint(
                           point.timestamp, point.transparencyPercent))
                       .toList(growable: false),
-                  color: Colors.teal,
+                  color: colors.info,
+                  buildExportRows: transparencyRows.isEmpty
+                      ? null
+                      : () async =>
+                          _buildTransparencyExportRows(transparencyRows),
+                  exportFilePrefix: 'transparency',
+                ),
+              ),
+            ],
+          ),
+          if (lightCurve.isNotEmpty && activeSessionId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _AavsoExportButton(
+                colors: colors,
+                sessionId: activeSessionId,
+              ),
+            ),
+          const SizedBox(height: 16),
+          PeriodAnalysisPanel(
+            colors: colors,
+            lightCurve: lightCurve,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _PsfHeatmapCard(
+                  colors: colors,
+                  tiles: latestPsfTiles,
+                  buildExportRows: latestPsfTiles.isEmpty
+                      ? null
+                      : () async => _buildPsfExportRows(latestPsfTiles),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ResidualCard(
+                  colors: colors,
+                  residuals: latestResiduals,
+                  buildExportRows: latestResiduals.isEmpty
+                      ? null
+                      : () async => _buildResidualExportRows(latestResiduals),
                 ),
               ),
             ],
@@ -216,21 +294,13 @@ class ScienceAnalyticsTab extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _PsfHeatmapCard(colors: colors, tiles: latestPsfTiles),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child:
-                    _ResidualCard(colors: colors, residuals: latestResiduals),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _MovingObjectCard(colors: colors, moving: moving),
+                child: _MovingObjectCard(
+                  colors: colors,
+                  moving: moving,
+                  buildExportRows: moving.isEmpty
+                      ? null
+                      : () async => _buildMovingObjectExportRows(moving),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -242,6 +312,13 @@ class ScienceAnalyticsTab extends ConsumerWidget {
               ),
             ],
           ),
+          // MPC export panel -- only shown when moving object candidates exist
+          if (moving.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            MpcExportPanel(colors: colors, candidates: moving),
+          ],
+          const SizedBox(height: 16),
+          _PhotometricTransformsCard(colors: colors),
         ],
       ),
     );
@@ -260,6 +337,127 @@ class ScienceAnalyticsTab extends ConsumerWidget {
 
     return sessions.first.id;
   }
+}
+
+// =============================================================================
+// Quick-export row builders for in-memory data
+// =============================================================================
+
+List<List<dynamic>> _buildPhotometryExportRows(List<LightCurvePoint> points) {
+  return [
+    ['Timestamp', 'Flux', 'Differential Magnitude', 'SNR', 'Uncertainty'],
+    for (final p in points)
+      [
+        p.timestamp.toIso8601String(),
+        p.flux,
+        p.differentialMagnitude,
+        p.snr,
+        p.uncertainty,
+      ],
+  ];
+}
+
+List<List<dynamic>> _buildTransparencyExportRows(
+    List<TransparencySampleRow> samples) {
+  return [
+    [
+      'Timestamp',
+      'Transparency %',
+      'Extinction Coefficient',
+      'Quality Bucket',
+      'Confidence',
+    ],
+    for (final s in samples)
+      [
+        s.timestamp.toIso8601String(),
+        s.transparencyPercent,
+        s.extinctionCoefficient,
+        s.qualityBucket,
+        s.confidence,
+      ],
+  ];
+}
+
+List<List<dynamic>> _buildPsfExportRows(List<PsfFieldTileRow> tiles) {
+  return [
+    [
+      'Tile Row',
+      'Tile Col',
+      'Star Count',
+      'Median FWHM',
+      'Median HFR',
+      'Median Eccentricity',
+      'Roundness',
+      'Timestamp',
+    ],
+    for (final t in tiles)
+      [
+        t.tileRow,
+        t.tileCol,
+        t.starCount,
+        t.medianFwhm,
+        t.medianHfr,
+        t.medianEccentricity,
+        t.roundness,
+        t.timestamp.toIso8601String(),
+      ],
+  ];
+}
+
+List<List<dynamic>> _buildResidualExportRows(
+    List<AstrometryResidualVectorRow> residuals) {
+  return [
+    [
+      'X',
+      'Y',
+      'dX (arcsec)',
+      'dY (arcsec)',
+      'Magnitude (arcsec)',
+      'Recommendation',
+      'Timestamp',
+    ],
+    for (final r in residuals)
+      [
+        r.x,
+        r.y,
+        r.dxArcsec,
+        r.dyArcsec,
+        r.magnitudeArcsec,
+        r.recommendationCode ?? '',
+        r.timestamp.toIso8601String(),
+      ],
+  ];
+}
+
+List<List<dynamic>> _buildMovingObjectExportRows(
+    List<MovingObjectCandidateRow> objects) {
+  return [
+    [
+      'Candidate ID',
+      'RA (deg)',
+      'Dec (deg)',
+      'Motion (arcsec/min)',
+      'Position Angle (deg)',
+      'Confidence',
+      'Known Object',
+      'Object Name',
+      'Source',
+      'Timestamp',
+    ],
+    for (final m in objects)
+      [
+        m.candidateId,
+        m.raDegrees,
+        m.decDegrees,
+        m.motionArcsecPerMinute,
+        m.positionAngleDegrees,
+        m.confidence,
+        m.isKnownObject,
+        m.objectName ?? '',
+        m.source,
+        m.timestamp.toIso8601String(),
+      ],
+  ];
 }
 
 List<PsfFieldTileRow> _latestPsfSnapshot(List<PsfFieldTileRow> rows) {
@@ -465,6 +663,27 @@ To generate ratios, Nightshade needs at least one frame captured through each of
 These ratios are widely used in professional astronomy for classifying nebulae, mapping shock fronts, and studying the interstellar medium. They form the basis of BPT (Baldwin-Phillips-Terlevich) diagnostic diagrams used to classify emission-line objects.
 ''';
 
+const _kPhotometricTransformsInfo = '''
+Photometric transformation coefficients convert your instrumental magnitudes into a standard photometric system (such as Johnson-Cousins UBVRI or Sloan ugriz). Without these coefficients, your brightness measurements are only relative — useful for differential photometry, but not directly comparable to catalog values or measurements from other observatories.
+
+The transformation equation is: M_std = m_inst - k*X + T*(B-V) + ZP
+
+Where:
+- M_std: Standard magnitude (the calibrated result)
+- m_inst: Instrumental magnitude (what your camera measures)
+- k: Extinction coefficient (how much the atmosphere dims starlight per unit airmass)
+- X: Airmass (how much atmosphere the light passes through; more at lower elevations)
+- T: Color term (corrects for your filter+CCD combination's color response vs. the standard system)
+- (B-V): Color index of the star (blue minus visual magnitude, a measure of stellar color)
+- ZP: Zero point (the offset between your instrumental scale and the standard scale)
+
+To compute these coefficients, Nightshade uses a least-squares fit of catalog star magnitudes against your measured instrumental magnitudes. The calibration wizard guides you through selecting a suitable frame with many catalog stars, matching them, and computing the fit.
+
+The RMS residual indicates how well the transform fits the data. Values below 0.03 mag are excellent; 0.03-0.05 is good; 0.05-0.10 is acceptable for most work. Higher values may indicate color terms that vary across the field, poor focus, or thin clouds.
+
+Once saved, these coefficients are automatically applied to new photometry measurements, converting differential magnitudes into absolute standard magnitudes suitable for AAVSO submission and cross-observatory comparison.
+''';
+
 /// Map of card titles to their info content for easy lookup.
 const _kScienceInfoContent = <String, String>{
   'Calibration': _kCalibrationInfo,
@@ -477,6 +696,7 @@ const _kScienceInfoContent = <String, String>{
   'Astrometric Residuals': _kAstrometricResidualsInfo,
   'Moving Object Candidates': _kMovingObjectCandidatesInfo,
   'Narrowband Ratios': _kNarrowbandRatiosInfo,
+  'Photometric Transforms': _kPhotometricTransformsInfo,
 };
 
 /// Shows a themed info dialog explaining a science visualization.
@@ -487,7 +707,7 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
     builder: (context) => AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
       ),
       title: Row(
@@ -531,13 +751,10 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(
-            foregroundColor: colors.primary,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          ),
-          child: const Text('Got it'),
+          label: 'Got it',
+          variant: ButtonVariant.ghost,
         ),
       ],
     ),
@@ -560,7 +777,7 @@ class _ScienceInfoButton extends StatelessWidget {
       message: 'What is this?',
       child: InkWell(
         onTap: () => _showScienceInfoDialog(context, title, body),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Icon(
@@ -587,6 +804,8 @@ class _SeriesChartCard extends StatelessWidget {
   final String yLabel;
   final List<_ChartPoint> points;
   final Color color;
+  final Future<List<List<dynamic>>> Function()? buildExportRows;
+  final String? exportFilePrefix;
 
   const _SeriesChartCard({
     required this.colors,
@@ -594,6 +813,8 @@ class _SeriesChartCard extends StatelessWidget {
     required this.yLabel,
     required this.points,
     required this.color,
+    this.buildExportRows,
+    this.exportFilePrefix,
   });
 
   @override
@@ -652,6 +873,12 @@ class _SeriesChartCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (buildExportRows != null)
+                  QuickExportButton(
+                    tooltip: 'Export $title CSV',
+                    buildRows: buildExportRows!,
+                    filePrefix: exportFilePrefix ?? 'series',
+                  ),
                 _ScienceInfoButton(title: title),
               ],
             ),
@@ -743,13 +970,168 @@ class _SeriesChartCard extends StatelessWidget {
   }
 }
 
+class _AavsoExportButton extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final int sessionId;
+
+  const _AavsoExportButton({
+    required this.colors,
+    required this.sessionId,
+  });
+
+  @override
+  ConsumerState<_AavsoExportButton> createState() => _AavsoExportButtonState();
+}
+
+class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
+  bool _exporting = false;
+
+  Future<void> _doExport() async {
+    final targetName = await _showTargetNameDialog();
+    if (targetName == null || targetName.trim().isEmpty) {
+      return;
+    }
+
+    setState(() => _exporting = true);
+    try {
+      final backend = ref.read(backendProvider);
+      late final String filePath;
+      if (backend is NetworkBackend) {
+        final bytes = await backend.exportSessionAavso(
+          widget.sessionId,
+          targetStarName: targetName.trim(),
+        );
+        final docsDir = await getApplicationDocumentsDirectory();
+        final exportDir =
+            Directory(path.join(docsDir.path, 'Nightshade', 'exports'));
+        if (!await exportDir.exists()) {
+          await exportDir.create(recursive: true);
+        }
+        filePath = path.join(
+          exportDir.path,
+          'AAVSO_${targetName.trim().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.txt',
+        );
+        await File(filePath).writeAsBytes(bytes, flush: true);
+      } else {
+        final scienceDao = ref.read(scienceDaoProvider);
+        final settingsDao = ref.read(settingsDaoProvider);
+        final imagesDao = ref.read(imagesDaoProvider);
+
+        final service = AavsoExportService(
+          scienceDao: scienceDao,
+          settingsDao: settingsDao,
+          imagesDao: imagesDao,
+        );
+
+        filePath = await service.exportSession(
+          sessionId: widget.sessionId,
+          targetStarName: targetName.trim(),
+        );
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AAVSO export saved to: $filePath'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } on AavsoExportError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: widget.colors.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: widget.colors.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _exporting = false);
+      }
+    }
+  }
+
+  Future<String?> _showTargetNameDialog() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Export to AAVSO'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the AAVSO star designation for this target '
+                '(e.g., "SS CYG", "R LEO"):',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  hintText: 'Star name',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onSubmitted: (value) => Navigator.of(ctx).pop(value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: const Text('Export'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: NightshadeButton(
+        onPressed: _doExport,
+        icon: LucideIcons.fileOutput,
+        label: _exporting ? 'Exporting...' : 'Export to AAVSO',
+        variant: ButtonVariant.outline,
+        isLoading: _exporting,
+      ),
+    );
+  }
+}
+
 class _LightCurveChartCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<LightCurvePoint> lightCurve;
+  final Future<List<List<dynamic>>> Function()? buildExportRows;
 
   const _LightCurveChartCard({
     required this.colors,
     required this.lightCurve,
+    this.buildExportRows,
   });
 
   @override
@@ -816,6 +1198,12 @@ class _LightCurveChartCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (buildExportRows != null)
+                  QuickExportButton(
+                    tooltip: 'Export photometry CSV',
+                    buildRows: buildExportRows!,
+                    filePrefix: 'photometry',
+                  ),
                 const _ScienceInfoButton(title: 'Differential Photometry'),
               ],
             ),
@@ -953,8 +1341,13 @@ class _LightCurveChartCard extends StatelessWidget {
 class _PsfHeatmapCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<PsfFieldTileRow> tiles;
+  final Future<List<List<dynamic>>> Function()? buildExportRows;
 
-  const _PsfHeatmapCard({required this.colors, required this.tiles});
+  const _PsfHeatmapCard({
+    required this.colors,
+    required this.tiles,
+    this.buildExportRows,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -975,6 +1368,12 @@ class _PsfHeatmapCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (buildExportRows != null)
+                  QuickExportButton(
+                    tooltip: 'Export PSF tiles CSV',
+                    buildRows: buildExportRows!,
+                    filePrefix: 'psf_tiles',
+                  ),
                 const _ScienceInfoButton(title: 'PSF Field Map'),
               ],
             ),
@@ -1054,6 +1453,9 @@ class _PsfHeatmapGrid extends StatelessWidget {
                         const Color(0xFFC0392B),
                         normalized,
                       )!;
+                final labelColor = color.computeLuminance() > 0.45
+                    ? const Color(0xFF000000)
+                    : const Color(0xFFFFFFFF);
 
                 return Expanded(
                   child: Container(
@@ -1065,8 +1467,8 @@ class _PsfHeatmapGrid extends StatelessWidget {
                     child: Center(
                       child: Text(
                         tile == null ? '-' : fwhm.toStringAsFixed(2),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: labelColor,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1101,8 +1503,13 @@ class _PsfHeatmapGrid extends StatelessWidget {
 class _ResidualCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<AstrometryResidualVectorRow> residuals;
+  final Future<List<List<dynamic>>> Function()? buildExportRows;
 
-  const _ResidualCard({required this.colors, required this.residuals});
+  const _ResidualCard({
+    required this.colors,
+    required this.residuals,
+    this.buildExportRows,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1132,6 +1539,12 @@ class _ResidualCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (buildExportRows != null)
+                  QuickExportButton(
+                    tooltip: 'Export residuals CSV',
+                    buildRows: buildExportRows!,
+                    filePrefix: 'astrometric_residuals',
+                  ),
                 const _ScienceInfoButton(title: 'Astrometric Residuals'),
               ],
             ),
@@ -1164,8 +1577,13 @@ class _ResidualCard extends StatelessWidget {
 class _MovingObjectCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<MovingObjectCandidateRow> moving;
+  final Future<List<List<dynamic>>> Function()? buildExportRows;
 
-  const _MovingObjectCard({required this.colors, required this.moving});
+  const _MovingObjectCard({
+    required this.colors,
+    required this.moving,
+    this.buildExportRows,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1186,6 +1604,12 @@ class _MovingObjectCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (buildExportRows != null)
+                  QuickExportButton(
+                    tooltip: 'Export moving objects CSV',
+                    buildRows: buildExportRows!,
+                    filePrefix: 'moving_objects',
+                  ),
                 const _ScienceInfoButton(title: 'Moving Object Candidates'),
               ],
             ),
@@ -1373,9 +1797,20 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
     });
 
     try {
-      final images = await ref
-          .read(imagesDaoProvider)
-          .getImagesForSession(sessionId);
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final result = await backend.generateSessionLineRatios(sessionId);
+        ref.invalidate(sessionLineRatioProductsProvider(sessionId));
+        setState(() {
+          final files = (result['files'] as List?)?.join(', ') ?? 'host frames';
+          _statusMessage = 'Generated using $files.';
+          _isGenerating = false;
+        });
+        return;
+      }
+
+      final images =
+          await ref.read(imagesDaoProvider).getImagesForSession(sessionId);
       final ha =
           _findLatestByFilter(images, {'ha', 'halpha', 'h-alpha', 'h alpha'});
       final oiii = _findLatestByFilter(images, {'oiii', 'o3'});
@@ -1471,6 +1906,273 @@ class _MetricLine extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Photometric Transforms Card
+// =============================================================================
+
+class _PhotometricTransformsCard extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _PhotometricTransformsCard({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final transformsAsync = ref.watch(activeProfileTransformsProvider);
+
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Photometric Transforms',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'Photometric Transforms'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            transformsAsync.when(
+              data: (transforms) => _buildTransformContent(context, transforms),
+              loading: () => SizedBox(
+                height: 60,
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              error: (error, _) => Text(
+                'Failed to load transforms: $error',
+                style: TextStyle(color: colors.error, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: NightshadeButton(
+                onPressed: () => _openCalibrationWizard(context),
+                icon: LucideIcons.beaker,
+                label: 'Calibrate',
+                variant: ButtonVariant.outline,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransformContent(
+      BuildContext context, List<PhotometricTransformRow> transforms) {
+    if (transforms.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No transform coefficients computed yet. Use the Calibrate button '
+          'to run the photometric calibration wizard on a standard star field.',
+          style: TextStyle(color: colors.textMuted, fontSize: 12),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final t in transforms) ...[
+          _TransformRow(colors: colors, transform: t),
+          if (t != transforms.last) const SizedBox(height: 6),
+        ],
+      ],
+    );
+  }
+
+  void _openCalibrationWizard(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const PhotometricCalibrationWizard(),
+    );
+  }
+}
+
+class _TransformRow extends StatelessWidget {
+  final NightshadeColors colors;
+  final PhotometricTransformRow transform;
+
+  const _TransformRow({
+    required this.colors,
+    required this.transform,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final quality = _qualityLabel(transform.rmsResidual);
+    final qualityColor = _qualityColor(transform.rmsResidual, colors);
+    final age = DateTime.now().difference(transform.dateComputed);
+    final ageLabel = age.inDays == 0
+        ? 'Today'
+        : age.inDays == 1
+            ? '1 day ago'
+            : '${age.inDays} days ago';
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  transform.filterName,
+                  style: TextStyle(
+                    color: colors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: qualityColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  quality,
+                  style: TextStyle(
+                    color: qualityColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                ageLabel,
+                style: TextStyle(color: colors.textMuted, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _CoefficientChip(
+                colors: colors,
+                label: 'ZP',
+                value: transform.zeroPoint.toStringAsFixed(3),
+              ),
+              const SizedBox(width: 6),
+              _CoefficientChip(
+                colors: colors,
+                label: 'k',
+                value: transform.extinctionCoefficient.toStringAsFixed(3),
+              ),
+              const SizedBox(width: 6),
+              _CoefficientChip(
+                colors: colors,
+                label: 'T',
+                value: transform.colorTerm.toStringAsFixed(3),
+              ),
+              const SizedBox(width: 6),
+              _CoefficientChip(
+                colors: colors,
+                label: 'RMS',
+                value: '${transform.rmsResidual.toStringAsFixed(3)} mag',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${transform.matchedStarCount} stars matched  |  '
+            'Catalog: ${transform.catalogSource}',
+            style: TextStyle(color: colors.textMuted, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _qualityLabel(double rms) {
+    if (rms <= 0.03) return 'Excellent';
+    if (rms <= 0.05) return 'Good';
+    if (rms <= 0.10) return 'Acceptable';
+    return 'Poor';
+  }
+
+  Color _qualityColor(double rms, NightshadeColors colors) {
+    if (rms <= 0.03) return colors.success;
+    if (rms <= 0.05) return colors.info;
+    if (rms <= 0.10) return colors.warning;
+    return colors.error;
+  }
+}
+
+class _CoefficientChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final String value;
+
+  const _CoefficientChip({
+    required this.colors,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

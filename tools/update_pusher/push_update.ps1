@@ -21,6 +21,10 @@
 .PARAMETER Manifest
     Path to the manifest.json file. Defaults to auto-detect.
 
+.PARAMETER Secret
+    LAN push shared secret. Can also be provided via
+    NIGHTSHADE_UPDATE_PUSH_SECRET.
+
 .EXAMPLE
     .\push_update.ps1 -Discover
     Discover all Nightshade instances on the network.
@@ -39,7 +43,8 @@ param(
     [string]$Target,
     [switch]$All,
     [string]$Package,
-    [string]$Manifest
+    [string]$Manifest,
+    [string]$Secret
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,6 +83,11 @@ try {
             $args += "--manifest"
             $args += $Manifest
         }
+
+        if ($Secret) {
+            $args += "--secret"
+            $args += $Secret
+        }
     }
     else {
         Write-Host "Nightshade Update Pusher" -ForegroundColor Cyan
@@ -87,6 +97,7 @@ try {
         Write-Host "  .\push_update.ps1 -Discover              # Find Nightshade instances"
         Write-Host "  .\push_update.ps1 -All                   # Push to all instances"
         Write-Host "  .\push_update.ps1 -Target <ip>           # Push to specific IP"
+        Write-Host "  .\push_update.ps1 -All -Secret <secret>  # Push with auth secret"
         Write-Host ""
         Write-Host "First run build_update_package.ps1 to create the update package."
         exit 0

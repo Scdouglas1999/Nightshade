@@ -3,6 +3,18 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'annotation_settings.freezed.dart';
 part 'annotation_settings.g.dart';
 
+/// Grid overlay type for the imaging view
+enum GridType {
+  /// No grid overlay
+  none,
+
+  /// Fixed pixel-based grid (existing behavior)
+  pixel,
+
+  /// RA/Dec celestial coordinate grid (requires plate solve)
+  celestial,
+}
+
 /// Object types that can be displayed in annotations
 enum AnnotationObjectFilter {
   galaxies,
@@ -64,6 +76,18 @@ class AnnotationSettings with _$AnnotationSettings {
 
     /// Maximum number of objects to display
     @Default(500) int maxObjectsToDisplay,
+
+    /// Whether to show compass overlay (N/E arrows from plate solve rotation)
+    @Default(true) bool compassEnabled,
+
+    /// Whether to show scale bar overlay (angular size reference)
+    @Default(true) bool scaleBarEnabled,
+
+    /// Grid overlay type (none, pixel, or celestial RA/Dec)
+    @Default(GridType.none) GridType gridType,
+
+    /// Whether to show plate solve residual vectors overlay
+    @Default(false) bool showSolveResiduals,
   }) = _AnnotationSettings;
 
   factory AnnotationSettings.fromJson(Map<String, dynamic> json) =>
@@ -110,4 +134,59 @@ class AnnotationMarkerStyle with _$AnnotationMarkerStyle {
 
   factory AnnotationMarkerStyle.fromJson(Map<String, dynamic> json) =>
       _$AnnotationMarkerStyleFromJson(json);
+}
+
+/// Named preset for annotation display settings
+@freezed
+class AnnotationPreset with _$AnnotationPreset {
+  const factory AnnotationPreset({
+    required String name,
+    required Set<AnnotationObjectFilter> visibleTypes,
+    required double minMagnitude,
+    required double magnitudeCutoff,
+    required bool showLabels,
+    required bool showMagnitudes,
+    @Default(false) bool isBuiltIn,
+  }) = _AnnotationPreset;
+
+  factory AnnotationPreset.fromJson(Map<String, dynamic> json) =>
+      _$AnnotationPresetFromJson(json);
+}
+
+/// Type of user-drawn annotation on the image
+enum CustomAnnotationType {
+  circle,
+  arrow,
+  text,
+}
+
+/// A user-drawn annotation on the image (circle, arrow, or text)
+@freezed
+class CustomAnnotation with _$CustomAnnotation {
+  const factory CustomAnnotation({
+    required String id,
+    required CustomAnnotationType type,
+
+    /// Image pixel X of the anchor point (center for circles, start for arrows, position for text)
+    required double x,
+    required double y,
+
+    /// For circles: radius in pixels. For arrows: end X.
+    double? x2,
+
+    /// For arrows: end Y.
+    double? y2,
+
+    /// For circles: radius in pixels.
+    double? radius,
+
+    /// Label text
+    @Default('') String label,
+
+    /// Color as ARGB int
+    @Default(0xFFFF6B6B) int color,
+  }) = _CustomAnnotation;
+
+  factory CustomAnnotation.fromJson(Map<String, dynamic> json) =>
+      _$CustomAnnotationFromJson(json);
 }

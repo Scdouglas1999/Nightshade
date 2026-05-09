@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../database/database.dart' show CapturedImage;
 
 /// Advisory quality level for a captured frame.
@@ -9,19 +11,30 @@ enum FrameQualityLevel {
   poor,
 }
 
+enum FrameQualityDisposition {
+  keep,
+  review,
+  autoReject,
+}
+
 /// Result of quality assessment for a single frame.
 class FrameQualityAssessment {
   final FrameQualityLevel level;
   final double advisoryScore;
+  final double mlConfidence;
+  final FrameQualityDisposition disposition;
   final List<String> reasons;
 
   const FrameQualityAssessment({
     required this.level,
     required this.advisoryScore,
+    this.mlConfidence = 0.5,
+    this.disposition = FrameQualityDisposition.keep,
     required this.reasons,
   });
 
   bool get needsReview => level != FrameQualityLevel.good;
+  bool get autoRejectCandidate => disposition == FrameQualityDisposition.autoReject;
 
   String get label {
     switch (level) {
@@ -144,15 +157,34 @@ class FrameQualityAssessmentService {
 
     advisoryScore = advisoryScore.clamp(0.0, 100.0);
 
-    final level = severeIssue || advisoryScore < 45
+    final mlConfidence = _scoreModel(
+      image,
+      referenceHfr: referenceHfr,
+      referenceGuidingRms: referenceGuidingRms,
+    );
+
+    final level = severeIssue || advisoryScore < 45 || mlConfidence >= 0.82
         ? FrameQualityLevel.poor
-        : (advisoryScore < 70 || moderateIssueCount >= 2)
+        : (advisoryScore < 70 || moderateIssueCount >= 2 || mlConfidence >= 0.58)
             ? FrameQualityLevel.needsReview
             : FrameQualityLevel.good;
+
+    final disposition = mlConfidence >= 0.88 || (severeIssue && advisoryScore < 35)
+        ? FrameQualityDisposition.autoReject
+        : level == FrameQualityLevel.needsReview
+            ? FrameQualityDisposition.review
+            : FrameQualityDisposition.keep;
+
+    if (disposition == FrameQualityDisposition.autoReject &&
+        !reasons.any((reason) => reason.contains('Model confidence'))) {
+      reasons.add('Model confidence suggests this frame should be auto-rejected.');
+    }
 
     return FrameQualityAssessment(
       level: level,
       advisoryScore: advisoryScore,
+      mlConfidence: mlConfidence,
+      disposition: disposition,
       reasons: reasons,
     );
   }
@@ -218,5 +250,34 @@ class FrameQualityAssessmentService {
     }
 
     return (sorted[middle - 1] + sorted[middle]) / 2.0;
+  }
+
+  double _scoreModel(
+    CapturedImage image, {
+    double? referenceHfr,
+    double? referenceGuidingRms,
+  }) {
+    final hfr = image.hfr ?? 2.6;
+    final starCount = (image.starCount ?? 80).clamp(1, 10000).toDouble();
+    final guidingRms = image.guidingRmsTotal ?? 1.4;
+    final qualityScore = image.qualityScore ?? 75.0;
+
+    final hfrRatio = referenceHfr != null && referenceHfr > 0 ? hfr / referenceHfr : hfr / 2.6;
+    final guidingRatio = referenceGuidingRms != null && referenceGuidingRms > 0
+        ? guidingRms / referenceGuidingRms
+        : guidingRms / 1.4;
+    final starPenalty = 1.0 - (starCount.clamp(20.0, 160.0) - 20.0) / 140.0;
+    final qualityPenalty = 1.0 - (qualityScore.clamp(0.0, 100.0) / 100.0);
+
+    final logit = -2.9 +
+        (hfrRatio - 1.0) * 2.2 +
+        (guidingRatio - 1.0) * 1.6 +
+        starPenalty * 1.8 +
+        qualityPenalty * 2.4;
+    return 1.0 / (1.0 + _exp(-logit));
+  }
+
+  double _exp(double value) {
+    return math.exp(value);
   }
 }

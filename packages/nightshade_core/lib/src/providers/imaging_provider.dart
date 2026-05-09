@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/imaging/imaging_models.dart';
 import '../models/imaging/auto_stretch_settings.dart';
@@ -73,7 +74,8 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
   final Ref _ref;
   bool _isLoaded = false;
 
-  AutoStretchSettingsNotifier(this._ref) : super(AutoStretchSettings.defaults()) {
+  AutoStretchSettingsNotifier(this._ref)
+      : super(AutoStretchSettings.defaults()) {
     _loadSettings();
   }
 
@@ -90,12 +92,17 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
         state = AutoStretchSettings.fromJson(decoded);
       }
     } catch (e) {
-      // Use default settings if loading fails
+      developer.log('Failed to load auto-stretch settings: $e',
+          name: 'AutoStretch', level: 1000);
     }
   }
 
   /// Update settings and persist to database.
+  ///
+  /// Skips the state update (and downstream rebuild of stretched image
+  /// providers) when the new settings are identical to the current ones.
   void update(AutoStretchSettings newSettings) {
+    if (state == newSettings) return;
     state = newSettings;
     _persistSettings();
   }
@@ -107,7 +114,8 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
       final json = jsonEncode(state.toJson());
       await db.settingsDao.setAutoStretchSettings(json);
     } catch (e) {
-      // Silently fail persistence - settings will still work in-memory
+      developer.log('Failed to save auto-stretch settings: $e',
+          name: 'AutoStretch', level: 1000);
     }
   }
 
@@ -127,10 +135,51 @@ final coolingStatusProvider = StateProvider<CoolingStatus>((ref) {
   return const CoolingStatus();
 });
 
-/// Focus/Autofocus settings (persists across navigation)
-final focusSettingsProvider = StateProvider<FocusSettings>((ref) {
-  return const FocusSettings();
+/// Focus/Autofocus settings (persists across navigation).
+///
+/// Initial values are loaded once from the persisted AppSettings autofocus
+/// fields. After initialization, user edits are held in memory and are NOT
+/// reset when unrelated app settings are saved.
+final focusSettingsProvider =
+    StateNotifierProvider<FocusSettingsNotifier, FocusSettings>((ref) {
+  return FocusSettingsNotifier(ref);
 });
+
+/// StateNotifier for focus settings that reads from AppSettings only once.
+///
+/// Prevents the bug where every AppSettings save would reset user edits
+/// because `ref.watch(appSettingsProvider)` triggered a full rebuild.
+class FocusSettingsNotifier extends StateNotifier<FocusSettings> {
+  final Ref _ref;
+  bool _initialized = false;
+
+  FocusSettingsNotifier(this._ref) : super(const FocusSettings()) {
+    _loadFromAppSettings();
+  }
+
+  Future<void> _loadFromAppSettings() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    final settingsAsync = _ref.read(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull;
+    if (settings != null) {
+      state = FocusSettings(
+        stepSize: settings.afStepSize,
+        method: settings.afMethod,
+        afStepSize: settings.afStepSize,
+        stepsOut: settings.afInitialOffsetSteps,
+        exposuresPerPoint: settings.afExposuresPerPoint,
+        exposureTime: settings.afExposureTime,
+      );
+    }
+  }
+
+  /// Update focus settings (user edits at runtime).
+  void update(FocusSettings newSettings) {
+    state = newSettings;
+  }
+}
 
 /// Dither settings for guiding (persists across navigation)
 final ditherSettingsProvider = StateProvider<DitherSettings>((ref) {
@@ -148,18 +197,27 @@ final selectedImagingPanelProvider = StateProvider<int>((ref) => 0);
 
 /// File naming pattern derived from persisted settings
 final namingPatternProvider = Provider<NamingPattern>((ref) {
-  final settingsAsync = ref.watch(appSettingsProvider);
-  final settings = settingsAsync.valueOrNull;
+  final settings = ref.watch(
+    appSettingsProvider.select(
+      (settingsAsync) => settingsAsync.valueOrNull == null
+          ? null
+          : (
+              pattern: settingsAsync.valueOrNull!.fileNamingPattern,
+              outputPath: settingsAsync.valueOrNull!.imageOutputPath,
+              format: settingsAsync.valueOrNull!.imageFormat,
+            ),
+    ),
+  );
 
   if (settings == null) {
     return const NamingPattern();
   }
 
-  final format = ImageFileFormatSettingsX.fromSettings(settings.imageFormat);
-  final baseDir = settings.imageOutputPath.isEmpty ? '.' : settings.imageOutputPath;
+  final format = ImageFileFormatSettingsX.fromSettings(settings.format);
+  final baseDir = settings.outputPath.isEmpty ? '.' : settings.outputPath;
 
   return NamingPattern(
-    pattern: settings.fileNamingPattern,
+    pattern: settings.pattern,
     baseDir: baseDir,
     format: format,
   );
@@ -179,7 +237,8 @@ final starDetectionConfigProvider = StateProvider<StarDetectionConfig>((ref) {
 });
 
 /// Last star detection result
-final starDetectionResultProvider = StateProvider<StarDetectionResult?>((ref) => null);
+final starDetectionResultProvider =
+    StateProvider<StarDetectionResult?>((ref) => null);
 
 /// Show star overlay on image
 final showStarOverlayProvider = StateProvider<bool>((ref) => false);
@@ -205,7 +264,8 @@ final debayerAlgorithmProvider = StateProvider<DebayerAlgorithm>((ref) {
 final autoDetectBayerPatternProvider = StateProvider<bool>((ref) => true);
 
 /// Session captured images
-final sessionImagesProvider = StateNotifierProvider<SessionImagesNotifier, List<CapturedImage>>((ref) {
+final sessionImagesProvider =
+    StateNotifierProvider<SessionImagesNotifier, List<CapturedImage>>((ref) {
   return SessionImagesNotifier();
 });
 
@@ -215,7 +275,7 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
   void addImage(CapturedImage image) {
     state = [...state, image];
   }
-  
+
   void removeImage(String id) {
     state = state.where((img) => img.id != id).toList();
   }
@@ -223,13 +283,14 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
   void clearSession() {
     state = [];
   }
-  
+
   int get count => state.length;
-  
+
   Duration get totalExposureTime {
     return state.fold(
       Duration.zero,
-      (total, img) => total + Duration(seconds: img.settings.exposureTime.round()),
+      (total, img) =>
+          total + Duration(seconds: img.settings.exposureTime.round()),
     );
   }
 }
@@ -238,22 +299,24 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
 final imageZoomProvider = StateProvider<double>((ref) => 1.0);
 
 /// Image pan offset (dx, dy)
-final imagePanOffsetProvider = StateProvider<(double, double)>((ref) => (0.0, 0.0));
+final imagePanOffsetProvider =
+    StateProvider<(double, double)>((ref) => (0.0, 0.0));
 
 /// Image fit mode
 enum ImageFitMode {
-  fit,      // Fit entire image in view
-  fill,     // Fill view (may crop)
+  fit, // Fit entire image in view
+  fill, // Fill view (may crop)
   oneToOne, // 1:1 pixel mapping
-  custom,   // Custom zoom level
+  custom, // Custom zoom level
 }
 
-final imageFitModeProvider = StateProvider<ImageFitMode>((ref) => ImageFitMode.fit);
+final imageFitModeProvider =
+    StateProvider<ImageFitMode>((ref) => ImageFitMode.fit);
 
 /// Crosshair enabled
 final showCrosshairProvider = StateProvider<bool>((ref) => false);
 
-/// Grid overlay enabled  
+/// Grid overlay enabled
 final showGridOverlayProvider = StateProvider<bool>((ref) => false);
 
 // =============================================================================
@@ -276,13 +339,15 @@ class TemperaturePoint {
 }
 
 /// Provider for temperature history (last N points)
-final temperatureHistoryProvider = StateNotifierProvider<TemperatureHistoryNotifier, List<TemperaturePoint>>((ref) {
+final temperatureHistoryProvider =
+    StateNotifierProvider<TemperatureHistoryNotifier, List<TemperaturePoint>>(
+        (ref) {
   return TemperatureHistoryNotifier();
 });
 
 class TemperatureHistoryNotifier extends StateNotifier<List<TemperaturePoint>> {
   static const int maxPoints = 120; // 10 minutes at 5-second intervals
-  
+
   TemperatureHistoryNotifier() : super([]);
 
   void addPoint(double temperature, {double? targetTemp, double? coolerPower}) {
@@ -292,7 +357,7 @@ class TemperatureHistoryNotifier extends StateNotifier<List<TemperaturePoint>> {
       coolerPower: coolerPower,
       time: DateTime.now(),
     );
-    
+
     if (state.length >= maxPoints) {
       state = [...state.sublist(1), point];
     } else {
@@ -303,14 +368,14 @@ class TemperatureHistoryNotifier extends StateNotifier<List<TemperaturePoint>> {
   void clear() {
     state = [];
   }
-  
+
   /// Get the minimum and maximum temperature in the history
   (double, double) get tempRange {
     if (state.isEmpty) return (-30.0, 30.0);
-    
+
     double minTemp = state.first.temperature;
     double maxTemp = state.first.temperature;
-    
+
     for (final point in state) {
       if (point.temperature < minTemp) minTemp = point.temperature;
       if (point.temperature > maxTemp) maxTemp = point.temperature;
@@ -319,7 +384,7 @@ class TemperatureHistoryNotifier extends StateNotifier<List<TemperaturePoint>> {
         if (point.targetTemp! > maxTemp) maxTemp = point.targetTemp!;
       }
     }
-    
+
     // Add some padding
     return (minTemp - 5, maxTemp + 5);
   }

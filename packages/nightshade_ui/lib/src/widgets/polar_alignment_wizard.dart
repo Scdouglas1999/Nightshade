@@ -6,6 +6,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import 'package:nightshade_bridge/src/event.dart' as bridge_event;
 
+import '../components/nightshade_button.dart';
+import '../theme/nightshade_colors.dart';
+
 /// Polar Alignment Wizard
 /// Guides the user through the three-point polar alignment process
 class PolarAlignmentWizard extends ConsumerStatefulWidget {
@@ -107,7 +110,7 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
         final seqEvent = payload.field0;
         if (seqEvent is bridge_event.SequencerEvent_NodeCompleted) {
           // Check if success or failure
-          if (seqEvent.success) {
+          if (seqEvent.status == 'success') {
             setState(() {
               _isRunning = false;
               _statusMessage = 'Alignment complete!';
@@ -141,19 +144,20 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
               if (!_isRunning) ...[
                 _buildConfig(),
                 const SizedBox(height: 16),
-                ElevatedButton(
+                NightshadeButton(
+                  label: 'Start Alignment',
                   onPressed: _startAlignment,
-                  child: const Text('Start Alignment'),
+                  variant: ButtonVariant.primary,
                 ),
               ] else ...[
                 _buildStatus(),
                 const SizedBox(height: 16),
                 _buildErrorDisplay(),
                 const SizedBox(height: 16),
-                ElevatedButton(
+                NightshadeButton(
+                  label: 'Stop',
                   onPressed: _stopAlignment,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text('Stop'),
+                  variant: ButtonVariant.destructive,
                 ),
               ],
             ],
@@ -279,7 +283,8 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
   }
 
   Widget _buildErrorBar(String label, double error) {
-    final color = error.abs() < 1.0 ? Colors.green : Colors.red;
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final color = error.abs() < 1.0 ? colors.success : colors.error;
     return Row(
       children: [
         SizedBox(width: 80, child: Text(label)),
@@ -287,7 +292,7 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
           child: LinearProgressIndicator(
             value: (error.abs() / 10.0).clamp(0.0, 1.0), // Scale to 10 arcmin
             color: color,
-            backgroundColor: Colors.grey[800],
+            backgroundColor: colors.surfaceAlt,
           ),
         ),
         SizedBox(

@@ -15,6 +15,11 @@ _$WeatherSettingsImpl _$$WeatherSettingsImplFromJson(
           (json['cloudDensityThreshold'] as num?)?.toDouble() ?? 60.0,
       leadTimeMinutes: (json['leadTimeMinutes'] as num?)?.toInt() ?? 15,
       weatherSafetyEnabled: json['weatherSafetyEnabled'] as bool? ?? true,
+      maxHumidityPercent:
+          (json['maxHumidityPercent'] as num?)?.toDouble() ?? 90.0,
+      maxWindSpeedKph: (json['maxWindSpeedKph'] as num?)?.toDouble() ?? 30.0,
+      maxCloudCoverPercent:
+          (json['maxCloudCoverPercent'] as num?)?.toDouble() ?? 80.0,
       autoParkEnabled: json['autoParkEnabled'] as bool? ?? true,
       autoResumeEnabled: json['autoResumeEnabled'] as bool? ?? false,
       preferredProvider: $enumDecodeNullable(
@@ -31,6 +36,9 @@ Map<String, dynamic> _$$WeatherSettingsImplToJson(
       'cloudDensityThreshold': instance.cloudDensityThreshold,
       'leadTimeMinutes': instance.leadTimeMinutes,
       'weatherSafetyEnabled': instance.weatherSafetyEnabled,
+      'maxHumidityPercent': instance.maxHumidityPercent,
+      'maxWindSpeedKph': instance.maxWindSpeedKph,
+      'maxCloudCoverPercent': instance.maxCloudCoverPercent,
       'autoParkEnabled': instance.autoParkEnabled,
       'autoResumeEnabled': instance.autoResumeEnabled,
       'preferredProvider':

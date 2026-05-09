@@ -47,7 +47,8 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ContextualTourPrompt> createState() => _ContextualTourPromptState();
+  ConsumerState<ContextualTourPrompt> createState() =>
+      _ContextualTourPromptState();
 }
 
 class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
@@ -118,9 +119,11 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
 
   bool _isTourCompleted(TutorialProgress state) {
     final steps = TutorialDefinitions.getStepsForCategory(widget.tourCategory);
-    final completedCount = steps.where(
-      (step) => state.completedSteps.contains(step.id),
-    ).length;
+    final completedCount = steps
+        .where(
+          (step) => state.completedSteps.contains(step.id),
+        )
+        .length;
     return completedCount >= steps.length;
   }
 
@@ -129,7 +132,9 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
       if (mounted) {
         setState(() => _isVisible = false);
         // Remember that this prompt was dismissed (persisted to database)
-        ref.read(dismissedTourPromptsProvider.notifier).dismissPrompt(widget.screenId);
+        ref
+            .read(dismissedTourPromptsProvider.notifier)
+            .dismissPrompt(widget.screenId);
       }
     });
   }
@@ -218,7 +223,7 @@ class _PromptCard extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 280),
       decoration: BoxDecoration(
         color: colors.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -410,9 +415,11 @@ class _ContextualTourPromptOverlayState
 
   bool _isTourCompleted(TutorialProgress state) {
     final steps = TutorialDefinitions.getStepsForCategory(widget.tourCategory);
-    final completedCount = steps.where(
-      (step) => state.completedSteps.contains(step.id),
-    ).length;
+    final completedCount = steps
+        .where(
+          (step) => state.completedSteps.contains(step.id),
+        )
+        .length;
     return completedCount >= steps.length;
   }
 
@@ -464,7 +471,9 @@ class _ContextualTourPromptOverlayState
     _animController.reverse().then((_) {
       _removeOverlay();
       // Remember that this prompt was dismissed (persisted to database)
-      ref.read(dismissedTourPromptsProvider.notifier).dismissPrompt(widget.screenId);
+      ref
+          .read(dismissedTourPromptsProvider.notifier)
+          .dismissPrompt(widget.screenId);
     });
   }
 

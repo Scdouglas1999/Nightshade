@@ -7,149 +7,20 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
+import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../dialogs/fujifilm_disclaimer_dialog.dart';
 import '../dialogs/indi_server_dialog.dart';
 import '../widgets/backend_selector_chips.dart';
 
-// ============================================================================
-// Device ID Formatting Helpers
-// ============================================================================
-
-/// Format a device ID into a user-friendly display name
-String _formatDeviceId(String id) {
-  final lowerId = id.toLowerCase();
-
-  // Handle native device IDs: native:vendor:index or native:vendor_type:index
-  if (lowerId.startsWith('native:')) {
-    final parts = id.substring(7).split(':');
-    if (parts.isNotEmpty) {
-      final devicePart = parts[0];
-      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-
-      // Handle vendor_type format (e.g., zwo_eaf)
-      if (devicePart.contains('_')) {
-        final subParts = devicePart.split('_');
-        final vendor = _capitalizeVendor(subParts[0]);
-        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
-        return '$vendor $type';
-      }
-
-      // Simple vendor format
-      final vendor = _capitalizeVendor(devicePart);
-      if (index != null) {
-        return '$vendor #${index + 1}';
-      }
-      return vendor;
-    }
-  }
-
-  // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type
-  if (lowerId.startsWith('ascom:')) {
-    final ascomId = id.substring(6);
-    final parts = ascomId.split('.');
-    if (parts.length >= 2) {
-      // Extract vendor part (after ASCOM. prefix)
-      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
-      return _formatAscomVendor(vendorPart);
-    }
-  }
-
-  // Handle Alpaca device IDs
-  if (lowerId.startsWith('alpaca:')) {
-    final alpacaPart = id.substring(7);
-    return 'Alpaca: $alpacaPart';
-  }
-
-  // Handle PHD2
-  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
-    return 'PHD2';
-  }
-
-  // Fallback: try to clean up the ID
-  return _cleanupId(id);
-}
-
-/// Capitalize vendor names properly
-String _capitalizeVendor(String vendor) {
-  const knownVendors = {
-    'zwo': 'ZWO',
-    'asi': 'ZWO ASI',
-    'qhy': 'QHY',
-    'playerone': 'PlayerOne',
-    'svbony': 'SVBony',
-    'atik': 'Atik',
-    'fli': 'FLI',
-    'moravian': 'Moravian',
-    'touptek': 'Touptek',
-    'pegasus': 'Pegasus',
-    'pegasusastro': 'Pegasus Astro',
-    'ioptron': 'iOptron',
-    'skywatcher': 'Sky-Watcher',
-    'celestron': 'Celestron',
-    'meade': 'Meade',
-    'losmandy': 'Losmandy',
-    'moonlite': 'MoonLite',
-    'optec': 'Optec',
-    'lacerta': 'Lacerta',
-    'esatto': 'Esatto',
-    'primaluce': 'PrimaLuce',
-  };
-
-  final lower = vendor.toLowerCase();
-  if (knownVendors.containsKey(lower)) {
-    return knownVendors[lower]!;
-  }
-
-  // Default: capitalize first letter
-  if (vendor.isEmpty) return vendor;
-  return vendor[0].toUpperCase() + vendor.substring(1);
-}
-
-/// Format ASCOM vendor string by adding spaces before capitals/numbers
-String _formatAscomVendor(String vendor) {
-  // Insert spaces before capital letters and numbers
-  final spaced = vendor.replaceAllMapped(
-    RegExp(r'([a-z])([A-Z0-9])'),
-    (m) => '${m.group(1)} ${m.group(2)}',
-  );
-  return spaced;
-}
-
-/// Clean up an unrecognized ID for display
-String _cleanupId(String id) {
-  // Remove common prefixes
-  var cleaned = id;
-  for (final prefix in ['native:', 'ascom:', 'alpaca:', 'ASCOM.']) {
-    if (cleaned.toLowerCase().startsWith(prefix.toLowerCase())) {
-      cleaned = cleaned.substring(prefix.length);
-    }
-  }
-
-  // Replace underscores and dots with spaces
-  cleaned = cleaned.replaceAll('_', ' ').replaceAll('.', ' ');
-
-  // Remove trailing numbers that look like indices
-  cleaned = cleaned.replaceAll(RegExp(r'\s*:\s*\d+$'), '');
-
-  // Capitalize words
-  if (cleaned.isNotEmpty) {
-    cleaned = cleaned.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
-  }
-
-  return cleaned.isEmpty ? id : cleaned;
-}
-
 /// Get display name for a device, preferring deviceName, falling back to formatted deviceId
-String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+String _getDeviceDisplayName(
+    String? deviceName, String? deviceId, String fallback) {
   if (deviceName != null && deviceName.isNotEmpty) {
     return deviceName;
   }
   if (deviceId != null && deviceId.isNotEmpty) {
-    return _formatDeviceId(deviceId);
+    return formatDeviceId(deviceId);
   }
   return fallback;
 }
@@ -202,16 +73,20 @@ Future<bool> showSaveToProfileDialog({
         activeProfile = await ref.read(activeProfileProvider.future);
         if (activeProfile == null) {
           if (context.mounted) {
-            context.showErrorSnackBar('Failed to create profile');
+            context.showErrorSnackBar(
+              'Could not create an equipment profile. Try again.',
+            );
           }
           return false;
         }
         if (context.mounted) {
           context.showSuccessSnackBar('Created new profile');
         }
-      } catch (e) {
+      } catch (_) {
         if (context.mounted) {
-          context.showErrorSnackBar('Failed to create profile: $e');
+          context.showErrorSnackBar(
+            'Could not create an equipment profile. Try again.',
+          );
         }
         return false;
       }
@@ -235,9 +110,11 @@ Future<bool> showSaveToProfileDialog({
         if (context.mounted) {
           context.showSuccessSnackBar('Activated "${selectedProfile.name}"');
         }
-      } catch (e) {
+      } catch (_) {
         if (context.mounted) {
-          context.showErrorSnackBar('Failed to activate profile: $e');
+          context.showErrorSnackBar(
+            'Could not activate that profile. Try again.',
+          );
         }
         return false;
       }
@@ -283,7 +160,7 @@ Future<bool> showSaveToProfileDialog({
     context: context,
     builder: (context) => AlertDialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       title: Row(
         children: [
           Icon(LucideIcons.save, color: colors.primary, size: 20),
@@ -303,7 +180,7 @@ Future<bool> showSaveToProfileDialog({
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-          'Save "$deviceName" to the active profile "${profile.name}"?',
+            'Save "$deviceName" to the active profile "${profile.name}"?',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: 14,
@@ -358,22 +235,28 @@ Future<bool> showSaveToProfileDialog({
 
       switch (deviceType) {
         case DeviceCategory.camera:
-          await profileService.updateProfileDevices(profile.id, cameraId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              cameraId: deviceId);
           break;
         case DeviceCategory.mount:
-          await profileService.updateProfileDevices(profile.id, mountId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              mountId: deviceId);
           break;
         case DeviceCategory.focuser:
-          await profileService.updateProfileDevices(profile.id, focuserId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              focuserId: deviceId);
           break;
         case DeviceCategory.filterWheel:
-          await profileService.updateProfileDevices(profile.id, filterWheelId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              filterWheelId: deviceId);
           break;
         case DeviceCategory.guider:
-          await profileService.updateProfileDevices(profile.id, guiderId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              guiderId: deviceId);
           break;
         case DeviceCategory.rotator:
-          await profileService.updateProfileDevices(profile.id, rotatorId: deviceId);
+          await profileService.updateProfileDevices(profile.id,
+              rotatorId: deviceId);
           break;
       }
 
@@ -381,9 +264,11 @@ Future<bool> showSaveToProfileDialog({
       ref.invalidate(activeProfileProvider);
 
       return true;
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
-        context.showErrorSnackBar('Failed to save to profile: $e');
+        context.showErrorSnackBar(
+          'Could not save this device to the active profile.',
+        );
       }
       return false;
     }
@@ -416,6 +301,7 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
     }
   }
 
+  // ignore: unused_element
   void _showDebugInfo() {
     // Use unified discovery state (doesn't trigger new discovery)
     final discoveryState = ref.read(unifiedDiscoveryProvider);
@@ -423,12 +309,19 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
     final groupedDevices = discoveryState.groupedDevices;
 
     // Count by type from raw devices
-    final cameras = rawDevices.where((d) => d.deviceType == DeviceType.camera).toList();
-    final mounts = rawDevices.where((d) => d.deviceType == DeviceType.mount).toList();
-    final focusers = rawDevices.where((d) => d.deviceType == DeviceType.focuser).toList();
-    final wheels = rawDevices.where((d) => d.deviceType == DeviceType.filterWheel).toList();
-    final guiders = rawDevices.where((d) => d.deviceType == DeviceType.guider).toList();
-    final rotators = rawDevices.where((d) => d.deviceType == DeviceType.rotator).toList();
+    final cameras =
+        rawDevices.where((d) => d.deviceType == DeviceType.camera).toList();
+    final mounts =
+        rawDevices.where((d) => d.deviceType == DeviceType.mount).toList();
+    final focusers =
+        rawDevices.where((d) => d.deviceType == DeviceType.focuser).toList();
+    final wheels = rawDevices
+        .where((d) => d.deviceType == DeviceType.filterWheel)
+        .toList();
+    final guiders =
+        rawDevices.where((d) => d.deviceType == DeviceType.guider).toList();
+    final rotators =
+        rawDevices.where((d) => d.deviceType == DeviceType.rotator).toList();
 
     showDialog(
       context: context,
@@ -449,7 +342,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
               ...mounts.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Focusers: ${focusers.length}'),
-              ...focusers.map((d) => Text('• ${d.name} (${d.driverType.name})')),
+              ...focusers
+                  .map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Filter Wheels: ${wheels.length}'),
               ...wheels.map((d) => Text('• ${d.name} (${d.driverType.name})')),
@@ -458,13 +352,17 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
               ...guiders.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Rotators: ${rotators.length}'),
-              ...rotators.map((d) => Text('• ${d.name} (${d.driverType.name})')),
+              ...rotators
+                  .map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 16),
-              Text('=== Unified Devices (${groupedDevices.length} physical) ===',
+              Text(
+                  '=== Unified Devices (${groupedDevices.length} physical) ===',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               ...groupedDevices.map((u) {
-                final backends = u.availableBackends.keys.map((b) => b.shortLabel).join(', ');
+                final backends = u.availableBackends.keys
+                    .map((b) => b.shortLabel)
+                    .join(', ');
                 return Text('• ${u.displayName} [$backends]');
               }),
             ],
@@ -518,7 +416,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
                       labelText: 'Host',
                       labelStyle: TextStyle(color: colors.textMuted),
                       hintText: 'localhost or IP address',
-                      hintStyle: TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                      hintStyle: TextStyle(
+                          color: colors.textMuted.withValues(alpha: 0.5)),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -536,7 +435,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
                       labelText: 'Port',
                       labelStyle: TextStyle(color: colors.textMuted),
                       hintText: '11111',
-                      hintStyle: TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                      hintStyle: TextStyle(
+                          color: colors.textMuted.withValues(alpha: 0.5)),
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: colors.border),
                       ),
@@ -583,7 +483,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
 
       if (devices.isEmpty) {
         if (mounted) {
-          context.showErrorSnackBar('No devices found at $host:$port. Make sure ASCOM Remote is running.');
+          context.showErrorSnackBar(
+              'No devices found at $host:$port. Make sure ASCOM Remote is running.');
         }
       } else {
         // Re-discover all devices to include the new Alpaca devices
@@ -591,17 +492,21 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
         await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
 
         if (mounted) {
-          context.showSuccessSnackBar('Found ${devices.length} device(s) at $host:$port');
+          context.showSuccessSnackBar(
+              'Found ${devices.length} device(s) at $host:$port');
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to connect: $e');
+        context.showErrorSnackBar(
+          'Could not connect to that Alpaca server.',
+        );
       }
     }
   }
 
-  Future<List<DeviceInfo>> _discoverAlpacaAtAddress(String host, int port) async {
+  Future<List<DeviceInfo>> _discoverAlpacaAtAddress(
+      String host, int port) async {
     final deviceService = ref.read(deviceServiceProvider);
     return deviceService.discoverAlpacaAtAddress(host, port);
   }
@@ -626,12 +531,15 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
         await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
 
         if (mounted) {
-          context.showSuccessSnackBar('Found ${devices.length} device(s) at $host:$port');
+          context.showSuccessSnackBar(
+              'Found ${devices.length} device(s) at $host:$port');
         }
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to connect: $e');
+        context.showErrorSnackBar(
+          'Could not connect to that INDI server.',
+        );
       }
     }
   }
@@ -641,11 +549,11 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
       context: context,
       builder: (context) => const IndiServerDialog(),
     );
-    
+
     if (result != null) {
       final host = result['host'] as String;
       final port = result['port'] as int;
-      
+
       // Connect to the INDI server
       await _connectToIndiServer(host, port);
     }
@@ -677,15 +585,14 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
             onScan: _scanForDevices,
             onAddAlpacaServer: _showAddAlpacaServerDialog,
             onAddIndiServer: _showIndiServerDialog,
-            onDebug: _showDebugInfo,
             colors: colors,
           ),
           const SizedBox(height: 24),
 
           // Essential Equipment Section
           _SectionHeader(
-            title: 'Essential Equipment',
-            subtitle: 'Required for imaging',
+            title: 'Start with the essentials',
+            subtitle: 'Connect a camera and mount to begin imaging.',
             colors: colors,
           ),
           const SizedBox(height: 16),
@@ -709,8 +616,9 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
 
           // Optional Equipment Section
           _SectionHeader(
-            title: 'Optional Equipment',
-            subtitle: 'Enhance your imaging workflow',
+            title: 'Optional gear',
+            subtitle:
+                'Add guiding, focus, filters, or rotation when available.',
             colors: colors,
           ),
           const SizedBox(height: 16),
@@ -742,8 +650,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
 
           // Telescope Configuration Section
           _SectionHeader(
-            title: 'Telescope Configuration',
-            subtitle: 'Optical system details',
+            title: 'Telescope profile',
+            subtitle: 'Review focal length, aperture, and optical setup.',
             colors: colors,
           ),
           const SizedBox(height: 16),
@@ -764,7 +672,6 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
   final VoidCallback onScan;
   final VoidCallback onAddAlpacaServer;
   final VoidCallback onAddIndiServer;
-  final VoidCallback onDebug;
   final NightshadeColors colors;
 
   const _DeviceDiscoveryCard({
@@ -772,7 +679,6 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
     required this.onScan,
     required this.onAddAlpacaServer,
     required this.onAddIndiServer,
-    required this.onDebug,
     required this.colors,
   });
 
@@ -781,10 +687,58 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
     // Watch discovery state for progress info
     final discoveryState = ref.watch(unifiedDiscoveryProvider);
     final isDiscovering = discoveryState.isDiscovering || isScanning;
+    final discoveredDevices = discoveryState.groupedDevices.length;
+    final hasTriedDiscovery = discoveredDevices > 0 ||
+        discoveryState.backendStates.values.any(
+          (state) => state.status != DiscoveryStatus.idle,
+        );
+    final scanLabel = !hasTriedDiscovery
+        ? 'Scan for devices'
+        : isDiscovering
+            ? 'Scanning...'
+            : 'Scan again';
+    final summary =
+        switch ((isDiscovering, discoveredDevices, hasTriedDiscovery)) {
+      (true, _, _) => (
+          icon: LucideIcons.loader2,
+          color: colors.info,
+          title: 'Looking for connected gear',
+          body:
+              'Nightshade is checking this device and any configured remote sources for cameras, mounts, and accessories.',
+        ),
+      (false, > 0, _) => (
+          icon: LucideIcons.checkCircle2,
+          color: colors.success,
+          title: discoveredDevices == 1
+              ? '1 device is ready to connect'
+              : '$discoveredDevices devices are ready to connect',
+          body:
+              'Pick a device card below to connect your camera, mount, or accessories.',
+        ),
+      (false, 0, true) => (
+          icon: LucideIcons.alertCircle,
+          color: colors.warning,
+          title: 'No devices found yet',
+          body:
+              'Check power and cables, then scan again. Use Add Remote Server only if your gear is exposed from another computer.',
+        ),
+      _ => (
+          icon: LucideIcons.info,
+          color: colors.primary,
+          title: 'Start here',
+          body:
+              'Turn on your gear, connect it to this computer, then scan for devices. Add a remote server only when your equipment lives on another machine.',
+        ),
+    };
 
     // Build backend status indicators
     final backendStatusWidgets = <Widget>[];
-    for (final backend in [DriverType.native, DriverType.ascom, DriverType.alpaca, DriverType.indi]) {
+    for (final backend in [
+      DriverType.native,
+      DriverType.ascom,
+      DriverType.alpaca,
+      DriverType.indi
+    ]) {
       if (backend == DriverType.ascom && !Platform.isWindows) {
         continue; // Skip ASCOM on non-Windows
       }
@@ -805,7 +759,8 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
           break;
         case DiscoveryStatus.completed:
           statusColor = deviceCount > 0 ? colors.success : colors.textMuted;
-          statusIcon = deviceCount > 0 ? LucideIcons.checkCircle : LucideIcons.circle;
+          statusIcon =
+              deviceCount > 0 ? LucideIcons.checkCircle : LucideIcons.circle;
           break;
         case DiscoveryStatus.error:
           statusColor = colors.error;
@@ -815,12 +770,13 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
 
       backendStatusWidgets.add(
         Tooltip(
-          message: state?.error ?? '${backend.displayName}: $deviceCount device(s)',
+          message:
+              state?.error ?? '${backend.displayName}: $deviceCount device(s)',
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: statusColor.withValues(alpha: 0.3)),
             ),
             child: Row(
@@ -830,7 +786,10 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                 const SizedBox(width: 4),
                 Text(
                   backend.shortLabel,
-                  style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: statusColor,
+                      fontWeight: FontWeight.w500),
                 ),
                 if (status == DiscoveryStatus.completed && deviceCount > 0) ...[
                   const SizedBox(width: 4),
@@ -850,7 +809,7 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -865,7 +824,7 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Device Discovery',
+                      'Connect your gear',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -874,7 +833,7 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Scan for devices across all driver types',
+                      'Scan this device first. Add a remote server only if your equipment is shared from another computer.',
                       style: TextStyle(
                         fontSize: 12,
                         color: colors.textMuted,
@@ -888,16 +847,6 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // Backend status indicators
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: backendStatusWidgets,
-          ),
-
-          const SizedBox(height: 16),
-
-          // Info box
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -911,8 +860,7 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Discovers devices from Native SDKs, ASCOM, Alpaca, and INDI simultaneously. '
-                    'Each device shows which drivers are available.',
+                    'Recommended order: 1) power on the gear, 2) scan for devices on this computer, 3) connect the essentials first, 4) add a remote server only if the gear is hosted elsewhere.',
                     style: TextStyle(
                       fontSize: 11,
                       color: colors.textSecondary,
@@ -925,19 +873,65 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: summary.color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: summary.color.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(summary.icon, size: 16, color: summary.color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        summary.title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        summary.body,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           // Action buttons
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Expanded(
+              SizedBox(
+                width: 220,
                 child: NightshadeButton(
                   onPressed: isDiscovering ? null : onScan,
                   icon: LucideIcons.search,
-                  label: isDiscovering ? 'Discovering...' : 'Discover Devices',
+                  label: scanLabel,
                   variant: ButtonVariant.primary,
                   isLoading: isDiscovering,
                 ),
               ),
-              const SizedBox(width: 12),
               // Add Server dropdown for INDI/Alpaca
               PopupMenuButton<String>(
                 onSelected: (value) {
@@ -952,9 +946,10 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                     value: 'indi',
                     child: Row(
                       children: [
-                        Icon(LucideIcons.server, size: 16, color: colors.textSecondary),
+                        Icon(LucideIcons.server,
+                            size: 16, color: colors.textSecondary),
                         const SizedBox(width: 8),
-                        const Text('Add INDI Server'),
+                        const Text('INDI server'),
                       ],
                     ),
                   ),
@@ -962,34 +957,98 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
                     value: 'alpaca',
                     child: Row(
                       children: [
-                        Icon(LucideIcons.globe, size: 16, color: colors.textSecondary),
+                        Icon(LucideIcons.globe,
+                            size: 16, color: colors.textSecondary),
                         const SizedBox(width: 8),
-                        const Text('Add Alpaca Server'),
+                        const Text('Alpaca server'),
                       ],
                     ),
                   ),
                 ],
-                child: OutlinedButton.icon(
-                  onPressed: null, // Handled by popup
-                  icon: const Icon(LucideIcons.plus, size: 16),
-                  label: const Text('Add Server'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.textPrimary,
-                    side: BorderSide(color: colors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.plus,
+                        size: 16,
+                        color: colors.textPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add Remote Server',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              IconButton(
-                onPressed: onDebug,
-                icon: const Icon(LucideIcons.bug),
-                tooltip: 'Debug Info',
-                style: IconButton.styleFrom(
-                  foregroundColor: colors.textMuted,
+            ],
+          ),
+          const SizedBox(height: 16),
+          Theme(
+            data: Theme.of(context).copyWith(
+              dividerColor: Colors.transparent,
+            ),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              leading: Icon(
+                LucideIcons.chevronsUpDown,
+                size: 16,
+                color: colors.textMuted,
+              ),
+              title: Text(
+                'Driver sources and remote servers',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
                 ),
               ),
-            ],
+              subtitle: Text(
+                'Open this when you need to troubleshoot discovery or connect to gear exposed through INDI or Alpaca.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textMuted,
+                ),
+              ),
+              children: [
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: backendStatusWidgets,
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Text(
+                    'Use a remote server only when the camera or mount is hosted on another computer. For local USB devices, scanning this computer is the fastest path.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1055,7 +1114,8 @@ class _CameraDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_CameraDeviceCard> createState() => _CameraDeviceCardState();
 }
 
-class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with DeviceConnectionMixin {
+class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
@@ -1070,10 +1130,12 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with Devic
     final statusDetails = <String>[];
     if (_isConnected) {
       if (widget.cameraState.temperature != null) {
-        statusDetails.add('Sensor: ${widget.cameraState.temperature!.toStringAsFixed(1)}°C');
+        statusDetails.add(
+            'Sensor: ${widget.cameraState.temperature!.toStringAsFixed(1)}°C');
       }
       if (widget.cameraState.coolerPower != null) {
-        statusDetails.add('Cooler: ${widget.cameraState.coolerPower!.toStringAsFixed(0)}%');
+        statusDetails.add(
+            'Cooler: ${widget.cameraState.coolerPower!.toStringAsFixed(0)}%');
       }
     } else {
       statusDetails.addAll(['Sensor: ---', 'Cooling: ---']);
@@ -1082,9 +1144,12 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with Devic
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.camera,
       title: 'Camera',
-      subtitle: _getDeviceDisplayName(widget.cameraState.deviceName, widget.cameraState.deviceId, 'Main imaging camera'),
+      subtitle: _getDeviceDisplayName(widget.cameraState.deviceName,
+          widget.cameraState.deviceId, 'Main imaging camera'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.cameraState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting ||
+          widget.cameraState.connectionState ==
+              DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
       statusDetails: statusDetails,
       accentColor: widget.colors.primary,
@@ -1143,9 +1208,9 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with Devic
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: ref.read(deviceServiceProvider).disconnectCamera,
-    deviceType: 'camera',
-  );
+        disconnectFn: ref.read(deviceServiceProvider).disconnectCamera,
+        deviceType: 'camera',
+      );
 }
 
 // ============================================================================
@@ -1165,7 +1230,8 @@ class _MountDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_MountDeviceCard> createState() => _MountDeviceCardState();
 }
 
-class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> with DeviceConnectionMixin {
+class _MountDeviceCardState extends ConsumerState<_MountDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
@@ -1192,10 +1258,14 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> with DeviceC
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.compass,
       title: 'Mount',
-      subtitle: _getDeviceDisplayName(widget.mountState.deviceName, widget.mountState.deviceId, 'Telescope mount'),
+      subtitle: _getDeviceDisplayName(widget.mountState.deviceName,
+          widget.mountState.deviceId, 'Telescope mount'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.mountState.connectionState == DeviceConnectionState.connecting,
-      statusLabel: widget.mountState.isSlewing ? 'Slewing' : (_isConnected ? 'Ready' : 'Idle'),
+      isConnecting: isConnecting ||
+          widget.mountState.connectionState == DeviceConnectionState.connecting,
+      statusLabel: widget.mountState.isSlewing
+          ? 'Slewing'
+          : (_isConnected ? 'Ready' : 'Idle'),
       statusDetails: statusDetails,
       accentColor: widget.colors.warning,
       colors: widget.colors,
@@ -1240,9 +1310,9 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> with DeviceC
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: ref.read(deviceServiceProvider).disconnectMount,
-    deviceType: 'mount',
-  );
+        disconnectFn: ref.read(deviceServiceProvider).disconnectMount,
+        deviceType: 'mount',
+      );
 }
 
 // ============================================================================
@@ -1262,7 +1332,8 @@ class _FocuserDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_FocuserDeviceCard> createState() => _FocuserDeviceCardState();
 }
 
-class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> with DeviceConnectionMixin {
+class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
@@ -1284,9 +1355,12 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> with Dev
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.focus,
       title: 'Focuser',
-      subtitle: _getDeviceDisplayName(widget.focuserState.deviceName, widget.focuserState.deviceId, 'Motor focuser'),
+      subtitle: _getDeviceDisplayName(widget.focuserState.deviceName,
+          widget.focuserState.deviceId, 'Motor focuser'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.focuserState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting ||
+          widget.focuserState.connectionState ==
+              DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
       statusDetails: statusDetails,
       accentColor: widget.colors.success,
@@ -1332,9 +1406,9 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> with Dev
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: ref.read(deviceServiceProvider).disconnectFocuser,
-    deviceType: 'focuser',
-  );
+        disconnectFn: ref.read(deviceServiceProvider).disconnectFocuser,
+        deviceType: 'focuser',
+      );
 }
 
 // ============================================================================
@@ -1351,15 +1425,18 @@ class _FilterWheelDeviceCard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_FilterWheelDeviceCard> createState() => _FilterWheelDeviceCardState();
+  ConsumerState<_FilterWheelDeviceCard> createState() =>
+      _FilterWheelDeviceCardState();
 }
 
-class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> with DeviceConnectionMixin {
+class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
   bool get _isConnected =>
-      widget.filterWheelState.connectionState == DeviceConnectionState.connected;
+      widget.filterWheelState.connectionState ==
+      DeviceConnectionState.connected;
 
   @override
   Widget build(BuildContext context) {
@@ -1377,9 +1454,12 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.circle,
       title: 'Filter Wheel',
-      subtitle: _getDeviceDisplayName(widget.filterWheelState.deviceName, widget.filterWheelState.deviceId, 'Electronic filter wheel'),
+      subtitle: _getDeviceDisplayName(widget.filterWheelState.deviceName,
+          widget.filterWheelState.deviceId, 'Electronic filter wheel'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.filterWheelState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting ||
+          widget.filterWheelState.connectionState ==
+              DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
       statusDetails: statusDetails,
       accentColor: widget.colors.warning,
@@ -1425,9 +1505,9 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: ref.read(deviceServiceProvider).disconnectFilterWheel,
-    deviceType: 'filter wheel',
-  );
+        disconnectFn: ref.read(deviceServiceProvider).disconnectFilterWheel,
+        deviceType: 'filter wheel',
+      );
 }
 
 // ============================================================================
@@ -1447,7 +1527,8 @@ class _GuiderDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_GuiderDeviceCard> createState() => _GuiderDeviceCardState();
 }
 
-class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> with DeviceConnectionMixin {
+class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
@@ -1461,7 +1542,8 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> with Devic
 
     final statusDetails = <String>[];
     if (_isConnected && widget.guiderState.rmsTotal != null) {
-      statusDetails.add('RMS: ${widget.guiderState.rmsTotal!.toStringAsFixed(2)}"');
+      statusDetails
+          .add('RMS: ${widget.guiderState.rmsTotal!.toStringAsFixed(2)}"');
     } else {
       statusDetails.add('RMS: ---');
     }
@@ -1469,9 +1551,12 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> with Devic
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.crosshair,
       title: 'Guider',
-      subtitle: _getDeviceDisplayName(widget.guiderState.deviceName, widget.guiderState.deviceId, 'Autoguiding camera'),
+      subtitle: _getDeviceDisplayName(widget.guiderState.deviceName,
+          widget.guiderState.deviceId, 'Autoguiding camera'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.guiderState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting ||
+          widget.guiderState.connectionState ==
+              DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
       statusDetails: statusDetails,
       accentColor: widget.colors.info,
@@ -1524,9 +1609,9 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> with Devic
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: ref.read(deviceServiceProvider).disconnectGuider,
-    deviceType: 'guider',
-  );
+        disconnectFn: ref.read(deviceServiceProvider).disconnectGuider,
+        deviceType: 'guider',
+      );
 }
 
 // ============================================================================
@@ -1546,7 +1631,8 @@ class _RotatorDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_RotatorDeviceCard> createState() => _RotatorDeviceCardState();
 }
 
-class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> with DeviceConnectionMixin {
+class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard>
+    with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
 
@@ -1560,9 +1646,11 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> with Dev
 
     final statusDetails = <String>[];
     if (_isConnected && widget.rotatorState.position != null) {
-      statusDetails.add('Position: ${widget.rotatorState.position!.toStringAsFixed(1)}°');
+      statusDetails.add(
+          'Position: ${widget.rotatorState.position!.toStringAsFixed(1)}°');
       if (widget.rotatorState.mechanicalPosition != null) {
-        statusDetails.add('Mechanical: ${widget.rotatorState.mechanicalPosition!.toStringAsFixed(1)}°');
+        statusDetails.add(
+            'Mechanical: ${widget.rotatorState.mechanicalPosition!.toStringAsFixed(1)}°');
       }
     } else {
       statusDetails.add('Position: ---');
@@ -1571,10 +1659,15 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> with Dev
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.rotateCw,
       title: 'Rotator',
-      subtitle: _getDeviceDisplayName(widget.rotatorState.deviceName, widget.rotatorState.deviceId, 'Field rotator'),
+      subtitle: _getDeviceDisplayName(widget.rotatorState.deviceName,
+          widget.rotatorState.deviceId, 'Field rotator'),
       isConnected: _isConnected,
-      isConnecting: isConnecting || widget.rotatorState.connectionState == DeviceConnectionState.connecting,
-      statusLabel: widget.rotatorState.isMoving ? 'Moving' : (_isConnected ? 'Ready' : 'Idle'),
+      isConnecting: isConnecting ||
+          widget.rotatorState.connectionState ==
+              DeviceConnectionState.connecting,
+      statusLabel: widget.rotatorState.isMoving
+          ? 'Moving'
+          : (_isConnected ? 'Ready' : 'Idle'),
       statusDetails: statusDetails,
       accentColor: widget.colors.accent,
       colors: widget.colors,
@@ -1619,9 +1712,10 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> with Dev
   }
 
   Future<void> _handleDisconnect() => disconnectDevice(
-    disconnectFn: () async => ref.read(rotatorStateProvider.notifier).disconnect(),
-    deviceType: 'rotator',
-  );
+        disconnectFn: () async =>
+            ref.read(rotatorStateProvider.notifier).disconnect(),
+        deviceType: 'rotator',
+      );
 }
 
 /// Dropdown for selecting unified devices (grouped by physical device)
@@ -1693,12 +1787,15 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
                         ...device.sortedBackends.map((backend) {
                           final isRecommended = backend == recommended;
                           return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
-                              color: _getBackendColor(backend).withValues(alpha: 0.15),
+                              color: _getBackendColor(backend)
+                                  .withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: _getBackendColor(backend).withValues(alpha: 0.3),
+                                color: _getBackendColor(backend)
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -1716,7 +1813,9 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
                                   backend.shortLabel,
                                   style: TextStyle(
                                     fontSize: 9,
-                                    fontWeight: isRecommended ? FontWeight.w600 : FontWeight.w400,
+                                    fontWeight: isRecommended
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
                                     color: _getBackendColor(backend),
                                   ),
                                 ),
@@ -1731,7 +1830,8 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
               ),
               if (backendCount > 1)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -1769,11 +1869,13 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
                 ),
               ),
             ),
-            if (selectedDevice != null && selectedDevice!.availableBackends.length > 1) ...[
+            if (selectedDevice != null &&
+                selectedDevice!.availableBackends.length > 1) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: _getBackendColor(selectedDevice!.activeBackend).withValues(alpha: 0.15),
+                  color: _getBackendColor(selectedDevice!.activeBackend)
+                      .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -1851,11 +1953,10 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isHovered
-                ? accentColor.withValues(alpha: 0.5)
-                : colors.border,
+            color:
+                isHovered ? accentColor.withValues(alpha: 0.5) : colors.border,
             width: isHovered ? 1.5 : 1,
           ),
           boxShadow: isHovered
@@ -1893,7 +1994,7 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: accentColor.withValues(alpha: 0.2),
                     ),
@@ -1988,6 +2089,7 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
                 recommendedBackend: selectedDevice!.recommendedBackend,
                 onBackendSelected: onBackendSelected,
                 isEnabled: !isConnected && !isConnecting,
+                currentPlatform: Platform.operatingSystem,
               ),
             ],
 
@@ -2016,7 +2118,8 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: isConnected ? colors.success : colors.textSecondary,
+                        color:
+                            isConnected ? colors.success : colors.textSecondary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -2060,7 +2163,6 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
   }
 }
 
-
 class _ConnectionIndicator extends StatelessWidget {
   final bool isConnected;
   final bool isConnecting;
@@ -2082,7 +2184,7 @@ class _ConnectionIndicator extends StatelessWidget {
             : isConnecting
                 ? colors.warning.withValues(alpha: 0.15)
                 : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isConnected
               ? colors.success.withValues(alpha: 0.3)
@@ -2162,7 +2264,8 @@ class _ConnectButtonState extends State<_ConnectButton> {
   @override
   Widget build(BuildContext context) {
     final canPress = widget.isEnabled && !widget.isConnecting;
-    
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -2201,7 +2304,7 @@ class _ConnectButtonState extends State<_ConnectButton> {
           ),
           child: Center(
             child: widget.isConnecting
-                ? const Row(
+                ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
@@ -2209,16 +2312,16 @@ class _ConnectButtonState extends State<_ConnectButton> {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: onPrimary,
                         ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         'Connecting...',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: onPrimary,
                         ),
                       ),
                     ],
@@ -2231,7 +2334,7 @@ class _ConnectButtonState extends State<_ConnectButton> {
                       color: widget.isConnected
                           ? widget.colors.textSecondary
                           : canPress
-                              ? Colors.white
+                              ? onPrimary
                               : widget.colors.textMuted,
                     ),
                   ),
@@ -2254,7 +2357,7 @@ class _TelescopeCard extends ConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
       child: profileAsync.when(
@@ -2280,7 +2383,7 @@ class _TelescopeCard extends ConsumerWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: colors.accent.withValues(alpha: 0.2),
                             ),
@@ -2322,7 +2425,8 @@ class _TelescopeCard extends ConsumerWidget {
                     if (profile == null)
                       Text(
                         'No profile selected. Open the Profiles tab to activate one.',
-                        style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                        style: TextStyle(
+                            color: colors.textSecondary, fontSize: 12),
                       )
                     else
                       Column(
@@ -2361,7 +2465,7 @@ class _TelescopeCard extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(
           child: Text(
-            'Failed to load active profile: $error',
+            'Could not load the active profile.',
             style: TextStyle(color: colors.error),
           ),
         ),
@@ -2432,7 +2536,7 @@ class _OpticsSummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         children: [
@@ -2513,7 +2617,7 @@ class _NoProfileDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       title: Row(
         children: [
           Icon(LucideIcons.info, color: colors.primary, size: 22),
@@ -2575,7 +2679,8 @@ class _NoProfileDialog extends StatelessWidget {
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: () => Navigator.pop(context, _NoProfileAction.selectExisting),
+          onPressed: () =>
+              Navigator.pop(context, _NoProfileAction.selectExisting),
           label: 'Select Existing',
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
@@ -2607,7 +2712,7 @@ class _ProfilePickerDialog extends ConsumerWidget {
 
     return AlertDialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       title: Row(
         children: [
           Icon(LucideIcons.scan, color: colors.primary, size: 22),
@@ -2704,7 +2809,7 @@ class _ProfilePickerDialog extends ConsumerWidget {
           ),
           error: (error, stack) => Center(
             child: Text(
-              'Failed to load profiles: $error',
+              'Could not load your equipment profiles.',
               style: TextStyle(color: colors.error),
             ),
           ),

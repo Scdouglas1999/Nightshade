@@ -1,0 +1,78 @@
+name: Linux Release Build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/linux-release-build.yml'
+      - 'apps/desktop/**'
+      - 'native/nightshade_native/**'
+      - 'packages/**'
+      - 'scripts/**'
+      - 'tools/production/linux_release_package_metadata.dart'
+      - 'melos.yaml'
+
+jobs:
+  linux-release-build:
+    name: Build Linux Release Artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/nightshade_native
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev tar
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: dart run melos bootstrap
+
+      - name: Build Linux release bundle
+        run: dart run melos run build:desktop:linux --no-select
+
+      - name: Generate Linux package metadata
+        run: |
+          dart run tools/production/linux_release_package_metadata.dart \
+            --bundle-dir=apps/desktop/build/linux/x64/release/bundle \
+            --output-dir=build/release-linux \
+            --artifact-name=nightshade-linux-x64-${{ github.sha }}.tar.gz \
+            --metadata-output=docs/production-readiness/linux-release-package-metadata.json
+
+      - name: Upload Linux release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightshade-linux-x64-${{ github.sha }}
+          path: |
+            build/release-linux/*.tar.gz
+            build/release-linux/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux package metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-package-metadata-${{ github.sha }}
+          path: docs/production-readiness/linux-release-package-metadata.json
+          if-no-files-found: error
+          retention-days: 14

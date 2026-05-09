@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
-import 'logging_service.dart';
+part 'annotation_pipeline.dart';
+part 'annotation_snr_tracker.dart';
+part 'click_identify_service.dart';
 
 /// Calculate angular distance between two points on a sphere (in degrees)
 /// Uses the Haversine formula for better numerical stability
@@ -20,8 +22,10 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
   final dDec = dec2Rad - dec1Rad;
 
   final a = math.sin(dDec / 2) * math.sin(dDec / 2) +
-      math.cos(dec1Rad) * math.cos(dec2Rad) *
-      math.sin(dRa / 2) * math.sin(dRa / 2);
+      math.cos(dec1Rad) *
+          math.cos(dec2Rad) *
+          math.sin(dRa / 2) *
+          math.sin(dRa / 2);
 
   final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
@@ -30,10 +34,18 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
 }
 
 final annotationServiceProvider = Provider<AnnotationService>((ref) {
-  return AnnotationService(ref);
+  final service = AnnotationService(ref, attachListeners: false);
+  ref.listen<CapturedImageData?>(currentImageProvider, (previous, next) {
+    service.handleCurrentImageChanged(previous, next);
+  });
+  ref.listen<ImageStats?>(lastImageStatsProvider, (previous, next) {
+    service.handleImageStatsChanged(previous, next);
+  });
+  return service;
 });
 
-final currentAnnotationProvider = StateProvider<ImageAnnotation?>((ref) => null);
+final currentAnnotationProvider =
+    StateProvider<ImageAnnotation?>((ref) => null);
 
 /// Status of the annotation processing pipeline
 enum AnnotationStatus {
@@ -64,13 +76,18 @@ class AnnotationState {
   const AnnotationState.idle() : this();
 
   const AnnotationState.checking()
-      : this(status: AnnotationStatus.checkingCatalogs, message: 'Checking catalogs...');
+      : this(
+            status: AnnotationStatus.checkingCatalogs,
+            message: 'Checking catalogs...');
 
   const AnnotationState.plateSolving()
-      : this(status: AnnotationStatus.plateSolving, message: 'Plate solving...');
+      : this(
+            status: AnnotationStatus.plateSolving, message: 'Plate solving...');
 
   const AnnotationState.searching()
-      : this(status: AnnotationStatus.searchingCatalogs, message: 'Searching catalogs...');
+      : this(
+            status: AnnotationStatus.searchingCatalogs,
+            message: 'Searching catalogs...');
 
   AnnotationState.complete(int objects)
       : this(
@@ -80,7 +97,10 @@ class AnnotationState {
         );
 
   const AnnotationState.error(String error)
-      : this(status: AnnotationStatus.error, message: 'Error', errorDetails: error);
+      : this(
+            status: AnnotationStatus.error,
+            message: 'Error',
+            errorDetails: error);
 
   const AnnotationState.catalogsNotInstalled()
       : this(
@@ -102,7 +122,29 @@ class AnnotationState {
 }
 
 /// Provider for current annotation processing state
-final annotationStateProvider = StateProvider<AnnotationState>((ref) => const AnnotationState.idle());
+final annotationStateProvider =
+    StateProvider<AnnotationState>((ref) => const AnnotationState.idle());
+
+/// State for the SNR-based re-annotate suggestion banner
+class ReAnnotateSuggestion {
+  /// Whether to show the re-annotate banner
+  final bool shouldShow;
+
+  /// Percentage improvement in SNR since last annotation
+  final double improvementPercent;
+
+  const ReAnnotateSuggestion({
+    this.shouldShow = false,
+    this.improvementPercent = 0.0,
+  });
+
+  const ReAnnotateSuggestion.none() : this();
+}
+
+/// Provider that surfaces when re-annotation is suggested due to SNR improvement.
+/// The annotation service updates this when SNR improves >40% since last annotation.
+final reAnnotateSuggestionProvider =
+    StateProvider<ReAnnotateSuggestion>((ref) => const ReAnnotateSuggestion.none());
 
 /// Constants for SNR-based progressive annotation reveal
 class _SnrAnnotationConstants {
@@ -125,7 +167,12 @@ class _SnrAnnotationConstants {
   static const double minimumSnrThreshold = 2.0;
 }
 
-/// Service responsible for generating and managing image annotations
+/// Service responsible for generating and managing image annotations.
+///
+/// The implementation is split across several part files:
+/// - `annotation_pipeline.dart` — plate solve -> catalog search -> merge logic
+/// - `annotation_snr_tracker.dart` — SNR monitoring and progressive reveal
+/// - `click_identify_service.dart` — click-to-identify query logic
 class AnnotationService {
   final Ref _ref;
   final CatalogManager _catalogManager;
@@ -143,6 +190,7 @@ class AnnotationService {
 
   // SNR-based progressive annotation state
   double? _lastAnnotationSnr;
+  double? _peakAnnotationSnr;
   DateTime? _lastAnnotationTime;
   double _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
   PlateSolveData? _lastPlateSolve;
@@ -150,151 +198,69 @@ class AnnotationService {
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
-  AnnotationService(this._ref, {CatalogManager? catalogManager})
-      : _catalogManager = catalogManager ?? CatalogManager.instance {
-    _initListener();
-  }
-
-  void _initListener() {
-    // Listen to new images and trigger annotation processing
-    _ref.listen<CapturedImageData?>(currentImageProvider, (previous, next) {
-      if (next != null && next.filePath != null && next.filePath != _lastProcessedImagePath) {
-        _lastProcessedImagePath = next.filePath;
-        // Reset SNR tracking for new image
-        _lastAnnotationSnr = null;
-        _lastAnnotationTime = null;
-        _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
-        _revealedObjectIds.clear();
-        _processNewImage(next);
-      }
-    });
-
-    // Listen to image stats for SNR-based progressive re-annotation
-    _ref.listen<ImageStats?>(lastImageStatsProvider, (previous, next) {
-      if (next?.snr != null && _lastPlateSolve != null) {
-        _checkSnrForReAnnotation(next!.snr!);
-      }
-    });
-  }
-
-  /// Calculate magnitude limit based on current SNR
-  /// Formula: magnitudeLimit = baseMagnitude + log2(currentSNR / baseSNR) * 1.5
-  double _calculateSnrBasedMagnitudeLimit(double snr) {
-    if (snr <= _SnrAnnotationConstants.baseSnr) {
-      return _SnrAnnotationConstants.baseMagnitude;
+  AnnotationService(
+    this._ref, {
+    CatalogManager? catalogManager,
+    bool attachListeners = true,
+  }) : _catalogManager = catalogManager ?? CatalogManager.instance {
+    if (attachListeners) {
+      _attachListeners();
     }
-
-    final snrRatio = snr / _SnrAnnotationConstants.baseSnr;
-    final magnitudeBoost = (math.log(snrRatio) / math.ln2) * 1.5;
-    final limit = _SnrAnnotationConstants.baseMagnitude + magnitudeBoost;
-
-    return limit.clamp(
-      _SnrAnnotationConstants.baseMagnitude,
-      _SnrAnnotationConstants.maxMagnitude,
-    );
   }
 
-  /// Check if SNR has improved enough to warrant re-annotation
-  void _checkSnrForReAnnotation(double currentSnr) {
-    // Skip if we're already processing
-    final state = _ref.read(annotationStateProvider);
-    if (state.isProcessing) return;
-
-    // Skip if SNR is too low
-    if (currentSnr < _SnrAnnotationConstants.minimumSnrThreshold) return;
-
-    // Skip if we don't have a previous annotation to build upon
-    final currentAnnotation = _ref.read(currentAnnotationProvider);
-    if (currentAnnotation == null || _lastPlateSolve == null) return;
-
-    // Check if enough time has passed since last annotation
-    if (_lastAnnotationTime != null) {
-      final elapsed = DateTime.now().difference(_lastAnnotationTime!);
-      if (elapsed < _SnrAnnotationConstants.reAnnotationDebounce) return;
-    }
-
-    // Calculate new magnitude limit
-    final newMagnitudeLimit = _calculateSnrBasedMagnitudeLimit(currentSnr);
-
-    // Check if SNR improved significantly
-    if (_lastAnnotationSnr != null) {
-      final snrRatio = currentSnr / _lastAnnotationSnr!;
-      if (snrRatio < _SnrAnnotationConstants.snrImprovementThreshold) return;
-
-      // Also check if the new magnitude limit is actually higher
-      if (newMagnitudeLimit <= _currentSnrMagnitudeLimit + 0.5) return;
-    }
-
-    // Trigger progressive re-annotation
-    _logger.info('SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
-        'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
-
-    _progressiveReAnnotate(currentSnr, newMagnitudeLimit);
+  void _attachListeners() {
+    _ref.listen<CapturedImageData?>(
+        currentImageProvider, handleCurrentImageChanged);
+    _ref.listen<ImageStats?>(lastImageStatsProvider, handleImageStatsChanged);
   }
 
-  /// Re-annotate with a higher magnitude limit, keeping existing objects
-  Future<void> _progressiveReAnnotate(double currentSnr, double newMagnitudeLimit) async {
-    final currentAnnotation = _ref.read(currentAnnotationProvider);
-    if (currentAnnotation == null || _lastPlateSolve == null) return;
+  void handleCurrentImageChanged(
+    CapturedImageData? previous,
+    CapturedImageData? next,
+  ) {
+    if (next != null &&
+        next.filePath != null &&
+        next.filePath != _lastProcessedImagePath) {
+      _lastProcessedImagePath = next.filePath;
+      _lastAnnotationSnr = null;
+      _peakAnnotationSnr = null;
+      _lastAnnotationTime = null;
+      _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+      _revealedObjectIds.clear();
 
-    try {
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.searching();
-
-      final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-      final includeStars = settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ?? false;
-
-      // Search for additional objects with the new, higher magnitude limit
-      final additionalObjects = await findObjectsInFov(
-        plateSolve: _lastPlateSolve!,
-        includeStars: includeStars,
-        minMagnitude: newMagnitudeLimit,
-        snrBasedMagnitudeCutoff: newMagnitudeLimit,
-      );
-
-      // Filter to only new objects (not already revealed)
-      final newObjects = additionalObjects.where((obj) => !_revealedObjectIds.contains(obj.id)).toList();
-
-      if (newObjects.isEmpty) {
-        _logger.debug('No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
-        _ref.read(annotationStateProvider.notifier).state =
-            AnnotationState.complete(currentAnnotation.objects.length);
-        return;
-      }
-
-      // Add new object IDs to revealed set
-      for (final obj in newObjects) {
-        _revealedObjectIds.add(obj.id);
-      }
-
-      _logger.info('Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})', source: 'Annotation');
-
-      // Merge new objects with existing annotation
-      final mergedObjects = [...currentAnnotation.objects, ...newObjects];
-
-      final updatedAnnotation = currentAnnotation.copyWith(
-        objects: mergedObjects,
-        timestamp: DateTime.now(),
-      );
-
-      // Update state
-      _lastAnnotationSnr = currentSnr;
-      _lastAnnotationTime = DateTime.now();
-      _currentSnrMagnitudeLimit = newMagnitudeLimit;
-
-      _ref.read(currentAnnotationProvider.notifier).state = updatedAnnotation;
+      // Clear stale annotations and suggestion banner
+      _ref.read(currentAnnotationProvider.notifier).state = null;
+      _ref.read(reAnnotateSuggestionProvider.notifier).state =
+          const ReAnnotateSuggestion.none();
       _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.complete(updatedAnnotation.objects.length);
+          const AnnotationState.plateSolving();
 
-    } catch (e) {
-      _logger.error('Error during progressive re-annotation: $e', source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.error(e.toString());
+      // Delegate to pipeline extension (annotation_pipeline.dart)
+      processNewImage(next);
     }
   }
+
+  void handleImageStatsChanged(ImageStats? previous, ImageStats? next) {
+    if (next?.snr != null && _lastPlateSolve != null) {
+      // Delegate to SNR tracker extension (annotation_snr_tracker.dart)
+      checkSnrForReAnnotation(next!.snr!);
+    }
+  }
+
+  Stream<ImageAnnotation> get annotationStream => _ref
+      .read(currentAnnotationProvider.notifier)
+      .stream
+      .where((a) => a != null)
+      .cast<ImageAnnotation>();
+
+  // =========================================================================
+  // Catalog & helper methods (kept in main file for shared access)
+  // =========================================================================
 
   Future<AnnotationCatalog?> _loadAnnotationCatalog() async {
     final annotationStatus = await _catalogManager.getAnnotationCatalogStatus();
-    if (!annotationStatus.isInstalled || annotationStatus.installedPath == null) {
+    if (!annotationStatus.isInstalled ||
+        annotationStatus.installedPath == null) {
       return null;
     }
 
@@ -347,573 +313,9 @@ class AnnotationService {
     }
   }
 
-  Future<void> _processNewImage(CapturedImageData image) async {
-    if (image.filePath == null) {
-      _logger.debug('Skipping annotation - no file path', source: 'Annotation');
-      return;
-    }
-
-    // Check if auto-annotate is enabled
-    final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-    if (settings != null && !settings.autoAnnotate) {
-      _logger.debug('Auto-annotate disabled, skipping', source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.idle();
-      return;
-    }
-
-    // Check if annotations are enabled at all
-    if (settings != null && !settings.enabled) {
-      _logger.debug('Annotations disabled, skipping', source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.idle();
-      return;
-    }
-
-    _logger.info('New image detected: ${image.filePath}', source: 'Annotation');
-
-    try {
-      // =====================================================================
-      // PRE-FLIGHT CHECK 1: Verify CatalogManager is initialized
-      // =====================================================================
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.checking();
-
-      if (!_catalogManager.isInitialized) {
-        _logger.warning('CatalogManager not initialized - catalogs not available', source: 'Annotation');
-        // CatalogManager should be initialized by the app on startup
-        // If not initialized here, it means catalogs haven't been set up
-        _ref.read(annotationStateProvider.notifier).state =
-            const AnnotationState.catalogsNotInstalled();
-        return;
-      }
-
-      // =====================================================================
-      // PRE-FLIGHT CHECK 2: Verify at least one catalog is installed
-      // =====================================================================
-      final dsoStatus = await _catalogManager.getDsoCatalogStatus();
-      final starStatus = await _catalogManager.getStarCatalogStatus();
-      final annotationStatus = await _catalogManager.getAnnotationCatalogStatus();
-
-      final hasDsoCatalog = dsoStatus.isInstalled;
-      final hasStarCatalog = starStatus.isInstalled;
-      final hasAnnotationCatalog = annotationStatus.isInstalled;
-
-      if (!hasDsoCatalog && !hasStarCatalog && !hasAnnotationCatalog) {
-        _logger.warning('No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog', source: 'Annotation');
-        _ref.read(annotationStateProvider.notifier).state =
-            const AnnotationState.catalogsNotInstalled();
-        return;
-      }
-
-      _logger.info('Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog', source: 'Annotation');
-
-      // =====================================================================
-      // PRE-FLIGHT CHECK 3: Verify backend is available
-      // =====================================================================
-      final backend = _ref.read(backendProvider);
-      if (backend is DisconnectedBackend) {
-        _logger.error('Backend disconnected, cannot plate solve', source: 'Annotation');
-        _ref.read(annotationStateProvider.notifier).state =
-            const AnnotationState.error('Backend not connected');
-        return;
-      }
-
-      // =====================================================================
-      // STEP 1: Plate Solve
-      // =====================================================================
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.plateSolving();
-      _logger.info('Starting plate solve for: ${image.filePath}', source: 'Annotation');
-
-      // Try to get mount position hints for faster solving
-      double? hintRa;
-      double? hintDec;
-      try {
-        final mountState = _ref.read(mountStateProvider);
-        if (mountState.ra != null && mountState.dec != null) {
-          // Mount RA is typically tracked in hours; plate-solve hints expect degrees.
-          hintRa = _normalizeRaHintDegrees(mountState.ra!);
-          hintDec = mountState.dec;
-          _logger.debug('Using mount position hints: RA=$hintRa, Dec=$hintDec', source: 'Annotation');
-        }
-      } catch (e) {
-        // Mount state not available, continue without hints
-        _logger.debug('Mount position hints not available', source: 'Annotation');
-      }
-
-      final result = await backend.plateSolve(
-        imagePath: image.filePath!,
-        ra: hintRa,
-        dec: hintDec,
-      );
-
-      if (!result.success) {
-        _logger.warning('Plate solve failed: ${result.error}', source: 'Annotation');
-        _ref.read(annotationStateProvider.notifier).state =
-            AnnotationState.plateSolveFailed(result.error ?? 'Unknown error');
-        return;
-      }
-
-      _logger.info('Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
-          'Dec=${result.dec.toStringAsFixed(4)}, '
-          'Scale=${result.pixelScale.toStringAsFixed(2)}"/px, '
-          'Rotation=${result.rotation.toStringAsFixed(1)} deg', source: 'Annotation');
-
-      // =====================================================================
-      // STEP 2: Create PlateSolveData
-      // =====================================================================
-      final plateSolveData = PlateSolveData(
-        ra: result.ra,
-        dec: result.dec,
-        pixelScale: result.pixelScale,
-        rotation: result.rotation,
-        fieldWidth: result.fieldWidth,
-        fieldHeight: result.fieldHeight,
-        imageWidth: image.width,
-        imageHeight: image.height,
-      );
-
-      // Store plate solve for progressive re-annotation
-      _lastPlateSolve = plateSolveData;
-
-      // =====================================================================
-      // STEP 3: Calculate initial SNR-based magnitude limit
-      // =====================================================================
-      final currentSnr = image.stats.snr;
-      double initialMagnitudeLimit;
-
-      if (currentSnr != null && currentSnr >= _SnrAnnotationConstants.minimumSnrThreshold) {
-        initialMagnitudeLimit = _calculateSnrBasedMagnitudeLimit(currentSnr);
-        _lastAnnotationSnr = currentSnr;
-        _logger.debug('Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
-      } else {
-        // If no SNR available or too low, use conservative base magnitude
-        initialMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
-        _logger.debug('SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
-      }
-
-      _currentSnrMagnitudeLimit = initialMagnitudeLimit;
-      _lastAnnotationTime = DateTime.now();
-
-      // =====================================================================
-      // STEP 4: Search Catalogs
-      // =====================================================================
-      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.searching();
-
-      // Get annotation settings for filtering
-      final includeStars = settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ?? false;
-      final userMagnitudeCutoff = settings?.magnitudeCutoff ?? 15.0;
-
-      // Use the minimum of SNR-based limit and user setting for initial search
-      final effectiveMagnitudeLimit = math.min(initialMagnitudeLimit, userMagnitudeCutoff);
-
-      _logger.debug('Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
-          '(SNR-based: ${initialMagnitudeLimit.toStringAsFixed(1)}, user: ${userMagnitudeCutoff.toStringAsFixed(1)}), '
-          'include stars: $includeStars', source: 'Annotation');
-
-      final annotation = await annotateImage(
-        imagePath: image.filePath!,
-        plateSolve: plateSolveData,
-        includeStars: includeStars && hasStarCatalog,
-        minMagnitude: effectiveMagnitudeLimit,
-        snrBasedMagnitudeCutoff: effectiveMagnitudeLimit,
-      );
-
-      // Track revealed object IDs for progressive updates
-      for (final obj in annotation.objects) {
-        _revealedObjectIds.add(obj.id);
-      }
-
-      // =====================================================================
-      // STEP 5: Update providers with result
-      // =====================================================================
-      _ref.read(currentAnnotationProvider.notifier).state = annotation;
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.complete(annotation.objects.length);
-
-      _logger.info('Annotation complete: ${annotation.objects.length} objects found', source: 'Annotation');
-
-    } catch (e, stackTrace) {
-      _logger.error('Error processing image: $e\nStack trace: $stackTrace', source: 'Annotation');
-      _ref.read(annotationStateProvider.notifier).state =
-          AnnotationState.error(e.toString());
-    }
-  }
-
-  Stream<ImageAnnotation> get annotationStream => 
-      _ref.read(currentAnnotationProvider.notifier).stream.where((a) => a != null).cast<ImageAnnotation>();
-
-  /// Identify an object at specific pixel coordinates
-  Future<CelestialObjectAnnotation?> identifyAtPixel({
-    required PlateSolveData plateSolve,
-    required double x,
-    required double y,
-    double? searchRadiusArcsec,
-  }) async {
-    // Convert pixels to RA/Dec
-    final coords = plateSolve.pixelToSky(x, y);
-    
-    _logger.debug('Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}', source: 'Annotation');
-    
-    // Search for object at these coordinates
-    final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-    final effectiveRadiusArcsec = (searchRadiusArcsec ??
-            settings?.clickSearchRadiusArcsec ??
-            const AnnotationSettings().clickSearchRadiusArcsec)
-        .clamp(1.0, 600.0);
-
-    final details = await getObjectDetails(
-      ra: coords.ra,
-      dec: coords.dec,
-      radiusArcmin: effectiveRadiusArcsec / 60.0,
-    );
-    
-    if (details == null) return null;
-    
-    // Convert to annotation format
-    final objectType = _inferObjectType(details.objectClass);
-    final name = details.catalogIds?['Name'] ?? 
-                 (details.catalogIds?['NGC'] != null ? 'NGC ${details.catalogIds!['NGC']}' : null) ??
-                 (details.catalogIds?['M'] != null ? 'M ${details.catalogIds!['M']}' : null) ??
-                 details.simbadId ?? 'Unknown Object';
-                 
-    return CelestialObjectAnnotation(
-      id: 'identified_${DateTime.now().millisecondsSinceEpoch}',
-      name: name,
-      type: objectType,
-      ra: coords.ra,
-      dec: coords.dec,
-      x: x,
-      y: y,
-      catalogId: details.catalogIds?.entries.firstOrNull?.value,
-      detailedData: details,
-    );
-  }
-
-  /// Generate annotations for an image given its plate solve result
-  ///
-  /// [snrBasedMagnitudeCutoff] - Optional magnitude cutoff based on current SNR.
-  /// If provided, this is used for progressive annotation reveal.
-  Future<ImageAnnotation> annotateImage({
-    required String imagePath,
-    required PlateSolveData plateSolve,
-    bool includeStars = true,
-    double minMagnitude = 15.0,
-    double minSize = 0.5,
-    double? snrBasedMagnitudeCutoff,
-  }) async {
-    _logger.info('Starting annotation for $imagePath', source: 'Annotation');
-
-    final objects = await findObjectsInFov(
-      plateSolve: plateSolve,
-      includeStars: includeStars,
-      minMagnitude: minMagnitude,
-      minSize: minSize,
-      snrBasedMagnitudeCutoff: snrBasedMagnitudeCutoff,
-    );
-
-    _logger.info('Found ${objects.length} objects in FOV', source: 'Annotation');
-
-    return ImageAnnotation(
-      imagePath: imagePath,
-      timestamp: DateTime.now(),
-      plateSolve: plateSolve,
-      objects: objects,
-    );
-  }
-
-  /// Find all catalog objects within the field of view
-  ///
-  /// [snrBasedMagnitudeCutoff] - Optional magnitude cutoff based on current SNR.
-  /// If provided, this takes precedence over [minMagnitude] for filtering objects.
-  Future<List<CelestialObjectAnnotation>> findObjectsInFov({
-    required PlateSolveData plateSolve,
-    bool includeStars = false,
-    double minMagnitude = 15.0,
-    double minSize = 0.5,
-    double? snrBasedMagnitudeCutoff,
-   }) async {
-    final annotations = <CelestialObjectAnnotation>[];
-
-    // Use SNR-based cutoff if provided, otherwise use minMagnitude
-    final effectiveMagnitudeCutoff = snrBasedMagnitudeCutoff ?? minMagnitude;
-
-    // Calculate search radius (diagonal of FOV)
-    final fovDiagonal = math.sqrt(plateSolve.fieldWidth * plateSolve.fieldWidth +
-            plateSolve.fieldHeight * plateSolve.fieldHeight);
-    final searchRadius = fovDiagonal / 2 * 1.1; // Add 10% margin
-
-    _logger.debug('Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
-        'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}', source: 'Annotation');
-
-    final annotationCatalog = await _loadAnnotationCatalog();
-    if (annotationCatalog != null && annotationCatalog.isAvailable) {
-      try {
-        final objects = await annotationCatalog.searchNearby(
-          ra: plateSolve.ra,
-          dec: plateSolve.dec,
-          radiusDegrees: searchRadius,
-          maxMagnitude: effectiveMagnitudeCutoff,
-        );
-
-        _logger.debug('Found ${objects.length} annotation objects in search area', source: 'Annotation');
-
-        for (final obj in objects) {
-          if (obj.majorAxis != null && obj.majorAxis! < minSize) {
-            continue;
-          }
-
-          final pixelCoords = plateSolve.skyToPixel(obj.ra, obj.dec);
-          if (pixelCoords == null) {
-            continue;
-          }
-
-          if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
-              pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
-            continue;
-          }
-
-          final altName = obj.alternateNames.isNotEmpty ? obj.alternateNames.first : null;
-
-          annotations.add(CelestialObjectAnnotation(
-            id: obj.id,
-            name: obj.primaryName,
-            type: _mapAnnotationObjectType(obj.type),
-            ra: obj.ra,
-            dec: obj.dec,
-            x: pixelCoords.x,
-            y: pixelCoords.y,
-            catalogId: altName ?? obj.primaryName,
-            commonName: altName != null && altName != obj.primaryName ? altName : null,
-            magnitude: obj.magnitude,
-            size: obj.majorAxis,
-          ));
-        }
-      } catch (e) {
-        _logger.error('Error querying annotation catalog: $e', source: 'Annotation');
-      }
-    } else {
-      // Query DSO catalog
-      try {
-        final dsos = await _catalogManager.searchDsoNearby(
-          ra: plateSolve.ra,
-          dec: plateSolve.dec,
-          radiusDegrees: searchRadius,
-          maxMagnitude: effectiveMagnitudeCutoff,
-        );
-
-        _logger.debug('Found ${dsos.length} DSOs in search area', source: 'Annotation');
-
-        for (final dso in dsos) {
-          // Filter by size (skip very small objects)
-          if (dso.majorAxis != null && dso.majorAxis! < minSize) {
-            continue;
-          }
-
-          // Convert RA/Dec to pixel coordinates
-          final pixelCoords = plateSolve.skyToPixel(dso.ra, dso.dec);
-          if (pixelCoords == null) {
-            continue;
-          }
-
-          // Check if pixel coordinates are within image bounds
-          if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
-              pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
-            continue;
-          }
-
-          final objectType = _inferObjectType(dso.type);
-
-          annotations.add(CelestialObjectAnnotation(
-            id: 'dso_${dso.name}',
-            name: dso.displayName,
-            type: objectType,
-            ra: dso.ra,
-            dec: dso.dec,
-            x: pixelCoords.x,
-            y: pixelCoords.y,
-            catalogId: dso.name,
-            magnitude: dso.magnitude,
-            size: dso.majorAxis,
-          ));
-        }
-      } catch (e) {
-        _logger.error('Error querying DSO catalog: $e', source: 'Annotation');
-      }
-    }
-
-    // Optionally include bright stars
-    if (includeStars) {
-      try {
-        // For stars, apply the SNR-based cutoff more aggressively
-        final starMagnitudeCutoff = effectiveMagnitudeCutoff.clamp(0.0, 10.0);
-        final stars = await _catalogManager.searchStarsNearby(
-          ra: plateSolve.ra,
-          dec: plateSolve.dec,
-          radiusDegrees: searchRadius,
-          maxMagnitude: starMagnitudeCutoff,
-        );
-
-        _logger.debug('Found ${stars.length} stars in search area', source: 'Annotation');
-
-        for (final star in stars.take(100)) {
-          final pixelCoords = plateSolve.skyToPixel(star.ra, star.dec);
-          if (pixelCoords == null) continue;
-
-          // Check if pixel coordinates are within image bounds
-          if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
-              pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
-            continue;
-          }
-
-          annotations.add(CelestialObjectAnnotation(
-            id: 'star_${star.id}',
-            name: star.properName ?? star.catalogId,
-            type: ObjectType.star,
-            ra: star.ra,
-            dec: star.dec,
-            x: pixelCoords.x,
-            y: pixelCoords.y,
-            catalogId: star.catalogId,
-            magnitude: star.magnitude,
-          ));
-        }
-      } catch (e) {
-        _logger.error('Error querying star catalog: $e', source: 'Annotation');
-      }
-    }
-
-    _logger.debug('Total annotations: ${annotations.length}', source: 'Annotation');
-    return annotations;
-  }
-
-  /// Get detailed information about an object at given coordinates
-  Future<ObjectData?> getObjectDetails({
-    required double ra,
-    required double dec,
-    double radiusArcmin = 1.0,
-  }) async {
-    ObjectData? result;
-
-    // 1. Check local DSO catalog first (fast)
-    final radiusDeg = radiusArcmin / 60.0;
-    try {
-      final dsos = await _catalogManager.searchDsoNearby(
-        ra: ra,
-        dec: dec,
-        radiusDegrees: radiusDeg,
-      );
-
-      if (dsos.isNotEmpty) {
-        // Find the closest object
-        final closest = dsos.reduce((a, b) {
-          final distA = _angularDistance(ra, dec, a.ra, a.dec);
-          final distB = _angularDistance(ra, dec, b.ra, b.dec);
-          return distA < distB ? a : b;
-        });
-
-        result = ObjectData(
-          description: closest.typeDescription,
-          objectClass: closest.typeDescription,
-          catalogIds: {
-            'Name': closest.displayName,
-            if (closest.messier != null) 'M': closest.messier!.replaceAll('M', ''),
-            if (closest.name.startsWith('NGC')) 'NGC': closest.name.replaceAll('NGC', '').trim(),
-            if (closest.name.startsWith('IC')) 'IC': closest.name.replaceAll('IC', '').trim(),
-          },
-          lastUpdated: DateTime.now(),
-          dataSource: 'Local Catalog',
-        );
-
-        _logger.debug('Found in local DSO catalog: ${closest.displayName}', source: 'Annotation');
-      }
-    } catch (e) {
-      _logger.error('Error searching local DSO catalog: $e', source: 'Annotation');
-    }
-
-    // Also check local star catalog
-    if (result == null) {
-      try {
-        final stars = await _catalogManager.searchStarsNearby(
-          ra: ra,
-          dec: dec,
-          radiusDegrees: radiusDeg,
-        );
-
-        if (stars.isNotEmpty) {
-          // Find the closest star
-          final closest = stars.reduce((a, b) {
-            final distA = _angularDistance(ra, dec, a.ra, a.dec);
-            final distB = _angularDistance(ra, dec, b.ra, b.dec);
-            return distA < distB ? a : b;
-          });
-
-          result = ObjectData(
-            description: 'Star',
-            objectClass: 'Star',
-            spectralType: _parseSpectralType(closest.spectralType),
-            distance: closest.distance,
-            catalogIds: {
-              'Name': closest.name,
-              if (closest.hipId != null) 'HIP': closest.hipId.toString(),
-              if (closest.hdId != null) 'HD': closest.hdId.toString(),
-            },
-            lastUpdated: DateTime.now(),
-            dataSource: 'Local Catalog',
-          );
-
-          _logger.debug('Found in local star catalog: ${closest.name}', source: 'Annotation');
-        }
-      } catch (e) {
-        _logger.error('Error searching local star catalog: $e', source: 'Annotation');
-      }
-    }
-
-    // 2. Query SIMBAD for identification and basic data
-    try {
-      final simbadData = await _simbadProvider.queryByCoordinates(ra, dec, radiusArcmin: radiusArcmin);
-      if (simbadData != null) {
-        // Merge with local data or use as base
-        result = _mergeObjectData(result, simbadData);
-      }
-    } catch (e) {
-      _logger.warning('SIMBAD query failed: $e', source: 'Annotation');
-    }
-
-    // 3. Query Gaia for stellar properties (if it looks like a star)
-    if (result?.objectClass?.toLowerCase().contains('star') == true || result == null) {
-      try {
-        final gaiaData = await _gaiaProvider.queryByCoordinates(ra, dec);
-        if (gaiaData != null) {
-          result = _mergeObjectData(result, gaiaData);
-        }
-      } catch (e) {
-        _logger.warning('Gaia query failed: $e', source: 'Annotation');
-      }
-    }
-
-    // 4. Check for Exoplanets (if it's a star)
-    if (result != null && result.catalogIds != null) {
-      // Try to find a name to query
-      final name = result.catalogIds?['Name'] ?? 
-                   (result.catalogIds?['HD'] != null ? 'HD ${result.catalogIds!['HD']}' : null) ??
-                   result.simbadId;
-                   
-      if (name != null) {
-        try {
-          final planets = await _exoplanetProvider.queryByStarName(name);
-          if (planets.isNotEmpty) {
-            result = result.copyWith(exoplanets: planets);
-          }
-        } catch (e) {
-          _logger.warning('Exoplanet query failed: $e', source: 'Annotation');
-        }
-      }
-    }
-
-    return result;
-  }
-
   ObjectData _mergeObjectData(ObjectData? base, ObjectData new_) {
     if (base == null) return new_;
-    
+
     return base.copyWith(
       description: base.description ?? new_.description,
       objectClass: base.objectClass ?? new_.objectClass,
@@ -942,13 +344,19 @@ class AnnotationService {
   ObjectType _inferObjectType(String? catalogType) {
     if (catalogType == null) return ObjectType.unknown;
     final lower = catalogType.toLowerCase();
-    if (lower.contains('galaxy') || lower.contains('gx')) return ObjectType.galaxy;
-    if (lower.contains('nebula') && lower.contains('planetary')) return ObjectType.planetaryNebula;
-    if (lower.contains('nebula') || lower.contains('neb')) return ObjectType.nebula;
-    if (lower.contains('cluster') && lower.contains('open')) return ObjectType.starCluster;
-    if (lower.contains('cluster') && lower.contains('globular')) return ObjectType.starCluster;
+    if (lower.contains('galaxy') || lower.contains('gx'))
+      return ObjectType.galaxy;
+    if (lower.contains('nebula') && lower.contains('planetary'))
+      return ObjectType.planetaryNebula;
+    if (lower.contains('nebula') || lower.contains('neb'))
+      return ObjectType.nebula;
+    if (lower.contains('cluster') && lower.contains('open'))
+      return ObjectType.starCluster;
+    if (lower.contains('cluster') && lower.contains('globular'))
+      return ObjectType.starCluster;
     if (lower.contains('cluster')) return ObjectType.starCluster;
-    if (lower.contains('double') || lower.contains('multiple')) return ObjectType.doubleStar;
+    if (lower.contains('double') || lower.contains('multiple'))
+      return ObjectType.doubleStar;
     if (lower.contains('asterism')) return ObjectType.asterism;
     return ObjectType.unknown;
   }
@@ -978,11 +386,253 @@ class AnnotationService {
     }
   }
 
+  /// Convert a raw plate-solve error string into a user-facing description
+  /// with actionable advice.
+  String _describePlateSolveFailure(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Unknown plate solve error';
+
+    final lower = raw.toLowerCase();
+
+    // Solver not installed
+    if (lower.contains('not found') || lower.contains('not installed')) {
+      return 'Plate solver not installed \u2014 install ASTAP or configure a solver in Settings';
+    }
+
+    // Timeout
+    if (lower.contains('timed out') || lower.contains('timeout')) {
+      return 'Solver timed out \u2014 try a longer timeout, shorter exposure, or add coordinate hints from mount';
+    }
+
+    // Too few stars detected
+    final starMatch = RegExp(r'(\d+)\s*stars?\s*(detected|found|extracted)', caseSensitive: false).firstMatch(raw);
+    if (starMatch != null) {
+      final count = int.tryParse(starMatch.group(1)!) ?? 0;
+      if (count < 10) {
+        return 'Too few stars ($count found, need 10+) \u2014 increase exposure time or check focus';
+      }
+    }
+    if (lower.contains('no stars') || lower.contains('0 stars')) {
+      return 'No stars detected \u2014 check focus, exposure length, and that the lens cap is off';
+    }
+
+    // No pattern match / no solution
+    if (lower.contains('no match') ||
+        lower.contains('no solution') ||
+        lower.contains('could not solve') ||
+        lower.contains('failed to match')) {
+      return 'No pattern match \u2014 try a longer exposure, verify focus, or widen the search radius';
+    }
+
+    // WCS file missing (ASTAP-specific)
+    if (lower.contains('no wcs file') || lower.contains('wcs file')) {
+      return 'Solver did not produce a solution file \u2014 check ASTAP logs for details';
+    }
+
+    // Failed to run the executable
+    if (lower.contains('failed to run')) {
+      return 'Could not launch plate solver \u2014 verify the solver path in Settings';
+    }
+
+    // Backend/connection errors
+    if (lower.contains('backend') && lower.contains('failed')) {
+      return 'Backend plate solve failed \u2014 check connection and try again';
+    }
+
+    // Fall back to the raw error, trimmed
+    final trimmed = raw.length > 120 ? '${raw.substring(0, 120)}...' : raw;
+    return trimmed;
+  }
+
   double _normalizeRaHintDegrees(double raValue) {
     // Heuristic: treat values in [0, 24] as hours; otherwise assume degrees.
-    final degrees = (raValue >= 0.0 && raValue <= 24.0)
-        ? raValue * 15.0
-        : raValue;
+    final degrees =
+        (raValue >= 0.0 && raValue <= 24.0) ? raValue * 15.0 : raValue;
     return ((degrees % 360.0) + 360.0) % 360.0;
+  }
+
+  /// Generate a deduplication key for a celestial object annotation.
+  ///
+  /// Matches by catalog ID prefix (NGC, M, IC) case-insensitively, or by
+  /// object name. This ensures that "NGC 224" from the annotation catalog
+  /// and "NGC224" from the DSO catalog are treated as the same object.
+  String _deduplicationKey(CelestialObjectAnnotation annotation) {
+    // Try to extract a canonical catalog identifier
+    final name = annotation.name.trim().toUpperCase();
+    final catalogId = annotation.catalogId?.trim().toUpperCase() ?? '';
+
+    // Parse common catalog prefixes: NGC, M, IC, PGC
+    for (final source in [catalogId, name]) {
+      final match = _catalogPrefixPattern.firstMatch(source);
+      if (match != null) {
+        final prefix = match.group(1)!.trim();
+        final number = match.group(2)!.trim();
+        return '${prefix}_$number';
+      }
+    }
+
+    // Fall back to the name itself (normalized)
+    return name.replaceAll(RegExp(r'\s+'), '_');
+  }
+
+  static final _catalogPrefixPattern =
+      RegExp(r'^(NGC|M|IC|PGC|UGC|Ced|Sh2|Abell|Mel|Cr|Pal)\s*(\d+)', caseSensitive: false);
+
+  /// Merge two annotation objects, preferring the entry with more data.
+  ///
+  /// When both catalogs report the same object, keep the one with more
+  /// populated optional fields (magnitude, size, common name). If tied,
+  /// prefer [a] (the annotation catalog entry) since it may have merged data.
+  CelestialObjectAnnotation _mergeAnnotationObjects(
+    CelestialObjectAnnotation a,
+    CelestialObjectAnnotation b,
+  ) {
+    int scoreA = 0;
+    int scoreB = 0;
+    if (a.magnitude != null) scoreA++;
+    if (b.magnitude != null) scoreB++;
+    if (a.size != null) scoreA++;
+    if (b.size != null) scoreB++;
+    if (a.commonName != null) scoreA++;
+    if (b.commonName != null) scoreB++;
+    if (a.catalogId != null) scoreA++;
+    if (b.catalogId != null) scoreB++;
+    if (a.detailedData != null) scoreA++;
+    if (b.detailedData != null) scoreB++;
+
+    // If b has strictly more fields, prefer it; otherwise keep a.
+    if (scoreB > scoreA) return b;
+    return a;
+  }
+
+  /// Manually trigger re-annotation on the current image.
+  ///
+  /// This resets internal state and re-runs the full annotation pipeline
+  /// (plate solve + catalog search) on the currently displayed image.
+  /// Call this when the user explicitly requests re-annotation.
+  Future<void> reAnnotate() async {
+    final image = _ref.read(currentImageProvider);
+    if (image == null || image.filePath == null) {
+      _logger.warning('Cannot re-annotate: no current image',
+          source: 'Annotation');
+      _ref.read(annotationStateProvider.notifier).state =
+          const AnnotationState.error('No image loaded');
+      return;
+    }
+
+    _logger.info('Manual re-annotation triggered for: ${image.filePath}',
+        source: 'Annotation');
+
+    // Reset progressive annotation state so we start fresh
+    _lastProcessedImagePath = null;
+    _lastAnnotationSnr = null;
+    _peakAnnotationSnr = null;
+    _lastAnnotationTime = null;
+    _lastPlateSolve = null;
+    _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+    _revealedObjectIds.clear();
+
+    // Dismiss the re-annotate suggestion banner
+    _ref.read(reAnnotateSuggestionProvider.notifier).state =
+        const ReAnnotateSuggestion.none();
+
+    // Clear current annotation while processing
+    _ref.read(currentAnnotationProvider.notifier).state = null;
+
+    // Re-run the full pipeline (delegated to annotation_pipeline.dart)
+    await processNewImage(image);
+  }
+
+  /// Export current annotation objects as CSV.
+  /// Returns the CSV string content.
+  String exportAnnotationsCsv() {
+    final annotation = _ref.read(currentAnnotationProvider);
+    if (annotation == null || annotation.objects.isEmpty) {
+      throw StateError('No annotation data to export');
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('Name,Common Name,Type,RA (deg),Dec (deg),RA (HMS),Dec (DMS),Magnitude,Size (arcmin)');
+
+    for (final obj in annotation.objects) {
+      if (!obj.visible) continue;
+
+      final raHours = obj.ra / 15.0;
+      final raH = raHours.floor();
+      final raM = ((raHours - raH) * 60).floor();
+      final raS = (((raHours - raH) * 60 - raM) * 60);
+      final raHms = '${raH.toString().padLeft(2, '0')}h${raM.toString().padLeft(2, '0')}m${raS.toStringAsFixed(1)}s';
+
+      final decSign = obj.dec >= 0 ? '+' : '-';
+      final absDec = obj.dec.abs();
+      final decD = absDec.floor();
+      final decM = ((absDec - decD) * 60).floor();
+      final decS = (((absDec - decD) * 60 - decM) * 60);
+      final decDms = "$decSign${decD.toString().padLeft(2, '0')}d${decM.toString().padLeft(2, '0')}m${decS.toStringAsFixed(1)}s";
+
+      final name = _csvEscape(obj.name);
+      final commonName = _csvEscape(obj.commonName ?? '');
+      final typeName = _csvEscape(obj.type.name);
+      final mag = obj.magnitude?.toStringAsFixed(2) ?? '';
+      final size = obj.size?.toStringAsFixed(2) ?? '';
+
+      buffer.writeln('$name,$commonName,$typeName,${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},$raHms,$decDms,$mag,$size');
+    }
+
+    return buffer.toString();
+  }
+
+  /// Export current annotation objects as DS9 region file format.
+  /// Returns the .reg file string content.
+  String exportAnnotationsDs9Region() {
+    final annotation = _ref.read(currentAnnotationProvider);
+    if (annotation == null || annotation.objects.isEmpty) {
+      throw StateError('No annotation data to export');
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('# Region file format: DS9 version 4.1');
+    buffer.writeln('global color=green dashlist=8 3 width=1 font="helvetica 10 normal roman" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1');
+    buffer.writeln('fk5');
+
+    for (final obj in annotation.objects) {
+      if (!obj.visible) continue;
+
+      // Default radius: use object size if available, otherwise 30 arcseconds
+      final radiusArcsec = (obj.size != null && obj.size! > 0)
+          ? obj.size! * 60.0 / 2.0 // size is in arcminutes, need radius in arcsec
+          : 30.0;
+
+      final color = _ds9ColorForType(obj.type);
+      final label = obj.commonName ?? obj.name;
+
+      buffer.writeln('circle(${obj.ra.toStringAsFixed(6)},${obj.dec.toStringAsFixed(6)},${radiusArcsec.toStringAsFixed(1)}") # color=$color text={$label}');
+    }
+
+    return buffer.toString();
+  }
+
+  String _ds9ColorForType(ObjectType type) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return 'yellow';
+      case ObjectType.nebula:
+        return 'magenta';
+      case ObjectType.planetaryNebula:
+        return 'cyan';
+      case ObjectType.starCluster:
+        return 'green';
+      case ObjectType.star:
+      case ObjectType.doubleStar:
+        return 'white';
+      default:
+        return 'red';
+    }
+  }
+
+  String _csvEscape(String value) {
+    if (value.contains(',') || value.contains('"') || value.contains('\n')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
   }
 }

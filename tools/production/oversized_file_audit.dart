@@ -1,0 +1,323 @@
+import 'dart:convert';
+import 'dart:io';
+
+const _defaultJsonOutputPath =
+    'docs/production-readiness/oversized-file-audit.json';
+const _defaultMarkdownOutputPath =
+    'docs/production-readiness/oversized-file-audit.md';
+
+const _defaultWarningLineLimit = 1000;
+const _defaultCriticalLineLimit = 2500;
+
+const _scanRootPatterns = [
+  'apps/desktop/lib',
+  'apps/mobile/lib',
+  'packages/*/lib',
+  'tools/production',
+];
+
+const _excludedPathFragments = [
+  '/.dart_tool/',
+  '/build/',
+  '/generated/',
+  '/vendor/',
+  '/.plugin_symlinks/',
+];
+
+const _excludedFileNameFragments = [
+  '.g.dart',
+  '.freezed.dart',
+  'frb_generated',
+  '.mocks.dart',
+];
+
+const _prioritySplitReasons = {
+  'apps/desktop/lib/headless_api_server.dart':
+      'Headless route registration, middleware, self-test, and static serving share one release-critical file.',
+  'packages/nightshade_core/lib/src/backend/network_backend.dart':
+      'Remote client endpoint coverage and response parsing are concentrated in NetworkBackend.',
+  'packages/nightshade_webrtc/lib/src/web_server.dart':
+      'WebRTC server routing, API helpers, and dashboard docs are concentrated in one backend file.',
+  'packages/nightshade_core/lib/src/backend/ffi_backend.dart':
+      'Native backend command paths are large enough to make hardware workflow edits risky.',
+  'packages/nightshade_core/lib/src/providers/sequence_provider.dart':
+      'Sequencer state, validation, and execution logic are concentrated in one provider.',
+  'packages/nightshade_core/lib/src/services/device_service.dart':
+      'Cross-device command orchestration is large enough to hide device-specific regressions.',
+};
+
+Future<void> main(List<String> args) async {
+  final root = Directory(_argValue(args, '--root') ?? Directory.current.path);
+  final warningLineLimit = int.tryParse(
+        _argValue(args, '--warning-lines') ?? '',
+      ) ??
+      _defaultWarningLineLimit;
+  final criticalLineLimit = int.tryParse(
+        _argValue(args, '--critical-lines') ?? '',
+      ) ??
+      _defaultCriticalLineLimit;
+  final jsonOutputPath =
+      _argValue(args, '--json-out') ?? _defaultJsonOutputPath;
+  final markdownOutputPath =
+      _argValue(args, '--md-out') ?? _defaultMarkdownOutputPath;
+  final failOnCritical = args.contains('--fail-on-critical');
+
+  if (!root.existsSync()) {
+    stderr.writeln('Audit root does not exist: ${root.path}');
+    exit(1);
+  }
+  if (warningLineLimit <= 0 || criticalLineLimit <= 0) {
+    stderr.writeln('Line limits must be positive.');
+    exit(1);
+  }
+  if (warningLineLimit > criticalLineLimit) {
+    stderr.writeln('warning-lines must be <= critical-lines.');
+    exit(1);
+  }
+
+  final files = _scanFiles(root);
+  final entries = <_FileSizeEntry>[];
+  for (final file in files) {
+    entries.add(_FileSizeEntry(
+      path: _relativePath(root, file),
+      lineCount: _lineCount(file),
+    ));
+  }
+  entries.sort((a, b) {
+    final lineCompare = b.lineCount.compareTo(a.lineCount);
+    if (lineCompare != 0) return lineCompare;
+    return a.path.compareTo(b.path);
+  });
+
+  final warnings = entries
+      .where((entry) =>
+          entry.lineCount >= warningLineLimit &&
+          entry.lineCount < criticalLineLimit)
+      .toList();
+  final critical =
+      entries.where((entry) => entry.lineCount >= criticalLineLimit).toList();
+  final prioritySplitCandidates = entries
+      .where((entry) => _prioritySplitReasons.containsKey(entry.path))
+      .map(
+        (entry) =>
+            entry.toJson()..['reason'] = _prioritySplitReasons[entry.path],
+      )
+      .toList();
+
+  final report = {
+    'generatedAt': DateTime.now().toUtc().toIso8601String(),
+    'scanRoots': _scanRootPatterns,
+    'excludedPathFragments': _excludedPathFragments,
+    'excludedFileNameFragments': _excludedFileNameFragments,
+    'warningLineLimit': warningLineLimit,
+    'criticalLineLimit': criticalLineLimit,
+    'scannedFileCount': entries.length,
+    'warningFileCount': warnings.length,
+    'criticalFileCount': critical.length,
+    'largestFiles': entries.take(50).map((entry) => entry.toJson()).toList(),
+    'warningFiles': warnings.map((entry) => entry.toJson()).toList(),
+    'criticalFiles': critical.map((entry) => entry.toJson()).toList(),
+    'prioritySplitCandidateCount': prioritySplitCandidates.length,
+    'prioritySplitCandidates': prioritySplitCandidates,
+    'policy':
+        'Warning files are at or above warningLineLimit. Critical files are at or above criticalLineLimit and should be split when work naturally touches the file or when ownership risk is high.',
+  };
+
+  await File(jsonOutputPath).parent.create(recursive: true);
+  await File(jsonOutputPath).writeAsString(
+    const JsonEncoder.withIndent('  ').convert(report),
+  );
+  await File(markdownOutputPath).parent.create(recursive: true);
+  await File(markdownOutputPath).writeAsString(_renderMarkdown(
+    warningLineLimit: warningLineLimit,
+    criticalLineLimit: criticalLineLimit,
+    entries: entries,
+    warnings: warnings,
+    critical: critical,
+    prioritySplitCandidates: prioritySplitCandidates,
+  ));
+
+  stdout.writeln('Oversized file audit complete.');
+  stdout.writeln('Scanned files: ${entries.length}');
+  stdout.writeln('Warnings: ${warnings.length}');
+  stdout.writeln('Critical: ${critical.length}');
+  stdout
+      .writeln('Priority split candidates: ${prioritySplitCandidates.length}');
+  stdout.writeln('JSON: $jsonOutputPath');
+  stdout.writeln('Markdown: $markdownOutputPath');
+
+  if (failOnCritical && critical.isNotEmpty) {
+    stderr.writeln('Critical oversized files remain.');
+    exit(1);
+  }
+}
+
+List<File> _scanFiles(Directory root) {
+  final files = <File>[];
+  for (final pattern in _scanRootPatterns) {
+    if (pattern.contains('*')) {
+      final parts = pattern.split('/');
+      final wildcardIndex = parts.indexOf('*');
+      final base =
+          Directory('${root.path}/${parts.take(wildcardIndex).join('/')}');
+      if (!base.existsSync()) {
+        continue;
+      }
+      final suffix = parts.skip(wildcardIndex + 1).join('/');
+      for (final entity in base.listSync(followLinks: false)) {
+        if (entity is! Directory) {
+          continue;
+        }
+        final scanRoot = Directory('${entity.path}/$suffix');
+        files.addAll(_dartFilesUnder(root, scanRoot));
+      }
+      continue;
+    }
+
+    files.addAll(_dartFilesUnder(root, Directory('${root.path}/$pattern')));
+  }
+  files.sort((a, b) => a.path.compareTo(b.path));
+  return files;
+}
+
+List<File> _dartFilesUnder(Directory repoRoot, Directory directory) {
+  if (!directory.existsSync()) {
+    return const [];
+  }
+  final files = <File>[];
+  for (final entity
+      in directory.listSync(recursive: true, followLinks: false)) {
+    if (entity is! File) {
+      continue;
+    }
+    final normalized = _normalizePath(entity.path);
+    if (!normalized.endsWith('.dart')) {
+      continue;
+    }
+    if (_shouldSkipPath(normalized)) {
+      continue;
+    }
+    files.add(entity);
+  }
+  return files;
+}
+
+bool _shouldSkipPath(String path) {
+  if (_excludedPathFragments.any(path.contains)) {
+    return true;
+  }
+  final fileName = path.split('/').last;
+  return _excludedFileNameFragments.any(fileName.contains);
+}
+
+int _lineCount(File file) {
+  try {
+    return file.readAsLinesSync().length;
+  } on FileSystemException {
+    return 0;
+  }
+}
+
+String _renderMarkdown({
+  required int warningLineLimit,
+  required int criticalLineLimit,
+  required List<_FileSizeEntry> entries,
+  required List<_FileSizeEntry> warnings,
+  required List<_FileSizeEntry> critical,
+  required List<Map<String, Object?>> prioritySplitCandidates,
+}) {
+  final buffer = StringBuffer()
+    ..writeln('# Oversized File Audit')
+    ..writeln()
+    ..writeln('- Scanned files: `${entries.length}`')
+    ..writeln('- Warning threshold: `${warningLineLimit}` lines')
+    ..writeln('- Critical threshold: `${criticalLineLimit}` lines')
+    ..writeln('- Warning files: `${warnings.length}`')
+    ..writeln('- Critical files: `${critical.length}`')
+    ..writeln(
+        '- Priority split candidates: `${prioritySplitCandidates.length}`')
+    ..writeln()
+    ..writeln(
+      'This audit finds large hand-authored Dart files so refactors can be planned deliberately. Generated, vendored, build, and mock files are excluded.',
+    )
+    ..writeln()
+    ..writeln('## Critical Files')
+    ..writeln()
+    ..writeln('| Lines | Path |')
+    ..writeln('| ---: | --- |');
+
+  if (critical.isEmpty) {
+    buffer.writeln('| 0 | None |');
+  } else {
+    for (final entry in critical) {
+      buffer.writeln('| ${entry.lineCount} | `${entry.path}` |');
+    }
+  }
+
+  buffer
+    ..writeln()
+    ..writeln('## Priority Split Candidates')
+    ..writeln()
+    ..writeln('| Lines | Path | Reason |')
+    ..writeln('| ---: | --- | --- |');
+  if (prioritySplitCandidates.isEmpty) {
+    buffer.writeln('| 0 | None | None |');
+  } else {
+    for (final entry in prioritySplitCandidates) {
+      buffer.writeln(
+        '| ${entry['lineCount']} | `${entry['path']}` | ${entry['reason']} |',
+      );
+    }
+  }
+
+  buffer
+    ..writeln()
+    ..writeln('## Largest Files')
+    ..writeln()
+    ..writeln('| Lines | Path |')
+    ..writeln('| ---: | --- |');
+  for (final entry in entries.take(50)) {
+    buffer.writeln('| ${entry.lineCount} | `${entry.path}` |');
+  }
+
+  return buffer.toString();
+}
+
+String _relativePath(Directory root, File file) {
+  final rootPath = _normalizePath(root.absolute.path);
+  final filePath = _normalizePath(file.absolute.path);
+  if (filePath.startsWith('$rootPath/')) {
+    return filePath.substring(rootPath.length + 1);
+  }
+  return filePath;
+}
+
+String _normalizePath(String path) => path.replaceAll('\\', '/');
+
+String? _argValue(List<String> args, String name) {
+  for (var i = 0; i < args.length; i++) {
+    final arg = args[i];
+    if (arg == name && i + 1 < args.length) {
+      return args[i + 1];
+    }
+    if (arg.startsWith('$name=')) {
+      return arg.substring(name.length + 1);
+    }
+  }
+  return null;
+}
+
+class _FileSizeEntry {
+  final String path;
+  final int lineCount;
+
+  const _FileSizeEntry({
+    required this.path,
+    required this.lineCount,
+  });
+
+  Map<String, Object?> toJson() => {
+        'path': path,
+        'lineCount': lineCount,
+      };
+}

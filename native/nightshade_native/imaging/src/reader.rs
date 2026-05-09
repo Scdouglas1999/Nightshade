@@ -51,7 +51,13 @@ impl MappedFitsReader {
             .get_int("NAXIS1")
             .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))?
             as u32;
-        let height = header.get_int("NAXIS2").unwrap_or(1) as u32;
+        let height = if naxis >= 2 {
+            header
+                .get_int("NAXIS2")
+                .ok_or_else(|| FitsError::MissingKeyword("NAXIS2".to_string()))? as u32
+        } else {
+            1
+        };
         let channels = if naxis >= 3 {
             header.get_int("NAXIS3").unwrap_or(1) as u32
         } else {
@@ -67,11 +73,11 @@ impl MappedFitsReader {
             other => return Err(FitsError::UnsupportedBitpix(other)),
         };
 
-        // Calculate data offset (header size is multiple of 2880 bytes)
-        // Count keywords to determine header size
-        let header_records = header.keywords.len() + 1; // +1 for END
-        let header_bytes = header_records * 80;
-        let data_offset = ((header_bytes + 2879) / 2880) * 2880;
+        // `read_header` already consumes the full FITS header and skips the
+        // required padding, so the cursor now points at the exact data start.
+        let data_offset = usize::try_from(cursor.position()).map_err(|_| {
+            FitsError::InvalidFormat("FITS data offset exceeds platform limits".to_string())
+        })?;
 
         tracing::info!(
             "Opened memory-mapped FITS: {}x{}x{}, type {:?}, data offset: {}",
@@ -236,12 +242,24 @@ impl MappedFitsReader {
                 let src_x = (out_x * downsample_factor) as usize;
                 let pixel_offset = row_offset + src_x * bytes_per_pixel * channels;
 
-                if pixel_offset + bytes_per_pixel * channels <= self.mmap.len() {
-                    let pixel_data =
-                        &self.mmap[pixel_offset..pixel_offset + bytes_per_pixel * channels];
-                    output_data.extend_from_slice(pixel_data);
+                if pixel_offset + bytes_per_pixel * channels > self.mmap.len() {
+                    return Err(FitsError::InvalidFormat(
+                        "Downsampled FITS read exceeded mapped image bounds".to_string(),
+                    ));
                 }
+
+                let pixel_data =
+                    &self.mmap[pixel_offset..pixel_offset + bytes_per_pixel * channels];
+                output_data.extend_from_slice(pixel_data);
             }
+        }
+
+        if output_data.len() != output_size {
+            return Err(FitsError::InvalidFormat(format!(
+                "Downsampled FITS read produced {} bytes, expected {}",
+                output_data.len(),
+                output_size
+            )));
         }
 
         // Convert endianness
@@ -347,9 +365,84 @@ pub fn generate_thumbnail(path: &Path, max_dimension: u32) -> Result<ImageData, 
 
 #[cfg(test)]
 mod tests {
+    use super::MappedFitsReader;
+    use crate::{write_fits, FitsError, FitsHeader, ImageData, PixelType};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_path(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock before epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("nightshade_reader_{name}_{unique}.fits"))
+    }
+
     #[test]
     fn test_thumbnail_max_dimension() {
         // Test would require actual image files
         // This path exists for integration tests
+    }
+
+    #[test]
+    fn mapped_reader_open_rejects_header_without_end() {
+        let path = temp_path("missing_end");
+        let invalid_header = vec![b' '; 2880];
+        fs::write(&path, invalid_header).expect("failed to write malformed FITS");
+
+        let result = MappedFitsReader::open(&path);
+        let _ = fs::remove_file(&path);
+
+        assert!(result.is_err(), "missing END keyword should be rejected");
+    }
+
+    #[test]
+    fn mapped_reader_reads_valid_fits_written_by_writer() {
+        let path = temp_path("valid");
+        let image = ImageData {
+            width: 2,
+            height: 2,
+            channels: 1,
+            pixel_type: PixelType::U8,
+            data: vec![1, 2, 3, 4],
+        };
+        let header = FitsHeader::new();
+        write_fits(&path, &image, &header).expect("failed to write FITS");
+
+        let reader = MappedFitsReader::open(&path).expect("reader should open valid FITS");
+        let region = reader
+            .read_region(0, 0, 2, 2)
+            .expect("reader should return the stored pixels");
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(region.data, image.data);
+    }
+
+    #[test]
+    fn mapped_reader_requires_naxis2_for_2d_images() {
+        let path = temp_path("missing_naxis2");
+        let mut bytes = vec![b' '; 2880];
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                    8",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    2",
+            "END",
+        ];
+
+        for (idx, card) in cards.iter().enumerate() {
+            let offset = idx * 80;
+            let mut card_bytes = [b' '; 80];
+            let raw = card.as_bytes();
+            card_bytes[..raw.len()].copy_from_slice(raw);
+            bytes[offset..offset + 80].copy_from_slice(&card_bytes);
+        }
+
+        fs::write(&path, bytes).expect("failed to write malformed FITS");
+        let result = MappedFitsReader::open(&path);
+        let _ = fs::remove_file(&path);
+
+        assert!(matches!(result, Err(FitsError::MissingKeyword(keyword)) if keyword == "NAXIS2"));
     }
 }

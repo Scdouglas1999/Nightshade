@@ -18,7 +18,8 @@ class EstimatedCompletionWidget extends ConsumerWidget {
     if (sequence == null) return const SizedBox.shrink();
 
     final totalTime = sequence.totalIntegrationSecs;
-    final estimatedCompletion = DateTime.now().add(Duration(seconds: totalTime.toInt()));
+    final estimatedCompletion =
+        DateTime.now().add(Duration(seconds: totalTime.toInt()));
     final isRunning = executionState == SequenceExecutionState.running;
     final targetGroups = sequence.targetHeaders;
 
@@ -77,8 +78,9 @@ class EstimatedCompletionWidget extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: colors.success.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.success.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
               child: Text(
                 'RUNNING',
@@ -305,7 +307,8 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
   Widget _buildTargetRow(TargetHeaderNode target) {
     // Format coordinates for display
     final raStr = '${target.raHours.toStringAsFixed(2)}h';
-    final decStr = '${target.decDegrees >= 0 ? '+' : ''}${target.decDegrees.toStringAsFixed(1)}°';
+    final decStr =
+        '${target.decDegrees >= 0 ? '+' : ''}${target.decDegrees.toStringAsFixed(1)}°';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -354,7 +357,6 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
       ),
     );
   }
-
 }
 
 /// Pulsing indicator for running state
@@ -428,7 +430,7 @@ class LoopIterationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = current / total;
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -438,7 +440,7 @@ class LoopIterationBadge extends StatelessWidget {
             colors.accent.withValues(alpha: 0.2),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Color.lerp(colors.primary, colors.accent, progress)!,
           width: 1.5,
@@ -506,7 +508,7 @@ class NodeProgressIndicator extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // Active glow border
           if (isActive)
             Positioned.fill(
@@ -557,7 +559,7 @@ class ActiveBranchHighlight extends StatelessWidget {
           child: Container(
             margin: const EdgeInsets.all(-4),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
                   color: colors.success.withValues(alpha: 0.2),

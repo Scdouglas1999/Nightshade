@@ -14,7 +14,8 @@ class NightshadeCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>()!;
 
     return GestureDetector(
       onTap: onChanged != null ? () => onChanged!(!value) : null,
@@ -31,18 +32,13 @@ class NightshadeCheckbox extends StatelessWidget {
           ),
         ),
         child: value
-            ? const Icon(
+            ? Icon(
                 LucideIcons.check,
                 size: 12,
-                color: Colors.white,
+                color: theme.colorScheme.onPrimary,
               )
             : null,
       ),
     );
   }
 }
-
-
-
-
-

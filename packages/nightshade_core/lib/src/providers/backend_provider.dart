@@ -12,10 +12,18 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
   BackendNotifier(this._ref) : super(DisconnectedBackend());
 
   /// Connect to a remote server
-  void connect(String host, int port) {
+  void connect(
+    String host,
+    int port, {
+    String? authToken,
+  }) {
     // Dispose old backend before switching
     state.dispose();
-    state = NetworkBackend(serverHost: host, serverPort: port);
+    state = NetworkBackend(
+      serverHost: host,
+      serverPort: port,
+      authToken: authToken,
+    );
   }
 
   /// Disconnect from server

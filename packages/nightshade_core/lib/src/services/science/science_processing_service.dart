@@ -15,6 +15,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import '../../models/science/science_models.dart';
 import 'default_science_backend.dart';
+import 'photometric_transform_service.dart';
 import 'science_backend.dart';
 
 class ScienceProcessingService {
@@ -337,6 +338,8 @@ class ScienceProcessingService {
           wcs: wcs,
           selection: photometrySelection,
           frameTimestamp: frameContext.capturedAt,
+          filterName: frameContext.filterName,
+          airmass: frameContext.airmass,
         );
       }
 
@@ -392,7 +395,7 @@ class ScienceProcessingService {
         }
       }
     } catch (error, stack) {
-      _logger.warning(
+      _logger.error(
         'Science frame processing failed for $imagePath: $error\n$stack',
         source: 'ScienceProcessingService',
       );
@@ -566,6 +569,8 @@ class ScienceProcessingService {
     required WcsSolution? wcs,
     required SciencePhotometrySelection selection,
     required DateTime frameTimestamp,
+    String? filterName,
+    double? airmass,
   }) async {
     final stars = await _scienceBackend.measureStars(
       imagePath,
@@ -711,6 +716,37 @@ class ScienceProcessingService {
     final uncertainty = 1.0857 *
         math.sqrt(fractionalVariance.isFinite ? fractionalVariance : 0.0);
 
+    // Try to apply photometric transform for absolute magnitude
+    PhotometricTransformCoefficients? transform;
+    if (filterName != null && filterName.isNotEmpty) {
+      try {
+        final transformService = _ref.read(photometricTransformServiceProvider);
+        transform = await transformService.getTransformForFilter(filterName);
+      } catch (error) {
+        _logger.debug(
+          'No photometric transform available for filter $filterName: $error',
+          source: 'ScienceProcessingService',
+        );
+      }
+    }
+
+    double? targetStandardMag;
+    if (transform != null && airmass != null && airmass > 0) {
+      final instMag = -2.5 *
+          math.log(targetFlux.clamp(1e-30, double.infinity)) /
+          math.ln10;
+      // Use color index 0.0 as default when unknown — the color term
+      // contribution is typically small for broadband filters.
+      targetStandardMag = transform.applyTransform(
+        instrumentalMag: instMag,
+        airmass: airmass,
+        colorIndex: 0.0,
+      );
+      if (!targetStandardMag.isFinite) {
+        targetStandardMag = null;
+      }
+    }
+
     final entries = <db.PhotometryMeasurementsCompanion>[
       db.PhotometryMeasurementsCompanion.insert(
         capturedImageId: drift.Value(capturedImageId),
@@ -721,6 +757,7 @@ class ScienceProcessingService {
         y: target.y,
         flux: targetFlux,
         differentialMagnitude: drift.Value(differentialMag),
+        standardMagnitude: drift.Value(targetStandardMag),
         snr: drift.Value(target.snr),
         uncertainty: drift.Value(uncertainty),
         timestamp: drift.Value(frameTimestamp),
@@ -730,6 +767,23 @@ class ScienceProcessingService {
     for (var index = 0; index < comparisonObjects.length; index++) {
       final objectId = comparisonObjects[index].objectId;
       final star = comparisonObjects[index].star;
+
+      double? compStandardMag;
+      if (transform != null && airmass != null && airmass > 0) {
+        final compFlux = star.flux.clamp(1e-6, double.infinity);
+        final compInstMag = -2.5 *
+            math.log(compFlux.clamp(1e-30, double.infinity)) /
+            math.ln10;
+        compStandardMag = transform.applyTransform(
+          instrumentalMag: compInstMag,
+          airmass: airmass,
+          colorIndex: 0.0,
+        );
+        if (!compStandardMag.isFinite) {
+          compStandardMag = null;
+        }
+      }
+
       entries.add(
         db.PhotometryMeasurementsCompanion.insert(
           capturedImageId: drift.Value(capturedImageId),
@@ -740,6 +794,7 @@ class ScienceProcessingService {
           y: star.y,
           flux: star.flux,
           differentialMagnitude: drift.Value<double?>(null),
+          standardMagnitude: drift.Value(compStandardMag),
           snr: drift.Value(star.snr),
           uncertainty: drift.Value<double?>(
             star.flux /

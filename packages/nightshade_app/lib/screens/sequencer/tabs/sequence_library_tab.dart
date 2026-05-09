@@ -52,10 +52,15 @@ class SequenceLibraryTab extends ConsumerWidget {
 
                 // Apply search filter
                 if (searchQuery.isNotEmpty) {
-                  filtered = filtered.where((s) =>
-                    s.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-                    s.description.toLowerCase().contains(searchQuery.toLowerCase())
-                  ).toList();
+                  filtered = filtered
+                      .where((s) =>
+                          s.name
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()) ||
+                          s.description
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()))
+                      .toList();
                 }
 
                 // Apply sort
@@ -64,24 +69,27 @@ class SequenceLibraryTab extends ConsumerWidget {
                     filtered.sort((a, b) => a.name.compareTo(b.name));
                     break;
                   case SequenceSortOrder.dateModified:
-                    filtered.sort((a, b) => b.modifiedAt
-                        .compareTo(a.modifiedAt));
+                    filtered
+                        .sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
                     break;
                   case SequenceSortOrder.dateCreated:
                     filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
                     break;
                   case SequenceSortOrder.nodeCount:
-                    filtered.sort((a, b) => b.nodes.length.compareTo(a.nodes.length));
+                    filtered.sort(
+                        (a, b) => b.nodes.length.compareTo(a.nodes.length));
                     break;
                 }
 
                 if (filtered.isEmpty) {
-                  return _EmptyState(colors: colors, hasSearch: searchQuery.isNotEmpty);
+                  return _EmptyState(
+                      colors: colors, hasSearch: searchQuery.isNotEmpty);
                 }
 
                 return ListView.separated(
                   itemCount: filtered.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     return _SequenceCard(
                       colors: colors,
@@ -97,7 +105,8 @@ class SequenceLibraryTab extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.alertTriangle, size: 48, color: colors.error),
+                    Icon(LucideIcons.alertTriangle,
+                        size: 48, color: colors.error),
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load sequences',
@@ -188,15 +197,20 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
               ref.read(sequenceSortOrderProvider.notifier).state = value;
             },
             itemBuilder: (context) => [
-              _buildSortMenuItem(SequenceSortOrder.dateModified, 'Last Modified', LucideIcons.clock, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.dateCreated, 'Date Created', LucideIcons.calendar, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.name, 'Name', LucideIcons.arrowUpAZ, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count', LucideIcons.layers, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.dateModified,
+                  'Last Modified', LucideIcons.clock, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.dateCreated, 'Date Created',
+                  LucideIcons.calendar, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.name, 'Name',
+                  LucideIcons.arrowUpAZ, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count',
+                  LucideIcons.layers, sortOrder),
             ],
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.arrowUpDown, size: 14, color: widget.colors.textMuted),
+                Icon(LucideIcons.arrowUpDown,
+                    size: 14, color: widget.colors.textMuted),
                 const SizedBox(width: 8),
                 Text(
                   _getSortLabel(sortOrder),
@@ -206,7 +220,8 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(LucideIcons.chevronDown, size: 14, color: widget.colors.textMuted),
+                Icon(LucideIcons.chevronDown,
+                    size: 14, color: widget.colors.textMuted),
               ],
             ),
           ),
@@ -225,7 +240,8 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+              Icon(LucideIcons.search,
+                  size: 16, color: widget.colors.textMuted),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
@@ -254,7 +270,8 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                     _searchController.clear();
                     ref.read(sequenceSearchProvider.notifier).state = '';
                   },
-                  child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+                  child: Icon(LucideIcons.x,
+                      size: 16, color: widget.colors.textMuted),
                 ),
             ],
           ),
@@ -284,14 +301,21 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
       value: value,
       child: Row(
         children: [
-          Icon(icon, size: 14, color: value == current ? widget.colors.primary : widget.colors.textMuted),
+          Icon(icon,
+              size: 14,
+              color: value == current
+                  ? widget.colors.primary
+                  : widget.colors.textMuted),
           const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              color: value == current ? widget.colors.primary : widget.colors.textPrimary,
-              fontWeight: value == current ? FontWeight.w600 : FontWeight.normal,
+              color: value == current
+                  ? widget.colors.primary
+                  : widget.colors.textPrimary,
+              fontWeight:
+                  value == current ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
           const Spacer(),
@@ -304,10 +328,14 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
 
   String _getSortLabel(SequenceSortOrder order) {
     switch (order) {
-      case SequenceSortOrder.name: return 'Name';
-      case SequenceSortOrder.dateModified: return 'Last Modified';
-      case SequenceSortOrder.dateCreated: return 'Date Created';
-      case SequenceSortOrder.nodeCount: return 'Node Count';
+      case SequenceSortOrder.name:
+        return 'Name';
+      case SequenceSortOrder.dateModified:
+        return 'Last Modified';
+      case SequenceSortOrder.dateCreated:
+        return 'Date Created';
+      case SequenceSortOrder.nodeCount:
+        return 'Node Count';
     }
   }
 
@@ -352,6 +380,8 @@ class _ActionButtonState extends State<_ActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -379,9 +409,8 @@ class _ActionButtonState extends State<_ActionButton> {
               Icon(
                 widget.icon,
                 size: 14,
-                color: widget.isPrimary
-                    ? Colors.white
-                    : widget.colors.textSecondary,
+                color:
+                    widget.isPrimary ? onPrimary : widget.colors.textSecondary,
               ),
               const SizedBox(width: 8),
               Text(
@@ -390,7 +419,7 @@ class _ActionButtonState extends State<_ActionButton> {
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
-                      ? Colors.white
+                      ? onPrimary
                       : widget.colors.textSecondary,
                 ),
               ),
@@ -419,15 +448,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   bool _isHovered = false;
 
   int _countTargetGroups() {
-    return widget.sequence.nodes.values
-        .whereType<TargetHeaderNode>()
-        .length;
+    return widget.sequence.nodes.values.whereType<TargetHeaderNode>().length;
   }
 
   int _countExposures() {
-    return widget.sequence.nodes.values
-        .whereType<ExposureNode>()
-        .length;
+    return widget.sequence.nodes.values.whereType<ExposureNode>().length;
   }
 
   String _formatDuration() {
@@ -456,9 +481,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: widget.colors.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: _isHovered ? widget.colors.primary.withValues(alpha: 0.4) : widget.colors.border,
+            color: _isHovered
+                ? widget.colors.primary.withValues(alpha: 0.4)
+                : widget.colors.border,
             width: _isHovered ? 2 : 1,
           ),
           boxShadow: _isHovered
@@ -629,8 +656,10 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     for (final entry in widget.sequence.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
-      final newParentId = oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
-      final newChildIds = oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      final newParentId =
+          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
+      final newChildIds =
+          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
 
       newNodes[newId] = oldNode.copyWith(
         id: newId,
@@ -663,7 +692,8 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     if (dbId != null) {
       try {
         final repository = ref.read(sequenceRepositoryProvider);
-        await repository.duplicateSequence(dbId, '${widget.sequence.name} (Copy)');
+        await repository.duplicateSequence(
+            dbId, '${widget.sequence.name} (Copy)');
 
         ref.invalidate(savedSequencesProvider);
 
@@ -686,7 +716,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         title: Text(
           'Delete Sequence',
           style: TextStyle(color: widget.colors.textPrimary),
@@ -713,7 +743,8 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 ref.invalidate(savedSequencesProvider);
 
                 if (context.mounted) {
-                  context.showSuccessSnackBar('Deleted "${widget.sequence.name}"');
+                  context
+                      .showSuccessSnackBar('Deleted "${widget.sequence.name}"');
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -799,7 +830,9 @@ class _IconButtonState extends State<_IconButton> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: _isHovered ? color.withValues(alpha: 0.1) : Colors.transparent,
+              color: _isHovered
+                  ? color.withValues(alpha: 0.1)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -902,7 +935,8 @@ class _SaveSequenceDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_SaveSequenceDialog> createState() => _SaveSequenceDialogState();
+  ConsumerState<_SaveSequenceDialog> createState() =>
+      _SaveSequenceDialogState();
 }
 
 class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
@@ -914,7 +948,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.sequence.name);
-    _descriptionController = TextEditingController(text: widget.sequence.description);
+    _descriptionController =
+        TextEditingController(text: widget.sequence.description);
   }
 
   @override
@@ -951,7 +986,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
       if (mounted) {
         Navigator.pop(context);
 
-        context.showSuccessSnackBar('Sequence "${_nameController.text}" saved!');
+        context
+            .showSuccessSnackBar('Sequence "${_nameController.text}" saved!');
       }
     } catch (e) {
       if (mounted) {
@@ -968,7 +1004,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
         width: 450,
         padding: const EdgeInsets.all(24),

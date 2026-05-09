@@ -51,6 +51,7 @@ mixin _$NightshadeError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -100,6 +101,7 @@ mixin _$NightshadeError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -147,6 +149,7 @@ mixin _$NightshadeError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -207,6 +210,8 @@ mixin _$NightshadeError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -255,6 +260,8 @@ mixin _$NightshadeError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -301,6 +308,8 @@ mixin _$NightshadeError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -447,6 +456,7 @@ class _$NightshadeError_DeviceNotFoundImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -499,6 +509,7 @@ class _$NightshadeError_DeviceNotFoundImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -549,6 +560,7 @@ class _$NightshadeError_DeviceNotFoundImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -615,6 +627,8 @@ class _$NightshadeError_DeviceNotFoundImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -666,6 +680,8 @@ class _$NightshadeError_DeviceNotFoundImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -715,6 +731,8 @@ class _$NightshadeError_DeviceNotFoundImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -870,6 +888,7 @@ class _$NightshadeError_ConnectionFailedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -922,6 +941,7 @@ class _$NightshadeError_ConnectionFailedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -972,6 +992,7 @@ class _$NightshadeError_ConnectionFailedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -1038,6 +1059,8 @@ class _$NightshadeError_ConnectionFailedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -1089,6 +1112,8 @@ class _$NightshadeError_ConnectionFailedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -1138,6 +1163,8 @@ class _$NightshadeError_ConnectionFailedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -1284,6 +1311,7 @@ class _$NightshadeError_AlreadyConnectedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -1336,6 +1364,7 @@ class _$NightshadeError_AlreadyConnectedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -1386,6 +1415,7 @@ class _$NightshadeError_AlreadyConnectedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -1452,6 +1482,8 @@ class _$NightshadeError_AlreadyConnectedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -1503,6 +1535,8 @@ class _$NightshadeError_AlreadyConnectedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -1552,6 +1586,8 @@ class _$NightshadeError_AlreadyConnectedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -1695,6 +1731,7 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -1747,6 +1784,7 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -1797,6 +1835,7 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -1863,6 +1902,8 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -1914,6 +1955,8 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -1963,6 +2006,8 @@ class _$NightshadeError_NotConnectedImpl extends NightshadeError_NotConnected {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -2118,6 +2163,7 @@ class _$NightshadeError_DeviceDisconnectedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -2170,6 +2216,7 @@ class _$NightshadeError_DeviceDisconnectedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -2220,6 +2267,7 @@ class _$NightshadeError_DeviceDisconnectedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -2286,6 +2334,8 @@ class _$NightshadeError_DeviceDisconnectedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -2337,6 +2387,8 @@ class _$NightshadeError_DeviceDisconnectedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -2386,6 +2438,8 @@ class _$NightshadeError_DeviceDisconnectedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -2554,6 +2608,7 @@ class _$NightshadeError_HardwareErrorImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -2606,6 +2661,7 @@ class _$NightshadeError_HardwareErrorImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -2656,6 +2712,7 @@ class _$NightshadeError_HardwareErrorImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -2722,6 +2779,8 @@ class _$NightshadeError_HardwareErrorImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -2773,6 +2832,8 @@ class _$NightshadeError_HardwareErrorImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -2822,6 +2883,8 @@ class _$NightshadeError_HardwareErrorImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -2983,6 +3046,7 @@ class _$NightshadeError_CommunicationErrorImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -3035,6 +3099,7 @@ class _$NightshadeError_CommunicationErrorImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -3085,6 +3150,7 @@ class _$NightshadeError_CommunicationErrorImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -3151,6 +3217,8 @@ class _$NightshadeError_CommunicationErrorImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -3202,6 +3270,8 @@ class _$NightshadeError_CommunicationErrorImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -3251,6 +3321,8 @@ class _$NightshadeError_CommunicationErrorImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -3394,6 +3466,7 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -3446,6 +3519,7 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -3496,6 +3570,7 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -3562,6 +3637,8 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -3613,6 +3690,8 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -3662,6 +3741,8 @@ class _$NightshadeError_TimeoutImpl extends NightshadeError_Timeout {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -3829,6 +3910,7 @@ class _$NightshadeError_DeviceTimeoutImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -3881,6 +3963,7 @@ class _$NightshadeError_DeviceTimeoutImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -3931,6 +4014,7 @@ class _$NightshadeError_DeviceTimeoutImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -3997,6 +4081,8 @@ class _$NightshadeError_DeviceTimeoutImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -4048,6 +4134,8 @@ class _$NightshadeError_DeviceTimeoutImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -4097,6 +4185,8 @@ class _$NightshadeError_DeviceTimeoutImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -4257,6 +4347,7 @@ class _$NightshadeError_ConnectionTimeoutImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -4309,6 +4400,7 @@ class _$NightshadeError_ConnectionTimeoutImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -4359,6 +4451,7 @@ class _$NightshadeError_ConnectionTimeoutImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -4425,6 +4518,8 @@ class _$NightshadeError_ConnectionTimeoutImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -4476,6 +4571,8 @@ class _$NightshadeError_ConnectionTimeoutImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -4525,6 +4622,8 @@ class _$NightshadeError_ConnectionTimeoutImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -4671,6 +4770,7 @@ class _$NightshadeError_InvalidParameterImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -4723,6 +4823,7 @@ class _$NightshadeError_InvalidParameterImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -4773,6 +4874,7 @@ class _$NightshadeError_InvalidParameterImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -4839,6 +4941,8 @@ class _$NightshadeError_InvalidParameterImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -4890,6 +4994,8 @@ class _$NightshadeError_InvalidParameterImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -4939,6 +5045,8 @@ class _$NightshadeError_InvalidParameterImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -5082,6 +5190,7 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -5134,6 +5243,7 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -5184,6 +5294,7 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -5250,6 +5361,8 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -5301,6 +5414,8 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -5350,6 +5465,8 @@ class _$NightshadeError_InvalidInputImpl extends NightshadeError_InvalidInput {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -5505,6 +5622,7 @@ class _$NightshadeError_InvalidDeviceIdImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -5557,6 +5675,7 @@ class _$NightshadeError_InvalidDeviceIdImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -5607,6 +5726,7 @@ class _$NightshadeError_InvalidDeviceIdImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -5673,6 +5793,8 @@ class _$NightshadeError_InvalidDeviceIdImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -5724,6 +5846,8 @@ class _$NightshadeError_InvalidDeviceIdImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -5773,6 +5897,8 @@ class _$NightshadeError_InvalidDeviceIdImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -5949,6 +6075,7 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -6001,6 +6128,7 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -6051,6 +6179,7 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -6117,6 +6246,8 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -6168,6 +6299,8 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -6217,6 +6350,8 @@ class _$NightshadeError_ParameterOutOfRangeImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -6367,6 +6502,7 @@ class _$NightshadeError_OperationFailedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -6419,6 +6555,7 @@ class _$NightshadeError_OperationFailedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -6469,6 +6606,7 @@ class _$NightshadeError_OperationFailedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -6535,6 +6673,8 @@ class _$NightshadeError_OperationFailedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -6586,6 +6726,8 @@ class _$NightshadeError_OperationFailedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -6635,6 +6777,8 @@ class _$NightshadeError_OperationFailedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -6790,6 +6934,7 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -6842,6 +6987,7 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -6892,6 +7038,7 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -6958,6 +7105,8 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -7009,6 +7158,8 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -7058,6 +7209,8 @@ class _$NightshadeError_NotSupportedImpl extends NightshadeError_NotSupported {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -7214,6 +7367,7 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -7266,6 +7420,7 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -7316,6 +7471,7 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -7382,6 +7538,8 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -7433,6 +7591,8 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -7482,6 +7642,8 @@ class _$NightshadeError_DeviceBusyImpl extends NightshadeError_DeviceBusy {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -7626,6 +7788,7 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -7678,6 +7841,7 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -7728,6 +7892,7 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -7794,6 +7959,8 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -7845,6 +8012,8 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -7894,6 +8063,8 @@ class _$NightshadeError_ImageErrorImpl extends NightshadeError_ImageError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -8035,6 +8206,7 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -8087,6 +8259,7 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -8137,6 +8310,7 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -8203,6 +8377,8 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -8254,6 +8430,8 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -8303,6 +8481,8 @@ class _$NightshadeError_CameraErrorImpl extends NightshadeError_CameraError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -8418,6 +8598,7 @@ class _$NightshadeError_NoImageAvailableImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -8470,6 +8651,7 @@ class _$NightshadeError_NoImageAvailableImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -8520,6 +8702,7 @@ class _$NightshadeError_NoImageAvailableImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -8586,6 +8769,8 @@ class _$NightshadeError_NoImageAvailableImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -8637,6 +8822,8 @@ class _$NightshadeError_NoImageAvailableImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -8686,6 +8873,8 @@ class _$NightshadeError_NoImageAvailableImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -8793,6 +8982,7 @@ class _$NightshadeError_ExposureCancelledImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -8845,6 +9035,7 @@ class _$NightshadeError_ExposureCancelledImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -8895,6 +9086,7 @@ class _$NightshadeError_ExposureCancelledImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -8961,6 +9153,8 @@ class _$NightshadeError_ExposureCancelledImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -9012,6 +9206,8 @@ class _$NightshadeError_ExposureCancelledImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -9061,6 +9257,8 @@ class _$NightshadeError_ExposureCancelledImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -9207,6 +9405,7 @@ class _$NightshadeError_ExposureFailedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -9259,6 +9458,7 @@ class _$NightshadeError_ExposureFailedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -9309,6 +9509,7 @@ class _$NightshadeError_ExposureFailedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -9375,6 +9576,8 @@ class _$NightshadeError_ExposureFailedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -9426,6 +9629,8 @@ class _$NightshadeError_ExposureFailedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -9475,6 +9680,8 @@ class _$NightshadeError_ExposureFailedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -9632,6 +9839,7 @@ class _$NightshadeError_DownloadFailedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -9684,6 +9892,7 @@ class _$NightshadeError_DownloadFailedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -9734,6 +9943,7 @@ class _$NightshadeError_DownloadFailedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -9800,6 +10010,8 @@ class _$NightshadeError_DownloadFailedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -9851,6 +10063,8 @@ class _$NightshadeError_DownloadFailedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -9900,6 +10114,8 @@ class _$NightshadeError_DownloadFailedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -10043,6 +10259,7 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -10095,6 +10312,7 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -10145,6 +10363,7 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -10211,6 +10430,8 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -10262,6 +10483,8 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -10311,6 +10534,8 @@ class _$NightshadeError_IoErrorImpl extends NightshadeError_IoError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -10344,6 +10569,427 @@ abstract class NightshadeError_IoError extends NightshadeError {
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$NightshadeError_IoErrorImplCopyWith<_$NightshadeError_IoErrorImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$NightshadeError_SerializationErrorImplCopyWith<$Res> {
+  factory _$$NightshadeError_SerializationErrorImplCopyWith(
+          _$NightshadeError_SerializationErrorImpl value,
+          $Res Function(_$NightshadeError_SerializationErrorImpl) then) =
+      __$$NightshadeError_SerializationErrorImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String field0});
+}
+
+/// @nodoc
+class __$$NightshadeError_SerializationErrorImplCopyWithImpl<$Res>
+    extends _$NightshadeErrorCopyWithImpl<$Res,
+        _$NightshadeError_SerializationErrorImpl>
+    implements _$$NightshadeError_SerializationErrorImplCopyWith<$Res> {
+  __$$NightshadeError_SerializationErrorImplCopyWithImpl(
+      _$NightshadeError_SerializationErrorImpl _value,
+      $Res Function(_$NightshadeError_SerializationErrorImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of NightshadeError
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? field0 = null,
+  }) {
+    return _then(_$NightshadeError_SerializationErrorImpl(
+      null == field0
+          ? _value.field0
+          : field0 // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$NightshadeError_SerializationErrorImpl
+    extends NightshadeError_SerializationError {
+  const _$NightshadeError_SerializationErrorImpl(this.field0) : super._();
+
+  @override
+  final String field0;
+
+  @override
+  String toString() {
+    return 'NightshadeError.serializationError(field0: $field0)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$NightshadeError_SerializationErrorImpl &&
+            (identical(other.field0, field0) || other.field0 == field0));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, field0);
+
+  /// Create a copy of NightshadeError
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$NightshadeError_SerializationErrorImplCopyWith<
+          _$NightshadeError_SerializationErrorImpl>
+      get copyWith => __$$NightshadeError_SerializationErrorImplCopyWithImpl<
+          _$NightshadeError_SerializationErrorImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(String field0) deviceNotFound,
+    required TResult Function(String deviceId, String reason) connectionFailed,
+    required TResult Function(String field0) alreadyConnected,
+    required TResult Function(String field0) notConnected,
+    required TResult Function(String deviceId, String reason)
+        deviceDisconnected,
+    required TResult Function(String deviceId, String message, int? errorCode)
+        hardwareError,
+    required TResult Function(String deviceId, String message)
+        communicationError,
+    required TResult Function(String field0) timeout,
+    required TResult Function(
+            String deviceId, String operation, double timeoutSecs)
+        deviceTimeout,
+    required TResult Function(String deviceId, double timeoutSecs)
+        connectionTimeout,
+    required TResult Function(String field0) invalidParameter,
+    required TResult Function(String field0) invalidInput,
+    required TResult Function(String deviceId, String reason) invalidDeviceId,
+    required TResult Function(
+            String paramName, String value, String min, String max)
+        parameterOutOfRange,
+    required TResult Function(String field0) operationFailed,
+    required TResult Function(String deviceId, String operation) notSupported,
+    required TResult Function(String deviceId, String currentOperation)
+        deviceBusy,
+    required TResult Function(String field0) imageError,
+    required TResult Function(String field0) cameraError,
+    required TResult Function() noImageAvailable,
+    required TResult Function() exposureCancelled,
+    required TResult Function(String cameraId, String reason) exposureFailed,
+    required TResult Function(String cameraId, String reason) downloadFailed,
+    required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
+    required TResult Function(String field0) plateSolveError,
+    required TResult Function(String field0) sequenceError,
+    required TResult Function(String progId, String message, int errorCode)
+        ascomError,
+    required TResult Function(
+            String baseUrl, int deviceNumber, String message, int errorCode)
+        alpacaError,
+    required TResult Function(
+            String server, int port, String deviceName, String message)
+        indiError,
+    required TResult Function(String vendor, String message, int errorCode)
+        nativeError,
+    required TResult Function(String message, int hresult) comError,
+    required TResult Function(String field0) internal,
+    required TResult Function() cancelled,
+    required TResult Function(String field0) runtimeInitFailed,
+    required TResult Function(String resource, String message)
+        resourceExhausted,
+  }) {
+    return serializationError(field0);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(String field0)? deviceNotFound,
+    TResult? Function(String deviceId, String reason)? connectionFailed,
+    TResult? Function(String field0)? alreadyConnected,
+    TResult? Function(String field0)? notConnected,
+    TResult? Function(String deviceId, String reason)? deviceDisconnected,
+    TResult? Function(String deviceId, String message, int? errorCode)?
+        hardwareError,
+    TResult? Function(String deviceId, String message)? communicationError,
+    TResult? Function(String field0)? timeout,
+    TResult? Function(String deviceId, String operation, double timeoutSecs)?
+        deviceTimeout,
+    TResult? Function(String deviceId, double timeoutSecs)? connectionTimeout,
+    TResult? Function(String field0)? invalidParameter,
+    TResult? Function(String field0)? invalidInput,
+    TResult? Function(String deviceId, String reason)? invalidDeviceId,
+    TResult? Function(String paramName, String value, String min, String max)?
+        parameterOutOfRange,
+    TResult? Function(String field0)? operationFailed,
+    TResult? Function(String deviceId, String operation)? notSupported,
+    TResult? Function(String deviceId, String currentOperation)? deviceBusy,
+    TResult? Function(String field0)? imageError,
+    TResult? Function(String field0)? cameraError,
+    TResult? Function()? noImageAvailable,
+    TResult? Function()? exposureCancelled,
+    TResult? Function(String cameraId, String reason)? exposureFailed,
+    TResult? Function(String cameraId, String reason)? downloadFailed,
+    TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
+    TResult? Function(String field0)? plateSolveError,
+    TResult? Function(String field0)? sequenceError,
+    TResult? Function(String progId, String message, int errorCode)? ascomError,
+    TResult? Function(
+            String baseUrl, int deviceNumber, String message, int errorCode)?
+        alpacaError,
+    TResult? Function(
+            String server, int port, String deviceName, String message)?
+        indiError,
+    TResult? Function(String vendor, String message, int errorCode)?
+        nativeError,
+    TResult? Function(String message, int hresult)? comError,
+    TResult? Function(String field0)? internal,
+    TResult? Function()? cancelled,
+    TResult? Function(String field0)? runtimeInitFailed,
+    TResult? Function(String resource, String message)? resourceExhausted,
+  }) {
+    return serializationError?.call(field0);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(String field0)? deviceNotFound,
+    TResult Function(String deviceId, String reason)? connectionFailed,
+    TResult Function(String field0)? alreadyConnected,
+    TResult Function(String field0)? notConnected,
+    TResult Function(String deviceId, String reason)? deviceDisconnected,
+    TResult Function(String deviceId, String message, int? errorCode)?
+        hardwareError,
+    TResult Function(String deviceId, String message)? communicationError,
+    TResult Function(String field0)? timeout,
+    TResult Function(String deviceId, String operation, double timeoutSecs)?
+        deviceTimeout,
+    TResult Function(String deviceId, double timeoutSecs)? connectionTimeout,
+    TResult Function(String field0)? invalidParameter,
+    TResult Function(String field0)? invalidInput,
+    TResult Function(String deviceId, String reason)? invalidDeviceId,
+    TResult Function(String paramName, String value, String min, String max)?
+        parameterOutOfRange,
+    TResult Function(String field0)? operationFailed,
+    TResult Function(String deviceId, String operation)? notSupported,
+    TResult Function(String deviceId, String currentOperation)? deviceBusy,
+    TResult Function(String field0)? imageError,
+    TResult Function(String field0)? cameraError,
+    TResult Function()? noImageAvailable,
+    TResult Function()? exposureCancelled,
+    TResult Function(String cameraId, String reason)? exposureFailed,
+    TResult Function(String cameraId, String reason)? downloadFailed,
+    TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
+    TResult Function(String field0)? plateSolveError,
+    TResult Function(String field0)? sequenceError,
+    TResult Function(String progId, String message, int errorCode)? ascomError,
+    TResult Function(
+            String baseUrl, int deviceNumber, String message, int errorCode)?
+        alpacaError,
+    TResult Function(
+            String server, int port, String deviceName, String message)?
+        indiError,
+    TResult Function(String vendor, String message, int errorCode)? nativeError,
+    TResult Function(String message, int hresult)? comError,
+    TResult Function(String field0)? internal,
+    TResult Function()? cancelled,
+    TResult Function(String field0)? runtimeInitFailed,
+    TResult Function(String resource, String message)? resourceExhausted,
+    required TResult orElse(),
+  }) {
+    if (serializationError != null) {
+      return serializationError(field0);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(NightshadeError_DeviceNotFound value)
+        deviceNotFound,
+    required TResult Function(NightshadeError_ConnectionFailed value)
+        connectionFailed,
+    required TResult Function(NightshadeError_AlreadyConnected value)
+        alreadyConnected,
+    required TResult Function(NightshadeError_NotConnected value) notConnected,
+    required TResult Function(NightshadeError_DeviceDisconnected value)
+        deviceDisconnected,
+    required TResult Function(NightshadeError_HardwareError value)
+        hardwareError,
+    required TResult Function(NightshadeError_CommunicationError value)
+        communicationError,
+    required TResult Function(NightshadeError_Timeout value) timeout,
+    required TResult Function(NightshadeError_DeviceTimeout value)
+        deviceTimeout,
+    required TResult Function(NightshadeError_ConnectionTimeout value)
+        connectionTimeout,
+    required TResult Function(NightshadeError_InvalidParameter value)
+        invalidParameter,
+    required TResult Function(NightshadeError_InvalidInput value) invalidInput,
+    required TResult Function(NightshadeError_InvalidDeviceId value)
+        invalidDeviceId,
+    required TResult Function(NightshadeError_ParameterOutOfRange value)
+        parameterOutOfRange,
+    required TResult Function(NightshadeError_OperationFailed value)
+        operationFailed,
+    required TResult Function(NightshadeError_NotSupported value) notSupported,
+    required TResult Function(NightshadeError_DeviceBusy value) deviceBusy,
+    required TResult Function(NightshadeError_ImageError value) imageError,
+    required TResult Function(NightshadeError_CameraError value) cameraError,
+    required TResult Function(NightshadeError_NoImageAvailable value)
+        noImageAvailable,
+    required TResult Function(NightshadeError_ExposureCancelled value)
+        exposureCancelled,
+    required TResult Function(NightshadeError_ExposureFailed value)
+        exposureFailed,
+    required TResult Function(NightshadeError_DownloadFailed value)
+        downloadFailed,
+    required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
+    required TResult Function(NightshadeError_PlateSolveError value)
+        plateSolveError,
+    required TResult Function(NightshadeError_SequenceError value)
+        sequenceError,
+    required TResult Function(NightshadeError_AscomError value) ascomError,
+    required TResult Function(NightshadeError_AlpacaError value) alpacaError,
+    required TResult Function(NightshadeError_IndiError value) indiError,
+    required TResult Function(NightshadeError_NativeError value) nativeError,
+    required TResult Function(NightshadeError_ComError value) comError,
+    required TResult Function(NightshadeError_Internal value) internal,
+    required TResult Function(NightshadeError_Cancelled value) cancelled,
+    required TResult Function(NightshadeError_RuntimeInitFailed value)
+        runtimeInitFailed,
+    required TResult Function(NightshadeError_ResourceExhausted value)
+        resourceExhausted,
+  }) {
+    return serializationError(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(NightshadeError_DeviceNotFound value)? deviceNotFound,
+    TResult? Function(NightshadeError_ConnectionFailed value)? connectionFailed,
+    TResult? Function(NightshadeError_AlreadyConnected value)? alreadyConnected,
+    TResult? Function(NightshadeError_NotConnected value)? notConnected,
+    TResult? Function(NightshadeError_DeviceDisconnected value)?
+        deviceDisconnected,
+    TResult? Function(NightshadeError_HardwareError value)? hardwareError,
+    TResult? Function(NightshadeError_CommunicationError value)?
+        communicationError,
+    TResult? Function(NightshadeError_Timeout value)? timeout,
+    TResult? Function(NightshadeError_DeviceTimeout value)? deviceTimeout,
+    TResult? Function(NightshadeError_ConnectionTimeout value)?
+        connectionTimeout,
+    TResult? Function(NightshadeError_InvalidParameter value)? invalidParameter,
+    TResult? Function(NightshadeError_InvalidInput value)? invalidInput,
+    TResult? Function(NightshadeError_InvalidDeviceId value)? invalidDeviceId,
+    TResult? Function(NightshadeError_ParameterOutOfRange value)?
+        parameterOutOfRange,
+    TResult? Function(NightshadeError_OperationFailed value)? operationFailed,
+    TResult? Function(NightshadeError_NotSupported value)? notSupported,
+    TResult? Function(NightshadeError_DeviceBusy value)? deviceBusy,
+    TResult? Function(NightshadeError_ImageError value)? imageError,
+    TResult? Function(NightshadeError_CameraError value)? cameraError,
+    TResult? Function(NightshadeError_NoImageAvailable value)? noImageAvailable,
+    TResult? Function(NightshadeError_ExposureCancelled value)?
+        exposureCancelled,
+    TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
+    TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
+    TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
+    TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
+    TResult? Function(NightshadeError_SequenceError value)? sequenceError,
+    TResult? Function(NightshadeError_AscomError value)? ascomError,
+    TResult? Function(NightshadeError_AlpacaError value)? alpacaError,
+    TResult? Function(NightshadeError_IndiError value)? indiError,
+    TResult? Function(NightshadeError_NativeError value)? nativeError,
+    TResult? Function(NightshadeError_ComError value)? comError,
+    TResult? Function(NightshadeError_Internal value)? internal,
+    TResult? Function(NightshadeError_Cancelled value)? cancelled,
+    TResult? Function(NightshadeError_RuntimeInitFailed value)?
+        runtimeInitFailed,
+    TResult? Function(NightshadeError_ResourceExhausted value)?
+        resourceExhausted,
+  }) {
+    return serializationError?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(NightshadeError_DeviceNotFound value)? deviceNotFound,
+    TResult Function(NightshadeError_ConnectionFailed value)? connectionFailed,
+    TResult Function(NightshadeError_AlreadyConnected value)? alreadyConnected,
+    TResult Function(NightshadeError_NotConnected value)? notConnected,
+    TResult Function(NightshadeError_DeviceDisconnected value)?
+        deviceDisconnected,
+    TResult Function(NightshadeError_HardwareError value)? hardwareError,
+    TResult Function(NightshadeError_CommunicationError value)?
+        communicationError,
+    TResult Function(NightshadeError_Timeout value)? timeout,
+    TResult Function(NightshadeError_DeviceTimeout value)? deviceTimeout,
+    TResult Function(NightshadeError_ConnectionTimeout value)?
+        connectionTimeout,
+    TResult Function(NightshadeError_InvalidParameter value)? invalidParameter,
+    TResult Function(NightshadeError_InvalidInput value)? invalidInput,
+    TResult Function(NightshadeError_InvalidDeviceId value)? invalidDeviceId,
+    TResult Function(NightshadeError_ParameterOutOfRange value)?
+        parameterOutOfRange,
+    TResult Function(NightshadeError_OperationFailed value)? operationFailed,
+    TResult Function(NightshadeError_NotSupported value)? notSupported,
+    TResult Function(NightshadeError_DeviceBusy value)? deviceBusy,
+    TResult Function(NightshadeError_ImageError value)? imageError,
+    TResult Function(NightshadeError_CameraError value)? cameraError,
+    TResult Function(NightshadeError_NoImageAvailable value)? noImageAvailable,
+    TResult Function(NightshadeError_ExposureCancelled value)?
+        exposureCancelled,
+    TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
+    TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
+    TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
+    TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
+    TResult Function(NightshadeError_SequenceError value)? sequenceError,
+    TResult Function(NightshadeError_AscomError value)? ascomError,
+    TResult Function(NightshadeError_AlpacaError value)? alpacaError,
+    TResult Function(NightshadeError_IndiError value)? indiError,
+    TResult Function(NightshadeError_NativeError value)? nativeError,
+    TResult Function(NightshadeError_ComError value)? comError,
+    TResult Function(NightshadeError_Internal value)? internal,
+    TResult Function(NightshadeError_Cancelled value)? cancelled,
+    TResult Function(NightshadeError_RuntimeInitFailed value)?
+        runtimeInitFailed,
+    TResult Function(NightshadeError_ResourceExhausted value)?
+        resourceExhausted,
+    required TResult orElse(),
+  }) {
+    if (serializationError != null) {
+      return serializationError(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class NightshadeError_SerializationError extends NightshadeError {
+  const factory NightshadeError_SerializationError(final String field0) =
+      _$NightshadeError_SerializationErrorImpl;
+  const NightshadeError_SerializationError._() : super._();
+
+  String get field0;
+
+  /// Create a copy of NightshadeError
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$NightshadeError_SerializationErrorImplCopyWith<
+          _$NightshadeError_SerializationErrorImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 
@@ -10454,6 +11100,7 @@ class _$NightshadeError_PlateSolveErrorImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -10506,6 +11153,7 @@ class _$NightshadeError_PlateSolveErrorImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -10556,6 +11204,7 @@ class _$NightshadeError_PlateSolveErrorImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -10622,6 +11271,8 @@ class _$NightshadeError_PlateSolveErrorImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -10673,6 +11324,8 @@ class _$NightshadeError_PlateSolveErrorImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -10722,6 +11375,8 @@ class _$NightshadeError_PlateSolveErrorImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -10866,6 +11521,7 @@ class _$NightshadeError_SequenceErrorImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -10918,6 +11574,7 @@ class _$NightshadeError_SequenceErrorImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -10968,6 +11625,7 @@ class _$NightshadeError_SequenceErrorImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -11034,6 +11692,8 @@ class _$NightshadeError_SequenceErrorImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -11085,6 +11745,8 @@ class _$NightshadeError_SequenceErrorImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -11134,6 +11796,8 @@ class _$NightshadeError_SequenceErrorImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -11295,6 +11959,7 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -11347,6 +12012,7 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -11397,6 +12063,7 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -11463,6 +12130,8 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -11514,6 +12183,8 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -11563,6 +12234,8 @@ class _$NightshadeError_AscomErrorImpl extends NightshadeError_AscomError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -11740,6 +12413,7 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -11792,6 +12466,7 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -11842,6 +12517,7 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -11908,6 +12584,8 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -11959,6 +12637,8 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -12008,6 +12688,8 @@ class _$NightshadeError_AlpacaErrorImpl extends NightshadeError_AlpacaError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -12185,6 +12867,7 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -12237,6 +12920,7 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -12287,6 +12971,7 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -12353,6 +13038,8 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -12404,6 +13091,8 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -12453,6 +13142,8 @@ class _$NightshadeError_IndiErrorImpl extends NightshadeError_IndiError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -12619,6 +13310,7 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -12671,6 +13363,7 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -12721,6 +13414,7 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -12787,6 +13481,8 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -12838,6 +13534,8 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -12887,6 +13585,8 @@ class _$NightshadeError_NativeErrorImpl extends NightshadeError_NativeError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -13041,6 +13741,7 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -13093,6 +13794,7 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -13143,6 +13845,7 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -13209,6 +13912,8 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -13260,6 +13965,8 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -13309,6 +14016,8 @@ class _$NightshadeError_ComErrorImpl extends NightshadeError_ComError {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -13451,6 +14160,7 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -13503,6 +14213,7 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -13553,6 +14264,7 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -13619,6 +14331,8 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -13670,6 +14384,8 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -13719,6 +14435,8 @@ class _$NightshadeError_InternalImpl extends NightshadeError_Internal {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -13832,6 +14550,7 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -13884,6 +14603,7 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -13934,6 +14654,7 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -14000,6 +14721,8 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -14051,6 +14774,8 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -14100,6 +14825,8 @@ class _$NightshadeError_CancelledImpl extends NightshadeError_Cancelled {
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -14234,6 +14961,7 @@ class _$NightshadeError_RuntimeInitFailedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -14286,6 +15014,7 @@ class _$NightshadeError_RuntimeInitFailedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -14336,6 +15065,7 @@ class _$NightshadeError_RuntimeInitFailedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -14402,6 +15132,8 @@ class _$NightshadeError_RuntimeInitFailedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -14453,6 +15185,8 @@ class _$NightshadeError_RuntimeInitFailedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -14502,6 +15236,8 @@ class _$NightshadeError_RuntimeInitFailedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,
@@ -14657,6 +15393,7 @@ class _$NightshadeError_ResourceExhaustedImpl
     required TResult Function(String cameraId, String reason) exposureFailed,
     required TResult Function(String cameraId, String reason) downloadFailed,
     required TResult Function(String field0) ioError,
+    required TResult Function(String field0) serializationError,
     required TResult Function(String field0) plateSolveError,
     required TResult Function(String field0) sequenceError,
     required TResult Function(String progId, String message, int errorCode)
@@ -14709,6 +15446,7 @@ class _$NightshadeError_ResourceExhaustedImpl
     TResult? Function(String cameraId, String reason)? exposureFailed,
     TResult? Function(String cameraId, String reason)? downloadFailed,
     TResult? Function(String field0)? ioError,
+    TResult? Function(String field0)? serializationError,
     TResult? Function(String field0)? plateSolveError,
     TResult? Function(String field0)? sequenceError,
     TResult? Function(String progId, String message, int errorCode)? ascomError,
@@ -14759,6 +15497,7 @@ class _$NightshadeError_ResourceExhaustedImpl
     TResult Function(String cameraId, String reason)? exposureFailed,
     TResult Function(String cameraId, String reason)? downloadFailed,
     TResult Function(String field0)? ioError,
+    TResult Function(String field0)? serializationError,
     TResult Function(String field0)? plateSolveError,
     TResult Function(String field0)? sequenceError,
     TResult Function(String progId, String message, int errorCode)? ascomError,
@@ -14825,6 +15564,8 @@ class _$NightshadeError_ResourceExhaustedImpl
     required TResult Function(NightshadeError_DownloadFailed value)
         downloadFailed,
     required TResult Function(NightshadeError_IoError value) ioError,
+    required TResult Function(NightshadeError_SerializationError value)
+        serializationError,
     required TResult Function(NightshadeError_PlateSolveError value)
         plateSolveError,
     required TResult Function(NightshadeError_SequenceError value)
@@ -14876,6 +15617,8 @@ class _$NightshadeError_ResourceExhaustedImpl
     TResult? Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult? Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult? Function(NightshadeError_IoError value)? ioError,
+    TResult? Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult? Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult? Function(NightshadeError_SequenceError value)? sequenceError,
     TResult? Function(NightshadeError_AscomError value)? ascomError,
@@ -14925,6 +15668,8 @@ class _$NightshadeError_ResourceExhaustedImpl
     TResult Function(NightshadeError_ExposureFailed value)? exposureFailed,
     TResult Function(NightshadeError_DownloadFailed value)? downloadFailed,
     TResult Function(NightshadeError_IoError value)? ioError,
+    TResult Function(NightshadeError_SerializationError value)?
+        serializationError,
     TResult Function(NightshadeError_PlateSolveError value)? plateSolveError,
     TResult Function(NightshadeError_SequenceError value)? sequenceError,
     TResult Function(NightshadeError_AscomError value)? ascomError,

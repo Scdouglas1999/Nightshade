@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../services/network_service.dart';
 
@@ -24,7 +25,7 @@ class NetworkStatusIndicator extends StatelessWidget {
         return GestureDetector(
           onTap: () => _showConnectionDetails(context, state),
           child: compact
-              ? _buildCompactIndicator(state)
+              ? _buildCompactIndicator(context, state)
               : _buildFullIndicator(context, state),
         );
       },
@@ -32,13 +33,16 @@ class NetworkStatusIndicator extends StatelessWidget {
   }
 
   /// Build compact indicator (just icon and color)
-  Widget _buildCompactIndicator(NetworkServiceState state) {
-    final (color, icon) = _getStatusColorAndIcon(state);
+  Widget _buildCompactIndicator(
+    BuildContext context,
+    NetworkServiceState state,
+  ) {
+    final (color, icon) = _getStatusColorAndIcon(context, state);
 
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(
@@ -51,15 +55,15 @@ class NetworkStatusIndicator extends StatelessWidget {
 
   /// Build full indicator (icon, text, server name)
   Widget _buildFullIndicator(BuildContext context, NetworkServiceState state) {
-    final (color, icon) = _getStatusColorAndIcon(state);
+    final (color, icon) = _getStatusColorAndIcon(context, state);
     final theme = Theme.of(context);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -81,30 +85,53 @@ class NetworkStatusIndicator extends StatelessWidget {
                 Text(
                   state.connectedServer!.name,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: color.withOpacity(0.8),
+                    color: color.withValues(alpha: 0.8),
                   ),
                 ),
             ],
           ),
           const SizedBox(width: 4),
-          Icon(LucideIcons.chevronRight, size: 16, color: color.withOpacity(0.5)),
+          Icon(LucideIcons.chevronRight,
+              size: 16, color: color.withValues(alpha: 0.5)),
         ],
       ),
     );
   }
 
+  Color _getStatusColor(BuildContext context, NetworkStatus status) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>();
+    switch (status) {
+      case NetworkStatus.connected:
+        return colors?.success ?? theme.colorScheme.primary;
+      case NetworkStatus.reconnecting:
+        return colors?.warning ?? theme.colorScheme.secondary;
+      case NetworkStatus.disconnected:
+        return colors?.error ?? theme.colorScheme.error;
+    }
+  }
+
   /// Get status color and icon based on connection state
-  (Color, IconData) _getStatusColorAndIcon(NetworkServiceState state) {
+  (Color, IconData) _getStatusColorAndIcon(
+    BuildContext context,
+    NetworkServiceState state,
+  ) {
+    final color = _getStatusColor(context, state.status);
+    final themeColors = Theme.of(context).extension<NightshadeColors>();
     switch (state.status) {
       case NetworkStatus.connected:
-        return (Colors.green, LucideIcons.wifi);
+        return (color, LucideIcons.wifi);
       case NetworkStatus.reconnecting:
-        return (Colors.orange, LucideIcons.refreshCw);
+        return (color, LucideIcons.refreshCw);
       case NetworkStatus.disconnected:
         if (state.hasConnection) {
-          return (Colors.red, LucideIcons.wifiOff);
+          return (color, LucideIcons.wifiOff);
         }
-        return (Colors.grey, LucideIcons.wifiOff);
+        return (
+          themeColors?.textMuted ??
+              Theme.of(context).colorScheme.onSurfaceVariant,
+          LucideIcons.wifiOff,
+        );
     }
   }
 
@@ -156,7 +183,7 @@ class _ConnectionDetailsSheet extends StatelessWidget {
               Icon(
                 _getStatusIcon(state.status),
                 size: 32,
-                color: _getStatusColor(state.status),
+                color: _getStatusColor(context, state.status),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -170,7 +197,8 @@ class _ConnectionDetailsSheet extends StatelessWidget {
                     Text(
                       _getStatusDescription(state),
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -254,16 +282,14 @@ class _ConnectionDetailsSheet extends StatelessWidget {
           if (state.status == NetworkStatus.connected)
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: NightshadeButton(
                 onPressed: () {
                   Navigator.pop(context);
                   NetworkService().disconnect();
                 },
-                icon: const Icon(LucideIcons.logOut),
-                label: const Text('Disconnect'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                ),
+                icon: LucideIcons.logOut,
+                label: 'Disconnect',
+                variant: ButtonVariant.destructive,
               ),
             ),
         ],
@@ -282,14 +308,16 @@ class _ConnectionDetailsSheet extends StatelessWidget {
     }
   }
 
-  Color _getStatusColor(NetworkStatus status) {
+  Color _getStatusColor(BuildContext context, NetworkStatus status) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<NightshadeColors>();
     switch (status) {
       case NetworkStatus.connected:
-        return Colors.green;
+        return colors?.success ?? theme.colorScheme.primary;
       case NetworkStatus.reconnecting:
-        return Colors.orange;
+        return colors?.warning ?? theme.colorScheme.secondary;
       case NetworkStatus.disconnected:
-        return Colors.red;
+        return colors?.error ?? theme.colorScheme.error;
     }
   }
 
@@ -346,7 +374,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ),

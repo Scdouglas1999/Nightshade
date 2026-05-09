@@ -1,9 +1,10 @@
 import 'package:drift/drift.dart';
 
+import 'equipment_profiles.dart';
+
 /// Stores historical polar alignment results for tracking improvement over time
 @DataClassName('PolarAlignmentHistoryEntry')
-@TableIndex(
-    name: 'idx_polar_history_profile', columns: {#equipmentProfileId})
+@TableIndex(name: 'idx_polar_history_profile', columns: {#equipmentProfileId})
 @TableIndex(name: 'idx_polar_history_started', columns: {#startedAt})
 @TableIndex(name: 'idx_polar_history_completed', columns: {#completedAt})
 class PolarAlignmentHistory extends Table {
@@ -11,7 +12,9 @@ class PolarAlignmentHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
 
   /// Reference to equipment profile used (nullable for unassociated sessions)
-  TextColumn get equipmentProfileId => text().nullable()();
+  IntColumn get equipmentProfileId => integer()
+      .nullable()
+      .references(EquipmentProfiles, #id, onDelete: KeyAction.cascade)();
 
   // === Initial Error Values ===
 

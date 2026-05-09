@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'widgets/suggestion_card.dart';
 import 'widgets/suggestion_filters.dart';
+import 'widgets/transient_alerts_panel.dart';
 
 /// Screen displaying tonight's target suggestions based on visibility,
 /// scoring, and imaging progress.
@@ -24,29 +25,32 @@ class SuggestionsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: Column(
-        children: [
-          // App bar header
-          _SuggestionsHeader(
-            colors: colors,
-            activeFilterCount: filterCount,
-            onRefresh: () {
-              ref.read(refreshSuggestionsProvider.notifier).state++;
-            },
-            onFilterTap: () => _showFilterSheet(context, ref),
-          ),
-
-          // Main content area
-          Expanded(
-            child: suggestionsAsync.when(
-              data: (suggestions) =>
-                  _buildDataState(context, ref, colors, suggestions),
-              loading: () => _buildLoadingState(colors),
-              error: (error, stackTrace) =>
-                  _buildErrorState(context, ref, colors, error),
+      body: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: Column(
+          children: [
+            // App bar header
+            _SuggestionsHeader(
+              colors: colors,
+              activeFilterCount: filterCount,
+              onRefresh: () {
+                ref.read(refreshSuggestionsProvider.notifier).state++;
+              },
+              onFilterTap: () => _showFilterSheet(context, ref),
             ),
-          ),
-        ],
+
+            // Main content area
+            Expanded(
+              child: suggestionsAsync.when(
+                data: (suggestions) =>
+                    _buildDataState(context, ref, colors, suggestions),
+                loading: () => _buildLoadingState(colors),
+                error: (error, stackTrace) =>
+                    _buildErrorState(context, ref, colors, error),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -77,6 +81,7 @@ class SuggestionsScreen extends ConsumerWidget {
         }
 
         final isMobile = width < NightshadeTokens.breakpointTablet;
+        final isWideDesktop = width >= NightshadeTokens.breakpointDesktop;
 
         // On mobile, use RefreshIndicator for pull-to-refresh
         Widget content;
@@ -92,30 +97,91 @@ class SuggestionsScreen extends ConsumerWidget {
             padding: isMobile
                 ? NightshadeTokens.screenPaddingCompact
                 : NightshadeTokens.screenPadding,
-            itemCount: suggestions.length,
+            // +1 for the transient alerts panel at the top on mobile
+            itemCount: suggestions.length + 1,
             itemBuilder: (context, index) {
+              if (index == 0) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                  child: TransientAlertsPanel(),
+                );
+              }
+              final suggestionIndex = index - 1;
               return Padding(
                 padding:
                     const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
                 child: SizedBox(
                   height: cardHeight,
                   child: SuggestionCard(
-                    suggestion: suggestions[index],
+                    suggestion: suggestions[suggestionIndex],
                     onViewInFraming: () {
-                      _navigateToFraming(context, ref, suggestions[index]);
+                      _navigateToFraming(
+                          context, ref, suggestions[suggestionIndex]);
                     },
                     onAddToSequence: () {
                       _showAddToSequenceDialog(
-                          context, ref, suggestions[index]);
+                          context, ref, suggestions[suggestionIndex]);
                     },
                   ),
                 ),
               );
             },
           );
+        } else if (isWideDesktop) {
+          // Wide desktop: suggestions grid + transient alerts sidebar
+          final sidebarWidth = 340.0;
+          final gridWidth =
+              width - sidebarWidth - NightshadeTokens.spaceLg - 48;
+          final availableHeight = constraints.maxHeight;
+          final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+          final cardWidth = (gridWidth - NightshadeTokens.spaceLg) / 2;
+          final aspectRatio = cardWidth / cardHeight;
+
+          content = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Suggestion grid
+              Expanded(
+                child: GridView.builder(
+                  padding: NightshadeTokens.screenPadding,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: NightshadeTokens.spaceLg,
+                    mainAxisSpacing: NightshadeTokens.spaceLg,
+                    childAspectRatio: aspectRatio,
+                  ),
+                  itemCount: suggestions.length,
+                  itemBuilder: (context, index) {
+                    return SuggestionCard(
+                      suggestion: suggestions[index],
+                      onViewInFraming: () {
+                        _navigateToFraming(context, ref, suggestions[index]);
+                      },
+                      onAddToSequence: () {
+                        _showAddToSequenceDialog(
+                            context, ref, suggestions[index]);
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(width: NightshadeTokens.spaceLg),
+
+              // Transient alerts sidebar
+              SizedBox(
+                width: sidebarWidth,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: NightshadeTokens.spaceLg,
+                  ),
+                  child: const TransientAlertsPanel(),
+                ),
+              ),
+            ],
+          );
         } else {
-          // Grid layout for tablet/desktop
-          // Calculate card height for ~1.5 rows visible (matching mobile feel)
+          // Tablet: grid layout with transient alerts above
           final availableHeight = constraints.maxHeight;
           final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
           const hPad = NightshadeTokens.space2xl * 2;
@@ -124,26 +190,51 @@ class SuggestionsScreen extends ConsumerWidget {
               (width - hPad - (crossAxisCount - 1) * gap) / crossAxisCount;
           final aspectRatio = cardWidth / cardHeight;
 
-          content = GridView.builder(
-            padding: NightshadeTokens.screenPadding,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: NightshadeTokens.spaceLg,
-              mainAxisSpacing: NightshadeTokens.spaceLg,
-              childAspectRatio: aspectRatio,
-            ),
-            itemCount: suggestions.length,
-            itemBuilder: (context, index) {
-              return SuggestionCard(
-                suggestion: suggestions[index],
-                onViewInFraming: () {
-                  _navigateToFraming(context, ref, suggestions[index]);
-                },
-                onAddToSequence: () {
-                  _showAddToSequenceDialog(context, ref, suggestions[index]);
-                },
-              );
-            },
+          content = CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  NightshadeTokens.space2xl,
+                  NightshadeTokens.spaceLg,
+                  NightshadeTokens.space2xl,
+                  NightshadeTokens.spaceMd,
+                ),
+                sliver: const SliverToBoxAdapter(
+                  child: TransientAlertsPanel(),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.space2xl,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: NightshadeTokens.spaceLg,
+                    mainAxisSpacing: NightshadeTokens.spaceLg,
+                    childAspectRatio: aspectRatio,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      return SuggestionCard(
+                        suggestion: suggestions[index],
+                        onViewInFraming: () {
+                          _navigateToFraming(context, ref, suggestions[index]);
+                        },
+                        onAddToSequence: () {
+                          _showAddToSequenceDialog(
+                              context, ref, suggestions[index]);
+                        },
+                      );
+                    },
+                    childCount: suggestions.length,
+                  ),
+                ),
+              ),
+              const SliverPadding(
+                padding: EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
+              ),
+            ],
           );
         }
 
@@ -442,6 +533,8 @@ class _SuggestionsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return Container(
       height: NightshadeTokens.appBarHeight,
       padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
@@ -493,10 +586,10 @@ class _SuggestionsHeader extends StatelessWidget {
                     child: Text(
                       '$activeFilterCount',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: onPrimary,
                       ),
                     ),
                   ),

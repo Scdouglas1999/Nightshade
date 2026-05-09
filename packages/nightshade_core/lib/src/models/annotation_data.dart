@@ -189,6 +189,46 @@ extension PlateSolveDataExtensions on PlateSolveData {
     return (x: xPixels, y: yPixels);
   }
   
+  /// Convert sky coordinates (RA/Dec) to image pixel coordinates without
+  /// clamping to image bounds. Returns null only if the point is behind the
+  /// tangent plane. Used for overlays like coordinate grids that need to draw
+  /// lines extending to image edges.
+  ({double x, double y})? skyToPixelUnclamped(double ra, double dec) {
+    final raRad = ra * (3.141592653589793 / 180.0);
+    final decRad = dec * (3.141592653589793 / 180.0);
+    final centerRaRad = this.ra * (3.141592653589793 / 180.0);
+    final centerDecRad = this.dec * (3.141592653589793 / 180.0);
+
+    final cosDec = math.cos(decRad);
+    final sinDec = math.sin(decRad);
+    final cosCenterDec = math.cos(centerDecRad);
+    final sinCenterDec = math.sin(centerDecRad);
+    final dRa = raRad - centerRaRad;
+
+    final denominator = sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
+    if (denominator <= 0) {
+      return null;
+    }
+
+    final xi = cosDec * math.sin(dRa) / denominator;
+    final eta = (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) / denominator;
+
+    final xiDeg = xi * (180.0 / 3.141592653589793);
+    final etaDeg = eta * (180.0 / 3.141592653589793);
+
+    final rotRad = rotation * (3.141592653589793 / 180.0);
+    final cosRot = math.cos(rotRad);
+    final sinRot = math.sin(rotRad);
+
+    final xiRot = xiDeg * cosRot - etaDeg * sinRot;
+    final etaRot = xiDeg * sinRot + etaDeg * cosRot;
+
+    final xPixels = (xiRot * 3600.0 / pixelScale) + imageWidth / 2;
+    final yPixels = (imageHeight / 2) - (etaRot * 3600.0 / pixelScale);
+
+    return (x: xPixels, y: yPixels);
+  }
+
   /// Convert image pixel coordinates to sky coordinates (RA/Dec)
   ({double ra, double dec}) pixelToSky(double x, double y) {
     // Convert pixels to degrees from center

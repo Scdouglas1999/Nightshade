@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import '../celestial_object.dart';
 import '../coordinate_system.dart';
@@ -119,21 +120,63 @@ class HygStarCatalog extends Catalog<Star> {
   static Star? _parseHygLine(String line) {
     final parts = _parseCsvLine(line);
     if (parts.length < 30) return null;
-    
+
     final hygId = int.tryParse(parts[0]) ?? 0;
     final hipId = int.tryParse(parts[1]);
     final hdId = int.tryParse(parts[2]);
     final hrId = int.tryParse(parts[3]);
     final properName = parts.length > 6 ? parts[6] : '';
-    final raHours = double.tryParse(parts[7]) ?? 0;
-    final dec = double.tryParse(parts[8]) ?? 0;
+    final raHoursJ2000 = double.tryParse(parts[7]) ?? 0;
+    final decJ2000 = double.tryParse(parts[8]) ?? 0;
+    final pmra = double.tryParse(parts[10]);   // mas/yr on sky (includes cos(dec))
+    final pmdec = double.tryParse(parts[11]);  // mas/yr
     final magnitude = double.tryParse(parts[13]);
     final spectralType = parts.length > 15 ? parts[15] : null;
     final colorIndex = parts.length > 16 ? double.tryParse(parts[16]) : null;
     final bayerDesignation = parts.length > 27 ? parts[27] : null;
     final flamsteedNumber = parts.length > 28 ? parts[28] : null;
     final constellation = parts.length > 29 ? parts[29] : null;
-    
+
+    double raHours = raHoursJ2000;
+    double dec = decJ2000;
+
+    // Apply proper motion for stars with significant motion (>5 mas/yr).
+    // Most stars have pmra/pmdec < 1 mas/yr where the correction over 26 years
+    // is sub-arcsecond — completely invisible. Only ~2% of stars have motion
+    // large enough to matter visually (>5 mas/yr = >0.13" over 26 years).
+    // Skipping low-motion stars avoids floating point noise in the division
+    // by cos(dec) that corrupts positions for the majority of the catalog.
+    if (pmra != null && pmdec != null) {
+      final pmTotal = pmra.abs() + pmdec.abs();
+      if (pmTotal > 5.0) { // Only correct if total motion > 5 mas/yr
+        final now = DateTime.now();
+        final yearsSinceJ2000 = (now.year - 2000) + (now.month - 1) / 12.0 + (now.day - 1) / 365.25;
+
+        // Convert mas/yr to degrees/yr: 1 mas = 1/3,600,000 degrees
+        final pmraDegreesPerYear = pmra / 3600000.0;
+        final pmdecDegreesPerYear = pmdec / 3600000.0;
+
+        // pmra from HYG is "proper motion in RA * cos(dec)" (mas/yr),
+        // so to get the actual RA change, divide by cos(dec).
+        // Use dart:math cos() for accuracy.
+        final cosDec = math.cos(decJ2000 * math.pi / 180.0).abs().clamp(0.01, 1.0);
+
+        final raCorrectionHours = (pmraDegreesPerYear / cosDec) * yearsSinceJ2000 / 15.0;
+        final decCorrectionDeg = pmdecDegreesPerYear * yearsSinceJ2000;
+
+        // Safety clamp: no star moves more than 0.1h RA (~1.5°) or 1° Dec in 50 years
+        raHours += raCorrectionHours.clamp(-0.1, 0.1);
+        dec += decCorrectionDeg.clamp(-1.0, 1.0);
+
+        // Normalize RA to [0, 24)
+        if (raHours < 0) raHours += 24.0;
+        if (raHours >= 24) raHours -= 24.0;
+
+        // Clamp dec to [-90, 90]
+        dec = dec.clamp(-90.0, 90.0);
+      }
+    }
+
     // Build the star ID (prefer HIP, then HD, then HYG)
     String id;
     if (hipId != null && hipId > 0) {
@@ -143,7 +186,7 @@ class HygStarCatalog extends Catalog<Star> {
     } else {
       id = 'HYG$hygId';
     }
-    
+
     // Build the name (prefer proper name, then Bayer, then Flamsteed, then catalog ID)
     String starName = properName;
     if (starName.isEmpty && bayerDesignation != null && bayerDesignation.isNotEmpty) {
@@ -155,13 +198,13 @@ class HygStarCatalog extends Catalog<Star> {
     if (starName.isEmpty) {
       starName = id;
     }
-    
+
     // Build alternate catalog IDs
     final catalogIds = <String>[];
     if (hipId != null && hipId > 0) catalogIds.add('HIP $hipId');
     if (hdId != null && hdId > 0) catalogIds.add('HD $hdId');
     if (hrId != null && hrId > 0) catalogIds.add('HR $hrId');
-    
+
     return Star(
       id: id,
       name: starName.trim(),
@@ -176,6 +219,7 @@ class HygStarCatalog extends Catalog<Star> {
       catalogIds: catalogIds,
     );
   }
+
   
   /// Parse a CSV line handling quoted fields
   static List<String> _parseCsvLine(String line) {

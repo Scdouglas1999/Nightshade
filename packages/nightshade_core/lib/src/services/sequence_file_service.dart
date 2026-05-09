@@ -5,9 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
 import '../models/sequence/sequence_models.dart';
+import '../providers/profiles_provider.dart';
 
 /// Service for saving and loading sequences to/from JSON files
+typedef SequenceImportValidator = void Function(Sequence sequence);
+
 class SequenceFileService {
+  final SequenceImportValidator? _importValidator;
+
+  SequenceFileService({SequenceImportValidator? importValidator})
+      : _importValidator = importValidator;
+
   /// Export a sequence to a JSON file
   Future<void> exportSequence(Sequence sequence) async {
     // Prepare JSON
@@ -48,13 +56,132 @@ class SequenceFileService {
 
     // Read and parse file
     final jsonString = await file.readAsString();
-    final json = jsonDecode(jsonString) as Map<String, dynamic>;
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(jsonString);
+    } catch (e) {
+      throw FormatException('Invalid JSON in sequence file: $e');
+    }
 
-    return _jsonToSequence(json);
+    if (decoded is! Map<String, dynamic>) {
+      throw FormatException(
+        'Sequence file must contain a JSON object, got ${decoded.runtimeType}',
+      );
+    }
+
+    _validateSequenceJson(decoded);
+
+    // Read schema version and apply migrations if needed
+    final migrated = _migrateSchema(decoded);
+
+    final sequence = _jsonToSequence(migrated);
+    _importValidator?.call(sequence);
+    return sequence;
   }
+
+  /// Read the schemaVersion from a sequence JSON and apply any needed migrations.
+  /// Files without a schemaVersion are treated as version 0 (pre-versioning format).
+  /// Returns the migrated JSON (may be the same object if no migration needed).
+  Map<String, dynamic> _migrateSchema(Map<String, dynamic> json) {
+    final rawVersion = json['schemaVersion'];
+    final version = rawVersion is int ? rawVersion : 0;
+
+    if (version > currentSchemaVersion) {
+      throw FormatException(
+        'Sequence file has schemaVersion $version, but this version of Nightshade '
+        'only supports up to schemaVersion $currentSchemaVersion. '
+        'Please update Nightshade to open this file.',
+      );
+    }
+
+    // Apply migrations in order. Each case falls through to the next.
+    // Add new migration cases here when incrementing currentSchemaVersion.
+    //
+    // Example for future migration:
+    // if (version < 2) {
+    //   // Migrate from v1 to v2: e.g., rename a field
+    //   json['newFieldName'] = json.remove('oldFieldName');
+    // }
+
+    // Version 0 -> 1: No structural changes needed. Version 0 files
+    // (pre-versioning) are compatible with version 1.
+
+    // Stamp the current version so re-exports are up to date
+    json['schemaVersion'] = currentSchemaVersion;
+    return json;
+  }
+
+  /// Validate that a sequence JSON object has the required fields and types
+  /// before attempting to parse it. Throws [FormatException] on validation failure.
+  void _validateSequenceJson(Map<String, dynamic> json) {
+    // 'nodes' is required and must be a map
+    if (!json.containsKey('nodes')) {
+      throw FormatException(
+        'Sequence file missing required field "nodes"',
+      );
+    }
+    if (json['nodes'] is! Map) {
+      throw FormatException(
+        'Sequence field "nodes" must be a JSON object, '
+        'got ${json['nodes'].runtimeType}',
+      );
+    }
+
+    // 'name' must be a string if present
+    if (json.containsKey('name') && json['name'] is! String) {
+      throw FormatException(
+        'Sequence field "name" must be a string, got ${json['name'].runtimeType}',
+      );
+    }
+
+    // 'rootNodeId' must be a string if present
+    if (json.containsKey('rootNodeId') &&
+        json['rootNodeId'] != null &&
+        json['rootNodeId'] is! String) {
+      throw FormatException(
+        'Sequence field "rootNodeId" must be a string, '
+        'got ${json['rootNodeId'].runtimeType}',
+      );
+    }
+
+    // 'isTemplate' must be a bool if present
+    if (json.containsKey('isTemplate') &&
+        json['isTemplate'] != null &&
+        json['isTemplate'] is! bool) {
+      throw FormatException(
+        'Sequence field "isTemplate" must be a boolean, '
+        'got ${json['isTemplate'].runtimeType}',
+      );
+    }
+
+    // Validate each node has a 'nodeType' string
+    final nodesMap = (json['nodes'] as Map).cast<String, dynamic>();
+    for (final entry in nodesMap.entries) {
+      if (entry.value is! Map) {
+        throw FormatException(
+          'Sequence node "${entry.key}" must be a JSON object, '
+          'got ${entry.value.runtimeType}',
+        );
+      }
+      final nodeJson = (entry.value as Map).cast<String, dynamic>();
+      if (!nodeJson.containsKey('nodeType') ||
+          nodeJson['nodeType'] is! String ||
+          (nodeJson['nodeType'] as String).trim().isEmpty) {
+        throw FormatException(
+          'Sequence node "${entry.key}" missing required string field "nodeType"',
+        );
+      }
+    }
+  }
+
+  /// Current schema version for exported sequences.
+  /// Increment this when making breaking changes to the JSON format
+  /// and add a migration case in [_migrateSchema].
+  static const int currentSchemaVersion = 1;
 
   Map<String, dynamic> _sequenceToJson(Sequence sequence) {
     return {
+      'schemaVersion': currentSchemaVersion,
       'version': '2.0',
       'name': sequence.name,
       'description': sequence.description,
@@ -121,6 +248,7 @@ class SequenceFileService {
         'repeatUntil': node.repeatUntil?.toIso8601String(),
         'repeatUntilAltitude': node.repeatUntilAltitude,
         'integrationTimeTarget': node.integrationTimeTarget,
+        'maxSafetyIterations': node.maxSafetyIterations,
       });
     } else if (node is ParallelNode) {
       base.addAll({
@@ -176,6 +304,8 @@ class SequenceFileService {
         'stepsOut': node.stepsOut,
         'exposuresPerPoint': node.exposuresPerPoint,
         'exposureDuration': node.exposureDuration,
+        'useSettingsDefaults': node.useSettingsDefaults,
+        'maxDurationSecs': node.maxDurationSecs,
       });
     } else if (node is DitherNode) {
       base.addAll({
@@ -205,6 +335,7 @@ class SequenceFileService {
     } else if (node is WarmCameraNode) {
       base.addAll({
         'ratePerMin': node.ratePerMin,
+        'targetTemp': node.targetTemp,
       });
     } else if (node is RotatorNode) {
       base.addAll({
@@ -332,6 +463,8 @@ class SequenceFileService {
               (json['repeatUntilAltitude'] as num?)?.toDouble(),
           integrationTimeTarget:
               (json['integrationTimeTarget'] as num?)?.toDouble(),
+          maxSafetyIterations:
+              (json['maxSafetyIterations'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -412,8 +545,7 @@ class SequenceFileService {
           useTargetCoords: json['useTargetCoords'] as bool? ?? true,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
-          accuracyArcsec:
-              (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
           exposureDuration:
               (json['exposureDuration'] as num?)?.toDouble() ?? 5.0,
@@ -454,6 +586,9 @@ class SequenceFileService {
           exposuresPerPoint: (json['exposuresPerPoint'] as num?)?.toInt() ?? 1,
           exposureDuration:
               (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          useSettingsDefaults: json['useSettingsDefaults'] as bool? ?? true,
+          maxDurationSecs:
+              (json['maxDurationSecs'] as num?)?.toDouble() ?? 600.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -529,6 +664,7 @@ class SequenceFileService {
           id: id,
           name: name ?? 'Warm Camera',
           ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 2.0,
+          targetTemp: (json['targetTemp'] as num?)?.toDouble() ?? 20.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -826,5 +962,41 @@ class SequenceFileService {
 
 /// Provider for the sequence file service
 final sequenceFileServiceProvider = Provider<SequenceFileService>((ref) {
-  return SequenceFileService();
+  return SequenceFileService(
+    importValidator: (sequence) {
+      final activeProfile = ref.read(activeEquipmentProfileProvider);
+      final availableFilters =
+          activeProfile?.filterNames.toSet() ?? const <String>{};
+      final referencedFilters = <String>{};
+
+      for (final node in sequence.nodes.values) {
+        if (node is ExposureNode &&
+            node.filter != null &&
+            node.filter!.isNotEmpty) {
+          referencedFilters.add(node.filter!);
+        } else if (node is FilterChangeNode && node.filterName.isNotEmpty) {
+          referencedFilters.add(node.filterName);
+        }
+      }
+
+      if (referencedFilters.isEmpty) {
+        return;
+      }
+
+      if (availableFilters.isEmpty) {
+        throw FormatException(
+          'Sequence import requires an active equipment profile with filters configured. '
+          'Referenced filters: ${referencedFilters.toList()..sort()}',
+        );
+      }
+
+      final missingFilters = referencedFilters.difference(availableFilters);
+      if (missingFilters.isNotEmpty) {
+        final missing = missingFilters.toList()..sort();
+        throw FormatException(
+          'Sequence references filters not present in the active equipment profile: $missing',
+        );
+      }
+    },
+  );
 });

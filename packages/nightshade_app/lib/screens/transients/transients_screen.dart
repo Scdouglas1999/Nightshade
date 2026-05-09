@@ -406,6 +406,8 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return Material(
       color: isSelected ? colors.primary : colors.surfaceAlt,
       borderRadius: NightshadeTokens.borderRadiusFull,
@@ -422,7 +424,7 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: isSelected ? Colors.white : colors.textSecondary,
+              color: isSelected ? onPrimary : colors.textSecondary,
             ),
           ),
         ),

@@ -389,52 +389,7 @@ impl IndiCamera {
 
     /// Capture an image
     pub async fn capture_image(&self, duration_secs: f64) -> Result<Vec<u8>, String> {
-        // Subscribe to events BEFORE starting exposure to avoid missing the event
-        let mut rx = {
-            let client = self.client.read().await;
-            client.subscribe()
-        };
-
-        // Start exposure
-        self.start_exposure(duration_secs).await?;
-
-        // Wait for BLOB
-        // We might get other events, so loop until we get the blob or timeout
-        let timeout = std::time::Duration::from_secs_f64(duration_secs + 30.0); // Exposure + 30s buffer
-
-        let start_time = std::time::Instant::now();
-
-        loop {
-            if start_time.elapsed() > timeout {
-                return Err("Timeout waiting for image".to_string());
-            }
-
-            match tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv()).await {
-                Ok(Ok(event)) => match event {
-                    crate::IndiEvent::BlobReceived {
-                        device,
-                        element,
-                        data,
-                        ..
-                    } => {
-                        if device == self.device_name && (element == "CCD1" || element == "CCD2") {
-                            return Ok(data);
-                        }
-                    }
-                    _ => {}
-                },
-                Ok(Err(e)) => {
-                    // Channel lag or closed
-                    tracing::warn!("INDI event channel error: {}", e);
-                    // If channel is closed, we can't receive image
-                    return Err(format!("Event channel error: {}", e));
-                }
-                Err(_) => {
-                    // Timeout on recv, check total timeout
-                    continue;
-                }
-            }
-        }
+        self.capture_image_with_timeout(duration_secs, None).await
     }
 
     /// Capture an image with configurable timeout
@@ -443,16 +398,20 @@ impl IndiCamera {
         duration_secs: f64,
         timeout_buffer: Option<Duration>,
     ) -> Result<Vec<u8>, String> {
-        let buffer_secs = timeout_buffer.unwrap_or_else(|| {
-            let client = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(self.client.read())
-            });
-            Duration::from_secs(client.timeout_config().camera_exposure_buffer_secs)
-        });
+        let buffer_secs = match timeout_buffer {
+            Some(buffer) => buffer,
+            None => {
+                let client = self.client.read().await;
+                Duration::from_secs(client.timeout_config().camera_exposure_buffer_secs)
+            }
+        };
 
         // Subscribe to events BEFORE starting exposure to avoid missing the event
+        // and clear any stale cached BLOB from a previous exposure.
         let mut rx = {
             let client = self.client.read().await;
+            client.clear_blob(&self.device_name, "CCD1", "CCD1").await;
+            client.clear_blob(&self.device_name, "CCD2", "CCD2").await;
             client.subscribe()
         };
 
@@ -486,18 +445,36 @@ impl IndiCamera {
                     }
                     _ => {}
                 },
-                Ok(Err(e)) => {
-                    tracing::warn!(
-                        "INDI event channel error for device '{}': {}",
-                        self.device_name,
-                        e
-                    );
-                    return Err(format!("Event channel error for device '{}': {}. The connection may have been lost.", self.device_name, e));
-                }
+                Ok(Err(e)) => match e {
+                    tokio::sync::broadcast::error::RecvError::Lagged(skipped) => {
+                        tracing::warn!(
+                                "INDI event channel lagged for device '{}' by {} messages; checking cached BLOB state",
+                                self.device_name,
+                                skipped
+                            );
+                    }
+                    tokio::sync::broadcast::error::RecvError::Closed => {
+                        return Err(format!(
+                                "Event channel closed for device '{}'. The connection may have been lost.",
+                                self.device_name
+                            ));
+                    }
+                },
                 Err(_) => {
-                    // Timeout on recv (1 second), check total timeout
-                    continue;
+                    // Timeout on recv (1 second), fall through and check cached BLOB state.
                 }
+            }
+
+            let cached_blob = {
+                let client = self.client.read().await;
+                if let Some(data) = client.take_blob(&self.device_name, "CCD1", "CCD1").await {
+                    Some(data)
+                } else {
+                    client.take_blob(&self.device_name, "CCD2", "CCD2").await
+                }
+            };
+            if let Some(data) = cached_blob {
+                return Ok(data);
             }
         }
     }
@@ -508,12 +485,13 @@ impl IndiCamera {
         duration_secs: f64,
         timeout_buffer: Option<Duration>,
     ) -> Result<(), String> {
-        let buffer_secs = timeout_buffer.unwrap_or_else(|| {
-            let client = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(self.client.read())
-            });
-            Duration::from_secs(client.timeout_config().camera_exposure_buffer_secs)
-        });
+        let buffer_secs = match timeout_buffer {
+            Some(buffer) => buffer,
+            None => {
+                let client = self.client.read().await;
+                Duration::from_secs(client.timeout_config().camera_exposure_buffer_secs)
+            }
+        };
 
         // Start the exposure
         {

@@ -307,7 +307,6 @@ struct JsonRpcRequest {
 struct JsonRpcResponse {
     result: Option<serde_json::Value>,
     error: Option<JsonRpcError>,
-    id: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -664,11 +663,7 @@ impl Phd2Client {
                 if let Ok(mut registry) = response_registry.lock() {
                     if let Some(sender) = registry.remove(&id) {
                         if let Err(e) = sender.send(json.to_string()) {
-                            tracing::warn!(
-                                "PHD2: Failed to send response for id {}: {}",
-                                id,
-                                e
-                            );
+                            tracing::warn!("PHD2: Failed to send response for id {}: {}", id, e);
                         }
                     } else {
                         tracing::debug!("PHD2: Received response for unknown id {}", id);
@@ -710,9 +705,7 @@ impl Phd2Client {
                             }
                         }
                     } else {
-                        tracing::warn!(
-                            "PHD2: No event callback registered, dropping event"
-                        );
+                        tracing::warn!("PHD2: No event callback registered, dropping event");
                     }
                 } else {
                     tracing::debug!("PHD2: Unhandled event type: {}", event_msg.event);
@@ -788,7 +781,10 @@ impl Phd2Client {
                     format!("Request '{}' timed out (id={})", method, request_id)
                 }
                 mpsc::RecvTimeoutError::Disconnected => {
-                    format!("Response channel disconnected for '{}' (id={})", method, request_id)
+                    format!(
+                        "Response channel disconnected for '{}' (id={})",
+                        method, request_id
+                    )
                 }
             })?;
 

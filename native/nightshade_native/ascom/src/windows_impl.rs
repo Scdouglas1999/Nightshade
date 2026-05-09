@@ -177,14 +177,17 @@ pub fn get_timeout_config() -> TimeoutConfig {
         .get_or_init(|| std::sync::RwLock::new(TimeoutConfig::default()))
         .read()
         .map(|g| *g)
-        .unwrap_or_default()
+        .unwrap_or_else(|e| *e.into_inner())
 }
 
 /// Set the timeout configuration
 pub fn set_timeout_config(config: TimeoutConfig) {
     if let Some(lock) = TIMEOUT_CONFIG.get() {
-        if let Ok(mut guard) = lock.write() {
-            *guard = config;
+        match lock.write() {
+            Ok(mut guard) => *guard = config,
+            Err(e) => {
+                *e.into_inner() = config;
+            }
         }
     } else {
         let _ = TIMEOUT_CONFIG.set(std::sync::RwLock::new(config));
@@ -361,7 +364,7 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
     let mut devices = Vec::new();
 
     let reg_path = format!("SOFTWARE\\ASCOM\\{} Drivers", device_type);
-    tracing::info!("Scanning ASCOM registry: {}", reg_path);
+    tracing::debug!("Scanning ASCOM registry: {}", reg_path);
 
     if let Some(found) = scan_registry_path(&reg_path) {
         devices.extend(found);
@@ -439,7 +442,7 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
                     registry_description.clone()
                 };
 
-                tracing::info!("Found ASCOM driver: {} - {}", prog_id, registry_description);
+                tracing::debug!("Found ASCOM driver: {} - {}", prog_id, registry_description);
 
                 devices.push(AscomDevice {
                     prog_id: prog_id.clone(),
@@ -2291,6 +2294,10 @@ impl AscomMount {
         self.device.get_bool_property("CanSync")
     }
 
+    pub fn can_set_tracking(&self) -> Result<bool, String> {
+        self.device.get_bool_property("CanSetTracking")
+    }
+
     pub fn park(&mut self) -> Result<(), String> {
         self.device.call_method("Park")
     }
@@ -2444,6 +2451,7 @@ impl AscomMount {
             can_slew: self.can_slew().ok(),
             can_slew_async: self.can_slew_async().ok(),
             can_sync: self.can_sync().ok(),
+            can_set_tracking: self.can_set_tracking().ok(),
             can_park: self.can_park().ok(),
             can_unpark: self.can_unpark().ok(),
             can_pulse_guide: self.can_pulse_guide().ok(),
@@ -2510,6 +2518,7 @@ pub struct MountCapabilities {
     pub can_slew: Option<bool>,
     pub can_slew_async: Option<bool>,
     pub can_sync: Option<bool>,
+    pub can_set_tracking: Option<bool>,
     pub can_park: Option<bool>,
     pub can_unpark: Option<bool>,
     pub can_pulse_guide: Option<bool>,
@@ -2923,15 +2932,12 @@ impl AscomDome {
 
     /// Check if dome is at park position
     pub fn at_park(&self) -> Result<bool, String> {
-        // AtPark returns a boolean
-        let val: i32 = self.device.get_int_property("AtPark")?;
-        Ok(val != 0)
+        self.device.get_bool_property("AtPark")
     }
 
     /// Check if dome is slewing
     pub fn slewing(&self) -> Result<bool, String> {
-        let val: i32 = self.device.get_int_property("Slewing")?;
-        Ok(val != 0)
+        self.device.get_bool_property("Slewing")
     }
 
     /// Get the dome azimuth in degrees

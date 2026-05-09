@@ -98,7 +98,8 @@ class SequenceTimeline extends ConsumerWidget {
       if (node is ExposureNode) {
         duration = node.totalDurationSecs;
         type = TimelineSegmentType.exposure;
-        customColor = node.filter != null ? _getFilterColor(node.filter!) : null;
+        customColor =
+            node.filter != null ? _getFilterColor(node.filter!) : null;
       } else if (node is AutofocusNode) {
         duration = node.exposureDuration * 10; // Estimate ~10 exposures
         type = TimelineSegmentType.focus;
@@ -168,23 +169,23 @@ class SequenceTimeline extends ConsumerWidget {
     switch (filter.toLowerCase()) {
       case 'l':
       case 'luminance':
-        return Colors.white;
+        return const Color(0xFFFFFFFF);
       case 'r':
       case 'red':
-        return Colors.red;
+        return const Color(0xFFEF4444);
       case 'g':
       case 'green':
-        return Colors.green;
+        return const Color(0xFF22C55E);
       case 'b':
       case 'blue':
-        return Colors.blue;
+        return const Color(0xFF3B82F6);
       case 'ha':
       case 'h-alpha':
-        return Colors.red.shade700;
+        return const Color(0xFFB91C1C);
       case 'oiii':
-        return Colors.teal;
+        return const Color(0xFF14B8A6);
       case 'sii':
-        return Colors.deepOrange;
+        return const Color(0xFFEA580C);
       default:
         return null;
     }
@@ -322,7 +323,6 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
   DateTime? _twilightCacheDate;
   double? _twilightCacheLat;
   double? _twilightCacheLon;
-
 
   @override
   void initState() {
@@ -462,7 +462,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Icon(LucideIcons.ganttChart, size: 14, color: widget.colors.textMuted),
+              Icon(LucideIcons.ganttChart,
+                  size: 14, color: widget.colors.textMuted),
               const SizedBox(width: 8),
               Text(
                 'Sequence Timeline',
@@ -511,8 +512,9 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
                               final widthFraction =
                                   segment.duration / widget.totalDuration;
                               return Expanded(
-                                flex:
-                                    (widthFraction * 1000).round().clamp(1, 1000),
+                                flex: (widthFraction * 1000)
+                                    .round()
+                                    .clamp(1, 1000),
                                 child: _TimelineBlock(
                                   colors: widget.colors,
                                   segment: segment,
@@ -532,7 +534,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
 
                     // Target rise/set markers
                     if (showOverlay && targetWindows != null)
-                      ..._buildTargetMarkers(targetWindows, constraints.maxWidth),
+                      ..._buildTargetMarkers(
+                          targetWindows, constraints.maxWidth),
 
                     // "Now" indicator
                     if (_nowFraction != null)
@@ -557,15 +560,25 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
           runSpacing: 4,
           children: [
             _LegendItem(
-                colors: widget.colors, color: widget.colors.primary, label: 'Exposure'),
+                colors: widget.colors,
+                color: widget.colors.primary,
+                label: 'Exposure'),
             _LegendItem(
-                colors: widget.colors, color: widget.colors.warning, label: 'Focus'),
+                colors: widget.colors,
+                color: widget.colors.warning,
+                label: 'Focus'),
             _LegendItem(
-                colors: widget.colors, color: widget.colors.accent, label: 'Slew'),
+                colors: widget.colors,
+                color: widget.colors.accent,
+                label: 'Slew'),
             _LegendItem(
-                colors: widget.colors, color: widget.colors.info, label: 'Dither'),
+                colors: widget.colors,
+                color: widget.colors.info,
+                label: 'Dither'),
             _LegendItem(
-                colors: widget.colors, color: widget.colors.textMuted, label: 'Wait'),
+                colors: widget.colors,
+                color: widget.colors.textMuted,
+                label: 'Wait'),
             if (showOverlay) ...[
               const SizedBox(width: 8),
               _LegendItem(
@@ -704,13 +717,13 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
       if (visibility.riseTime != null &&
           visibility.riseTime!.isAfter(start) &&
           visibility.riseTime!.isBefore(end)) {
-        final fraction =
-            visibility.riseTime!.difference(start).inSeconds / widget.totalDuration;
+        final fraction = visibility.riseTime!.difference(start).inSeconds /
+            widget.totalDuration;
         markers.add(_buildTargetMarker(
           fraction: fraction,
           totalWidth: totalWidth,
           label: '$targetName rises',
-          color: Colors.green,
+          color: widget.colors.success,
           icon: LucideIcons.sunrise,
         ));
       }
@@ -719,13 +732,13 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
       if (visibility.setTime != null &&
           visibility.setTime!.isAfter(start) &&
           visibility.setTime!.isBefore(end)) {
-        final fraction =
-            visibility.setTime!.difference(start).inSeconds / widget.totalDuration;
+        final fraction = visibility.setTime!.difference(start).inSeconds /
+            widget.totalDuration;
         markers.add(_buildTargetMarker(
           fraction: fraction,
           totalWidth: totalWidth,
           label: '$targetName sets',
-          color: Colors.orange,
+          color: widget.colors.warning,
           icon: LucideIcons.sunset,
         ));
       }
@@ -734,14 +747,13 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
       if (visibility.transitTime != null &&
           visibility.transitTime!.isAfter(start) &&
           visibility.transitTime!.isBefore(end)) {
-        final fraction =
-            visibility.transitTime!.difference(start).inSeconds /
-                widget.totalDuration;
+        final fraction = visibility.transitTime!.difference(start).inSeconds /
+            widget.totalDuration;
         markers.add(_buildTargetMarker(
           fraction: fraction,
           totalWidth: totalWidth,
           label: '$targetName transit',
-          color: Colors.cyan,
+          color: widget.colors.info,
           icon: LucideIcons.moveVertical,
         ));
       }
@@ -781,7 +793,11 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
                 color: color.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(2),
               ),
-              child: Icon(icon, size: 8, color: Colors.white),
+              child: Icon(
+                icon,
+                size: 8,
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
             ),
           ),
         ),
@@ -803,10 +819,10 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
         child: Container(
           width: 2,
           decoration: BoxDecoration(
-            color: Colors.red,
+            color: widget.colors.error,
             boxShadow: [
               BoxShadow(
-                color: Colors.red.withValues(alpha: 0.5),
+                color: widget.colors.error.withValues(alpha: 0.5),
                 blurRadius: 4,
                 spreadRadius: 1,
               ),
@@ -817,8 +833,8 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
+                decoration: BoxDecoration(
+                  color: widget.colors.error,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -836,9 +852,11 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
 
     String completionText;
     if (widget.startTime != null) {
-      completionText = 'Est. completion: ${_formatClockTime(_estimatedEndTime)}';
+      completionText =
+          'Est. completion: ${_formatClockTime(_estimatedEndTime)}';
       if (!isInPast && remaining.inMinutes > 0) {
-        completionText += ' (~${_formatRemainingDuration(remaining)} remaining)';
+        completionText +=
+            ' (~${_formatRemainingDuration(remaining)} remaining)';
       } else if (isInPast) {
         completionText += ' (completed)';
       }
@@ -938,7 +956,8 @@ class _TimelineBlockState extends State<_TimelineBlock> {
           decoration: BoxDecoration(
             color: _isHovered ? color : color.withValues(alpha: 0.7),
             border: _isHovered
-                ? Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1)
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: 0.5), width: 1)
                 : null,
           ),
           child: widget.segment.duration > 60

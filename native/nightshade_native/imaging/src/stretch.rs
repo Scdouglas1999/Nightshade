@@ -116,6 +116,9 @@ fn mtf(x: f64, m: f64) -> f64 {
     } else {
         let num = (m - 1.0) * x;
         let den = (2.0 * m - 1.0) * x - m;
+        if den.abs() < f64::EPSILON {
+            return 0.5;
+        }
         num / den
     }
 }

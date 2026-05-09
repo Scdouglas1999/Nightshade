@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+// ignore: implementation_imports
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_core/nightshade_core.dart'
     show
@@ -335,7 +336,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                 style: const TextStyle(
                                   fontSize: 8,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: Color(0xFFFFFFFF),
                                 ),
                               ),
                             ),
@@ -440,7 +441,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: _getHfrColor(widget.image.hfr!)
+                              color: _getHfrColor(widget.image.hfr!, colors)
                                   .withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(4),
                             ),
@@ -449,7 +450,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               style: const TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: Color(0xFFFFFFFF),
                               ),
                             ),
                           ),
@@ -467,12 +468,12 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               color: colors.error,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
+                            child: Text(
                               'REJECTED',
                               style: TextStyle(
                                 fontSize: 8,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: colors.background,
                               ),
                             ),
                           ),
@@ -612,15 +613,15 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     }
   }
 
-  Color _getHfrColor(double hfr) {
+  Color _getHfrColor(double hfr, NightshadeColors colors) {
     if (hfr < 2.0) {
-      return Colors.green;
+      return colors.success;
     } else if (hfr < 2.5) {
-      return Colors.lightGreen;
+      return colors.info;
     } else if (hfr < 3.5) {
-      return Colors.orange;
+      return colors.warning;
     } else {
-      return Colors.red;
+      return colors.error;
     }
   }
 }

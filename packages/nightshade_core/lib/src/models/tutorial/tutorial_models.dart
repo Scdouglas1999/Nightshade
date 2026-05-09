@@ -291,7 +291,7 @@ class TutorialDefinitions {
       id: 'eq_connect_devices',
       title: 'Connect Devices',
       description:
-          'Click the Connections tab to connect your hardware. Select your driver type (ASCOM for Windows, INDI for Linux/Mac, or Alpaca for network devices).',
+          'Click the Connections tab to connect your hardware. Use ASCOM COM only on Windows, Alpaca for ASCOM network devices, INDI through a reachable server, and Native only where the release includes the needed SDK.',
       targetKey: 'connections_tab',
       position: TooltipPosition.bottom,
       order: 2,
@@ -746,7 +746,7 @@ class TutorialDefinitions {
       id: 'et_discovery_tab',
       title: 'Device Discovery',
       description:
-          'The Discovery tab scans for available devices. It finds ASCOM drivers on Windows, INDI servers on Linux/Mac, and Alpaca devices on your network automatically.',
+          'The Discovery tab scans for available devices. It can find Windows ASCOM COM drivers, configured or reachable INDI servers, and Alpaca devices on your network when those backends are in scope for the release.',
       targetKey: 'equipment_discovery_tab',
       position: TooltipPosition.bottom,
       order: 4,

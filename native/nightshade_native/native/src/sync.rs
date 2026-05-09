@@ -164,3 +164,17 @@ static FUJIFILM_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
 pub fn fujifilm_mutex() -> &'static Mutex<()> {
     FUJIFILM_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
+
+// =============================================================================
+// GPHOTO2 MUTEX
+// =============================================================================
+
+/// Mutex for libgphoto2 operations.
+/// Protects all libgphoto2 function calls.
+/// libgphoto2 is not thread-safe and will produce undefined behavior on concurrent access.
+static GPHOTO2_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
+
+/// Get the gPhoto2 SDK mutex.
+pub fn gphoto2_mutex() -> &'static Mutex<()> {
+    GPHOTO2_MUTEX_CELL.get_or_init(|| Mutex::new(()))
+}

@@ -57,10 +57,85 @@ enum LoopConditionType {
   whileDark,
 }
 
+/// Configurable per-operation overhead estimates for realistic time estimation.
+/// These values represent typical real-world durations for each operation
+/// beyond the raw integration time.
+class SequenceOverheadConfig extends Equatable {
+  /// Time for a slew operation (seconds)
+  final double slewSecs;
+
+  /// Time for an autofocus run (seconds)
+  final double autofocusSecs;
+
+  /// Time for a filter wheel change (seconds)
+  final double filterChangeSecs;
+
+  /// Time for a dither + settle cycle (seconds)
+  final double ditherSecs;
+
+  /// Time for a meridian flip including re-centering (seconds)
+  final double meridianFlipSecs;
+
+  /// Time for guide acquisition and settle (seconds)
+  final double guideAcquireSecs;
+
+  /// Time for a plate solve (seconds)
+  final double plateSolveSecs;
+
+  /// Time for camera cool-down (seconds)
+  final double coolingSecs;
+
+  /// Time for camera warm-up (seconds)
+  final double warmingSecs;
+
+  /// Per-exposure download overhead (seconds)
+  final double downloadOverheadPerExposureSecs;
+
+  /// Time for cover calibrator open/close (seconds)
+  final double coverMoveSecs;
+
+  /// Time for center target operation (plate solve + slew iterations) (seconds)
+  final double centerTargetSecs;
+
+  const SequenceOverheadConfig({
+    this.slewSecs = 30.0,
+    this.autofocusSecs = 180.0,
+    this.filterChangeSecs = 10.0,
+    this.ditherSecs = 15.0,
+    this.meridianFlipSecs = 300.0,
+    this.guideAcquireSecs = 30.0,
+    this.plateSolveSecs = 15.0,
+    this.coolingSecs = 600.0,
+    this.warmingSecs = 300.0,
+    this.downloadOverheadPerExposureSecs = 3.0,
+    this.coverMoveSecs = 30.0,
+    this.centerTargetSecs = 45.0,
+  });
+
+  @override
+  List<Object?> get props => [
+        slewSecs,
+        autofocusSecs,
+        filterChangeSecs,
+        ditherSecs,
+        meridianFlipSecs,
+        guideAcquireSecs,
+        plateSolveSecs,
+        coolingSecs,
+        warmingSecs,
+        downloadOverheadPerExposureSecs,
+        coverMoveSecs,
+        centerTargetSecs,
+      ];
+}
+
 /// Result of sequence integration time estimation
 class SequenceEstimate extends Equatable {
-  /// Estimated total integration time in seconds
+  /// Estimated total integration time in seconds (pure shutter-open time)
   final double estimatedSecs;
+
+  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
+  final double overheadSecs;
 
   /// Time for a single iteration (useful for unbounded loops)
   final double singleIterationSecs;
@@ -76,11 +151,15 @@ class SequenceEstimate extends Equatable {
 
   const SequenceEstimate({
     required this.estimatedSecs,
+    this.overheadSecs = 0,
     required this.singleIterationSecs,
     required this.isUnbounded,
     this.untilTime,
     this.conditionType,
   });
+
+  /// Total estimated wall-clock time (integration + overhead)
+  double get totalEstimatedSecs => estimatedSecs + overheadSecs;
 
   /// Format the estimate as a human-readable string
   String format() {
@@ -96,9 +175,29 @@ class SequenceEstimate extends Equatable {
     return '${mins}m';
   }
 
+  /// Format with overhead-aware total time display
+  /// Returns "Integration: 6h 30m | Est. total: ~9h 15m"
+  String formatWithOverhead() {
+    final integrationStr = format();
+    if (overheadSecs <= 0 || isUnbounded) {
+      return integrationStr;
+    }
+    final totalSecs = totalEstimatedSecs;
+    final totalHours = (totalSecs / 3600).floor();
+    final totalMins = ((totalSecs % 3600) / 60).round();
+    String totalStr;
+    if (totalHours > 0) {
+      totalStr = '~${totalHours}h ${totalMins}m';
+    } else {
+      totalStr = '~${totalMins}m';
+    }
+    return 'Integration: $integrationStr | Est. total: $totalStr';
+  }
+
   @override
   List<Object?> get props => [
         estimatedSecs,
+        overheadSecs,
         singleIterationSecs,
         isUnbounded,
         untilTime,
@@ -156,6 +255,9 @@ abstract class SequenceNode extends Equatable {
   final String? parentId;
   final int orderIndex;
 
+  /// Optional user comment/annotation for this node
+  final String? comment;
+
   SequenceNode({
     String? id,
     required this.name,
@@ -163,6 +265,7 @@ abstract class SequenceNode extends Equatable {
     this.childIds = const [],
     this.parentId,
     this.orderIndex = 0,
+    this.comment,
   }) : id = id ?? const Uuid().v4();
 
   /// Get the node type identifier
@@ -186,11 +289,12 @@ abstract class SequenceNode extends Equatable {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
   });
 
   @override
   List<Object?> get props =>
-      [id, name, isEnabled, childIds, parentId, orderIndex];
+      [id, name, isEnabled, childIds, parentId, orderIndex, comment];
 }
 
 /// Node category for coloring
@@ -281,6 +385,7 @@ class TargetHeaderNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
     required this.targetName,
     required this.raHours,
     required this.decDegrees,
@@ -327,6 +432,7 @@ class TargetHeaderNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     String? targetName,
     double? raHours,
     double? decDegrees,
@@ -345,6 +451,7 @@ class TargetHeaderNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       targetName: targetName ?? this.targetName,
       raHours: raHours ?? this.raHours,
       decDegrees: decDegrees ?? this.decDegrees,
@@ -388,6 +495,16 @@ class LoopNode extends SequenceNode {
   /// Target total integration time in seconds for [LoopConditionType.integrationTime]
   final double? integrationTimeTarget;
 
+  /// Safety limit for unbounded loops (Forever, WhileDark, etc.).
+  /// Caps the maximum number of iterations to prevent runaway loops.
+  /// null means no safety limit is set (a validation warning will be shown).
+  final int? maxSafetyIterations;
+
+  /// Whether this loop's condition type is unbounded (has no natural termination count).
+  bool get isUnbounded =>
+      conditionType == LoopConditionType.forever ||
+      conditionType == LoopConditionType.whileDark;
+
   LoopNode({
     super.id,
     super.name = 'Loop',
@@ -395,11 +512,13 @@ class LoopNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.conditionType = LoopConditionType.count,
     this.repeatCount = 1,
     this.repeatUntil,
     this.repeatUntilAltitude,
     this.integrationTimeTarget,
+    this.maxSafetyIterations,
   });
 
   @override
@@ -419,11 +538,13 @@ class LoopNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     LoopConditionType? conditionType,
     int? repeatCount,
     DateTime? repeatUntil,
     double? repeatUntilAltitude,
     double? integrationTimeTarget,
+    int? maxSafetyIterations,
   }) {
     return LoopNode(
       id: id ?? this.id,
@@ -432,11 +553,13 @@ class LoopNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       conditionType: conditionType ?? this.conditionType,
       repeatCount: repeatCount ?? this.repeatCount,
       repeatUntil: repeatUntil ?? this.repeatUntil,
       repeatUntilAltitude: repeatUntilAltitude ?? this.repeatUntilAltitude,
       integrationTimeTarget: integrationTimeTarget ?? this.integrationTimeTarget,
+      maxSafetyIterations: maxSafetyIterations ?? this.maxSafetyIterations,
     );
   }
 
@@ -448,6 +571,7 @@ class LoopNode extends SequenceNode {
         repeatUntil,
         repeatUntilAltitude,
         integrationTimeTarget,
+        maxSafetyIterations,
       ];
 }
 
@@ -462,6 +586,7 @@ class ParallelNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.requiredSuccesses,
   });
 
@@ -482,6 +607,7 @@ class ParallelNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     int? requiredSuccesses,
   }) {
     return ParallelNode(
@@ -491,6 +617,7 @@ class ParallelNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       requiredSuccesses: requiredSuccesses ?? this.requiredSuccesses,
     );
   }
@@ -512,6 +639,7 @@ class ConditionalNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.conditionType = ConditionalType.always,
     this.thresholdValue,
     this.thresholdTime,
@@ -534,6 +662,7 @@ class ConditionalNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     ConditionalType? conditionType,
     double? thresholdValue,
     DateTime? thresholdTime,
@@ -545,6 +674,7 @@ class ConditionalNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       conditionType: conditionType ?? this.conditionType,
       thresholdValue: thresholdValue ?? this.thresholdValue,
       thresholdTime: thresholdTime ?? this.thresholdTime,
@@ -590,6 +720,7 @@ class RecoveryNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.recoveryAction = RecoveryActionType.retry,
     this.maxRetries = 3,
     this.triggerType,
@@ -615,6 +746,7 @@ class RecoveryNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     RecoveryActionType? recoveryAction,
     int? maxRetries,
     TriggerType? triggerType,
@@ -629,6 +761,7 @@ class RecoveryNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       recoveryAction: recoveryAction ?? this.recoveryAction,
       maxRetries: maxRetries ?? this.maxRetries,
       triggerType: triggerType ?? this.triggerType,
@@ -659,6 +792,7 @@ class InstructionSetNode extends SequenceNode {
     super.childIds,
     super.parentId,
     super.orderIndex,
+    super.comment,
   });
 
   @override
@@ -678,6 +812,7 @@ class InstructionSetNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
   }) {
     return InstructionSetNode(
       id: id ?? this.id,
@@ -686,6 +821,7 @@ class InstructionSetNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
     );
   }
 }
@@ -707,6 +843,7 @@ class SlewNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.useTargetCoords = true,
     this.customRa,
     this.customDec,
@@ -732,6 +869,7 @@ class SlewNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     bool? useTargetCoords,
     double? customRa,
     double? customDec,
@@ -743,6 +881,7 @@ class SlewNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       useTargetCoords: useTargetCoords ?? this.useTargetCoords,
       customRa: customRa ?? this.customRa,
       customDec: customDec ?? this.customDec,
@@ -775,6 +914,7 @@ class CenterNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.accuracyArcsec = 5.0,
     this.maxAttempts = 5,
     this.useTargetCoords = true,
@@ -804,6 +944,7 @@ class CenterNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? accuracyArcsec,
     int? maxAttempts,
     bool? useTargetCoords,
@@ -819,6 +960,7 @@ class CenterNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       accuracyArcsec: accuracyArcsec ?? this.accuracyArcsec,
       maxAttempts: maxAttempts ?? this.maxAttempts,
       useTargetCoords: useTargetCoords ?? this.useTargetCoords,
@@ -863,6 +1005,7 @@ class ExposureNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.durationSecs = 60.0,
     this.count = 10,
     this.frameType = FrameType.light,
@@ -897,6 +1040,7 @@ class ExposureNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? durationSecs,
     int? count,
     FrameType? frameType,
@@ -914,6 +1058,7 @@ class ExposureNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       durationSecs: durationSecs ?? this.durationSecs,
       count: count ?? this.count,
       frameType: frameType ?? this.frameType,
@@ -942,12 +1087,24 @@ class ExposureNode extends SequenceNode {
 }
 
 /// Autofocus instruction
+///
+/// When [useSettingsDefaults] is true, the node's own values are ignored at
+/// execution time and the persisted AppSettings AF parameters are used instead.
+/// This lets users configure AF in one place and have all sequencer AF nodes
+/// follow those settings automatically.
 class AutofocusNode extends SequenceNode {
   final AutofocusMethod method;
   final int stepSize;
   final int stepsOut;
   final int exposuresPerPoint;
   final double exposureDuration;
+
+  /// When true, ignore node-level values and use AppSettings defaults at runtime.
+  final bool useSettingsDefaults;
+
+  /// Maximum time in seconds the autofocus run is allowed to take before it
+  /// is aborted and treated as a failure. Default 600s (10 minutes).
+  final double maxDurationSecs;
 
   AutofocusNode({
     super.id,
@@ -956,11 +1113,14 @@ class AutofocusNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.method = AutofocusMethod.vCurve,
     this.stepSize = 100,
     this.stepsOut = 7,
     this.exposuresPerPoint = 1,
     this.exposureDuration = 3.0,
+    this.useSettingsDefaults = true,
+    this.maxDurationSecs = 600.0,
   });
 
   @override
@@ -984,11 +1144,14 @@ class AutofocusNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     AutofocusMethod? method,
     int? stepSize,
     int? stepsOut,
     int? exposuresPerPoint,
     double? exposureDuration,
+    bool? useSettingsDefaults,
+    double? maxDurationSecs,
   }) {
     return AutofocusNode(
       id: id ?? this.id,
@@ -997,11 +1160,14 @@ class AutofocusNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       method: method ?? this.method,
       stepSize: stepSize ?? this.stepSize,
       stepsOut: stepsOut ?? this.stepsOut,
       exposuresPerPoint: exposuresPerPoint ?? this.exposuresPerPoint,
       exposureDuration: exposureDuration ?? this.exposureDuration,
+      useSettingsDefaults: useSettingsDefaults ?? this.useSettingsDefaults,
+      maxDurationSecs: maxDurationSecs ?? this.maxDurationSecs,
     );
   }
 
@@ -1013,6 +1179,8 @@ class AutofocusNode extends SequenceNode {
         stepsOut,
         exposuresPerPoint,
         exposureDuration,
+        useSettingsDefaults,
+        maxDurationSecs,
       ];
 }
 
@@ -1035,6 +1203,7 @@ class DitherNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.pixels = 5.0,
     this.settleTime = 30.0,
     this.settlePixels = 1.5,
@@ -1062,6 +1231,7 @@ class DitherNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? pixels,
     double? settleTime,
     double? settlePixels,
@@ -1075,6 +1245,7 @@ class DitherNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       pixels: pixels ?? this.pixels,
       settleTime: settleTime ?? this.settleTime,
       settlePixels: settlePixels ?? this.settlePixels,
@@ -1102,6 +1273,7 @@ class StartGuidingNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.settlePixels = 1.5,
     this.settleTime = 10.0,
     this.settleTimeout = 60.0,
@@ -1128,6 +1300,7 @@ class StartGuidingNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? settlePixels,
     double? settleTime,
     double? settleTimeout,
@@ -1140,6 +1313,7 @@ class StartGuidingNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       settlePixels: settlePixels ?? this.settlePixels,
       settleTime: settleTime ?? this.settleTime,
       settleTimeout: settleTimeout ?? this.settleTimeout,
@@ -1161,6 +1335,7 @@ class StopGuidingNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
   });
 
   @override
@@ -1183,6 +1358,7 @@ class StopGuidingNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
   }) {
     return StopGuidingNode(
       id: id ?? this.id,
@@ -1191,6 +1367,7 @@ class StopGuidingNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
     );
   }
 
@@ -1210,6 +1387,7 @@ class FilterChangeNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     required this.filterName,
     this.filterPosition,
   });
@@ -1234,6 +1412,7 @@ class FilterChangeNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     String? filterName,
     int? filterPosition,
   }) {
@@ -1244,6 +1423,7 @@ class FilterChangeNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       filterName: filterName ?? this.filterName,
       filterPosition: filterPosition ?? this.filterPosition,
     );
@@ -1265,6 +1445,7 @@ class CoolCameraNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.targetTemp = -10.0,
     this.durationMins = 10.0,
   });
@@ -1289,6 +1470,7 @@ class CoolCameraNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? targetTemp,
     double? durationMins,
   }) {
@@ -1299,6 +1481,7 @@ class CoolCameraNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       targetTemp: targetTemp ?? this.targetTemp,
       durationMins: durationMins ?? this.durationMins,
     );
@@ -1311,6 +1494,7 @@ class CoolCameraNode extends SequenceNode {
 /// Warm camera instruction
 class WarmCameraNode extends SequenceNode {
   final double ratePerMin;
+  final double targetTemp;
 
   WarmCameraNode({
     super.id,
@@ -1319,7 +1503,9 @@ class WarmCameraNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.ratePerMin = 2.0,
+    this.targetTemp = 20.0,
   });
 
   @override
@@ -1342,7 +1528,9 @@ class WarmCameraNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? ratePerMin,
+    double? targetTemp,
   }) {
     return WarmCameraNode(
       id: id ?? this.id,
@@ -1351,12 +1539,14 @@ class WarmCameraNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       ratePerMin: ratePerMin ?? this.ratePerMin,
+      targetTemp: targetTemp ?? this.targetTemp,
     );
   }
 
   @override
-  List<Object?> get props => [...super.props, ratePerMin];
+  List<Object?> get props => [...super.props, ratePerMin, targetTemp];
 }
 
 /// Move rotator instruction
@@ -1371,6 +1561,7 @@ class RotatorNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.targetAngle = 0.0,
     this.relative = false,
   });
@@ -1395,6 +1586,7 @@ class RotatorNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? targetAngle,
     bool? relative,
   }) {
@@ -1405,6 +1597,7 @@ class RotatorNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       targetAngle: targetAngle ?? this.targetAngle,
       relative: relative ?? this.relative,
     );
@@ -1423,6 +1616,7 @@ class ParkNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
   });
 
   @override
@@ -1445,6 +1639,7 @@ class ParkNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
   }) {
     return ParkNode(
       id: id ?? this.id,
@@ -1453,6 +1648,7 @@ class ParkNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
     );
   }
 }
@@ -1466,6 +1662,7 @@ class UnparkNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
   });
 
   @override
@@ -1488,6 +1685,7 @@ class UnparkNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
   }) {
     return UnparkNode(
       id: id ?? this.id,
@@ -1496,6 +1694,7 @@ class UnparkNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
     );
   }
 }
@@ -1512,6 +1711,7 @@ class WaitTimeNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.waitUntil,
     this.waitForTwilight,
   });
@@ -1533,6 +1733,7 @@ class WaitTimeNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     DateTime? waitUntil,
     TwilightType? waitForTwilight,
   }) {
@@ -1543,6 +1744,7 @@ class WaitTimeNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       waitUntil: waitUntil ?? this.waitUntil,
       waitForTwilight: waitForTwilight ?? this.waitForTwilight,
     );
@@ -1563,6 +1765,7 @@ class DelayNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.seconds = 5.0,
   });
 
@@ -1583,6 +1786,7 @@ class DelayNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? seconds,
   }) {
     return DelayNode(
@@ -1592,6 +1796,7 @@ class DelayNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       seconds: seconds ?? this.seconds,
     );
   }
@@ -1613,6 +1818,7 @@ class NotificationNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.title = '',
     this.message = '',
     this.level = NotificationLevel.info,
@@ -1635,6 +1841,7 @@ class NotificationNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     String? title,
     String? message,
     NotificationLevel? level,
@@ -1646,6 +1853,7 @@ class NotificationNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       title: title ?? this.title,
       message: message ?? this.message,
       level: level ?? this.level,
@@ -1669,6 +1877,7 @@ class ScriptNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.scriptPath = '',
     this.arguments = const [],
     this.timeoutSecs,
@@ -1691,6 +1900,7 @@ class ScriptNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     String? scriptPath,
     List<String>? arguments,
     int? timeoutSecs,
@@ -1702,6 +1912,7 @@ class ScriptNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       scriptPath: scriptPath ?? this.scriptPath,
       arguments: arguments ?? this.arguments,
       timeoutSecs: timeoutSecs ?? this.timeoutSecs,
@@ -1739,6 +1950,7 @@ class MeridianFlipNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.triggerMethod = MeridianTriggerMethod.minutesPastMeridian,
     this.minutesPastMeridian = 5.0,
     this.minutesBeforeLimit = 10.0,
@@ -1772,6 +1984,7 @@ class MeridianFlipNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     MeridianTriggerMethod? triggerMethod,
     double? minutesPastMeridian,
     double? minutesBeforeLimit,
@@ -1791,6 +2004,7 @@ class MeridianFlipNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       triggerMethod: triggerMethod ?? this.triggerMethod,
       minutesPastMeridian: minutesPastMeridian ?? this.minutesPastMeridian,
       minutesBeforeLimit: minutesBeforeLimit ?? this.minutesBeforeLimit,
@@ -1833,6 +2047,7 @@ class OpenDomeNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.shutterOnly = false,
   });
 
@@ -1856,6 +2071,7 @@ class OpenDomeNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     bool? shutterOnly,
   }) {
     return OpenDomeNode(
@@ -1865,6 +2081,7 @@ class OpenDomeNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       shutterOnly: shutterOnly ?? this.shutterOnly,
     );
   }
@@ -1884,6 +2101,7 @@ class CloseDomeNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.shutterOnly = false,
   });
 
@@ -1907,6 +2125,7 @@ class CloseDomeNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     bool? shutterOnly,
   }) {
     return CloseDomeNode(
@@ -1916,6 +2135,7 @@ class CloseDomeNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       shutterOnly: shutterOnly ?? this.shutterOnly,
     );
   }
@@ -1935,6 +2155,7 @@ class ParkDomeNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.shutterOnly = false,
   });
 
@@ -1958,6 +2179,7 @@ class ParkDomeNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     bool? shutterOnly,
   }) {
     return ParkDomeNode(
@@ -1967,6 +2189,7 @@ class ParkDomeNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       shutterOnly: shutterOnly ?? this.shutterOnly,
     );
   }
@@ -1994,6 +2217,7 @@ class PolarAlignmentNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    super.comment,
     this.exposureDuration = 2.0,
     this.binning = 2,
     this.startAltitude = 45.0,
@@ -2025,6 +2249,7 @@ class PolarAlignmentNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    String? comment,
     double? exposureDuration,
     int? binning,
     double? startAltitude,
@@ -2042,6 +2267,7 @@ class PolarAlignmentNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
       exposureDuration: exposureDuration ?? this.exposureDuration,
       binning: binning ?? this.binning,
       startAltitude: startAltitude ?? this.startAltitude,
@@ -2067,6 +2293,230 @@ class PolarAlignmentNode extends SequenceNode {
         isNorth,
         manualSlew,
       ];
+}
+
+// =============================================================================
+// COVER CALIBRATOR / FLAT PANEL NODES
+// =============================================================================
+
+/// Open cover instruction - opens a motorized dust cover / flat panel cover
+class OpenCoverNode extends SequenceNode {
+  final int timeoutSecs;
+
+  OpenCoverNode({
+    super.id,
+    super.name = 'Open Cover',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.timeoutSecs = 60,
+  });
+
+  @override
+  String get nodeType => 'OpenCover';
+
+  @override
+  String get iconName => 'door-open';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.coverCalibrator};
+
+  @override
+  OpenCoverNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    int? timeoutSecs,
+  }) {
+    return OpenCoverNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      timeoutSecs: timeoutSecs ?? this.timeoutSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [...super.props, timeoutSecs];
+}
+
+/// Close cover instruction - closes a motorized dust cover / flat panel cover
+class CloseCoverNode extends SequenceNode {
+  final int timeoutSecs;
+
+  CloseCoverNode({
+    super.id,
+    super.name = 'Close Cover',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.timeoutSecs = 60,
+  });
+
+  @override
+  String get nodeType => 'CloseCover';
+
+  @override
+  String get iconName => 'door-closed';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.coverCalibrator};
+
+  @override
+  CloseCoverNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    int? timeoutSecs,
+  }) {
+    return CloseCoverNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      timeoutSecs: timeoutSecs ?? this.timeoutSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [...super.props, timeoutSecs];
+}
+
+/// Calibrator on instruction - turns on flat panel at specified brightness
+class CalibratorOnNode extends SequenceNode {
+  final int brightness;
+  final int timeoutSecs;
+
+  CalibratorOnNode({
+    super.id,
+    super.name = 'Calibrator On',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.brightness = 128,
+    this.timeoutSecs = 30,
+  });
+
+  @override
+  String get nodeType => 'CalibratorOn';
+
+  @override
+  String get iconName => 'lightbulb';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.coverCalibrator};
+
+  @override
+  CalibratorOnNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    int? brightness,
+    int? timeoutSecs,
+  }) {
+    return CalibratorOnNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      brightness: brightness ?? this.brightness,
+      timeoutSecs: timeoutSecs ?? this.timeoutSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [...super.props, brightness, timeoutSecs];
+}
+
+/// Calibrator off instruction - turns off flat panel light
+class CalibratorOffNode extends SequenceNode {
+  final int timeoutSecs;
+
+  CalibratorOffNode({
+    super.id,
+    super.name = 'Calibrator Off',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.timeoutSecs = 30,
+  });
+
+  @override
+  String get nodeType => 'CalibratorOff';
+
+  @override
+  String get iconName => 'lightbulb-off';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.coverCalibrator};
+
+  @override
+  CalibratorOffNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    int? timeoutSecs,
+  }) {
+    return CalibratorOffNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      timeoutSecs: timeoutSecs ?? this.timeoutSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [...super.props, timeoutSecs];
 }
 
 // =============================================================================
@@ -2117,6 +2567,85 @@ class Sequence extends Equatable {
   /// This walks the tree structure and accounts for loop iterations
   double get totalIntegrationSecs {
     return estimateIntegrationSecs().estimatedSecs;
+  }
+
+  /// Estimate integration time with overhead awareness.
+  /// Walks the sequence tree counting occurrences of each operation type
+  /// and applies configurable per-operation overhead estimates.
+  SequenceEstimate estimateWithOverhead({
+    SequenceOverheadConfig config = const SequenceOverheadConfig(),
+    DateTime? referenceTime,
+  }) {
+    final base = estimateIntegrationSecs(referenceTime: referenceTime);
+
+    // Walk tree counting overhead-generating operations
+    double overheadSecs = 0;
+
+    if (rootNodeId != null && nodes[rootNodeId] != null) {
+      overheadSecs = _calculateOverhead(rootNodeId!, config, 1);
+    } else {
+      // No tree structure - just count nodes directly
+      for (final node in nodes.values) {
+        if (!node.isEnabled) continue;
+        overheadSecs += _nodeOverhead(node, config);
+      }
+    }
+
+    return SequenceEstimate(
+      estimatedSecs: base.estimatedSecs,
+      overheadSecs: overheadSecs,
+      singleIterationSecs: base.singleIterationSecs,
+      isUnbounded: base.isUnbounded,
+      untilTime: base.untilTime,
+      conditionType: base.conditionType,
+    );
+  }
+
+  /// Calculate overhead for a node and its subtree, respecting loop multipliers
+  double _calculateOverhead(
+      String nodeId, SequenceOverheadConfig config, int multiplier) {
+    final node = nodes[nodeId];
+    if (node == null || !node.isEnabled) return 0;
+
+    // Leaf node overhead
+    final selfOverhead = _nodeOverhead(node, config) * multiplier;
+
+    // Children overhead
+    double childrenOverhead = 0;
+    int childMultiplier = multiplier;
+    if (node is LoopNode) {
+      if (node.conditionType == LoopConditionType.count) {
+        childMultiplier = multiplier * (node.repeatCount ?? 1);
+      }
+      // For unbounded loops, keep multiplier at 1 for overhead
+    }
+
+    for (final childId in node.childIds) {
+      childrenOverhead += _calculateOverhead(childId, config, childMultiplier);
+    }
+
+    return selfOverhead + childrenOverhead;
+  }
+
+  /// Get the overhead contribution for a single node instance
+  double _nodeOverhead(SequenceNode node, SequenceOverheadConfig config) {
+    if (node is SlewNode) return config.slewSecs;
+    if (node is CenterNode) return config.centerTargetSecs;
+    if (node is AutofocusNode) return config.autofocusSecs;
+    if (node is FilterChangeNode) return config.filterChangeSecs;
+    if (node is DitherNode) return config.ditherSecs;
+    if (node is StartGuidingNode) return config.guideAcquireSecs;
+    if (node is MeridianFlipNode) return config.meridianFlipSecs;
+    if (node is CoolCameraNode) return config.coolingSecs;
+    if (node is WarmCameraNode) return config.warmingSecs;
+    if (node is OpenCoverNode || node is CloseCoverNode) {
+      return config.coverMoveSecs;
+    }
+    if (node is ExposureNode) {
+      // Download overhead per exposure
+      return config.downloadOverheadPerExposureSecs * node.count;
+    }
+    return 0;
   }
 
   /// Estimate integration time with detailed info about bounded/unbounded status

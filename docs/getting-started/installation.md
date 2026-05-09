@@ -1,6 +1,23 @@
 # Installation Guide
 
-Welcome to Nightshade 2.0! This guide will help you install and set up the application on your computer.
+Welcome to Nightshade 2.0. This guide explains the expected install flow, but
+the release notes are the source of truth for which platform artifacts are
+actually shipped and verified for a given release candidate.
+
+Before installing a release candidate, review:
+
+- [Release Notes Template](../release-notes-template.md), or the completed
+  release notes for the build you are installing
+- [Supported Hardware By Platform](../supported-hardware-by-platform.md)
+- [Known Limitations](../known-limitations.md)
+- [Migration, Backup, and Restore Guide](../migration-backup-restore.md)
+- [Linux Release CI Recipe](../production-readiness/linux-release-ci-recipe.md)
+
+Release automation tracks these same references by repo path:
+`docs/release-notes-template.md`, `docs/supported-hardware-by-platform.md`,
+`docs/known-limitations.md`,
+`docs/production-readiness/linux-release-ci-recipe.md`, and
+`docs/production-readiness/linux-release-package-metadata.json`.
 
 ## System Requirements
 
@@ -25,15 +42,26 @@ Welcome to Nightshade 2.0! This guide will help you install and set up the appli
 - **Memory**: 8 GB RAM minimum, 16 GB recommended
 - **Graphics**: OpenGL 3.3 compatible GPU
 - **Storage**: 500 MB for application, plus space for images
-- **Additional**: INDI server installed for equipment control
+- **Additional**: INDI server installed for INDI equipment control
+
+macOS and Linux requirements apply only when that platform is listed as shipped
+in the completed release notes. A Windows build or analyzer pass does not prove
+Linux or macOS package/runtime support.
 
 ## Download
 
 1. Visit the [Nightshade 2.0 releases page](https://github.com/Scodouglas1999/Nightshade/releases)
-2. Download the installer for your operating system:
-   - **Windows**: `Nightshade-2.0-Setup.exe`
-   - **macOS**: `Nightshade-2.0.dmg`
-   - **Linux**: `Nightshade-2.0-x64.AppImage` or `.deb` package
+2. Open the release notes for the build you plan to install.
+3. Download only the artifact listed as supported or limited for your platform.
+   Example artifact names may include:
+   - **Windows**: `Nightshade-2.0-Setup.exe` or a signed Windows bundle
+   - **macOS**: `Nightshade-2.0.dmg`, only if macOS is shipped for that release
+   - **Linux**: `Nightshade-2.0-x64.AppImage` or `.deb`, only if Linux is
+     shipped for that release
+
+Do not infer support for a missing artifact from this guide. If the release
+notes mark a platform as not shipped, use another supported platform or build
+from source for development only.
 
 ## Installation Steps
 
@@ -59,6 +87,9 @@ Welcome to Nightshade 2.0! This guide will help you install and set up the appli
 
 ### macOS
 
+Use this section only when the completed release notes list a macOS artifact as
+shipped for the build you downloaded.
+
 1. **Open the Disk Image**
    - Double-click `Nightshade-2.0.dmg`
    - A new window will open
@@ -78,6 +109,14 @@ Welcome to Nightshade 2.0! This guide will help you install and set up the appli
    - Allow network access if prompted (for network-connected devices)
 
 ### Linux
+
+Use this section only when the completed release notes list a Linux artifact as
+shipped for the build you downloaded. Public release sign-off requires a real
+Linux build and runtime smoke pass; a Windows-local build does not cover this
+section. The release owner must run the repeatable flow in
+`docs/production-readiness/linux-release-ci-recipe.md` and attach
+`docs/production-readiness/linux-release-package-metadata.json` with passing
+`runtimeSmokeChecks` before the Linux artifact is described as supported.
 
 #### Using AppImage (Universal)
 
@@ -173,9 +212,14 @@ This includes:
 
 To update Nightshade:
 
-1. Download the latest version from the releases page
-2. Run the installer (it will replace the old version)
-3. Your profiles and settings will be preserved
+1. Read the release notes and known limitations for the target version.
+2. Create a backup from Settings > Backup & Restore.
+3. Keep a copy of the old profile/database if you are validating a release
+   candidate migration.
+4. Download the artifact listed for your platform.
+5. Run the installer or replace the bundle as instructed by the release notes.
+6. Launch Nightshade and verify your equipment profile before connecting
+   hardware.
 
 ## Troubleshooting Installation
 

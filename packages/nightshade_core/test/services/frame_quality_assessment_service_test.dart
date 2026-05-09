@@ -3,6 +3,7 @@ import 'package:nightshade_core/nightshade_core.dart'
     show
         FrameQualityAssessment,
         FrameQualityAssessmentService,
+        FrameQualityDisposition,
         FrameQualityLevel;
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 
@@ -68,10 +69,28 @@ void main() {
       expect(result.level, FrameQualityLevel.poor);
       expect(result.needsReview, isTrue);
       expect(result.reasons, isNotEmpty);
+      expect(result.disposition, FrameQualityDisposition.autoReject);
       expect(
         result.reasons.any((reason) => reason.contains('Very soft stars')),
         isTrue,
       );
+    });
+
+    test('elevates model confidence when multiple quality features degrade', () {
+      final result = service.assessFrame(
+        _image(
+          id: 4,
+          qualityScore: 48,
+          hfr: 4.2,
+          starCount: 18,
+          guidingRmsTotal: 2.7,
+        ),
+        referenceHfr: 2.1,
+        referenceGuidingRms: 1.0,
+      );
+
+      expect(result.mlConfidence, greaterThan(0.8));
+      expect(result.autoRejectCandidate, isTrue);
     });
 
     test('uses session medians to flag HFR outliers', () {

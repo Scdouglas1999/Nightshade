@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 /// Handlers for PHD2 guiding endpoints
 class GuidingHandlers {
   final ProviderContainer container;
@@ -27,16 +29,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2Connect(host: host, port: port);
 
-      return Response.ok(
-        jsonEncode({"status": "connected"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "connected"});
     } catch (e) {
       _logError('[API] PHD2 connect error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -46,16 +42,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2Disconnect();
 
-      return Response.ok(
-        jsonEncode({"status": "disconnected"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "disconnected"});
     } catch (e) {
       _logError('[API] PHD2 disconnect error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -75,16 +65,10 @@ class GuidingHandlers {
         settleTimeout: settleTimeout,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "guiding"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "guiding"});
     } catch (e) {
       _logError('[API] PHD2 start guiding error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -94,16 +78,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2StopGuiding();
 
-      return Response.ok(
-        jsonEncode({"status": "stopped"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "stopped"});
     } catch (e) {
       _logError('[API] PHD2 stop guiding error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -127,16 +105,10 @@ class GuidingHandlers {
         settleTimeout: settleTimeout,
       );
 
-      return Response.ok(
-        jsonEncode({"status": "dithering"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "dithering"});
     } catch (e) {
       _logError('[API] PHD2 dither error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -145,25 +117,19 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       final status = await backend.phd2GetStatus();
 
-      return Response.ok(
-        jsonEncode({
-          "state": status.state,
-          "connected": status.connected,
-          "rmsRa": status.rmsRa,
-          "rmsDec": status.rmsDec,
-          "rmsTotal": status.rmsTotal,
-          "snr": status.snr,
-          "starMass": status.starMass,
-          "avgDistance": status.avgDistance,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "state": status.state,
+        "connected": status.connected,
+        "rmsRa": status.rmsRa,
+        "rmsDec": status.rmsDec,
+        "rmsTotal": status.rmsTotal,
+        "snr": status.snr,
+        "starMass": status.starMass,
+        "avgDistance": status.avgDistance,
+      });
     } catch (e) {
       _logError('[API] PHD2 get status error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -176,16 +142,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2SetPaused(paused);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 set paused error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -198,16 +158,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2ClearCalibration(which: which);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 clear calibration error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -217,16 +171,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2FlipCalibration();
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 flip calibration error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -236,21 +184,15 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       final data = await backend.phd2GetCalibrationData();
 
-      return Response.ok(
-        jsonEncode({
-          "isCalibrated": data.isCalibrated,
-          "raAngle": data.rotationAngle,
-          "raRate": data.raRate,
-          "decRate": data.decRate,
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "isCalibrated": data.isCalibrated,
+        "raAngle": data.rotationAngle,
+        "raRate": data.raRate,
+        "decRate": data.decRate,
+      });
     } catch (e) {
       _logError('[API] PHD2 get calibration data error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -260,16 +202,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       final (x, y) = await backend.phd2FindStar();
 
-      return Response.ok(
-        jsonEncode({"x": x, "y": y}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"x": x, "y": y});
     } catch (e) {
       _logError('[API] PHD2 find star error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -284,16 +220,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2SetLockPosition(x: x, y: y, exact: exact);
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 set lock position error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -302,16 +232,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       final (x, y) = await backend.phd2GetLockPosition();
 
-      return Response.ok(
-        jsonEncode({"x": x, "y": y}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"x": x, "y": y});
     } catch (e) {
       _logError('[API] PHD2 get lock position error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -321,16 +245,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2Loop();
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 loop error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -340,16 +258,10 @@ class GuidingHandlers {
       final backend = container.read(backendProvider);
       await backend.phd2DeselectStar();
 
-      return Response.ok(
-        jsonEncode({"status": "ok"}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"status": "ok"});
     } catch (e) {
       _logError('[API] PHD2 deselect star error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -362,23 +274,17 @@ class GuidingHandlers {
       final starImage = await backend.phd2GetStarImage(size: size);
 
       // Return the star image data as JSON with base64-encoded pixels
-      return Response.ok(
-        jsonEncode({
-          "frame": starImage.frame,
-          "width": starImage.width,
-          "height": starImage.height,
-          "starX": starImage.starX,
-          "starY": starImage.starY,
-          "pixels": base64Encode(starImage.pixels),
-        }),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({
+        "frame": starImage.frame,
+        "width": starImage.width,
+        "height": starImage.height,
+        "starX": starImage.starX,
+        "starY": starImage.starY,
+        "pixels": base64Encode(starImage.pixels),
+      });
     } catch (e) {
       _logError('[API] PHD2 get star image error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -386,28 +292,18 @@ class GuidingHandlers {
     try {
       final axis = request.url.queryParameters['axis'];
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+        });
       }
 
       final backend = container.read(backendProvider);
       final names = await backend.phd2GetAlgoParamNames(axis: axis);
 
-      return Response.ok(
-        jsonEncode({"axis": axis, "names": names}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"axis": axis, "names": names});
     } catch (e) {
       _logError('[API] PHD2 get algo param names error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -417,35 +313,22 @@ class GuidingHandlers {
       final name = request.url.queryParameters['name'];
 
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+        });
       }
 
       if (name == null || name.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Missing 'name' parameter."}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Missing 'name' parameter."});
       }
 
       final backend = container.read(backendProvider);
       final value = await backend.phd2GetAlgoParam(axis: axis, name: name);
 
-      return Response.ok(
-        jsonEncode({"axis": axis, "name": name, "value": value}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonOk({"axis": axis, "name": name, "value": value});
     } catch (e) {
       _logError('[API] PHD2 get algo param error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
-      );
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 
@@ -458,43 +341,261 @@ class GuidingHandlers {
       final value = (payload['value'] as num?)?.toDouble();
 
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
-        return Response.badRequest(
-          body: jsonEncode({
-            "error":
-                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
-          }),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({
+          "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+        });
       }
 
       if (name == null || name.isEmpty) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Missing 'name' parameter."}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Missing 'name' parameter."});
       }
 
       if (value == null) {
-        return Response.badRequest(
-          body: jsonEncode({"error": "Missing 'value' parameter."}),
-          headers: {'content-type': 'application/json'},
-        );
+        return jsonBadRequest({"error": "Missing 'value' parameter."});
       }
 
       final backend = container.read(backendProvider);
       await backend.phd2SetAlgoParam(axis: axis, name: name, value: value);
 
-      return Response.ok(
-        jsonEncode(
-            {"status": "ok", "axis": axis, "name": name, "value": value}),
-        headers: {'content-type': 'application/json'},
+      return jsonOk(
+        {"status": "ok", "axis": axis, "name": name, "value": value},
       );
     } catch (e) {
       _logError('[API] PHD2 set algo param error: $e');
-      return Response.internalServerError(
-        body: jsonEncode({"error": e.toString()}),
-        headers: {'content-type': 'application/json'},
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderStartGuiding(Request request) async {
+    _logInfo('[API] POST /api/guider/start-guiding');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderStartGuiding(
+        deviceId: deviceId,
+        settlePixels: (payload['settlePixels'] as num?)?.toDouble() ?? 1.0,
+        settleTime: (payload['settleTime'] as num?)?.toDouble() ?? 10.0,
+        settleTimeout: (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0,
       );
+
+      return jsonOk({"status": "guiding", "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider start error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderStopGuiding(Request request) async {
+    _logInfo('[API] POST /api/guider/stop-guiding');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderStopGuiding(deviceId: deviceId);
+
+      return jsonOk({"status": "stopped", "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider stop error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderDither(Request request) async {
+    _logInfo('[API] POST /api/guider/dither');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderDither(
+        deviceId: deviceId,
+        amount: (payload['amount'] as num?)?.toDouble() ?? 5.0,
+        raOnly: payload['raOnly'] as bool? ?? false,
+        settlePixels: (payload['settlePixels'] as num?)?.toDouble() ?? 1.0,
+        settleTime: (payload['settleTime'] as num?)?.toDouble() ?? 10.0,
+        settleTimeout: (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0,
+      );
+
+      return jsonOk({"status": "dithering", "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider dither error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderLoop(Request request) async {
+    _logInfo('[API] POST /api/guider/loop');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderLoop(deviceId: deviceId);
+
+      return jsonOk({"status": "looping", "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider loop error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderFindStar(Request request) async {
+    _logInfo('[API] POST /api/guider/find-star');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      final (x, y) = await backend.guiderFindStar(deviceId: deviceId);
+
+      return jsonOk({"x": x, "y": y, "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider find star error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderSetLockPosition(Request request) async {
+    _logInfo('[API] POST /api/guider/set-lock-position');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final x = (payload['x'] as num?)?.toDouble();
+      final y = (payload['y'] as num?)?.toDouble();
+      if (x == null || y == null) {
+        return jsonBadRequest({"error": "Missing 'x' or 'y' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderSetLockPosition(
+        deviceId: deviceId,
+        x: x,
+        y: y,
+        exact: payload['exact'] as bool? ?? false,
+      );
+
+      return jsonOk({"status": "ok", "deviceId": deviceId, "x": x, "y": y});
+    } catch (e) {
+      _logError('[API] Guider set lock position error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderGetLockPosition(Request request) async {
+    try {
+      final deviceId = request.url.queryParameters['deviceId'];
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      final (x, y) = await backend.guiderGetLockPosition(deviceId: deviceId);
+      return jsonOk({"x": x, "y": y, "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider get lock position error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderDeselectStar(Request request) async {
+    _logInfo('[API] POST /api/guider/deselect-star');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final deviceId = payload['deviceId'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+
+      final backend = container.read(backendProvider);
+      await backend.guiderDeselectStar(deviceId: deviceId);
+      return jsonOk({"status": "ok", "deviceId": deviceId});
+    } catch (e) {
+      _logError('[API] Guider deselect star error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleGuiderGetStarImage(Request request) async {
+    try {
+      final deviceId = request.url.queryParameters['deviceId'];
+      if (deviceId == null || deviceId.isEmpty) {
+        return jsonBadRequest({"error": "Missing 'deviceId' parameter."});
+      }
+      final size =
+          int.tryParse(request.url.queryParameters['size'] ?? '') ?? 50;
+
+      final backend = container.read(backendProvider);
+      final image =
+          await backend.guiderGetStarImage(deviceId: deviceId, size: size);
+
+      return jsonOk({
+        "frame": image.frame,
+        "width": image.width,
+        "height": image.height,
+        "starX": image.starX,
+        "starY": image.starY,
+        "pixels": base64Encode(image.pixels),
+        "deviceId": deviceId,
+      });
+    } catch (e) {
+      _logError('[API] Guider get star image error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleBuiltinGuiderGetConfig(Request request) async {
+    _logInfo('[API] GET /api/builtin-guider/config');
+    try {
+      final backend = container.read(backendProvider);
+      final config = await backend.builtinGuiderGetConfig();
+      return jsonOk(config.toJson());
+    } catch (e) {
+      _logError('[API] Built-in guider config get error: $e');
+      return jsonInternalServerError({"error": e.toString()});
+    }
+  }
+
+  Future<Response> handleBuiltinGuiderSetConfig(Request request) async {
+    _logInfo('[API] POST /api/builtin-guider/config');
+    try {
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+      final backend = container.read(backendProvider);
+      await backend
+          .builtinGuiderSetConfig(BuiltinGuiderConfig.fromJson(payload));
+      return jsonOk({"status": "ok"});
+    } catch (e) {
+      _logError('[API] Built-in guider config set error: $e');
+      return jsonInternalServerError({"error": e.toString()});
     }
   }
 }

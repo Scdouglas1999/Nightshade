@@ -894,6 +894,6 @@ Integrate calibration frames:
 ## Next Steps
 
 - [Imaging Guide](imaging.md) - Master manual imaging first
-- [Focusing Guide](focusing.md) - Understand autofocus before automating
+- [Imaging Focus Tab](imaging.md#focus-tab) - Understand autofocus before automating
 - [Framing Assistant](framing.md) - Plan target framing
 - [Analytics](analytics.md) - Review sequence performance

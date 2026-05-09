@@ -19,7 +19,14 @@ mod ascom_wrapper_focuser;
 #[cfg(windows)]
 mod ascom_wrapper_mount;
 #[cfg(windows)]
+mod ascom_wrapper_rotator;
+#[cfg(windows)]
+mod ascom_wrapper_safetymonitor;
+#[cfg(windows)]
 mod ascom_wrapper_switch;
+#[cfg(windows)]
+mod ascom_wrapper_weather;
+mod builtin_guider;
 mod device;
 mod device_capabilities;
 mod device_guard;
@@ -27,10 +34,12 @@ mod device_id;
 mod devices;
 mod error;
 mod event;
+mod filter_matching;
 mod imaging_ops;
 mod real_device_ops;
 mod sequencer_api;
 mod sequencer_ops;
+mod stacking_api;
 mod state;
 mod storage;
 mod timeout_ops;
@@ -48,6 +57,7 @@ pub use imaging_ops::*;
 pub use real_device_ops::*;
 pub use sequencer_api::*;
 pub use sequencer_ops::*;
+pub use stacking_api::*;
 pub use state::*;
 pub use storage::*;
 pub use timeout_ops::*;
@@ -79,6 +89,10 @@ static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// Global log file guard (keeps file writer alive)
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
+
+/// Tracks whether the tracing subscriber has been initialized.
+/// Prevents double-init when `init_native_internal` recurses on log directory failure.
+static TRACING_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Initialize the global runtime, returning a Result.
 ///
@@ -229,11 +243,25 @@ pub fn init_native_with_logging(log_directory: Option<String>) -> Result<(), Nig
 /// Internal initialization function that does the actual work.
 /// Separated out so we can wrap it in panic catching.
 fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeError> {
+    // Guard against double-initialization of the tracing subscriber.
+    // This can happen when the recursive fallback path (log dir creation failure)
+    // calls init_native_internal(None), which would attempt a second .init().
+    if TRACING_INITIALIZED.swap(true, Ordering::SeqCst) {
+        // Already initialized - just ensure runtime exists and return
+        ensure_runtime()?;
+        return Ok(());
+    }
+
     use tracing_subscriber::fmt;
     use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::Layer;
 
-    // Create env filter for log level
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
+    // Console shows INFO+ only (keeps output clean for users).
+    // File gets DEBUG+ for diagnostics.
+    // RUST_LOG env var overrides console level for developers.
+    let console_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let file_filter = EnvFilter::new("debug");
 
     if let Some(log_dir) = log_directory {
         // Store log directory for later access
@@ -242,7 +270,9 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
         // Create log directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(&log_path) {
             eprintln!("Failed to create log directory: {}", e);
-            // Fall back to console-only logging
+            // Fall back to console-only logging.
+            // Reset TRACING_INITIALIZED so the recursive call can proceed with console-only init.
+            TRACING_INITIALIZED.store(false, Ordering::SeqCst);
             return init_native_internal(None);
         }
 
@@ -255,16 +285,20 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
         // Keep guard alive for the lifetime of the app
         LOG_GUARD.set(guard).ok();
 
-        // Create a layered subscriber with both console and file output
-        let console_layer = fmt::layer().with_target(false).with_ansi(true);
+        // Console: INFO+ (clean output for users)
+        let console_layer = fmt::layer()
+            .with_target(false)
+            .with_ansi(true)
+            .with_filter(console_filter);
 
+        // File: DEBUG+ (full diagnostics for troubleshooting)
         let file_layer = fmt::layer()
             .with_target(true)
             .with_ansi(false)
-            .with_writer(non_blocking);
+            .with_writer(non_blocking)
+            .with_filter(file_filter);
 
         tracing_subscriber::registry()
-            .with(env_filter)
             .with(console_layer)
             .with(file_layer)
             .init();
@@ -275,9 +309,9 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
         // Clean up old log files (keep last 7 days)
         cleanup_old_logs(&log_path, 7);
     } else {
-        // Console-only logging
+        // Console-only logging (INFO+ for clean output)
         tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
+            .with_max_level(tracing::Level::INFO)
             .with_target(false)
             .init();
 

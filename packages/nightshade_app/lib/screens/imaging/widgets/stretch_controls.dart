@@ -8,14 +8,10 @@ import 'package:nightshade_core/nightshade_core.dart';
 const Map<AutoStretchMethod, String> _methodDescriptions = {
   AutoStretchMethod.stf:
       'Screen Transfer Function - adaptive stretch preserving detail',
-  AutoStretchMethod.histogram:
-      'Histogram equalization for even distribution',
-  AutoStretchMethod.asinh:
-      'Arcsinh stretch - good for high dynamic range',
-  AutoStretchMethod.log:
-      'Logarithmic stretch - reveals faint detail',
-  AutoStretchMethod.gamma:
-      'Simple gamma correction',
+  AutoStretchMethod.histogram: 'Histogram equalization for even distribution',
+  AutoStretchMethod.asinh: 'Arcsinh stretch - good for high dynamic range',
+  AutoStretchMethod.log: 'Logarithmic stretch - reveals faint detail',
+  AutoStretchMethod.gamma: 'Simple gamma correction',
 };
 
 /// Display names for each stretch method.
@@ -97,7 +93,8 @@ class _CompactStretchControls extends StatelessWidget {
       children: [
         // Toggle switch with label
         NightshadeTooltip(
-          message: 'Enable auto-stretch to enhance faint details in linear data',
+          message:
+              'Enable auto-stretch to enhance faint details in linear data',
           position: NightshadeTooltipPosition.bottom,
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -263,8 +260,7 @@ class _ExpandedStretchControls extends StatelessWidget {
         // Target median slider
         _SliderSetting(
           label: 'Target Median',
-          tooltip:
-              'Target brightness level for the stretched image midtones. '
+          tooltip: 'Target brightness level for the stretched image midtones. '
               'Higher values produce brighter images.',
           value: settings.targetMedian,
           min: 0.1,
@@ -303,8 +299,7 @@ class _ExpandedStretchControls extends StatelessWidget {
           const SizedBox(height: 12),
           _SliderSetting(
             label: 'Gamma Value',
-            tooltip:
-                'Gamma correction factor. Standard display gamma is 2.2. '
+            tooltip: 'Gamma correction factor. Standard display gamma is 2.2. '
                 'Lower values brighten the image, higher values darken it.',
             value: settings.gammaValue,
             min: 1.0,
@@ -380,7 +375,7 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
     return Dialog(
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: widget.colors.border),
       ),
       child: ConstrainedBox(
@@ -753,7 +748,8 @@ class _TextButtonState extends State<_TextButton> {
     return MouseRegion(
       onEnter: widget.enabled ? (_) => setState(() => _isHovered = true) : null,
       onExit: widget.enabled ? (_) => setState(() => _isHovered = false) : null,
-      cursor: widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor:
+          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.enabled ? widget.onPressed : null,
         child: Opacity(
@@ -762,7 +758,8 @@ class _TextButtonState extends State<_TextButton> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _isHovered ? widget.colors.surfaceHover : Colors.transparent,
+              color:
+                  _isHovered ? widget.colors.surfaceHover : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(

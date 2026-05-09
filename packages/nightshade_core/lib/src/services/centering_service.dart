@@ -102,6 +102,9 @@ class CenteringConfig {
   /// Whether to sync mount after successful plate solve
   final bool syncMount;
 
+  /// Maximum wall-clock time for the full centering operation
+  final Duration overallTimeout;
+
   const CenteringConfig({
     this.maxIterations = 5,
     this.toleranceArcsec = 30.0,
@@ -109,6 +112,7 @@ class CenteringConfig {
     this.binning = 2,
     this.gain = 100,
     this.syncMount = false,
+    this.overallTimeout = const Duration(minutes: 10),
   });
 }
 
@@ -207,6 +211,30 @@ class CenteringService {
     CenteringConfig config = const CenteringConfig(),
     void Function(CenteringStatus)? onStatusUpdate,
   }) async {
+    return _centerOnTargetInternal(
+      targetRa: targetRa,
+      targetDec: targetDec,
+      solverConfig: solverConfig,
+      config: config,
+      onStatusUpdate: onStatusUpdate,
+    ).timeout(
+      config.overallTimeout,
+      onTimeout: () => CenteringResult.failure(
+        errorMessage:
+            'Centering timed out after ${config.overallTimeout.inSeconds} seconds',
+        iterations: 0,
+        iterationHistory: const [],
+      ),
+    );
+  }
+
+  Future<CenteringResult> _centerOnTargetInternal({
+    required double targetRa,
+    required double targetDec,
+    required PlateSolverConfig solverConfig,
+    required CenteringConfig config,
+    void Function(CenteringStatus)? onStatusUpdate,
+  }) async {
     final iterations = <CenteringIteration>[];
     final mountState = _ref.read(mountStateProvider);
     final cameraState = _ref.read(cameraStateProvider);
@@ -238,7 +266,8 @@ class CenteringService {
         state: CenteringState.exposing,
         currentIteration: iteration,
         maxIterations: config.maxIterations,
-        message: 'Taking centering image (iteration $iteration/${config.maxIterations})...',
+        message:
+            'Taking centering image (iteration $iteration/${config.maxIterations})...',
         iterationHistory: iterations,
       ));
 
@@ -322,7 +351,9 @@ class CenteringService {
         );
       }
 
-      if (!solveResult.success || solveResult.ra == null || solveResult.dec == null) {
+      if (!solveResult.success ||
+          solveResult.ra == null ||
+          solveResult.dec == null) {
         final iter = CenteringIteration(
           iterationNumber: iteration,
           plateSolveSuccess: false,
@@ -331,8 +362,25 @@ class CenteringService {
         );
         iterations.add(iter);
 
+        // If we still have iterations left, retry after a short delay
+        // instead of immediately aborting. Transient solve failures (e.g.
+        // clouds, tracking hiccup) often succeed on the next attempt.
+        if (iteration < config.maxIterations) {
+          onStatusUpdate?.call(CenteringStatus(
+            state: CenteringState.solving,
+            currentIteration: iteration,
+            maxIterations: config.maxIterations,
+            message: 'Plate solve failed, retrying in 500ms...',
+            iterationHistory: iterations,
+            lastImagePath: capturedImage.filePath,
+          ));
+          await Future.delayed(const Duration(milliseconds: 500));
+          continue;
+        }
+
         return CenteringResult.failure(
-          errorMessage: 'Plate solve failed: ${solveResult.errorMessage}',
+          errorMessage:
+              'Plate solve failed after $iteration attempts: ${solveResult.errorMessage}',
           iterations: iteration,
           iterationHistory: iterations,
         );
@@ -392,10 +440,11 @@ class CenteringService {
         // Smart notification for centering completion
         final offsetArcmin = offset / 60.0;
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
-          message: 'Target centered (offset: ${offsetArcmin.toStringAsFixed(2)} arcmin)',
-          relevantScreens: [AppScreen.imaging, AppScreen.sequencer],
-          title: 'Centering Complete',
-        );
+              message:
+                  'Target centered (offset: ${offsetArcmin.toStringAsFixed(2)} arcmin)',
+              relevantScreens: [AppScreen.imaging, AppScreen.sequencer],
+              title: 'Centering Complete',
+            );
 
         return CenteringResult.success(
           finalOffsetArcsec: offset,
@@ -440,9 +489,11 @@ class CenteringService {
     }
 
     // Max iterations reached without achieving tolerance
-    final lastOffset = iterations.isNotEmpty ? iterations.last.offsetArcsec : null;
+    final lastOffset =
+        iterations.isNotEmpty ? iterations.last.offsetArcsec : null;
     return CenteringResult.failure(
-      errorMessage: 'Maximum iterations (${config.maxIterations}) reached. Final offset: ${lastOffset != null ? (lastOffset / 60.0).toStringAsFixed(2) : 'unknown'} arcmin',
+      errorMessage:
+          'Maximum iterations (${config.maxIterations}) reached. Final offset: ${lastOffset != null ? (lastOffset / 60.0).toStringAsFixed(2) : 'unknown'} arcmin',
       iterations: config.maxIterations,
       iterationHistory: iterations,
     );
@@ -537,7 +588,9 @@ class CenteringService {
       solverConfig,
     );
 
-    if (!solveResult.success || solveResult.ra == null || solveResult.dec == null) {
+    if (!solveResult.success ||
+        solveResult.ra == null ||
+        solveResult.dec == null) {
       final iter = CenteringIteration(
         iterationNumber: 1,
         plateSolveSuccess: false,
@@ -582,7 +635,8 @@ class CenteringService {
       );
     } else {
       return CenteringResult.failure(
-        errorMessage: 'Offset ${(offset / 60.0).toStringAsFixed(2)} arcmin exceeds tolerance ${(toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
+        errorMessage:
+            'Offset ${(offset / 60.0).toStringAsFixed(2)} arcmin exceeds tolerance ${(toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
         iterations: 1,
         iterationHistory: iterations,
       );
@@ -598,7 +652,8 @@ class CenteringService {
     double solvedDec,
   ) {
     // Convert RA from hours to radians (RA is in hours)
-    final ra1 = targetRa * 15.0 * math.pi / 180.0; // hours to degrees to radians
+    final ra1 =
+        targetRa * 15.0 * math.pi / 180.0; // hours to degrees to radians
     final ra2 = solvedRa * 15.0 * math.pi / 180.0;
 
     // Convert Dec from degrees to radians
@@ -633,4 +688,5 @@ final centeringStatusProvider = StateProvider<CenteringStatus>((ref) {
 });
 
 /// Provider for last centering result
-final lastCenteringResultProvider = StateProvider<CenteringResult?>((ref) => null);
+final lastCenteringResultProvider =
+    StateProvider<CenteringResult?>((ref) => null);

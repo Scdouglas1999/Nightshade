@@ -597,5 +597,5 @@ Set total integration time goal:
 ## Next Steps
 
 - [Sequencing](sequencing.md) - Automate your imaging with sequences
-- [Focusing Guide](focusing.md) - Master advanced focusing techniques
-- [Plate Solving](platesolving.md) - Precisely center your targets
+- [Focus Tab](#focus-tab) - Master focusing tools before long sequences
+- [Framing Tools](framing.md) - Precisely center your targets

@@ -50,6 +50,7 @@ class FlatResult {
 /// Service for flat frame calibration and sequence generation
 class FlatWizardService {
   final NightshadeBackend backend;
+  static const _imageDownloadTimeout = Duration(seconds: 60);
 
   FlatWizardService(this.backend);
 
@@ -80,7 +81,7 @@ class FlatWizardService {
 
     // For large adjustments, use logarithmic damping
     final adjustedRatio = clampedRatio > 2.0 || clampedRatio < 0.5
-        ? 1.0 + (clampedRatio - 1.0) * 0.7  // Reduce aggressive changes
+        ? 1.0 + (clampedRatio - 1.0) * 0.7 // Reduce aggressive changes
         : clampedRatio;
 
     // Calculate next exposure
@@ -92,21 +93,39 @@ class FlatWizardService {
 
   /// Capture a single test frame and return statistics
   ///
-  /// Returns the mean ADU value from the captured frame
+  /// Returns the mean ADU value from the captured frame.
+  /// Waits for the actual ExposureComplete event rather than using a fixed delay.
   Future<double?> captureTestFrame({
     required String deviceId,
     required double exposureTime,
     String? filterName,
     int? filterPosition,
+    String? filterWheelDeviceId,
     int binX = 1,
     int binY = 1,
   }) async {
     try {
-      // Change filter if specified
-      if (filterName != null || filterPosition != null) {
-        // Filter change would be handled by caller through filter wheel
-        await Future.delayed(const Duration(milliseconds: 500));
+      // Change filter if specified and a filter wheel device ID is available
+      if (filterWheelDeviceId != null) {
+        if (filterName != null) {
+          await backend.filterWheelSetByName(filterWheelDeviceId, filterName);
+        } else if (filterPosition != null) {
+          await backend.filterWheelSetPosition(
+              filterWheelDeviceId, filterPosition);
+        }
       }
+
+      // Set up listener for exposure completion BEFORE starting the exposure
+      // to avoid a race condition where the event fires before we subscribe
+      final exposureCompleter = Completer<bool>();
+      final subscription = backend.eventStream.listen((event) {
+        if (event.category == EventCategory.imaging &&
+            event.eventType == 'ExposureComplete') {
+          if (!exposureCompleter.isCompleted) {
+            exposureCompleter.complete(true);
+          }
+        }
+      });
 
       // Start exposure
       await backend.cameraStartExposure(
@@ -119,13 +138,31 @@ class FlatWizardService {
         binY: binY,
       );
 
-      // Wait for exposure to complete (with buffer time)
-      await Future.delayed(
-        Duration(milliseconds: (exposureTime * 1000 + 1000).toInt()),
-      );
+      // Wait for exposure completion event with a generous timeout
+      // Timeout: exposure time + 30s for readout/download overhead
+      try {
+        await exposureCompleter.future.timeout(
+          Duration(milliseconds: (exposureTime * 1000).toInt() + 30000),
+        );
+      } on TimeoutException {
+        debugPrint(
+            'FlatWizardService: Exposure timed out after ${exposureTime + 30}s');
+        return null;
+      } finally {
+        await subscription.cancel();
+      }
 
       // Retrieve captured image
-      final image = await backend.cameraGetLastImage(deviceId);
+      final image = await backend.cameraGetLastImage(deviceId).timeout(
+        _imageDownloadTimeout,
+        onTimeout: () {
+          debugPrint(
+            'FlatWizardService: Image retrieval timed out after '
+            '${_imageDownloadTimeout.inSeconds}s',
+          );
+          return null;
+        },
+      );
       if (image == null) {
         debugPrint('FlatWizardService: Failed to retrieve test frame');
         return null;
@@ -278,7 +315,8 @@ class FlatWizardService {
     int maxIterations = 3, // Fewer iterations for sky flats (speed matters)
     int binX = 1,
     int binY = 1,
-    void Function(int iteration, double exposure, double adu, String status)? onProgress,
+    void Function(int iteration, double exposure, double adu, String status)?
+        onProgress,
   }) async {
     // Get starting exposure
     double exposure = FlatExposureCalculator.getStartingExposure(
@@ -397,7 +435,7 @@ class FlatWizardService {
       exposure: exposure,
       adu: lastAdu ?? 0,
       success: false,
-      iterations: iteration,
+      iterations: maxIterations,
       errorMessage: 'Did not converge within $maxIterations iterations',
     );
   }
@@ -415,7 +453,8 @@ class FlatWizardService {
     int maxIterations = 10,
     int binX = 1,
     int binY = 1,
-    void Function(String filter, int iteration, double exposure, double adu)? onProgress,
+    void Function(String filter, int iteration, double exposure, double adu)?
+        onProgress,
     void Function(String filter, FlatResult result)? onFilterComplete,
   }) async {
     final results = <FlatResult>[];
@@ -551,9 +590,9 @@ class FlatWizardService {
     // Build description
     final desc = description ??
         'Flat frame sequence generated from wizard\n'
-        'Filters: ${calibrations.where((c) => !onlySuccessful || c.success).map((c) => c.filter).join(", ")}\n'
-        'Frames per filter: $framesPerFilter\n'
-        'Generated: ${DateTime.now().toIso8601String()}';
+            'Filters: ${calibrations.where((c) => !onlySuccessful || c.success).map((c) => c.filter).join(", ")}\n'
+            'Frames per filter: $framesPerFilter\n'
+            'Generated: ${DateTime.now().toIso8601String()}';
 
     return Sequence(
       id: const Uuid().v4(),
@@ -583,8 +622,8 @@ class FlatWizardService {
       filter: filter,
       targetAdu: targetAdu,
       tolerance: tolerancePercent,
-      minExposure: 0.001,  // 1ms minimum
-      maxExposure: 30.0,   // 30s maximum
+      minExposure: 0.001, // 1ms minimum
+      maxExposure: 30.0, // 30s maximum
       maxIterations: 8,
       binX: binX,
       binY: binY,

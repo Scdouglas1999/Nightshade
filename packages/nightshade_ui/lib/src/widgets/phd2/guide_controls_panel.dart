@@ -148,7 +148,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -197,10 +197,11 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         final horizontalPadding = isCompact ? 10.0 : 16.0;
 
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          padding:
+              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
           ),
           child: Row(
             children: [
@@ -210,7 +211,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   color: stateColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(widget.state.icon, color: stateColor, size: iconSize),
+                child:
+                    Icon(widget.state.icon, color: stateColor, size: iconSize),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -234,8 +236,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   color: widget.isConnected ? colors.success : colors.error,
                   boxShadow: [
                     BoxShadow(
-                      color: (widget.isConnected ? colors.success : colors.error)
-                          .withValues(alpha: 0.4),
+                      color:
+                          (widget.isConnected ? colors.success : colors.error)
+                              .withValues(alpha: 0.4),
                       blurRadius: 4,
                     ),
                   ],
@@ -264,12 +267,16 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           children: [
             Expanded(
               child: _buildControlButton(
-                icon: isGuiding || isLooping ? LucideIcons.square : LucideIcons.play,
+                icon: isGuiding || isLooping
+                    ? LucideIcons.square
+                    : LucideIcons.play,
                 label: isGuiding || isLooping ? 'Stop' : 'Start',
                 color: isGuiding || isLooping ? colors.error : colors.success,
                 colors: colors,
                 onPressed: widget.isConnected
-                    ? (isGuiding || isLooping ? widget.onStopGuiding : widget.onStartGuiding)
+                    ? (isGuiding || isLooping
+                        ? widget.onStopGuiding
+                        : widget.onStartGuiding)
                     : null,
               ),
             ),
@@ -281,7 +288,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 color: colors.warning,
                 colors: colors,
                 onPressed: isGuiding || isPaused
-                    ? (isPaused ? widget.onResumeGuiding : widget.onPauseGuiding)
+                    ? (isPaused
+                        ? widget.onResumeGuiding
+                        : widget.onPauseGuiding)
                     : null,
               ),
             ),
@@ -353,7 +362,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   inactiveTrackColor: colors.surfaceAlt,
                   thumbColor: colors.primary,
                   overlayColor: colors.primary.withValues(alpha: 0.2),
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
                 ),
                 child: Slider(
                   value: widget.ditherAmount,
@@ -388,7 +398,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           children: [
             // Wrap checkbox with GestureDetector for larger touch target (44px minimum)
             GestureDetector(
-              onTap: () => widget.onDitherRaOnlyChanged?.call(!widget.ditherRaOnly),
+              onTap: () =>
+                  widget.onDitherRaOnlyChanged?.call(!widget.ditherRaOnly),
               behavior: HitTestBehavior.opaque,
               child: Container(
                 // 44px minimum touch target, but visually compact
@@ -414,7 +425,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                     const SizedBox(width: 8),
                     Text(
                       'RA Only',
-                      style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                      style:
+                          TextStyle(color: colors.textSecondary, fontSize: 12),
                     ),
                   ],
                 ),
@@ -427,7 +439,9 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               color: colors.accent,
               colors: colors,
               small: true,
-              onPressed: widget.state == Phd2GuidingState.guiding ? widget.onDither : null,
+              onPressed: widget.state == Phd2GuidingState.guiding
+                  ? widget.onDither
+                  : null,
             ),
           ],
         ),
@@ -491,15 +505,20 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             ),
             child: Column(
               children: [
-                _buildSettingRow('Pixels', widget.settlePixels, 0.5, 5.0, widget.onSettlePixelsChanged, colors),
+                _buildSettingRow('Pixels', widget.settlePixels, 0.5, 5.0,
+                    widget.onSettlePixelsChanged, colors),
                 const SizedBox(height: 8),
-                _buildSettingRow('Time (s)', widget.settleTime, 5, 60, widget.onSettleTimeChanged, colors),
+                _buildSettingRow('Time (s)', widget.settleTime, 5, 60,
+                    widget.onSettleTimeChanged, colors),
                 const SizedBox(height: 8),
-                _buildSettingRow('Timeout (s)', widget.settleTimeout, 30, 180, widget.onSettleTimeoutChanged, colors),
+                _buildSettingRow('Timeout (s)', widget.settleTimeout, 30, 180,
+                    widget.onSettleTimeoutChanged, colors),
               ],
             ),
           ),
-          crossFadeState: _settleExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: _settleExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 200),
         ),
       ],
@@ -551,7 +570,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, NightshadeColors colors) {
+  Widget _buildSectionHeader(
+      String title, IconData icon, NightshadeColors colors) {
     return Row(
       children: [
         Icon(icon, size: 14, color: colors.textMuted),
@@ -601,12 +621,16 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             decoration: BoxDecoration(
               color: isOutline
                   ? Colors.transparent
-                  : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
+                  : (isDisabled
+                      ? colors.surfaceAlt
+                      : color.withValues(alpha: 0.15)),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isDisabled
                     ? colors.border
-                    : (isOutline ? colors.border : color.withValues(alpha: 0.3)),
+                    : (isOutline
+                        ? colors.border
+                        : color.withValues(alpha: 0.3)),
               ),
             ),
             child: Row(

@@ -17,6 +17,8 @@ enum AppScreen {
   weather,
   suggestions,
   transients,
+  planner,
+  diagnostics,
   settings,
   unknown,
 }
@@ -43,6 +45,8 @@ AppScreen locationToAppScreen(String location) {
   if (location.startsWith('/weather')) return AppScreen.weather;
   if (location.startsWith('/suggestions')) return AppScreen.suggestions;
   if (location.startsWith('/transients')) return AppScreen.transients;
+  if (location.startsWith('/planner')) return AppScreen.planner;
+  if (location.startsWith('/diagnostics')) return AppScreen.diagnostics;
   if (location.startsWith('/settings')) return AppScreen.settings;
   return AppScreen.unknown;
 }

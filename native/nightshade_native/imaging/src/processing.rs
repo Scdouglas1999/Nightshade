@@ -117,7 +117,7 @@ pub async fn process_tiled(
 
             // Update progress
             if let Some(ref callback) = progress_callback {
-                let mut count = completed.lock().unwrap();
+                let mut count = completed.lock().unwrap_or_else(|e| e.into_inner());
                 *count += 1;
                 let progress = (*count as f32) / (total_tiles as f32);
                 callback(progress);
@@ -212,11 +212,10 @@ fn apply_stretch_to_tile(
 
             let stretched: Vec<u8> = u16_data
                 .par_iter()
-                .flat_map(|&val| {
+                .map(|&val| {
                     let normalized = val as f64 / 65535.0;
                     let stretched = apply_mtf(normalized, shadow, midtone, highlight);
-                    let output = (stretched.clamp(0.0, 1.0) * 255.0) as u8;
-                    vec![output]
+                    (stretched.clamp(0.0, 1.0) * 255.0) as u8
                 })
                 .collect();
 
@@ -230,10 +229,9 @@ fn apply_stretch_to_tile(
 
             let stretched: Vec<u8> = f32_data
                 .par_iter()
-                .flat_map(|&val| {
+                .map(|&val| {
                     let stretched = apply_mtf(val as f64, shadow, midtone, highlight);
-                    let output = (stretched.clamp(0.0, 1.0) * 255.0) as u8;
-                    vec![output]
+                    (stretched.clamp(0.0, 1.0) * 255.0) as u8
                 })
                 .collect();
 
@@ -245,17 +243,29 @@ fn apply_stretch_to_tile(
 
 /// Apply midtone transfer function (MTF)
 fn apply_mtf(value: f64, shadow: f64, midtone: f64, highlight: f64) -> f64 {
+    // Guard against zero-width range (shadow == highlight)
+    let range = highlight - shadow;
+    if range.abs() < f64::EPSILON {
+        return 0.0;
+    }
+
     // Normalize to shadow-highlight range
-    let normalized = ((value - shadow) / (highlight - shadow)).clamp(0.0, 1.0);
+    let normalized = ((value - shadow) / range).clamp(0.0, 1.0);
 
     // Apply midtone transfer
     if midtone < 0.5 {
         // Compress shadows
         let m = 2.0 * midtone;
+        if m.abs() < f64::EPSILON {
+            return 0.0;
+        }
         normalized.powf(1.0 / m)
     } else {
         // Compress highlights
         let m = 2.0 * (1.0 - midtone);
+        if m.abs() < f64::EPSILON {
+            return 0.0;
+        }
         1.0 - (1.0 - normalized).powf(1.0 / m)
     }
 }

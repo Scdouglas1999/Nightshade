@@ -3,7 +3,12 @@ import 'dart:collection';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart'
-    hide EventCategory, Phd2GuideStats, Phd2StarImage, Phd2CalibrationData;
+    hide
+        BuiltinGuiderConfig,
+        EventCategory,
+        Phd2GuideStats,
+        Phd2StarImage,
+        Phd2CalibrationData;
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/phd2_models.dart';
@@ -294,7 +299,11 @@ class Phd2Controller {
           break;
         case 'CalibrationComplete':
           _logger.info('Calibration complete', source: 'PHD2');
-          ref.read(calibrationStateProvider.notifier)._fetchCalibrationData();
+          final calibrationNotifier =
+              ref.read(calibrationStateProvider.notifier);
+          if (calibrationNotifier.mounted) {
+            unawaited(calibrationNotifier.refreshCalibrationData());
+          }
           break;
         // Note: StarSelected is handled by LockPositionNotifier's own event listener
       }
@@ -385,8 +394,7 @@ class Phd2Controller {
   }
 
   Future<void> connect(String host, int port) async {
-    // Create a device ID for PHD2 connection
-    final deviceId = 'phd2://$host:$port';
+    const deviceId = 'phd2_guider';
     ref.read(guiderStateProvider.notifier).setConnecting(deviceId, 'PHD2');
     try {
       await backend.phd2Connect(host: host, port: port);
@@ -410,7 +418,9 @@ class Phd2Controller {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    await backend.phd2StartGuiding(
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderStartGuiding(
+      deviceId: guiderId,
       settlePixels: settlePixels,
       settleTime: settleTime,
       settleTimeout: settleTimeout,
@@ -418,7 +428,8 @@ class Phd2Controller {
   }
 
   Future<void> stopGuiding() async {
-    await backend.phd2StopGuiding();
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderStopGuiding(deviceId: guiderId);
   }
 
   Future<void> dither({
@@ -428,7 +439,9 @@ class Phd2Controller {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    await backend.phd2Dither(
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderDither(
+      deviceId: guiderId,
       amount: amount,
       raOnly: raOnly,
       settlePixels: settlePixels,
@@ -439,7 +452,8 @@ class Phd2Controller {
 
   /// Start looping exposures without guiding
   Future<void> loop() async {
-    await backend.phd2Loop();
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderLoop(deviceId: guiderId);
   }
 
   void dispose() {
@@ -507,9 +521,15 @@ class StarImageNotifier extends StateNotifier<AsyncValue<Phd2StarImage>> {
   Future<void> _fetchStarImage() async {
     final backend = ref.read(backendProvider);
     final size = ref.read(starImageSizeProvider);
+    final guiderId = ref.read(guiderStateProvider).deviceId;
+
+    if (guiderId == null || guiderId.isEmpty) {
+      return;
+    }
 
     try {
-      final image = await backend.phd2GetStarImage(size: size);
+      final image =
+          await backend.guiderGetStarImage(deviceId: guiderId, size: size);
       if (mounted) {
         state = AsyncValue.data(image);
       }
@@ -619,16 +639,22 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
   BrainParamsNotifier(this.ref) : super(const AsyncValue.loading()) {
     // Auto-fetch when PHD2 is connected
     final guiderState = ref.read(guiderStateProvider);
-    if (guiderState.connectionState == DeviceConnectionState.connected) {
+    if (guiderState.connectionState == DeviceConnectionState.connected &&
+        guiderState.deviceId == 'phd2_guider') {
       fetch();
     }
 
     // Listen for connection changes to fetch when connected
     ref.listen<GuiderState>(guiderStateProvider, (previous, next) {
       if (next.connectionState == DeviceConnectionState.connected &&
+          next.deviceId == 'phd2_guider' &&
           !_hasFetched) {
         fetch();
       } else if (next.connectionState == DeviceConnectionState.disconnected) {
+        _hasFetched = false;
+        state = const AsyncValue.loading();
+      } else if (next.connectionState == DeviceConnectionState.connected &&
+          next.deviceId != 'phd2_guider') {
         _hasFetched = false;
         state = const AsyncValue.loading();
       }
@@ -751,15 +777,20 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
           'CalibrationStateNotifier: guiderState changed from ${previous?.connectionState} to ${next.connectionState}',
           source: 'PHD2');
       if (next.connectionState == DeviceConnectionState.connected &&
+          next.deviceId == 'phd2_guider' &&
           !_hasFetched) {
         _logger.debug(
             'CalibrationStateNotifier: PHD2 connected, fetching calibration data...',
             source: 'PHD2');
-        _fetchCalibrationData();
+        unawaited(refreshCalibrationData());
       } else if (next.connectionState == DeviceConnectionState.disconnected) {
         _logger.debug(
             'CalibrationStateNotifier: PHD2 disconnected, resetting state',
             source: 'PHD2');
+        _hasFetched = false;
+        state = const Phd2CalibrationData();
+      } else if (next.connectionState == DeviceConnectionState.connected &&
+          next.deviceId != 'phd2_guider') {
         _hasFetched = false;
         state = const Phd2CalibrationData();
       }
@@ -770,16 +801,17 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
     _logger.debug(
         'CalibrationStateNotifier: Initial guiderState.connectionState = ${guiderState.connectionState}',
         source: 'PHD2');
-    if (guiderState.connectionState == DeviceConnectionState.connected) {
+    if (guiderState.connectionState == DeviceConnectionState.connected &&
+        guiderState.deviceId == 'phd2_guider') {
       _logger.debug(
           'CalibrationStateNotifier: Already connected on init, fetching calibration data...',
           source: 'PHD2');
-      _fetchCalibrationData();
+      unawaited(refreshCalibrationData());
     }
   }
 
   /// Fetch calibration data from PHD2
-  Future<void> _fetchCalibrationData() async {
+  Future<void> refreshCalibrationData() async {
     try {
       final backend = ref.read(backendProvider);
       final data = await backend.phd2GetCalibrationData();
@@ -851,21 +883,29 @@ class LockPositionNotifier extends StateNotifier<({double x, double y})?> {
   /// Set a new lock position
   Future<void> setLockPosition(double x, double y, {bool exact = false}) async {
     final backend = ref.read(backendProvider);
-    await backend.phd2SetLockPosition(x: x, y: y, exact: exact);
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderSetLockPosition(
+      deviceId: guiderId,
+      x: x,
+      y: y,
+      exact: exact,
+    );
     state = (x: x, y: y);
   }
 
   /// Find a star automatically
   Future<void> findStar() async {
     final backend = ref.read(backendProvider);
-    final pos = await backend.phd2FindStar();
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    final pos = await backend.guiderFindStar(deviceId: guiderId);
     state = (x: pos.$1, y: pos.$2);
   }
 
   /// Deselect the current star
   Future<void> deselectStar() async {
     final backend = ref.read(backendProvider);
-    await backend.phd2DeselectStar();
+    final guiderId = ref.read(guiderStateProvider).deviceId ?? 'phd2_guider';
+    await backend.guiderDeselectStar(deviceId: guiderId);
     state = null;
   }
 
@@ -873,5 +913,96 @@ class LockPositionNotifier extends StateNotifier<({double x, double y})?> {
   void dispose() {
     _sub?.cancel();
     super.dispose();
+  }
+}
+
+// =============================================================================
+// BUILT-IN GUIDER CONFIG PROVIDER
+// =============================================================================
+
+/// The device ID used by the built-in multi-star guider.
+const String builtinGuiderDeviceId = 'native:builtin_guider:multi_star';
+
+/// Provider that exposes whether the currently connected guider is the built-in
+/// guider (as opposed to PHD2 or another external guider).
+final isBuiltinGuiderProvider = Provider<bool>((ref) {
+  final guiderState = ref.watch(guiderStateProvider);
+  return guiderState.deviceId == builtinGuiderDeviceId;
+});
+
+/// Provider for the built-in guider configuration.
+/// Fetches the config from the Rust backend and allows updating it.
+final builtinGuiderConfigProvider = StateNotifierProvider<
+    BuiltinGuiderConfigNotifier, AsyncValue<BuiltinGuiderConfig>>((ref) {
+  return BuiltinGuiderConfigNotifier(ref);
+});
+
+class BuiltinGuiderConfigNotifier
+    extends StateNotifier<AsyncValue<BuiltinGuiderConfig>> {
+  final Ref ref;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
+
+  BuiltinGuiderConfigNotifier(this.ref) : super(const AsyncValue.loading()) {
+    // Auto-fetch when the built-in guider is connected
+    final isBuiltin = ref.read(isBuiltinGuiderProvider);
+    if (isBuiltin) {
+      fetch();
+    }
+
+    // Listen for guider changes to fetch/clear config
+    ref.listen<bool>(isBuiltinGuiderProvider, (previous, next) {
+      if (next && previous != true) {
+        fetch();
+      } else if (!next) {
+        state = const AsyncValue.loading();
+      }
+    });
+  }
+
+  /// Fetch the current config from the Rust backend.
+  Future<void> fetch() async {
+    if (!mounted) return;
+    state = const AsyncValue.loading();
+
+    try {
+      final backend = ref.read(backendProvider);
+      final config = await backend.builtinGuiderGetConfig();
+      if (mounted) {
+        state = AsyncValue.data(config);
+      }
+    } catch (e) {
+      _logger.error('Failed to fetch built-in guider config: $e',
+          source: 'BuiltinGuiderConfig');
+      if (mounted) {
+        // Fall back to defaults so the UI is still usable
+        state = const AsyncValue.data(BuiltinGuiderConfig.defaults);
+      }
+    }
+  }
+
+  /// Update the full config and push to the backend.
+  Future<void> updateConfig(BuiltinGuiderConfig newConfig) async {
+    if (!mounted) return;
+
+    final previousState = state;
+    state = AsyncValue.data(newConfig);
+
+    try {
+      final backend = ref.read(backendProvider);
+      await backend.builtinGuiderSetConfig(newConfig);
+    } catch (e) {
+      _logger.error('Failed to set built-in guider config: $e',
+          source: 'BuiltinGuiderConfig');
+      // Revert on failure
+      if (mounted) {
+        state = previousState;
+      }
+      rethrow;
+    }
+  }
+
+  /// Reset config to defaults.
+  Future<void> resetToDefaults() async {
+    await updateConfig(BuiltinGuiderConfig.defaults);
   }
 }

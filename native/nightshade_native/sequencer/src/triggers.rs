@@ -1,10 +1,83 @@
 //! Trigger system for the sequencer
 
 use crate::{PierSide, RecoveryAction, TriggerType};
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+
+fn build_utc_naive_time_or_fallback(
+    date: NaiveDate,
+    hour: u32,
+    minute: u32,
+    fallback: (u32, u32, u32),
+) -> chrono::NaiveDateTime {
+    date.and_hms_opt(hour, minute, 0)
+        .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
+        .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
+}
+
+fn looks_like_tracking_limit_hit(state: &TriggerState) -> bool {
+    if !state.mount_tracking_expected || !state.mount_tracking_lost {
+        return false;
+    }
+
+    if state.mount_status_query_failed {
+        tracing::debug!("Tracking lost but status query failed - not a limit hit");
+        return false;
+    }
+
+    if !matches!(state.mount_is_tracking, Some(false) | None) {
+        tracing::debug!(
+            "Tracking lost heuristic rejected because tracking state is {:?}",
+            state.mount_is_tracking
+        );
+        return false;
+    }
+
+    let not_slewing = matches!(state.mount_slewing, Some(false) | None);
+    let not_parked = matches!(state.mount_parked, Some(false) | None);
+    if !not_slewing || !not_parked {
+        tracing::debug!(
+            "Tracking lost but mount is slewing={:?} parked={:?} - not a limit hit",
+            state.mount_slewing,
+            state.mount_parked
+        );
+        return false;
+    }
+
+    let now = Utc::now().timestamp();
+    if let Some(limit_time) = state.mount_tracking_limit_time {
+        if limit_time <= now + 60 {
+            return !matches!(state.pier_side, Some(PierSide::East));
+        }
+    }
+
+    let ha = match state.current_hour_angle {
+        Some(ha) if ha > 0.0 => ha,
+        _ => {
+            tracing::debug!(
+                "Tracking lost but HA={:?} - not past meridian, not a limit hit",
+                state.current_hour_angle
+            );
+            return false;
+        }
+    };
+
+    let on_pre_flip_side = match state.pier_side {
+        Some(PierSide::West) => true,
+        Some(PierSide::East) => false,
+        _ => true,
+    };
+
+    if !on_pre_flip_side {
+        tracing::debug!("Tracking lost but pier side is East - already flipped");
+        return false;
+    }
+
+    ha > 0.0
+}
 
 /// A trigger that monitors conditions and fires when met
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +95,10 @@ pub struct Trigger {
     /// Only used by HfrDegraded triggers; reset when condition clears.
     #[serde(skip)]
     pub hfr_bad_frame_count: u32,
+    /// Rolling window of HFR values for FocusDrift detection.
+    /// Stores recent HFR measurements to detect monotonic upward trends.
+    #[serde(skip)]
+    pub focus_drift_hfr_window: Vec<f64>,
 }
 
 impl Trigger {
@@ -41,6 +118,7 @@ impl Trigger {
             cooldown_secs: None,
             last_triggered: None,
             hfr_bad_frame_count: 0,
+            focus_drift_hfr_window: Vec::new(),
         }
     }
 
@@ -71,44 +149,53 @@ impl Trigger {
                 absolute_threshold,
                 consecutive_frames,
             } => {
-                let current = match state.current_hfr {
-                    Some(v) => v,
-                    None => return false,
-                };
+                if state.autofocus_invalidated {
+                    tracing::info!(
+                        "HFR trigger forcing autofocus because autofocus state was invalidated: {:?}",
+                        state.autofocus_invalidation_reason
+                    );
+                    self.hfr_bad_frame_count = (*consecutive_frames).max(1);
+                    true
+                } else {
+                    let current = match state.current_hfr {
+                        Some(v) => v,
+                        None => return false,
+                    };
 
-                // Check absolute threshold (if configured > 0)
-                let exceeds_absolute =
-                    *absolute_threshold > 0.0 && current > *absolute_threshold;
+                    // Check absolute threshold (if configured > 0)
+                    let exceeds_absolute =
+                        *absolute_threshold > 0.0 && current > *absolute_threshold;
 
-                // Check relative threshold (percentage above baseline)
-                let exceeds_relative = if *threshold_percent > 0.0 {
-                    if let Some(baseline) = state.baseline_hfr {
-                        if baseline > 0.0 {
-                            let increase = (current - baseline) / baseline * 100.0;
-                            increase > *threshold_percent
+                    // Check relative threshold (percentage above baseline)
+                    let exceeds_relative = if *threshold_percent > 0.0 {
+                        if let Some(baseline) = state.baseline_hfr {
+                            if baseline > 0.0 {
+                                let increase = (current - baseline) / baseline * 100.0;
+                                increase > *threshold_percent
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     } else {
                         false
+                    };
+
+                    // HFR is "bad" if either threshold is exceeded
+                    let is_bad = exceeds_absolute || exceeds_relative;
+
+                    // Track consecutive bad frames
+                    if is_bad {
+                        self.hfr_bad_frame_count += 1;
+                    } else {
+                        self.hfr_bad_frame_count = 0;
                     }
-                } else {
-                    false
-                };
 
-                // HFR is "bad" if either threshold is exceeded
-                let is_bad = exceeds_absolute || exceeds_relative;
-
-                // Track consecutive bad frames
-                if is_bad {
-                    self.hfr_bad_frame_count += 1;
-                } else {
-                    self.hfr_bad_frame_count = 0;
+                    // Only trigger after required consecutive bad frames
+                    let required = (*consecutive_frames).max(1);
+                    self.hfr_bad_frame_count >= required
                 }
-
-                // Only trigger after required consecutive bad frames
-                let required = (*consecutive_frames).max(1);
-                self.hfr_bad_frame_count >= required
             }
             TriggerType::MeridianFlip { config } => {
                 // Don't trigger if we've already flipped for this target
@@ -163,6 +250,45 @@ impl Trigger {
                         } else {
                             false
                         }
+                    }
+                    crate::MeridianTriggerMethod::OnTrackingLimitHit => {
+                        if !looks_like_tracking_limit_hit(state) {
+                            return false;
+                        }
+
+                        // Heuristic passed: this looks like a tracking limit hit.
+                        // Check if a wait period is configured.
+                        if config.tracking_limit_wait_minutes > 0.0 {
+                            if let Some(detected_at) = state.tracking_limit_detected_at {
+                                let elapsed_secs = chrono::Utc::now().timestamp() - detected_at;
+                                let wait_secs = (config.tracking_limit_wait_minutes * 60.0) as i64;
+                                if elapsed_secs < wait_secs {
+                                    tracing::trace!(
+                                        "Tracking limit hit: waiting {}/{}s before flip (HA={:.2}h)",
+                                        elapsed_secs,
+                                        wait_secs,
+                                        state.current_hour_angle.unwrap_or_default()
+                                    );
+                                    return false;
+                                }
+                                tracing::info!(
+                                    "Tracking limit wait elapsed ({:.1} min), triggering meridian flip (HA={:.2}h)",
+                                    config.tracking_limit_wait_minutes,
+                                    state.current_hour_angle.unwrap_or_default()
+                                );
+                            } else {
+                                // No timestamp yet - wait for executor to record it on next poll
+                                return false;
+                            }
+                        } else {
+                            tracing::info!(
+                                "Tracking limit hit detected, triggering immediate meridian flip (HA={:.2}h, pier={:?})",
+                                state.current_hour_angle.unwrap_or_default(),
+                                state.pier_side
+                            );
+                        }
+
+                        true
                     }
                 }
             }
@@ -219,7 +345,9 @@ impl Trigger {
                 if state.completed_exposures == 0 || *every_n_frames == 0 {
                     false
                 } else {
-                    let frames_since_af = state.completed_exposures - state.last_autofocus_frame;
+                    let frames_since_af = state
+                        .completed_exposures
+                        .saturating_sub(state.last_autofocus_frame);
                     frames_since_af >= *every_n_frames
                 }
             }
@@ -227,12 +355,36 @@ impl Trigger {
                 if state.completed_exposures == 0 || *every_n_frames == 0 {
                     false
                 } else {
-                    let frames_since_dither = state.completed_exposures - state.last_dither_frame;
+                    let frames_since_dither = state
+                        .completed_exposures
+                        .saturating_sub(state.last_dither_frame);
                     frames_since_dither >= *every_n_frames
                 }
             }
             TriggerType::MountTrackingLost => {
-                state.mount_tracking_expected && state.mount_tracking_lost
+                if !state.mount_tracking_expected || !state.mount_tracking_lost {
+                    return false;
+                }
+
+                // If OnTrackingLimitHit is the active meridian trigger method, check whether
+                // this tracking loss looks like a limit hit. If so, defer to the MeridianFlip
+                // trigger instead of pausing the sequence.
+                if matches!(
+                    state.meridian_trigger_method,
+                    Some(crate::MeridianTriggerMethod::OnTrackingLimitHit)
+                ) {
+                    let looks_like_limit_hit = looks_like_tracking_limit_hit(state);
+
+                    if looks_like_limit_hit {
+                        tracing::debug!(
+                            "Tracking lost but matches limit-hit heuristic - deferring to MeridianFlip trigger"
+                        );
+                        return false;
+                    }
+                }
+
+                // Genuine tracking loss (error condition)
+                true
             }
             TriggerType::DomeShutterNotOpen => {
                 state.dome_shutter_open_expected
@@ -241,6 +393,62 @@ impl Trigger {
                         Some(_) => true,
                         None => true, // Unknown shutter state is treated unsafe (fail-closed).
                     }
+            }
+            TriggerType::GuideStarLost => {
+                // Fire when guiding is enabled/expected but the guider reports no star
+                state.guiding_enabled && state.guide_star_lost
+            }
+            TriggerType::FocusDrift {
+                window_size,
+                min_increasing_count,
+                min_total_increase,
+            } => {
+                let current = match state.current_hfr {
+                    Some(v) => v,
+                    None => return false,
+                };
+
+                // Add new sample to the rolling window
+                self.focus_drift_hfr_window.push(current);
+
+                // Trim window to configured size
+                let max_size = (*window_size).max(2);
+                while self.focus_drift_hfr_window.len() > max_size {
+                    self.focus_drift_hfr_window.remove(0);
+                }
+
+                // Need at least min_increasing_count samples to detect a trend
+                let min_count = (*min_increasing_count).max(2);
+                if self.focus_drift_hfr_window.len() < min_count {
+                    return false;
+                }
+
+                // Check for monotonically increasing run at the end of the window.
+                // Walk backwards from the end to find the longest increasing suffix.
+                let window = &self.focus_drift_hfr_window;
+                let mut increasing_run = 1usize;
+                for i in (1..window.len()).rev() {
+                    if window[i] > window[i - 1] {
+                        increasing_run += 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                if increasing_run < min_count {
+                    return false;
+                }
+
+                // Check that the total increase is above the threshold
+                let run_start = window.len() - increasing_run;
+                let total_increase = window.last().unwrap() - window[run_start];
+                total_increase >= *min_total_increase
+            }
+            TriggerType::HumidityThreshold { max_percent } => {
+                match state.current_humidity {
+                    Some(humidity) => humidity > *max_percent,
+                    None => false, // No humidity data - can't trigger
+                }
             }
         };
 
@@ -255,7 +463,7 @@ impl Trigger {
 /// Calculate dawn (morning astronomical twilight) time for a given location
 /// Returns Unix timestamp of next dawn
 pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
-    use chrono::{Datelike, Utc};
+    use chrono::Datelike;
 
     let now = Utc::now();
     let today = now.date_naive();
@@ -302,9 +510,7 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
     let dawn_minutes = (dawn_hour.fract() * 60.0) as u32;
     let dawn_hour = dawn_hour as u32;
 
-    let dawn_datetime = today
-        .and_hms_opt(dawn_hour, dawn_minutes, 0)
-        .unwrap_or_else(|| today.and_hms_opt(6, 0, 0).unwrap());
+    let dawn_datetime = build_utc_naive_time_or_fallback(today, dawn_hour, dawn_minutes, (6, 0, 0));
 
     let dawn_timestamp =
         chrono::DateTime::<Utc>::from_naive_utc_and_offset(dawn_datetime, Utc).timestamp();
@@ -323,6 +529,8 @@ pub struct TriggerState {
     // HFR tracking
     pub baseline_hfr: Option<f64>,
     pub current_hfr: Option<f64>,
+    pub autofocus_invalidated: bool,
+    pub autofocus_invalidation_reason: Option<String>,
 
     // Meridian flip - enhanced fields
     /// Current hour angle of the target in hours (negative = east, positive = west of meridian)
@@ -341,6 +549,12 @@ pub struct TriggerState {
     // Guiding
     pub guiding_rms_history: Option<Vec<(Instant, f64)>>,
     pub guiding_enabled: bool,
+    /// Whether the guide star has been lost (guider reports no star / lost lock)
+    pub guide_star_lost: bool,
+
+    // Humidity
+    /// Current humidity percentage (0-100)
+    pub current_humidity: Option<f64>,
 
     // Altitude
     pub current_altitude: Option<f64>,
@@ -378,16 +592,32 @@ pub struct TriggerState {
     pub mount_is_tracking: Option<bool>,
     pub mount_tracking_expected: bool,
     pub mount_tracking_lost: bool,
+    /// Whether the mount is currently slewing (from status polling)
+    pub mount_slewing: Option<bool>,
+    /// Whether the mount is currently parked (from status polling)
+    pub mount_parked: Option<bool>,
+    /// Set to true when the most recent mount status query failed (connection lost / error).
+    /// Defaults to false (no failure). The tracking-limit heuristic requires this to be false.
+    pub mount_status_query_failed: bool,
+    /// Unix timestamp when tracking limit was first detected (for wait-before-flip)
+    pub tracking_limit_detected_at: Option<i64>,
+    /// The active meridian trigger method (so MountTrackingLost can defer to OnTrackingLimitHit)
+    pub meridian_trigger_method: Option<crate::MeridianTriggerMethod>,
 
     // Dome status
     pub dome_shutter_status: Option<String>,
     pub dome_shutter_open_expected: bool,
+
+    // Grid dither tracking
+    /// Current position index in the NxN grid dither pattern (0-based).
+    /// Incremented after each dither, wraps around to 0 after grid_size*grid_size.
+    pub grid_dither_index: u32,
 }
 
 impl TriggerState {
     pub fn new() -> Self {
         Self {
-            weather_safe: true,
+            weather_safe: false,
             guiding_enabled: false,
             ..Default::default()
         }
@@ -402,6 +632,14 @@ impl TriggerState {
 
     pub fn reset_baseline_hfr(&mut self) {
         self.baseline_hfr = self.current_hfr;
+    }
+
+    pub fn invalidate_autofocus(&mut self, reason: impl Into<String>) {
+        let reason = reason.into();
+        self.baseline_hfr = None;
+        self.autofocus_invalidated = true;
+        self.autofocus_invalidation_reason = Some(reason.clone());
+        tracing::info!("Autofocus invalidated: {}", reason);
     }
 
     pub fn update_guiding_rms(&mut self, rms: f64) {
@@ -433,7 +671,11 @@ impl TriggerState {
     }
 
     pub fn set_filter(&mut self, filter: String) {
-        self.filter_changed = self.current_filter.as_ref() != Some(&filter);
+        let changed = self.current_filter.as_ref() != Some(&filter);
+        self.filter_changed = changed;
+        if changed {
+            self.invalidate_autofocus(format!("filter changed to {}", filter));
+        }
         self.current_filter = Some(filter);
     }
 
@@ -449,6 +691,8 @@ impl TriggerState {
     /// Mark that autofocus was just performed
     pub fn mark_autofocus_performed(&mut self) {
         self.last_autofocus_frame = self.completed_exposures;
+        self.autofocus_invalidated = false;
+        self.autofocus_invalidation_reason = None;
     }
 
     /// Mark that dither was just performed
@@ -502,6 +746,19 @@ impl TriggerState {
         Some((ra_pixels.abs(), dec_pixels.abs()))
     }
 
+    /// Update guide star lost state
+    pub fn set_guide_star_lost(&mut self, lost: bool) {
+        if lost && !self.guide_star_lost {
+            tracing::warn!("Guide star lost detected");
+        }
+        self.guide_star_lost = lost;
+    }
+
+    /// Update current humidity reading
+    pub fn update_humidity(&mut self, humidity: f64) {
+        self.current_humidity = Some(humidity);
+    }
+
     /// Set mount tracking expected state
     pub fn set_mount_tracking_expected(&mut self, expected: bool) {
         self.mount_tracking_expected = expected;
@@ -521,6 +778,40 @@ impl TriggerState {
     /// Reset mount tracking lost state
     pub fn reset_mount_tracking_state(&mut self) {
         self.mount_tracking_lost = false;
+    }
+
+    /// Get the next grid dither offset (in pixels) for an NxN grid pattern.
+    /// Returns (ra_offset, dec_offset) centered on (0,0), then advances the index.
+    /// The grid walks through positions in row-major order, wrapping after N*N.
+    pub fn next_grid_dither_offset(&mut self, grid_size: u32, pixels: f64) -> (f64, f64) {
+        let n = grid_size.max(1);
+        let total_positions = n * n;
+        let idx = self.grid_dither_index % total_positions;
+
+        let row = idx / n;
+        let col = idx % n;
+
+        // Center the grid around (0,0): offset = (position - center) * step_size
+        // Step size = pixels / (n-1) if n>1, otherwise 0
+        let (ra_offset, dec_offset) = if n > 1 {
+            let step = pixels * 2.0 / (n - 1) as f64;
+            let center = (n - 1) as f64 / 2.0;
+            let ra = (col as f64 - center) * step;
+            let dec = (row as f64 - center) * step;
+            (ra, dec)
+        } else {
+            (0.0, 0.0)
+        };
+
+        // Advance to next position
+        self.grid_dither_index = (idx + 1) % total_positions;
+
+        (ra_offset, dec_offset)
+    }
+
+    /// Reset grid dither position (call when sequence starts or target changes)
+    pub fn reset_grid_dither(&mut self) {
+        self.grid_dither_index = 0;
     }
 
     // ========================================================================
@@ -546,8 +837,12 @@ impl TriggerState {
     /// This also resets the has_flipped flag for the new target
     pub fn set_meridian_target(&mut self, target_name: String) {
         if self.current_target_name.as_ref() != Some(&target_name) {
+            let previous = self.current_target_name.clone();
             self.current_target_name = Some(target_name);
             self.has_flipped_this_target = false;
+            if let Some(previous) = previous {
+                self.invalidate_autofocus(format!("target changed from {}", previous));
+            }
         }
     }
 
@@ -568,6 +863,13 @@ impl TriggerState {
         self.has_flipped_this_target = false;
         self.current_target_name = None;
         self.next_meridian_flip_time = None;
+        self.tracking_limit_detected_at = None;
+    }
+
+    /// Reset tracking limit detection state (call when tracking resumes or flip completes)
+    pub fn reset_tracking_limit_detection(&mut self) {
+        self.tracking_limit_detected_at = None;
+        self.mount_tracking_lost = false;
     }
 
     /// Check if a meridian flip might be needed based on current state
@@ -790,6 +1092,43 @@ impl TriggerManager {
                 RecoveryAction::ParkAndAbort,
             )
             .with_cooldown(0), // No cooldown for safety
+        );
+
+        // Guide star lost trigger
+        self.add_trigger(
+            Trigger::new(
+                "guide_star_lost",
+                "Guide Star Lost",
+                TriggerType::GuideStarLost,
+                RecoveryAction::Pause,
+            )
+            .with_cooldown(30), // 30 second cooldown
+        );
+
+        // Focus drift detection trigger
+        self.add_trigger(
+            Trigger::new(
+                "focus_drift",
+                "Focus Drift",
+                TriggerType::FocusDrift {
+                    window_size: 10,
+                    min_increasing_count: 5,
+                    min_total_increase: 0.5, // 0.5 pixel/arcsec total increase over the run
+                },
+                RecoveryAction::Autofocus,
+            )
+            .with_cooldown(600), // 10 minute cooldown (same as temperature shift)
+        );
+
+        // Humidity threshold trigger
+        self.add_trigger(
+            Trigger::new(
+                "humidity_threshold",
+                "Humidity Threshold",
+                TriggerType::HumidityThreshold { max_percent: 85.0 },
+                RecoveryAction::Pause, // Pause (not abort) - humidity may drop again
+            )
+            .with_cooldown(60), // 60 second cooldown
         );
     }
 }
@@ -1020,6 +1359,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_autofocus_interval_resume_counter_does_not_underflow() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Autofocus Interval Resume",
+            TriggerType::AutofocusInterval { every_n_frames: 5 },
+            RecoveryAction::Autofocus,
+        );
+
+        let mut state = TriggerState::new();
+        state.completed_exposures = 3;
+        state.last_autofocus_frame = 10;
+
+        assert!(!trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_dither_interval_resume_counter_does_not_underflow() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Dither Interval Resume",
+            TriggerType::DitherInterval { every_n_frames: 5 },
+            RecoveryAction::Continue,
+        );
+
+        let mut state = TriggerState::new();
+        state.completed_exposures = 2;
+        state.last_dither_frame = 8;
+
+        assert!(!trigger.check(&state).await);
+    }
+
+    #[tokio::test]
     async fn test_weather_unsafe_trigger() {
         let mut trigger = Trigger::new(
             "test",
@@ -1183,5 +1554,365 @@ mod tests {
         state.reset_baseline_hfr();
         assert_eq!(state.baseline_hfr, Some(3.0)); // Baseline updated
         assert_eq!(state.current_hfr, Some(3.0));
+    }
+
+    // =========================================================================
+    // OnTrackingLimitHit trigger tests
+    // =========================================================================
+
+    /// Helper to create a TriggerState simulating a mount that hit its tracking limit
+    fn make_limit_hit_state() -> TriggerState {
+        let mut state = TriggerState::new();
+        state.mount_tracking_expected = true;
+        state.mount_tracking_lost = true;
+        state.mount_is_tracking = Some(false);
+        state.mount_status_query_failed = false;
+        state.mount_slewing = Some(false);
+        state.mount_parked = Some(false);
+        state.current_hour_angle = Some(1.5); // 1.5h past meridian
+        state.pier_side = Some(PierSide::West); // Pre-flip side
+        state.tracking_limit_detected_at = Some(chrono::Utc::now().timestamp() - 600); // 10 min ago
+        state
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_immediate_flip() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0, // Flip immediately
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Limit Hit",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let state = make_limit_hit_state();
+        assert!(
+            trigger.check(&state).await,
+            "Should trigger immediately when wait is 0"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_with_wait_not_elapsed() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 5.0, // 5 min wait
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Limit Hit Wait",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        // Detected just 1 minute ago - wait hasn't elapsed
+        state.tracking_limit_detected_at = Some(chrono::Utc::now().timestamp() - 60);
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - wait period not elapsed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_with_wait_elapsed() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 5.0, // 5 min wait
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Limit Hit Wait Elapsed",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        // Detected 10 minutes ago - well past the 5 min wait
+        state.tracking_limit_detected_at = Some(chrono::Utc::now().timestamp() - 600);
+        assert!(
+            trigger.check(&state).await,
+            "Should trigger - wait period elapsed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_not_tracking_lost() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Not Lost",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.mount_tracking_lost = false; // Tracking is fine
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - tracking not lost"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_connection_lost() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Disconnected",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.mount_status_query_failed = true; // Connection lost
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - mount disconnected"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_wrong_pier_side() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Wrong Pier",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.pier_side = Some(PierSide::East); // Already on post-flip side
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - already on East side"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_negative_ha() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Negative HA",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.current_hour_angle = Some(-2.0); // East of meridian
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - target east of meridian"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_mount_slewing() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Slewing",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.mount_slewing = Some(true); // Mount is slewing
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - mount is slewing"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_already_flipped() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Already Flipped",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = make_limit_hit_state();
+        state.has_flipped_this_target = true; // Already flipped
+        assert!(
+            !trigger.check(&state).await,
+            "Should NOT trigger - already flipped for target"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mount_tracking_lost_defers_to_limit_hit() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Tracking Lost Defers",
+            TriggerType::MountTrackingLost,
+            RecoveryAction::Pause,
+        );
+
+        let mut state = make_limit_hit_state();
+        // Set OnTrackingLimitHit as the active method
+        state.meridian_trigger_method = Some(crate::MeridianTriggerMethod::OnTrackingLimitHit);
+
+        // Heuristic matches limit hit → MountTrackingLost should NOT fire
+        assert!(
+            !trigger.check(&state).await,
+            "MountTrackingLost should defer to MeridianFlip when limit-hit heuristic matches"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mount_tracking_lost_fires_when_not_limit_hit() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Tracking Lost Fires",
+            TriggerType::MountTrackingLost,
+            RecoveryAction::Pause,
+        );
+
+        let mut state = TriggerState::new();
+        state.mount_tracking_expected = true;
+        state.mount_tracking_lost = true;
+        state.meridian_trigger_method = Some(crate::MeridianTriggerMethod::OnTrackingLimitHit);
+        // No HA data → heuristic fails → MountTrackingLost should fire
+        assert!(
+            trigger.check(&state).await,
+            "MountTrackingLost should fire when heuristic doesn't match"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mount_tracking_lost_fires_with_different_trigger_method() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Tracking Lost Normal",
+            TriggerType::MountTrackingLost,
+            RecoveryAction::Pause,
+        );
+
+        let mut state = make_limit_hit_state();
+        // Not using OnTrackingLimitHit → MountTrackingLost should fire normally
+        state.meridian_trigger_method = Some(crate::MeridianTriggerMethod::MinutesPastMeridian);
+
+        assert!(
+            trigger.check(&state).await,
+            "MountTrackingLost should fire normally when OnTrackingLimitHit is not active"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_hfr_degraded_forces_autofocus_when_invalidated() {
+        let mut trigger = Trigger::new(
+            "test",
+            "HFR Trigger",
+            TriggerType::HfrDegraded {
+                threshold_percent: 20.0,
+                absolute_threshold: 0.0,
+                consecutive_frames: 3,
+            },
+            RecoveryAction::Autofocus,
+        );
+
+        let mut state = TriggerState::new();
+        state.invalidate_autofocus("binning changed");
+
+        assert!(trigger.check(&state).await);
+    }
+
+    #[test]
+    fn test_target_change_invalidates_autofocus() {
+        let mut state = TriggerState::new();
+        state.current_target_name = Some("M31".to_string());
+        state.baseline_hfr = Some(2.0);
+        state.current_hfr = Some(2.2);
+
+        state.set_meridian_target("M42".to_string());
+
+        assert!(state.autofocus_invalidated);
+        assert_eq!(state.baseline_hfr, None);
+    }
+
+    #[test]
+    fn test_filter_change_invalidates_autofocus() {
+        let mut state = TriggerState::new();
+        state.current_filter = Some("L".to_string());
+        state.baseline_hfr = Some(2.0);
+        state.current_hfr = Some(2.1);
+
+        state.set_filter("Ha".to_string());
+
+        assert!(state.filter_changed);
+        assert!(state.autofocus_invalidated);
+        assert_eq!(state.baseline_hfr, None);
+    }
+
+    #[tokio::test]
+    async fn test_on_tracking_limit_hit_uses_limit_time_without_hour_angle() {
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::OnTrackingLimitHit,
+            tracking_limit_wait_minutes: 0.0,
+            ..Default::default()
+        };
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Limit Time",
+            TriggerType::MeridianFlip { config },
+            RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+        );
+
+        let mut state = TriggerState::new();
+        state.mount_tracking_expected = true;
+        state.mount_tracking_lost = true;
+        state.mount_is_tracking = Some(false);
+        state.mount_status_query_failed = false;
+        state.mount_slewing = Some(false);
+        state.mount_parked = Some(false);
+        state.mount_tracking_limit_time = Some(Utc::now().timestamp() - 5);
+
+        assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_tracking_limit_reset_on_tracking_resume() {
+        let mut state = make_limit_hit_state();
+        assert!(state.tracking_limit_detected_at.is_some());
+        assert!(state.mount_tracking_lost);
+
+        state.reset_tracking_limit_detection();
+        assert!(state.tracking_limit_detected_at.is_none());
+        assert!(!state.mount_tracking_lost);
     }
 }

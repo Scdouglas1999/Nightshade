@@ -99,7 +99,7 @@ class _AltitudePlotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final now = DateTime.now();
-    final plotPadding = EdgeInsets.only(left: 20, right: 8, top: 4, bottom: 14);
+    const plotPadding = EdgeInsets.only(left: 20, right: 8, top: 4, bottom: 14);
     final plotRect = Rect.fromLTWH(
       plotPadding.left,
       plotPadding.top,
@@ -241,8 +241,8 @@ class _AltitudePlotPainter extends CustomPainter {
     var first = true;
 
     // Sample altitude every 10 minutes
-    final samples = 144; // 24 hours * 6 samples per hour
-    final interval = const Duration(minutes: 10);
+    const samples = 144; // 24 hours * 6 samples per hour
+    const interval = Duration(minutes: 10);
 
     for (var i = 0; i <= samples; i++) {
       final time = startTime.add(interval * i);

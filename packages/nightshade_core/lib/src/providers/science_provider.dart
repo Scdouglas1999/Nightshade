@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/daos/science_dao.dart';
 import '../database/database.dart'
     show
         PhotometryMeasurementRow,
@@ -17,7 +16,9 @@ import '../database/database.dart'
         MovingObjectCandidateRow,
         LineRatioProductRow;
 import '../models/science/science_models.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
+import '../backend/network_backend.dart';
 import 'session_provider.dart';
 
 class ScienceSettings {
@@ -34,6 +35,14 @@ class ScienceSettings {
   final bool surface3dEnabled;
   final bool manualPurgeOnly;
 
+  /// MPC observatory code (3 characters, e.g. "G40").
+  /// Required for generating Minor Planet Center reports.
+  final String mpcObservatoryCode;
+
+  /// AAVSO observer code (up to 5 characters, e.g. "XYZ").
+  /// Required for generating AAVSO Extended Format reports.
+  final String aavsoObserverCode;
+
   const ScienceSettings({
     this.advancedModeEnabled = false,
     this.overlayEnabled = true,
@@ -47,6 +56,8 @@ class ScienceSettings {
     this.frameQualityMapsEnabled = true,
     this.surface3dEnabled = true,
     this.manualPurgeOnly = true,
+    this.mpcObservatoryCode = '',
+    this.aavsoObserverCode = '',
   });
 
   ScienceSettings copyWith({
@@ -62,6 +73,8 @@ class ScienceSettings {
     bool? frameQualityMapsEnabled,
     bool? surface3dEnabled,
     bool? manualPurgeOnly,
+    String? mpcObservatoryCode,
+    String? aavsoObserverCode,
   }) {
     return ScienceSettings(
       advancedModeEnabled: advancedModeEnabled ?? this.advancedModeEnabled,
@@ -80,6 +93,8 @@ class ScienceSettings {
           frameQualityMapsEnabled ?? this.frameQualityMapsEnabled,
       surface3dEnabled: surface3dEnabled ?? this.surface3dEnabled,
       manualPurgeOnly: manualPurgeOnly ?? this.manualPurgeOnly,
+      mpcObservatoryCode: mpcObservatoryCode ?? this.mpcObservatoryCode,
+      aavsoObserverCode: aavsoObserverCode ?? this.aavsoObserverCode,
     );
   }
 }
@@ -98,12 +113,13 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     'frameQualityMaps': 'science.feature.frame_quality_maps',
     'surface3d': 'science.feature.surface3d',
     'manualPurgeOnly': 'science.retention.manual_purge_only',
+    'mpcObservatoryCode': 'science.mpc.observatory_code',
+    'aavsoObserverCode': 'science.aavso.observer_code',
   };
 
   @override
   Future<ScienceSettings> build() async {
-    final dao = ref.read(settingsDaoProvider);
-    final settings = await dao.getAllSettings();
+    final settings = await _loadScienceSettingsMap(ref);
 
     return ScienceSettings(
       advancedModeEnabled: _parseBool(settings[_keys['advancedMode']], false),
@@ -122,12 +138,19 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
           _parseBool(settings[_keys['frameQualityMaps']], true),
       surface3dEnabled: _parseBool(settings[_keys['surface3d']], true),
       manualPurgeOnly: _parseBool(settings[_keys['manualPurgeOnly']], true),
+      mpcObservatoryCode:
+          settings[_keys['mpcObservatoryCode']] ?? '',
+      aavsoObserverCode:
+          settings[_keys['aavsoObserverCode']] ?? '',
     );
   }
 
   Future<void> _setSetting(String key, bool value) async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(key, value.toString());
+    await _writeScienceSettings(ref, {key: value.toString()});
+  }
+
+  Future<void> _setStringSetting(String key, String value) async {
+    await _writeScienceSettings(ref, {key: value});
   }
 
   Future<void> setAdvancedModeEnabled(bool enabled) async {
@@ -192,6 +215,18 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     }
   }
 
+  Future<void> setMpcObservatoryCode(String code) async {
+    await _setStringSetting(_keys['mpcObservatoryCode']!, code);
+    state = AsyncData((state.value ?? const ScienceSettings())
+        .copyWith(mpcObservatoryCode: code));
+  }
+
+  Future<void> setAavsoObserverCode(String code) async {
+    await _setStringSetting(_keys['aavsoObserverCode']!, code);
+    state = AsyncData((state.value ?? const ScienceSettings())
+        .copyWith(aavsoObserverCode: code));
+  }
+
   bool _parseBool(String? value, bool fallback) {
     if (value == null) {
       return fallback;
@@ -213,11 +248,11 @@ class SciencePhotometrySelectionNotifier
 
   @override
   Future<SciencePhotometrySelection> build() async {
-    final dao = ref.read(settingsDaoProvider);
-    final enabled = _parseBool(await dao.getSetting(_enabledKey), false);
-    final target = _decodeAnchor(await dao.getSetting(_targetKey));
+    final settings = await _loadScienceSettingsMap(ref);
+    final enabled = _parseBool(settings[_enabledKey], false);
+    final target = _decodeAnchor(settings[_targetKey]);
     final comparisons =
-        _decodeAnchors(await dao.getSetting(_comparisonsKey), maxItems: 8);
+        _decodeAnchors(settings[_comparisonsKey], maxItems: 8);
 
     return SciencePhotometrySelection(
       differentialEnabled: enabled,
@@ -227,8 +262,7 @@ class SciencePhotometrySelectionNotifier
   }
 
   Future<void> setDifferentialEnabled(bool enabled) async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(_enabledKey, enabled.toString());
+    await _writeScienceSettings(ref, {_enabledKey: enabled.toString()});
     state = AsyncData(
       (state.value ?? const SciencePhotometrySelection())
           .copyWith(differentialEnabled: enabled),
@@ -236,19 +270,18 @@ class SciencePhotometrySelectionNotifier
   }
 
   Future<void> setTarget(PhotometryAnchor? target) async {
-    final dao = ref.read(settingsDaoProvider);
     final value = target == null ? '' : jsonEncode(target.toJson());
-    await dao.setSetting(_targetKey, value);
 
     final current = state.value ?? const SciencePhotometrySelection();
     final comparisons = current.comparisons
         .where((entry) => entry.objectId != target?.objectId)
         .toList(growable: false);
 
-    await dao.setSetting(
-      _comparisonsKey,
-      jsonEncode(comparisons.map((entry) => entry.toJson()).toList()),
-    );
+    await _writeScienceSettings(ref, {
+      _targetKey: value,
+      _comparisonsKey:
+          jsonEncode(comparisons.map((entry) => entry.toJson()).toList()),
+    });
 
     state = AsyncData(
       current.copyWith(
@@ -263,7 +296,6 @@ class SciencePhotometrySelectionNotifier
     PhotometryAnchor anchor, {
     int maxComparisons = 8,
   }) async {
-    final dao = ref.read(settingsDaoProvider);
     final current = state.value ?? const SciencePhotometrySelection();
     final mutable = current.comparisons.toList(growable: true);
 
@@ -279,23 +311,21 @@ class SciencePhotometrySelectionNotifier
         .where((entry) => entry.objectId != current.target?.objectId)
         .toList(growable: false);
 
-    await dao.setSetting(
-      _comparisonsKey,
-      jsonEncode(filtered.map((entry) => entry.toJson()).toList()),
-    );
+    await _writeScienceSettings(ref, {
+      _comparisonsKey:
+          jsonEncode(filtered.map((entry) => entry.toJson()).toList()),
+    });
     state = AsyncData(current.copyWith(comparisons: filtered));
   }
 
   Future<void> clearComparisons() async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(_comparisonsKey, '[]');
+    await _writeScienceSettings(ref, {_comparisonsKey: '[]'});
     final current = state.value ?? const SciencePhotometrySelection();
     state = AsyncData(current.copyWith(comparisons: const []));
   }
 
   Future<void> clearAll() async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSettings({
+    await _writeScienceSettings(ref, {
       _enabledKey: 'false',
       _targetKey: '',
       _comparisonsKey: '[]',
@@ -391,14 +421,7 @@ class ScienceVisualizationPrefsNotifier
 
   @override
   Future<ScienceVisualizationPrefs> build() async {
-    final dao = ref.read(settingsDaoProvider);
-    final raw = <String, String?>{
-      _overlayOpacityKey: await dao.getSetting(_overlayOpacityKey),
-      _liveGridRowsKey: await dao.getSetting(_liveGridRowsKey),
-      _liveGridColsKey: await dao.getSetting(_liveGridColsKey),
-      _analysisGridRowsKey: await dao.getSetting(_analysisGridRowsKey),
-      _analysisGridColsKey: await dao.getSetting(_analysisGridColsKey),
-    };
+    final raw = await _loadScienceSettingsMap(ref);
 
     return ScienceVisualizationPrefs(
       overlayOpacity: _parseDouble(raw[_overlayOpacityKey], 0.35)
@@ -412,8 +435,7 @@ class ScienceVisualizationPrefsNotifier
   }
 
   Future<void> savePrefs(ScienceVisualizationPrefs prefs) async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSettings({
+    await _writeScienceSettings(ref, {
       _overlayOpacityKey: prefs.overlayOpacity.toString(),
       _liveGridRowsKey: prefs.liveGridRows.toString(),
       _liveGridColsKey: prefs.liveGridCols.toString(),
@@ -440,22 +462,32 @@ final scienceVisualizationPrefsProvider = AsyncNotifierProvider<
 );
 
 class ScienceSessionConfigController {
-  final ScienceDao _dao;
+  final Ref _ref;
 
-  ScienceSessionConfigController(this._dao);
+  ScienceSessionConfigController(this._ref);
 
   Future<void> save(int sessionId, ScienceSessionConfig config) async {
-    await _dao.upsertSessionConfig(config.copyWith(sessionId: sessionId));
+    final backend = _ref.read(backendProvider);
+    final resolved = config.copyWith(sessionId: sessionId);
+    if (backend is NetworkBackend) {
+      await backend.updateScienceSessionConfig(sessionId, resolved);
+      return;
+    }
+    await _ref.read(scienceDaoProvider).upsertSessionConfig(resolved);
   }
 }
 
 final scienceSessionConfigControllerProvider =
     Provider<ScienceSessionConfigController>((ref) {
-  return ScienceSessionConfigController(ref.watch(scienceDaoProvider));
+  return ScienceSessionConfigController(ref);
 });
 
 final scienceSessionConfigProvider =
     StreamProvider.family<ScienceSessionConfig?, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteScienceSessionConfig(backend, sessionId);
+  }
   return ref.watch(scienceDaoProvider).watchSessionConfig(sessionId).map((row) {
     if (row == null) {
       return null;
@@ -485,31 +517,105 @@ final activeScienceSessionConfigProvider =
   return ref.watch(scienceSessionConfigProvider(sessionId));
 });
 
+final _remoteScienceSessionBundleProvider =
+    FutureProvider.family<RemoteScienceBundle, int>((ref, sessionId) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is! NetworkBackend) {
+    throw StateError('Remote science bundle requested in local mode');
+  }
+  final bundle = await backend.getScienceSessionBundle(sessionId);
+  Timer? timer;
+  ref.onDispose(() => timer?.cancel());
+  timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    ref.invalidateSelf();
+  });
+  return bundle;
+});
+
+final _remoteSessionlessScienceBundleProvider =
+    FutureProvider<RemoteScienceBundle>((ref) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is! NetworkBackend) {
+    throw StateError('Remote sessionless science bundle requested in local mode');
+  }
+  final bundle = await backend.getSessionlessScienceBundle();
+  Timer? timer;
+  ref.onDispose(() => timer?.cancel());
+  timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    ref.invalidateSelf();
+  });
+  return bundle;
+});
+
 final sessionPhotometryProvider =
     StreamProvider.family<List<PhotometryMeasurementRow>, int>(
         (ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.photometry),
+          loading: () => Stream.value(const <PhotometryMeasurementRow>[]),
+          error: (_, __) => Stream.value(const <PhotometryMeasurementRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchPhotometryForSession(sessionId);
 });
 
 final sessionFrameCalibrationsProvider =
     StreamProvider.family<List<FramePhotometricCalibrationRow>, int>(
         (ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.calibrations),
+          loading: () =>
+              Stream.value(const <FramePhotometricCalibrationRow>[]),
+          error: (_, __) =>
+              Stream.value(const <FramePhotometricCalibrationRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchCalibrationsForSession(sessionId);
 });
 
 final sessionTransparencySamplesProvider =
     StreamProvider.family<List<TransparencySampleRow>, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.transparency),
+          loading: () => Stream.value(const <TransparencySampleRow>[]),
+          error: (_, __) => Stream.value(const <TransparencySampleRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchTransparencyForSession(sessionId);
 });
 
 final sessionPsfTilesProvider =
     StreamProvider.family<List<PsfFieldTileRow>, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.psfTiles),
+          loading: () => Stream.value(const <PsfFieldTileRow>[]),
+          error: (_, __) => Stream.value(const <PsfFieldTileRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchPsfTilesForSession(sessionId);
 });
 
 final sessionFrameQualityMetricsProvider =
     StreamProvider.family<List<ScienceFrameQualityMetricsRow>, int>(
         (ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.frameQuality),
+          loading: () =>
+              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+          error: (_, __) =>
+              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+        );
+  }
   return ref
       .watch(scienceDaoProvider)
       .watchFrameQualityMetricsForSession(sessionId);
@@ -517,23 +623,55 @@ final sessionFrameQualityMetricsProvider =
 
 final sessionTileMetricsProvider =
     StreamProvider.family<List<ScienceTileMetricRow>, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.tileMetrics),
+          loading: () => Stream.value(const <ScienceTileMetricRow>[]),
+          error: (_, __) => Stream.value(const <ScienceTileMetricRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchTileMetricsForSession(sessionId);
 });
 
 final sessionResidualVectorsProvider =
     StreamProvider.family<List<AstrometryResidualVectorRow>, int>(
         (ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.residuals),
+          loading: () => Stream.value(const <AstrometryResidualVectorRow>[]),
+          error: (_, __) => Stream.value(const <AstrometryResidualVectorRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchResidualsForSession(sessionId);
 });
 
 final sessionMovingObjectCandidatesProvider =
     StreamProvider.family<List<MovingObjectCandidateRow>, int>(
         (ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.movingObjects),
+          loading: () => Stream.value(const <MovingObjectCandidateRow>[]),
+          error: (_, __) => Stream.value(const <MovingObjectCandidateRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchMovingObjectsForSession(sessionId);
 });
 
 final sessionLineRatioProductsProvider =
     StreamProvider.family<List<LineRatioProductRow>, int>((ref, sessionId) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
+          data: (bundle) => Stream.value(bundle.lineRatios),
+          loading: () => Stream.value(const <LineRatioProductRow>[]),
+          error: (_, __) => Stream.value(const <LineRatioProductRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchLineRatiosForSession(sessionId);
 });
 
@@ -597,21 +735,57 @@ final sessionMovingObjectTrendProvider =
 
 final sessionlessCalibrationsProvider =
     StreamProvider<List<FramePhotometricCalibrationRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.calibrations),
+          loading: () =>
+              Stream.value(const <FramePhotometricCalibrationRow>[]),
+          error: (_, __) =>
+              Stream.value(const <FramePhotometricCalibrationRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessCalibrationsRecent();
 });
 
 final sessionlessTransparencySamplesProvider =
     StreamProvider<List<TransparencySampleRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.transparency),
+          loading: () => Stream.value(const <TransparencySampleRow>[]),
+          error: (_, __) => Stream.value(const <TransparencySampleRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessTransparencyRecent();
 });
 
 final sessionlessPsfTilesProvider =
     StreamProvider<List<PsfFieldTileRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.psfTiles),
+          loading: () => Stream.value(const <PsfFieldTileRow>[]),
+          error: (_, __) => Stream.value(const <PsfFieldTileRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessPsfTilesRecent();
 });
 
 final sessionlessFrameQualityMetricsProvider =
     StreamProvider<List<ScienceFrameQualityMetricsRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.frameQuality),
+          loading: () =>
+              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+          error: (_, __) =>
+              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+        );
+  }
   return ref
       .watch(scienceDaoProvider)
       .watchSessionlessFrameQualityMetricsRecent();
@@ -619,26 +793,66 @@ final sessionlessFrameQualityMetricsProvider =
 
 final sessionlessTileMetricsProvider =
     StreamProvider<List<ScienceTileMetricRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.tileMetrics),
+          loading: () => Stream.value(const <ScienceTileMetricRow>[]),
+          error: (_, __) => Stream.value(const <ScienceTileMetricRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessTileMetricsRecent();
 });
 
 final sessionlessResidualVectorsProvider =
     StreamProvider<List<AstrometryResidualVectorRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.residuals),
+          loading: () => Stream.value(const <AstrometryResidualVectorRow>[]),
+          error: (_, __) => Stream.value(const <AstrometryResidualVectorRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessResidualsRecent();
 });
 
 final sessionlessMovingObjectCandidatesProvider =
     StreamProvider<List<MovingObjectCandidateRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.movingObjects),
+          loading: () => Stream.value(const <MovingObjectCandidateRow>[]),
+          error: (_, __) => Stream.value(const <MovingObjectCandidateRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessMovingObjectsRecent();
 });
 
 final sessionlessPhotometryProvider =
     StreamProvider<List<PhotometryMeasurementRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.photometry),
+          loading: () => Stream.value(const <PhotometryMeasurementRow>[]),
+          error: (_, __) => Stream.value(const <PhotometryMeasurementRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessPhotometryRecent();
 });
 
 final sessionlessLineRatioProductsProvider =
     StreamProvider<List<LineRatioProductRow>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return ref.watch(_remoteSessionlessScienceBundleProvider).when(
+          data: (bundle) => Stream.value(bundle.lineRatios),
+          loading: () => Stream.value(const <LineRatioProductRow>[]),
+          error: (_, __) => Stream.value(const <LineRatioProductRow>[]),
+        );
+  }
   return ref.watch(scienceDaoProvider).watchSessionlessLineRatiosRecent();
 });
 
@@ -735,3 +949,34 @@ final currentScienceFrameProductsProvider = Provider.family<
 
   return (selectedMetric, selectedTiles);
 });
+
+Future<Map<String, String>> _loadScienceSettingsMap(Ref ref) async {
+  final backend = ref.read(backendProvider);
+  if (backend is NetworkBackend) {
+    return backend.getScienceSettings();
+  }
+  return ref.read(settingsDaoProvider).getAllSettings();
+}
+
+Future<void> _writeScienceSettings(Ref ref, Map<String, String> settings) async {
+  final backend = ref.read(backendProvider);
+  if (backend is NetworkBackend) {
+    await backend.updateScienceSettings(settings);
+    ref.invalidate(scienceSettingsProvider);
+    ref.invalidate(sciencePhotometrySelectionProvider);
+    ref.invalidate(scienceVisualizationPrefsProvider);
+    return;
+  }
+  await ref.read(settingsDaoProvider).setSettings(settings);
+}
+
+Stream<ScienceSessionConfig?> _pollRemoteScienceSessionConfig(
+  NetworkBackend backend,
+  int sessionId,
+) async* {
+  yield await backend.getScienceSessionConfig(sessionId);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await backend.getScienceSessionConfig(sessionId);
+  }
+}

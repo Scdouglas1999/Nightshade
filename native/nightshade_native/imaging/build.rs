@@ -2,6 +2,17 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+    cc::Build::new()
+        .file("src/libraw_shim.c")
+        .include("vendor/libraw")
+        .warnings(false)
+        .compile("nightshade_libraw_shim");
+
+    println!("cargo:rerun-if-changed=src/libraw_shim.c");
+    println!("cargo:rerun-if-changed=vendor/libraw/libraw_const.h");
+    println!("cargo:rerun-if-changed=vendor/libraw/libraw_types.h");
+    println!("cargo:rerun-if-changed=vendor/libraw/libraw_version.h");
+
     // Get the workspace root (where libraw.dll/.lib lives)
     // CARGO_MANIFEST_DIR is native/nightshade_native/imaging
     // We need to go up 3 levels to reach the workspace root

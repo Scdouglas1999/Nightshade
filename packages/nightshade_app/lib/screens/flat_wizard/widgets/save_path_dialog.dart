@@ -86,7 +86,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Container(
         width: 500,
         padding: const EdgeInsets.all(24),

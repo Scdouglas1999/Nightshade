@@ -167,7 +167,8 @@ class ErrorService {
           _uiNotificationNotifier!.showError(
             userFriendly.fullMessage,
             title: 'Critical: ${_categoryToTitle(entry.category)}',
-            duration: const Duration(seconds: 15), // Persist longer for critical
+            duration:
+                const Duration(seconds: 15), // Persist longer for critical
           );
           break;
         case ErrorSeverity.warning:
@@ -311,7 +312,8 @@ class ErrorService {
   }
 
   /// Get errors by category
-  List<ErrorEntry> getErrorsByCategory(ErrorCategory category, {int limit = 20}) {
+  List<ErrorEntry> getErrorsByCategory(ErrorCategory category,
+      {int limit = 20}) {
     return _errorHistory
         .where((e) => e.category == category)
         .toList()
@@ -321,7 +323,8 @@ class ErrorService {
   }
 
   /// Get errors by severity
-  List<ErrorEntry> getErrorsBySeverity(ErrorSeverity severity, {int limit = 20}) {
+  List<ErrorEntry> getErrorsBySeverity(ErrorSeverity severity,
+      {int limit = 20}) {
     return _errorHistory
         .where((e) => e.severity == severity)
         .toList()
@@ -357,26 +360,14 @@ class ErrorService {
   }
 }
 
-/// Global error service instance
-final errorService = ErrorService();
-
 /// Provider for the error service
 final errorServiceProvider = Provider<ErrorService>((ref) {
   final service = ErrorService();
-  // Try to get logging service if available
-  try {
-    final logging = ref.watch(loggingServiceProvider);
-    service.setLoggingService(logging);
-  } catch (_) {
-    // Logging service not available, continue without file logging
-  }
-  // Wire up UI notifications for errors
-  try {
-    final uiNotifier = ref.watch(uiNotificationProvider.notifier);
-    service.setUiNotificationNotifier(uiNotifier);
-  } catch (_) {
-    // UI notification provider not available, continue without UI notifications
-  }
+  final logging = ref.watch(loggingServiceProvider);
+  service.setLoggingService(logging);
+
+  final uiNotifier = ref.watch(uiNotificationProvider.notifier);
+  service.setUiNotificationNotifier(uiNotifier);
   return service;
 });
 
@@ -424,12 +415,14 @@ class ErrorMessageMapper {
     'Device not found': UserFriendlyError(
       technicalError: 'Device not found',
       userMessage: 'The device could not be found.',
-      suggestion: 'Check that the device is powered on, connected, and the driver is installed.',
+      suggestion:
+          'Check that the device is powered on, connected, and the driver is installed.',
     ),
     'Connection refused': UserFriendlyError(
       technicalError: 'Connection refused',
       userMessage: 'Could not connect to the device.',
-      suggestion: 'Verify the device is on, connected via USB/network, and no other software is using it.',
+      suggestion:
+          'Verify the device is on, connected via USB/network, and no other software is using it.',
     ),
     'Connection timed out': UserFriendlyError(
       technicalError: 'Connection timed out',
@@ -449,7 +442,8 @@ class ErrorMessageMapper {
     'ASCOM': UserFriendlyError(
       technicalError: 'ASCOM',
       userMessage: 'ASCOM driver error occurred.',
-      suggestion: 'Check that the ASCOM driver is installed and configured correctly.',
+      suggestion:
+          'Check that the ASCOM driver is installed and configured correctly.',
     ),
     'COM': UserFriendlyError(
       technicalError: 'COM',
@@ -483,7 +477,8 @@ class ErrorMessageMapper {
     'File write': UserFriendlyError(
       technicalError: 'File write',
       userMessage: 'Failed to save the image file.',
-      suggestion: 'Check that the save location is accessible and has sufficient disk space.',
+      suggestion:
+          'Check that the save location is accessible and has sufficient disk space.',
     ),
     'Disk space': UserFriendlyError(
       technicalError: 'Disk space',
@@ -518,7 +513,8 @@ class ErrorMessageMapper {
     'Limit': UserFriendlyError(
       technicalError: 'Limit',
       userMessage: 'Mount has reached a limit.',
-      suggestion: 'The mount has reached its movement limits. Perform a meridian flip or reconfigure limits.',
+      suggestion:
+          'The mount has reached its movement limits. Perform a meridian flip or reconfigure limits.',
     ),
   };
 
@@ -551,27 +547,33 @@ class ErrorMessageMapper {
     'Plate solve failed': UserFriendlyError(
       technicalError: 'Plate solve failed',
       userMessage: 'Plate solving failed.',
-      suggestion: 'Ensure the mount is roughly pointed at the target. Try using a longer exposure or wider field hint.',
+      suggestion:
+          'Ensure the mount is roughly pointed at the target. Try using a longer exposure or wider field hint.',
     ),
     'No solution': UserFriendlyError(
       technicalError: 'No solution',
       userMessage: 'Could not determine image location.',
-      suggestion: 'The image may be out of focus or pointing far from expected. Check focus and alignment.',
+      suggestion:
+          'The image may be out of focus or pointing far from expected. Check focus and alignment.',
     ),
     'ASTAP': UserFriendlyError(
       technicalError: 'ASTAP',
       userMessage: 'ASTAP plate solver error.',
-      suggestion: 'Verify ASTAP is installed and the star database is downloaded.',
+      suggestion:
+          'Verify ASTAP is installed and the star database is downloaded.',
     ),
   };
 
   /// Convert a technical error to a user-friendly message
-  static UserFriendlyError mapError(String technicalError, {ErrorCategory? category}) {
+  static UserFriendlyError mapError(String technicalError,
+      {ErrorCategory? category}) {
     // Try category-specific patterns first
     if (category != null) {
       final categoryPatterns = _getCategoryPatterns(category);
       for (final entry in categoryPatterns.entries) {
-        if (technicalError.toLowerCase().contains(entry.key.toString().toLowerCase())) {
+        if (technicalError
+            .toLowerCase()
+            .contains(entry.key.toString().toLowerCase())) {
           return entry.value;
         }
       }
@@ -587,7 +589,9 @@ class ErrorMessageMapper {
     ];
 
     for (final entry in allPatterns) {
-      if (technicalError.toLowerCase().contains(entry.key.toString().toLowerCase())) {
+      if (technicalError
+          .toLowerCase()
+          .contains(entry.key.toString().toLowerCase())) {
         return entry.value;
       }
     }
@@ -600,7 +604,8 @@ class ErrorMessageMapper {
     );
   }
 
-  static Map<Pattern, UserFriendlyError> _getCategoryPatterns(ErrorCategory category) {
+  static Map<Pattern, UserFriendlyError> _getCategoryPatterns(
+      ErrorCategory category) {
     switch (category) {
       case ErrorCategory.device:
         return _deviceErrors;
@@ -619,8 +624,11 @@ class ErrorMessageMapper {
   static String _cleanupErrorMessage(String error) {
     // Remove common prefixes
     var cleaned = error
-        .replaceAll(RegExp(r'^(Error:|Exception:|Failed:)\s*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'^nightshade_\w+::\w+::\s*', caseSensitive: false), '')
+        .replaceAll(
+            RegExp(r'^(Error:|Exception:|Failed:)\s*', caseSensitive: false),
+            '')
+        .replaceAll(
+            RegExp(r'^nightshade_\w+::\w+::\s*', caseSensitive: false), '')
         .replaceAll(RegExp(r'Err\((.*)\)', caseSensitive: false), r'$1');
 
     // Capitalize first letter
@@ -629,7 +637,9 @@ class ErrorMessageMapper {
     }
 
     // Ensure it ends with a period
-    if (!cleaned.endsWith('.') && !cleaned.endsWith('!') && !cleaned.endsWith('?')) {
+    if (!cleaned.endsWith('.') &&
+        !cleaned.endsWith('!') &&
+        !cleaned.endsWith('?')) {
       cleaned += '.';
     }
 
@@ -637,7 +647,8 @@ class ErrorMessageMapper {
   }
 
   /// Get a user-friendly message from an exception
-  static UserFriendlyError fromException(Object error, {ErrorCategory? category}) {
+  static UserFriendlyError fromException(Object error,
+      {ErrorCategory? category}) {
     return mapError(error.toString(), category: category);
   }
 }

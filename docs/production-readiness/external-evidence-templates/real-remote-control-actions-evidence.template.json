@@ -1,0 +1,26 @@
+{
+  "usedRealOrSimulatorBackedDevices": true,
+  "remoteClientType": "dashboard",
+  "coveredDeviceTypes": [
+    "mount"
+  ],
+  "stateReadbackPassed": true,
+  "auditLogPath": "docs/production-readiness/real-control-audit.log",
+  "commandResults": [
+    {
+      "deviceType": "mount",
+      "deviceId": "example",
+      "requestId": "request id from the remote command/audit log",
+      "command": "safe status/control action",
+      "passed": true,
+      "stateReadback": "recorded state after command"
+    }
+  ],
+  "skippedUnsafeActions": [
+    {
+      "command": "example unsafe command",
+      "reason": "skipped in real environment; simulator used instead"
+    }
+  ],
+  "notes": "Record request IDs and post-command state readback. The audit log path must exist when this verifier runs."
+}

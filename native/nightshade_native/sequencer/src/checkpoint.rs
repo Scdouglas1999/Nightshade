@@ -8,6 +8,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
 
 /// Checkpoint containing all state needed to resume a sequence
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,16 +153,30 @@ impl SessionCheckpoint {
 /// Manager for checkpoint persistence
 pub struct CheckpointManager {
     checkpoint_dir: PathBuf,
+    info_cache: Mutex<Option<CachedCheckpointInfo>>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedCheckpointInfo {
+    primary_mtime: Option<SystemTime>,
+    backup_mtime: Option<SystemTime>,
+    info: Option<CheckpointInfo>,
 }
 
 impl CheckpointManager {
     const CHECKPOINT_FILENAME: &'static str = "nightshade_session.checkpoint";
     const CHECKPOINT_BACKUP: &'static str = "nightshade_session.checkpoint.bak";
 
+    /// Get the checkpoint directory path
+    pub fn checkpoint_dir(&self) -> &Path {
+        &self.checkpoint_dir
+    }
+
     /// Create a new checkpoint manager with the given directory
     pub fn new<P: AsRef<Path>>(checkpoint_dir: P) -> Self {
         Self {
             checkpoint_dir: checkpoint_dir.as_ref().to_path_buf(),
+            info_cache: Mutex::new(None),
         }
     }
 
@@ -199,6 +215,7 @@ impl CheckpointManager {
         std::fs::rename(&temp_path, &path)
             .map_err(|e| format!("Failed to finalize checkpoint: {}", e))?;
 
+        self.invalidate_info_cache();
         tracing::debug!("Checkpoint saved: {}", path.display());
         Ok(())
     }
@@ -266,12 +283,91 @@ impl CheckpointManager {
         Ok(checkpoint)
     }
 
+    fn checkpoint_signature(&self) -> Result<(Option<SystemTime>, Option<SystemTime>), String> {
+        let path = self.checkpoint_path();
+        let backup = self.backup_path();
+
+        let primary_mtime = if path.exists() {
+            Some(
+                std::fs::metadata(&path)
+                    .map_err(|e| format!("Failed to stat checkpoint {}: {}", path.display(), e))?
+                    .modified()
+                    .map_err(|e| {
+                        format!("Failed to read checkpoint mtime {}: {}", path.display(), e)
+                    })?,
+            )
+        } else {
+            None
+        };
+
+        let backup_mtime = if backup.exists() {
+            Some(
+                std::fs::metadata(&backup)
+                    .map_err(|e| {
+                        format!(
+                            "Failed to stat backup checkpoint {}: {}",
+                            backup.display(),
+                            e
+                        )
+                    })?
+                    .modified()
+                    .map_err(|e| {
+                        format!(
+                            "Failed to read backup checkpoint mtime {}: {}",
+                            backup.display(),
+                            e
+                        )
+                    })?,
+            )
+        } else {
+            None
+        };
+
+        Ok((primary_mtime, backup_mtime))
+    }
+
+    fn build_checkpoint_info(&self) -> Result<Option<CheckpointInfo>, String> {
+        match self.load()? {
+            Some(checkpoint) => Ok(Some(CheckpointInfo {
+                sequence_name: checkpoint.sequence.name.clone(),
+                timestamp: checkpoint.timestamp,
+                completed_exposures: checkpoint.completed_exposures,
+                completed_integration_secs: checkpoint.completed_integration_secs,
+                can_resume: checkpoint.can_resume(),
+                age_seconds: checkpoint.age_seconds(),
+            })),
+            None => Ok(None),
+        }
+    }
+
+    fn cached_checkpoint_info(&self) -> Result<Option<CheckpointInfo>, String> {
+        let (primary_mtime, backup_mtime) = self.checkpoint_signature()?;
+        let mut cache = self.info_cache.lock().unwrap_or_else(|e| e.into_inner());
+
+        if let Some(cached) = &*cache {
+            if cached.primary_mtime == primary_mtime && cached.backup_mtime == backup_mtime {
+                return Ok(cached.info.clone());
+            }
+        }
+
+        let info = self.build_checkpoint_info()?;
+        *cache = Some(CachedCheckpointInfo {
+            primary_mtime,
+            backup_mtime,
+            info: info.clone(),
+        });
+        Ok(info)
+    }
+
+    fn invalidate_info_cache(&self) {
+        *self.info_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
     /// Check if a recoverable checkpoint exists
     pub fn has_recoverable_checkpoint(&self) -> bool {
-        match self.load() {
-            Ok(Some(checkpoint)) => checkpoint.can_resume(),
-            _ => false,
-        }
+        self.cached_checkpoint_info()
+            .map(|info| info.is_some_and(|checkpoint| checkpoint.can_resume))
+            .unwrap_or(false)
     }
 
     /// Delete the checkpoint (call when sequence completes normally)
@@ -288,6 +384,7 @@ impl CheckpointManager {
             let _ = std::fs::remove_file(&backup);
         }
 
+        self.invalidate_info_cache();
         tracing::debug!("Checkpoint cleared");
         Ok(())
     }
@@ -299,23 +396,13 @@ impl CheckpointManager {
             checkpoint.executor_state = ExecutorState::Completed;
             self.save(&checkpoint)?;
         }
+        self.invalidate_info_cache();
         Ok(())
     }
 
     /// Get checkpoint info without loading full checkpoint
     pub fn get_checkpoint_info(&self) -> Result<Option<CheckpointInfo>, String> {
-        match self.load() {
-            Ok(Some(checkpoint)) => Ok(Some(CheckpointInfo {
-                sequence_name: checkpoint.sequence.name.clone(),
-                timestamp: checkpoint.timestamp,
-                completed_exposures: checkpoint.completed_exposures,
-                completed_integration_secs: checkpoint.completed_integration_secs,
-                can_resume: checkpoint.can_resume(),
-                age_seconds: checkpoint.age_seconds(),
-            })),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        }
+        self.cached_checkpoint_info()
     }
 }
 
@@ -393,6 +480,27 @@ mod tests {
             .unwrap()
             .expect("Expected checkpoint from backup");
         assert_eq!(loaded.sequence.name, "Backup Sequence");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_checkpoint_info_cache_invalidates_when_file_disappears() {
+        let dir = test_dir("info_cache_invalidation");
+        let manager = CheckpointManager::new(&dir);
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("Resume".to_string()));
+        checkpoint.sequence.root_node_id = Some("root".to_string());
+        checkpoint.is_active = true;
+        checkpoint.executor_state = ExecutorState::Running;
+        manager.save(&checkpoint).unwrap();
+
+        let first = manager.get_checkpoint_info().unwrap();
+        assert!(first.as_ref().is_some_and(|info| info.can_resume));
+
+        fs::remove_file(manager.checkpoint_path()).unwrap();
+
+        let second = manager.get_checkpoint_info().unwrap();
+        assert!(second.is_none());
 
         let _ = fs::remove_dir_all(&dir);
     }

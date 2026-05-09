@@ -7,6 +7,8 @@ class ScienceInsightsPanel extends StatelessWidget {
   final ScienceFrameQualityMetricsRow? frameMetrics;
   final FramePhotometricCalibrationRow? latestCalibration;
   final TransparencySampleRow? latestTransparency;
+  final OpticalTrainDiagnostics? diagnostics;
+  final EquipmentHealthReport? healthReport;
 
   const ScienceInsightsPanel({
     super.key,
@@ -14,6 +16,8 @@ class ScienceInsightsPanel extends StatelessWidget {
     required this.frameMetrics,
     required this.latestCalibration,
     required this.latestTransparency,
+    this.diagnostics,
+    this.healthReport,
   });
 
   @override
@@ -140,6 +144,38 @@ class ScienceInsightsPanel extends StatelessWidget {
           color: const Color(0xFFA855F7),
         ),
       );
+    }
+
+    final opticalDiagnostics = diagnostics;
+    if (opticalDiagnostics != null) {
+      for (final issue in opticalDiagnostics.issues.take(2)) {
+        output.add(
+          _Insight(
+            message: '${issue.title}: ${issue.detail}',
+            color: switch (issue.severity) {
+              OpticalIssueSeverity.info => const Color(0xFF10B981),
+              OpticalIssueSeverity.warning => const Color(0xFFF59E0B),
+              OpticalIssueSeverity.critical => const Color(0xFFEF4444),
+            },
+          ),
+        );
+      }
+    }
+
+    final equipmentHealth = healthReport;
+    if (equipmentHealth != null) {
+      for (final insight in equipmentHealth.insights.take(2)) {
+        output.add(
+          _Insight(
+            message: '${insight.title}: ${insight.message}',
+            color: switch (insight.severity) {
+              EquipmentHealthSeverity.info => const Color(0xFF10B981),
+              EquipmentHealthSeverity.warning => const Color(0xFFF59E0B),
+              EquipmentHealthSeverity.critical => const Color(0xFFEF4444),
+            },
+          ),
+        );
+      }
     }
 
     return output;

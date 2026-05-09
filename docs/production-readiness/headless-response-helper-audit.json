@@ -1,0 +1,297 @@
+{
+  "generatedAt": "2026-05-06T14:36:30.658042Z",
+  "passed": true,
+  "issueCount": 0,
+  "issues": [],
+  "helper": {
+    "path": "apps/desktop/lib/headless_api/response_helpers.dart",
+    "exists": true,
+    "sizeBytes": 3523,
+    "missingText": [],
+    "missingTextCount": 0,
+    "passed": true
+  },
+  "tests": {
+    "path": "apps/desktop/test/headless_api/response_helpers_test.dart",
+    "exists": true,
+    "sizeBytes": 2684,
+    "missingText": [],
+    "missingTextCount": 0,
+    "passed": true
+  },
+  "usage": {
+    "scannedFileCount": 26,
+    "rawResponseCallCount": 2,
+    "intentionalRawResponseCallCount": 2,
+    "unclassifiedRawResponseCallCount": 0,
+    "jsonContentTypeCount": 1,
+    "helperImportCount": 26,
+    "helperCallCount": 759,
+    "files": [
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/analytics_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 34
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/auxiliary_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 34
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/backup_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 28
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/device_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 63
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/dome_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 26
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/equipment_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 32
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/filesystem_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 7
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 8
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/focus_model_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 40
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/framing_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 23
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/guiding_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 76
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/imaging_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 19
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/mosaic_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 10
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/planetarium_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 28
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/profile_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 20
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/safety_monitor_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 15
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/scheduler_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 36
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/science_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 37
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/sequence_management_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 32
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/sequencer_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 42
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/session_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 20
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/suggestion_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 11
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/target_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 25
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/transient_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 14
+      },
+      {
+        "path": "apps/desktop/lib/headless_api/handlers/weather_handlers.dart",
+        "rawResponseCalls": 0,
+        "intentionalRawResponseCalls": 0,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [],
+        "jsonContentTypeMentions": 0,
+        "helperImports": 1,
+        "helperCalls": 22
+      },
+      {
+        "path": "apps/desktop/lib/headless_api_server.dart",
+        "rawResponseCalls": 2,
+        "intentionalRawResponseCalls": 2,
+        "unclassifiedRawResponseCalls": 0,
+        "intentionalRawResponseReasons": [
+          "dashboard static asset byte response",
+          "empty CORS preflight response"
+        ],
+        "jsonContentTypeMentions": 1,
+        "helperImports": 1,
+        "helperCalls": 57
+      }
+    ]
+  },
+  "policy": "Headless JSON, binary, and attachment responses must have typed helpers available and unit-tested before broad route migration. Raw shelf Response usage is only allowed in the headless server for static dashboard assets and empty CORS preflight behavior; unclassified raw Response usage or handler-level raw Response usage is release-blocking."
+}

@@ -54,12 +54,15 @@ class _LocationMarkerState extends State<LocationMarker>
 
   @override
   Widget build(BuildContext context) {
+    final highlightColor = Theme.of(context).colorScheme.onPrimary;
+
     return AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
         return CustomPaint(
           painter: _LocationMarkerPainter(
             colors: widget.colors,
+            highlightColor: highlightColor,
             pulseScale: _pulseAnimation.value,
           ),
           size: const Size(40, 40),
@@ -72,10 +75,12 @@ class _LocationMarkerState extends State<LocationMarker>
 /// Custom painter for the location marker
 class _LocationMarkerPainter extends CustomPainter {
   final NightshadeColors colors;
+  final Color highlightColor;
   final double pulseScale;
 
   _LocationMarkerPainter({
     required this.colors,
+    required this.highlightColor,
     required this.pulseScale,
   });
 
@@ -120,7 +125,7 @@ class _LocationMarkerPainter extends CustomPainter {
 
     // Center highlight (white dot)
     final highlightPaint = Paint()
-      ..color = Colors.white
+      ..color = highlightColor
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(
@@ -133,6 +138,7 @@ class _LocationMarkerPainter extends CustomPainter {
   @override
   bool shouldRepaint(_LocationMarkerPainter oldDelegate) {
     return oldDelegate.pulseScale != pulseScale ||
+        oldDelegate.highlightColor != highlightColor ||
         oldDelegate.colors != colors;
   }
 }

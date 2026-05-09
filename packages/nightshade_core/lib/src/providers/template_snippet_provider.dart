@@ -27,22 +27,44 @@ final customSnippetsProvider =
   return CustomSnippetsNotifier();
 });
 
-/// Notifier for managing custom template snippets with file persistence
+/// Notifier for managing custom template snippets with file persistence.
+///
+/// Snippets are lazily loaded from disk on first access that needs them
+/// (add, update, remove, or explicit load). The provider starts with an
+/// empty list and sets [_loaded] once disk data has been read, so the
+/// list-building cost is deferred until the template browser is opened.
 class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
-  CustomSnippetsNotifier() : super([]);
+  bool _loaded = false;
 
-  /// Load custom snippets from disk
+  CustomSnippetsNotifier() : super([]) {
+    // Trigger lazy load on construction so data is ready when first watched.
+    // The load is async and the UI will see an empty list until it completes.
+    _ensureLoaded();
+  }
+
+  /// Ensure snippets have been loaded from disk. No-op after the first load.
+  Future<void> _ensureLoaded() async {
+    if (_loaded) return;
+    await loadFromDisk();
+  }
+
+  /// Load custom snippets from disk.
+  ///
+  /// Sets [_loaded] on completion (even on error) so subsequent calls are
+  /// no-ops via [_ensureLoaded].
   Future<void> loadFromDisk() async {
     try {
       final file = await _getSnippetsFile();
       if (!await file.exists()) {
         state = [];
+        _loaded = true;
         return;
       }
 
       final jsonString = await file.readAsString();
       if (jsonString.isEmpty) {
         state = [];
+        _loaded = true;
         return;
       }
 
@@ -51,11 +73,11 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
           .map((json) => TemplateSnippet.fromJson(json as Map<String, dynamic>))
           .toList();
       state = snippets;
+      _loaded = true;
     } catch (e) {
-      // Log error but don't crash - return empty list
-      // ignore: avoid_print
       developer.log('Error loading custom snippets: $e', name: 'TemplateSnippet', level: 1000);
       state = [];
+      _loaded = true;
     }
   }
 
@@ -80,7 +102,9 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
   }
 
   /// Add a new custom snippet
-  void addSnippet(TemplateSnippet snippet) {
+  Future<void> addSnippet(TemplateSnippet snippet) async {
+    await _ensureLoaded();
+
     // Ensure the snippet is not marked as built-in
     final snippetToAdd = snippet.isBuiltIn
         ? snippet.copyWith(isBuiltIn: false)
@@ -88,20 +112,20 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
 
     state = [...state, snippetToAdd];
 
-    // Save to disk asynchronously
-    saveToDisk();
+    await saveToDisk();
   }
 
   /// Remove a custom snippet by ID
-  void removeSnippet(String id) {
+  Future<void> removeSnippet(String id) async {
+    await _ensureLoaded();
     state = state.where((s) => s.id != id).toList();
 
-    // Save to disk asynchronously
-    saveToDisk();
+    await saveToDisk();
   }
 
   /// Update an existing custom snippet
-  void updateSnippet(TemplateSnippet snippet) {
+  Future<void> updateSnippet(TemplateSnippet snippet) async {
+    await _ensureLoaded();
     final index = state.indexWhere((s) => s.id == snippet.id);
     if (index == -1) {
       throw ArgumentError('Snippet with id ${snippet.id} not found');
@@ -111,8 +135,7 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
     updatedList[index] = snippet;
     state = updatedList;
 
-    // Save to disk asynchronously
-    saveToDisk();
+    await saveToDisk();
   }
 
   /// Get the file path for storing custom snippets
@@ -242,6 +265,7 @@ Map<String, dynamic> _serializeNode(
       'repeatUntil': node.repeatUntil?.toIso8601String(),
       'repeatUntilAltitude': node.repeatUntilAltitude,
       'integrationTimeTarget': node.integrationTimeTarget,
+      'maxSafetyIterations': node.maxSafetyIterations,
     });
   } else if (node is ParallelNode) {
     base.addAll({
@@ -297,6 +321,7 @@ Map<String, dynamic> _serializeNode(
       'stepsOut': node.stepsOut,
       'exposuresPerPoint': node.exposuresPerPoint,
       'exposureDuration': node.exposureDuration,
+      'useSettingsDefaults': node.useSettingsDefaults,
     });
   } else if (node is DitherNode) {
     base.addAll({

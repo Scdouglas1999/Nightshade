@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' http://*:* https://*:* ws://*:* wss://*:*; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nightshade Dashboard</title>
+  <link rel="stylesheet" href="/dashboard/css/dashboard.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ===== Top Bar ===== -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <span class="top-bar-logo">NIGHTSHADE</span>
+        <span class="top-bar-version">Web Dashboard</span>
+      </div>
+      <div class="top-bar-right">
+        <label for="server-url" class="top-bar-label">Server:</label>
+        <input id="server-url" class="server-url-input" type="text" placeholder="http://host:port">
+        <button id="btn-connect" class="btn btn-primary btn-sm">Connect</button>
+        <div class="connection-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Disconnected</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Auth Bar (hidden if not needed) ===== -->
+    <div class="auth-bar hidden" id="auth-bar">
+      <label for="device-name">Device:</label>
+      <input id="device-name" type="text" placeholder="Browser name">
+      <label for="pairing-code">Pair Code:</label>
+      <input id="pairing-code" type="text" placeholder="ORION-LYRA-4821">
+      <button id="btn-pair" class="btn btn-sm btn-primary">Pair</button>
+      <label for="auth-token">Token:</label>
+      <input id="auth-token" type="password" placeholder="Bearer token">
+      <label for="remember-token" class="checkbox-label">
+        <input id="remember-token" type="checkbox">
+        Remember token
+      </label>
+      <button id="btn-apply-token" class="btn btn-sm">Apply</button>
+    </div>
+
+    <!-- ===== Dashboard Grid ===== -->
+    <div class="dashboard-grid">
+
+      <!-- ===== Device Status Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#9881;</span>
+            Devices
+          </span>
+        </div>
+        <div class="panel-body" id="devices-list">
+          <div class="empty-state">Connect to server to see devices</div>
+        </div>
+      </div>
+
+      <!-- ===== Camera Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#9898;</span>
+            Camera
+          </span>
+          <div class="panel-actions">
+            <button id="btn-expose" class="btn btn-primary btn-sm">Expose</button>
+            <button id="btn-abort-expose" class="btn btn-danger btn-sm">Abort</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="image-preview-container" id="image-preview">
+            <div class="image-preview-placeholder">No image captured yet</div>
+          </div>
+          <div class="image-stats" id="image-stats"></div>
+          <hr class="section-divider">
+          <div class="control-row">
+            <label for="exposure-time">Exposure (s)</label>
+            <input id="exposure-time" type="number" value="5" min="0.001" max="3600" step="0.1">
+          </div>
+          <div class="control-row">
+            <label for="camera-gain">Gain</label>
+            <input id="camera-gain" type="number" value="100" min="0" max="600" step="1">
+          </div>
+          <div class="control-row">
+            <label for="camera-binning">Binning</label>
+            <select id="camera-binning">
+              <option value="1">1x1</option>
+              <option value="2">2x2</option>
+              <option value="3">3x3</option>
+              <option value="4">4x4</option>
+            </select>
+          </div>
+          <div id="camera-status-info"></div>
+        </div>
+      </div>
+
+      <!-- ===== Mount Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#9978;</span>
+            Mount
+          </span>
+          <div class="panel-actions">
+            <span id="mount-slewing" class="badge badge-running hidden-inline">SLEWING</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="two-column-compact">
+            <div class="coord-display">
+              <div class="coord-label">RA</div>
+              <div class="coord-value" id="mount-ra">--h --m --s</div>
+            </div>
+            <div class="coord-display">
+              <div class="coord-label">DEC</div>
+              <div class="coord-value" id="mount-dec">--&deg; --' --"</div>
+            </div>
+          </div>
+
+          <div class="two-column-compact">
+            <div class="status-row">
+              <span class="status-label">Alt</span>
+              <span class="status-value" id="mount-alt">--</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">Az</span>
+              <span class="status-value" id="mount-az">--</span>
+            </div>
+          </div>
+
+          <div class="status-row status-row-spaced">
+            <span class="status-label">Pier Side</span>
+            <span class="status-value" id="mount-pier">--</span>
+          </div>
+
+          <hr class="section-divider">
+
+          <div class="slew-speed-select">
+            <label for="slew-speed">Speed:</label>
+            <select id="slew-speed">
+              <option value="0.1">0.1x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x Max</option>
+            </select>
+          </div>
+
+          <div class="mount-dpad">
+            <div></div>
+            <button id="btn-mount-n" class="btn" title="North">&#9650;</button>
+            <div></div>
+            <button id="btn-mount-w" class="btn" title="West">&#9664;</button>
+            <button id="btn-mount-stop" class="btn btn-danger btn-stop" title="Stop">STOP</button>
+            <button id="btn-mount-e" class="btn" title="East">&#9654;</button>
+            <div></div>
+            <button id="btn-mount-s" class="btn" title="South">&#9660;</button>
+            <div></div>
+          </div>
+
+          <div class="btn-group centered-actions">
+            <button id="btn-mount-park" class="btn btn-sm">Park</button>
+            <button id="btn-mount-unpark" class="btn btn-sm">Unpark</button>
+            <button id="btn-mount-tracking" class="btn btn-sm">Tracking OFF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Sequencer Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#9654;</span>
+            Sequencer
+          </span>
+          <div class="panel-actions">
+            <button id="btn-seq-start" class="btn btn-success btn-sm">Start</button>
+            <button id="btn-seq-pause" class="btn btn-sm">Pause</button>
+            <button id="btn-seq-resume" class="btn btn-sm">Resume</button>
+            <button id="btn-seq-stop" class="btn btn-danger btn-sm">Stop</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="status-row">
+            <span class="status-label">Status</span>
+            <span id="seq-status"><span class="badge badge-idle">idle</span></span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Current Node</span>
+            <span class="status-value" id="seq-node">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Progress</span>
+            <span class="status-value info" id="seq-progress-text"></span>
+          </div>
+          <div class="sequence-progress">
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="seq-progress-bar"></div>
+            </div>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Message</span>
+            <span class="status-value status-message" id="seq-message"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Guiding Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#10023;</span>
+            Guiding (PHD2)
+          </span>
+          <div class="panel-actions">
+            <button id="btn-guide-start" class="btn btn-success btn-sm">Start</button>
+            <button id="btn-guide-stop" class="btn btn-danger btn-sm">Stop</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="status-row">
+            <span class="status-label">Status</span>
+            <span id="guide-status"><span class="badge badge-idle">disconnected</span></span>
+          </div>
+          <div class="guide-graph-container">
+            <canvas id="guide-canvas"></canvas>
+          </div>
+          <div class="guide-stats-row">
+            <div class="guide-stat">
+              <span class="guide-stat-label">RA RMS:</span>
+              <span class="guide-stat-value ra" id="guide-ra-rms">--</span>
+            </div>
+            <div class="guide-stat">
+              <span class="guide-stat-label">Dec RMS:</span>
+              <span class="guide-stat-value dec" id="guide-dec-rms">--</span>
+            </div>
+            <div class="guide-stat">
+              <span class="guide-stat-label">Total:</span>
+              <span class="guide-stat-value guide-total" id="guide-total-rms">--</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Event Log Panel ===== -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon">&#9776;</span>
+            Event Log
+          </span>
+          <div class="panel-actions">
+            <button id="btn-clear-log" class="btn btn-sm">Clear</button>
+          </div>
+        </div>
+        <div class="panel-body panel-body-compact">
+          <div class="log-container" id="log-container">
+            <div class="empty-state">Waiting for events...</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dashboard-grid -->
+
+  </div><!-- /app-layout -->
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/dashboard/js/api.js"></script>
+  <script src="/dashboard/js/app.js"></script>
+</body>
+</html>

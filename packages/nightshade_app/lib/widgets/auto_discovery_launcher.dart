@@ -18,7 +18,8 @@ class AutoDiscoveryLauncher extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<AutoDiscoveryLauncher> createState() => _AutoDiscoveryLauncherState();
+  ConsumerState<AutoDiscoveryLauncher> createState() =>
+      _AutoDiscoveryLauncherState();
 }
 
 class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
@@ -58,7 +59,6 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
       // Fire-and-forget: Start discovery without awaiting completion
       // This allows the UI to remain responsive while discovery runs
       _runDiscoveryInBackground();
-
     } catch (e) {
       debugPrint('[AutoDiscovery] Error during auto-discovery setup: $e');
       // Don't show error to user - this is a background operation
@@ -69,6 +69,8 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
     // Use Future.microtask to ensure this doesn't block the current frame
     Future.microtask(() async {
       try {
+        if (!mounted) return;
+
         final discoveryNotifier = ref.read(unifiedDiscoveryProvider.notifier);
 
         // Run discovery - this already runs backends in parallel internally

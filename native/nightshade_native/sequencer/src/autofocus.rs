@@ -51,6 +51,9 @@ pub struct AutofocusConfig {
     pub use_temperature_prediction: bool,
     pub max_star_count_change: Option<f64>, // Reject points with >X% star count change
     pub outlier_rejection_sigma: f64,       // Sigma for outlier rejection (0 = disabled)
+    /// Maximum duration in seconds before the autofocus run is aborted.
+    /// Default 600s (10 minutes).
+    pub max_duration_secs: f64,
 }
 
 impl Default for AutofocusConfig {
@@ -64,6 +67,7 @@ impl Default for AutofocusConfig {
             use_temperature_prediction: true,
             max_star_count_change: Some(0.5), // 50% change threshold
             outlier_rejection_sigma: 3.0,
+            max_duration_secs: 600.0,
         }
     }
 }
@@ -179,8 +183,78 @@ impl VCurveAutofocus {
 
     /// Fit a simple V-curve (piecewise linear) and find minimum
     fn fit_vcurve(&self, points: &[FocusDataPoint]) -> Result<(i32, f64), String> {
-        // Simple approach: find minimum HFR point
-        let min_point = points
+        if points.len() < 3 {
+            return Err("Need at least 3 points for V-curve fit".to_string());
+        }
+
+        let mut sorted = points.to_vec();
+        sorted.sort_by_key(|point| point.position);
+
+        let mut best_fit: Option<(f64, f64)> = None;
+
+        for split in 1..sorted.len() - 1 {
+            let left = &sorted[..=split];
+            let right = &sorted[split..];
+            if left.len() < 2 || right.len() < 2 {
+                continue;
+            }
+
+            let Some((left_m, left_b)) = fit_line(left) else {
+                continue;
+            };
+            let Some((right_m, right_b)) = fit_line(right) else {
+                continue;
+            };
+
+            if left_m >= 0.0 || right_m <= 0.0 || (left_m - right_m).abs() < 1e-10 {
+                continue;
+            }
+
+            let intersection = (right_b - left_b) / (left_m - right_m);
+            let min_position = sorted
+                .first()
+                .map(|p| p.position as f64)
+                .unwrap_or(intersection);
+            let max_position = sorted
+                .last()
+                .map(|p| p.position as f64)
+                .unwrap_or(intersection);
+            if !(min_position..=max_position).contains(&intersection) {
+                continue;
+            }
+
+            let mean_hfr: f64 = sorted.iter().map(|p| p.hfr).sum::<f64>() / sorted.len() as f64;
+            let mut ss_tot = 0.0;
+            let mut ss_res = 0.0;
+
+            for point in &sorted {
+                let x = point.position as f64;
+                let predicted = if x <= intersection {
+                    left_m * x + left_b
+                } else {
+                    right_m * x + right_b
+                };
+                ss_tot += (point.hfr - mean_hfr).powi(2);
+                ss_res += (point.hfr - predicted).powi(2);
+            }
+
+            let r_squared = if ss_tot > 0.0 {
+                (1.0 - (ss_res / ss_tot)).max(0.0)
+            } else {
+                0.0
+            };
+
+            match best_fit {
+                Some((_, best_r2)) if r_squared <= best_r2 => {}
+                _ => best_fit = Some((intersection, r_squared)),
+            }
+        }
+
+        if let Some((intersection, r_squared)) = best_fit {
+            return Ok((intersection.round() as i32, r_squared));
+        }
+
+        let min_point = sorted
             .iter()
             .min_by(|a, b| {
                 a.hfr
@@ -188,25 +262,7 @@ impl VCurveAutofocus {
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
-
-        // Calculate fit quality using normalized RMSE
-        let mean_hfr: f64 = points.iter().map(|p| p.hfr).sum::<f64>() / points.len() as f64;
-        let mut ss_tot = 0.0;
-        let mut ss_res = 0.0;
-
-        for point in points {
-            ss_tot += (point.hfr - mean_hfr).powi(2);
-            // For V-curve, predicted value at minimum is just min_hfr
-            ss_res += (point.hfr - min_point.hfr).powi(2);
-        }
-
-        let r_squared = if ss_tot > 0.0 {
-            1.0 - (ss_res / ss_tot)
-        } else {
-            0.0
-        };
-
-        Ok((min_point.position, r_squared.max(0.0)))
+        Ok((min_point.position, 0.0))
     }
 
     /// Fit a parabola (quadratic) to focus data
@@ -419,6 +475,33 @@ impl VCurveAutofocus {
     }
 }
 
+fn fit_line(points: &[FocusDataPoint]) -> Option<(f64, f64)> {
+    if points.len() < 2 {
+        return None;
+    }
+
+    let n = points.len() as f64;
+    let sum_x: f64 = points.iter().map(|point| point.position as f64).sum();
+    let sum_y: f64 = points.iter().map(|point| point.hfr).sum();
+    let sum_xy: f64 = points
+        .iter()
+        .map(|point| point.position as f64 * point.hfr)
+        .sum();
+    let sum_x2: f64 = points
+        .iter()
+        .map(|point| (point.position as f64).powi(2))
+        .sum();
+
+    let denom = n * sum_x2 - sum_x.powi(2);
+    if denom.abs() < 1e-10 {
+        return None;
+    }
+
+    let slope = (n * sum_xy - sum_x * sum_y) / denom;
+    let intercept = (sum_y - slope * sum_x) / n;
+    Some((slope, intercept))
+}
+
 /// Backlash compensation helper
 ///
 /// When moving to a target position, if we're moving inward (decreasing position),
@@ -541,7 +624,74 @@ mod tests {
         ];
 
         let (best_pos, _) = engine.fit_vcurve(&points).unwrap();
-        assert_eq!(best_pos, 1200, "Should find minimum at position 1200");
+        assert!(
+            (best_pos - 1200).abs() <= 1,
+            "Should find minimum near position 1200, got {}",
+            best_pos
+        );
+    }
+
+    #[test]
+    fn test_vcurve_fit_handles_asymmetric_data() {
+        let config = AutofocusConfig {
+            method: AutofocusMethod::VCurve,
+            ..Default::default()
+        };
+        let engine = VCurveAutofocus::new(config);
+
+        let points = vec![
+            FocusDataPoint {
+                position: 4600,
+                hfr: 6.4,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 4800,
+                hfr: 4.3,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 4950,
+                hfr: 2.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5050,
+                hfr: 2.2,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5300,
+                hfr: 3.6,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5600,
+                hfr: 5.5,
+                fwhm: None,
+                star_count: 50,
+            },
+        ];
+
+        let (best_pos, quality) = engine.fit_vcurve(&points).unwrap();
+        assert!((best_pos - 5000).abs() <= 100, "best_pos={}", best_pos);
+        assert!(quality > 0.5, "quality={}", quality);
+    }
+
+    #[test]
+    fn test_parabolic_fit_rejects_empty_points() {
+        let config = AutofocusConfig {
+            method: AutofocusMethod::Quadratic,
+            ..Default::default()
+        };
+        let engine = VCurveAutofocus::new(config);
+
+        assert!(engine.fit_parabola(&[]).is_err());
     }
 
     #[test]

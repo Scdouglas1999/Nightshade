@@ -3,7 +3,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart'
     show Target, ImagingSession;
-import 'package:nightshade_core/src/models/optical_config.dart';
 
 /// Mock implementation of LoggingService
 class MockLoggingService extends Mock implements LoggingService {}
@@ -47,6 +46,7 @@ void main() {
         totalPlannedSubs: totalPlannedSubs,
         capturedSubs: 0,
         totalIntegrationSecs: totalIntegrationSecs,
+        goalIntegrationSecs: 0.0,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isFavorite: false,
@@ -108,7 +108,8 @@ void main() {
           longitude: -75.0,
           targets: targets,
           sessions: [],
-          observationTime: DateTime(2024, 7, 15, 22, 0), // Summer evening when Vega is high
+          observationTime:
+              DateTime(2024, 7, 15, 22, 0), // Summer evening when Vega is high
         );
 
         // Should return at least one suggestion if target is above horizon
@@ -556,7 +557,8 @@ void main() {
           );
         }
 
-        test('suggestions without opticalConfig have no framingFit score', () async {
+        test('suggestions without opticalConfig have no framingFit score',
+            () async {
           final targets = [
             createTarget(
               id: 1,
@@ -588,7 +590,8 @@ void main() {
           }
         });
 
-        test('suggestions with opticalConfig include framingFit score', () async {
+        test('suggestions with opticalConfig include framingFit score',
+            () async {
           final opticalConfig = createTestOpticalConfig();
           final targets = [
             createTarget(
@@ -698,7 +701,8 @@ void main() {
           }
         });
 
-        test('target with no size data gets neutral framing fit score', () async {
+        test('target with no size data gets neutral framing fit score',
+            () async {
           final opticalConfig = createTestOpticalConfig();
           final targets = [
             createTarget(

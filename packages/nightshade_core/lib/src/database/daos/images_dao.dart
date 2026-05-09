@@ -131,6 +131,13 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     return update(capturedImages).replace(image);
   }
 
+  /// Update only the stored file path for an image.
+  Future<void> updateImageFilePath(int id, String filePath) {
+    return (update(capturedImages)..where((i) => i.id.equals(id))).write(
+      CapturedImagesCompanion(filePath: Value(filePath)),
+    );
+  }
+
   /// Delete an image record
   Future<int> deleteImage(int id) {
     return (delete(capturedImages)..where((i) => i.id.equals(id))).go();
@@ -201,17 +208,25 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
-  /// Get image count by filter for a target
+  /// Get image count by filter for a target using SQL GROUP BY.
   Future<Map<String, int>> getFilterCountsForTarget(int targetId) async {
-    final images = await getImagesForTarget(targetId);
-    final counts = <String, int>{};
+    final countExp = capturedImages.id.count();
+    final query = selectOnly(capturedImages)
+      ..addColumns([capturedImages.filter, countExp])
+      ..where(capturedImages.targetId.equals(targetId) &
+          capturedImages.isAccepted.equals(true) &
+          capturedImages.filter.isNotNull())
+      ..groupBy([capturedImages.filter]);
 
-    for (final image in images) {
-      if (image.filter != null && image.isAccepted) {
-        counts[image.filter!] = (counts[image.filter!] ?? 0) + 1;
+    final rows = await query.get();
+    final counts = <String, int>{};
+    for (final row in rows) {
+      final filter = row.read(capturedImages.filter);
+      final count = row.read(countExp);
+      if (filter != null && count != null) {
+        counts[filter] = count;
       }
     }
-
     return counts;
   }
 

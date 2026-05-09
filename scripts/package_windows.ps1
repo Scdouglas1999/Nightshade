@@ -262,6 +262,20 @@ Invoke-Step "Copy native DLL and updater next to exe" {
     }
 }
 
+Invoke-Step "Copy web dashboard to release directory" {
+    $dashboardSource = Join-Path $desktopDir "web_dashboard"
+    $dashboardDest = Join-Path $releaseDir "web_dashboard"
+    if (Test-Path $dashboardSource) {
+        if (Test-Path $dashboardDest) {
+            Remove-Item -Recurse -Force $dashboardDest
+        }
+        Copy-Item -Recurse $dashboardSource $dashboardDest
+        Write-Host "Copied web_dashboard directory"
+    } else {
+        throw "web_dashboard directory not found at: $dashboardSource"
+    }
+}
+
 Invoke-Step "Prepare installer output directory" {
     if (-not (Test-Path $installerOutDir)) {
         New-Item -ItemType Directory -Path $installerOutDir -Force | Out-Null

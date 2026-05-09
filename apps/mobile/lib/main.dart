@@ -6,12 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/nightshade_app.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart';
-
 import 'screens/qr_scanner_screen.dart';
 import 'services/mobile_sequence_hooks.dart';
 import 'services/network_service.dart';
@@ -20,16 +19,6 @@ import 'widgets/checkpoint_resume_dialog.dart';
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Native Bridge (which handles RustLib initialization)
-  try {
-    await NativeBridge.init();
-    developer.log('NativeBridge initialized successfully',
-        name: 'Main', level: 800);
-  } catch (e, stackTrace) {
-    developer.log('Failed to initialize NativeBridge: $e',
-        name: 'Main', level: 1000, error: e, stackTrace: stackTrace);
-  }
 
   // Hide Android status bar for fullscreen experience
   if (Platform.isAndroid) {
@@ -88,11 +77,19 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   String? _error;
   String _statusMessage = '';
   final TextEditingController _ipController = TextEditingController(text: '');
+  final TextEditingController _accessTokenController =
+      TextEditingController(text: '');
   bool _showManualEntry = false;
   bool _skippedConnection = false;
 
   Timer? _connectionMonitorTimer;
   int _failedConnectionChecks = 0;
+
+  void _stopConnectionMonitor() {
+    _connectionMonitorTimer?.cancel();
+    _connectionMonitorTimer = null;
+    _failedConnectionChecks = 0;
+  }
 
   @override
   void initState() {
@@ -102,20 +99,23 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   }
 
   void _startConnectionMonitor(String host, int port) {
-    _connectionMonitorTimer?.cancel();
-    _failedConnectionChecks = 0;
+    _stopConnectionMonitor();
 
     // Check every 5 seconds
     _connectionMonitorTimer =
         Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (_connectedServer == null) {
-        timer.cancel();
+        _stopConnectionMonitor();
         return;
       }
 
       try {
         final isReachable =
-            await EnhancedNightshadeDiscovery.testServerConnection(host, port);
+            await EnhancedNightshadeDiscovery.testServerConnection(
+          host,
+          port,
+          authToken: _connectedServer?.authToken,
+        );
         if (isReachable) {
           _failedConnectionChecks = 0;
         } else {
@@ -126,7 +126,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
         if (_failedConnectionChecks >= 3) {
           developer.log('Connection lost!', name: 'Connection', level: 1000);
-          timer.cancel();
+          _stopConnectionMonitor();
 
           if (mounted) {
             // Disconnect backend
@@ -142,6 +142,16 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         }
       } catch (e) {
         developer.log('Monitor error: $e', name: 'Connection', level: 1000);
+        _stopConnectionMonitor();
+        ref.read(backendProvider.notifier).disconnect();
+        if (mounted) {
+          setState(() {
+            _connectedServer = null;
+            _isDiscovering = false;
+            _error = 'Connection monitoring failed. Please reconnect.';
+            _statusMessage = '';
+          });
+        }
       }
     });
   }
@@ -170,9 +180,6 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
             name: 'Discovery', level: 800);
 
         // Save for future reconnects
-        await EnhancedNightshadeDiscovery.saveLastServer(server);
-
-        // Connect to server
         await _connectToServer(server);
       } else {
         developer.log('No server found via any method',
@@ -181,7 +188,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           _isDiscovering = false;
           _statusMessage = '';
           _error =
-              'No Nightshade server found.\n\nTry:\n• Scanning QR code from desktop\n• Entering IP address manually\n• Check firewall allows UDP 45679 & HTTP 8080';
+              'No Nightshade server found.\n\nTry:\n- Scanning a QR code from desktop\n- Entering the host address manually\n- Checking that UDP 45679 and HTTP 8080 are allowed through the firewall';
         });
       }
     } catch (e) {
@@ -201,11 +208,26 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     });
 
     try {
+      final enrichedServer =
+          await EnhancedNightshadeDiscovery.fetchServerInfo(server) ?? server;
+      final compatibility = NightshadeServerCompatibility.check(
+        enrichedServer.version,
+      );
+      if (!compatibility.isCompatible) {
+        setState(() {
+          _isDiscovering = false;
+          _statusMessage = '';
+          _error = compatibility.message;
+        });
+        return;
+      }
+
       // Test connection first
       final isReachable =
           await EnhancedNightshadeDiscovery.testServerConnection(
-        server.host,
-        server.webPort,
+        enrichedServer.host,
+        enrichedServer.webPort,
+        authToken: enrichedServer.authToken,
       );
 
       if (isReachable) {
@@ -213,44 +235,35 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
         // Update state
         setState(() {
-          _connectedServer = server;
+          _connectedServer = enrichedServer;
           _isDiscovering = false;
           _statusMessage = '';
         });
 
+        await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
+
         // Update global backend state to use NetworkBackend
-        ref.read(backendProvider.notifier).connect(server.host, server.webPort);
+        ref.read(backendProvider.notifier).connect(
+              enrichedServer.host,
+              enrichedServer.webPort,
+              authToken: enrichedServer.authToken,
+            );
 
         // Start monitoring connection
-        _startConnectionMonitor(server.host, server.webPort);
+        _startConnectionMonitor(enrichedServer.host, enrichedServer.webPort);
 
-        // Sync location from server
-        try {
-          final backend = NetworkBackend(
-            serverHost: server.host,
-            serverPort: server.webPort,
-          );
-          final location = await backend.getLocation();
-          if (location != null) {
-            ref.read(appSettingsProvider.notifier).updateLocation(
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                  elevation: location.elevation,
-                );
-            developer.log(
-                'Synced location from server: ${location.latitude}, ${location.longitude}',
-                name: 'Discovery');
-          }
-        } catch (e) {
-          developer.log('Failed to sync location from server: $e',
-              name: 'Discovery', level: 900);
-        }
+        ref.invalidate(appSettingsProvider);
       } else {
+        final authMessage = enrichedServer.authRequired &&
+                (enrichedServer.authToken == null ||
+                    enrichedServer.authToken!.isEmpty)
+            ? '\n\nThis host requires an access token or paired-device QR code.'
+            : '';
         setState(() {
           _isDiscovering = false;
           _statusMessage = '';
           _error =
-              'Could not connect to ${server.host}:${server.webPort}\n\nServer may be offline.';
+              'Could not connect to ${enrichedServer.host}:${enrichedServer.webPort}\n\nServer may be offline, or this device is not authorized.$authMessage';
         });
       }
     } catch (e) {
@@ -277,7 +290,6 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           _error = null;
         });
 
-        await EnhancedNightshadeDiscovery.saveLastServer(server);
         await _connectToServer(server);
       } else {
         setState(() {
@@ -289,30 +301,45 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   }
 
   Future<void> _connectManually() async {
-    final ip = _ipController.text.trim();
-    if (ip.isEmpty) {
+    final input = _ipController.text.trim();
+    if (input.isEmpty) {
       setState(() {
-        _error = 'Please enter an IP address';
+        _error = 'Please enter a host name or IP address';
       });
       return;
     }
 
+    var host = input;
+    var port = 8080;
+    final separator = input.lastIndexOf(':');
+    if (separator > 0 && separator < input.length - 1) {
+      final parsedPort = int.tryParse(input.substring(separator + 1));
+      if (parsedPort != null) {
+        host = input.substring(0, separator);
+        port = parsedPort;
+      }
+    }
+
+    final authToken = _accessTokenController.text.trim().isEmpty
+        ? null
+        : _accessTokenController.text.trim();
+
     setState(() {
       _isDiscovering = true;
       _error = null;
-      _statusMessage = 'Connecting to $ip...';
+      _statusMessage = 'Connecting to $host:$port...';
     });
 
     final server = DiscoveredServer(
       name: 'Nightshade Server',
-      host: ip,
-      webPort: 8080,
+      host: host,
+      webPort: port,
       signalingPort: 45678,
       version: '2.0.0',
+      mode: 'headless',
+      authToken: authToken,
     );
 
-    // Save for future reconnects
-    await EnhancedNightshadeDiscovery.saveLastServer(server);
     await _connectToServer(server);
   }
 
@@ -342,10 +369,6 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         final docsDir = await getApplicationDocumentsDirectory();
         await executor.initializeCheckpoints(docsDir.path);
 
-        // Check if there's a checkpoint
-        final hasCheckpoint = await executor.hasCheckpoint();
-        if (!hasCheckpoint) return;
-
         // Get checkpoint info
         final info = await executor.getCheckpointInfo();
         if (info == null || !info.canResume) return;
@@ -359,19 +382,23 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
             try {
               await executor.resumeFromCheckpoint();
               if (context.mounted) {
+                final colors = Theme.of(context).extension<NightshadeColors>();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Sequence resumed from checkpoint'),
-                    backgroundColor: Colors.green,
+                  SnackBar(
+                    content: const Text('Sequence resumed from checkpoint'),
+                    backgroundColor: colors?.success ??
+                        Theme.of(context).colorScheme.primary,
                   ),
                 );
               }
             } catch (e) {
               if (context.mounted) {
+                final colors = Theme.of(context).extension<NightshadeColors>();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Failed to resume: $e'),
-                    backgroundColor: Colors.red,
+                    backgroundColor:
+                        colors?.error ?? Theme.of(context).colorScheme.error,
                   ),
                 );
               }
@@ -390,8 +417,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
   @override
   void dispose() {
-    _connectionMonitorTimer?.cancel();
+    _stopConnectionMonitor();
     _ipController.dispose();
+    _accessTokenController.dispose();
     super.dispose();
   }
 
@@ -424,6 +452,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           theme: NightshadeTheme.light,
           darkTheme: NightshadeTheme.dark,
           themeMode: themeMode,
+          localizationsDelegates:
+              NightshadeLocalizations.localizationsDelegates,
+          supportedLocales: NightshadeLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => _buildConnectionScreen(),
           ),
@@ -453,6 +484,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       return MaterialApp(
         title: 'Nightshade',
         debugShowCheckedModeBanner: false,
+        localizationsDelegates: NightshadeLocalizations.localizationsDelegates,
+        supportedLocales: NightshadeLocalizations.supportedLocales,
         home: Scaffold(
           body: Center(
             child: Padding(
@@ -460,11 +493,17 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Error Loading App',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    NightshadeLocalizations.of(context)
+                        .text('mobileErrorLoadingApp'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -482,7 +521,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                       });
                       _autoConnect();
                     },
-                    child: const Text('Retry'),
+                    child: Text(
+                      NightshadeLocalizations.of(context).text('mobileRetry'),
+                    ),
                   ),
                 ],
               ),
@@ -497,6 +538,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     // Safe color access with fallback
     return Builder(
       builder: (context) {
+        final l10n = context.l10n;
         final theme = Theme.of(context);
         final colors = theme.extension<NightshadeColors>();
 
@@ -505,11 +547,11 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         final surfaceColor = colors?.surface ?? theme.cardColor;
         final textColor = colors?.textPrimary ??
             theme.textTheme.bodyLarge?.color ??
-            Colors.black;
+            theme.colorScheme.onSurface;
         final textSecondary = colors?.textSecondary ??
             theme.textTheme.bodyMedium?.color ??
-            Colors.grey;
-        final borderColor = colors?.border ?? Colors.grey.shade300;
+            theme.colorScheme.onSurfaceVariant;
+        final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
         final primaryColor = colors?.primary ?? theme.colorScheme.primary;
         final errorColor = colors?.error ?? theme.colorScheme.error;
 
@@ -524,16 +566,19 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   height: 28,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                      colors: [
+                        primaryColor,
+                        primaryColor.withValues(alpha: 0.7)
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.auto_awesome,
                     size: 16,
-                    color: Colors.white,
+                    color: theme.colorScheme.onPrimary,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -558,7 +603,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: surfaceColor,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: borderColor),
                   ),
                   child: Column(
@@ -576,7 +621,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Not Connected',
+                            l10n.text('mobileNotConnected'),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -590,10 +635,10 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: errorColor.withOpacity(0.1),
+                            color: errorColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border:
-                                Border.all(color: errorColor.withOpacity(0.3)),
+                            border: Border.all(
+                                color: errorColor.withValues(alpha: 0.3)),
                           ),
                           child: Text(
                             _error!,
@@ -615,27 +660,25 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      TextButton.icon(
+                      NightshadeButton(
                         onPressed: () {
                           setState(() {
                             _showManualEntry = true;
                             _error = null;
                           });
                         },
-                        icon: const Icon(Icons.edit_location_alt),
-                        label: const Text('Enter IP'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: primaryColor,
-                        ),
+                        icon: Icons.edit_location_alt,
+                        label: l10n.text('mobileEnterIp'),
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
                       ),
                       const SizedBox(width: 8),
-                      TextButton.icon(
+                      NightshadeButton(
                         onPressed: _scanQrCode,
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text('Scan QR'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: primaryColor,
-                        ),
+                        icon: Icons.qr_code_scanner,
+                        label: l10n.text('mobileScanQr'),
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
                       ),
                     ],
                   ),
@@ -646,8 +689,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   TextField(
                     controller: _ipController,
                     decoration: InputDecoration(
-                      labelText: 'Server IP Address',
-                      hintText: '192.168.1.100',
+                      labelText: l10n.text('mobileServerIpAddress'),
+                      hintText: '192.168.1.100:8080',
                       prefixIcon: const Icon(Icons.computer),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -659,27 +702,40 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                         const TextInputType.numberWithOptions(decimal: true),
                   ),
                   const SizedBox(height: 8),
+                  TextField(
+                    controller: _accessTokenController,
+                    decoration: InputDecoration(
+                      labelText: 'Access Token',
+                      hintText: 'Optional for paired or protected hosts',
+                      prefixIcon: const Icon(Icons.vpn_key),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      filled: true,
+                      fillColor: surfaceColor,
+                    ),
+                    autocorrect: false,
+                    enableSuggestions: false,
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child: NightshadeButton(
                           onPressed: () {
                             setState(() {
                               _showManualEntry = false;
                             });
                           },
-                          child: const Text('Cancel'),
+                          label: l10n.text('cancel'),
+                          variant: ButtonVariant.outline,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: ElevatedButton(
+                        child: NightshadeButton(
                           onPressed: _connectManually,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Connect'),
+                          label: l10n.text('connect'),
                         ),
                       ),
                     ],
@@ -699,7 +755,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                           Text(
                             _statusMessage.isNotEmpty
                                 ? _statusMessage
-                                : 'Searching for server...',
+                                : l10n.text('mobileSearchingForServer'),
                             style: TextStyle(
                               fontSize: 14,
                               color: textSecondary,
@@ -710,14 +766,13 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                     ),
                   )
                 else if (!_showManualEntry)
-                  ElevatedButton.icon(
-                    onPressed: _autoConnect,
-                    icon: const Icon(Icons.search),
-                    label: const Text('Search for Server'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: NightshadeButton(
+                      onPressed: _autoConnect,
+                      icon: Icons.search,
+                      label: l10n.text('searchForServer'),
+                      size: ButtonSize.large,
                     ),
                   ),
 
@@ -726,7 +781,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   TextButton(
                     onPressed: _skipConnection,
                     child: Text(
-                      'Skip Connection (View UI Only)',
+                      l10n.text('mobileSkipConnection'),
                       style: TextStyle(
                         color: textSecondary,
                       ),
@@ -740,8 +795,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: surfaceColor.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(12),
+                    color: surfaceColor.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,7 +807,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                               size: 20, color: textSecondary),
                           const SizedBox(width: 8),
                           Text(
-                            'How to Connect',
+                            l10n.text('mobileHowToConnect'),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -763,10 +818,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '1. Make sure Nightshade is running in headless mode on Windows or Raspberry Pi\n'
-                        '2. Ensure both devices are on the same network\n'
-                        '3. Tap "Search for Server" or wait for automatic discovery\n'
-                        '4. The full desktop UI will load automatically',
+                        l10n.text('mobileHowToConnectSteps'),
                         style: TextStyle(
                           fontSize: 12,
                           color: textSecondary,

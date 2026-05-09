@@ -65,7 +65,7 @@ class CalibrationPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -92,7 +92,7 @@ class CalibrationPanel extends StatelessWidget {
                   else
                     _buildNotCalibrated(colors),
                   const SizedBox(height: 16),
-                  _buildActions(colors),
+                  _buildActions(context, colors),
                 ],
               ),
             ),
@@ -139,10 +139,11 @@ class CalibrationPanel extends StatelessWidget {
             : const EdgeInsets.symmetric(horizontal: 10, vertical: 4);
 
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          padding:
+              EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
           ),
           child: Row(
             children: [
@@ -174,7 +175,8 @@ class CalibrationPanel extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: statusColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     statusText,
@@ -200,7 +202,7 @@ class CalibrationPanel extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
@@ -259,7 +261,7 @@ class CalibrationPanel extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.success.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.success.withValues(alpha: 0.2)),
       ),
       child: Column(
@@ -280,13 +282,17 @@ class CalibrationPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _buildDataRow('RA Angle', '${data.raAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          _buildDataRow('RA Angle',
+              '${data.raAngle?.toStringAsFixed(1) ?? '-'}°', colors),
           const SizedBox(height: 8),
-          _buildDataRow('Dec Angle', '${data.decAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          _buildDataRow('Dec Angle',
+              '${data.decAngle?.toStringAsFixed(1) ?? '-'}°', colors),
           const SizedBox(height: 8),
-          _buildDataRow('RA Rate', '${data.raRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          _buildDataRow('RA Rate',
+              '${data.raRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
           const SizedBox(height: 8),
-          _buildDataRow('Dec Rate', '${data.decRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          _buildDataRow('Dec Rate',
+              '${data.decRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
           if (data.calibrationTime != null) ...[
             const SizedBox(height: 12),
             Divider(color: colors.border.withValues(alpha: 0.5), height: 1),
@@ -315,7 +321,7 @@ class CalibrationPanel extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.warning.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.warning.withValues(alpha: 0.2)),
       ),
       child: Column(
@@ -326,7 +332,8 @@ class CalibrationPanel extends StatelessWidget {
               color: colors.warning.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(LucideIcons.alertTriangle, color: colors.warning, size: 24),
+            child: Icon(LucideIcons.alertTriangle,
+                color: colors.warning, size: 24),
           ),
           const SizedBox(height: 12),
           Text(
@@ -372,12 +379,13 @@ class CalibrationPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(NightshadeColors colors) {
+  Widget _buildActions(BuildContext context, NightshadeColors colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!data.hasCalibration && state != CalibrationState.calibrating)
           _buildActionButton(
+            context: context,
             icon: LucideIcons.settings,
             label: 'Calibrate',
             color: colors.warning,
@@ -390,6 +398,7 @@ class CalibrationPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: _buildActionButton(
+                  context: context,
                   icon: LucideIcons.trash2,
                   label: 'Clear',
                   color: colors.error,
@@ -400,6 +409,7 @@ class CalibrationPanel extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _buildActionButton(
+                  context: context,
                   icon: LucideIcons.flipHorizontal,
                   label: 'Flip',
                   color: colors.info,
@@ -430,6 +440,7 @@ class CalibrationPanel extends StatelessWidget {
   }
 
   Widget _buildActionButton({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required Color color,
@@ -438,6 +449,7 @@ class CalibrationPanel extends StatelessWidget {
     bool isPrimary = false,
   }) {
     final isDisabled = onPressed == null;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return Material(
       color: Colors.transparent,
@@ -453,7 +465,9 @@ class CalibrationPanel extends StatelessWidget {
             decoration: BoxDecoration(
               color: isPrimary
                   ? (isDisabled ? colors.surfaceAlt : color)
-                  : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
+                  : (isDisabled
+                      ? colors.surfaceAlt
+                      : color.withValues(alpha: 0.15)),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isDisabled
@@ -468,7 +482,7 @@ class CalibrationPanel extends StatelessWidget {
                   icon,
                   size: 16,
                   color: isPrimary
-                      ? (isDisabled ? colors.textMuted : Colors.white)
+                      ? (isDisabled ? colors.textMuted : onPrimary)
                       : (isDisabled ? colors.textMuted : color),
                 ),
                 const SizedBox(width: 8),
@@ -479,7 +493,7 @@ class CalibrationPanel extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: isPrimary
-                          ? (isDisabled ? colors.textMuted : Colors.white)
+                          ? (isDisabled ? colors.textMuted : onPrimary)
                           : (isDisabled ? colors.textMuted : color),
                     ),
                     overflow: TextOverflow.ellipsis,

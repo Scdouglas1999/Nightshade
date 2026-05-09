@@ -1,0 +1,2248 @@
+{
+  "generatedAt": "2026-05-06T01:17:07.040302Z",
+  "sourceChecklist": "docs/production-readiness/public-release-master-checklist.md",
+  "totalItemCount": 284,
+  "checkedItemCount": 0,
+  "uncheckedItemCount": 284,
+  "checkedWithoutEvidenceCount": 0,
+  "knownLimitationsReferenced": true,
+  "supportedHardwareByPlatformReferenced": true,
+  "sections": [
+    {
+      "section": "Audit Method",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Evidence Rules",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Global Release Gates",
+      "total": 30,
+      "checked": 0,
+      "unchecked": 30,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "total": 21,
+      "checked": 0,
+      "unchecked": 21,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "total": 9,
+      "checked": 0,
+      "unchecked": 9,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Dashboard",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "total": 15,
+      "checked": 0,
+      "unchecked": 15,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Imaging",
+      "total": 11,
+      "checked": 0,
+      "unchecked": 11,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Focus and Autofocus",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Guiding",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Sequencer",
+      "total": 11,
+      "checked": 0,
+      "unchecked": 11,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Planetarium",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Planner",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Suggestions",
+      "total": 4,
+      "checked": 0,
+      "unchecked": 4,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Analytics",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Diagnostics",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Weather and Safety",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "total": 5,
+      "checked": 0,
+      "unchecked": 5,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Observation Log and Observing Lists",
+      "total": 4,
+      "checked": 0,
+      "unchecked": 4,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Settings",
+      "total": 7,
+      "checked": 0,
+      "unchecked": 7,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Remote Access",
+      "total": 14,
+      "checked": 0,
+      "unchecked": 14,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "total": 10,
+      "checked": 0,
+      "unchecked": 10,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Plugins",
+      "total": 4,
+      "checked": 0,
+      "unchecked": 4,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Mobile Experience",
+      "total": 8,
+      "checked": 0,
+      "unchecked": 8,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "total": 6,
+      "checked": 0,
+      "unchecked": 6,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Notifications, Alerts, and Feedback",
+      "total": 4,
+      "checked": 0,
+      "unchecked": 4,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "total": 5,
+      "checked": 0,
+      "unchecked": 5,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Performance and Stability",
+      "total": 5,
+      "checked": 0,
+      "unchecked": 5,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Security and Privacy",
+      "total": 8,
+      "checked": 0,
+      "unchecked": 8,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Updater and Release Delivery",
+      "total": 4,
+      "checked": 0,
+      "unchecked": 4,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "total": 10,
+      "checked": 0,
+      "unchecked": 10,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Audit Log",
+      "total": 3,
+      "checked": 0,
+      "unchecked": 3,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Final Sign-Off",
+      "total": 9,
+      "checked": 0,
+      "unchecked": 9,
+      "checkedWithoutEvidence": 0
+    }
+  ],
+  "checkedWithoutEvidence": [],
+  "uncheckedItems": [
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, document the intended user-facing behavior before judging the implementation.",
+      "lineNumber": 16,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, verify the implemented behavior in code and in the running UI.",
+      "lineNumber": 17,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, compare intended behavior vs actual behavior and record any mismatch.",
+      "lineNumber": 18,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, review the happy path, likely user mistakes, and failure/recovery paths.",
+      "lineNumber": 19,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, verify that the UX explains the system state clearly enough for a first-time user.",
+      "lineNumber": 20,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, verify persistence, restart behavior, and cross-screen state consistency where applicable.",
+      "lineNumber": 21,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Method",
+      "checked": false,
+      "text": "For each feature, capture release notes: approved, blocked, or out of scope.",
+      "lineNumber": 22,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Every completed item has a short note with evidence.",
+      "lineNumber": 36,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Every release-blocking issue found during review is linked to a concrete file, flow, or repro.",
+      "lineNumber": 37,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Every unchecked item is treated as not yet release-approved.",
+      "lineNumber": 38,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Any feature that cannot pass this checklist is hidden or explicitly removed from the release scope.",
+      "lineNumber": 39,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Every item marked complete has been checked against both code structure and user experience, not just compilation.",
+      "lineNumber": 40,
+      "hasEvidence": false
+    },
+    {
+      "section": "Evidence Rules",
+      "checked": false,
+      "text": "Every blocker is categorized as functionality, UX, performance, security, packaging, or process.",
+      "lineNumber": 41,
+      "hasEvidence": false
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`dart run melos run audit:public-release-gate` reports `Decision: READY`.",
+      "lineNumber": 45,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`dart run melos run analyze:production` passes with `Production: errors=0, warnings=0`.",
+      "lineNumber": 134,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`dart run melos run audit:fail-closed` passes.",
+      "lineNumber": 139,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`dart run melos run audit:placeholders` passes.",
+      "lineNumber": 145,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`dart run melos run audit:ui-consistency` runs and produces a reviewed UI consistency report.",
+      "lineNumber": 149,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "`cargo check --manifest-path native/nightshade_native/bridge/Cargo.toml` passes.",
+      "lineNumber": 159,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Desktop app tests pass.",
+      "lineNumber": 169,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Android release APK builds successfully.",
+      "lineNumber": 172,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Core package tests pass.",
+      "lineNumber": 188,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "App package tests pass.",
+      "lineNumber": 191,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Plugin package tests pass.",
+      "lineNumber": 194,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Any generated bindings or generated database files that are part of the release are up to date.",
+      "lineNumber": 197,
+      "hasEvidence": false
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Database migration tests verify older schemas converge to the current table set and default settings.",
+      "lineNumber": 198,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Packaged assets required by shipped features are present in the release bundle.",
+      "lineNumber": 202,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Workspace packages declare direct dependencies for shipped `lib/` imports.",
+      "lineNumber": 210,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Platform unsupported items match `docs/production-readiness/feature-parity-matrix.md`, in-app Platform Capabilities, and `/api/info.platformCapabilities`.",
+      "lineNumber": 218,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless route registration, `/api/info`, generated OpenAPI, and `NetworkBackend` call sites stay aligned.",
+      "lineNumber": 245,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Public supported-hardware docs match `docs/supported-hardware-by-platform.md`, platform capabilities, and hardware smoke evidence.",
+      "lineNumber": 255,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Remote clients reject too-old, too-new, missing, or malformed server API versions before switching into network-control mode.",
+      "lineNumber": 270,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless runtime self-test reports backend, platform, device-driver availability, storage paths, auth mode, and route count via `/api/self-test`.",
+      "lineNumber": 280,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless API docs are generated from the route table and available at `/api/openapi.json`.",
+      "lineNumber": 291,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless contract tests compare registered server routes, advertised `/api/info` and OpenAPI routes, and `NetworkBackend` call sites.",
+      "lineNumber": 299,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless control endpoints reject oversized request bodies, with explicit larger limits only for image-processing JSON and backup upload.",
+      "lineNumber": 303,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless control endpoints apply per-client, per-endpoint rate limits with stricter limits for slew, park/unpark, device connect/disconnect, sequence start/stop, dome movement, and backup restore.",
+      "lineNumber": 312,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless high-risk remote commands produce audit log entries with request ID, client key, action, route, and completion status.",
+      "lineNumber": 319,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Headless scoped tokens enforce view, control, and admin access boundaries.",
+      "lineNumber": 327,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Mobile and remote clients send WebSocket heartbeats, consume `pong` replies from desktop and WebRTC servers, and reconnect after heartbeat timeout.",
+      "lineNumber": 339,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Release branch staging area is clean and intentionally scoped.",
+      "lineNumber": 378,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "No critical feature depends on untracked or accidentally omitted files.",
+      "lineNumber": 408,
+      "hasEvidence": true
+    },
+    {
+      "section": "Global Release Gates",
+      "checked": false,
+      "text": "Migration, backup, and restore docs are published in `docs/migration-backup-restore.md` and match the BackupService, Settings UI, and headless backup routes.",
+      "lineNumber": 421,
+      "hasEvidence": true
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Every major feature has a documented \"supposed to work like this\" summary before sign-off.",
+      "lineNumber": 431,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Every major feature has been checked for \"implemented differently than implied by UI copy or docs\".",
+      "lineNumber": 432,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Every major screen has a clear purpose on first open.",
+      "lineNumber": 433,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Every major screen has acceptable empty, loading, success, and error states.",
+      "lineNumber": 434,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "No screen contains fake telemetry, placeholder values, misleading labels, or dead controls.",
+      "lineNumber": 435,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "No screen contains visible encoding defects or broken formatting.",
+      "lineNumber": 436,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Copy is consistent across shell, settings, dialogs, toasts, and docs.",
+      "lineNumber": 437,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "User actions produce timely, understandable feedback.",
+      "lineNumber": 438,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Long-running actions show progress or a clearly communicated busy state.",
+      "lineNumber": 439,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Errors are actionable and do not expose raw internal noise unless in diagnostics/dev flows.",
+      "lineNumber": 440,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "State changes remain consistent across desktop shell, dialogs, overlays, and secondary views.",
+      "lineNumber": 441,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Layouts remain usable on supported desktop and mobile breakpoints.",
+      "lineNumber": 442,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Keyboard and pointer navigation are both workable for critical flows.",
+      "lineNumber": 443,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Focus order and modal dismissal behavior are sane.",
+      "lineNumber": 444,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Scroll behavior, overflow handling, and long-text truncation are acceptable on major screens.",
+      "lineNumber": 445,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Busy states, disabled states, and retry states are visually distinct and understandable.",
+      "lineNumber": 446,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Multi-step flows do not leave the user unsure what to do next.",
+      "lineNumber": 447,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "Design-system gallery renders buttons, cards, inputs, tabs, chips, alerts, and status pills across dark, light, compact, and red-night themes.",
+      "lineNumber": 448,
+      "hasEvidence": true
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "UI consistency audit classifies remaining raw Material colors, raw button styles, large radii, fake callbacks, and unadvertised headless routes.",
+      "lineNumber": 455,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "The structure of providers/services/screens remains understandable and maintainable.",
+      "lineNumber": 456,
+      "hasEvidence": false
+    },
+    {
+      "section": "App-Wide Audit Standards",
+      "checked": false,
+      "text": "No critical feature is implemented in a way that is obviously race-prone, misleading, or tightly coupled beyond reason.",
+      "lineNumber": 457,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "First launch experience is coherent.",
+      "lineNumber": 461,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "First launch does not expose broken or irrelevant settings.",
+      "lineNumber": 462,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "App can launch without configured hardware and still feel intentional.",
+      "lineNumber": 463,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "App can restart cleanly after settings changes.",
+      "lineNumber": 464,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "App can recover after a crash or forced close.",
+      "lineNumber": 465,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "Upgrade path from an existing install does not corrupt settings or state.",
+      "lineNumber": 466,
+      "hasEvidence": true
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "New user can discover the main workflows without dead ends.",
+      "lineNumber": 481,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "Shutdown/quit while operations are active behaves safely and predictably.",
+      "lineNumber": 482,
+      "hasEvidence": false
+    },
+    {
+      "section": "First-Run and Core Journeys",
+      "checked": false,
+      "text": "Relaunch after incomplete work restores the right amount of context without misleading the user.",
+      "lineNumber": 483,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Global shell layout is coherent on first launch.",
+      "lineNumber": 487,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Primary navigation reflects the most important workflows.",
+      "lineNumber": 488,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Route changes preserve or intentionally discard state.",
+      "lineNumber": 489,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Back behavior is predictable on mobile and desktop.",
+      "lineNumber": 490,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Dialogs, sheets, overlays, and popovers do not conflict with each other.",
+      "lineNumber": 491,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Status bar reflects real state and remains readable during active operations.",
+      "lineNumber": 492,
+      "hasEvidence": false
+    },
+    {
+      "section": "Shell, Navigation, and Windowing",
+      "checked": false,
+      "text": "Multi-window, external-link, and browser-launch actions behave correctly if in release scope.",
+      "lineNumber": 493,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Dashboard loads without missing widgets or broken layout.",
+      "lineNumber": 497,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Widgets shown on the dashboard reflect real state.",
+      "lineNumber": 498,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Widget picker and dashboard customization work correctly.",
+      "lineNumber": 499,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Empty dashboard state is intentional and usable.",
+      "lineNumber": 500,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Dashboard remains readable with no connected devices.",
+      "lineNumber": 501,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Dashboard remains readable with several connected devices and active operations.",
+      "lineNumber": 502,
+      "hasEvidence": false
+    },
+    {
+      "section": "Dashboard",
+      "checked": false,
+      "text": "Dashboard performance is acceptable during active imaging/sequencing.",
+      "lineNumber": 503,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Discovery works for supported device types.",
+      "lineNumber": 507,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for camera.",
+      "lineNumber": 508,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for mount.",
+      "lineNumber": 509,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for focuser.",
+      "lineNumber": 510,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for guider.",
+      "lineNumber": 511,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for filter wheel.",
+      "lineNumber": 512,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for rotator if included in release scope.",
+      "lineNumber": 513,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connect flow works for weather and safety devices if included in release scope.",
+      "lineNumber": 514,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Disconnect/reconnect updates UI state correctly.",
+      "lineNumber": 515,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Connection failures produce clear and actionable messages.",
+      "lineNumber": 516,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Profile selection and active profile switching behave correctly.",
+      "lineNumber": 517,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Device cards/panels do not show stale state after reconnect.",
+      "lineNumber": 518,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Quick connect and profile-driven connection flows are understandable.",
+      "lineNumber": 519,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Unsupported or unavailable devices fail cleanly.",
+      "lineNumber": 520,
+      "hasEvidence": false
+    },
+    {
+      "section": "Equipment and Connection Management",
+      "checked": false,
+      "text": "Simulated/dev-only device paths are hidden or clearly unavailable in public release flows.",
+      "lineNumber": 521,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Imaging screen layout is clear and stable.",
+      "lineNumber": 525,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Exposure controls reflect real camera state.",
+      "lineNumber": 526,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Capture start/abort/status all work correctly.",
+      "lineNumber": 527,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Last image / preview behavior matches user expectations.",
+      "lineNumber": 528,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Cooling, gain, offset, and binning controls behave correctly.",
+      "lineNumber": 529,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Save path handling is truthful and robust.",
+      "lineNumber": 530,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Imaging still behaves sensibly if no save path is configured.",
+      "lineNumber": 531,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Errors during capture do not leave UI in a stuck state.",
+      "lineNumber": 532,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Annotation overlays and image tools do not break the main imaging flow.",
+      "lineNumber": 533,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Imaging UX is usable both idle and during active capture.",
+      "lineNumber": 534,
+      "hasEvidence": false
+    },
+    {
+      "section": "Imaging",
+      "checked": false,
+      "text": "Capture-related warnings and destructive actions are explicit before data can be lost.",
+      "lineNumber": 535,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Manual focuser controls work and reflect actual device state.",
+      "lineNumber": 539,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Autofocus start/cancel/status flows work correctly.",
+      "lineNumber": 540,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Temperature compensation UI is truthful.",
+      "lineNumber": 541,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Focus model / offset / compensation features are understandable.",
+      "lineNumber": 542,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Lack of focus model data is handled gracefully.",
+      "lineNumber": 543,
+      "hasEvidence": false
+    },
+    {
+      "section": "Focus and Autofocus",
+      "checked": false,
+      "text": "Focus overlays and dialogs do not trap or confuse the user.",
+      "lineNumber": 544,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "Guiding connect/disconnect behaves correctly.",
+      "lineNumber": 548,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "Start/stop guiding works correctly.",
+      "lineNumber": 549,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "Dither behavior is correctly surfaced.",
+      "lineNumber": 550,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "Guide state, graphs, and status panels remain truthful during activity.",
+      "lineNumber": 551,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "Lost-star / failure states produce the right UI and sequencer interaction.",
+      "lineNumber": 552,
+      "hasEvidence": false
+    },
+    {
+      "section": "Guiding",
+      "checked": false,
+      "text": "PHD2-specific controls behave consistently with the actual backend state.",
+      "lineNumber": 553,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Sequence editor loads and remains stable with realistic sequences.",
+      "lineNumber": 557,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Sequence run state is reflected truthfully across shell and sequencer UI.",
+      "lineNumber": 558,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Start, pause, resume, stop, skip, and completion flows all work correctly.",
+      "lineNumber": 559,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Current node, progress, timing, and messages are truthful.",
+      "lineNumber": 560,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Preflight validation catches meaningful issues before run.",
+      "lineNumber": 561,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Runtime failures, pauses, and recovery states are understandable.",
+      "lineNumber": 562,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Checkpoints and resume behavior work correctly.",
+      "lineNumber": 563,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Long-running sequences do not drift into stale or contradictory UI states.",
+      "lineNumber": 564,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Sequence library/history/template flows are coherent.",
+      "lineNumber": 565,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Mobile and compact-width sequencer behavior remains usable.",
+      "lineNumber": 566,
+      "hasEvidence": false
+    },
+    {
+      "section": "Sequencer",
+      "checked": false,
+      "text": "Sequencer interactions with guiding, autofocus, weather/safety, and device disconnects behave correctly.",
+      "lineNumber": 567,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Planetarium opens without broken rendering or layout.",
+      "lineNumber": 571,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Search and object selection work correctly.",
+      "lineNumber": 572,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Object details match selected object.",
+      "lineNumber": 573,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Filters, tabs, and overlays are coherent.",
+      "lineNumber": 574,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Slew-related actions match actual mount capability and state.",
+      "lineNumber": 575,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Sidebars and mobile variants remain usable.",
+      "lineNumber": 576,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planetarium",
+      "checked": false,
+      "text": "Planetarium remains performant with realistic catalog content.",
+      "lineNumber": 577,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Planner loads successfully with realistic data.",
+      "lineNumber": 581,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Planner has good empty/loading/error states.",
+      "lineNumber": 582,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Plan suggestions are understandable and actionable.",
+      "lineNumber": 583,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Planner actions integrate correctly with sequencer/planetarium flows.",
+      "lineNumber": 584,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Planner remains usable on small widths.",
+      "lineNumber": 585,
+      "hasEvidence": false
+    },
+    {
+      "section": "Planner",
+      "checked": false,
+      "text": "Planner assumptions, scoring, and constraints are not overstated in the UI.",
+      "lineNumber": 586,
+      "hasEvidence": false
+    },
+    {
+      "section": "Suggestions",
+      "checked": false,
+      "text": "Suggestions screen is coherent and not over-promising.",
+      "lineNumber": 590,
+      "hasEvidence": false
+    },
+    {
+      "section": "Suggestions",
+      "checked": false,
+      "text": "Filters and recommendation logic are understandable.",
+      "lineNumber": 591,
+      "hasEvidence": false
+    },
+    {
+      "section": "Suggestions",
+      "checked": false,
+      "text": "Altitude and visibility displays are truthful.",
+      "lineNumber": 592,
+      "hasEvidence": false
+    },
+    {
+      "section": "Suggestions",
+      "checked": false,
+      "text": "Suggestion actions lead somewhere useful.",
+      "lineNumber": 593,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Analytics screen is navigable and visually coherent.",
+      "lineNumber": 597,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Science/insight panels only expose features that actually work.",
+      "lineNumber": 598,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Session-level analytics match stored data.",
+      "lineNumber": 599,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Export flows behave correctly.",
+      "lineNumber": 600,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Empty/no-data analytics states are designed, not broken.",
+      "lineNumber": 601,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Mobile and narrow-width layouts remain usable.",
+      "lineNumber": 602,
+      "hasEvidence": false
+    },
+    {
+      "section": "Analytics",
+      "checked": false,
+      "text": "Any modeled or estimated values are clearly identified where user interpretation matters.",
+      "lineNumber": 603,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "Diagnostics screen loads without assertion failures.",
+      "lineNumber": 607,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "Session selection is stable even with many sessions.",
+      "lineNumber": 608,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "Diagnostics data corresponds to the selected session.",
+      "lineNumber": 609,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "No-data diagnostics states are intentional and understandable.",
+      "lineNumber": 610,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "Charts/vectors/residual views remain readable and performant.",
+      "lineNumber": 611,
+      "hasEvidence": false
+    },
+    {
+      "section": "Diagnostics",
+      "checked": false,
+      "text": "Error paths do not expose users to raw crashes or broken layout.",
+      "lineNumber": 612,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Weather screen loads without broken layout.",
+      "lineNumber": 616,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Safety state shown to the user matches the backend truth.",
+      "lineNumber": 617,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Unsafe conditions trigger the correct UI and operational behavior.",
+      "lineNumber": 618,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Missing weather/safety data respects configured fail mode.",
+      "lineNumber": 619,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Radar/maps/widgets are stable and understandable if included in release scope.",
+      "lineNumber": 620,
+      "hasEvidence": false
+    },
+    {
+      "section": "Weather and Safety",
+      "checked": false,
+      "text": "Weather/safety warnings are not easy to miss.",
+      "lineNumber": 621,
+      "hasEvidence": false
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "checked": false,
+      "text": "Framing screen behaves correctly with realistic targets and device state.",
+      "lineNumber": 625,
+      "hasEvidence": false
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "checked": false,
+      "text": "Polar alignment flow works end to end.",
+      "lineNumber": 626,
+      "hasEvidence": false
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "checked": false,
+      "text": "Flat wizard flow works end to end.",
+      "lineNumber": 627,
+      "hasEvidence": false
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "checked": false,
+      "text": "These utilities do not leave global state or devices in a bad state after exit.",
+      "lineNumber": 628,
+      "hasEvidence": false
+    },
+    {
+      "section": "Framing, Polar Alignment, Flat Wizard, and Other Capture Utilities",
+      "checked": false,
+      "text": "Validation and preconditions are clear before users begin these flows.",
+      "lineNumber": 629,
+      "hasEvidence": false
+    },
+    {
+      "section": "Observation Log and Observing Lists",
+      "checked": false,
+      "text": "Observation log create/edit/export flows work.",
+      "lineNumber": 633,
+      "hasEvidence": false
+    },
+    {
+      "section": "Observation Log and Observing Lists",
+      "checked": false,
+      "text": "Observing list create/edit/use flows work.",
+      "lineNumber": 634,
+      "hasEvidence": false
+    },
+    {
+      "section": "Observation Log and Observing Lists",
+      "checked": false,
+      "text": "Planetarium/planner integration with logs/lists behaves correctly.",
+      "lineNumber": 635,
+      "hasEvidence": false
+    },
+    {
+      "section": "Observation Log and Observing Lists",
+      "checked": false,
+      "text": "Empty states are clear and useful.",
+      "lineNumber": 636,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Settings navigation is coherent and not cluttered with unsupported features.",
+      "lineNumber": 640,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Every visible setting has an actual effect.",
+      "lineNumber": 641,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Setting labels, helper text, and side effects are truthful.",
+      "lineNumber": 642,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Settings persist across restart.",
+      "lineNumber": 643,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Changing settings at runtime updates UI and services correctly where promised.",
+      "lineNumber": 644,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "If restart is required, that is stated clearly and consistently.",
+      "lineNumber": 645,
+      "hasEvidence": false
+    },
+    {
+      "section": "Settings",
+      "checked": false,
+      "text": "Duplicate/conflicting settings surfaces are not exposed to users.",
+      "lineNumber": 646,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Remote Access settings match the actual server behavior.",
+      "lineNumber": 650,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Desktop remote access can be enabled and disabled reliably.",
+      "lineNumber": 651,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Port changes rebind safely and do not leave zombie servers behind.",
+      "lineNumber": 652,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Localhost access works as intended.",
+      "lineNumber": 653,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "LAN access works as intended.",
+      "lineNumber": 654,
+      "hasEvidence": true
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Pairing flow works from a second device/browser.",
+      "lineNumber": 669,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Bad token / stale token / missing device ID are handled clearly.",
+      "lineNumber": 670,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Dashboard only reports connected when authenticated control actually works.",
+      "lineNumber": 671,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Remote viewers are counted truthfully.",
+      "lineNumber": 672,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Share/pairing dialog copy is truthful for local-only vs LAN vs authenticated access.",
+      "lineNumber": 673,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Remote-access failure states are visible and actionable.",
+      "lineNumber": 674,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Pairing endpoint has acceptable abuse resistance for public release.",
+      "lineNumber": 675,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Remote-control actions are fail-closed where required.",
+      "lineNumber": 676,
+      "hasEvidence": false
+    },
+    {
+      "section": "Remote Access",
+      "checked": false,
+      "text": "Rapid enable/disable/reconfigure actions do not race into inconsistent server state.",
+      "lineNumber": 677,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Dashboard assets are packaged in release builds.",
+      "lineNumber": 681,
+      "hasEvidence": true
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Browser dashboard loads from the desktop server without missing assets.",
+      "lineNumber": 689,
+      "hasEvidence": true
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Pairing UI is understandable to a non-technical user.",
+      "lineNumber": 712,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Connection state is truthful.",
+      "lineNumber": 713,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Device panels reflect real backend state.",
+      "lineNumber": 714,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Auth-required server mode is handled correctly.",
+      "lineNumber": 715,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Wrong token / wrong device ID / revoked device UX is acceptable.",
+      "lineNumber": 716,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "WebSocket reconnect behavior does not fake success.",
+      "lineNumber": 717,
+      "hasEvidence": true
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Polling + WebSocket interaction stays consistent.",
+      "lineNumber": 732,
+      "hasEvidence": false
+    },
+    {
+      "section": "Desktop Web Dashboard",
+      "checked": false,
+      "text": "Browser refresh, tab duplication, and reconnect from sleep behave correctly.",
+      "lineNumber": 733,
+      "hasEvidence": false
+    },
+    {
+      "section": "Plugins",
+      "checked": false,
+      "text": "Public plugin UI is hidden if plugins are not a supported public feature.",
+      "lineNumber": 737,
+      "hasEvidence": false
+    },
+    {
+      "section": "Plugins",
+      "checked": false,
+      "text": "Plugin lifecycle is stable if plugin framework ships in the build.",
+      "lineNumber": 738,
+      "hasEvidence": false
+    },
+    {
+      "section": "Plugins",
+      "checked": false,
+      "text": "Example/demo plugins are not exposed to end users.",
+      "lineNumber": 739,
+      "hasEvidence": false
+    },
+    {
+      "section": "Plugins",
+      "checked": false,
+      "text": "Docs match the actual plugin story being shipped.",
+      "lineNumber": 740,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Android release APK installs and launches on a supported device or emulator.",
+      "lineNumber": 744,
+      "hasEvidence": true
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Mobile client can connect to an authenticated packaged headless server.",
+      "lineNumber": 757,
+      "hasEvidence": true
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Mobile navigation is coherent and not overloaded.",
+      "lineNumber": 780,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Mobile shell remains usable with the current route set.",
+      "lineNumber": 781,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Primary actions remain reachable on mobile.",
+      "lineNumber": 782,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Text scaling and responsive layout do not break critical screens.",
+      "lineNumber": 783,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Overlays, dialogs, and bottom sheets do not stack into unusability.",
+      "lineNumber": 784,
+      "hasEvidence": false
+    },
+    {
+      "section": "Mobile Experience",
+      "checked": false,
+      "text": "Touch targets, gesture conflicts, and keyboard overlays are acceptable on supported mobile devices.",
+      "lineNumber": 785,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "No visible copy corruption or encoding issues remain.",
+      "lineNumber": 789,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "Critical flows have understandable labels and helper text.",
+      "lineNumber": 790,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "Warning/destructive actions are explicit.",
+      "lineNumber": 791,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "User-visible copy does not overstate capabilities.",
+      "lineNumber": 792,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "Localization coverage is acceptable for touched public flows.",
+      "lineNumber": 793,
+      "hasEvidence": false
+    },
+    {
+      "section": "Accessibility, Copy, and Localization",
+      "checked": false,
+      "text": "Tooltips and status labels clarify truncated or advanced information where needed.",
+      "lineNumber": 794,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "Settings persistence is correct.",
+      "lineNumber": 798,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "Session persistence is correct.",
+      "lineNumber": 799,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "Sequence checkpoints and run history are correct.",
+      "lineNumber": 800,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "Observation/analytics/diagnostic data remains internally consistent.",
+      "lineNumber": 801,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "Corrupt or missing local data is handled safely.",
+      "lineNumber": 802,
+      "hasEvidence": false
+    },
+    {
+      "section": "Data Integrity, Persistence, and Recovery",
+      "checked": false,
+      "text": "File exports create correct output in correct locations.",
+      "lineNumber": 803,
+      "hasEvidence": false
+    },
+    {
+      "section": "Notifications, Alerts, and Feedback",
+      "checked": false,
+      "text": "Toasts, snackbars, banners, and alerts appear at the right times.",
+      "lineNumber": 807,
+      "hasEvidence": false
+    },
+    {
+      "section": "Notifications, Alerts, and Feedback",
+      "checked": false,
+      "text": "Notifications do not contradict the visible screen state.",
+      "lineNumber": 808,
+      "hasEvidence": false
+    },
+    {
+      "section": "Notifications, Alerts, and Feedback",
+      "checked": false,
+      "text": "Repeated failures do not spam the user into ignoring important alerts.",
+      "lineNumber": 809,
+      "hasEvidence": false
+    },
+    {
+      "section": "Notifications, Alerts, and Feedback",
+      "checked": false,
+      "text": "Critical warnings are noticeable without being opaque or overwhelming.",
+      "lineNumber": 810,
+      "hasEvidence": false
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "checked": false,
+      "text": "Dart and Rust bridge types remain in sync.",
+      "lineNumber": 814,
+      "hasEvidence": false
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "checked": false,
+      "text": "Device operations fail safely on timeout or disconnect.",
+      "lineNumber": 815,
+      "hasEvidence": false
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "checked": false,
+      "text": "Native warnings are understood and not hiding shipped defects.",
+      "lineNumber": 816,
+      "hasEvidence": true
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "checked": false,
+      "text": "Generated bridge files match current native API.",
+      "lineNumber": 826,
+      "hasEvidence": false
+    },
+    {
+      "section": "Native Bridge and Backend Integrity",
+      "checked": false,
+      "text": "Desktop DLLs and packaged binaries match the intended build output.",
+      "lineNumber": 827,
+      "hasEvidence": true
+    },
+    {
+      "section": "Performance and Stability",
+      "checked": false,
+      "text": "App remains responsive during long-running operations.",
+      "lineNumber": 838,
+      "hasEvidence": false
+    },
+    {
+      "section": "Performance and Stability",
+      "checked": false,
+      "text": "No obvious rebuild-loop or sync-I/O-on-build regressions remain.",
+      "lineNumber": 839,
+      "hasEvidence": false
+    },
+    {
+      "section": "Performance and Stability",
+      "checked": false,
+      "text": "Repeated screen navigation does not leak state or degrade performance.",
+      "lineNumber": 840,
+      "hasEvidence": false
+    },
+    {
+      "section": "Performance and Stability",
+      "checked": false,
+      "text": "Remote access, imaging, and sequencing can run together without obvious instability.",
+      "lineNumber": 841,
+      "hasEvidence": false
+    },
+    {
+      "section": "Performance and Stability",
+      "checked": false,
+      "text": "App remains stable after extended uptime.",
+      "lineNumber": 842,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Remote control is authenticated whenever it leaves localhost.",
+      "lineNumber": 846,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Headless secure setup docs cover auth modes, token use, LAN binding, firewall ports, self-test, OpenAPI, and WebSocket heartbeat verification.",
+      "lineNumber": 847,
+      "hasEvidence": true
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Headless secure setup docs explain view, control, and admin token scopes.",
+      "lineNumber": 852,
+      "hasEvidence": true
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Public endpoints are intentional and minimal.",
+      "lineNumber": 856,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Pairing/token flows do not leak secrets unnecessarily.",
+      "lineNumber": 857,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Revoked devices actually lose access.",
+      "lineNumber": 858,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Remote failures default to safe behavior.",
+      "lineNumber": 859,
+      "hasEvidence": false
+    },
+    {
+      "section": "Security and Privacy",
+      "checked": false,
+      "text": "Sensitive operations are not exposed anonymously.",
+      "lineNumber": 860,
+      "hasEvidence": false
+    },
+    {
+      "section": "Updater and Release Delivery",
+      "checked": false,
+      "text": "Update UI is truthful about current version, available version, and install state.",
+      "lineNumber": 864,
+      "hasEvidence": false
+    },
+    {
+      "section": "Updater and Release Delivery",
+      "checked": false,
+      "text": "Update checks fail cleanly when offline or misconfigured.",
+      "lineNumber": 865,
+      "hasEvidence": false
+    },
+    {
+      "section": "Updater and Release Delivery",
+      "checked": false,
+      "text": "Release packaging does not break updater expectations if updater ships in scope.",
+      "lineNumber": 866,
+      "hasEvidence": false
+    },
+    {
+      "section": "Updater and Release Delivery",
+      "checked": false,
+      "text": "Install/upgrade messaging does not over-promise platform support.",
+      "lineNumber": 867,
+      "hasEvidence": false
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Release notes match the actual shipped feature set.",
+      "lineNumber": 871,
+      "hasEvidence": false
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Release notes use `docs/release-notes-template.md` and include verification evidence, supported hardware, migration, security, and rollback sections.",
+      "lineNumber": 872,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Migration, backup, and restore guide is published with backup contents/exclusions, local restore, headless restore, replace-vs-merge behavior, migration verification, and rollback.",
+      "lineNumber": 878,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "README/docs do not advertise unsupported end-user features.",
+      "lineNumber": 884,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Supported hardware claims are conservative and list known native SDK/platform gaps.",
+      "lineNumber": 920,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Known limitations are published in `docs/known-limitations.md` with impact, workaround, blocker status, and owner/issue.",
+      "lineNumber": 929,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Troubleshooting docs cover INDI, Alpaca, ASCOM, PHD2, permissions, drivers, and firewall failures.",
+      "lineNumber": 934,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "No internal/dev-only files are accidentally bundled in the public release.",
+      "lineNumber": 941,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Build scripts/package scripts produce the intended outputs.",
+      "lineNumber": 946,
+      "hasEvidence": true
+    },
+    {
+      "section": "Packaging and Public Release Operations",
+      "checked": false,
+      "text": "Final release candidate has a reviewed, intentional git staging set.",
+      "lineNumber": 952,
+      "hasEvidence": true
+    },
+    {
+      "section": "Audit Log",
+      "checked": false,
+      "text": "Maintain a running list of blockers discovered during review.",
+      "lineNumber": 962,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Log",
+      "checked": false,
+      "text": "Maintain a running list of \"acceptable known limitations\" with explicit justification in `docs/known-limitations.md`.",
+      "lineNumber": 963,
+      "hasEvidence": false
+    },
+    {
+      "section": "Audit Log",
+      "checked": false,
+      "text": "Record final ship/no-ship decision with date, reviewer, and commit/hash under review.",
+      "lineNumber": 964,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Code review of all release-critical areas is complete.",
+      "lineNumber": 968,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Manual QA of primary user journeys is complete.",
+      "lineNumber": 969,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Manual QA of failure and edge cases is complete.",
+      "lineNumber": 970,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Security review of remote-access/public endpoints is complete.",
+      "lineNumber": 971,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Release candidate has no unresolved blockers.",
+      "lineNumber": 972,
+      "hasEvidence": false
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Public release blocker input checklist has either been fully satisfied or superseded by newer gate evidence.",
+      "lineNumber": 973,
+      "hasEvidence": true
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "External evidence verifier passes for Linux build, full hardware/control, second-device LAN/firewall, real remote-control actions, and final sign-off.",
+      "lineNumber": 978,
+      "hasEvidence": true
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Completion audit maps every P0 `goal.txt` public-release requirement to complete direct evidence.",
+      "lineNumber": 983,
+      "hasEvidence": true
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Decision: ship.",
+      "lineNumber": 988,
+      "hasEvidence": false
+    }
+  ]
+}

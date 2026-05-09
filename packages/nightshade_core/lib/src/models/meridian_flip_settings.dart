@@ -13,6 +13,9 @@ enum MeridianTriggerMethod {
 
   /// Flip when hour angle exceeds threshold
   hourAngleThreshold,
+
+  /// Flip when mount stops tracking due to hitting its custom tracking limits
+  onTrackingLimitHit,
 }
 
 /// Extension for MeridianTriggerMethod display
@@ -25,6 +28,8 @@ extension MeridianTriggerMethodExtension on MeridianTriggerMethod {
         return 'Minutes Before Limit';
       case MeridianTriggerMethod.hourAngleThreshold:
         return 'Hour Angle Threshold';
+      case MeridianTriggerMethod.onTrackingLimitHit:
+        return 'On Tracking Limit Hit';
     }
   }
 
@@ -36,6 +41,8 @@ extension MeridianTriggerMethodExtension on MeridianTriggerMethod {
         return 'Flip a specified number of minutes before the mount reaches its tracking limit';
       case MeridianTriggerMethod.hourAngleThreshold:
         return 'Flip when the hour angle exceeds a specified threshold';
+      case MeridianTriggerMethod.onTrackingLimitHit:
+        return 'Flip when mount stops tracking due to hitting its custom tracking limits';
     }
   }
 }
@@ -94,6 +101,10 @@ class MeridianFlipSettings with _$MeridianFlipSettings {
     /// Hour angle threshold in hours to trigger flip (default: 0.5 = 30 min)
     @Default(0.5) double hourAngleThreshold,
 
+    /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
+    /// Only used with onTrackingLimitHit trigger method.
+    @Default(0.0) double trackingLimitWaitMinutes,
+
     // === Flip Sequence Options ===
     /// Pause guider before flip
     @Default(true) bool pauseGuidingBeforeFlip,
@@ -140,6 +151,8 @@ class MeridianFlipSettings with _$MeridianFlipSettings {
         return minutesBeforeLimit;
       case MeridianTriggerMethod.hourAngleThreshold:
         return hourAngleThreshold;
+      case MeridianTriggerMethod.onTrackingLimitHit:
+        return trackingLimitWaitMinutes;
     }
   }
 
@@ -152,6 +165,8 @@ class MeridianFlipSettings with _$MeridianFlipSettings {
         return 'minutes';
       case MeridianTriggerMethod.hourAngleThreshold:
         return 'hours';
+      case MeridianTriggerMethod.onTrackingLimitHit:
+        return 'minutes';
     }
   }
 
@@ -194,6 +209,13 @@ class MeridianFlipSettings with _$MeridianFlipSettings {
     }
     if (hourAngleThreshold > 6) {
       errors.add('Hour angle threshold should not exceed 6 hours');
+    }
+
+    if (trackingLimitWaitMinutes < 0) {
+      errors.add('Tracking limit wait time cannot be negative');
+    }
+    if (trackingLimitWaitMinutes > 60) {
+      errors.add('Tracking limit wait time should not exceed 60 minutes');
     }
 
     if (settleTimeSeconds < 0) {

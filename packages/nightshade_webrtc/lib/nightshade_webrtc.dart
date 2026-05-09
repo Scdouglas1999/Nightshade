@@ -6,7 +6,9 @@ export 'src/peer_connection.dart';
 export 'src/signaling.dart';
 export 'src/discovery.dart';
 export 'src/enhanced_discovery.dart';
+export 'src/server_compatibility.dart';
 export 'src/web_server.dart';
+export 'src/collaboration/live_collaboration_session.dart';
 
 // Secure authentication and encryption
 export 'src/auth/token_manager.dart';

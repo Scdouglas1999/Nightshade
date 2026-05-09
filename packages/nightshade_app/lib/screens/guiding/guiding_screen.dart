@@ -475,7 +475,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -892,7 +892,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -912,7 +912,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
               borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+                  const BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: Row(
               children: [
@@ -964,7 +964,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
@@ -986,7 +986,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
               borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+                  const BorderRadius.vertical(top: Radius.circular(8)),
             ),
             child: Row(
               children: [

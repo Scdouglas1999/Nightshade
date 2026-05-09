@@ -1,12 +1,13 @@
+import 'package:drift/drift.dart';
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import '../database/database.dart';
 import '../models/backend/device_capabilities.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
 import '../models/optical_config.dart';
+import '../utils/json_validation.dart';
 import 'capability_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
@@ -141,6 +142,9 @@ class EquipmentProfileModel {
     if (filterWheelId != null) count++;
     if (guiderId != null) count++;
     if (rotatorId != null) count++;
+    if (domeId != null) count++;
+    if (weatherId != null) count++;
+    if (coverCalibratorId != null) count++;
     return count;
   }
 
@@ -148,10 +152,27 @@ class EquipmentProfileModel {
   factory EquipmentProfileModel.fromDatabase(EquipmentProfile db) {
     List<String> filters = [];
     Map<String, int> offsets = {};
+    final rawTelescopeFocalLength = db.telescopeFocalLength;
+    final rawTelescopeAperture = db.telescopeAperture;
+    final telescopeFocalLength =
+        rawTelescopeFocalLength != null && rawTelescopeFocalLength > 0
+            ? rawTelescopeFocalLength
+            : null;
+    final telescopeAperture =
+        rawTelescopeAperture != null && rawTelescopeAperture > 0
+            ? rawTelescopeAperture
+            : null;
+    final effectiveFocalLength =
+        db.focalLength > 0 ? db.focalLength : (telescopeFocalLength ?? 0.0);
+    final effectiveAperture =
+        db.aperture > 0 ? db.aperture : (telescopeAperture ?? 0.0);
 
     if (db.filterNames != null) {
       try {
-        filters = (jsonDecode(db.filterNames!) as List).cast<String>();
+        filters = decodeStringListJson(
+          db.filterNames,
+          context: 'equipment_profiles.filter_names for "${db.name}"',
+        );
       } catch (e) {
         _log.warning(
             'Failed to parse filterNames JSON for profile "${db.name}": $e');
@@ -160,9 +181,10 @@ class EquipmentProfileModel {
 
     if (db.filterFocusOffsets != null) {
       try {
-        final decoded =
-            jsonDecode(db.filterFocusOffsets!) as Map<String, dynamic>;
-        offsets = decoded.map((key, value) => MapEntry(key, value as int));
+        offsets = decodeStringIntMapJson(
+          db.filterFocusOffsets,
+          context: 'equipment_profiles.filter_focus_offsets for "${db.name}"',
+        );
       } catch (e) {
         _log.warning(
             'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e');
@@ -190,10 +212,10 @@ class EquipmentProfileModel {
       guiderName: db.guiderName,
       rotatorName: db.rotatorName,
       telescopeName: db.telescopeName,
-      telescopeFocalLength: db.telescopeFocalLength,
-      telescopeAperture: db.telescopeAperture,
-      focalLength: db.focalLength,
-      aperture: db.aperture,
+      telescopeFocalLength: telescopeFocalLength,
+      telescopeAperture: telescopeAperture,
+      focalLength: effectiveFocalLength,
+      aperture: effectiveAperture,
       focalRatio: db.focalRatio,
       defaultGain: db.defaultGain,
       defaultOffset: db.defaultOffset,
@@ -335,7 +357,8 @@ class EquipmentProfileModel {
       defaultBinY: defaultBinY ?? this.defaultBinY,
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
       coolOnConnect: coolOnConnect ?? this.coolOnConnect,
-      defaultCenteringExposure: defaultCenteringExposure ?? this.defaultCenteringExposure,
+      defaultCenteringExposure:
+          defaultCenteringExposure ?? this.defaultCenteringExposure,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
       profileIcon: profileIcon ?? this.profileIcon,
@@ -512,6 +535,18 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   Future<void> setActiveProfile(int profileId) async {
     final dao = ref.read(equipmentProfilesDaoProvider);
     await dao.setActiveProfile(profileId);
+    ref.invalidateSelf();
+  }
+
+  /// Set or clear the default startup profile.
+  Future<void> setDefaultProfile(int? profileId,
+      {bool makeActive = true}) async {
+    final dao = ref.read(equipmentProfilesDaoProvider);
+    if (profileId == null) {
+      await dao.clearDefaultProfile();
+    } else {
+      await dao.setDefaultProfile(profileId, makeActive: makeActive);
+    }
     ref.invalidateSelf();
   }
 
