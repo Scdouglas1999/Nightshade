@@ -9,9 +9,40 @@
 use crate::{detect_stars, read_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig};
 use bytemuck::{Pod, Zeroable};
 use std::fs;
+use std::num::ParseFloatError;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
+use thiserror::Error;
 use wgpu::util::DeviceExt;
+
+/// Structured errors emitted while parsing solver-produced WCS / INI files.
+///
+/// A solve must surface every parse failure so downstream science code never
+/// treats a malformed header as a successful zero-coordinate solution.
+#[derive(Debug, Error)]
+pub enum PlateSolveError {
+    #[error(
+        "failed to parse WCS keyword `{keyword}` value `{raw_value}` as f64 (file: {path}): {source}"
+    )]
+    WcsParse {
+        keyword: String,
+        raw_value: String,
+        path: String,
+        #[source]
+        source: ParseFloatError,
+    },
+    #[error("WCS file `{path}` did not contain required keyword `{keyword}`")]
+    WcsMissingKeyword { keyword: String, path: String },
+    #[error("ASTAP INI file `{path}` reports plate solve failed (PLTSOLVD != T)")]
+    SolveFailed { path: String },
+    #[error("failed to read solver output `{path}`: {source}")]
+    ReadOutput {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+}
 
 /// Plate solve result
 #[derive(Debug, Clone)]
@@ -270,55 +301,9 @@ impl AstapSolver {
             };
         }
 
-        self.parse_wcs_file(&wcs_path, solve_time)
-    }
-
-    /// Parse ASTAP .ini result file
-    fn parse_astap_ini(&self, ini_path: &Path, solve_time: f64) -> PlateSolveResult {
-        let content = match fs::read_to_string(ini_path) {
-            Ok(c) => c,
-            Err(e) => {
-                return PlateSolveResult {
-                    ra: 0.0,
-                    dec: 0.0,
-                    pixel_scale: 0.0,
-                    rotation: 0.0,
-                    field_width: 0.0,
-                    field_height: 0.0,
-                    success: false,
-                    error: Some(format!("Failed to read INI: {}", e)),
-                    solve_time_secs: solve_time,
-                }
-            }
-        };
-
-        let mut ra = 0.0_f64;
-        let mut dec = 0.0_f64;
-        let mut crota = 0.0_f64;
-        let mut cdelt1 = 0.0_f64;
-        let mut cdelt2 = 0.0_f64;
-        let mut solved = false;
-
-        for line in content.lines() {
-            let line = line.trim();
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim().to_uppercase();
-                let value = value.trim();
-
-                match key.as_str() {
-                    "CRVAL1" => ra = value.parse().unwrap_or(0.0),
-                    "CRVAL2" => dec = value.parse().unwrap_or(0.0),
-                    "CROTA1" | "CROTA2" => crota = value.parse().unwrap_or(0.0),
-                    "CDELT1" => cdelt1 = value.parse().unwrap_or(0.0),
-                    "CDELT2" => cdelt2 = value.parse().unwrap_or(0.0),
-                    "PLTSOLVD" => solved = value == "T",
-                    _ => {}
-                }
-            }
-        }
-
-        if !solved {
-            return PlateSolveResult {
+        match self.parse_wcs_file(&wcs_path, solve_time) {
+            Ok(result) => result,
+            Err(err) => PlateSolveResult {
                 ra: 0.0,
                 dec: 0.0,
                 pixel_scale: 0.0,
@@ -326,101 +311,229 @@ impl AstapSolver {
                 field_width: 0.0,
                 field_height: 0.0,
                 success: false,
-                error: Some("Plate solve failed".to_string()),
+                error: Some(err.to_string()),
                 solve_time_secs: solve_time,
-            };
-        }
-
-        // Convert CDELT to arcsec/pixel
-        let pixel_scale = (cdelt1.abs() * 3600.0 + cdelt2.abs() * 3600.0) / 2.0;
-
-        PlateSolveResult {
-            ra,
-            dec,
-            pixel_scale,
-            rotation: crota,
-            field_width: 0.0, // Would need image dimensions
-            field_height: 0.0,
-            success: true,
-            error: None,
-            solve_time_secs: solve_time,
+            },
         }
     }
 
-    /// Parse WCS file
-    fn parse_wcs_file(&self, wcs_path: &Path, solve_time: f64) -> PlateSolveResult {
-        let content = match fs::read_to_string(wcs_path) {
-            Ok(c) => c,
-            Err(e) => {
-                return PlateSolveResult {
-                    ra: 0.0,
-                    dec: 0.0,
-                    pixel_scale: 0.0,
-                    rotation: 0.0,
-                    field_width: 0.0,
-                    field_height: 0.0,
-                    success: false,
-                    error: Some(format!("Failed to read WCS: {}", e)),
-                    solve_time_secs: solve_time,
-                }
-            }
+    /// Parse ASTAP .ini result file
+    fn parse_astap_ini(&self, ini_path: &Path, solve_time: f64) -> PlateSolveResult {
+        match parse_astap_ini_inner(ini_path, solve_time) {
+            Ok(result) => result,
+            Err(err) => PlateSolveResult {
+                ra: 0.0,
+                dec: 0.0,
+                pixel_scale: 0.0,
+                rotation: 0.0,
+                field_width: 0.0,
+                field_height: 0.0,
+                success: false,
+                error: Some(err.to_string()),
+                solve_time_secs: solve_time,
+            },
+        }
+    }
+
+    /// Parse WCS file emitted by ASTAP/astrometry.net.
+    ///
+    /// Required keywords: CRVAL1, CRVAL2, CD1_1, CD1_2, CD2_1, CD2_2.
+    /// Any malformed value or missing required keyword propagates as
+    /// `PlateSolveError`; the caller is responsible for converting to a
+    /// failed `PlateSolveResult`. Silent fallbacks (RA=0/Dec=0) are
+    /// forbidden — see CLAUDE.md "errors are a feature".
+    fn parse_wcs_file(
+        &self,
+        wcs_path: &Path,
+        solve_time: f64,
+    ) -> Result<PlateSolveResult, PlateSolveError> {
+        parse_wcs_file_inner(wcs_path, solve_time)
+    }
+}
+
+/// Free-function form of WCS parsing so the test module can exercise it
+/// without instantiating an `AstapSolver` (which requires a real ASTAP
+/// install on PATH).
+fn parse_wcs_file_inner(
+    wcs_path: &Path,
+    solve_time: f64,
+) -> Result<PlateSolveResult, PlateSolveError> {
+    let path_display = wcs_path.display().to_string();
+    let content = fs::read_to_string(wcs_path).map_err(|source| PlateSolveError::ReadOutput {
+        path: path_display.clone(),
+        source,
+    })?;
+
+    let mut ra: Option<f64> = None;
+    let mut dec: Option<f64> = None;
+    let mut cd1_1: Option<f64> = None;
+    let mut cd1_2: Option<f64> = None;
+    let mut cd2_1: Option<f64> = None;
+    let mut cd2_2: Option<f64> = None;
+
+    for line in content.lines() {
+        if line.len() < 10 {
+            continue;
+        }
+
+        let keyword = line[..8].trim();
+        if !line[8..].starts_with('=') {
+            continue;
+        }
+
+        let value_part = line[10..].trim();
+        let value_str = if let Some(idx) = value_part.find('/') {
+            &value_part[..idx]
+        } else {
+            value_part
+        }
+        .trim();
+
+        let parse = |slot: &mut Option<f64>| -> Result<(), PlateSolveError> {
+            let parsed = value_str
+                .parse::<f64>()
+                .map_err(|source| PlateSolveError::WcsParse {
+                    keyword: keyword.to_string(),
+                    raw_value: value_str.to_string(),
+                    path: path_display.clone(),
+                    source,
+                })?;
+            *slot = Some(parsed);
+            Ok(())
         };
 
-        // Parse FITS-style header keywords
-        let mut ra = 0.0_f64;
-        let mut dec = 0.0_f64;
-        let mut cd1_1 = 0.0_f64;
-        let mut cd1_2 = 0.0_f64;
-        let mut cd2_1 = 0.0_f64;
-        let mut cd2_2 = 0.0_f64;
-
-        for line in content.lines() {
-            if line.len() < 10 {
-                continue;
-            }
-
-            let keyword = &line[..8].trim();
-            if !line[8..].starts_with('=') {
-                continue;
-            }
-
-            let value_part = &line[10..].trim();
-            let value_str = if let Some(idx) = value_part.find('/') {
-                &value_part[..idx]
-            } else {
-                value_part
-            }
-            .trim();
-
-            match *keyword {
-                "CRVAL1" => ra = value_str.parse().unwrap_or(0.0),
-                "CRVAL2" => dec = value_str.parse().unwrap_or(0.0),
-                "CD1_1" => cd1_1 = value_str.parse().unwrap_or(0.0),
-                "CD1_2" => cd1_2 = value_str.parse().unwrap_or(0.0),
-                "CD2_1" => cd2_1 = value_str.parse().unwrap_or(0.0),
-                "CD2_2" => cd2_2 = value_str.parse().unwrap_or(0.0),
-                _ => {}
-            }
-        }
-
-        // Calculate pixel scale and rotation from CD matrix
-        let pixel_scale = ((cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt() * 3600.0
-            + (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt() * 3600.0)
-            / 2.0;
-        let rotation = cd2_1.atan2(cd1_1).to_degrees();
-
-        PlateSolveResult {
-            ra,
-            dec,
-            pixel_scale,
-            rotation,
-            field_width: 0.0,
-            field_height: 0.0,
-            success: true,
-            error: None,
-            solve_time_secs: solve_time,
+        match keyword {
+            "CRVAL1" => parse(&mut ra)?,
+            "CRVAL2" => parse(&mut dec)?,
+            "CD1_1" => parse(&mut cd1_1)?,
+            "CD1_2" => parse(&mut cd1_2)?,
+            "CD2_1" => parse(&mut cd2_1)?,
+            "CD2_2" => parse(&mut cd2_2)?,
+            _ => {}
         }
     }
+
+    let require = |slot: Option<f64>, name: &str| -> Result<f64, PlateSolveError> {
+        slot.ok_or_else(|| PlateSolveError::WcsMissingKeyword {
+            keyword: name.to_string(),
+            path: path_display.clone(),
+        })
+    };
+    let ra = require(ra, "CRVAL1")?;
+    let dec = require(dec, "CRVAL2")?;
+    let cd1_1 = require(cd1_1, "CD1_1")?;
+    let cd1_2 = require(cd1_2, "CD1_2")?;
+    let cd2_1 = require(cd2_1, "CD2_1")?;
+    let cd2_2 = require(cd2_2, "CD2_2")?;
+
+    let pixel_scale = ((cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt() * 3600.0
+        + (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt() * 3600.0)
+        / 2.0;
+    let rotation = cd2_1.atan2(cd1_1).to_degrees();
+
+    Ok(PlateSolveResult {
+        ra,
+        dec,
+        pixel_scale,
+        rotation,
+        field_width: 0.0,
+        field_height: 0.0,
+        success: true,
+        error: None,
+        solve_time_secs: solve_time,
+    })
+}
+
+/// Free-function form of ASTAP `.ini` parsing so the test module can exercise
+/// it without an ASTAP install. Mirrors `parse_wcs_file_inner` semantics:
+/// malformed numeric values or `PLTSOLVD != T` propagate as errors instead of
+/// silently producing a zero-coordinate "successful" solve.
+fn parse_astap_ini_inner(
+    ini_path: &Path,
+    solve_time: f64,
+) -> Result<PlateSolveResult, PlateSolveError> {
+    let path_display = ini_path.display().to_string();
+    let content = fs::read_to_string(ini_path).map_err(|source| PlateSolveError::ReadOutput {
+        path: path_display.clone(),
+        source,
+    })?;
+
+    let mut ra: Option<f64> = None;
+    let mut dec: Option<f64> = None;
+    let mut crota: Option<f64> = None;
+    let mut cdelt1: Option<f64> = None;
+    let mut cdelt2: Option<f64> = None;
+    let mut solved = false;
+
+    for line in content.lines() {
+        let line = line.trim();
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_uppercase();
+        let value = value.trim();
+
+        let parse = |slot: &mut Option<f64>, keyword: &str| -> Result<(), PlateSolveError> {
+            let parsed = value
+                .parse::<f64>()
+                .map_err(|source| PlateSolveError::WcsParse {
+                    keyword: keyword.to_string(),
+                    raw_value: value.to_string(),
+                    path: path_display.clone(),
+                    source,
+                })?;
+            *slot = Some(parsed);
+            Ok(())
+        };
+
+        match key.as_str() {
+            "CRVAL1" => parse(&mut ra, "CRVAL1")?,
+            "CRVAL2" => parse(&mut dec, "CRVAL2")?,
+            "CROTA1" | "CROTA2" => parse(&mut crota, &key)?,
+            "CDELT1" => parse(&mut cdelt1, "CDELT1")?,
+            "CDELT2" => parse(&mut cdelt2, "CDELT2")?,
+            "PLTSOLVD" => solved = value == "T",
+            _ => {}
+        }
+    }
+
+    if !solved {
+        return Err(PlateSolveError::SolveFailed {
+            path: path_display,
+        });
+    }
+
+    let require = |slot: Option<f64>, name: &str| -> Result<f64, PlateSolveError> {
+        slot.ok_or_else(|| PlateSolveError::WcsMissingKeyword {
+            keyword: name.to_string(),
+            path: path_display.clone(),
+        })
+    };
+    let ra = require(ra, "CRVAL1")?;
+    let dec = require(dec, "CRVAL2")?;
+    let cdelt1 = require(cdelt1, "CDELT1")?;
+    let cdelt2 = require(cdelt2, "CDELT2")?;
+    // Why: CROTA1/CROTA2 are *optional* in the FITS WCS standard (Greisen &
+    // Calabretta 2002 §2.1.2). ASTAP omits them for north-up frames. When
+    // absent, the standard-mandated default is 0.0 — this is a documented
+    // WCS convention, not a silent error fallback. A *malformed* CROTA value
+    // (parse failure) still propagates as `PlateSolveError::WcsParse` via
+    // the `parse(&mut crota, &key)?` call above.
+    let crota = crota.unwrap_or(0.0);
+
+    let pixel_scale = (cdelt1.abs() * 3600.0 + cdelt2.abs() * 3600.0) / 2.0;
+
+    Ok(PlateSolveResult {
+        ra,
+        dec,
+        pixel_scale,
+        rotation: crota,
+        field_width: 0.0,
+        field_height: 0.0,
+        success: true,
+        error: None,
+        solve_time_secs: solve_time,
+    })
 }
 
 const GPU_DOWNSAMPLE_SHADER: &str = r#"
@@ -1027,9 +1140,24 @@ pub fn solve_near(
     }
 }
 
-/// Check if any plate solver is available
+/// Cached result of the `find_astap()` / `find_astrometry()` filesystem probe.
+///
+/// Why cache: `find_astap()` and `find_astrometry()` walk a fixed list of
+/// paths and (on Windows) shell out to `where.exe`. Callers (settings UI,
+/// scheduler, sequencer pre-flight) hit `is_solver_available()` repeatedly.
+/// The probe is process-stable: an installer running while Nightshade is
+/// open is rare, and users always restart after configuring a new solver
+/// path. A future settings-change hook can call
+/// `invalidate_solver_availability_cache()` to force re-probing.
+static SOLVER_AVAILABLE_CACHE: OnceLock<bool> = OnceLock::new();
+
+/// Check if any plate solver (ASTAP or local astrometry.net) is reachable on
+/// disk. Returns `false` if neither is found at any well-known install path
+/// or via PATH lookup. Result is cached after first call; see
+/// `SOLVER_AVAILABLE_CACHE` doc for rationale.
 pub fn is_solver_available() -> bool {
-    true
+    *SOLVER_AVAILABLE_CACHE
+        .get_or_init(|| find_astap().is_some() || find_astrometry().is_some())
 }
 
 /// Get path to installed solver
@@ -1039,9 +1167,41 @@ pub fn get_solver_path() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{blind_solve, cpu_downsample_max_u16, solve_near};
+    use super::{
+        blind_solve, cpu_downsample_max_u16, parse_astap_ini_inner, parse_wcs_file_inner,
+        solve_near, PlateSolveError,
+    };
     use crate::{write_fits, FitsHeader, ImageData};
+    use std::io::Write;
     use std::path::PathBuf;
+
+    /// Build a single FITS-style WCS card line, padded to the column layout
+    /// `parse_wcs_file_inner` expects: keyword in cols 0..8, `=` at col 8,
+    /// value starting at col 10.
+    fn wcs_card(keyword: &str, value: &str) -> String {
+        let mut line = String::with_capacity(80);
+        line.push_str(&format!("{:<8}", keyword));
+        line.push('=');
+        line.push(' ');
+        line.push_str(value);
+        line.push('\n');
+        line
+    }
+
+    fn write_temp(name: &str, contents: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let path = std::env::temp_dir().join(format!(
+            "nightshade-{}-{}-{}.txt",
+            name,
+            std::process::id(),
+            id
+        ));
+        let mut f = std::fs::File::create(&path).expect("create temp file");
+        f.write_all(contents.as_bytes()).expect("write temp file");
+        path
+    }
 
     fn synthetic_star_field(rotation_deg: f64) -> ImageData {
         let width = 256u32;
@@ -1115,6 +1275,137 @@ mod tests {
         assert!(blind.success, "blind solve failed: {:?}", blind.error);
         assert!((blind.ra - 150.0).abs() < 1e-6);
         assert!((blind.dec - 20.0).abs() < 1e-6);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn parse_wcs_file_succeeds_on_well_formed_input() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.123"));
+        content.push_str(&wcs_card("CRVAL2", "20.456"));
+        content.push_str(&wcs_card("CD1_1", "-0.000358"));
+        content.push_str(&wcs_card("CD1_2", "0.000001"));
+        content.push_str(&wcs_card("CD2_1", "0.000001"));
+        content.push_str(&wcs_card("CD2_2", "0.000358"));
+        let path = write_temp("wcs-good", &content);
+
+        let result = parse_wcs_file_inner(&path, 0.42).expect("well-formed WCS must parse");
+        assert!(result.success);
+        assert!((result.ra - 150.123).abs() < 1e-9);
+        assert!((result.dec - 20.456).abs() < 1e-9);
+        assert!(result.pixel_scale > 0.0);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// §6.4: a malformed CRVAL1 must NOT silently produce a "successful"
+    /// solve at RA=0/Dec=0. The parser must return `PlateSolveError::WcsParse`.
+    #[test]
+    fn parse_wcs_file_rejects_malformed_crval1() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "not-a-number"));
+        content.push_str(&wcs_card("CRVAL2", "20.456"));
+        content.push_str(&wcs_card("CD1_1", "-0.000358"));
+        content.push_str(&wcs_card("CD1_2", "0.000001"));
+        content.push_str(&wcs_card("CD2_1", "0.000001"));
+        content.push_str(&wcs_card("CD2_2", "0.000358"));
+        let path = write_temp("wcs-bad-crval1", &content);
+
+        let err = parse_wcs_file_inner(&path, 0.0)
+            .expect_err("malformed CRVAL1 must NOT produce a zero-coordinate solve");
+        match err {
+            PlateSolveError::WcsParse {
+                keyword, raw_value, ..
+            } => {
+                assert_eq!(keyword, "CRVAL1");
+                assert_eq!(raw_value, "not-a-number");
+            }
+            other => panic!("expected WcsParse, got {other:?}"),
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// §6.4: a malformed CD-matrix value must also propagate.
+    #[test]
+    fn parse_wcs_file_rejects_malformed_cd_matrix() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.0"));
+        content.push_str(&wcs_card("CRVAL2", "20.0"));
+        content.push_str(&wcs_card("CD1_1", "0.001"));
+        content.push_str(&wcs_card("CD1_2", "0.0"));
+        content.push_str(&wcs_card("CD2_1", "garbage"));
+        content.push_str(&wcs_card("CD2_2", "0.001"));
+        let path = write_temp("wcs-bad-cd21", &content);
+
+        let err = parse_wcs_file_inner(&path, 0.0).expect_err("malformed CD2_1 must error");
+        match err {
+            PlateSolveError::WcsParse {
+                keyword, raw_value, ..
+            } => {
+                assert_eq!(keyword, "CD2_1");
+                assert_eq!(raw_value, "garbage");
+            }
+            other => panic!("expected WcsParse, got {other:?}"),
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// §6.4: missing required keyword must error rather than yielding zeros.
+    #[test]
+    fn parse_wcs_file_rejects_missing_required_keyword() {
+        // Omit CRVAL2 entirely.
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.0"));
+        content.push_str(&wcs_card("CD1_1", "0.001"));
+        content.push_str(&wcs_card("CD1_2", "0.0"));
+        content.push_str(&wcs_card("CD2_1", "0.0"));
+        content.push_str(&wcs_card("CD2_2", "0.001"));
+        let path = write_temp("wcs-missing-crval2", &content);
+
+        let err = parse_wcs_file_inner(&path, 0.0).expect_err("missing CRVAL2 must error");
+        match err {
+            PlateSolveError::WcsMissingKeyword { keyword, .. } => {
+                assert_eq!(keyword, "CRVAL2");
+            }
+            other => panic!("expected WcsMissingKeyword, got {other:?}"),
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// §6.4: ASTAP `.ini` parser must not silently zero-out a malformed CRVAL.
+    #[test]
+    fn parse_astap_ini_rejects_malformed_crval2() {
+        let content = "PLTSOLVD=T\nCRVAL1=150.0\nCRVAL2=not-a-number\nCDELT1=-0.000358\nCDELT2=0.000358\nCROTA1=12.34\n";
+        let path = write_temp("ini-bad-crval2", content);
+
+        let err = parse_astap_ini_inner(&path, 0.0).expect_err("malformed CRVAL2 must error");
+        match err {
+            PlateSolveError::WcsParse {
+                keyword, raw_value, ..
+            } => {
+                assert_eq!(keyword, "CRVAL2");
+                assert_eq!(raw_value, "not-a-number");
+            }
+            other => panic!("expected WcsParse, got {other:?}"),
+        }
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// `PLTSOLVD != T` must surface as a `SolveFailed` error, not as a
+    /// "successful" zero-coordinate result.
+    #[test]
+    fn parse_astap_ini_rejects_unsolved_flag() {
+        let content =
+            "PLTSOLVD=F\nCRVAL1=150.0\nCRVAL2=20.0\nCDELT1=-0.000358\nCDELT2=0.000358\n";
+        let path = write_temp("ini-not-solved", content);
+
+        let err = parse_astap_ini_inner(&path, 0.0).expect_err("PLTSOLVD=F must error");
+        assert!(matches!(err, PlateSolveError::SolveFailed { .. }));
 
         let _ = std::fs::remove_file(path);
     }
