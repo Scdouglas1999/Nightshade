@@ -384,11 +384,17 @@ fn restore_backup(backup_dir: &Path, install_dir: &Path) -> Result<()> {
 
 /// Clean up the staging directory
 fn cleanup_staging(staging_dir: &Path) -> Result<()> {
-    // Go up one level to get the updates directory and clean it all
-    if let Some(parent) = staging_dir.parent() {
-        if parent.exists() {
-            fs::remove_dir_all(parent)?;
-        }
+    // Why: only remove the staging dir itself. Its parent (`…/updates/`) holds
+    // sibling artifacts the running update still needs — the `backup/`
+    // directory used for rollback, the `pending_install.json` marker read by
+    // the next-launch verification step, and any concurrently staged update.
+    // Wiping the parent here destroys rollback state. The backup directory is
+    // cleaned up by next-launch verification once it confirms the update is
+    // healthy (see audit §7A.3).
+    if staging_dir.exists() {
+        fs::remove_dir_all(staging_dir).with_context(|| {
+            format!("Failed to remove staging directory {:?}", staging_dir)
+        })?;
     }
     Ok(())
 }
