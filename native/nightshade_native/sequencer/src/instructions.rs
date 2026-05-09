@@ -743,17 +743,16 @@ pub async fn execute_center(
 
         // Update trigger state with plate solve result for drift detection
         if let Some(trigger_state_lock) = &ctx.trigger_state {
-            if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                trigger_state.update_plate_solve(
-                    solve_result.ra_degrees,
-                    solve_result.dec_degrees,
-                    solve_result.pixel_scale,
-                );
-                tracing::debug!(
-                    "Updated trigger state with plate solve: RA={:.4}Ã‚Â°, Dec={:.4}Ã‚Â°, scale={:.2}\"/px",
-                    solve_result.ra_degrees, solve_result.dec_degrees, solve_result.pixel_scale
-                );
-            }
+            let mut trigger_state = trigger_state_lock.write().await;
+            trigger_state.update_plate_solve(
+                solve_result.ra_degrees,
+                solve_result.dec_degrees,
+                solve_result.pixel_scale,
+            );
+            tracing::debug!(
+                "Updated trigger state with plate solve: RA={:.4}Ã‚Â°, Dec={:.4}Ã‚Â°, scale={:.2}\"/px",
+                solve_result.ra_degrees, solve_result.dec_degrees, solve_result.pixel_scale
+            );
         }
 
         // Calculate separation from target

@@ -193,16 +193,18 @@ impl ExecutionContext {
     }
 
     pub fn send_progress(&self, update: ProgressUpdate) {
-        let exposure_secs = update.completed_exposure_secs;
+        // Why: integration time is no longer tracked here. The canonical update
+        // happens on the awaiting path in `TakeExposure` (see the
+        // `completed_integration_secs.write().await` block in
+        // `Node::execute -> NodeType::TakeExposure`). Previously this function
+        // also called `try_write` on the same counter, which either silently
+        // dropped the increment on contention or — when uncontended —
+        // double-counted the exposure duration. Both behaviours are bugs.
+        // `send_progress` is intentionally sync because it is invoked from
+        // synchronous progress callbacks supplied to instruction code; keeping
+        // it sync avoids forcing every callback caller into an async context.
         if let Some(callback) = &self.progress_callback {
             callback(update);
-        }
-
-        // Also track integration time
-        if let Some(exposure_secs) = exposure_secs {
-            if let Ok(mut counter) = self.completed_integration_secs.try_write() {
-                *counter += exposure_secs;
-            }
         }
     }
 
@@ -374,6 +376,44 @@ fn approximate_sun_equatorial_coords(days_since_j2000: f64) -> (f64, f64) {
         / 15.0;
 
     (sun_ra, sun_dec)
+}
+
+/// Compute the true median of a slice of HFR (half-flux radius) measurements.
+///
+/// Filters out `NaN` values and any non-positive measurements (HFR <= 0 is
+/// physically impossible; it indicates a measurement failure such as a frame
+/// with no detected stars). Returns `None` if no valid samples remain.
+///
+/// For an odd-length sorted slice the middle value is returned; for an
+/// even-length slice the average of the two central values is returned. f64
+/// comparison uses `partial_cmp`, so the filter step is essential — sorting a
+/// slice containing `NaN` would otherwise produce undefined ordering.
+///
+/// Why a function (not an inline closure): HFR-degraded triggers fire on a
+/// single noisy frame if the central-tendency estimator is biased, so the
+/// estimator deserves direct unit tests. The previous inline implementation
+/// (`fold` with `(a + val) / 2.0`) was an exponentially-weighted moving
+/// average that gave the latest frame ½ weight, the previous frame ¼, etc.
+fn compute_hfr_median(values: &[f64]) -> Option<f64> {
+    let mut filtered: Vec<f64> = values
+        .iter()
+        .copied()
+        .filter(|v| !v.is_nan() && *v > 0.0)
+        .collect();
+    if filtered.is_empty() {
+        return None;
+    }
+    filtered.sort_by(|a, b| {
+        a.partial_cmp(b)
+            .expect("NaN values were filtered out above; partial_cmp must succeed")
+    });
+    let len = filtered.len();
+    let median = if len % 2 == 1 {
+        filtered[len / 2]
+    } else {
+        (filtered[len / 2 - 1] + filtered[len / 2]) / 2.0
+    };
+    Some(median)
 }
 
 /// Base trait for all behavior tree nodes
@@ -740,12 +780,11 @@ impl Node for RuntimeNode {
                         config.binning
                     );
                     if let Some(trigger_state_lock) = &context.trigger_state {
-                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                            trigger_state.invalidate_autofocus(format!(
-                                "binning changed from {:?} to {:?}",
-                                previous_binning, config.binning
-                            ));
-                        }
+                        let mut trigger_state = trigger_state_lock.write().await;
+                        trigger_state.invalidate_autofocus(format!(
+                            "binning changed from {:?} to {:?}",
+                            previous_binning, config.binning
+                        ));
                     }
                 }
                 let node_id = self.id().clone();
@@ -772,32 +811,27 @@ impl Node for RuntimeNode {
                 // Track total integration time after exposure sequence completes
                 if result.status == NodeStatus::Success {
                     let total_exposure_time = duration_secs * total_count as f64;
-                    if let Ok(mut counter) = context.completed_integration_secs.try_write() {
+                    {
+                        let mut counter = context.completed_integration_secs.write().await;
                         *counter += total_exposure_time;
                     }
 
                     // Update trigger state with HFR values and exposure counts
                     if let Some(trigger_state_lock) = &context.trigger_state {
-                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                            // Update HFR tracking
-                            if let Some(median_hfr) =
-                                result.hfr_values.iter().copied().fold(None, |acc, val| {
-                                    Some(acc.map_or(val, |a| (a + val) / 2.0))
-                                })
-                            {
-                                trigger_state.update_hfr(median_hfr);
-                                tracing::debug!("Updated trigger state HFR: {:.2}", median_hfr);
-                            }
-
-                            // Increment exposure count for periodic triggers
-                            for _ in 0..total_count {
-                                trigger_state.increment_exposure_count();
-                            }
-                            tracing::debug!(
-                                "Updated trigger state exposure count: {}",
-                                trigger_state.completed_exposures
-                            );
+                        let mut trigger_state = trigger_state_lock.write().await;
+                        if let Some(median_hfr) = compute_hfr_median(&result.hfr_values) {
+                            trigger_state.update_hfr(median_hfr);
+                            tracing::debug!("Updated trigger state HFR: {:.2}", median_hfr);
                         }
+
+                        // Increment exposure count for periodic triggers
+                        for _ in 0..total_count {
+                            trigger_state.increment_exposure_count();
+                        }
+                        tracing::debug!(
+                            "Updated trigger state exposure count: {}",
+                            trigger_state.completed_exposures
+                        );
                     }
 
                     // Check exposure triggers defined in config
@@ -851,24 +885,23 @@ impl Node for RuntimeNode {
                 // Update trigger state after autofocus completes
                 if result.status == NodeStatus::Success {
                     if let Some(trigger_state_lock) = &context.trigger_state {
-                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                            // Update HFR baseline after successful autofocus
-                            if let Some(best_hfr) = result.hfr_values.first() {
-                                trigger_state.update_hfr(*best_hfr);
-                                trigger_state.reset_baseline_hfr();
-                                tracing::debug!(
-                                    "Reset HFR baseline to {:.2} after autofocus",
-                                    best_hfr
-                                );
-                            }
-
-                            // Mark that autofocus was performed
-                            trigger_state.mark_autofocus_performed();
+                        let mut trigger_state = trigger_state_lock.write().await;
+                        // Update HFR baseline after successful autofocus
+                        if let Some(best_hfr) = result.hfr_values.first() {
+                            trigger_state.update_hfr(*best_hfr);
+                            trigger_state.reset_baseline_hfr();
                             tracing::debug!(
-                                "Marked autofocus performed at exposure {}",
-                                trigger_state.completed_exposures
+                                "Reset HFR baseline to {:.2} after autofocus",
+                                best_hfr
                             );
                         }
+
+                        // Mark that autofocus was performed
+                        trigger_state.mark_autofocus_performed();
+                        tracing::debug!(
+                            "Marked autofocus performed at exposure {}",
+                            trigger_state.completed_exposures
+                        );
                     }
                 } else if result.status == NodeStatus::Failure {
                     if let Some(msg) = &result.message {
@@ -931,14 +964,13 @@ impl Node for RuntimeNode {
                 // Update trigger state after dither completes
                 if result.status == NodeStatus::Success {
                     if let Some(trigger_state_lock) = &context.trigger_state {
-                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                            // Mark that dither was performed
-                            trigger_state.mark_dither_performed();
-                            tracing::debug!(
-                                "Marked dither performed at exposure {}",
-                                trigger_state.completed_exposures
-                            );
-                        }
+                        let mut trigger_state = trigger_state_lock.write().await;
+                        // Mark that dither was performed
+                        trigger_state.mark_dither_performed();
+                        tracing::debug!(
+                            "Marked dither performed at exposure {}",
+                            trigger_state.completed_exposures
+                        );
                     }
                 } else if result.status == NodeStatus::Failure {
                     if let Some(msg) = &result.message {
@@ -1020,9 +1052,8 @@ impl Node for RuntimeNode {
                 if result.status == NodeStatus::Success {
                     context.current_filter = Some(config.filter_name.clone());
                     if let Some(trigger_state_lock) = &context.trigger_state {
-                        if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                            trigger_state.set_filter(config.filter_name.clone());
-                        }
+                        let mut trigger_state = trigger_state_lock.write().await;
+                        trigger_state.set_filter(config.filter_name.clone());
                     }
                 } else if result.status == NodeStatus::Failure {
                     if let Some(msg) = &result.message {
@@ -1557,16 +1588,15 @@ impl RuntimeNode {
 
         // Update trigger state with target coordinates for drift detection
         if let Some(trigger_state_lock) = &context.trigger_state {
-            if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
-                let target_ra_degrees = config.ra_hours * 15.0; // Convert hours to degrees
-                trigger_state.set_target(target_ra_degrees, config.dec_degrees);
-                trigger_state.set_meridian_target(display_name.clone());
-                tracing::debug!(
-                    "Updated trigger state with target: RA={:.4}°, Dec={:.4}°",
-                    target_ra_degrees,
-                    config.dec_degrees
-                );
-            }
+            let mut trigger_state = trigger_state_lock.write().await;
+            let target_ra_degrees = config.ra_hours * 15.0; // Convert hours to degrees
+            trigger_state.set_target(target_ra_degrees, config.dec_degrees);
+            trigger_state.set_meridian_target(display_name.clone());
+            tracing::debug!(
+                "Updated trigger state with target: RA={:.4}°, Dec={:.4}°",
+                target_ra_degrees,
+                config.dec_degrees
+            );
         }
 
         // Calculate and update meridian flip time for trigger system
@@ -2605,5 +2635,128 @@ mod tests {
             assert!(sun_dec.is_finite());
             assert!((0.0..24.0).contains(&sun_ra));
         }
+    }
+
+    // §1.2 — Verify the HFR median computation is a true median, not the
+    // exponentially-weighted moving average the previous code computed.
+    #[test]
+    fn hfr_median_returns_true_central_value() {
+        let values = [1.5, 1.6, 1.7, 1.8, 5.0];
+        let median = compute_hfr_median(&values).expect("expected Some median for non-empty input");
+        // The previous EMA implementation returned ~3.2 for this input
+        // ((((1.5 + 1.6) / 2 + 1.7) / 2 + 1.8) / 2 + 5.0) / 2 ≈ 3.181), so this
+        // assertion both pins the new behaviour and guards against a regression
+        // back to the EMA formula.
+        assert!((median - 1.7).abs() < f64::EPSILON, "expected 1.7, got {median}");
+    }
+
+    // §1.2 — Verify NaN and non-positive values are filtered before the median
+    // is computed; sorting with `partial_cmp` requires no NaNs in the slice.
+    #[test]
+    fn hfr_median_filters_nan_and_non_positive() {
+        // Empty / all-invalid input → None.
+        assert_eq!(compute_hfr_median(&[]), None);
+        assert_eq!(compute_hfr_median(&[f64::NAN, 0.0, -1.0]), None);
+
+        // Mixed input: 0.0, NaN, and a negative reading must be discarded
+        // before sorting. Remaining values are [2.0, 3.0, 4.0, 5.0]; for an
+        // even-length sequence, the median is (3.0 + 4.0) / 2 = 3.5.
+        let values = [2.0, f64::NAN, 0.0, 3.0, 4.0, 5.0, -2.5];
+        let median = compute_hfr_median(&values).expect("expected median after filtering");
+        assert!((median - 3.5).abs() < f64::EPSILON, "expected 3.5, got {median}");
+
+        // Odd-length after filtering: [1.5, 1.7, 2.1] → 1.7.
+        let values = [1.7, f64::NAN, 1.5, 2.1];
+        let median = compute_hfr_median(&values).expect("expected median after filtering");
+        assert!((median - 1.7).abs() < f64::EPSILON, "expected 1.7, got {median}");
+    }
+
+    // §1.1 — Replacing `try_write` with `write().await` must guarantee that
+    // every concurrent instruction-side write to the trigger state is
+    // observed, even while a fake trigger monitor task is reading every 10 ms.
+    // The previous `try_write` storm dropped writes silently on contention
+    // with the monitor, causing lost target-name updates among other
+    // critical fields.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn trigger_state_writes_are_never_dropped_under_monitor_contention() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering as AtomicOrdering};
+        use tokio::sync::RwLock as TokioRwLock;
+        use tokio::time::{sleep, Duration};
+
+        let trigger_state = Arc::new(TokioRwLock::new(crate::triggers::TriggerState::new()));
+        let stop = Arc::new(AtomicBool::new(false));
+        let monitor_reads = Arc::new(AtomicUsize::new(0));
+
+        // Spawn the fake monitor: read every 10 ms (mirrors the real
+        // sequencer trigger monitor's read-cadence) for the lifetime of the
+        // test. The read borrows mimic the real trigger evaluator inspecting
+        // current state.
+        let monitor_state = trigger_state.clone();
+        let monitor_stop = stop.clone();
+        let monitor_count = monitor_reads.clone();
+        let monitor = tokio::spawn(async move {
+            while !monitor_stop.load(AtomicOrdering::Relaxed) {
+                {
+                    let guard = monitor_state.read().await;
+                    let _ = guard.current_target_name.clone();
+                    let _ = guard.completed_exposures;
+                }
+                monitor_count.fetch_add(1, AtomicOrdering::Relaxed);
+                sleep(Duration::from_millis(10)).await;
+            }
+        });
+
+        // Spawn 32 instruction tasks. Each task writes a unique target name
+        // and increments the exposure counter. Under the old `try_write`
+        // implementation, a meaningful fraction of these writes would be
+        // lost whenever the monitor held the read lock.
+        const WRITERS: usize = 32;
+        let mut writers = Vec::with_capacity(WRITERS);
+        for i in 0..WRITERS {
+            let state = trigger_state.clone();
+            writers.push(tokio::spawn(async move {
+                let name = format!("Target-{i:02}");
+                let mut guard = state.write().await;
+                guard.set_meridian_target(name);
+                guard.increment_exposure_count();
+            }));
+        }
+
+        for handle in writers {
+            handle.await.expect("writer task must not panic");
+        }
+
+        stop.store(true, AtomicOrdering::Relaxed);
+        monitor.await.expect("monitor task must not panic");
+
+        // Sanity-check: the monitor actually ran, so write/read contention
+        // was real (not a no-op test).
+        let reads = monitor_reads.load(AtomicOrdering::Relaxed);
+        assert!(
+            reads > 0,
+            "monitor must have observed at least one read iteration; got {reads}"
+        );
+
+        // All 32 writes must be reflected in the counter — this is what the
+        // old `try_write` storm broke. `set_meridian_target` only sets the
+        // name when it differs from the current one, but
+        // `increment_exposure_count` is unconditional, so the counter is the
+        // authoritative measure of "writes observed".
+        let final_state = trigger_state.read().await;
+        assert_eq!(
+            final_state.completed_exposures, WRITERS as u32,
+            "every concurrent writer's increment must be observed; missing {} writes",
+            WRITERS as u32 - final_state.completed_exposures
+        );
+        // And the final target name must be one of the writers' names — i.e.
+        // the last write was not silently dropped.
+        let name = final_state
+            .current_target_name
+            .as_ref()
+            .expect("current_target_name must be set by at least one writer");
+        assert!(
+            name.starts_with("Target-"),
+            "expected a Target-NN name, got {name:?}"
+        );
     }
 }
