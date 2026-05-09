@@ -825,6 +825,16 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       // TODO(W1B-UI-EQ): wire to rotator sky-PA preset editor once that
       // widget lands per audit §4.6.
       case ConnectedDeviceType.guider:
+      case ConnectedDeviceType.dome:
+      // TODO(W1B-UI-EQ): wire to dome park/home/follow-mount settings once
+      // that widget lands per audit §4.6.
+      case ConnectedDeviceType.weather:
+      // Why: weather sensor is read-only telemetry; no per-card settings.
+      case ConnectedDeviceType.safetyMonitor:
+      // Why: safety monitor is read-only; no per-card settings.
+      case ConnectedDeviceType.coverCalibrator:
+        // TODO(W1B-UI-EQ): wire to cover calibrator brightness / cover-state
+        // settings once that widget lands per audit §4.6.
         return null;
     }
   }
