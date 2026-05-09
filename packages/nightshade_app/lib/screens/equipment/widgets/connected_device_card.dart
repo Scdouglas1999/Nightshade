@@ -751,6 +751,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   }
 
   Widget _buildActionsRow(NightshadeColors colors) {
+    final settingsAction = _resolveSettingsAction();
+
     return Row(
       children: [
         // Device-specific quick actions
@@ -758,15 +760,20 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
         const Spacer(),
 
-        // Settings button
-        IconButton(
-          onPressed: widget.onSettings ?? () => _showSettingsDialog(context),
-          icon: const Icon(LucideIcons.settings2, size: 16),
-          tooltip: 'Settings',
-          style: IconButton.styleFrom(
-            foregroundColor: colors.textMuted,
+        // Settings button — only shown for device types that have real
+        // settings reachable from this card (or when an external onSettings
+        // callback has been injected by the parent). Device types without
+        // settings have no gear icon at all so we never ship a non-functional
+        // control. See docs/plans/2026-05-09-v250-audit-fixes.md §4.1.
+        if (settingsAction != null)
+          IconButton(
+            onPressed: settingsAction,
+            icon: const Icon(LucideIcons.settings2, size: 16),
+            tooltip: 'Settings',
+            style: IconButton.styleFrom(
+              foregroundColor: colors.textMuted,
+            ),
           ),
-        ),
 
         // Disconnect button
         IconButton(
@@ -779,6 +786,47 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         ),
       ],
     );
+  }
+
+  /// Returns the settings action for the current device type, or `null` if
+  /// this device type has no real settings to expose from the card.
+  ///
+  /// - An externally-injected `widget.onSettings` always wins so plugin /
+  ///   embedder code can override behavior.
+  /// - Camera routes to the existing cooling-target dialog
+  ///   (`_showCoolingTempDialog`).
+  /// - Mount, focuser, filter wheel, and rotator each have settings worth
+  ///   surfacing (slew rates, step size / max position, per-filter offsets,
+  ///   sky-PA preset) but those widgets do not yet exist in this file.
+  ///   Cross-file plumbing is owned by the upcoming Wave 1B agent
+  ///   (W1B-UI-EQ); until then we hide the gear rather than ship a stub.
+  /// - Guider has no per-card settings and the gear is hidden permanently.
+  VoidCallback? _resolveSettingsAction() {
+    final injected = widget.onSettings;
+    if (injected != null) {
+      return injected;
+    }
+    switch (widget.type) {
+      case ConnectedDeviceType.camera:
+        return () {
+          final targetTemp = ref.read(cameraStateProvider).targetTemp;
+          _showCoolingTempDialog(targetTemp);
+        };
+      case ConnectedDeviceType.mount:
+      // TODO(W1B-UI-EQ): wire to mount slew-rate / park-position settings
+      // once that widget lands per audit §4.6.
+      case ConnectedDeviceType.focuser:
+      // TODO(W1B-UI-EQ): wire to focuser step-size / max-position settings
+      // once that widget lands per audit §4.6.
+      case ConnectedDeviceType.filterWheel:
+      // TODO(W1B-UI-EQ): wire to per-filter offset editor once that widget
+      // lands per audit §4.6.
+      case ConnectedDeviceType.rotator:
+      // TODO(W1B-UI-EQ): wire to rotator sky-PA preset editor once that
+      // widget lands per audit §4.6.
+      case ConnectedDeviceType.guider:
+        return null;
+    }
   }
 
   List<Widget> _buildDeviceActions(NightshadeColors colors) {
@@ -1560,33 +1608,6 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   // ============================================================================
   // Dialogs
   // ============================================================================
-
-  void _showSettingsDialog(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(
-          '${widget.type.displayName} Settings',
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: Text(
-          'Device settings will be available here in a future update.',
-          style: TextStyle(color: colors.textSecondary),
-        ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.pop(context),
-            label: 'Close',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showMoveDialog(BuildContext context) async {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
