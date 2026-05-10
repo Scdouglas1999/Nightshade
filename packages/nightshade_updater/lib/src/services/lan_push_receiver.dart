@@ -26,6 +26,15 @@ class LanPushReceiver {
   /// Maximum time to wait for the authentication message before closing the connection
   static const Duration _authTimeout = Duration(seconds: 10);
 
+  /// Hard cap on the total package bytes accepted over a single LAN push
+  /// connection, independent of what the manifest claims (§7A.7). A
+  /// malicious or mis-signed manifest could declare a giant
+  /// `compressedSize` and fill the filesystem before signature failure
+  /// is observed; this cap lets us bail before the disk is exhausted.
+  /// 1 GiB matches the largest legitimate Nightshade installer by an
+  /// order of magnitude, which leaves plenty of headroom.
+  static const int maxPackageBytes = 1024 * 1024 * 1024;
+
   final String _currentVersion;
   final int _currentBuildNumber;
   final UpdateVerifier _verifier;
@@ -84,8 +93,22 @@ class LanPushReceiver {
   /// Start listening for LAN push connections.
   /// A push secret must be configured via the constructor or [setPushSecret]
   /// before calling this method.
+  ///
+  /// Refuses to start if no `NIGHTSHADE_UPDATE_PUBLIC_KEY` was compiled
+  /// into the build (§7A.7): without a trusted public key the receiver
+  /// cannot verify the Ed25519 signature on the manifest, which means
+  /// any LAN-attached attacker who guesses the push secret could ship
+  /// arbitrary code. Better to be loudly disabled than silently
+  /// vulnerable.
   Future<void> startServer() async {
     if (_server != null) return;
+
+    if (!_verifier.hasTrustedPublicKey) {
+      throw StateError(
+        'LAN push receiver disabled: no trusted public key compiled in. '
+        'Build with --dart-define=NIGHTSHADE_UPDATE_PUBLIC_KEY=... to enable.',
+      );
+    }
 
     if (_pushSecret == null || _pushSecret!.isEmpty) {
       throw StateError(
@@ -303,88 +326,143 @@ class LanPushReceiver {
     final staging = await _getStagingDirectory();
     final packagePath = path.join(staging.path, 'update.zip');
 
-    await for (final chunk in socket) {
-      buffer.add(chunk);
+    // Why try/finally: a throw inside the for-await loop (e.g. signature
+    // failure, size-cap breach) used to leak the open package sink and
+    // leave a partial update.zip on disk. Closing in finally guarantees
+    // the file handle is released so the next attempt can re-open it
+    // (and a separate cleanup below removes the partial bytes on
+    // failure).
+    var receiveSucceeded = false;
+    try {
+      await for (final chunk in socket) {
+        buffer.add(chunk);
 
-      // Step 1: Read manifest length
-      if (manifestLength == null && buffer.length >= 4) {
-        final bytes = buffer.takeBytes();
-        manifestLength =
-            ByteData.view(Uint8List.fromList(bytes.sublist(0, 4)).buffer)
-                .getInt32(0, Endian.big);
-        buffer.add(bytes.sublist(4));
-        onProgress?.call(0, 0, 0, 'Receiving manifest...');
-      }
-
-      // Step 2: Read manifest JSON
-      if (manifest == null &&
-          manifestLength != null &&
-          buffer.length >= manifestLength) {
-        final bytes = buffer.takeBytes();
-        final manifestJson = utf8.decode(bytes.sublist(0, manifestLength));
-        manifest = UpdateManifest.fromJson(
-          jsonDecode(manifestJson) as Map<String, dynamic>,
-        );
-        final manifestVerified =
-            await _verifier.verifyManifestSignature(manifest);
-        if (!manifestVerified) {
-          throw Exception('Update manifest signature verification failed');
-        }
-        packageSize = manifest.compressedSize;
-
-        // Open file for writing package
-        packageFile = File(packagePath);
-        packageSink = packageFile.openWrite();
-
-        // Write remaining bytes to package
-        final remaining = bytes.sublist(manifestLength);
-        if (remaining.isNotEmpty) {
-          packageSink.add(remaining);
-          receivedPackageBytes += remaining.length;
+        // Step 1: Read manifest length
+        if (manifestLength == null && buffer.length >= 4) {
+          final bytes = buffer.takeBytes();
+          manifestLength =
+              ByteData.view(Uint8List.fromList(bytes.sublist(0, 4)).buffer)
+                  .getInt32(0, Endian.big);
+          buffer.add(bytes.sublist(4));
+          onProgress?.call(0, 0, 0, 'Receiving manifest...');
         }
 
-        onProgress?.call(
-          receivedPackageBytes,
-          packageSize,
-          receivedPackageBytes / packageSize,
-          'Receiving ${manifest.version}...',
-        );
+        // Step 2: Read manifest JSON
+        if (manifest == null &&
+            manifestLength != null &&
+            buffer.length >= manifestLength) {
+          final bytes = buffer.takeBytes();
+          final manifestJson = utf8.decode(bytes.sublist(0, manifestLength));
+          manifest = UpdateManifest.fromJson(
+            jsonDecode(manifestJson) as Map<String, dynamic>,
+          );
+          // §7A.7: verify signature BEFORE we open update.zip for write
+          // so a forged or unsigned manifest can never trigger
+          // filesystem allocation.
+          final manifestVerified =
+              await _verifier.verifyManifestSignature(manifest);
+          if (!manifestVerified) {
+            throw Exception('Update manifest signature verification failed');
+          }
+          packageSize = manifest.compressedSize;
 
-        // Send acknowledgment
-        socket.write(jsonEncode({
-          'status': 'receiving',
-          'version': manifest.version,
-        }));
+          // §7A.7: hard cap independent of manifest. Even after
+          // signature verification we refuse oversized packages to
+          // bound the worst case (e.g. a signed manifest with an
+          // absurdly large size).
+          if (packageSize > maxPackageBytes) {
+            throw Exception(
+              'Update package too large: $packageSize bytes exceeds '
+              'LAN push hard cap of $maxPackageBytes bytes',
+            );
+          }
 
-        buffer.clear();
-        continue;
+          // Open file for writing package
+          packageFile = File(packagePath);
+          packageSink = packageFile.openWrite();
+
+          // Write remaining bytes to package
+          final remaining = bytes.sublist(manifestLength);
+          if (remaining.isNotEmpty) {
+            packageSink.add(remaining);
+            receivedPackageBytes += remaining.length;
+          }
+
+          onProgress?.call(
+            receivedPackageBytes,
+            packageSize,
+            receivedPackageBytes / packageSize,
+            'Receiving ${manifest.version}...',
+          );
+
+          // Send acknowledgment
+          socket.write(jsonEncode({
+            'status': 'receiving',
+            'version': manifest.version,
+          }));
+
+          buffer.clear();
+          continue;
+        }
+
+        // Step 3: Write package data
+        if (manifest != null && packageSink != null) {
+          final bytes = buffer.takeBytes();
+          packageSink.add(bytes);
+          receivedPackageBytes += bytes.length;
+
+          // §7A.7: belt-and-suspenders cap on accumulated bytes. The
+          // earlier manifest-size check is the primary defence; this
+          // guards against a future code path that lets bytes through
+          // without honouring `packageSize` (e.g. resumable transfers).
+          if (receivedPackageBytes > maxPackageBytes) {
+            throw Exception(
+              'LAN push exceeded hard cap of $maxPackageBytes bytes '
+              '(received $receivedPackageBytes)',
+            );
+          }
+
+          onProgress?.call(
+            receivedPackageBytes,
+            packageSize!,
+            receivedPackageBytes / packageSize,
+            'Receiving ${manifest.version}...',
+          );
+
+          // Break out of loop once we've received all expected bytes
+          if (receivedPackageBytes >= packageSize!) {
+            developer.log(
+                'All $receivedPackageBytes bytes received, breaking out of receive loop',
+                name: 'LanPushReceiver');
+            break;
+          }
+        }
       }
-
-      // Step 3: Write package data
-      if (manifest != null && packageSink != null) {
-        final bytes = buffer.takeBytes();
-        packageSink.add(bytes);
-        receivedPackageBytes += bytes.length;
-
-        onProgress?.call(
-          receivedPackageBytes,
-          packageSize!,
-          receivedPackageBytes / packageSize,
-          'Receiving ${manifest.version}...',
-        );
-
-        // Break out of loop once we've received all expected bytes
-        if (receivedPackageBytes >= packageSize!) {
+      receiveSucceeded = true;
+    } finally {
+      // Always release the file handle; otherwise a thrown error leaves
+      // update.zip locked and the next push fails with a Windows
+      // sharing-violation error.
+      await packageSink?.close();
+      if (!receiveSucceeded &&
+          packageFile != null &&
+          await packageFile.exists()) {
+        // Why: a partial write is not a recoverable artefact — it
+        // contains untrusted bytes that failed our cap or signature
+        // checks. Leaving it on disk would let the verify step later
+        // pick up garbage.
+        try {
+          await packageFile.delete();
+        } catch (deleteError) {
           developer.log(
-              'All $receivedPackageBytes bytes received, breaking out of receive loop',
-              name: 'LanPushReceiver');
-          break;
+            'Failed to remove partial update.zip after receive error: '
+            '$deleteError',
+            name: 'LanPushReceiver',
+            level: 1000,
+          );
         }
       }
     }
-
-    // Close package file
-    await packageSink?.close();
 
     if (manifest == null || packageFile == null) {
       throw Exception('Incomplete transfer');

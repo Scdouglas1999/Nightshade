@@ -268,6 +268,12 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
     );
   }
 
+  /// Pop the most recent one-shot UI banner queued by the underlying
+  /// [UpdateService] (e.g. corrupted-marker recovery in §7A.12). Returns
+  /// null if no notice is pending. Subsequent calls return null until a
+  /// new notice is queued.
+  UpdateNotice? takePendingNotice() => _updateService.takePendingNotice();
+
   /// Check for staged update on startup
   Future<void> checkStagedUpdate() async {
     final staged = await _updateService.getStagedUpdate();

@@ -52,6 +52,37 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     _lanPushSubscription = _lanPushStream.listen(_onLanPushEvent);
   }
 
+  /// §7A.12: drain any one-shot notice queued by the updater (e.g. the
+  /// corrupted-marker discard banner) the next time the framework is
+  /// ready to show UI. Idempotent — `takePendingNotice` returns null
+  /// once consumed so a re-entry will not double-show the banner.
+  void _drainPendingUpdateNotice() {
+    if (!mounted) return;
+    final notice = ref.read(updateProvider.notifier).takePendingNotice();
+    if (notice == null) return;
+    _showPendingUpdateNotice(notice);
+  }
+
+  void _showPendingUpdateNotice(UpdateNotice notice) {
+    if (!mounted) return;
+    final colors = Theme.of(context).extension<NightshadeColors>();
+    final messenger = ScaffoldMessenger.of(context);
+    // Clear any prior snack so the warning is not buried under chatter.
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(notice.message),
+        backgroundColor: colors?.warning ?? Colors.orange.shade800,
+        duration: const Duration(seconds: 12),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: colors?.textPrimary ?? Colors.white,
+          onPressed: messenger.hideCurrentSnackBar,
+        ),
+      ),
+    );
+  }
+
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
@@ -62,6 +93,12 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     debugPrint('[UpdateManager] Checking for staged updates...');
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
+
+    // §7A.12: checkStagedUpdate may have discarded a corrupted marker;
+    // surface the resulting one-shot notice before showing any "ready"
+    // banner so the user sees the warning instead of being silently
+    // told there is no staged update.
+    _drainPendingUpdateNotice();
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {

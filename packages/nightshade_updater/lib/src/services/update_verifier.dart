@@ -20,6 +20,15 @@ class UpdateVerifier {
   })  : _trustedPublicKeyBase64 = trustedPublicKeyBase64,
         _signatureAlgorithm = signatureAlgorithm ?? Ed25519();
 
+  /// Whether this verifier has a trusted Ed25519 public key compiled in.
+  ///
+  /// Used by entry points like the LAN push receiver to refuse to start
+  /// when no key is available (§7A.7) — without a key, signature
+  /// verification cannot run and an attacker on the LAN could push an
+  /// unsigned manifest. Returning false here means "this build cannot
+  /// authenticate any update; do not accept update bytes."
+  bool get hasTrustedPublicKey => _trustedPublicKeyBase64.isNotEmpty;
+
   /// Calculate SHA256 hash of a file
   Future<String> hashFile(File file) async {
     final bytes = await file.readAsBytes();

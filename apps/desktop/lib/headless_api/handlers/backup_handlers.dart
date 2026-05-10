@@ -19,6 +19,8 @@ class BackupHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'BackupHandlers');
+  void _logWarning(String message) =>
+      _logger.warning(message, source: 'BackupHandlers');
   void _logError(String message) =>
       _logger.error(message, source: 'BackupHandlers');
 
@@ -297,7 +299,24 @@ class BackupHandlers {
 
       final uploaded = await _writeUploadBody(request, file);
       if (!uploaded) {
-        await _deleteIfExists(file);
+        // §7A.13: cleanup must not silently swallow errors — a partial
+        // upload left on disk after a size-cap breach becomes an orphan
+        // file the user has no visibility into. Log at warning and add
+        // an `orphanedFile` field to the response body so the caller
+        // can decide whether to retry or alert the operator.
+        final cleanupError = await _deleteIfExists(file);
+        if (cleanupError != null) {
+          _logWarning(
+            'Failed to clean up oversized upload at ${file.path}: '
+            '$cleanupError',
+          );
+          return jsonTooLarge({
+            'error': 'Backup upload is too large',
+            'maxBytes': _maxBackupUploadBytes,
+            'orphanedFile': file.path,
+            'orphanedFileError': cleanupError,
+          });
+        }
         return jsonTooLarge({
           'error': 'Backup upload is too large',
           'maxBytes': _maxBackupUploadBytes,
@@ -401,13 +420,21 @@ class BackupHandlers {
     }
   }
 
-  Future<void> _deleteIfExists(File file) async {
+  /// Delete the file at [file] if it exists.
+  ///
+  /// Returns null on success (including the no-op "did not exist" path),
+  /// or the stringified error if deletion failed. §7A.13: callers must
+  /// surface a non-null result instead of swallowing it — a leftover
+  /// upload file after a failed restore is an orphan that will
+  /// accumulate across attempts and confuse the user.
+  Future<String?> _deleteIfExists(File file) async {
     try {
       if (await file.exists()) {
         await file.delete();
       }
-    } catch (_) {
-      // Best effort cleanup only.
+      return null;
+    } catch (e) {
+      return e.toString();
     }
   }
 }
