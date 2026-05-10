@@ -1,11 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for dome control endpoints
 class DomeHandlers {
@@ -62,75 +61,52 @@ class DomeHandlers {
 
   /// POST /api/dome/open
   Future<Response> handleDomeOpen(Request request) async {
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final deviceId = payload['deviceId'] as String?;
-      if (deviceId == null || deviceId.isEmpty) {
-        return jsonBadRequest({'error': 'deviceId is required'});
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound({
-          'error': 'Dome not connected',
-          'deviceId': deviceId,
-        });
-      }
-      await bridge.apiDomeOpenShutter(deviceId: deviceId);
-      return jsonOk({'status': 'opening', 'deviceId': deviceId});
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
     }
+    await bridge.apiDomeOpenShutter(deviceId: deviceId);
+    return jsonOk({'status': 'opening', 'deviceId': deviceId});
   }
 
   /// POST /api/dome/close
   Future<Response> handleDomeClose(Request request) async {
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final deviceId = payload['deviceId'] as String?;
-      if (deviceId == null || deviceId.isEmpty) {
-        return jsonBadRequest({'error': 'deviceId is required'});
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound({
-          'error': 'Dome not connected',
-          'deviceId': deviceId,
-        });
-      }
-      await bridge.apiDomeCloseShutter(deviceId: deviceId);
-      return jsonOk({'status': 'closing', 'deviceId': deviceId});
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
     }
+    await bridge.apiDomeCloseShutter(deviceId: deviceId);
+    return jsonOk({'status': 'closing', 'deviceId': deviceId});
   }
 
   /// POST /api/dome/slew
   Future<Response> handleDomeSlew(Request request) async {
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final deviceId = payload['deviceId'] as String?;
-      final azimuth = (payload['azimuth'] as num?)?.toDouble();
-      if (deviceId == null || deviceId.isEmpty) {
-        return jsonBadRequest({'error': 'deviceId is required'});
-      }
-      if (azimuth == null || azimuth < 0 || azimuth >= 360) {
-        return jsonBadRequest({
-          'error': 'azimuth must be between 0 and 360 degrees',
-        });
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound({
-          'error': 'Dome not connected',
-          'deviceId': deviceId,
-        });
-      }
-      await bridge.apiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
-      return jsonOk({
-        'status': 'slewing',
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    // Why: azimuth must be in [0, 360); the helper raises BadRequestError if
+    // the field is missing/wrong-type or out of range, which the middleware
+    // translates to a structured 400.
+    final azimuth = requireDouble(payload, 'azimuth', min: 0, max: 359.999999);
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
         'deviceId': deviceId,
-        'targetAzimuth': azimuth
       });
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
     }
+    await bridge.apiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
+    return jsonOk({
+      'status': 'slewing',
+      'deviceId': deviceId,
+      'targetAzimuth': azimuth,
+    });
   }
 
   /// POST /api/dome/sync
@@ -140,23 +116,16 @@ class DomeHandlers {
 
   /// POST /api/dome/park
   Future<Response> handleDomePark(Request request) async {
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final deviceId = payload['deviceId'] as String?;
-      if (deviceId == null || deviceId.isEmpty) {
-        return jsonBadRequest({'error': 'deviceId is required'});
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound({
-          'error': 'Dome not connected',
-          'deviceId': deviceId,
-        });
-      }
-      await bridge.apiDomePark(deviceId: deviceId);
-      return jsonOk({'status': 'parking', 'deviceId': deviceId});
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
     }
+    await bridge.apiDomePark(deviceId: deviceId);
+    return jsonOk({'status': 'parking', 'deviceId': deviceId});
   }
 
   /// POST /api/dome/home
@@ -171,78 +140,74 @@ class DomeHandlers {
 
   /// GET /api/dome/status
   Future<Response> handleDomeStatus(Request request) async {
-    try {
-      final deviceId = request.url.queryParameters['deviceId'] ?? '';
-      if (deviceId.isEmpty) {
-        return jsonBadRequest({
-          'error': 'deviceId query parameter is required',
-        });
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound(
-          {
-            'connected': false,
-            'deviceId': deviceId,
-            'error': 'Dome not connected'
-          },
-        );
-      }
-
-      final status = await bridge.apiGetDomeStatus(deviceId: deviceId);
-      return jsonOk({
-        'connected': status.connected,
-        'deviceId': deviceId,
-        'shutterState': _mapShutterState(status.shutterStatus),
-        'azimuth': status.azimuth,
-        'altitude': status.altitude,
-        'slewing': status.slewing,
-        'atHome': status.atHome,
-        'atPark': status.atPark,
-        'canSetAltitude': status.canSetAltitude,
-        'canSetAzimuth': status.canSetAzimuth,
-        'canSetShutter': status.canSetShutter,
-        'canSyncToMount': status.canSlave,
-        'syncEnabled': status.isSlaved,
-      });
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: 'deviceId query parameter is required',
+      );
     }
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound(
+        {
+          'connected': false,
+          'deviceId': deviceId,
+          'error': 'Dome not connected'
+        },
+      );
+    }
+
+    final status = await bridge.apiGetDomeStatus(deviceId: deviceId);
+    return jsonOk({
+      'connected': status.connected,
+      'deviceId': deviceId,
+      'shutterState': _mapShutterState(status.shutterStatus),
+      'azimuth': status.azimuth,
+      'altitude': status.altitude,
+      'slewing': status.slewing,
+      'atHome': status.atHome,
+      'atPark': status.atPark,
+      'canSetAltitude': status.canSetAltitude,
+      'canSetAzimuth': status.canSetAzimuth,
+      'canSetShutter': status.canSetShutter,
+      'canSyncToMount': status.canSlave,
+      'syncEnabled': status.isSlaved,
+    });
   }
 
   /// GET /api/dome/capabilities
   Future<Response> handleDomeCapabilities(Request request) async {
-    try {
-      final deviceId = request.url.queryParameters['deviceId'] ?? '';
-      if (deviceId.isEmpty) {
-        return jsonBadRequest({
-          'error': 'deviceId query parameter is required',
-        });
-      }
-      if (!await _isConnectedDome(deviceId)) {
-        return jsonNotFound(
-          {'error': 'Dome not found or not connected', 'deviceId': deviceId},
-        );
-      }
-
-      final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
-      return jsonOk({
-        'deviceId': deviceId,
-        'canSetAzimuth': caps.canSetAzimuth,
-        'canSetShutter': caps.canSetShutter,
-        'canPark': caps.canPark,
-        'canFindHome': caps.canFindHome,
-        'canSyncAzimuth': caps.canSyncAzimuth,
-        'canSetSlave': caps.canSlave,
-        'canAbort': caps.canAbort,
-        'slewing': caps.slewing,
-        'atHome': caps.atHome,
-        'atPark': caps.atPark,
-        'slaved': caps.slaved,
-        'azimuth': caps.azimuth,
-        'shutterStatus': _mapShutterStatus(caps.shutterStatus),
-      });
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: 'deviceId query parameter is required',
+      );
     }
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound(
+        {'error': 'Dome not found or not connected', 'deviceId': deviceId},
+      );
+    }
+
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    return jsonOk({
+      'deviceId': deviceId,
+      'canSetAzimuth': caps.canSetAzimuth,
+      'canSetShutter': caps.canSetShutter,
+      'canPark': caps.canPark,
+      'canFindHome': caps.canFindHome,
+      'canSyncAzimuth': caps.canSyncAzimuth,
+      'canSetSlave': caps.canSlave,
+      'canAbort': caps.canAbort,
+      'slewing': caps.slewing,
+      'atHome': caps.atHome,
+      'atPark': caps.atPark,
+      'slaved': caps.slaved,
+      'azimuth': caps.azimuth,
+      'shutterStatus': _mapShutterStatus(caps.shutterStatus),
+    });
   }
 }
