@@ -117,7 +117,7 @@ void main(List<String> args) async {
     ProcessSignal.sigint.watch().listen((_) async {
       logger?.info('Received SIGINT, shutting down',
           source: _headlessLogSource);
-      _discoverySocket?.close();
+      _discoverySocket?.stop();
       await apiServer?.stop();
       container?.dispose();
       exit(0);
@@ -129,7 +129,7 @@ void main(List<String> args) async {
           'Received SIGTERM, shutting down',
           source: _headlessLogSource,
         );
-        _discoverySocket?.close();
+        _discoverySocket?.stop();
         await apiServer?.stop();
         container?.dispose();
         exit(0);
@@ -403,7 +403,7 @@ Future<HeadlessApiServer?> _startHeadlessServices(
   }
 }
 
-RawDatagramSocket? _discoverySocket;
+DiscoveryBroadcaster? _discoverySocket;
 
 Future<void> _startDiscoveryServer({
   required LoggingService logger,
