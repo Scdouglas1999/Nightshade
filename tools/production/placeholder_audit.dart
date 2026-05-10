@@ -31,20 +31,30 @@ const _allowedExtensions = <String>{
   '.yml',
 };
 
-const _excludedSegments = <String>[
-  '/.dart_tool/',
-  '/.git/',
-  '/.worktrees/',
-  '/build/',
-  '/target/',
-  '/coverage/',
-  '/generated/',
-  '/frb_dump/',
+// Excluded directory NAMES anchored to path-segment boundaries (NOT substring
+// matches). This closes the §7B.2 false-negative where a production module
+// at packages/nightshade_test_utils/lib/... was silently skipped because its
+// path contained the substring `/test/`-like fragments.
+const _excludedDirectoryNames = <String>{
+  '.dart_tool',
+  '.git',
+  '.worktrees',
+  'build',
+  'target',
+  'coverage',
+  'generated',
+  'frb_dump',
+  'test',
+  'tests',
+  'example',
+  'samples',
+};
+
+// Substrings that genuinely identify generated code regardless of where they
+// appear in the path. `frb_generated.` is a filename prefix produced by
+// flutter_rust_bridge, never a hand-authored module.
+const _excludedSubstrings = <String>[
   '/frb_generated.',
-  '/test/',
-  '/tests/',
-  '/example/',
-  '/samples/',
 ];
 
 final _runtimePathPatterns = <RegExp>[
@@ -55,7 +65,18 @@ final _runtimePathPatterns = <RegExp>[
 
 final _markerPattern = RegExp(
   r'\bTODO\b|\bFIXME\b|placeholder|\bstub\b|'
-  r'UnimplementedError|not implemented|for now|no-?op',
+  r'UnimplementedError|not implemented|for now|no-?op|'
+  // Common silent-fallback shapes:
+  r'catch\s*\(\s*_\s*\)\s*\{?\s*\}?|'
+  r'let\s+_\s*=|'
+  r'\.unwrap_or_default\(\)|'
+  r'\.ok\(\)\s*;|'
+  // Dart `?? null|0|false|''|""` fallback to a fixed value.
+  // Single quotes inside double-quoted Dart string require no escaping;
+  // the inner `''` is the regex literal for two single quotes.
+  "\\?\\?\\s*(null|0|false|''|\"\")|"
+  // Comment markers that engineers use to flag known-incomplete behavior.
+  r'//\s*(best[- ]effort|silently ignore|for now we just|temporary|hack|placeholder)',
   caseSensitive: false,
 );
 
@@ -64,7 +85,12 @@ final _highRiskPattern = RegExp(
   r'placeholder\s*-\s*to be implemented|'
   r'for now\s+return|for now,\s*return|for now\s+we\s+\w+\s+support|'
   r'no-?op in stub mode|silent no-?op|would be\b.+stub mode|'
-  r'simulator implementation for now',
+  r'simulator implementation for now|'
+  // Empty Dart catch swallows runtime errors entirely — high-risk.
+  r'catch\s*\(\s*_\s*\)\s*\{\s*\}|'
+  // `.unwrap_or_default()` and `.ok();` actively discard error/None info.
+  r'\.unwrap_or_default\(\)|'
+  r'\.ok\(\)\s*;',
   caseSensitive: false,
 );
 
@@ -76,10 +102,12 @@ void main(List<String> args) {
   final allowlistPath = _argValue(args, '--allowlist') ?? _defaultAllowlistPath;
   final failOnNewHighRisk = args.contains('--fail-on-new-highrisk');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
+  final assertMinFiles = _argValue(args, '--assert-at-least-files-scanned');
 
   final allowlist = _loadAllowlist(allowlistPath);
   final hits = <String>{};
   final highRisk = <String>{};
+  var filesScanned = 0;
   final workspaceRoot = _normalize(Directory.current.absolute.path);
 
   for (final root in _scanRoots) {
@@ -107,6 +135,7 @@ void main(List<String> args) {
         continue;
       }
 
+      filesScanned++;
       final lines = _readLinesSafe(entity);
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
@@ -135,8 +164,26 @@ void main(List<String> args) {
   _writeTextFile(highRiskPath, '${sortedHighRisk.join('\n')}\n');
 
   stdout.writeln('Runtime marker audit complete.');
+  stdout.writeln('Scanned $filesScanned files');
   stdout.writeln('Hits: ${sortedHits.length} -> $hitsPath');
   stdout.writeln('High-risk hits: ${sortedHighRisk.length} -> $highRiskPath');
+
+  // Coverage assertion (§7B.4): CI can pass --assert-at-least-files-scanned=N
+  // so an accidental scope regression — e.g., a glob change that excludes a
+  // package — fails the gate instead of silently shrinking coverage.
+  if (assertMinFiles != null) {
+    final required = int.tryParse(assertMinFiles);
+    if (required == null) {
+      stderr.writeln(
+          'Invalid --assert-at-least-files-scanned value: $assertMinFiles');
+      exit(2);
+    }
+    if (filesScanned < required) {
+      stderr.writeln(
+          'Placeholder audit scanned $filesScanned files; required >= $required');
+      exit(1);
+    }
+  }
 
   if (failOnAnyHighRisk && sortedHighRisk.isNotEmpty) {
     stderr.writeln('High-risk runtime markers detected.');
@@ -195,36 +242,108 @@ void _writeTextFile(String path, String content) {
   file.writeAsStringSync(content);
 }
 
-Set<String> _loadAllowlist(String path) {
-  final file = File(path);
-  if (!file.existsSync()) {
-    return <String>{};
-  }
+class _AllowlistEntry {
+  // Full normalized line: either `path:line` or `path:line:trimmed_text`.
+  // Path-only entries are rejected at load time (§7B.5) — they whitelisted
+  // every line in the file forever and were a foot-gun for false negatives.
+  final String fullEntry;
+  final String path;
+  final int line;
+  final String? exactText;
 
-  return file
-      .readAsLinesSync()
-      .map((line) => line.trim())
-      .where((line) => line.isNotEmpty && !line.startsWith('#'))
-      .map(_normalize)
-      .toSet();
+  _AllowlistEntry({
+    required this.fullEntry,
+    required this.path,
+    required this.line,
+    required this.exactText,
+  });
 }
 
-bool _isAllowlisted(String entry, Set<String> allowlist) {
+List<_AllowlistEntry> _loadAllowlist(String path) {
+  final file = File(path);
+  if (!file.existsSync()) {
+    return const <_AllowlistEntry>[];
+  }
+
+  final entries = <_AllowlistEntry>[];
+  final rawLines = file.readAsLinesSync();
+  for (var lineNumber = 0; lineNumber < rawLines.length; lineNumber++) {
+    final raw = rawLines[lineNumber].trim();
+    if (raw.isEmpty || raw.startsWith('#')) {
+      continue;
+    }
+    final normalized = _normalize(raw);
+    final firstColon = normalized.indexOf(':');
+    if (firstColon < 0) {
+      // Path-only entry — reject loudly per §7B.5. Errors are a feature.
+      stderr.writeln(
+          'Invalid allowlist entry at $path:${lineNumber + 1}: '
+          '"$raw" — path-only entries are not allowed. '
+          'Use "path:line" or "path:line:exact_text" for granularity.');
+      exit(2);
+    }
+    final secondColon = normalized.indexOf(':', firstColon + 1);
+    final pathPart = normalized.substring(0, firstColon);
+    final String linePart;
+    final String? textPart;
+    if (secondColon < 0) {
+      linePart = normalized.substring(firstColon + 1);
+      textPart = null;
+    } else {
+      linePart = normalized.substring(firstColon + 1, secondColon);
+      textPart = normalized.substring(secondColon + 1);
+    }
+    final lineNo = int.tryParse(linePart);
+    if (lineNo == null) {
+      stderr.writeln(
+          'Invalid allowlist entry at $path:${lineNumber + 1}: '
+          '"$raw" — second segment must be a line number, got "$linePart". '
+          'Use "path:line" or "path:line:exact_text".');
+      exit(2);
+    }
+    entries.add(_AllowlistEntry(
+      fullEntry: normalized,
+      path: pathPart,
+      line: lineNo,
+      exactText: textPart,
+    ));
+  }
+  return entries;
+}
+
+bool _isAllowlisted(String entry, List<_AllowlistEntry> allowlist) {
+  if (allowlist.isEmpty) {
+    return false;
+  }
   final normalizedEntry = _normalize(entry);
-  if (allowlist.contains(normalizedEntry)) {
-    return true;
+  // Format from main loop: path:line:trimmed_text
+  final firstColon = normalizedEntry.indexOf(':');
+  final secondColon =
+      firstColon >= 0 ? normalizedEntry.indexOf(':', firstColon + 1) : -1;
+  if (firstColon < 0 || secondColon < 0) {
+    return false;
+  }
+  final entryPath = normalizedEntry.substring(0, firstColon);
+  final entryLineStr =
+      normalizedEntry.substring(firstColon + 1, secondColon);
+  final entryText = normalizedEntry.substring(secondColon + 1);
+  final entryLineNo = int.tryParse(entryLineStr);
+  if (entryLineNo == null) {
+    return false;
   }
 
-  final pathLine = normalizedEntry.split(':').take(2).join(':');
-  if (allowlist.contains(pathLine)) {
-    return true;
+  for (final candidate in allowlist) {
+    if (candidate.path != entryPath || candidate.line != entryLineNo) {
+      continue;
+    }
+    if (candidate.exactText == null) {
+      // path:line entry — allow regardless of exact text.
+      return true;
+    }
+    if (candidate.exactText == entryText) {
+      return true;
+    }
   }
-
-  final pathOnly = normalizedEntry.split(':').first;
-  if (allowlist.contains(pathOnly)) {
-    return true;
-  }
-
   return false;
 }
 
@@ -247,8 +366,17 @@ bool _isRuntimePath(String path) {
 }
 
 bool _shouldSkip(String normalizedPath) {
-  for (final segment in _excludedSegments) {
-    if (normalizedPath.contains(segment)) {
+  // Directory-name match: only path SEGMENTS named exactly "test" / "example"
+  // / etc. are excluded. Production modules whose paths happen to contain
+  // those words as a substring (e.g., `nightshade_test_utils`) are scanned.
+  final segments = normalizedPath.split('/');
+  for (final segment in segments) {
+    if (_excludedDirectoryNames.contains(segment)) {
+      return true;
+    }
+  }
+  for (final substr in _excludedSubstrings) {
+    if (normalizedPath.contains(substr)) {
       return true;
     }
   }

@@ -3,7 +3,7 @@
 //! Provides high-level camera control via INDI protocol.
 
 use crate::client::IndiClient;
-use crate::error::IndiResult;
+use crate::error::{IndiError, IndiResult};
 use crate::protocol::{standard_properties::*, CcdFrameType};
 use std::sync::Arc;
 use std::time::Duration;
@@ -80,18 +80,69 @@ impl IndiCamera {
             .await
     }
 
-    /// Get current binning
-    pub async fn get_binning(&self) -> Result<(i32, i32), String> {
+    /// Get current binning if `CCD_BINNING` has been defined.
+    ///
+    /// Returns:
+    /// * `Ok(Some((x, y)))` — both binning elements are defined.
+    /// * `Ok(None)` — `CCD_BINNING` (or one of its elements) has not been
+    ///   defined yet. Caller must decide whether to wait, retry, or treat as
+    ///   "unknown".
+    /// * `Err(_)` — reserved for richer future error reporting; current
+    ///   implementation never errors.
+    ///
+    /// Why: the previous bool-fallback path silently substituted `(1, 1)` for
+    /// any driver that hadn't sent `defNumberVector` for `CCD_BINNING`,
+    /// producing wrong-but-plausible values. Audit §5.10 (HIGH).
+    pub async fn try_get_binning(&self) -> Result<Option<(i32, i32)>, IndiError> {
         let client = self.client.read().await;
         let bin_x = client
             .get_number(&self.device_name, CCD_BINNING, "HOR_BIN")
-            .await
-            .unwrap_or(1.0) as i32;
+            .await;
         let bin_y = client
             .get_number(&self.device_name, CCD_BINNING, "VER_BIN")
+            .await;
+        match (bin_x, bin_y) {
+            (Some(x), Some(y)) => Ok(Some((x as i32, y as i32))),
+            _ => Ok(None),
+        }
+    }
+
+    /// Get current binning, waiting up to `timeout` for the property to be
+    /// defined before falling back to `(1, 1)` with a logged warning.
+    ///
+    /// Why: drivers may publish `CCD_BINNING` shortly after the device is
+    /// reported as connected. Bridge dispatch needs *some* value to return,
+    /// but per CLAUDE.md the substitution must be visible — hence
+    /// `tracing::warn!`. Use [`Self::try_get_binning`] for the strict variant.
+    pub async fn get_binning_or_default(&self, timeout: Duration) -> Result<(i32, i32), IndiError> {
+        if let Some(value) = wait_for_optional(timeout, || self.try_get_binning()).await? {
+            return Ok(value);
+        }
+        tracing::warn!(
+            device = %self.device_name,
+            timeout_ms = timeout.as_millis() as u64,
+            "INDI camera CCD_BINNING was not defined within timeout; falling back to (1, 1). \
+             Downstream binning-dependent calculations may be incorrect until the property arrives."
+        );
+        Ok((1, 1))
+    }
+
+    /// Deprecated: use [`Self::try_get_binning`] (strict, `Ok(None)` when not
+    /// yet defined) or [`Self::get_binning_or_default`] (waits + warns).
+    ///
+    /// This shim exists so the bridge keeps compiling until W2-DRV-INDI
+    /// migrates the call sites. It uses a 0-duration "wait" — i.e. just
+    /// reads whatever is currently cached and warns if missing.
+    // TODO(W2-DRV-INDI): remove this shim and call try_get_binning /
+    // get_binning_or_default directly from bridge dispatch.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_get_binning() (strict) or get_binning_or_default(timeout) (logged fallback)"
+    )]
+    pub async fn get_binning(&self) -> Result<(i32, i32), String> {
+        self.get_binning_or_default(Duration::from_millis(0))
             .await
-            .unwrap_or(1.0) as i32;
-        Ok((bin_x, bin_y))
+            .map_err(|e| e.to_string())
     }
 
     /// Set frame (ROI)
@@ -111,26 +162,80 @@ impl IndiCamera {
             .await
     }
 
-    /// Get frame (ROI)
-    pub async fn get_frame(&self) -> Result<(i32, i32, i32, i32), String> {
+    /// Get frame (ROI) if `CCD_FRAME` is fully defined.
+    ///
+    /// Returns:
+    /// * `Ok(Some((x, y, w, h)))` — all four elements are defined.
+    /// * `Ok(None)` — `CCD_FRAME` is not (yet) defined or any element is
+    ///   missing. A partially-defined frame is meaningless and is treated as
+    ///   undefined.
+    /// * `Err(_)` — reserved for future error reporting.
+    ///
+    /// Why: the previous implementation silently defaulted to `(0, 0, 0, 0)`,
+    /// a valid-looking but completely wrong ROI. Audit §5.10 (HIGH).
+    pub async fn try_get_frame(&self) -> Result<Option<(i32, i32, i32, i32)>, IndiError> {
         let client = self.client.read().await;
-        let x = client
-            .get_number(&self.device_name, CCD_FRAME, "X")
-            .await
-            .unwrap_or(0.0) as i32;
-        let y = client
-            .get_number(&self.device_name, CCD_FRAME, "Y")
-            .await
-            .unwrap_or(0.0) as i32;
+        let x = client.get_number(&self.device_name, CCD_FRAME, "X").await;
+        let y = client.get_number(&self.device_name, CCD_FRAME, "Y").await;
         let width = client
             .get_number(&self.device_name, CCD_FRAME, "WIDTH")
-            .await
-            .unwrap_or(0.0) as i32;
+            .await;
         let height = client
             .get_number(&self.device_name, CCD_FRAME, "HEIGHT")
+            .await;
+        match (x, y, width, height) {
+            (Some(x), Some(y), Some(w), Some(h)) => {
+                Ok(Some((x as i32, y as i32, w as i32, h as i32)))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// Get frame, waiting up to `timeout`. If `CCD_FRAME` is still undefined,
+    /// fall back to the full sensor extent (with a logged warning); if the
+    /// sensor dimensions are also unknown, return `IndiError::PropertyNotFound`
+    /// rather than fabricating a 1×1 default.
+    ///
+    /// Why: per CLAUDE.md "errors are a feature" — silent 0×0 ROIs were
+    /// crashing downstream image-pipeline math.
+    pub async fn get_frame_or_default(
+        &self,
+        timeout: Duration,
+    ) -> Result<(i32, i32, i32, i32), IndiError> {
+        if let Some(value) = wait_for_optional(timeout, || self.try_get_frame()).await? {
+            return Ok(value);
+        }
+        let sensor_w = self.get_sensor_width().await;
+        let sensor_h = self.get_sensor_height().await;
+        match (sensor_w, sensor_h) {
+            (Some(w), Some(h)) => {
+                tracing::warn!(
+                    device = %self.device_name,
+                    timeout_ms = timeout.as_millis() as u64,
+                    sensor_w = w,
+                    sensor_h = h,
+                    "INDI camera CCD_FRAME was not defined within timeout; falling back to full sensor extent."
+                );
+                Ok((0, 0, w, h))
+            }
+            _ => Err(IndiError::PropertyNotFound {
+                device: self.device_name.clone(),
+                property: CCD_FRAME.to_string(),
+            }),
+        }
+    }
+
+    /// Deprecated shim. See [`Self::try_get_frame`] /
+    /// [`Self::get_frame_or_default`].
+    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_get_frame() (strict) or get_frame_or_default(timeout) (logged fallback)"
+    )]
+    pub async fn get_frame(&self) -> Result<(i32, i32, i32, i32), String> {
+        self.get_frame_or_default(Duration::from_millis(0))
             .await
-            .unwrap_or(0.0) as i32;
-        Ok((x, y, width, height))
+            .map_err(|e| e.to_string())
     }
 
     /// Set cooler target temperature
@@ -270,26 +375,96 @@ impl IndiCamera {
     // Binning Limits
     // =========================================================================
 
-    /// Get maximum horizontal binning
-    pub async fn get_max_bin_x(&self) -> Option<i32> {
+    /// Default maximum-bin used when the driver does not advertise one.
+    ///
+    /// 4× is chosen because it is the most common ceiling across CMOS and CCD
+    /// drivers in the field. This value is *only* applied via
+    /// `get_max_bin_*_or_default`, which logs a `warn!` so the substitution
+    /// is auditable per CLAUDE.md.
+    pub const DEFAULT_MAX_BIN: i32 = 4;
+
+    /// Get maximum horizontal binning if `CCD_INFO/CCD_MAX_BIN_X` is defined.
+    ///
+    /// Returns:
+    /// * `Ok(Some(n))` — driver advertises the property.
+    /// * `Ok(None)` — driver has not (yet) defined that element. Caller must
+    ///   decide whether to wait or apply a logged-default.
+    ///
+    /// Why: the previous implementation silently substituted `4` for any
+    /// driver that didn't expose the property — a value pulled from thin air
+    /// and indistinguishable from a real `4`. Audit §5.10 (HIGH).
+    pub async fn try_get_max_bin_x(&self) -> Result<Option<i32>, IndiError> {
         let client = self.client.read().await;
-        // Check CCD_BINNING property for max values
-        // INDI stores current values, but some drivers expose max in CCD_INFO
-        client
+        Ok(client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_BIN_X")
             .await
-            .or(Some(4.0)) // Default max if not available
-            .map(|v| v as i32)
+            .map(|v| v as i32))
     }
 
-    /// Get maximum vertical binning
-    pub async fn get_max_bin_y(&self) -> Option<i32> {
+    /// Get maximum vertical binning if `CCD_INFO/CCD_MAX_BIN_Y` is defined.
+    /// See [`Self::try_get_max_bin_x`].
+    pub async fn try_get_max_bin_y(&self) -> Result<Option<i32>, IndiError> {
         let client = self.client.read().await;
-        client
+        Ok(client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_BIN_Y")
             .await
-            .or(Some(4.0)) // Default max if not available
-            .map(|v| v as i32)
+            .map(|v| v as i32))
+    }
+
+    /// Get maximum horizontal binning, waiting up to `timeout` and falling
+    /// back to [`Self::DEFAULT_MAX_BIN`] with a logged warning.
+    pub async fn get_max_bin_x_or_default(&self, timeout: Duration) -> Result<i32, IndiError> {
+        if let Some(value) = wait_for_optional(timeout, || self.try_get_max_bin_x()).await? {
+            return Ok(value);
+        }
+        tracing::warn!(
+            device = %self.device_name,
+            timeout_ms = timeout.as_millis() as u64,
+            default = Self::DEFAULT_MAX_BIN,
+            "INDI camera CCD_INFO/CCD_MAX_BIN_X not defined within timeout; falling back to default."
+        );
+        Ok(Self::DEFAULT_MAX_BIN)
+    }
+
+    /// Get maximum vertical binning, waiting up to `timeout` and falling back
+    /// to [`Self::DEFAULT_MAX_BIN`] with a logged warning.
+    pub async fn get_max_bin_y_or_default(&self, timeout: Duration) -> Result<i32, IndiError> {
+        if let Some(value) = wait_for_optional(timeout, || self.try_get_max_bin_y()).await? {
+            return Ok(value);
+        }
+        tracing::warn!(
+            device = %self.device_name,
+            timeout_ms = timeout.as_millis() as u64,
+            default = Self::DEFAULT_MAX_BIN,
+            "INDI camera CCD_INFO/CCD_MAX_BIN_Y not defined within timeout; falling back to default."
+        );
+        Ok(Self::DEFAULT_MAX_BIN)
+    }
+
+    /// Deprecated shim. See [`Self::try_get_max_bin_x`] /
+    /// [`Self::get_max_bin_x_or_default`].
+    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_get_max_bin_x() or get_max_bin_x_or_default(timeout)"
+    )]
+    pub async fn get_max_bin_x(&self) -> Option<i32> {
+        self.get_max_bin_x_or_default(Duration::from_millis(0))
+            .await
+            .ok()
+    }
+
+    /// Deprecated shim. See [`Self::try_get_max_bin_y`] /
+    /// [`Self::get_max_bin_y_or_default`].
+    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_get_max_bin_y() or get_max_bin_y_or_default(timeout)"
+    )]
+    pub async fn get_max_bin_y(&self) -> Option<i32> {
+        self.get_max_bin_y_or_default(Duration::from_millis(0))
+            .await
+            .ok()
     }
 
     // =========================================================================
@@ -432,19 +607,19 @@ impl IndiCamera {
             }
 
             match tokio::time::timeout(Duration::from_secs(1), rx.recv()).await {
-                Ok(Ok(event)) => match event {
-                    crate::IndiEvent::BlobReceived {
+                Ok(Ok(event)) => {
+                    if let crate::IndiEvent::BlobReceived {
                         device,
                         element,
                         data,
                         ..
-                    } => {
+                    } = event
+                    {
                         if device == self.device_name && (element == "CCD1" || element == "CCD2") {
                             return Ok(data);
                         }
                     }
-                    _ => {}
-                },
+                }
                 Ok(Err(e)) => match e {
                     tokio::sync::broadcast::error::RecvError::Lagged(skipped) => {
                         tracing::warn!(
@@ -513,5 +688,128 @@ impl IndiCamera {
             .wait_for_property_not_busy(&self.device_name, CCD_EXPOSURE, timeout_duration)
             .await
             .map_err(|e| format!("Camera exposure of {:.1}s failed: {}", duration_secs, e))
+    }
+}
+
+/// Poll `op` until it returns `Ok(Some(_))` or the deadline expires.
+///
+/// Why: INDI properties arrive asynchronously after the connection is up; the
+/// bridge wants a single `await` that gives a deterministic answer within a
+/// bound. We use a short polling interval rather than a one-shot read so a
+/// late-arriving `defNumberVector` is picked up. A 0-duration timeout is
+/// honored as "single-shot read" (used by the deprecated bool-returning
+/// shims).
+async fn wait_for_optional<T, F, Fut>(timeout: Duration, mut op: F) -> Result<Option<T>, IndiError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<Option<T>, IndiError>>,
+{
+    let deadline = std::time::Instant::now() + timeout;
+    let poll_interval = Duration::from_millis(50);
+    loop {
+        match op().await? {
+            Some(value) => return Ok(Some(value)),
+            None => {
+                let now = std::time::Instant::now();
+                if now >= deadline {
+                    return Ok(None);
+                }
+                let remaining = deadline.saturating_duration_since(now);
+                tokio::time::sleep(poll_interval.min(remaining)).await;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::IndiClient;
+
+    /// §5.10: when CCD_BINNING is undefined, try_get_binning returns Ok(None)
+    /// instead of fabricating (1, 1).
+    #[tokio::test]
+    async fn try_get_binning_returns_none_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        // No connection, no defined property → Ok(None).
+        let result = camera.try_get_binning().await;
+        assert!(matches!(result, Ok(None)));
+    }
+
+    /// §5.10: try_get_frame returns Ok(None) when CCD_FRAME has not been
+    /// defined (rather than fabricating the (0, 0, 0, 0) ROI).
+    #[tokio::test]
+    async fn try_get_frame_returns_none_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        let result = camera.try_get_frame().await;
+        assert!(matches!(result, Ok(None)));
+    }
+
+    /// §5.10: try_get_max_bin_x/y return Ok(None) when CCD_INFO is undefined.
+    #[tokio::test]
+    async fn try_get_max_bin_returns_none_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        assert!(matches!(camera.try_get_max_bin_x().await, Ok(None)));
+        assert!(matches!(camera.try_get_max_bin_y().await, Ok(None)));
+    }
+
+    /// §5.10: get_binning_or_default returns the documented (1, 1) fallback
+    /// after timeout, with the warning emitted via `tracing::warn!`. The test
+    /// verifies the value path; warning emission is covered by the
+    /// `tracing` infrastructure itself.
+    #[tokio::test]
+    async fn get_binning_or_default_falls_back_after_timeout() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        let value = camera
+            .get_binning_or_default(Duration::from_millis(20))
+            .await
+            .expect("default-fallback path should not error");
+        assert_eq!(value, (1, 1));
+    }
+
+    /// §5.10: get_frame_or_default surfaces an explicit
+    /// `IndiError::PropertyNotFound` when neither CCD_FRAME nor CCD_INFO is
+    /// defined, rather than fabricating a 1×1 frame. Per CLAUDE.md, errors
+    /// are a feature.
+    #[tokio::test]
+    async fn get_frame_or_default_errors_when_no_sensor_info() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        let result = camera.get_frame_or_default(Duration::from_millis(20)).await;
+        assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
+    }
+
+    /// §5.10: get_max_bin_*_or_default returns DEFAULT_MAX_BIN with a logged
+    /// warning when the property is missing.
+    #[tokio::test]
+    async fn get_max_bin_or_default_falls_back_after_timeout() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        let bx = camera
+            .get_max_bin_x_or_default(Duration::from_millis(20))
+            .await
+            .expect("default-fallback path should not error");
+        let by = camera
+            .get_max_bin_y_or_default(Duration::from_millis(20))
+            .await
+            .expect("default-fallback path should not error");
+        assert_eq!(bx, IndiCamera::DEFAULT_MAX_BIN);
+        assert_eq!(by, IndiCamera::DEFAULT_MAX_BIN);
+    }
+
+    /// §5.10 (shim): the deprecated `get_binning` keeps the previous
+    /// `Result<(i32, i32), String>` contract so the bridge keeps compiling
+    /// until W2-DRV-INDI migrates the call sites.
+    #[tokio::test]
+    #[allow(deprecated)]
+    async fn deprecated_get_binning_shim_is_no_op_compatible() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let camera = IndiCamera::new(client, "TestCamera");
+        let result = camera.get_binning().await;
+        assert_eq!(result, Ok((1, 1)));
     }
 }

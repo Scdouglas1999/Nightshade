@@ -304,7 +304,7 @@ scripts:
     description: Run iOS app on connected device or simulator
 
   generate:
-    run: dart run melos exec -- dart run build_runner build --delete-conflicting-outputs
+    run: dart run melos exec --depends-on=build_runner -- dart run build_runner build --delete-conflicting-outputs
     description: Run build_runner in all packages
 
   clean:

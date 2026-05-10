@@ -638,10 +638,10 @@ impl SvbonyCamera {
         for i in 0..num_controls {
             let mut caps: SvbControlCaps = unsafe { std::mem::zeroed() };
             let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
-            if SvbError::from_i32(result) == SvbError::Success {
-                if caps.control_type == target_type as c_int {
-                    return Ok((caps.min_value as i64, caps.max_value as i64));
-                }
+            if SvbError::from_i32(result) == SvbError::Success
+                && caps.control_type == target_type as c_int
+            {
+                return Ok((caps.min_value as i64, caps.max_value as i64));
             }
         }
 
@@ -750,13 +750,13 @@ impl NativeDevice for SvbonyCamera {
             let count = unsafe { (sdk.get_num_of_connected_cameras)() };
             for i in 0..count {
                 let mut check_info: SvbCameraInfo = unsafe { std::mem::zeroed() };
-                if unsafe { (sdk.get_camera_info)(&mut check_info, i) } == 0 {
-                    if check_info.camera_id == self.camera_id {
-                        self.name = unsafe { CStr::from_ptr(check_info.friendly_name.as_ptr()) }
-                            .to_string_lossy()
-                            .to_string();
-                        break;
-                    }
+                if unsafe { (sdk.get_camera_info)(&mut check_info, i) } == 0
+                    && check_info.camera_id == self.camera_id
+                {
+                    self.name = unsafe { CStr::from_ptr(check_info.friendly_name.as_ptr()) }
+                        .to_string_lossy()
+                        .to_string();
+                    break;
                 }
             }
         }

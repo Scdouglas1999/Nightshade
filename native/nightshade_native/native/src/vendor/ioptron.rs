@@ -89,7 +89,7 @@ fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
         .unwrap_or(0);
 
     Ok(IOptronStatus {
-        tracking: chars.get(0) == Some(&'1'),
+        tracking: chars.first() == Some(&'1'),
         slewing: chars.get(1) == Some(&'1'),
         parked: chars.get(5) == Some(&'1'),
         home: chars.get(4) == Some(&'1'),
@@ -226,8 +226,8 @@ impl IOptronMount {
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         let mut response = Vec::new();
         let mut buf = [0u8; 1];
@@ -264,8 +264,8 @@ impl IOptronMount {
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         Ok(())
     }

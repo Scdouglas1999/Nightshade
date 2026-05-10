@@ -32,7 +32,7 @@ impl AlpacaConnectable for AlpacaCamera {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::Camera,
                         device_number,
@@ -60,7 +60,7 @@ impl AlpacaConnectable for AlpacaTelescope {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::Telescope,
                         device_number,
@@ -88,7 +88,7 @@ impl AlpacaConnectable for AlpacaFocuser {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::Focuser,
                         device_number,
@@ -116,7 +116,7 @@ impl AlpacaConnectable for AlpacaFilterWheel {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::FilterWheel,
                         device_number,
@@ -144,7 +144,7 @@ impl AlpacaConnectable for AlpacaRotator {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::Rotator,
                         device_number,
@@ -172,7 +172,7 @@ impl AlpacaConnectable for AlpacaDome {
                 .enable_all()
                 .build()
             {
-                let _ = rt.block_on(async {
+                rt.block_on(async {
                     let device = crate::AlpacaDevice {
                         device_type: crate::AlpacaDeviceType::Dome,
                         device_number,

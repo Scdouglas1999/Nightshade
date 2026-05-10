@@ -372,7 +372,7 @@ impl QhySdk {
 
     /// Get the global SDK instance
     fn get() -> Option<&'static QhySdk> {
-        QHY_SDK.get_or_init(|| Self::load()).as_ref()
+        QHY_SDK.get_or_init(Self::load).as_ref()
     }
 
     /// Initialize the SDK (must be called once before use)
@@ -524,6 +524,13 @@ pub struct QhyCamera {
     has_st4_port: bool,
     is_color: bool,
     bayer_pattern: Option<BayerPattern>,
+
+    // Why: QHY SDK has no register to read the cooler enable state back —
+    // CONTROL_COOLER is the target-temperature setpoint, not an on/off flag.
+    // Track locally (mirrors Atik pattern) so get_status reflects the last
+    // set_cooler call instead of hardcoding `false` (audit §5.7).
+    cooler_on: bool,
+    cooler_target_c: Option<f64>,
 }
 
 unsafe impl Send for QhyCamera {}
@@ -552,6 +559,8 @@ impl QhyCamera {
             has_st4_port: false,
             is_color: false,
             bayer_pattern: None,
+            cooler_on: false,
+            cooler_target_c: None,
         }
     }
 
@@ -890,8 +899,10 @@ impl NativeCamera for QhyCamera {
         Ok(CameraStatus {
             state: CameraState::Idle, // QHY doesn't have a simple exposure status query
             sensor_temp: temp,
-            target_temp: None, // We don't track this currently
-            cooler_on: false,  // We don't track this currently
+            // Why: tracked locally because QHY SDK has no register to read
+            // back cooler enable / target setpoint (audit §5.7).
+            target_temp: self.cooler_target_c,
+            cooler_on: self.cooler_on,
             cooler_power,
             gain: self.current_gain,
             offset: self.current_offset,
@@ -1020,7 +1031,7 @@ impl NativeCamera for QhyCamera {
                 features.usb_bandwidth = Some(usb_bw);
             }
             if let Ok(humidity) = self.get_control(QhyControl::CAM_HUMIDITY) {
-                if humidity >= 0.0 && humidity <= 100.0 {
+                if (0.0..=100.0).contains(&humidity) {
                     features.sensor_chamber_humidity = Some(humidity);
                 }
             }
@@ -1082,6 +1093,13 @@ impl NativeCamera for QhyCamera {
             self.set_control_async(QhyControl::CONTROL_CURPWM, 0.0)
                 .await?;
         }
+
+        // Why: only commit tracked state after SDK calls succeed so a failed
+        // setpoint write leaves the previous state intact (no silent fallback).
+        // QHY SDK has no register to read cooler enable back — CONTROL_COOLER
+        // is the target setpoint, not an on/off flag — so we mirror locally.
+        self.cooler_on = enabled;
+        self.cooler_target_c = if enabled { Some(target_temp) } else { None };
 
         Ok(())
     }
@@ -1251,7 +1269,7 @@ impl NativeCamera for QhyCamera {
 
         // QHY-specific: Sensor chamber humidity and pressure (if available)
         if let Ok(humidity) = self.get_control_async(QhyControl::CAM_HUMIDITY).await {
-            if humidity >= 0.0 && humidity <= 100.0 {
+            if (0.0..=100.0).contains(&humidity) {
                 features.sensor_chamber_humidity = Some(humidity);
             }
         }
@@ -1879,5 +1897,112 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
                 config.timeout_ms
             )))
         }
+    }
+}
+
+// =============================================================================
+// TESTS
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Audit §5.7: get_status must reflect the locally-tracked cooler state
+    /// after a successful set_cooler, not hardcode `cooler_on: false`.
+    ///
+    /// The QHY SDK is not loaded in unit tests, so we cannot drive set_cooler
+    /// end-to-end through the SDK call path. Instead we exercise the read
+    /// side directly: mutate the tracked fields the same way set_cooler does
+    /// after a successful SDK round-trip, then assert get_status surfaces them.
+    #[tokio::test]
+    async fn get_status_reflects_tracked_cooler_state() {
+        let mut cam = QhyCamera::new("TEST-COOLER".to_string());
+        // Pretend connect/load_camera_info already succeeded.
+        cam.connected = true;
+        cam.has_cooler = true;
+
+        // Baseline: never-set cooler is reported as off.
+        let status = cam.get_status().await.expect("get_status should succeed");
+        assert!(!status.cooler_on, "default cooler_on must be false");
+        assert_eq!(status.target_temp, None, "default target_temp must be None");
+
+        // Simulate a successful set_cooler(true, -10.0) commit.
+        cam.cooler_on = true;
+        cam.cooler_target_c = Some(-10.0);
+
+        let status = cam.get_status().await.expect("get_status should succeed");
+        assert!(
+            status.cooler_on,
+            "get_status must reflect tracked cooler_on=true (audit §5.7)"
+        );
+        assert_eq!(
+            status.target_temp,
+            Some(-10.0),
+            "get_status must reflect tracked target temperature"
+        );
+
+        // Simulate a successful set_cooler(false, _) commit.
+        cam.cooler_on = false;
+        cam.cooler_target_c = None;
+
+        let status = cam.get_status().await.expect("get_status should succeed");
+        assert!(!status.cooler_on, "get_status must reflect cooler_on=false");
+        assert_eq!(status.target_temp, None);
+    }
+
+    /// Audit §5.7 + CLAUDE.md "no silent fallbacks": if the SDK call inside
+    /// set_cooler fails, the tracked state must NOT advance — otherwise the
+    /// dashboard would lie that the cooler is on while the hardware is cold-off.
+    #[tokio::test]
+    async fn set_cooler_propagates_sdk_failure_without_mutating_state() {
+        let mut cam = QhyCamera::new("TEST-NO-SDK".to_string());
+        cam.connected = true;
+        cam.has_cooler = true;
+        // handle is None and the QHY SDK is not loaded in tests, so
+        // set_control_async fails at QhySdk::get() with SdkNotLoaded.
+
+        let result = cam.set_cooler(true, -15.0).await;
+        assert!(
+            result.is_err(),
+            "set_cooler must propagate SDK errors, not swallow them"
+        );
+
+        // State must not have advanced.
+        assert!(
+            !cam.cooler_on,
+            "cooler_on must remain false after a failed set_cooler"
+        );
+        assert_eq!(
+            cam.cooler_target_c, None,
+            "cooler_target_c must remain unset after a failed set_cooler"
+        );
+    }
+
+    /// Guard rail: set_cooler on a disconnected camera must return
+    /// NotConnected and leave tracked state alone.
+    #[tokio::test]
+    async fn set_cooler_rejects_disconnected_camera() {
+        let mut cam = QhyCamera::new("TEST-DISCONNECTED".to_string());
+        // connected stays false.
+
+        let result = cam.set_cooler(true, -10.0).await;
+        assert!(matches!(result, Err(NativeError::NotConnected)));
+        assert!(!cam.cooler_on);
+        assert_eq!(cam.cooler_target_c, None);
+    }
+
+    /// Guard rail: set_cooler on a camera without a cooler must return
+    /// NotSupported and leave tracked state alone.
+    #[tokio::test]
+    async fn set_cooler_rejects_camera_without_cooler() {
+        let mut cam = QhyCamera::new("TEST-NO-COOLER".to_string());
+        cam.connected = true;
+        // has_cooler stays false (e.g. a non-cooled QHY model).
+
+        let result = cam.set_cooler(true, -10.0).await;
+        assert!(matches!(result, Err(NativeError::NotSupported)));
+        assert!(!cam.cooler_on);
+        assert_eq!(cam.cooler_target_c, None);
     }
 }

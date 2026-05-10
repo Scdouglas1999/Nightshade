@@ -3,7 +3,7 @@
 //! Provides high-level telescope mount control via INDI protocol.
 
 use crate::client::IndiClient;
-use crate::error::IndiResult;
+use crate::error::{IndiError, IndiResult};
 use crate::protocol::coord_elements::*;
 use crate::protocol::standard_properties::*;
 use std::sync::Arc;
@@ -229,13 +229,57 @@ impl IndiMount {
             .await
     }
 
-    /// Check if parked
-    pub async fn is_parked(&self) -> bool {
+    /// Check if parked.
+    ///
+    /// Returns:
+    /// * `Ok(true)` — `TELESCOPE_PARK/PARK` is `On`.
+    /// * `Ok(false)` — the property is defined but `PARK` is `Off`.
+    /// * `Err(IndiError::PropertyNotFound)` — the driver has not (yet)
+    ///   defined `TELESCOPE_PARK`. The UI must surface "unknown" rather than
+    ///   "not parked"; per audit §5.15 a disconnected mount should never look
+    ///   like "alive but stationary".
+    pub async fn try_is_parked(&self) -> Result<bool, IndiError> {
         let client = self.client.read().await;
-        client
+        match client
             .get_switch(&self.device_name, TELESCOPE_PARK, "PARK")
             .await
-            .unwrap_or(false)
+        {
+            Some(v) => Ok(v),
+            None => Err(IndiError::PropertyNotFound {
+                device: self.device_name.clone(),
+                property: TELESCOPE_PARK.to_string(),
+            }),
+        }
+    }
+
+    /// Deprecated: use [`Self::try_is_parked`].
+    ///
+    /// This shim exists so the bridge keeps compiling until W2-DRV-INDI
+    /// migrates the call sites in `bridge/src/devices.rs` and
+    /// `bridge/src/device_capabilities.rs`. It silently downgrades a missing
+    /// property to `false`, which is the very bug §5.15 is fixing — the
+    /// shim only exists so this Wave-1 commit lands without breaking the
+    /// build.
+    // TODO(W2-DRV-INDI): remove this shim and migrate callers to
+    // try_is_parked.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_is_parked() — surfaces unknown via Err"
+    )]
+    pub async fn is_parked(&self) -> bool {
+        match self.try_is_parked().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    device = %self.device_name,
+                    error = %e,
+                    "is_parked() shim called and TELESCOPE_PARK is undefined; \
+                     reporting `false`. Migrate caller to try_is_parked() so \
+                     the UI can show 'unknown' instead of 'not parked'."
+                );
+                false
+            }
+        }
     }
 
     /// Set tracking state
@@ -252,22 +296,91 @@ impl IndiMount {
         }
     }
 
-    /// Check if tracking
-    pub async fn is_tracking(&self) -> bool {
+    /// Check if tracking.
+    ///
+    /// Returns:
+    /// * `Ok(true)` — `TELESCOPE_TRACK_STATE/TRACK_ON` is `On`.
+    /// * `Ok(false)` — the property is defined but `TRACK_ON` is `Off`.
+    /// * `Err(IndiError::PropertyNotFound)` — the driver has not (yet)
+    ///   defined `TELESCOPE_TRACK_STATE`.
+    pub async fn try_is_tracking(&self) -> Result<bool, IndiError> {
         let client = self.client.read().await;
-        client
+        match client
             .get_switch(&self.device_name, TELESCOPE_TRACK_STATE, "TRACK_ON")
             .await
-            .unwrap_or(false)
+        {
+            Some(v) => Ok(v),
+            None => Err(IndiError::PropertyNotFound {
+                device: self.device_name.clone(),
+                property: TELESCOPE_TRACK_STATE.to_string(),
+            }),
+        }
     }
 
-    /// Check if slewing
-    pub async fn is_slewing(&self) -> bool {
+    /// Deprecated: use [`Self::try_is_tracking`].
+    // TODO(W2-DRV-INDI): remove this shim and migrate callers.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_is_tracking() — surfaces unknown via Err"
+    )]
+    pub async fn is_tracking(&self) -> bool {
+        match self.try_is_tracking().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    device = %self.device_name,
+                    error = %e,
+                    "is_tracking() shim called and TELESCOPE_TRACK_STATE is \
+                     undefined; reporting `false`. Migrate caller to \
+                     try_is_tracking() for an honest 'unknown'."
+                );
+                false
+            }
+        }
+    }
+
+    /// Check if slewing.
+    ///
+    /// Returns:
+    /// * `Ok(true)` — `EQUATORIAL_EOD_COORD` is in the `Busy` state.
+    /// * `Ok(false)` — the property is defined and not `Busy`.
+    /// * `Err(IndiError::PropertyNotFound)` — the property has not been
+    ///   defined yet, so the mount may not be initialised. Per audit §5.15
+    ///   this is distinct from "definitely not slewing".
+    pub async fn try_is_slewing(&self) -> Result<bool, IndiError> {
         let client = self.client.read().await;
-        // Mount is slewing if the EQUATORIAL_EOD_COORD property is in Busy state
-        client
-            .is_property_busy(&self.device_name, EQUATORIAL_EOD_COORD)
+        match client
+            .get_property_state(&self.device_name, EQUATORIAL_EOD_COORD)
             .await
+        {
+            Some(state) => Ok(state == crate::IndiPropertyState::Busy),
+            None => Err(IndiError::PropertyNotFound {
+                device: self.device_name.clone(),
+                property: EQUATORIAL_EOD_COORD.to_string(),
+            }),
+        }
+    }
+
+    /// Deprecated: use [`Self::try_is_slewing`].
+    // TODO(W2-DRV-INDI): remove this shim and migrate callers.
+    #[deprecated(
+        since = "2.5.0",
+        note = "Use try_is_slewing() — surfaces unknown via Err"
+    )]
+    pub async fn is_slewing(&self) -> bool {
+        match self.try_is_slewing().await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    device = %self.device_name,
+                    error = %e,
+                    "is_slewing() shim called and EQUATORIAL_EOD_COORD is \
+                     undefined; reporting `false`. Migrate caller to \
+                     try_is_slewing() for an honest 'unknown'."
+                );
+                false
+            }
+        }
     }
 
     /// Move north
@@ -431,5 +544,46 @@ mod tests {
             c.timeout_config().mount_slew_timeout_secs
         };
         assert_eq!(timeout_secs, 600);
+    }
+
+    /// §5.15: when TELESCOPE_PARK is undefined, try_is_parked must return
+    /// PropertyNotFound (not Ok(false)) so the UI can render "unknown".
+    #[tokio::test]
+    async fn try_is_parked_errors_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let mount = IndiMount::new(client, "TestMount");
+        let result = mount.try_is_parked().await;
+        assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
+    }
+
+    /// §5.15: same contract for try_is_tracking.
+    #[tokio::test]
+    async fn try_is_tracking_errors_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let mount = IndiMount::new(client, "TestMount");
+        let result = mount.try_is_tracking().await;
+        assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
+    }
+
+    /// §5.15: same contract for try_is_slewing.
+    #[tokio::test]
+    async fn try_is_slewing_errors_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let mount = IndiMount::new(client, "TestMount");
+        let result = mount.try_is_slewing().await;
+        assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
+    }
+
+    /// §5.15 (shim): the deprecated bool-returning methods must remain
+    /// no-op-compatible (returning `false`) so the bridge keeps compiling.
+    /// W2-DRV-INDI removes them after migrating call sites.
+    #[tokio::test]
+    #[allow(deprecated)]
+    async fn deprecated_bool_shims_return_false_when_undefined() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let mount = IndiMount::new(client, "TestMount");
+        assert!(!mount.is_parked().await);
+        assert!(!mount.is_tracking().await);
+        assert!(!mount.is_slewing().await);
     }
 }

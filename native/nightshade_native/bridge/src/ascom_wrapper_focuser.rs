@@ -148,7 +148,7 @@ impl AscomFocuserWrapper {
                     AscomFocuserCommand::GetTemperature(reply) => {
                         // Check if temp comp available or just try getting temp
                         // Some drivers might error if not available
-                        let res = focuser.temperature().map(Some).or_else(|_| Ok(None));
+                        let res = focuser.temperature().map(Some).or(Ok(None));
                         let _ = reply.send(res);
                     }
                     AscomFocuserCommand::GetMaxPosition(reply) => {

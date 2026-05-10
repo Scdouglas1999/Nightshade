@@ -243,29 +243,34 @@ impl DeviceOps for UnifiedDeviceOps {
         if !status.can_slew {
             return Ok(false);
         }
-        if matches!(status.side_of_pier, crate::device::PierSide::Unknown) {
-            return Err(
+        // None (couldn't read or unsupported) collapses to Unknown — both
+        // prevent the sequencer from issuing a meridian flip.
+        match status.side_of_pier {
+            None | Some(crate::device::PierSide::Unknown) => Err(
                 "Mount does not report side-of-pier state; flip capability cannot be determined"
                     .to_string(),
-            );
+            ),
+            Some(_) => Ok(true),
         }
-        Ok(true)
     }
 
     async fn mount_side_of_pier(
         &self,
         mount_id: &str,
     ) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
-        // Get pier side from mount status
+        // Get pier side from mount status. None collapses to Unknown so the
+        // meridian module receives a single "indeterminate" signal.
         let status = get_device_manager()
             .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
         Ok(match status.side_of_pier {
-            crate::device::PierSide::East => nightshade_sequencer::meridian::PierSide::East,
-            crate::device::PierSide::West => nightshade_sequencer::meridian::PierSide::West,
-            crate::device::PierSide::Unknown => nightshade_sequencer::meridian::PierSide::Unknown,
+            Some(crate::device::PierSide::East) => nightshade_sequencer::meridian::PierSide::East,
+            Some(crate::device::PierSide::West) => nightshade_sequencer::meridian::PierSide::West,
+            Some(crate::device::PierSide::Unknown) | None => {
+                nightshade_sequencer::meridian::PierSide::Unknown
+            }
         })
     }
 

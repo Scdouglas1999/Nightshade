@@ -620,8 +620,8 @@ impl NativeDevice for AtikCamera {
             can_subframe: true,
             has_shutter: (props.camera_flags & ARTEMIS_CAMERA_HAS_SHUTTER) != 0,
             has_guider_port: (props.camera_flags & ARTEMIS_CAMERA_HAS_GUIDE_PORT) != 0,
-            max_bin_x: max_bin_x,
-            max_bin_y: max_bin_y,
+            max_bin_x,
+            max_bin_y,
             supports_readout_modes: false,
         };
 

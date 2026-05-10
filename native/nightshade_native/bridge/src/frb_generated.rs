@@ -8280,6 +8280,14 @@ impl SseDecode for Arc<AlpacaClient> {
     }
 }
 
+impl SseDecode for std::collections::HashMap<String, crate::device::FieldAvailability> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<(String, crate::device::FieldAvailability)>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
 impl SseDecode for std::collections::HashMap<String, i32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9345,6 +9353,28 @@ impl SseDecode for f64 {
     }
 }
 
+impl SseDecode for crate::device::FieldAvailability {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::device::FieldAvailability::Available;
+            }
+            1 => {
+                return crate::device::FieldAvailability::Unsupported;
+            }
+            2 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::device::FieldAvailability::Error(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseDecode for crate::device_capabilities::FilterWheelCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10125,6 +10155,20 @@ impl SseDecode for Vec<crate::api::QuirkInfo> {
     }
 }
 
+impl SseDecode for Vec<(String, crate::device::FieldAvailability)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<(String, crate::device::FieldAvailability)>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<(String, i32)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10265,19 +10309,23 @@ impl SseDecode for crate::device::MountStatus {
         let mut var_tracking = <bool>::sse_decode(deserializer);
         let mut var_slewing = <bool>::sse_decode(deserializer);
         let mut var_parked = <bool>::sse_decode(deserializer);
-        let mut var_atHome = <bool>::sse_decode(deserializer);
-        let mut var_sideOfPier = <crate::device::PierSide>::sse_decode(deserializer);
+        let mut var_atHome = <Option<bool>>::sse_decode(deserializer);
+        let mut var_sideOfPier = <Option<crate::device::PierSide>>::sse_decode(deserializer);
         let mut var_rightAscension = <f64>::sse_decode(deserializer);
         let mut var_declination = <f64>::sse_decode(deserializer);
-        let mut var_altitude = <f64>::sse_decode(deserializer);
-        let mut var_azimuth = <f64>::sse_decode(deserializer);
-        let mut var_siderealTime = <f64>::sse_decode(deserializer);
-        let mut var_trackingRate = <crate::device::TrackingRate>::sse_decode(deserializer);
+        let mut var_altitude = <Option<f64>>::sse_decode(deserializer);
+        let mut var_azimuth = <Option<f64>>::sse_decode(deserializer);
+        let mut var_siderealTime = <Option<f64>>::sse_decode(deserializer);
+        let mut var_trackingRate = <Option<crate::device::TrackingRate>>::sse_decode(deserializer);
         let mut var_canPark = <bool>::sse_decode(deserializer);
         let mut var_canSlew = <bool>::sse_decode(deserializer);
         let mut var_canSync = <bool>::sse_decode(deserializer);
         let mut var_canPulseGuide = <bool>::sse_decode(deserializer);
         let mut var_canSetTrackingRate = <bool>::sse_decode(deserializer);
+        let mut var_availability = <std::collections::HashMap<
+            String,
+            crate::device::FieldAvailability,
+        >>::sse_decode(deserializer);
         return crate::device::MountStatus {
             connected: var_connected,
             tracking: var_tracking,
@@ -10296,6 +10344,7 @@ impl SseDecode for crate::device::MountStatus {
             can_sync: var_canSync,
             can_pulse_guide: var_canPulseGuide,
             can_set_tracking_rate: var_canSetTrackingRate,
+            availability: var_availability,
         };
     }
 }
@@ -10737,6 +10786,17 @@ impl SseDecode for Option<crate::storage::ObserverLocation> {
     }
 }
 
+impl SseDecode for Option<crate::device::PierSide> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::device::PierSide>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::device_capabilities::ShutterStatus> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11134,6 +11194,15 @@ impl SseDecode for (i64, bool) {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_field0 = <i64>::sse_decode(deserializer);
         let mut var_field1 = <bool>::sse_decode(deserializer);
+        return (var_field0, var_field1);
+    }
+}
+
+impl SseDecode for (String, crate::device::FieldAvailability) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <String>::sse_decode(deserializer);
+        let mut var_field1 = <crate::device::FieldAvailability>::sse_decode(deserializer);
         return (var_field0, var_field1);
     }
 }
@@ -12878,6 +12947,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::event::EventSeverity>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::FieldAvailability {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::device::FieldAvailability::Available => [0.into_dart()].into_dart(),
+            crate::device::FieldAvailability::Unsupported => [1.into_dart()].into_dart(),
+            crate::device::FieldAvailability::Error(field0) => {
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::device::FieldAvailability
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::FieldAvailability>
+    for crate::device::FieldAvailability
+{
+    fn into_into_dart(self) -> crate::device::FieldAvailability {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device_capabilities::FilterWheelCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -13503,6 +13598,7 @@ impl flutter_rust_bridge::IntoDart for crate::device::MountStatus {
             self.can_sync.into_into_dart().into_dart(),
             self.can_pulse_guide.into_into_dart().into_dart(),
             self.can_set_tracking_rate.into_into_dart().into_dart(),
+            self.availability.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14797,6 +14893,16 @@ impl SseEncode for Arc<AlpacaClient> {
     }
 }
 
+impl SseEncode for std::collections::HashMap<String, crate::device::FieldAvailability> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<(String, crate::device::FieldAvailability)>>::sse_encode(
+            self.into_iter().collect(),
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for std::collections::HashMap<String, i32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15636,6 +15742,27 @@ impl SseEncode for f64 {
     }
 }
 
+impl SseEncode for crate::device::FieldAvailability {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::device::FieldAvailability::Available => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::device::FieldAvailability::Unsupported => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::device::FieldAvailability::Error(field0) => {
+                <i32>::sse_encode(2, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseEncode for crate::device_capabilities::FilterWheelCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16244,6 +16371,16 @@ impl SseEncode for Vec<crate::api::QuirkInfo> {
     }
 }
 
+impl SseEncode for Vec<(String, crate::device::FieldAvailability)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <(String, crate::device::FieldAvailability)>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<(String, i32)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16340,19 +16477,23 @@ impl SseEncode for crate::device::MountStatus {
         <bool>::sse_encode(self.tracking, serializer);
         <bool>::sse_encode(self.slewing, serializer);
         <bool>::sse_encode(self.parked, serializer);
-        <bool>::sse_encode(self.at_home, serializer);
-        <crate::device::PierSide>::sse_encode(self.side_of_pier, serializer);
+        <Option<bool>>::sse_encode(self.at_home, serializer);
+        <Option<crate::device::PierSide>>::sse_encode(self.side_of_pier, serializer);
         <f64>::sse_encode(self.right_ascension, serializer);
         <f64>::sse_encode(self.declination, serializer);
-        <f64>::sse_encode(self.altitude, serializer);
-        <f64>::sse_encode(self.azimuth, serializer);
-        <f64>::sse_encode(self.sidereal_time, serializer);
-        <crate::device::TrackingRate>::sse_encode(self.tracking_rate, serializer);
+        <Option<f64>>::sse_encode(self.altitude, serializer);
+        <Option<f64>>::sse_encode(self.azimuth, serializer);
+        <Option<f64>>::sse_encode(self.sidereal_time, serializer);
+        <Option<crate::device::TrackingRate>>::sse_encode(self.tracking_rate, serializer);
         <bool>::sse_encode(self.can_park, serializer);
         <bool>::sse_encode(self.can_slew, serializer);
         <bool>::sse_encode(self.can_sync, serializer);
         <bool>::sse_encode(self.can_pulse_guide, serializer);
         <bool>::sse_encode(self.can_set_tracking_rate, serializer);
+        <std::collections::HashMap<String, crate::device::FieldAvailability>>::sse_encode(
+            self.availability,
+            serializer,
+        );
     }
 }
 
@@ -16731,6 +16872,16 @@ impl SseEncode for Option<crate::storage::ObserverLocation> {
     }
 }
 
+impl SseEncode for Option<crate::device::PierSide> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::device::PierSide>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::device_capabilities::ShutterStatus> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17013,6 +17164,14 @@ impl SseEncode for (i64, bool) {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.0, serializer);
         <bool>::sse_encode(self.1, serializer);
+    }
+}
+
+impl SseEncode for (String, crate::device::FieldAvailability) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.0, serializer);
+        <crate::device::FieldAvailability>::sse_encode(self.1, serializer);
     }
 }
 
@@ -17580,6 +17739,15 @@ mod io {
             ))
         }
     }
+    impl CstDecode<std::collections::HashMap<String, crate::device::FieldAvailability>>
+        for *mut wire_cst_list_record_string_field_availability
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> std::collections::HashMap<String, crate::device::FieldAvailability> {
+            let vec: Vec<(String, crate::device::FieldAvailability)> = self.cst_decode();
+            vec.into_iter().collect()
+        }
+    }
     impl CstDecode<std::collections::HashMap<String, i32>> for *mut wire_cst_list_record_string_i_32 {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> std::collections::HashMap<String, i32> {
@@ -17870,6 +18038,13 @@ mod io {
         fn cst_decode(self) -> crate::storage::ObserverLocation {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::storage::ObserverLocation>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::device::PierSide> for *mut i32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::PierSide {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::device::PierSide>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::event::PolarAlignmentEvent> for *mut wire_cst_polar_alignment_event {
@@ -18528,6 +18703,20 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::device::FieldAvailability> for wire_cst_field_availability {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::FieldAvailability {
+            match self.tag {
+                0 => crate::device::FieldAvailability::Available,
+                1 => crate::device::FieldAvailability::Unsupported,
+                2 => {
+                    let ans = unsafe { self.kind.Error };
+                    crate::device::FieldAvailability::Error(ans.field0.cst_decode())
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
     impl CstDecode<crate::device_capabilities::FilterWheelCapabilities>
         for wire_cst_filter_wheel_capabilities
     {
@@ -19053,6 +19242,18 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
+    impl CstDecode<Vec<(String, crate::device::FieldAvailability)>>
+        for *mut wire_cst_list_record_string_field_availability
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<(String, crate::device::FieldAvailability)> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
     impl CstDecode<Vec<(String, i32)>> for *mut wire_cst_list_record_string_i_32 {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<(String, i32)> {
@@ -19165,6 +19366,7 @@ mod io {
                 can_sync: self.can_sync.cst_decode(),
                 can_pulse_guide: self.can_pulse_guide.cst_decode(),
                 can_set_tracking_rate: self.can_set_tracking_rate.cst_decode(),
+                availability: self.availability.cst_decode(),
             }
         }
     }
@@ -19603,6 +19805,14 @@ mod io {
     impl CstDecode<(i64, bool)> for wire_cst_record_i_64_bool {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> (i64, bool) {
+            (self.field0.cst_decode(), self.field1.cst_decode())
+        }
+    }
+    impl CstDecode<(String, crate::device::FieldAvailability)>
+        for wire_cst_record_string_field_availability
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> (String, crate::device::FieldAvailability) {
             (self.field0.cst_decode(), self.field1.cst_decode())
         }
     }
@@ -20478,6 +20688,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_field_availability {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                tag: -1,
+                kind: FieldAvailabilityKind { nil__: () },
+            }
+        }
+    }
+    impl Default for wire_cst_field_availability {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_filter_wheel_capabilities {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -20806,19 +21029,20 @@ mod io {
                 tracking: Default::default(),
                 slewing: Default::default(),
                 parked: Default::default(),
-                at_home: Default::default(),
-                side_of_pier: Default::default(),
+                at_home: core::ptr::null_mut(),
+                side_of_pier: core::ptr::null_mut(),
                 right_ascension: Default::default(),
                 declination: Default::default(),
-                altitude: Default::default(),
-                azimuth: Default::default(),
-                sidereal_time: Default::default(),
-                tracking_rate: Default::default(),
+                altitude: core::ptr::null_mut(),
+                azimuth: core::ptr::null_mut(),
+                sidereal_time: core::ptr::null_mut(),
+                tracking_rate: core::ptr::null_mut(),
                 can_park: Default::default(),
                 can_slew: Default::default(),
                 can_sync: Default::default(),
                 can_pulse_guide: Default::default(),
                 can_set_tracking_rate: Default::default(),
+                availability: core::ptr::null_mut(),
             }
         }
     }
@@ -21159,6 +21383,19 @@ mod io {
         }
     }
     impl Default for wire_cst_record_i_64_bool {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_record_string_field_availability {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                field0: core::ptr::null_mut(),
+                field1: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_record_string_field_availability {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -24587,6 +24824,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side(
+        value: i32,
+    ) -> *mut i32 {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_event(
     ) -> *mut wire_cst_polar_alignment_event {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -24943,6 +25187,20 @@ mod io {
         let wrap = wire_cst_list_quirk_info {
             ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
                 <wire_cst_quirk_info>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_record_string_field_availability(
+        len: i32,
+    ) -> *mut wire_cst_list_record_string_field_availability {
+        let wrap = wire_cst_list_record_string_field_availability {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_record_string_field_availability>::new_with_null_ptr(),
                 len,
             ),
             len,
@@ -25588,6 +25846,23 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_field_availability {
+        tag: i32,
+        kind: FieldAvailabilityKind,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub union FieldAvailabilityKind {
+        Error: wire_cst_FieldAvailability_Error,
+        nil__: (),
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_FieldAvailability_Error {
+        field0: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_filter_wheel_capabilities {
         position_count: i32,
         current_position: *mut i32,
@@ -25999,6 +26274,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_list_record_string_field_availability {
+        ptr: *mut wire_cst_record_string_field_availability,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_record_string_i_32 {
         ptr: *mut wire_cst_record_string_i_32,
         len: i32,
@@ -26069,19 +26350,20 @@ mod io {
         tracking: bool,
         slewing: bool,
         parked: bool,
-        at_home: bool,
-        side_of_pier: i32,
+        at_home: *mut bool,
+        side_of_pier: *mut i32,
         right_ascension: f64,
         declination: f64,
-        altitude: f64,
-        azimuth: f64,
-        sidereal_time: f64,
-        tracking_rate: i32,
+        altitude: *mut f64,
+        azimuth: *mut f64,
+        sidereal_time: *mut f64,
+        tracking_rate: *mut i32,
         can_park: bool,
         can_slew: bool,
         can_sync: bool,
         can_pulse_guide: bool,
         can_set_tracking_rate: bool,
+        availability: *mut wire_cst_list_record_string_field_availability,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -26502,6 +26784,12 @@ mod io {
     pub struct wire_cst_record_i_64_bool {
         field0: i64,
         field1: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_record_string_field_availability {
+        field0: *mut wire_cst_list_prim_u_8_strict,
+        field1: wire_cst_field_availability,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

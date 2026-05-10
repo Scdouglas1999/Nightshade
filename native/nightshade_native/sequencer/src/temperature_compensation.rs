@@ -250,7 +250,7 @@ pub async fn execute_temperature_compensation(
             Ok(true) => {
                 // Still moving, update progress periodically
                 poll_count += 1;
-                if poll_count % 5 == 0 {
+                if poll_count.is_multiple_of(5) {
                     let elapsed_secs = move_start.elapsed().as_secs();
                     // Progress from 70-90% during movement based on configured timeout budget.
                     let move_progress = if config.timeout_secs > 0 {
@@ -398,18 +398,13 @@ fn default_timeout_secs() -> u32 {
 }
 
 /// Temperature compensation mode
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default)]
 pub enum CompensationMode {
     /// Move relative to current position based on temp delta
+    #[default]
     Relative,
     /// Calculate absolute position from baseline (requires baseline position tracking)
     Absolute,
-}
-
-impl Default for CompensationMode {
-    fn default() -> Self {
-        Self::Relative
-    }
 }
 
 #[cfg(test)]

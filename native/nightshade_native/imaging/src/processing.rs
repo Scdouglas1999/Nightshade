@@ -62,8 +62,8 @@ pub type ProgressCallback = Arc<dyn Fn(f32) + Send + Sync>;
 pub fn calculate_tile_grid(width: u32, height: u32, tile_size: u32) -> Vec<TileRegion> {
     let mut tiles = Vec::new();
 
-    let tiles_x = (width + tile_size - 1) / tile_size;
-    let tiles_y = (height + tile_size - 1) / tile_size;
+    let tiles_x = width.div_ceil(tile_size);
+    let tiles_y = height.div_ceil(tile_size);
 
     for ty in 0..tiles_y {
         for tx in 0..tiles_x {
@@ -88,7 +88,15 @@ pub fn calculate_tile_grid(width: u32, height: u32, tile_size: u32) -> Vec<TileR
 /// - Reports progress via callback
 ///
 /// Memory usage: ~(tile_size^2 * num_threads * bytes_per_pixel) instead of full image
-pub async fn process_tiled(
+///
+/// # CPU-bound — not async
+///
+/// Despite the original name, this function is **synchronous and CPU-bound**:
+/// all work runs inside `rayon::par_iter`. Callers on a Tokio runtime MUST wrap
+/// the call in `tokio::task::spawn_blocking(...)` to avoid stalling the async
+/// executor. Why: per audit §6.7, keeping it sync makes the blocking explicit
+/// at the call site rather than hidden behind a deceptive `async fn`.
+pub fn process_tiled(
     image: &ImageData,
     tile_size: u32,
     operation: ProcessOperation,
@@ -109,21 +117,33 @@ pub async fn process_tiled(
     // Thread-safe progress counter
     let completed = Arc::new(Mutex::new(0usize));
 
+    // Per audit §6.18: per-tile min/max normalization breaks global brightness
+    // consistency at tile boundaries. We compute the global range once and
+    // every tile rescales against the same numbers.
+    let global_minmax = if matches!(operation, ProcessOperation::Normalize) {
+        Some(compute_global_minmax(image)?)
+    } else {
+        None
+    };
+
     // Process tiles in parallel
     let results: Result<Vec<_>, String> = tiles
         .par_iter()
         .map(|tile| {
-            let result = process_tile(image, tile, &operation)?;
+            let result = process_tile(image, tile, &operation, global_minmax.as_ref())?;
 
             // Update progress
             if let Some(ref callback) = progress_callback {
-                let mut count = completed.lock().unwrap_or_else(|e| e.into_inner());
+                // Per audit §6.7: propagate poisoned-mutex panics rather than
+                // silently taking the inner value (which would hide the bug
+                // that caused the poison).
+                let mut count = completed.lock().expect("progress mutex poisoned");
                 *count += 1;
                 let progress = (*count as f32) / (total_tiles as f32);
                 callback(progress);
             }
 
-            Ok((tile.clone(), result))
+            Ok((*tile, result))
         })
         .collect();
 
@@ -144,6 +164,7 @@ fn process_tile(
     image: &ImageData,
     tile: &TileRegion,
     operation: &ProcessOperation,
+    global_minmax: Option<&GlobalMinMax>,
 ) -> Result<Vec<u8>, String> {
     // Extract tile data from full image
     let tile_data = extract_tile_data(image, tile)?;
@@ -155,7 +176,15 @@ fn process_tile(
             midtone,
             highlight,
         } => apply_stretch_to_tile(&tile_data, image.pixel_type, *shadow, *midtone, *highlight),
-        ProcessOperation::Normalize => normalize_tile(&tile_data, image.pixel_type),
+        ProcessOperation::Normalize => {
+            // Per audit §6.18: tile normalization MUST use the image-wide
+            // min/max so tile boundaries don't produce visible discontinuities
+            // in the merged output. `process_tiled` computes and passes them.
+            let mm = global_minmax.ok_or_else(|| {
+                "Normalize requires global min/max (process_tiled provides this)".to_string()
+            })?;
+            normalize_tile(&tile_data, image.pixel_type, mm)
+        }
         ProcessOperation::Gamma { gamma } => {
             apply_gamma_to_tile(&tile_data, image.pixel_type, *gamma)
         }
@@ -166,6 +195,111 @@ fn process_tile(
         ProcessOperation::Custom => {
             // User would provide custom processing function
             Ok(tile_data)
+        }
+    }
+}
+
+/// Global pixel range for tiled normalization. See [`compute_global_minmax`].
+#[derive(Debug, Clone, Copy)]
+struct GlobalMinMax {
+    min: f64,
+    max: f64,
+}
+
+/// First-pass scan of the whole image to compute min/max for tiled normalization.
+///
+/// Per audit §6.18: per-tile min/max produces visible discontinuities at tile
+/// boundaries because each tile rescales against its own range. We compute the
+/// global range once here, then each tile rescales against the same numbers.
+fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
+    match image.pixel_type {
+        PixelType::U16 => {
+            if image.data.len() < 2 {
+                return Err("Image data too small for U16 normalization".to_string());
+            }
+            let (min, max) = image
+                .data
+                .par_chunks_exact(2)
+                .map(|chunk| {
+                    let v = u16::from_le_bytes([chunk[0], chunk[1]]);
+                    (v, v)
+                })
+                .reduce(
+                    || (u16::MAX, u16::MIN),
+                    |(a_lo, a_hi), (b_lo, b_hi)| (a_lo.min(b_lo), a_hi.max(b_hi)),
+                );
+            Ok(GlobalMinMax {
+                min: min as f64,
+                max: max as f64,
+            })
+        }
+        PixelType::F32 => {
+            if image.data.len() < 4 {
+                return Err("Image data too small for F32 normalization".to_string());
+            }
+            let (min, max) = image
+                .data
+                .par_chunks_exact(4)
+                .map(|chunk| {
+                    let v = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64;
+                    (v, v)
+                })
+                .reduce(
+                    || (f64::INFINITY, f64::NEG_INFINITY),
+                    |(a_lo, a_hi), (b_lo, b_hi)| (a_lo.min(b_lo), a_hi.max(b_hi)),
+                );
+            if !min.is_finite() || !max.is_finite() {
+                return Err("Image contains no finite pixel values".to_string());
+            }
+            Ok(GlobalMinMax { min, max })
+        }
+        PixelType::U8 => {
+            let min = *image.data.iter().min().unwrap_or(&0) as f64;
+            let max = *image.data.iter().max().unwrap_or(&255) as f64;
+            Ok(GlobalMinMax { min, max })
+        }
+        PixelType::U32 => {
+            if image.data.len() < 4 {
+                return Err("Image data too small for U32 normalization".to_string());
+            }
+            let (min, max) = image
+                .data
+                .par_chunks_exact(4)
+                .map(|chunk| {
+                    let v = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    (v, v)
+                })
+                .reduce(
+                    || (u32::MAX, u32::MIN),
+                    |(a_lo, a_hi), (b_lo, b_hi)| (a_lo.min(b_lo), a_hi.max(b_hi)),
+                );
+            Ok(GlobalMinMax {
+                min: min as f64,
+                max: max as f64,
+            })
+        }
+        PixelType::F64 => {
+            if image.data.len() < 8 {
+                return Err("Image data too small for F64 normalization".to_string());
+            }
+            let (min, max) = image
+                .data
+                .par_chunks_exact(8)
+                .map(|chunk| {
+                    let v = f64::from_le_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ]);
+                    (v, v)
+                })
+                .reduce(
+                    || (f64::INFINITY, f64::NEG_INFINITY),
+                    |(a_lo, a_hi), (b_lo, b_hi)| (a_lo.min(b_lo), a_hi.max(b_hi)),
+                );
+            if !min.is_finite() || !max.is_finite() {
+                return Err("Image contains no finite pixel values".to_string());
+            }
+            Ok(GlobalMinMax { min, max })
         }
     }
 }
@@ -270,8 +404,16 @@ fn apply_mtf(value: f64, shadow: f64, midtone: f64, highlight: f64) -> f64 {
     }
 }
 
-/// Normalize tile to 0-1 range
-fn normalize_tile(data: &[u8], pixel_type: PixelType) -> Result<Vec<u8>, String> {
+/// Normalize tile to 0-255 range using image-wide min/max.
+///
+/// Per audit §6.18: each tile rescales against the same global range so tile
+/// boundaries do not produce brightness discontinuities in the merged output.
+fn normalize_tile(
+    data: &[u8],
+    pixel_type: PixelType,
+    global: &GlobalMinMax,
+) -> Result<Vec<u8>, String> {
+    let range = global.max - global.min;
     match pixel_type {
         PixelType::U16 => {
             let u16_data: Vec<u16> = data
@@ -279,20 +421,13 @@ fn normalize_tile(data: &[u8], pixel_type: PixelType) -> Result<Vec<u8>, String>
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 
-            let min = *u16_data.iter().min().unwrap_or(&0);
-            let max = *u16_data.iter().max().unwrap_or(&65535);
-            let range = (max - min) as f64;
-
-            if range == 0.0 {
+            if range <= 0.0 {
                 return Ok(vec![128u8; u16_data.len()]);
             }
 
             let normalized: Vec<u8> = u16_data
                 .par_iter()
-                .map(|&val| {
-                    let norm = ((val - min) as f64 / range * 255.0) as u8;
-                    norm
-                })
+                .map(|&val| (((val as f64 - global.min) / range * 255.0).clamp(0.0, 255.0)) as u8)
                 .collect();
 
             Ok(normalized)
@@ -368,8 +503,11 @@ fn merge_tile_results(
     })
 }
 
-/// Process with progress reporting
-pub async fn process_with_progress<F>(
+/// Process with progress reporting.
+///
+/// Synchronous CPU-bound — see [`process_tiled`] doc-comment. Callers on a
+/// Tokio runtime must wrap this in `spawn_blocking`.
+pub fn process_with_progress<F>(
     image: &ImageData,
     operation: ProcessOperation,
     tile_size: u32,
@@ -379,7 +517,7 @@ where
     F: Fn(f32) + Send + Sync + 'static,
 {
     let callback = Arc::new(progress_callback);
-    process_tiled(image, tile_size, operation, Some(callback)).await
+    process_tiled(image, tile_size, operation, Some(callback))
 }
 
 #[cfg(test)]
@@ -401,14 +539,53 @@ mod tests {
         assert_eq!(tile.pixel_count(), 65536);
     }
 
-    #[tokio::test]
-    async fn test_process_tiled_normalize() {
+    #[test]
+    fn test_process_tiled_normalize() {
         let image = ImageData::new(512, 512, 1, PixelType::U16);
-        let result = process_tiled(&image, 256, ProcessOperation::Normalize, None).await;
+        let result = process_tiled(&image, 256, ProcessOperation::Normalize, None);
 
         assert!(result.is_ok());
         let processed = result.unwrap();
         assert_eq!(processed.width, 512);
         assert_eq!(processed.height, 512);
+    }
+
+    /// Per audit §6.18: with a horizontal gradient, tiled normalization must
+    /// produce a monotonic output. The earlier per-tile min/max version would
+    /// rescale every tile to span 0..255 horizontally, creating a step pattern
+    /// at tile boundaries.
+    #[test]
+    fn test_process_tiled_normalize_uses_global_range() {
+        let w: u32 = 64;
+        let h: u32 = 64;
+        let mut data = Vec::with_capacity((w * h * 2) as usize);
+        for _y in 0..h {
+            for x in 0..w {
+                let v = ((x as u32 * 65535) / (w - 1)) as u16;
+                data.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        let image = ImageData {
+            width: w,
+            height: h,
+            channels: 1,
+            pixel_type: PixelType::U16,
+            data,
+        };
+
+        // 16x16 tiles -> 4x4 grid; with global rescale the row stays monotonic.
+        let out = process_tiled(&image, 16, ProcessOperation::Normalize, None).unwrap();
+        let stride = (w * out.channels) as usize;
+        let row = &out.data[0..stride];
+        for i in 1..row.len() {
+            assert!(
+                row[i] >= row[i - 1],
+                "tile boundary discontinuity at x={i}: {} -> {}",
+                row[i - 1],
+                row[i]
+            );
+        }
+        assert_eq!(row[0], 0);
+        assert_eq!(*row.last().unwrap(), 255);
     }
 }

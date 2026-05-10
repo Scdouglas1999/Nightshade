@@ -2347,25 +2347,37 @@ pub struct SimulatedMount {
 
 impl Default for SimulatedMount {
     fn default() -> Self {
+        // Simulator pretends to be a fully-capable mount: every optional field
+        // is reported `Available` so UI rendering paths exercise the populated
+        // case during development without needing real hardware.
+        use crate::device::{mount_status_field as f, FieldAvailability};
+        let mut availability = std::collections::HashMap::new();
+        availability.insert(f::AT_HOME.to_string(), FieldAvailability::Available);
+        availability.insert(f::SIDE_OF_PIER.to_string(), FieldAvailability::Available);
+        availability.insert(f::ALTITUDE.to_string(), FieldAvailability::Available);
+        availability.insert(f::AZIMUTH.to_string(), FieldAvailability::Available);
+        availability.insert(f::SIDEREAL_TIME.to_string(), FieldAvailability::Available);
+        availability.insert(f::TRACKING_RATE.to_string(), FieldAvailability::Available);
         Self {
             status: MountStatus {
                 connected: false,
                 tracking: false,
                 slewing: false,
                 parked: true,
-                at_home: false,
-                side_of_pier: PierSide::Unknown,
+                at_home: Some(false),
+                side_of_pier: Some(PierSide::Unknown),
                 right_ascension: 0.0,
                 declination: 0.0,
-                altitude: 0.0,
-                azimuth: 0.0,
-                sidereal_time: 0.0,
-                tracking_rate: TrackingRate::Sidereal,
+                altitude: Some(0.0),
+                azimuth: Some(0.0),
+                sidereal_time: Some(0.0),
+                tracking_rate: Some(TrackingRate::Sidereal),
                 can_park: true,
                 can_slew: true,
                 can_sync: true,
                 can_pulse_guide: true,
                 can_set_tracking_rate: true,
+                availability,
             },
         }
     }
@@ -2533,8 +2545,8 @@ pub async fn api_mount_slew_alt_az(
         {
             let mut mount = get_sim_mount().write().await;
             mount.status.slewing = false;
-            mount.status.altitude = altitude;
-            mount.status.azimuth = azimuth;
+            mount.status.altitude = Some(altitude);
+            mount.status.azimuth = Some(azimuth);
             mount.status.parked = false;
         }
 
@@ -2564,7 +2576,7 @@ pub async fn api_mount_find_home(device_id: String) -> Result<(), NightshadeErro
         {
             let mut mount = get_sim_mount().write().await;
             mount.status.slewing = false;
-            mount.status.at_home = true;
+            mount.status.at_home = Some(true);
             mount.status.parked = false;
         }
 
@@ -3266,6 +3278,7 @@ pub async fn api_run_autofocus(
         binning,
         filter: None, // Optional: add filter support
         max_duration_secs: 600.0,
+        ..AutofocusConfig::default()
     };
 
     // Create context - use UnifiedDeviceOps which routes through DeviceManager
@@ -4954,6 +4967,7 @@ pub async fn api_detect_stars_in_file(
         min_hfr: config.min_hfr.unwrap_or(1.0),
         min_snr: config.min_snr.unwrap_or(5.0),
         max_sharpness: config.max_sharpness.unwrap_or(0.95),
+        noise_model: None,
     };
 
     let result = nightshade_imaging::detect_stars_with_stats(&image_data, &detection_config);
@@ -7516,6 +7530,7 @@ pub fn api_create_autofocus_node(
         filter: None,
         binning: Binning::One,
         max_duration_secs: 600.0,
+        ..AutofocusConfig::default()
     };
 
     let node = NodeDefinition {

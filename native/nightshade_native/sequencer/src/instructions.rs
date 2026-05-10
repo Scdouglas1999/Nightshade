@@ -426,7 +426,7 @@ async fn wait_for_mount_idle_with_progress(
 
         // Emit progress every 2 seconds (4 polls at 500ms)
         poll_count += 1;
-        if poll_count % 4 == 0 {
+        if poll_count.is_multiple_of(4) {
             let elapsed_secs = start.elapsed().as_secs();
             // Use time-based progress as approximation (typical slew is 30-60s)
             let progress = ((elapsed_secs as f64 / 60.0) * 100.0).min(95.0);
@@ -1093,16 +1093,7 @@ pub async fn execute_autofocus(
     tracing::info!("Current focuser position: {}", current_position);
 
     // Initialize autofocus engine with backlash compensation
-    let mut af_config = crate::autofocus::AutofocusConfig::default();
-    af_config.method = match config.method {
-        crate::AutofocusMethod::VCurve => crate::autofocus::AutofocusMethod::VCurve,
-        crate::AutofocusMethod::Quadratic => crate::autofocus::AutofocusMethod::Quadratic,
-        crate::AutofocusMethod::Hyperbolic => crate::autofocus::AutofocusMethod::Hyperbolic,
-    };
-    af_config.step_size = config.step_size;
-    af_config.steps_out = config.steps_out;
-    af_config.exposure_duration = config.exposure_duration;
-    af_config.max_duration_secs = config.max_duration_secs;
+    let af_config: crate::autofocus::AutofocusConfig = config.into();
 
     let af_start_time = std::time::Instant::now();
     let af_timeout = Duration::from_secs_f64(config.max_duration_secs);
@@ -1460,14 +1451,12 @@ pub async fn execute_autofocus(
         if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
             return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
         }
-    } else {
-        if let Err(e) = ctx
-            .device_ops
-            .focuser_move_to(&focuser_id, best_position)
-            .await
-        {
-            return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
-        }
+    } else if let Err(e) = ctx
+        .device_ops
+        .focuser_move_to(&focuser_id, best_position)
+        .await
+    {
+        return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
     }
 
     // Wait for focuser to settle at best position
@@ -2405,13 +2394,7 @@ pub async fn execute_polar_alignment(
     status_callback: impl Fn(String, Option<f64>),
     image_callback: impl Fn(crate::polar_align::PolarAlignmentImageData),
 ) -> InstructionResult {
-    crate::polar_align::perform_polar_alignment(
-        config,
-        ctx,
-        |msg, progress| status_callback(msg, progress),
-        image_callback,
-    )
-    .await
+    crate::polar_align::perform_polar_alignment(config, ctx, status_callback, image_callback).await
 }
 
 // =============================================================================
@@ -2625,14 +2608,12 @@ fn calculate_julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
     let a = (y as f64 / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
 
-    let jd = (365.25 * (y as f64 + 4716.0)).floor()
+    (365.25 * (y as f64 + 4716.0)).floor()
         + (30.6001 * (m as f64 + 1.0)).floor()
         + day
         + hour / 24.0
         + b
-        - 1524.5;
-
-    jd
+        - 1524.5
 }
 
 fn build_utc_naive_time_or_fallback(

@@ -161,13 +161,15 @@ impl DeviceOps for BridgeDeviceOps {
         if !status.can_slew {
             return Ok(false);
         }
-        if matches!(status.side_of_pier, crate::device::PierSide::Unknown) {
-            return Err(
+        // None (driver couldn't read or doesn't support pier side) is treated
+        // identically to Unknown — both prevent a safe meridian flip.
+        match status.side_of_pier {
+            None | Some(crate::device::PierSide::Unknown) => Err(
                 "Mount does not report side-of-pier state; flip capability cannot be determined"
                     .to_string(),
-            );
+            ),
+            Some(_) => Ok(true),
         }
-        Ok(true)
     }
 
     async fn mount_side_of_pier(
@@ -178,14 +180,17 @@ impl DeviceOps for BridgeDeviceOps {
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
-        // Convert from bridge PierSide to sequencer PierSide
+        // Convert from bridge PierSide to sequencer PierSide.
+        // None collapses to Unknown so the meridian module sees the same
+        // "indeterminate" signal regardless of whether the driver reported
+        // Unknown or failed to read at all.
         use crate::device::PierSide as BridgePierSide;
         use nightshade_sequencer::meridian::PierSide as SeqPierSide;
 
         Ok(match status.side_of_pier {
-            BridgePierSide::East => SeqPierSide::East,
-            BridgePierSide::West => SeqPierSide::West,
-            BridgePierSide::Unknown => SeqPierSide::Unknown,
+            Some(BridgePierSide::East) => SeqPierSide::East,
+            Some(BridgePierSide::West) => SeqPierSide::West,
+            Some(BridgePierSide::Unknown) | None => SeqPierSide::Unknown,
         })
     }
 

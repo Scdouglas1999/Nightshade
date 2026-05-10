@@ -13,6 +13,7 @@ pub enum BayerPattern {
 
 impl BayerPattern {
     /// Parse from FITS BAYERPAT keyword
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
             "RGGB" => Some(Self::RGGB),
@@ -414,6 +415,7 @@ fn debayer_vng(pixels: &[u16], width: u32, height: u32, pattern: BayerPattern) -
 }
 
 /// Helper for VNG border processing
+#[allow(clippy::too_many_arguments)]
 fn process_border_pixel(
     pixels: &[u16],
     red_row: &mut [u16],
@@ -484,6 +486,7 @@ fn calculate_gradients(pixels: &[u16], w: usize, x: usize, y: usize) -> [i32; 8]
 /// below a threshold (1.5x the minimum gradient), and average the candidate
 /// colors from those low-gradient directions. This produces smoother
 /// interpolation along edges while preserving detail.
+#[allow(clippy::too_many_arguments)]
 fn vng_interpolate(
     pixels: &[u16],
     w: usize,
@@ -800,8 +803,14 @@ mod tests {
             "east gradient {east} must exceed threshold {threshold} at vertical edge",
         );
         // Same goes for NE and SE — all have a sample in the bright half.
-        assert!(gradients[1] > threshold, "NE gradient must exceed threshold");
-        assert!(gradients[3] > threshold, "SE gradient must exceed threshold");
+        assert!(
+            gradients[1] > threshold,
+            "NE gradient must exceed threshold"
+        );
+        assert!(
+            gradients[3] > threshold,
+            "SE gradient must exceed threshold"
+        );
 
         // Sanity check: the buggy formula min + 1.5*(max - min) would have
         // produced a threshold strictly greater than max, so every direction

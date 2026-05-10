@@ -149,6 +149,17 @@ impl AscomFilterWheelWrapper {
                 }
             }
 
+            // Why: COM teardown ordering — release the typed `AscomFilterWheel`
+            // (which holds an IDispatch) BEFORE `uninit_com()`. The Drop on
+            // `AscomDeviceConnection` is intentionally a no-op so this is the
+            // only correct location to issue the final disconnect.
+            if let Err(e) = fw.disconnect() {
+                tracing::warn!(
+                    "ASCOM filter wheel STA-worker shutdown disconnect failed: {}",
+                    e
+                );
+            }
+            drop(fw);
             uninit_com();
         });
 

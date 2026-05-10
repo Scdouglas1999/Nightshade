@@ -231,6 +231,22 @@ pub fn apply_temperature_quirks(device_id: &str, raw_temp: f64) -> f64 {
     temp
 }
 
+/// Look up the focuser step size (microns per motor step) declared for a device.
+///
+/// Vendor SDKs that omit this datum (notably ZWO EAF) require a per-model lookup
+/// so the focus-model micron axis matches mechanical reality. The first matching
+/// `FocuserStepSizeMicrons` quirk is returned; absence means the SDK is expected
+/// to supply the value or the caller must surface an explicit error.
+pub fn get_focuser_step_size_um(device_id: &str) -> Option<f64> {
+    let quirks = get_quirks_for_device(device_id);
+    for quirk in quirks {
+        if let Quirk::Position(PositionQuirk::FocuserStepSizeMicrons(um)) = quirk {
+            return Some(um);
+        }
+    }
+    None
+}
+
 /// Check if a device has a specific timing quirk.
 ///
 /// # Arguments

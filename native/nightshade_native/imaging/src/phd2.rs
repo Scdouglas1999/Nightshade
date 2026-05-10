@@ -332,6 +332,8 @@ struct Phd2EventMessage {
     extra: serde_json::Value,
 }
 
+type Phd2EventCallback = Arc<Mutex<dyn Fn(Phd2Event) + Send>>;
+
 /// PHD2 client for real guiding control.
 ///
 /// Uses a single reader thread for the TCP socket to avoid race conditions
@@ -346,7 +348,7 @@ pub struct Phd2Client {
     port: u16,
     request_id: u32,
     running: Arc<AtomicBool>,
-    event_callback: Option<Arc<Mutex<dyn Fn(Phd2Event) + Send>>>,
+    event_callback: Option<Phd2EventCallback>,
     /// Rolling guide statistics
     rolling_stats: Arc<Mutex<RollingGuideStats>>,
     /// Connection configuration
@@ -645,7 +647,7 @@ impl Phd2Client {
         response_registry: &Arc<Mutex<HashMap<u32, mpsc::Sender<String>>>>,
         rolling_stats: &Arc<Mutex<RollingGuideStats>>,
         state: &Arc<Mutex<Phd2State>>,
-        callback: &Option<Arc<Mutex<dyn Fn(Phd2Event) + Send>>>,
+        callback: &Option<Phd2EventCallback>,
     ) {
         // Parse JSON
         let parsed: serde_json::Value = match serde_json::from_str(json) {
@@ -909,7 +911,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
 
-        let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
         let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
 
         Ok((x, y))
@@ -956,7 +958,7 @@ impl Phd2Client {
         let star_pos = result.get("star_pos").and_then(|v| v.as_array());
         let (star_x, star_y) = match star_pos {
             Some(arr) => {
-                let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
                 (x, y)
             }
@@ -993,7 +995,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
 
-        let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
         let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
 
         Ok((x, y))
@@ -1092,7 +1094,7 @@ impl Phd2Client {
             .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
 
-        let width = arr.get(0).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let width = arr.first().and_then(|v| v.as_u64()).unwrap_or(0) as u32;
         let height = arr.get(1).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
         Ok((width, height))
@@ -1246,7 +1248,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-    let input = input.trim().replace('\n', "").replace('\r', "");
+    let input = input.trim().replace(['\n', '\r'], "");
     let mut output = Vec::with_capacity(input.len() * 3 / 4);
 
     let mut buf = 0u32;
@@ -1290,7 +1292,7 @@ pub fn is_phd2_installed() -> bool {
         use std::process::Command;
         // Check registry for PHD2 installation
         let output = Command::new("reg")
-            .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
+            .args(["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
             .output();
 
         match output {
@@ -1340,7 +1342,7 @@ pub fn launch_phd2() -> Result<(), String> {
 
         // Get install location
         let output = Command::new("reg")
-            .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
+            .args(["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
             .output()
             .map_err(|e| format!("Failed to query registry: {}", e))?;
 

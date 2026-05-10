@@ -924,6 +924,29 @@ typedef struct wire_cst_list_quirk_info {
   int32_t len;
 } wire_cst_list_quirk_info;
 
+typedef struct wire_cst_FieldAvailability_Error {
+  struct wire_cst_list_prim_u_8_strict *field0;
+} wire_cst_FieldAvailability_Error;
+
+typedef union FieldAvailabilityKind {
+  struct wire_cst_FieldAvailability_Error Error;
+} FieldAvailabilityKind;
+
+typedef struct wire_cst_field_availability {
+  int32_t tag;
+  union FieldAvailabilityKind kind;
+} wire_cst_field_availability;
+
+typedef struct wire_cst_record_string_field_availability {
+  struct wire_cst_list_prim_u_8_strict *field0;
+  struct wire_cst_field_availability field1;
+} wire_cst_record_string_field_availability;
+
+typedef struct wire_cst_list_record_string_field_availability {
+  struct wire_cst_record_string_field_availability *ptr;
+  int32_t len;
+} wire_cst_list_record_string_field_availability;
+
 typedef struct wire_cst_star_crop_api {
   struct wire_cst_list_prim_u_8_strict *pixels_base64;
   uint32_t width;
@@ -1240,19 +1263,20 @@ typedef struct wire_cst_mount_status {
   bool tracking;
   bool slewing;
   bool parked;
-  bool at_home;
-  int32_t side_of_pier;
+  bool *at_home;
+  int32_t *side_of_pier;
   double right_ascension;
   double declination;
-  double altitude;
-  double azimuth;
-  double sidereal_time;
-  int32_t tracking_rate;
+  double *altitude;
+  double *azimuth;
+  double *sidereal_time;
+  int32_t *tracking_rate;
   bool can_park;
   bool can_slew;
   bool can_sync;
   bool can_pulse_guide;
   bool can_set_tracking_rate;
+  struct wire_cst_list_record_string_field_availability *availability;
 } wire_cst_mount_status;
 
 typedef struct wire_cst_NightshadeError_DeviceNotFound {
@@ -2817,6 +2841,8 @@ struct wire_cst_mount_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd
 
 struct wire_cst_observer_location *frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location(void);
 
+int32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side(int32_t value);
+
 struct wire_cst_polar_alignment_event *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_event(void);
 
 struct wire_cst_polar_alignment_image_event *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event(void);
@@ -2889,6 +2915,8 @@ struct wire_cst_list_quality_tile_metric_api *frbgen_nightshade_bridge_cst_new_l
 
 struct wire_cst_list_quirk_info *frbgen_nightshade_bridge_cst_new_list_quirk_info(int32_t len);
 
+struct wire_cst_list_record_string_field_availability *frbgen_nightshade_bridge_cst_new_list_record_string_field_availability(int32_t len);
+
 struct wire_cst_list_record_string_i_32 *frbgen_nightshade_bridge_cst_new_list_record_string_i_32(int32_t len);
 
 struct wire_cst_list_record_string_string *frbgen_nightshade_bridge_cst_new_list_record_string_string(int32_t len);
@@ -2924,6 +2952,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_indi_autofocus_config_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_mount_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_status);
@@ -2960,6 +2989,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_field_availability);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_i_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_string);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_star_crop_api);

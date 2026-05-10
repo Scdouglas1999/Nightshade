@@ -140,38 +140,28 @@ impl ImageFormat {
             }
 
             // Nikon NEF: Check for "NIKON" in first 1024 bytes
-            if data.len() > 1024 {
-                if data[..1024].windows(5).any(|w| w == b"NIKON") {
-                    return Some(ImageFormat::NikonNEF);
-                }
+            if data.len() > 1024 && data[..1024].windows(5).any(|w| w == b"NIKON") {
+                return Some(ImageFormat::NikonNEF);
             }
 
             // Sony ARW: Check for "SONY" signature
-            if data.len() > 1024 {
-                if data[..1024].windows(4).any(|w| w == b"SONY") {
-                    return Some(ImageFormat::SonyARW);
-                }
+            if data.len() > 1024 && data[..1024].windows(4).any(|w| w == b"SONY") {
+                return Some(ImageFormat::SonyARW);
             }
 
             // Olympus ORF: Check for "OLYMP" signature
-            if data.len() > 1024 {
-                if data[..1024].windows(5).any(|w| w == b"OLYMP") {
-                    return Some(ImageFormat::OlympusORF);
-                }
+            if data.len() > 1024 && data[..1024].windows(5).any(|w| w == b"OLYMP") {
+                return Some(ImageFormat::OlympusORF);
             }
 
             // Pentax PEF: Check for "PENTAX" signature
-            if data.len() > 1024 {
-                if data[..1024].windows(6).any(|w| w == b"PENTAX") {
-                    return Some(ImageFormat::PentaxPEF);
-                }
+            if data.len() > 1024 && data[..1024].windows(6).any(|w| w == b"PENTAX") {
+                return Some(ImageFormat::PentaxPEF);
             }
 
             // Panasonic RW2: Check for "Panasonic"
-            if data.len() > 1024 {
-                if data[..1024].windows(9).any(|w| w == b"Panasonic") {
-                    return Some(ImageFormat::PanasonicRW2);
-                }
+            if data.len() > 1024 && data[..1024].windows(9).any(|w| w == b"Panasonic") {
+                return Some(ImageFormat::PanasonicRW2);
             }
 
             // Generic TIFF if no RAW signature found
@@ -179,10 +169,11 @@ impl ImageFormat {
         }
 
         // Canon CR3: ISO Base Media File Format (ftyp box)
-        if data.len() > 12 && &data[4..8] == b"ftyp" {
-            if &data[8..12] == b"crx " || data[8..11] == *b"cr3" {
-                return Some(ImageFormat::CanonCR3);
-            }
+        if data.len() > 12
+            && &data[4..8] == b"ftyp"
+            && (&data[8..12] == b"crx " || data[8..11] == *b"cr3")
+        {
+            return Some(ImageFormat::CanonCR3);
         }
 
         // Fujifilm RAF: "FUJIFILMCCD-RAW"
@@ -554,15 +545,32 @@ pub fn generate_simulated_image(
     ImageData::from_u16(width, height, 1, &data)
 }
 
-/// Simple deterministic pseudo-random for reproducible simulation
+/// Per-thread pseudo-random for simulation noise.
+///
+/// Why per-thread (audit §6.17): the previous implementation used a single
+/// `static AtomicU64` with separate load/store steps. Concurrent calls from
+/// multiple threads interleave the load-multiply-store, breaking determinism
+/// AND silently dropping LCG steps. Threading-induced non-determinism made
+/// the prior comment ("deterministic") false.
+///
+/// Each thread now holds its own `Cell<u64>` LCG state, seeded with `12345`.
+/// Determinism therefore holds *within* a single thread sequence — which is
+/// exactly how `generate_simulated_image` uses it (single thread, sequential
+/// loops). Across threads, every thread starts from the same seed and steps
+/// independently, so per-thread output is deterministic; thread interleaving
+/// at the call site is irrelevant because there is no shared state.
 fn simple_random() -> f64 {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEED: AtomicU64 = AtomicU64::new(12345);
+    use std::cell::Cell;
 
-    let old = SEED.load(Ordering::SeqCst);
-    let new = old.wrapping_mul(1103515245).wrapping_add(12345);
-    SEED.store(new, Ordering::SeqCst);
-    new as f64 / u64::MAX as f64
+    thread_local! {
+        static SEED: Cell<u64> = const { Cell::new(12345) };
+    }
+
+    SEED.with(|cell| {
+        let new = cell.get().wrapping_mul(1103515245).wrapping_add(12345);
+        cell.set(new);
+        new as f64 / u64::MAX as f64
+    })
 }
 
 /// Image read result

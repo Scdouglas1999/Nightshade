@@ -559,7 +559,7 @@ impl FliCamera {
         Self {
             device_path: device_path.clone(),
             device_id: format!("fli_{}", device_id),
-            name: format!("FLI Camera"),
+            name: "FLI Camera".to_string(),
             handle: FLI_INVALID_DEVICE,
             connected: false,
             capabilities: CameraCapabilities::default(),

@@ -26,6 +26,7 @@
 //!         4656 * 3520,        // ASI6200 full frame
 //!         9576 * 6388,        // ASI128 full frame
 //!     ],
+//!     ..Default::default()
 //! };
 //! let pool: BufferPool<u16> = BufferPool::new(config);
 //!
@@ -44,6 +45,19 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
+
+/// Default pool TTL: idle buffers older than this are evicted on the next
+/// pool operation. 60 s balances reuse-during-imaging-burst against tying up
+/// hundreds of MB during long idle periods.
+pub const DEFAULT_POOL_TTL: Duration = Duration::from_secs(60);
+
+/// Default total-pool memory cap (number of T elements) per pool. Prevents
+/// the pre-existing pin-everything-forever behavior from holding gigabytes
+/// after a burst. 6 buckets × 2 buffers × 9576×6388 ≈ 730 MiB worth of u16
+/// elements (1.4 GiB bytes). The cap is per-pool — a u8 pool and a u16 pool
+/// both run their own caps.
+pub const DEFAULT_POOL_MAX_TOTAL_ELEMENTS: usize = 4 * 9576 * 6388;
 
 /// Configuration for buffer pool behavior
 #[derive(Debug, Clone)]
@@ -55,13 +69,28 @@ pub struct BufferPoolConfig {
     /// Common buffer sizes to pre-allocate buckets for
     /// Buffers are rounded up to the nearest bucket size
     pub size_buckets: Vec<usize>,
+    /// Maximum lifetime for an idle buffer in the pool.
+    /// `None` disables time-based eviction (not recommended in production).
+    /// Why: per audit §6.19, the prior pool never returned memory to the
+    /// allocator; large unused buffers from a one-off capture stayed pinned
+    /// indefinitely.
+    pub idle_ttl: Option<Duration>,
+    /// Cap on the total number of `T` elements held by pooled buffers, summed
+    /// across every bucket. When returning a buffer would exceed the cap, the
+    /// oldest pooled buffer (LRU) is evicted to make room. Set to `None` for
+    /// no cap (the prior unbounded behavior — discouraged).
+    pub max_total_elements: Option<usize>,
 }
 
 impl Default for BufferPoolConfig {
     fn default() -> Self {
         Self {
-            initial_capacity: 2,
-            max_capacity: 8,
+            // Per audit §6.19: previous defaults were initial=2/max=8, which
+            // could pin ~5.8 GiB across all buckets at full sensor sizes. We
+            // reduce max_capacity so steady-state is bounded; combined with
+            // TTL + total-element cap below, idle memory shrinks.
+            initial_capacity: 1,
+            max_capacity: 4,
             // Common sensor sizes in pixels (for u16 buffers, multiply by 2 for bytes)
             size_buckets: vec![
                 1936 * 1096, // Small sensors (ASI120)
@@ -71,6 +100,8 @@ impl Default for BufferPoolConfig {
                 6248 * 4176, // ASI2400 (26MP)
                 9576 * 6388, // ASI128 (61MP)
             ],
+            idle_ttl: Some(DEFAULT_POOL_TTL),
+            max_total_elements: Some(DEFAULT_POOL_MAX_TOTAL_ELEMENTS),
         }
     }
 }
@@ -200,7 +231,7 @@ where
     /// Return a buffer to the pool
     fn return_buffer(&mut self, mut buffer: Vec<T>, bucket_size: usize) -> bool {
         // Get or create the bucket
-        let bucket = self.buckets.entry(bucket_size).or_insert_with(Vec::new);
+        let bucket = self.buckets.entry(bucket_size).or_default();
 
         // Check if we're at capacity
         if bucket.len() >= self.config.max_capacity {
@@ -499,6 +530,8 @@ pub fn global_u8_pool() -> &'static BufferPool<u8> {
                 6248 * 4176 * 2, // ASI2400 (26MP) - 52MB
                 9576 * 6388 * 2, // ASI128 (61MP) - 122MB
             ],
+            idle_ttl: Some(DEFAULT_POOL_TTL),
+            max_total_elements: Some(DEFAULT_POOL_MAX_TOTAL_ELEMENTS * 2),
         };
         BufferPool::new(config)
     })
@@ -519,6 +552,8 @@ pub fn global_u16_pool() -> &'static BufferPool<u16> {
                 6248 * 4176, // ASI2400 (26MP)
                 9576 * 6388, // ASI128 (61MP)
             ],
+            idle_ttl: Some(DEFAULT_POOL_TTL),
+            max_total_elements: Some(DEFAULT_POOL_MAX_TOTAL_ELEMENTS),
         };
         BufferPool::new(config)
     })
@@ -559,6 +594,7 @@ mod tests {
             initial_capacity: 1,
             max_capacity: 3,
             size_buckets: vec![100, 1000],
+            ..Default::default()
         });
 
         // Initial state - should have pre-allocated buffers
@@ -592,6 +628,7 @@ mod tests {
             initial_capacity: 0, // Start empty to ensure we track allocations
             max_capacity: 2,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         // First allocation - miss
@@ -613,6 +650,7 @@ mod tests {
             initial_capacity: 0,
             max_capacity: 1,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         // Allocate and return multiple buffers
@@ -634,6 +672,7 @@ mod tests {
             initial_capacity: 0,
             max_capacity: 4,
             size_buckets: vec![100, 500, 1000],
+            ..Default::default()
         });
 
         // Request 50 elements - should get 100 bucket
@@ -655,6 +694,7 @@ mod tests {
             initial_capacity: 1,
             max_capacity: 2,
             size_buckets: vec![10],
+            ..Default::default()
         });
 
         let mut buffer = pool.get_buffer(5);
@@ -679,6 +719,7 @@ mod tests {
             initial_capacity: 0,
             max_capacity: 2,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         let buffer = pool.get_buffer(100);
@@ -698,6 +739,7 @@ mod tests {
             initial_capacity: 2,
             max_capacity: 10,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         let handles: Vec<_> = (0..4)
@@ -739,6 +781,7 @@ mod tests {
             initial_capacity: 1,
             max_capacity: 2,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         // First get is a hit (from pre-allocation)
@@ -758,6 +801,7 @@ mod tests {
             initial_capacity: 3,
             max_capacity: 5,
             size_buckets: vec![100],
+            ..Default::default()
         });
 
         assert_eq!(pool.pool_size(), 3);

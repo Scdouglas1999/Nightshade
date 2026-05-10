@@ -521,7 +521,7 @@ pub fn read_raw(
         if bits == 16 {
             let sample_size = std::mem::size_of::<u16>();
             let sample_count = data_size / sample_size;
-            if data_size % sample_size != 0 || sample_count != pixel_count {
+            if !data_size.is_multiple_of(sample_size) || sample_count != pixel_count {
                 libraw_dcraw_clear_mem(processed_image);
                 libraw_close(processor);
                 return Err(RawError::LibRawError(format!(
@@ -545,9 +545,9 @@ pub fn read_raw(
                 )));
             }
 
-            for i in 0..pixel_count {
+            for (i, dest) in rgb_data.iter_mut().enumerate().take(pixel_count) {
                 let val = *data_ptr.add(i);
-                rgb_data[i] = (val as u16) * 257; // Scale 0-255 to 0-65535
+                *dest = (val as u16) * 257; // Scale 0-255 to 0-65535
             }
         } else {
             libraw_dcraw_clear_mem(processed_image);

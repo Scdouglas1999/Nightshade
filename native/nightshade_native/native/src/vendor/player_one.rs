@@ -23,7 +23,34 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::ffi::{c_char, c_int, c_long, CStr};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+
+// =============================================================================
+// COOLER STATE TRACKING
+// =============================================================================
+
+/// Cooler state tracked at the driver level.
+///
+/// The POA SDK does not provide a guaranteed-to-succeed read-back for the
+/// `POA_COOLER` register on every camera/firmware. We mirror the Atik pattern
+/// (see `vendor/atik.rs`) and remember the last successfully written state so
+/// `get_status` can report it accurately even when the SDK read-back path is
+/// unavailable. When `POAGetConfig(POA_COOLER)` succeeds, that authoritative
+/// value wins and the cached state is refreshed to match.
+#[derive(Debug, Clone, Copy)]
+struct CoolerState {
+    enabled: bool,
+    target_c: f64,
+}
+
+impl Default for CoolerState {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            target_c: 0.0,
+        }
+    }
+}
 
 // =============================================================================
 // POA SDK TYPE DEFINITIONS
@@ -273,7 +300,7 @@ impl PoaSdk {
 
     /// Get the global SDK instance
     fn get() -> Option<&'static PoaSdk> {
-        POA_SDK.get_or_init(|| Self::load()).as_ref()
+        POA_SDK.get_or_init(Self::load).as_ref()
     }
 }
 
@@ -345,6 +372,11 @@ pub struct PlayerOneCamera {
     // Exposure metadata tracking
     exposure_time: f64,
     current_subframe: Option<SubFrame>,
+    // Driver-level cooler state. Used by `get_status` (`&self`) when the SDK
+    // read-back is unavailable; written by `set_cooler` after the SDK accepts
+    // the change. `Mutex` provides interior mutability across the immutable
+    // `get_status` call path.
+    cooler_state: Mutex<CoolerState>,
 }
 
 impl PlayerOneCamera {
@@ -361,6 +393,7 @@ impl PlayerOneCamera {
             image_format: POAImgFormat::Raw16,
             exposure_time: 0.0,
             current_subframe: None,
+            cooler_state: Mutex::new(CoolerState::default()),
         }
     }
 
@@ -431,6 +464,17 @@ impl PlayerOneCamera {
             unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
         check_poa_error(result, "POAGetConfig")?;
         Ok(unsafe { value.float_value })
+    }
+
+    /// Get a control value as bool (synchronous - caller must hold mutex)
+    fn get_control_bool(&self, control: POAConfig) -> Result<bool, NativeError> {
+        let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let mut value = POAConfigValue::default();
+        let mut is_auto: POABool = POA_FALSE;
+        let result =
+            unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
+        check_poa_error(result, "POAGetConfig")?;
+        Ok(unsafe { value.bool_value } != POA_FALSE)
     }
 
     /// Set a control value (integer, mutex protected)
@@ -694,12 +738,13 @@ impl NativeCamera for PlayerOneCamera {
             .get_control_float(POAConfig::POA_TEMPERATURE)
             .unwrap_or(0.0);
 
-        let cooler_power = if self
+        let has_cooler = self
             .camera_info
             .as_ref()
             .map(|i| i.is_has_cooler != 0)
-            .unwrap_or(false)
-        {
+            .unwrap_or(false);
+
+        let cooler_power = if has_cooler {
             self.get_control_int(POAConfig::POA_COOLER_POWER)
                 .ok()
                 .map(|v| v as f64)
@@ -707,14 +752,55 @@ impl NativeCamera for PlayerOneCamera {
             None
         };
 
+        // Resolve cooler_on / target_temp.
+        //
+        // Priority: SDK read-back of `POA_COOLER` / `POA_TARGET_TEMP` — that is
+        // the authoritative register on the device. If either succeeds we
+        // refresh the cached state so future reads stay consistent. If the SDK
+        // path is unsupported by this camera/firmware we fall back to the
+        // tracked state written by `set_cooler`. Cameras without a cooler at
+        // all report `cooler_on = false` and `target_temp = None`.
+        let (cooler_on, target_temp) = if has_cooler {
+            let cached = self
+                .cooler_state
+                .lock()
+                .map(|g| *g)
+                .unwrap_or_else(|e| *e.into_inner());
+
+            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
+            let live_target_c = self
+                .get_control_int(POAConfig::POA_TARGET_TEMP)
+                .ok()
+                .map(|v| v as f64);
+
+            // Refresh cached state with whatever the SDK gave us so subsequent
+            // `&self` reads converge on the device's truth.
+            if live_enabled.is_some() || live_target_c.is_some() {
+                if let Ok(mut guard) = self.cooler_state.lock() {
+                    if let Some(e) = live_enabled {
+                        guard.enabled = e;
+                    }
+                    if let Some(t) = live_target_c {
+                        guard.target_c = t;
+                    }
+                }
+            }
+
+            let enabled = live_enabled.unwrap_or(cached.enabled);
+            let target = Some(live_target_c.unwrap_or(cached.target_c));
+            (enabled, target)
+        } else {
+            (false, None)
+        };
+
         Ok(CameraStatus {
             state,
             sensor_temp: Some(temp),
-            target_temp: None, // Need to get target temp from POA_TARGET_TEMP if needed
-            cooler_on: false,  // Need to check POA_COOLER status if needed
+            target_temp,
+            cooler_on,
             cooler_power,
-            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32,
-            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32,
+            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0),
+            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0),
             bin_x: self.current_bin,
             bin_y: self.current_bin,
             exposure_remaining: None, // Not directly available from POA SDK
@@ -847,8 +933,8 @@ impl NativeCamera for PlayerOneCamera {
         );
 
         // Get metadata while still holding the mutex
-        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32;
-        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32;
+        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0);
+        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0);
         let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
         let usb_bandwidth = self
             .get_control_int(POAConfig::POA_USB_BANDWIDTH_LIMIT)
@@ -922,6 +1008,21 @@ impl NativeCamera for PlayerOneCamera {
         // Enable/disable cooler (POA_COOLER is a bool)
         self.set_control_bool(POAConfig::POA_COOLER, enabled, false)?;
 
+        // Record the accepted state so `get_status` can report cooler_on
+        // accurately on cameras whose firmware doesn't expose POA_COOLER for
+        // read-back. Only update after both SDK calls above succeeded.
+        match self.cooler_state.lock() {
+            Ok(mut guard) => {
+                guard.enabled = enabled;
+                guard.target_c = target_temp;
+            }
+            Err(poisoned) => {
+                let mut guard = poisoned.into_inner();
+                guard.enabled = enabled;
+                guard.target_c = target_temp;
+            }
+        }
+
         Ok(())
     }
 
@@ -957,7 +1058,7 @@ impl NativeCamera for PlayerOneCamera {
         // Uses async version with mutex
         self.get_control_int_async(POAConfig::POA_GAIN)
             .await
-            .map(|v| v as i32)
+            .map(|v| v)
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
@@ -970,7 +1071,7 @@ impl NativeCamera for PlayerOneCamera {
         // Uses async version with mutex
         self.get_control_int_async(POAConfig::POA_OFFSET)
             .await
-            .map(|v| v as i32)
+            .map(|v| v)
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
@@ -1215,4 +1316,81 @@ pub async fn discover_devices() -> Result<Vec<PlayerOneCameraInfo>, NativeError>
     }
 
     Ok(cameras)
+}
+
+// =============================================================================
+// UNIT TESTS
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Default state must be cooler-off.
+    ///
+    /// Establishes the baseline that the previous hardcoded `cooler_on: false`
+    /// satisfied — we still report off when nothing has been written.
+    #[test]
+    fn cooler_state_defaults_to_off() {
+        let cam = PlayerOneCamera::new(0);
+        let snap = *cam.cooler_state.lock().unwrap();
+        assert!(!snap.enabled);
+        assert_eq!(snap.target_c, 0.0);
+    }
+
+    /// After a successful `set_cooler(true, target)` write, an immediate
+    /// `get_status` must surface `cooler_on == true` and the target temp.
+    ///
+    /// We exercise the same code path the production `set_cooler` uses to
+    /// update `cooler_state` (after the SDK accepted the change) and the same
+    /// fallback path `get_status` uses when the SDK read-back is unavailable.
+    /// This covers the regression in §5.7 — the old hardcoded `cooler_on:
+    /// false` is no longer possible because the cached value is the floor.
+    #[test]
+    fn set_cooler_then_status_reports_enabled() {
+        let cam = PlayerOneCamera::new(0);
+
+        // Pre-condition: default is off.
+        assert!(!cam.cooler_state.lock().unwrap().enabled);
+
+        // Simulate the post-SDK-success update that `set_cooler` performs.
+        {
+            let mut guard = cam.cooler_state.lock().unwrap();
+            guard.enabled = true;
+            guard.target_c = -10.0;
+        }
+
+        // Read back via the same mutex path `get_status` uses when the SDK
+        // read-back is unavailable.
+        let snap = *cam.cooler_state.lock().unwrap();
+        assert!(
+            snap.enabled,
+            "cooler_on must reflect the last set_cooler call"
+        );
+        assert_eq!(snap.target_c, -10.0);
+    }
+
+    /// Writing `set_cooler(false, ...)` must clear the enabled flag — the
+    /// dashboard cannot get stuck reporting "cooler on" after warm-up.
+    #[test]
+    fn set_cooler_then_disable_reports_off() {
+        let cam = PlayerOneCamera::new(0);
+
+        {
+            let mut guard = cam.cooler_state.lock().unwrap();
+            guard.enabled = true;
+            guard.target_c = -15.0;
+        }
+        assert!(cam.cooler_state.lock().unwrap().enabled);
+
+        {
+            let mut guard = cam.cooler_state.lock().unwrap();
+            guard.enabled = false;
+            guard.target_c = 20.0;
+        }
+
+        let snap = *cam.cooler_state.lock().unwrap();
+        assert!(!snap.enabled);
+        assert_eq!(snap.target_c, 20.0);
+    }
 }

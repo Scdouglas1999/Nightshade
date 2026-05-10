@@ -281,7 +281,7 @@ impl AlpacaRotator {
     ) -> Result<bool, AlpacaError> {
         self.move_absolute(position)
             .await
-            .map_err(|e| AlpacaError::OperationFailed(e))?;
+            .map_err(AlpacaError::OperationFailed)?;
         self.wait_for_idle(poll_interval, timeout).await
     }
 }

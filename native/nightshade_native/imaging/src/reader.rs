@@ -223,8 +223,8 @@ impl MappedFitsReader {
             ));
         }
 
-        let out_width = (self.width + downsample_factor - 1) / downsample_factor;
-        let out_height = (self.height + downsample_factor - 1) / downsample_factor;
+        let out_width = self.width.div_ceil(downsample_factor);
+        let out_height = self.height.div_ceil(downsample_factor);
 
         let bytes_per_pixel = self.pixel_type.byte_size();
         let channels = self.channels as usize;
@@ -312,7 +312,7 @@ pub fn generate_thumbnail(path: &Path, max_dimension: u32) -> Result<ImageData, 
 
             let (width, height, _) = reader.dimensions();
             let max_dim = width.max(height);
-            let downsample = (max_dim + max_dimension - 1) / max_dimension;
+            let downsample = max_dim.div_ceil(max_dimension);
 
             if downsample <= 1 {
                 // Image is already small, read full

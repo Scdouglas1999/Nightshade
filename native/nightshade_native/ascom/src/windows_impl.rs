@@ -1652,31 +1652,42 @@ impl AscomDeviceConnection {
 
 impl Drop for AscomDeviceConnection {
     fn drop(&mut self) {
-        // RAII cleanup: always attempt to disconnect if connected
-        // This ensures COM resources are properly released even on error paths
+        // Why: COM apartment threading requires that property writes (including
+        // `Connected = false`) execute on the same STA thread that called
+        // `CoInitialize`. Drop runs on whichever thread happens to release the
+        // last reference; that is not guaranteed to be the originating STA
+        // thread, so issuing a `disconnect()` here can:
+        //   - call into a stale apartment proxy (RPC_E_WRONG_THREAD), or
+        //   - run after `uninit_com()` has torn down the apartment, or
+        //   - race the wrapper-managed disconnect already in flight.
+        //
+        // Invariant: explicit `disconnect()` MUST be issued on the STA worker
+        // thread (see `ascom_wrapper*.rs` worker loops). Drop simply marks the
+        // connection as no-longer-tracked and lets COM reference counting
+        // release the IDispatch (the IDispatch::Release call IS allowed from
+        // any thread per COM rules — only typed method/property calls require
+        // the STA).
         if self.connected {
-            tracing::debug!(
-                "AscomDeviceConnection::drop - disconnecting {}",
+            tracing::warn!(
+                "AscomDeviceConnection::drop on {} while still flagged connected — \
+                 explicit disconnect was skipped. Wrapper STA worker thread is \
+                 expected to issue disconnect before drop.",
                 self.prog_id
             );
-            if let Err(e) = self.disconnect() {
-                // Log but don't panic in Drop
-                tracing::warn!(
-                    "Failed to disconnect ASCOM device {} during cleanup: {}",
-                    self.prog_id,
-                    e
-                );
-            }
+            self.connected = false;
         }
-        // The IDispatch handle will be released when the dispatch field is dropped
-        // Windows COM reference counting handles the actual cleanup
-        tracing::debug!("AscomDeviceConnection::drop - cleaned up {}", self.prog_id);
+        tracing::debug!("AscomDeviceConnection::drop - released {}", self.prog_id);
     }
 }
 
-// SAFETY: COM objects are apartment-threaded and we manage thread affinity ourselves.
-// All COM calls should happen from the thread that called CoInitialize.
-// The wrapper thread pattern used in ascom_wrapper*.rs ensures this.
+// SAFETY: COM objects are apartment-threaded and we manage thread affinity
+// ourselves. All COM property/method calls MUST happen from the thread that
+// called `CoInitialize` (the STA worker thread). The wrapper-thread pattern
+// used in `ascom_wrapper*.rs` enforces this — `Send`/`Sync` here only allows
+// the typed wrapper struct (e.g. `AscomCamera`) to be moved into the worker
+// thread once at construction; from then on every COM call is dispatched onto
+// that worker via mpsc, and `Drop` is a no-op so it is safe to be released on
+// any thread.
 unsafe impl Send for AscomDeviceConnection {}
 unsafe impl Sync for AscomDeviceConnection {}
 
@@ -1805,6 +1816,15 @@ impl<F: FnOnce()> Drop for AscomCleanupGuard<F> {
 }
 
 /// ASCOM Camera
+/// ASCOM Camera (ICameraV*).
+///
+/// Thread-affinity invariant: `AscomCamera` must not cross threads after
+/// construction. Every method here ultimately calls a COM property/method on
+/// `IDispatch`, and COM apartment threading requires those calls to execute on
+/// the same STA thread that called `CoInitialize`. The bridge layer enforces
+/// this by parking the `AscomCamera` inside a dedicated STA worker thread (see
+/// `bridge/src/ascom_wrapper.rs`) and routing every operation through an mpsc
+/// channel. Use `AscomCameraWrapper` for any cross-thread access.
 pub struct AscomCamera {
     device: AscomDeviceConnection,
 }
@@ -1943,6 +1963,15 @@ impl AscomCamera {
 
     pub fn image_ready(&self) -> Result<bool, String> {
         self.device.get_bool_property("ImageReady")
+    }
+
+    /// ASCOM `PercentCompleted` (0..100). Per the ICameraV3 spec the property
+    /// is only valid while CameraState is in {Exposing, Reading, Downloading};
+    /// drivers may raise `InvalidOperationException` outside that window.
+    /// Callers should treat any error as "not currently reporting" rather than
+    /// a hard failure.
+    pub fn percent_completed(&self) -> Result<i32, String> {
+        self.device.get_int_property("PercentCompleted")
     }
 
     pub fn start_exposure(&mut self, duration: f64, light: bool) -> Result<(), String> {
@@ -2115,6 +2144,10 @@ impl AscomCamera {
         CameraFullStatus {
             state: self.camera_state().ok(),
             image_ready: self.image_ready().ok(),
+            // Why: PercentCompleted is only defined during an active exposure;
+            // ignoring the error here (vs propagating) is correct because the
+            // batch caller treats `None` as "no progress to report".
+            percent_completed: self.percent_completed().ok(),
             thermal: self.get_thermal_status(),
             exposure_settings: self.get_exposure_settings(),
         }
@@ -2172,11 +2205,19 @@ pub struct CameraExposureSettings {
 pub struct CameraFullStatus {
     pub state: Option<i32>,
     pub image_ready: Option<bool>,
+    /// ASCOM `PercentCompleted` (0..100) when the driver reports progress.
+    /// `None` means the driver is not currently in an Exposing/Reading/
+    /// Downloading state, or does not implement the property.
+    pub percent_completed: Option<i32>,
     pub thermal: CameraThermalStatus,
     pub exposure_settings: CameraExposureSettings,
 }
 
-/// ASCOM Mount (Telescope)
+/// ASCOM Mount (Telescope).
+///
+/// Thread-affinity invariant: see `AscomCamera`. All COM calls must run on
+/// the STA thread that called `CoInitialize`; cross-thread access goes via
+/// `AscomMountWrapper` which channels every command onto a dedicated worker.
 pub struct AscomMount {
     device: AscomDeviceConnection,
 }

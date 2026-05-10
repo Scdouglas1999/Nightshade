@@ -213,7 +213,7 @@ impl MoravianSdk {
 }
 
 fn get_sdk() -> Result<&'static MoravianSdk, NativeError> {
-    SDK.get_or_init(|| MoravianSdk::load())
+    SDK.get_or_init(MoravianSdk::load)
         .as_ref()
         .map_err(|e| NativeError::SdkError(e.clone()))
 }
@@ -652,7 +652,7 @@ impl NativeCamera for MoravianCamera {
         };
 
         Ok(CameraStatus {
-            state: self.state.clone(),
+            state: self.state,
             sensor_temp: current_temp,
             cooler_power,
             target_temp: Some(self.target_temp),

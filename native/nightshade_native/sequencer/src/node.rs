@@ -612,6 +612,9 @@ impl RuntimeNode {
                         });
 
                         // Create autofocus config
+                        // Why: spread `..AutofocusConfig::default()` so the engine-tuning
+                        // fields added by audit §1.7 (backlash_compensation, outlier_rejection_sigma,
+                        // use_temperature_prediction, max_star_count_change) take their defaults.
                         let af_config = AutofocusConfig {
                             method: AutofocusMethod::VCurve,
                             step_size: 100,
@@ -620,6 +623,7 @@ impl RuntimeNode {
                             filter: context.current_filter.clone(),
                             binning: config.binning,
                             max_duration_secs: 600.0,
+                            ..AutofocusConfig::default()
                         };
 
                         let ctx = context.to_instruction_context().await;
@@ -1899,7 +1903,6 @@ impl RuntimeNode {
                 let dome_id = dome_id.clone();
                 let cover_calibrator_id = cover_calibrator_id.clone();
                 let save_path = save_path.clone();
-                let safety_fail_mode = safety_fail_mode;
                 let skip_to_next_target = skip_to_next_target.clone();
                 let trigger_state = trigger_state.clone();
                 let filter_focus_offsets = filter_focus_offsets.clone();
@@ -2647,7 +2650,10 @@ mod tests {
         // ((((1.5 + 1.6) / 2 + 1.7) / 2 + 1.8) / 2 + 5.0) / 2 ≈ 3.181), so this
         // assertion both pins the new behaviour and guards against a regression
         // back to the EMA formula.
-        assert!((median - 1.7).abs() < f64::EPSILON, "expected 1.7, got {median}");
+        assert!(
+            (median - 1.7).abs() < f64::EPSILON,
+            "expected 1.7, got {median}"
+        );
     }
 
     // §1.2 — Verify NaN and non-positive values are filtered before the median
@@ -2663,12 +2669,18 @@ mod tests {
         // even-length sequence, the median is (3.0 + 4.0) / 2 = 3.5.
         let values = [2.0, f64::NAN, 0.0, 3.0, 4.0, 5.0, -2.5];
         let median = compute_hfr_median(&values).expect("expected median after filtering");
-        assert!((median - 3.5).abs() < f64::EPSILON, "expected 3.5, got {median}");
+        assert!(
+            (median - 3.5).abs() < f64::EPSILON,
+            "expected 3.5, got {median}"
+        );
 
         // Odd-length after filtering: [1.5, 1.7, 2.1] → 1.7.
         let values = [1.7, f64::NAN, 1.5, 2.1];
         let median = compute_hfr_median(&values).expect("expected median after filtering");
-        assert!((median - 1.7).abs() < f64::EPSILON, "expected 1.7, got {median}");
+        assert!(
+            (median - 1.7).abs() < f64::EPSILON,
+            "expected 1.7, got {median}"
+        );
     }
 
     // §1.1 — Replacing `try_write` with `write().await` must guarantee that
@@ -2744,7 +2756,8 @@ mod tests {
         // authoritative measure of "writes observed".
         let final_state = trigger_state.read().await;
         assert_eq!(
-            final_state.completed_exposures, WRITERS as u32,
+            final_state.completed_exposures,
+            WRITERS as u32,
             "every concurrent writer's increment must be observed; missing {} writes",
             WRITERS as u32 - final_state.completed_exposures
         );

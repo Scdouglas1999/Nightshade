@@ -31,7 +31,7 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::ffi::{c_char, c_int, c_long, c_uchar, CStr};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 // =============================================================================
 // ASI SDK TYPE DEFINITIONS
@@ -391,7 +391,7 @@ impl AsiSdk {
 
     /// Get the global SDK instance
     fn get() -> Option<&'static AsiSdk> {
-        ASI_SDK.get_or_init(|| Self::load()).as_ref()
+        ASI_SDK.get_or_init(Self::load).as_ref()
     }
 }
 
@@ -424,6 +424,31 @@ fn check_asi_error(code: c_int) -> Result<(), NativeError> {
 // ZWO CAMERA IMPLEMENTATION
 // =============================================================================
 
+/// Locally-tracked cooler state.
+///
+/// The ZWO SDK does not expose a reliable boolean read of "is the cooler currently
+/// commanded on?". `ASIGetControlValue(ASI_COOLER_ON)` is queried first and used
+/// when it succeeds; if the SDK call fails or the camera lacks a cooler, the value
+/// last written via `set_cooler` is the canonical source of truth. Without this
+/// `get_status` would have to lie and report `cooler_on: false` after the user
+/// commanded it on.
+#[derive(Debug, Clone, Copy)]
+struct CoolerState {
+    enabled: bool,
+    target_c: f64,
+}
+
+impl Default for CoolerState {
+    fn default() -> Self {
+        // -10 C is the documented power-on default the SDK picks for the target
+        // register; using it here keeps `target_temp` consistent across drivers.
+        Self {
+            enabled: false,
+            target_c: -10.0,
+        }
+    }
+}
+
 /// ZWO ASI Camera implementation
 #[derive(Debug)]
 pub struct ZwoCamera {
@@ -442,6 +467,8 @@ pub struct ZwoCamera {
     // Exposure metadata tracking
     exposure_time: f64,
     current_subframe: Option<SubFrame>,
+    // Locally-tracked cooler command (last set_cooler) — see CoolerState docs.
+    cooler_state: Mutex<CoolerState>,
 }
 
 impl ZwoCamera {
@@ -460,6 +487,7 @@ impl ZwoCamera {
             current_offset: 0,
             exposure_time: 0.0,
             current_subframe: None,
+            cooler_state: Mutex::new(CoolerState::default()),
         }
     }
 
@@ -472,8 +500,8 @@ impl ZwoCamera {
         let result = unsafe { (sdk.get_camera_property)(&mut info, self.camera_id) };
         check_asi_error(result)?;
 
-        self.current_width = info.max_width as i32;
-        self.current_height = info.max_height as i32;
+        self.current_width = info.max_width;
+        self.current_height = info.max_height;
         self.camera_info = Some(info);
         Ok(())
     }
@@ -573,7 +601,7 @@ impl ZwoCamera {
                 // Check if this is the control we're looking for
                 // The control_type field tells us which control this is
                 if caps.control_type as c_int == target_control as c_int {
-                    return Ok((caps.min_value as i32, caps.max_value as i32));
+                    return Ok((caps.min_value, caps.max_value));
                 }
             }
         }
@@ -598,7 +626,7 @@ impl ZwoCamera {
                 // Check if this is the control we're looking for
                 // The control_type field tells us which control this is
                 if caps.control_type as c_int == target_control as c_int {
-                    return Ok((caps.min_value as i32, caps.max_value as i32));
+                    return Ok((caps.min_value, caps.max_value));
                 }
             }
         }
@@ -767,11 +795,11 @@ impl NativeDevice for ZwoCamera {
         // Get current gain and offset (use synchronous versions since we already hold the mutex)
         tracing::debug!("Reading current gain and offset");
         if let Ok(val) = self.get_control(ASIControlType::ASI_GAIN) {
-            self.current_gain = val as i32;
+            self.current_gain = val;
             tracing::debug!("Current gain: {}", self.current_gain);
         }
         if let Ok(val) = self.get_control(ASIControlType::ASI_OFFSET) {
-            self.current_offset = val as i32;
+            self.current_offset = val;
             tracing::debug!("Current offset: {}", self.current_offset);
         }
 
@@ -864,11 +892,27 @@ impl NativeCamera for ZwoCamera {
             None
         };
 
+        // Trust the SDK's COOLER_ON readback when it succeeds; otherwise fall back to
+        // the value last written via set_cooler. Locked-state poisoning is recovered
+        // (we own the data, not a foreign invariant), since refusing to report status
+        // because of a poisoned lock would be a worse failure mode than reading a
+        // last-known-good copy. Cameras without a cooler always report `false`.
+        let (cooler_on, target_temp) = if supports_cooler {
+            let local = *self.cooler_state.lock().unwrap_or_else(|e| e.into_inner());
+            let sdk_enabled = self
+                .get_control(ASIControlType::ASI_COOLER_ON)
+                .ok()
+                .map(|v| v != 0);
+            (sdk_enabled.unwrap_or(local.enabled), Some(local.target_c))
+        } else {
+            (false, None)
+        };
+
         Ok(CameraStatus {
             state,
             sensor_temp: temp,
-            target_temp: None, // ZWO doesn't easily provide target temp back
-            cooler_on: false,  // ZWO SDK doesn't have a simple "is cooler on" property check
+            target_temp,
+            cooler_on,
             cooler_power,
             gain: self.current_gain,
             offset: self.current_offset,
@@ -1123,6 +1167,16 @@ impl NativeCamera for ZwoCamera {
         )
         .await?;
 
+        // Persist the commanded state only after both SDK writes succeed: a partial
+        // write must not leave the local cache asserting a state the hardware never
+        // reached. Lock poisoning is recovered because a previous panic in this
+        // section could not have left the cooler in an unknown state.
+        {
+            let mut state = self.cooler_state.lock().unwrap_or_else(|e| e.into_inner());
+            state.enabled = enabled;
+            state.target_c = target_temp;
+        }
+
         Ok(())
     }
 
@@ -1163,7 +1217,7 @@ impl NativeCamera for ZwoCamera {
         let val = self
             .get_control_async(ASIControlType::ASI_GAIN)
             .await
-            .map(|v| v as i32)?;
+            .map(|v| v)?;
         Ok(val)
     }
 
@@ -1177,7 +1231,7 @@ impl NativeCamera for ZwoCamera {
         let val = self
             .get_control_async(ASIControlType::ASI_OFFSET)
             .await
-            .map(|v| v as i32)?;
+            .map(|v| v)?;
         Ok(val)
     }
 
@@ -1193,8 +1247,8 @@ impl NativeCamera for ZwoCamera {
 
         // Calculate new dimensions
         let info = self.camera_info.as_ref().ok_or(NativeError::NotConnected)?;
-        let new_width = info.max_width as i32 / bin;
-        let new_height = info.max_height as i32 / bin;
+        let new_width = info.max_width / bin;
+        let new_height = info.max_height / bin;
 
         // Acquire mutex for SDK operation
         let _lock = zwo_camera_mutex().lock().await;
@@ -1262,8 +1316,8 @@ impl NativeCamera for ZwoCamera {
         let result = unsafe { (sdk.set_start_pos)(self.camera_id, x, y) };
         check_asi_error(result)?;
 
-        self.current_width = width as i32;
-        self.current_height = height as i32;
+        self.current_width = width;
+        self.current_height = height;
         // Track subframe for metadata
         self.current_subframe = subframe;
 
@@ -1529,7 +1583,6 @@ struct EafSdk {
 }
 
 static EAF_SDK: OnceLock<Option<EafSdk>> = OnceLock::new();
-static EAF_STEP_SIZE_LOGGED: OnceLock<()> = OnceLock::new();
 
 impl EafSdk {
     /// Try to load the EAF SDK library
@@ -1574,7 +1627,7 @@ impl EafSdk {
 
     /// Get the singleton SDK instance
     fn get() -> Option<&'static EafSdk> {
-        EAF_SDK.get_or_init(|| Self::load()).as_ref()
+        EAF_SDK.get_or_init(Self::load).as_ref()
     }
 }
 
@@ -1620,6 +1673,11 @@ pub struct ZwoFocuser {
     connected: bool,
     max_position: i32,
     name: String,
+    /// Microns of mechanical travel per motor step, resolved at connect time from the
+    /// quirks database keyed by the SDK-reported model name. The EAF SDK does not
+    /// expose this value, so absent a quirks entry we cannot honestly answer
+    /// `get_step_size`; tracking it here lets us fail loudly instead of guessing.
+    step_size_um: Option<f64>,
 }
 
 impl ZwoFocuser {
@@ -1631,6 +1689,7 @@ impl ZwoFocuser {
             connected: false,
             max_position: 0,
             name: format!("ZWO EAF {}", focuser_id),
+            step_size_um: None,
         }
     }
 }
@@ -1688,14 +1747,28 @@ impl NativeDevice for ZwoFocuser {
         self.max_position = info.max_step;
         self.name = safe_cstr_to_string(info.name.as_ptr(), 64);
 
+        // Resolve step size via the quirks DB using the SDK-reported model as the
+        // matchable token. The model lives only in `name`, never in `device_id`,
+        // so a synthesized lookup id is required for ModelContains matchers
+        // ("EAF-S", "EAF-2", "EAF") to differentiate the gear-ratio variants.
+        let lookup_id = format!("native:zwo:{}", self.name);
+        self.step_size_um = crate::quirks::get_focuser_step_size_um(&lookup_id);
+        if self.step_size_um.is_none() {
+            tracing::warn!(
+                "ZWO EAF model '{}' has no step-size quirk entry; get_step_size will return an error",
+                self.name
+            );
+        }
+
         // All operations succeeded - defuse the cleanup guard
         cleanup_guard.defuse();
 
         self.connected = true;
         tracing::info!(
-            "Connected to ZWO EAF: {} (max step: {})",
+            "Connected to ZWO EAF: {} (max step: {}, step size: {:?} um)",
             self.name,
-            self.max_position
+            self.max_position,
+            self.step_size_um
         );
         Ok(())
     }
@@ -1811,23 +1884,20 @@ impl NativeFocuser for ZwoFocuser {
     }
 
     fn get_step_size(&self) -> f64 {
-        if let Ok(raw) = std::env::var("NIGHTSHADE_ZWO_EAF_STEP_SIZE_UM") {
-            if let Ok(parsed) = raw.parse::<f64>() {
-                if parsed.is_finite() && parsed > 0.0 {
-                    return parsed;
-                }
+        // Resolved at connect time from the quirks DB; 0.0 here is the contract
+        // the trait offers for "unknown" and is surfaced to callers as such. The
+        // tracing::error makes the missing-entry case loud and diagnosable rather
+        // than a silent guess that propagates into the focus model micron axis.
+        match self.step_size_um {
+            Some(um) => um,
+            None => {
+                tracing::error!(
+                    "ZWO EAF '{}' has no step-size quirk entry; returning 0.0 to signal unknown",
+                    self.name
+                );
+                0.0
             }
         }
-
-        if EAF_STEP_SIZE_LOGGED.get().is_none() {
-            tracing::info!(
-                "ZWO EAF step size is not reported by SDK; using default 8.0um/step. \
-Set NIGHTSHADE_ZWO_EAF_STEP_SIZE_UM to override for calibrated systems."
-            );
-            let _ = EAF_STEP_SIZE_LOGGED.set(());
-        }
-
-        8.0
     }
 }
 
@@ -2076,7 +2146,7 @@ impl EfwSdk {
 
     /// Get the singleton SDK instance
     fn get() -> Option<&'static EfwSdk> {
-        EFW_SDK.get_or_init(|| Self::load()).as_ref()
+        EFW_SDK.get_or_init(Self::load).as_ref()
     }
 }
 

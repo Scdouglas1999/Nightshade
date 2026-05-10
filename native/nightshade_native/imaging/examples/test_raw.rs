@@ -29,7 +29,7 @@ fn main() {
 
     // Test direct RAW reading
     println!("--- Direct RAW Reading ---");
-    match read_raw(path) {
+    match read_raw(path, None) {
         Ok((image, metadata)) => {
             println!("✓ SUCCESS!");
             println!("\nCamera Information:");

@@ -1,5 +1,4 @@
 use crate::timeout_ops::Timeouts;
-use chrono;
 use nightshade_ascom::{init_com, uninit_com, AscomCamera};
 use nightshade_native::camera::{
     BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
@@ -562,6 +561,21 @@ impl AscomCameraWrapper {
                 }
             }
 
+            // Why: COM apartment teardown ordering matters. We must release
+            // the typed `AscomCamera` (whose `IDispatch` Drop runs on this
+            // STA thread) BEFORE `uninit_com()`, otherwise IDispatch::Release
+            // runs after the apartment is gone. We also issue an explicit
+            // disconnect here as a last-resort safety net in case the
+            // wrapper was dropped without calling `disconnect()` first —
+            // `AscomDeviceConnection::Drop` is intentionally a no-op (see
+            // `windows_impl.rs`) to avoid wrong-thread COM calls, so this
+            // is the only correct location to do the final disconnect.
+            if let Some(mut cam) = camera.take() {
+                if let Err(e) = cam.disconnect() {
+                    tracing::warn!("ASCOM camera STA-worker shutdown disconnect failed: {}", e);
+                }
+                drop(cam);
+            }
             uninit_com();
         });
 

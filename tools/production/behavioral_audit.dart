@@ -5,27 +5,43 @@ const _defaultRegisterPath =
     'docs/production-readiness/behavioral-audit-register.md';
 const _defaultReportPath = '.behavioral_audit_hits.txt';
 
-// Focus the first behavioral gate on high-risk files that previously carried
-// silent fallbacks, guessed defaults, and simulated runtime paths.
-const _targetFiles = <String>[
-  'packages/nightshade_core/lib/src/services/science/science_processing_service.dart',
-  'packages/nightshade_core/lib/src/providers/framing_provider.dart',
-  'packages/nightshade_core/lib/src/services/profile_service.dart',
-  'packages/nightshade_core/lib/src/providers/science_provider.dart',
-  'packages/nightshade_core/lib/src/providers/sequence_provider.dart',
-  'packages/nightshade_core/lib/src/services/science/default_science_backend.dart',
-  'packages/nightshade_app/lib/screens/analytics/widgets/image_thumbnail_strip.dart',
-  'packages/nightshade_app/lib/screens/equipment/dialogs/profile_editor_dialog.dart',
-  'packages/nightshade_app/lib/screens/settings/settings_screen.dart',
-  'native/nightshade_native/bridge/src/ascom_wrapper_filterwheel.rs',
-  'native/nightshade_native/native/src/vendor/moravian.rs',
-  'native/nightshade_native/sequencer/src/flat_wizard.rs',
-  'native/nightshade_native/sequencer/src/temperature_compensation.rs',
-  'native/nightshade_native/sequencer/src/triggers.rs',
-  'native/nightshade_native/sequencer/src/instructions.rs',
-  'native/nightshade_native/sequencer/src/device_ops.rs',
-  'native/nightshade_native/native/src/vendor/zwo.rs',
-  'native/nightshade_native/sequencer/src/autofocus.rs',
+// Audit policed runtime code only — generated, vendored, or tooling files would
+// produce false positives that hide real silent-fallback regressions in the
+// shipped product.
+const _scanRoots = <String>['apps', 'packages', 'native/nightshade_native'];
+
+const _allowedExtensions = <String>{
+  '.dart',
+  '.rs',
+};
+
+// Excluded directory NAMES (anchored as path segments). A bare ".test" file
+// would not be excluded; a path containing /test/ would. This is intentional
+// and matches §7B.2: the previous substring match silently skipped any
+// production module whose path happened to contain "test", "example", etc.
+const _excludedDirectoryNames = <String>{
+  '.dart_tool',
+  '.git',
+  '.worktrees',
+  'build',
+  'target',
+  'coverage',
+  'generated',
+  'frb_dump',
+  'test',
+  'tests',
+  'example',
+  'samples',
+};
+
+const _excludedSubstrings = <String>[
+  '/frb_generated.',
+];
+
+final _runtimePathPatterns = <RegExp>[
+  RegExp(r'^apps/[^/]+/lib/'),
+  RegExp(r'^packages/[^/]+/lib/'),
+  RegExp(r'^native/nightshade_native(?:/[^/]+)+/src/'),
 ];
 
 class _Rule {
@@ -33,34 +49,80 @@ class _Rule {
   final RegExp regex;
   final String summary;
   final bool highRisk;
+  // Languages this rule applies to. Empty set = all supported languages.
+  final Set<String> languages;
 
-  const _Rule(
-      {required this.id,
-      required this.regex,
-      required this.summary,
-      this.highRisk = true});
+  const _Rule({
+    required this.id,
+    required this.regex,
+    required this.summary,
+    this.highRisk = true,
+    this.languages = const <String>{},
+  });
 }
 
 final _rules = <_Rule>[
   _Rule(
     id: 'empty_catch',
-    regex: RegExp(r'catch\s*\(_\s*\)'),
+    // Matches `catch (_)` and `catch(_)` and `catch (_) { }` — Dart silent
+    // catch is the single most common silent-fallback shape in this codebase.
+    regex: RegExp(r'catch\s*\(\s*_\s*\)\s*\{?\s*\}?'),
     summary: 'Silent catch swallows runtime failures.',
+    languages: <String>{'.dart'},
   ),
   _Rule(
     id: 'guessed_now_timestamp',
     regex: RegExp(r'\?\?\s*DateTime\.now\(\)'),
     summary: 'Guessed current time used as metadata fallback.',
+    languages: <String>{'.dart'},
   ),
   _Rule(
     id: 'guessed_numeric_fallback',
     regex: RegExp(r'\?\?\s*1\.0\b|return\s+3\.5\b'),
     summary: 'Numeric fallback may hide missing required data.',
+    languages: <String>{'.dart'},
+  ),
+  _Rule(
+    id: 'literal_null_coalesce',
+    // Catches the common silent-fallback shape: `expr ?? null|0|false|''|""`.
+    // These reduce a Result-bearing expression to a fixed value with no log.
+    regex: RegExp("\\?\\?\\s*(null|0|false|''|\"\")"),
+    summary: 'Null-coalesce to literal value hides upstream None/null.',
+    languages: <String>{'.dart'},
   ),
   _Rule(
     id: 'unwrap_or_literal',
     regex: RegExp(r'unwrap_or\((?:-?\d+(?:\.\d+)?|true|false)\)'),
     summary: 'Literal unwrap_or may silently coerce unknown state.',
+    languages: <String>{'.rs'},
+  ),
+  _Rule(
+    id: 'unwrap_or_default',
+    regex: RegExp(r'\.unwrap_or_default\(\)'),
+    summary:
+        'unwrap_or_default coerces error/None to type default with no signal.',
+    languages: <String>{'.rs'},
+  ),
+  _Rule(
+    id: 'rust_drop_result',
+    // `.ok();` discards a Result without logging or propagating the error.
+    regex: RegExp(r'\.ok\(\)\s*;'),
+    summary: 'Result dropped via .ok() — error path silently lost.',
+    languages: <String>{'.rs'},
+  ),
+  _Rule(
+    id: 'rust_let_underscore',
+    // `let _ = expr;` discards return value (commonly a Result) silently.
+    regex: RegExp(r'let\s+_\s*='),
+    summary: 'let _ = ... discards return value (often a Result).',
+    languages: <String>{'.rs'},
+  ),
+  _Rule(
+    id: 'rust_if_let_err_underscore',
+    // `if let Err(_) = expr` matches and ignores the actual error contents.
+    regex: RegExp(r'if\s+let\s+Err\s*\(\s*_\s*\)\s*='),
+    summary: 'if let Err(_) discards the error value.',
+    languages: <String>{'.rs'},
   ),
   _Rule(
     id: 'hardcoded_location_fallback',
@@ -84,6 +146,17 @@ final _rules = <_Rule>[
     regex: RegExp(r'not yet implemented|not implemented', caseSensitive: false),
     summary: 'Runtime behavior not implemented.',
   ),
+  _Rule(
+    id: 'comment_best_effort',
+    // Comment patterns indicating known-incomplete behavior. These are how
+    // engineers self-document silent fallbacks; we surface them as findings
+    // so the register tracks them explicitly rather than living in code.
+    regex: RegExp(
+      r'//\s*(best[- ]effort|silently ignore|for now we just|temporary|hack|placeholder)',
+      caseSensitive: false,
+    ),
+    summary: 'Comment marks known-incomplete or best-effort behavior.',
+  ),
 ];
 
 void main(List<String> args) {
@@ -92,26 +165,56 @@ void main(List<String> args) {
   final failOnUnregistered = args.contains('--fail-on-unregistered');
   final failOnOpen = args.contains('--fail-on-open');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
+  final assertMinFiles = _argValue(args, '--assert-at-least-files-scanned');
 
   final findings = <String, String>{};
   final highRisk = <String>{};
+  var filesScanned = 0;
+  final workspaceRoot = _normalize(Directory.current.absolute.path);
 
-  for (final filePath in _targetFiles) {
-    final file = File(filePath);
-    if (!file.existsSync()) {
+  for (final root in _scanRoots) {
+    final rootDir = Directory(root);
+    if (!rootDir.existsSync()) {
       continue;
     }
-    final lines = _readLinesSafe(file);
-    for (var i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      for (final rule in _rules) {
-        if (!rule.regex.hasMatch(line)) {
-          continue;
-        }
-        final key = '$filePath:${i + 1}:${rule.id}';
-        findings[key] = line.trimRight();
-        if (rule.highRisk) {
-          highRisk.add(key);
+
+    for (final entity
+        in rootDir.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File) {
+        continue;
+      }
+
+      final normalizedPath = _toWorkspaceRelative(entity.path, workspaceRoot);
+      if (!_isRuntimePath(normalizedPath) || _shouldSkip(normalizedPath)) {
+        continue;
+      }
+
+      final ext = _extensionOf(normalizedPath);
+      if (!_allowedExtensions.contains(ext)) {
+        continue;
+      }
+
+      final stat = entity.statSync();
+      if (stat.size > 2 * 1024 * 1024) {
+        continue;
+      }
+
+      filesScanned++;
+      final lines = _readLinesSafe(entity);
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        for (final rule in _rules) {
+          if (rule.languages.isNotEmpty && !rule.languages.contains(ext)) {
+            continue;
+          }
+          if (!rule.regex.hasMatch(line)) {
+            continue;
+          }
+          final key = '$normalizedPath:${i + 1}:${rule.id}';
+          findings[key] = line.trimRight();
+          if (rule.highRisk) {
+            highRisk.add(key);
+          }
         }
       }
     }
@@ -125,8 +228,25 @@ void main(List<String> args) {
   File(reportPath).writeAsStringSync('${reportLines.join('\n')}\n');
 
   stdout.writeln('Behavioral audit complete.');
+  stdout.writeln('Scanned $filesScanned files');
   stdout.writeln('Findings: ${sortedKeys.length} -> $reportPath');
   stdout.writeln('High-risk findings: ${highRisk.length}');
+
+  // Coverage assertion: CI passes --assert-at-least-files-scanned=N to ensure
+  // a scope regression (e.g., accidental glob change) is loud, not silent.
+  if (assertMinFiles != null) {
+    final required = int.tryParse(assertMinFiles);
+    if (required == null) {
+      stderr.writeln(
+          'Invalid --assert-at-least-files-scanned value: $assertMinFiles');
+      exit(2);
+    }
+    if (filesScanned < required) {
+      stderr.writeln(
+          'Behavioral audit scanned $filesScanned files; required >= $required');
+      exit(1);
+    }
+  }
 
   final register = _readRegister(registerPath);
   final unregistered = <String>[];
@@ -236,4 +356,56 @@ List<String> _readLinesSafe(File file) {
       return const <String>[];
     }
   }
+}
+
+bool _isRuntimePath(String path) {
+  for (final pattern in _runtimePathPatterns) {
+    if (pattern.hasMatch(path)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _shouldSkip(String normalizedPath) {
+  // Directory-name match anchored to '/' boundaries — `production_test`
+  // is NOT skipped, but any path with /test/ as a real directory IS.
+  final segments = normalizedPath.split('/');
+  for (final segment in segments) {
+    if (_excludedDirectoryNames.contains(segment)) {
+      return true;
+    }
+  }
+  for (final substr in _excludedSubstrings) {
+    if (normalizedPath.contains(substr)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _extensionOf(String path) {
+  final dot = path.lastIndexOf('.');
+  if (dot < 0) {
+    return '';
+  }
+  return path.substring(dot).toLowerCase();
+}
+
+String _normalize(String path) =>
+    path.replaceAll('\\', '/').replaceAll(RegExp(r'/+'), '/');
+
+String _toWorkspaceRelative(String path, String workspaceRoot) {
+  final absolute = _normalize(File(path).absolute.path);
+  final lowerAbsolute = absolute.toLowerCase();
+  final lowerRoot = workspaceRoot.toLowerCase();
+  if (lowerAbsolute.startsWith(lowerRoot)) {
+    final start = workspaceRoot.endsWith('/')
+        ? workspaceRoot.length
+        : workspaceRoot.length + 1;
+    if (absolute.length >= start) {
+      return absolute.substring(start);
+    }
+  }
+  return _normalize(path);
 }

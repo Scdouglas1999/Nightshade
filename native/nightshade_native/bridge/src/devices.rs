@@ -2852,7 +2852,10 @@ impl DeviceManager {
                                 1080
                             }
                         };
-                        let (bin_x, bin_y) = match camera.get_binning().await {
+                        let (bin_x, bin_y) = match camera
+                            .get_binning_or_default(std::time::Duration::from_millis(0))
+                            .await
+                        {
                             Ok(b) => b,
                             Err(e) => {
                                 warn!("Failed to read INDI binning for {}: {}. Using default (1, 1).", device_id, e);
@@ -4556,19 +4559,62 @@ impl DeviceManager {
                     if let Some(mount) = mounts.get(device_id) {
                         let mount = mount.read().await;
 
-                        // Gather all status info
+                        // Required fields propagate read failures — these are not optional.
                         let (ra, dec) = mount.get_coordinates().await.map_err(|e| e.to_string())?;
-                        let (alt, az) = mount.get_alt_az().await.map_err(|e| e.to_string())?;
                         let tracking = mount.get_tracking().await.map_err(|e| e.to_string())?;
                         let slewing = mount.is_slewing().await.map_err(|e| e.to_string())?;
                         let parked = mount.is_parked().await.map_err(|e| e.to_string())?;
-                        let side_of_pier_native = mount.get_side_of_pier().await.map_err(|e| e.to_string())?;
-                        let side_of_pier = match side_of_pier_native {
-                            nightshade_native::traits::PierSide::East => crate::device::PierSide::East,
-                            nightshade_native::traits::PierSide::West => crate::device::PierSide::West,
-                            nightshade_native::traits::PierSide::Unknown => crate::device::PierSide::Unknown,
+
+                        let mut availability: HashMap<String, FieldAvailability> = HashMap::new();
+
+                        // Optional fields: the ASCOM wrapper currently does not surface a
+                        // distinct "not supported" error so any failure is recorded as Error.
+                        let (alt_opt, az_opt) = match mount.get_alt_az().await {
+                            Ok((a, z)) => (Some(a), Some(z)),
+                            Err(e) => {
+                                let msg = e.to_string();
+                                availability.insert(
+                                    mount_status_field::ALTITUDE.to_string(),
+                                    FieldAvailability::Error(msg.clone()),
+                                );
+                                availability.insert(
+                                    mount_status_field::AZIMUTH.to_string(),
+                                    FieldAvailability::Error(msg),
+                                );
+                                (None, None)
+                            }
                         };
-                        let sidereal_time = mount.get_sidereal_time().await.map_err(|e| e.to_string())?;
+                        if alt_opt.is_some() {
+                            availability.insert(
+                                mount_status_field::ALTITUDE.to_string(),
+                                FieldAvailability::Available,
+                            );
+                            availability.insert(
+                                mount_status_field::AZIMUTH.to_string(),
+                                FieldAvailability::Available,
+                            );
+                        }
+
+                        let side_of_pier_opt = Self::availability_from_native_result(
+                            mount.get_side_of_pier().await,
+                            mount_status_field::SIDE_OF_PIER,
+                            &mut availability,
+                        )
+                        .map(Self::pier_side_from_native);
+
+                        let sidereal_time_opt = Self::availability_from_native_result(
+                            mount.get_sidereal_time().await,
+                            mount_status_field::SIDEREAL_TIME,
+                            &mut availability,
+                        );
+
+                        // ASCOM wrapper does not yet expose AtHome — record as Unsupported
+                        // rather than fabricating false. Driver work tracked separately.
+                        availability.insert(
+                            mount_status_field::AT_HOME.to_string(),
+                            FieldAvailability::Unsupported,
+                        );
+
                         let capabilities = match mount.get_capabilities().await {
                             Ok(caps) => caps,
                             Err(err) => {
@@ -4579,23 +4625,31 @@ impl DeviceManager {
                                 crate::ascom_wrapper_mount::AscomMountCapabilities::default()
                             }
                         };
-                        let (tracking_rate, can_set_tracking_rate) = match mount.get_tracking_rate().await {
+
+                        let (tracking_rate_opt, can_set_tracking_rate) = match mount
+                            .get_tracking_rate()
+                            .await
+                        {
                             Ok(rate) => {
-                                let converted = match rate {
-                                    nightshade_native::traits::TrackingRate::Sidereal => TrackingRate::Sidereal,
-                                    nightshade_native::traits::TrackingRate::Lunar => TrackingRate::Lunar,
-                                    nightshade_native::traits::TrackingRate::Solar => TrackingRate::Solar,
-                                    nightshade_native::traits::TrackingRate::King => TrackingRate::King,
-                                    nightshade_native::traits::TrackingRate::Custom => TrackingRate::Sidereal,
-                                };
-                                (converted, true)
+                                availability.insert(
+                                    mount_status_field::TRACKING_RATE.to_string(),
+                                    FieldAvailability::Available,
+                                );
+                                (Some(Self::tracking_rate_from_native(rate)), true)
+                            }
+                            Err(nightshade_native::traits::NativeError::NotSupported) => {
+                                availability.insert(
+                                    mount_status_field::TRACKING_RATE.to_string(),
+                                    FieldAvailability::Unsupported,
+                                );
+                                (None, false)
                             }
                             Err(err) => {
-                                warn!(
-                                    "Failed to query ASCOM mount tracking rate for {}: {}. Using Sidereal.",
-                                    device_id, err
+                                availability.insert(
+                                    mount_status_field::TRACKING_RATE.to_string(),
+                                    FieldAvailability::Error(err.to_string()),
                                 );
-                                (TrackingRate::Sidereal, false)
+                                (None, false)
                             }
                         };
 
@@ -4604,19 +4658,20 @@ impl DeviceManager {
                             tracking,
                             slewing,
                             parked,
-                            at_home: false, // ASCOM mount wrapper does not currently expose AtHome
-                            side_of_pier,
+                            at_home: None,
+                            side_of_pier: side_of_pier_opt,
                             right_ascension: ra,
                             declination: dec,
-                            altitude: alt,
-                            azimuth: az,
-                            sidereal_time,
-                            tracking_rate,
+                            altitude: alt_opt,
+                            azimuth: az_opt,
+                            sidereal_time: sidereal_time_opt,
+                            tracking_rate: tracking_rate_opt,
                             can_park: capabilities.can_park,
                             can_slew: capabilities.can_slew,
                             can_sync: capabilities.can_sync,
                             can_pulse_guide: capabilities.can_pulse_guide,
                             can_set_tracking_rate,
+                            availability,
                         });
                     }
                 }
@@ -4625,7 +4680,7 @@ impl DeviceManager {
             DriverType::Native => {
                 let native_mounts = self.native_mounts.read().await;
                 if let Some(mount) = native_mounts.get(device_id) {
-                    // Gather all status info
+                    // Required fields propagate read failures — these are not optional.
                     let (ra, dec) = mount.get_coordinates().await.map_err(|e| e.to_string())?;
                     let tracking = mount.get_tracking().await.map_err(|e| e.to_string())?;
                     let slewing = mount.is_slewing().await.map_err(|e| e.to_string())?;
@@ -4639,67 +4694,101 @@ impl DeviceManager {
                             ));
                         }
                     };
-                    let side_of_pier_native = mount.get_side_of_pier().await.map_err(|e| e.to_string())?;
-                    let side_of_pier = match side_of_pier_native {
-                        nightshade_native::traits::PierSide::East => crate::device::PierSide::East,
-                        nightshade_native::traits::PierSide::West => crate::device::PierSide::West,
-                        nightshade_native::traits::PierSide::Unknown => crate::device::PierSide::Unknown,
+
+                    let mut availability: HashMap<String, FieldAvailability> = HashMap::new();
+
+                    // get_side_of_pier on `NativeMount` returns Unknown rather than Err
+                    // for unsupported mounts (e.g. SkyWatcher), so distinguish here:
+                    // Unknown → Unsupported availability; East/West → Available.
+                    let side_of_pier_opt = match mount.get_side_of_pier().await {
+                        Ok(nightshade_native::traits::PierSide::Unknown) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Unsupported,
+                            );
+                            None
+                        }
+                        Ok(other) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Available,
+                            );
+                            Some(Self::pier_side_from_native(other))
+                        }
+                        Err(nightshade_native::traits::NativeError::NotSupported) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Unsupported,
+                            );
+                            None
+                        }
+                        Err(e) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Error(e.to_string()),
+                            );
+                            None
+                        }
                     };
 
-                    // Alt/Az and sidereal time may not be supported by all native mounts
-                    let (alt, az) = match mount.get_alt_az().await {
-                        Ok(coords) => coords,
-                        Err(e) => {
-                            warn!("Failed to read native mount alt/az for {}: {}. Using default (0.0, 0.0).", device_id, e);
-                            (0.0, 0.0)
-                        }
+                    // Native drivers report Err(NotSupported) explicitly for alt/az and
+                    // sidereal time on protocols that lack them (e.g. SkyWatcher, LX200).
+                    let alt_az_pair = Self::availability_from_native_result(
+                        mount.get_alt_az().await,
+                        // Use ALTITUDE as primary key; AZIMUTH mirror is set below.
+                        mount_status_field::ALTITUDE,
+                        &mut availability,
+                    );
+                    // Mirror availability onto the AZIMUTH key — they share a single call.
+                    let alt_avail = availability
+                        .get(mount_status_field::ALTITUDE)
+                        .cloned()
+                        .unwrap_or(FieldAvailability::Available);
+                    availability
+                        .insert(mount_status_field::AZIMUTH.to_string(), alt_avail);
+                    let (alt_opt, az_opt) = match alt_az_pair {
+                        Some((a, z)) => (Some(a), Some(z)),
+                        None => (None, None),
                     };
-                    let sidereal_time = match mount.get_sidereal_time().await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            warn!("Failed to read native mount sidereal time for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
+
+                    let sidereal_time_opt = Self::availability_from_native_result(
+                        mount.get_sidereal_time().await,
+                        mount_status_field::SIDEREAL_TIME,
+                        &mut availability,
+                    );
+
+                    // Native mount trait does not currently surface AtHome.
+                    availability.insert(
+                        mount_status_field::AT_HOME.to_string(),
+                        FieldAvailability::Unsupported,
+                    );
+
+                    let tracking_rate_opt = Self::availability_from_native_result(
+                        mount.get_tracking_rate().await,
+                        mount_status_field::TRACKING_RATE,
+                        &mut availability,
+                    )
+                    .map(Self::tracking_rate_from_native);
 
                     return Ok(MountStatus {
                         connected: true,
                         tracking,
                         slewing,
                         parked,
-                        at_home: false,
-                        side_of_pier,
+                        at_home: None,
+                        side_of_pier: side_of_pier_opt,
                         right_ascension: ra,
                         declination: dec,
-                        altitude: alt,
-                        azimuth: az,
-                        sidereal_time,
-                        tracking_rate: mount
-                            .get_tracking_rate()
-                            .await
-                            .map(|rate| match rate {
-                                nightshade_native::traits::TrackingRate::Sidereal => {
-                                    TrackingRate::Sidereal
-                                }
-                                nightshade_native::traits::TrackingRate::Lunar => {
-                                    TrackingRate::Lunar
-                                }
-                                nightshade_native::traits::TrackingRate::Solar => {
-                                    TrackingRate::Solar
-                                }
-                                nightshade_native::traits::TrackingRate::King => {
-                                    TrackingRate::King
-                                }
-                                nightshade_native::traits::TrackingRate::Custom => {
-                                    TrackingRate::Custom
-                                }
-                            })
-                            .unwrap_or(TrackingRate::Sidereal),
+                        altitude: alt_opt,
+                        azimuth: az_opt,
+                        sidereal_time: sidereal_time_opt,
+                        tracking_rate: tracking_rate_opt,
                         can_park,
                         can_slew: mount.can_slew(),
                         can_sync: mount.can_sync(),
                         can_pulse_guide: mount.can_pulse_guide(),
                         can_set_tracking_rate: mount.can_set_tracking_rate(),
+                        availability,
                     });
                 }
                 Err("Native mount not connected".to_string())
@@ -4707,17 +4796,12 @@ impl DeviceManager {
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
+                    // Required fields propagate read failures.
                     let ra = mount.right_ascension().await.map_err(|e| {
                         format!("Failed to read Alpaca mount RA for {}: {}", device_id, e)
                     })?;
                     let dec = mount.declination().await.map_err(|e| {
                         format!("Failed to read Alpaca mount Dec for {}: {}", device_id, e)
-                    })?;
-                    let alt = mount.altitude().await.map_err(|e| {
-                        format!("Failed to read Alpaca mount altitude for {}: {}", device_id, e)
-                    })?;
-                    let az = mount.azimuth().await.map_err(|e| {
-                        format!("Failed to read Alpaca mount azimuth for {}: {}", device_id, e)
                     })?;
                     let tracking = mount.tracking().await.map_err(|e| {
                         format!("Failed to read Alpaca mount tracking for {}: {}", device_id, e)
@@ -4728,22 +4812,63 @@ impl DeviceManager {
                     let parked = mount.at_park().await.map_err(|e| {
                         format!("Failed to read Alpaca mount at_park for {}: {}", device_id, e)
                     })?;
-                    let at_home = mount.at_home().await.map_err(|e| {
-                        format!("Failed to read Alpaca mount at_home for {}: {}", device_id, e)
-                    })?;
-                    let sidereal_time = mount.sidereal_time().await.map_err(|e| {
-                        format!(
-                            "Failed to read Alpaca mount sidereal_time for {}: {}",
-                            device_id, e
-                        )
-                    })?;
-                    let side_of_pier_alpaca = mount.side_of_pier().await.unwrap_or(
-                        nightshade_alpaca::PierSide::Unknown
+
+                    let mut availability: HashMap<String, FieldAvailability> = HashMap::new();
+
+                    // Alpaca returns Result<_, String>; we cannot reliably distinguish
+                    // "PropertyNotImplemented" from a transient HTTP failure without
+                    // parsing the error message. Treat all failures as Error so callers
+                    // see the underlying reason verbatim. UI can match on the prefix
+                    // "PropertyNotImplemented" if it wants to render Unsupported.
+                    let alt_opt = Self::availability_from_string_result(
+                        mount.altitude().await,
+                        mount_status_field::ALTITUDE,
+                        &mut availability,
                     );
-                    let side_of_pier = match side_of_pier_alpaca {
-                        nightshade_alpaca::PierSide::East => crate::device::PierSide::East,
-                        nightshade_alpaca::PierSide::West => crate::device::PierSide::West,
-                        nightshade_alpaca::PierSide::Unknown => crate::device::PierSide::Unknown,
+                    let az_opt = Self::availability_from_string_result(
+                        mount.azimuth().await,
+                        mount_status_field::AZIMUTH,
+                        &mut availability,
+                    );
+                    let at_home_opt = Self::availability_from_string_result(
+                        mount.at_home().await,
+                        mount_status_field::AT_HOME,
+                        &mut availability,
+                    );
+                    let sidereal_time_opt = Self::availability_from_string_result(
+                        mount.sidereal_time().await,
+                        mount_status_field::SIDEREAL_TIME,
+                        &mut availability,
+                    );
+
+                    let side_of_pier_opt = match mount.side_of_pier().await {
+                        Ok(nightshade_alpaca::PierSide::Unknown) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Unsupported,
+                            );
+                            None
+                        }
+                        Ok(other) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Available,
+                            );
+                            Some(match other {
+                                nightshade_alpaca::PierSide::East => crate::device::PierSide::East,
+                                nightshade_alpaca::PierSide::West => crate::device::PierSide::West,
+                                nightshade_alpaca::PierSide::Unknown => {
+                                    crate::device::PierSide::Unknown
+                                }
+                            })
+                        }
+                        Err(e) => {
+                            availability.insert(
+                                mount_status_field::SIDE_OF_PIER.to_string(),
+                                FieldAvailability::Error(e),
+                            );
+                            None
+                        }
                     };
 
                     let (can_park, can_slew, can_sync, can_pulse_guide) =
@@ -4763,19 +4888,26 @@ impl DeviceManager {
                             }
                         };
                     let can_set_tracking_rate = mount.can_set_tracking().await.unwrap_or(false);
-                    let tracking_rate = match mount.tracking_rate().await {
-                        Ok(rate) => match rate {
-                            nightshade_alpaca::DriveRate::Sidereal => TrackingRate::Sidereal,
-                            nightshade_alpaca::DriveRate::Lunar => TrackingRate::Lunar,
-                            nightshade_alpaca::DriveRate::Solar => TrackingRate::Solar,
-                            nightshade_alpaca::DriveRate::King => TrackingRate::King,
-                        },
-                        Err(e) => {
-                            warn!(
-                                "Failed to read Alpaca mount tracking_rate for {}: {}. Using Sidereal.",
-                                device_id, e
+
+                    let tracking_rate_opt = match mount.tracking_rate().await {
+                        Ok(rate) => {
+                            availability.insert(
+                                mount_status_field::TRACKING_RATE.to_string(),
+                                FieldAvailability::Available,
                             );
-                            TrackingRate::Sidereal
+                            Some(match rate {
+                                nightshade_alpaca::DriveRate::Sidereal => TrackingRate::Sidereal,
+                                nightshade_alpaca::DriveRate::Lunar => TrackingRate::Lunar,
+                                nightshade_alpaca::DriveRate::Solar => TrackingRate::Solar,
+                                nightshade_alpaca::DriveRate::King => TrackingRate::King,
+                            })
+                        }
+                        Err(e) => {
+                            availability.insert(
+                                mount_status_field::TRACKING_RATE.to_string(),
+                                FieldAvailability::Error(e),
+                            );
+                            None
                         }
                     };
 
@@ -4784,19 +4916,20 @@ impl DeviceManager {
                         tracking,
                         slewing,
                         parked,
-                        at_home,
-                        side_of_pier,
+                        at_home: at_home_opt,
+                        side_of_pier: side_of_pier_opt,
                         right_ascension: ra,
                         declination: dec,
-                        altitude: alt,
-                        azimuth: az,
-                        sidereal_time,
-                        tracking_rate,
+                        altitude: alt_opt,
+                        azimuth: az_opt,
+                        sidereal_time: sidereal_time_opt,
+                        tracking_rate: tracking_rate_opt,
                         can_park,
                         can_slew,
                         can_sync,
                         can_pulse_guide,
                         can_set_tracking_rate,
+                        availability,
                     });
                 }
                 Err("Alpaca mount not connected".to_string())
@@ -4813,15 +4946,43 @@ impl DeviceManager {
                             device_id, e
                         )
                     })?;
-                    let (alt, az) = mount.get_horizontal_coordinates().await.map_err(|e| {
-                        format!(
-                            "Failed to read INDI mount horizontal coordinates for {}: {}",
-                            device_id, e
-                        )
+                    let tracking = mount.try_is_tracking().await.map_err(|e| {
+                        format!("Failed to read INDI mount tracking for {}: {}", device_id, e)
                     })?;
-                    let tracking = mount.is_tracking().await;
-                    let slewing = mount.is_slewing().await;
-                    let parked = mount.is_parked().await;
+                    let slewing = mount.try_is_slewing().await.map_err(|e| {
+                        format!("Failed to read INDI mount slewing for {}: {}", device_id, e)
+                    })?;
+                    let parked = mount.try_is_parked().await.map_err(|e| {
+                        format!("Failed to read INDI mount parked state for {}: {}", device_id, e)
+                    })?;
+
+                    let mut availability: HashMap<String, FieldAvailability> = HashMap::new();
+
+                    let (alt_opt, az_opt) = match mount.get_horizontal_coordinates().await {
+                        Ok((a, z)) => {
+                            availability.insert(
+                                mount_status_field::ALTITUDE.to_string(),
+                                FieldAvailability::Available,
+                            );
+                            availability.insert(
+                                mount_status_field::AZIMUTH.to_string(),
+                                FieldAvailability::Available,
+                            );
+                            (Some(a), Some(z))
+                        }
+                        Err(e) => {
+                            availability.insert(
+                                mount_status_field::ALTITUDE.to_string(),
+                                FieldAvailability::Error(e.clone()),
+                            );
+                            availability.insert(
+                                mount_status_field::AZIMUTH.to_string(),
+                                FieldAvailability::Error(e),
+                            );
+                            (None, None)
+                        }
+                    };
+
                     let locked = client.read().await;
                     let (can_park, can_slew, can_sync, can_pulse_guide) = {
                         let can_park = locked
@@ -4862,27 +5023,62 @@ impl DeviceManager {
                                 .is_some();
                         (can_park, can_slew, can_sync, can_pulse_guide)
                     };
-                    let (tracking_rate, can_set_tracking_rate) =
+                    let (tracking_rate_native, can_set_tracking_rate) =
                         Self::indi_mount_tracking_rate(&locked, &device_name).await;
+                    let tracking_rate_opt = if can_set_tracking_rate {
+                        availability.insert(
+                            mount_status_field::TRACKING_RATE.to_string(),
+                            FieldAvailability::Available,
+                        );
+                        Some(tracking_rate_native)
+                    } else {
+                        // INDI helper currently signals "no tracking-rate property" by
+                        // returning false for the second tuple element; treat that as
+                        // Unsupported rather than asserting Sidereal.
+                        availability.insert(
+                            mount_status_field::TRACKING_RATE.to_string(),
+                            FieldAvailability::Unsupported,
+                        );
+                        None
+                    };
+
+                    // INDI does not standardise an at-home property, and TIME_LST is
+                    // optional — record both as Unsupported until per-driver support
+                    // can be added.
+                    availability.insert(
+                        mount_status_field::AT_HOME.to_string(),
+                        FieldAvailability::Unsupported,
+                    );
+                    availability.insert(
+                        mount_status_field::SIDEREAL_TIME.to_string(),
+                        FieldAvailability::Unsupported,
+                    );
+                    // Pier side recovery from INDI requires per-driver heuristics; mark
+                    // Unsupported for now so the sequencer refuses meridian flips.
+                    availability.insert(
+                        mount_status_field::SIDE_OF_PIER.to_string(),
+                        FieldAvailability::Unsupported,
+                    );
 
                     return Ok(MountStatus {
                         connected: true,
                         tracking,
                         slewing,
                         parked,
-                        at_home: false, // INDI doesn't typically report at_home
-                        side_of_pier: crate::device::PierSide::Unknown, // INDI pier side is complex
+                        at_home: None,
+                        side_of_pier: None,
                         right_ascension: ra,
                         declination: dec,
-                        altitude: alt,
-                        azimuth: az,
-                        sidereal_time: 0.0, // Would need to calculate from coordinates
-                        tracking_rate,
+                        altitude: alt_opt,
+                        azimuth: az_opt,
+                        sidereal_time: None,
+                        tracking_rate: tracking_rate_opt,
                         can_park,
                         can_slew,
                         can_sync,
                         can_pulse_guide,
                         can_set_tracking_rate,
+                        availability,
                     });
                 }
                 Err(format!("INDI client not connected for {}", server_key))
@@ -4890,6 +5086,70 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
+        }
+    }
+
+    /// Convert a `Result<T, NativeError>` into `(Option<T>, FieldAvailability)`,
+    /// inserting the availability entry under `field` and returning the value.
+    ///
+    /// Used by `mount_get_status` so each per-field branch shrinks to one call
+    /// instead of duplicating the same availability/log scaffolding.
+    fn availability_from_native_result<T>(
+        result: Result<T, nightshade_native::traits::NativeError>,
+        field: &'static str,
+        availability: &mut HashMap<String, FieldAvailability>,
+    ) -> Option<T> {
+        match result {
+            Ok(v) => {
+                availability.insert(field.to_string(), FieldAvailability::Available);
+                Some(v)
+            }
+            Err(nightshade_native::traits::NativeError::NotSupported) => {
+                availability.insert(field.to_string(), FieldAvailability::Unsupported);
+                None
+            }
+            Err(e) => {
+                availability.insert(field.to_string(), FieldAvailability::Error(e.to_string()));
+                None
+            }
+        }
+    }
+
+    /// Same shape as `availability_from_native_result` but for drivers that
+    /// surface errors as plain `String` (Alpaca, INDI). Without a typed
+    /// "unsupported" variant we always classify failures as `Error(reason)`.
+    fn availability_from_string_result<T>(
+        result: Result<T, String>,
+        field: &'static str,
+        availability: &mut HashMap<String, FieldAvailability>,
+    ) -> Option<T> {
+        match result {
+            Ok(v) => {
+                availability.insert(field.to_string(), FieldAvailability::Available);
+                Some(v)
+            }
+            Err(e) => {
+                availability.insert(field.to_string(), FieldAvailability::Error(e));
+                None
+            }
+        }
+    }
+
+    fn pier_side_from_native(side: nightshade_native::traits::PierSide) -> crate::device::PierSide {
+        match side {
+            nightshade_native::traits::PierSide::East => crate::device::PierSide::East,
+            nightshade_native::traits::PierSide::West => crate::device::PierSide::West,
+            nightshade_native::traits::PierSide::Unknown => crate::device::PierSide::Unknown,
+        }
+    }
+
+    fn tracking_rate_from_native(rate: nightshade_native::traits::TrackingRate) -> TrackingRate {
+        match rate {
+            nightshade_native::traits::TrackingRate::Sidereal => TrackingRate::Sidereal,
+            nightshade_native::traits::TrackingRate::Lunar => TrackingRate::Lunar,
+            nightshade_native::traits::TrackingRate::Solar => TrackingRate::Solar,
+            nightshade_native::traits::TrackingRate::King => TrackingRate::King,
+            nightshade_native::traits::TrackingRate::Custom => TrackingRate::Custom,
         }
     }
 

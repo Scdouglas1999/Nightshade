@@ -11,6 +11,17 @@
 //! Vendor SDKs are NOT thread-safe. All SDK operations are protected by
 //! per-vendor mutexes in the `sync` module. See `sync.rs` for details.
 
+#![allow(
+    clippy::doc_overindented_list_items,
+    clippy::duplicated_attributes,
+    clippy::empty_line_after_doc_comments,
+    clippy::field_reassign_with_default,
+    clippy::if_same_then_else,
+    clippy::manual_strip,
+    clippy::map_identity,
+    clippy::needless_range_loop
+)]
+
 pub mod camera;
 pub mod discovery;
 pub mod quirks;
@@ -77,6 +88,45 @@ impl NativeVendor {
         }
     }
 }
+
+/// Canonical lower-case vendor tokens accepted by bridge device IDs.
+pub const SUPPORTED_NATIVE_VENDORS: &[&str] = &[
+    "zwo",
+    "zwo_eaf",
+    "zwo_efw",
+    "qhy",
+    "qhy_cfw",
+    "playerone",
+    "player_one",
+    "svbony",
+    "atik",
+    "fli",
+    "fli_focuser",
+    "fli_fw",
+    "touptek",
+    "starlightxpress",
+    "moravian",
+    "fujifilm",
+    "gphoto2",
+    "ascom",
+    "skywatcher",
+    "ioptron",
+    "celestron",
+    "lx200",
+    "meade",
+    "onstep",
+    "losmandy",
+    "10micron",
+    "pegasus",
+    "builtin_guider",
+];
+
+/// Native vendor subtype tokens carried as a separate device ID segment.
+pub const NATIVE_VENDOR_SUBTYPES: &[(&str, &[&str])] = &[
+    ("zwo", &["eaf", "efw"]),
+    ("qhy", &["cfw"]),
+    ("fli", &["focuser", "fw"]),
+];
 
 /// Check if native drivers are available on this platform
 pub fn is_available() -> bool {

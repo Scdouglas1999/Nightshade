@@ -491,7 +491,7 @@ impl GPhoto2Sdk {
 
     /// Get the global SDK instance
     fn get() -> Option<&'static GPhoto2Sdk> {
-        GPHOTO2_SDK.get_or_init(|| Self::load()).as_ref()
+        GPHOTO2_SDK.get_or_init(Self::load).as_ref()
     }
 }
 
@@ -2097,7 +2097,7 @@ fn encode_port_component(port: &str) -> String {
 }
 
 pub fn decode_port_component(encoded: &str) -> Option<String> {
-    if encoded.len() % 2 != 0 {
+    if !encoded.len().is_multiple_of(2) {
         return None;
     }
 

@@ -407,6 +407,16 @@ impl AscomMountWrapper {
                 }
             }
 
+            // Why: COM teardown ordering — release the typed `AscomMount`
+            // (which holds an IDispatch) BEFORE `uninit_com()`. The Drop on
+            // `AscomDeviceConnection` is intentionally a no-op so this is the
+            // only correct location to issue the final disconnect.
+            if let Some(mut m) = mount.take() {
+                if let Err(e) = m.disconnect() {
+                    tracing::warn!("ASCOM mount STA-worker shutdown disconnect failed: {}", e);
+                }
+                drop(m);
+            }
             uninit_com();
         });
 

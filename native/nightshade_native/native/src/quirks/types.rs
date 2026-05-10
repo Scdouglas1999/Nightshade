@@ -96,6 +96,14 @@ pub enum PositionQuirk {
     ///
     /// For focusers: apply this many extra steps when reversing direction
     BacklashSteps(i32),
+
+    /// Focuser step size in microns (real, mechanical travel per motor step).
+    ///
+    /// SDKs that don't expose this value force a hardcoded fallback in vendor code.
+    /// Without the correct per-model value, the focus model's micron axis is wrong
+    /// for every focuser whose gear ratio differs from the default. Values must come
+    /// from the vendor's published mechanical spec, not from a guess.
+    FocuserStepSizeMicrons(f64),
 }
 
 // ============================================================================
@@ -357,6 +365,9 @@ impl Quirk {
                 PositionQuirk::WrapAroundAt(v) => format!("Position wraps at {}", v),
                 PositionQuirk::HomeOffset(o) => format!("Home position at {}", o),
                 PositionQuirk::BacklashSteps(s) => format!("Backlash compensation: {} steps", s),
+                PositionQuirk::FocuserStepSizeMicrons(um) => {
+                    format!("Focuser step size: {} um/step", um)
+                }
             },
             Quirk::Timing(t) => match t {
                 TimingQuirk::DelayAfterConnect(ms) => {

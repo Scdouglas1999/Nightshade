@@ -793,7 +793,7 @@ impl NativeCamera for TouptekCamera {
         };
 
         Ok(CameraStatus {
-            state: self.state.clone(),
+            state: self.state,
             sensor_temp: Some(current_temp),
             cooler_power,
             target_temp: Some(self.target_temp),
@@ -975,8 +975,8 @@ impl NativeCamera for TouptekCamera {
         };
 
         Ok(ImageData {
-            width: info.width as u32,
-            height: info.height as u32,
+            width: info.width,
+            height: info.height,
             data,
             bits_per_pixel: 16,
             bayer_pattern: self.sensor_info.bayer_pattern,

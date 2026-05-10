@@ -613,11 +613,7 @@ async fn find_optimal_exposure_with_brightness(
         tracing::info!("Test exposure: {:.3}s -> {} ADU", test_exposure, median_adu);
 
         // Check if within tolerance
-        let adu_diff = if median_adu > target_adu {
-            median_adu - target_adu
-        } else {
-            target_adu - median_adu
-        };
+        let adu_diff = median_adu.abs_diff(target_adu);
 
         if adu_diff <= tolerance {
             tracing::info!(

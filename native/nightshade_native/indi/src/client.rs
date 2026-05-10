@@ -99,6 +99,9 @@ type PropertyValueMap = HashMap<(String, String, String), String>;
 /// Type alias for number limits storage
 type NumberLimitsMap = HashMap<(String, String, String), NumberLimits>;
 
+/// Type alias for latest BLOB payload storage.
+type BlobMap = HashMap<(String, String, String), Vec<u8>>;
+
 /// Reader task status for supervision
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReaderStatus {
@@ -274,7 +277,7 @@ pub struct IndiClient {
     properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
     property_values: Arc<RwLock<PropertyValueMap>>,
     number_limits: Arc<RwLock<NumberLimitsMap>>,
-    latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
+    latest_blobs: Arc<RwLock<BlobMap>>,
     tx: Option<mpsc::Sender<String>>,
     event_tx: broadcast::Sender<IndiEvent>,
     timeout_config: IndiTimeoutConfig,
@@ -613,7 +616,7 @@ impl IndiClient {
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
-        latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
+        latest_blobs: Arc<RwLock<BlobMap>>,
         connected: Arc<AtomicBool>,
         event_tx: broadcast::Sender<IndiEvent>,
         reader_status: Arc<RwLock<ReaderStatus>>,
@@ -727,7 +730,7 @@ impl IndiClient {
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
-        latest_blobs: Arc<RwLock<HashMap<(String, String, String), Vec<u8>>>>,
+        latest_blobs: Arc<RwLock<BlobMap>>,
         connected: Arc<AtomicBool>,
         event_tx: broadcast::Sender<IndiEvent>,
         server_version: Arc<RwLock<Option<String>>>,
@@ -2043,9 +2046,9 @@ fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
     // Check magic bytes to detect actual format
     let detected: &str = if data.len() >= 6 && &data[0..6] == b"SIMPLE" {
         ".fits"
-    } else if data.len() >= 8 && &data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
+    } else if data.len() >= 8 && data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
         ".png"
-    } else if data.len() >= 3 && &data[0..3] == [0xFF, 0xD8, 0xFF] {
+    } else if data.len() >= 3 && data[0..3] == [0xFF, 0xD8, 0xFF] {
         ".jpeg"
     } else if data.len() >= 4
         && &data[0..4] == b"RIFF"
@@ -2053,9 +2056,9 @@ fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
         && &data[8..12] == b"WEBP"
     {
         ".webp"
-    } else if data.len() >= 4 && &data[0..4] == [0x1F, 0x8B, 0x08, 0x00] {
+    } else if data.len() >= 4 && data[0..4] == [0x1F, 0x8B, 0x08, 0x00] {
         ".gz"
-    } else if data.len() >= 2 && &data[0..2] == [0x50, 0x4B] {
+    } else if data.len() >= 2 && data[0..2] == [0x50, 0x4B] {
         ".zip"
     } else {
         // Use declared format

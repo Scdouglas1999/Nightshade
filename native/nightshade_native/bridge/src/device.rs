@@ -4,6 +4,7 @@
 //! regardless of the underlying driver protocol (ASCOM, Alpaca, INDI).
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Types of devices supported by Nightshade
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -228,26 +229,63 @@ pub struct SubFrame {
     pub height: u32,
 }
 
-/// Current status of a mount
+/// Per-field availability for `MountStatus` so the UI can distinguish
+/// "mount reports X" from "we couldn't read X" from "mount doesn't support X".
+///
+/// Without this distinction, a transient driver error and a feature gap both
+/// surface as a fabricated default value (e.g. `at_home=false`, `pier=Unknown`),
+/// causing the sequencer/UI to silently treat broken mounts as healthy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FieldAvailability {
+    /// Field was read successfully and the corresponding `Option<T>` is `Some`.
+    Available,
+    /// Driver/protocol explicitly reports the capability is not supported.
+    Unsupported,
+    /// Read attempt failed; carries the driver-supplied reason.
+    Error(String),
+}
+
+/// Keys used in `MountStatus::availability`.
+///
+/// These are part of the bridge contract — Dart UI consumers and tests look
+/// up fields by exact key. Defined here so all writers/readers stay in sync.
+pub mod mount_status_field {
+    pub const AT_HOME: &str = "at_home";
+    pub const SIDE_OF_PIER: &str = "side_of_pier";
+    pub const ALTITUDE: &str = "altitude";
+    pub const AZIMUTH: &str = "azimuth";
+    pub const SIDEREAL_TIME: &str = "sidereal_time";
+    pub const TRACKING_RATE: &str = "tracking_rate";
+}
+
+/// Current status of a mount.
+///
+/// Fields that vary by driver capability or that may legitimately fail to
+/// read are `Option<T>` and accompanied by an entry in `availability` so the
+/// UI can render "—" for `None`+`Unsupported` versus an error indicator for
+/// `None`+`Error(reason)`. See §5.4 of the v2.5.0 audit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MountStatus {
     pub connected: bool,
     pub tracking: bool,
     pub slewing: bool,
     pub parked: bool,
-    pub at_home: bool,
-    pub side_of_pier: PierSide,
-    pub right_ascension: f64, // Hours
-    pub declination: f64,     // Degrees
-    pub altitude: f64,        // Degrees
-    pub azimuth: f64,         // Degrees
-    pub sidereal_time: f64,   // Hours
-    pub tracking_rate: TrackingRate,
+    pub at_home: Option<bool>,
+    pub side_of_pier: Option<PierSide>,
+    pub right_ascension: f64,       // Hours
+    pub declination: f64,           // Degrees
+    pub altitude: Option<f64>,      // Degrees
+    pub azimuth: Option<f64>,       // Degrees
+    pub sidereal_time: Option<f64>, // Hours
+    pub tracking_rate: Option<TrackingRate>,
     pub can_park: bool,
     pub can_slew: bool,
     pub can_sync: bool,
     pub can_pulse_guide: bool,
     pub can_set_tracking_rate: bool,
+    /// Per-field availability for the optional fields above.
+    /// Keyed by the constants in `mount_status_field`.
+    pub availability: HashMap<String, FieldAvailability>,
 }
 
 /// Side of pier for German Equatorial mounts

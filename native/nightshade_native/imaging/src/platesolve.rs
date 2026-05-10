@@ -6,14 +6,18 @@
 //!
 //! These are real implementations that call external solvers.
 
-use crate::{detect_stars, read_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig};
-use bytemuck::{Pod, Zeroable};
 use std::fs;
 use std::num::ParseFloatError;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 use thiserror::Error;
+
+#[cfg(test)]
+use crate::{detect_stars, read_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig};
+#[cfg(test)]
+use bytemuck::{Pod, Zeroable};
+#[cfg(test)]
 use wgpu::util::DeviceExt;
 
 /// Structured errors emitted while parsing solver-produced WCS / INI files.
@@ -498,9 +502,7 @@ fn parse_astap_ini_inner(
     }
 
     if !solved {
-        return Err(PlateSolveError::SolveFailed {
-            path: path_display,
-        });
+        return Err(PlateSolveError::SolveFailed { path: path_display });
     }
 
     let require = |slot: Option<f64>, name: &str| -> Result<f64, PlateSolveError> {
@@ -536,6 +538,7 @@ fn parse_astap_ini_inner(
     })
 }
 
+#[cfg(test)]
 const GPU_DOWNSAMPLE_SHADER: &str = r#"
 struct Params {
   width: u32,
@@ -584,6 +587,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
+#[cfg(test)]
 struct DownsampleParams {
     width: u32,
     height: u32,
@@ -595,6 +599,7 @@ struct DownsampleParams {
     _pad2: u32,
 }
 
+#[cfg(test)]
 fn to_monochrome_u16(image: &ImageData) -> Result<ImageData, String> {
     if image.pixel_type == PixelType::U16 && image.channels == 1 {
         return Ok(image.clone());
@@ -649,6 +654,7 @@ fn to_monochrome_u16(image: &ImageData) -> Result<ImageData, String> {
     Ok(ImageData::from_u16(image.width, image.height, 1, &values))
 }
 
+#[cfg(test)]
 fn cpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, String> {
     let mono = to_monochrome_u16(image)?;
     let pixels = mono
@@ -684,6 +690,7 @@ fn cpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
     Ok(ImageData::from_u16(out_width, out_height, 1, &output))
 }
 
+#[cfg(test)]
 fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, String> {
     let mono = to_monochrome_u16(image)?;
     let pixels = mono
@@ -851,6 +858,7 @@ fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
     Ok(ImageData::from_u16(out_width, out_height, 1, &output))
 }
 
+#[cfg(test)]
 fn detect_local_maxima(
     image: &ImageData,
     min_separation: f64,
@@ -924,6 +932,7 @@ fn detect_local_maxima(
     Ok(selected)
 }
 
+#[cfg(test)]
 fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, String> {
     let factor = 4;
     let downsampled = match gpu_downsample_max_u16(image, factor) {
@@ -947,12 +956,14 @@ fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, St
         .collect::<Vec<_>>();
 
     if stars.len() < 3 {
-        let mut config = StarDetectionConfig::default();
-        config.detection_sigma = 3.0;
-        config.min_area = 1;
-        config.max_area = 4000;
-        config.min_hfr = 0.5;
-        config.min_snr = 3.0;
+        let config = StarDetectionConfig {
+            detection_sigma: 3.0,
+            min_area: 1,
+            max_area: 4000,
+            min_hfr: 0.5,
+            min_snr: 3.0,
+            ..StarDetectionConfig::default()
+        };
         stars = detect_stars(image, &config);
     }
     stars.sort_by(|left, right| right.flux.total_cmp(&left.flux));
@@ -963,6 +974,7 @@ fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, St
     Ok(stars)
 }
 
+#[cfg(test)]
 fn infer_center_from_header(
     header: &FitsHeader,
     hint_ra: Option<f64>,
@@ -992,14 +1004,17 @@ fn infer_center_from_header(
     None
 }
 
+#[cfg(test)]
 fn parse_ra_string(value: &str) -> Option<f64> {
     parse_sexagesimal(value).map(|hours| hours * 15.0)
 }
 
+#[cfg(test)]
 fn parse_dec_string(value: &str) -> Option<f64> {
     parse_sexagesimal(value)
 }
 
+#[cfg(test)]
 fn parse_sexagesimal(value: &str) -> Option<f64> {
     let normalized = value.replace(['h', 'm', 's', ':'], " ");
     let parts = normalized
@@ -1020,6 +1035,7 @@ fn parse_sexagesimal(value: &str) -> Option<f64> {
     Some(sign * degrees)
 }
 
+#[cfg(test)]
 fn infer_pixel_scale_from_header(header: &FitsHeader) -> Option<f64> {
     if let (Some(cd1_1), Some(cd2_1), Some(cd1_2), Some(cd2_2)) = (
         header.get_float("CD1_1"),
@@ -1043,6 +1059,7 @@ fn infer_pixel_scale_from_header(header: &FitsHeader) -> Option<f64> {
     Some((206.265 * pixel_size_um) / focal_length_mm)
 }
 
+#[cfg(test)]
 fn estimate_rotation(stars: &[crate::DetectedStar]) -> f64 {
     let count = stars.len() as f64;
     let mean_x = stars.iter().map(|star| star.x).sum::<f64>() / count;
@@ -1062,6 +1079,7 @@ fn estimate_rotation(stars: &[crate::DetectedStar]) -> f64 {
     0.5 * (2.0 * xy).atan2(xx - yy).to_degrees()
 }
 
+#[cfg(test)]
 fn solve_internal(
     image_path: &Path,
     hint_ra: Option<f64>,
@@ -1093,23 +1111,7 @@ fn solve_internal(
 /// Blind plate solve (no hint)
 pub fn blind_solve(image_path: &Path) -> PlateSolveResult {
     let start = std::time::Instant::now();
-    match solve_internal(image_path, None, None) {
-        Ok(mut result) => {
-            result.solve_time_secs = start.elapsed().as_secs_f64();
-            result
-        }
-        Err(error) => PlateSolveResult {
-            ra: 0.0,
-            dec: 0.0,
-            pixel_scale: 0.0,
-            rotation: 0.0,
-            field_width: 0.0,
-            field_height: 0.0,
-            success: false,
-            error: Some(error),
-            solve_time_secs: start.elapsed().as_secs_f64(),
-        },
-    }
+    solve_with_default_external(image_path, None, None, None, start)
 }
 
 /// Plate solve with hint coordinates
@@ -1120,12 +1122,150 @@ pub fn solve_near(
     search_radius: f64,
 ) -> PlateSolveResult {
     let start = std::time::Instant::now();
-    let _ = search_radius;
-    match solve_internal(image_path, Some(hint_ra), Some(hint_dec)) {
-        Ok(mut result) => {
-            result.solve_time_secs = start.elapsed().as_secs_f64();
-            result
+    let config = PlateSolverConfig {
+        search_radius,
+        ..PlateSolverConfig::default()
+    };
+
+    solve_with_external_config(
+        image_path,
+        Some(hint_ra),
+        Some(hint_dec),
+        None,
+        config,
+        start,
+    )
+}
+
+fn solve_with_default_external(
+    image_path: &Path,
+    hint_ra: Option<f64>,
+    hint_dec: Option<f64>,
+    hint_scale: Option<f64>,
+    start: std::time::Instant,
+) -> PlateSolveResult {
+    solve_with_external_config(
+        image_path,
+        hint_ra,
+        hint_dec,
+        hint_scale,
+        PlateSolverConfig::default(),
+        start,
+    )
+}
+
+fn solve_with_external_config(
+    image_path: &Path,
+    hint_ra: Option<f64>,
+    hint_dec: Option<f64>,
+    hint_scale: Option<f64>,
+    config: PlateSolverConfig,
+    start: std::time::Instant,
+) -> PlateSolveResult {
+    if config.astap_path.is_some() {
+        return AstapSolver::new(config).solve(image_path, hint_ra, hint_dec, hint_scale);
+    }
+
+    if let Some(astrometry_path) = config.astrometry_path.as_deref() {
+        return solve_with_astrometry(
+            astrometry_path,
+            image_path,
+            hint_ra,
+            hint_dec,
+            config.search_radius,
+            start,
+        );
+    }
+
+    external_solver_unavailable(start)
+}
+
+fn solve_with_astrometry(
+    astrometry_path: &Path,
+    image_path: &Path,
+    hint_ra: Option<f64>,
+    hint_dec: Option<f64>,
+    search_radius: f64,
+    start: std::time::Instant,
+) -> PlateSolveResult {
+    let output_dir = image_path.parent().unwrap_or_else(|| Path::new("."));
+    let wcs_path = image_path.with_extension("wcs");
+    if wcs_path.exists() {
+        if let Err(error) = fs::remove_file(&wcs_path) {
+            return PlateSolveResult {
+                ra: 0.0,
+                dec: 0.0,
+                pixel_scale: 0.0,
+                rotation: 0.0,
+                field_width: 0.0,
+                field_height: 0.0,
+                success: false,
+                error: Some(format!(
+                    "Failed to remove stale astrometry.net WCS output {:?}: {}",
+                    wcs_path, error
+                )),
+                solve_time_secs: start.elapsed().as_secs_f64(),
+            };
         }
+    }
+
+    let mut cmd = Command::new(astrometry_path);
+    cmd.arg("--overwrite")
+        .arg("--no-plots")
+        .arg("--dir")
+        .arg(output_dir)
+        .arg(image_path);
+
+    if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
+        cmd.arg("--ra")
+            .arg(format!("{}", ra))
+            .arg("--dec")
+            .arg(format!("{}", dec));
+        if search_radius > 0.0 {
+            cmd.arg("--radius").arg(format!("{}", search_radius));
+        }
+    }
+
+    tracing::info!("Running astrometry.net solve-field: {:?}", cmd);
+
+    let output = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).output() {
+        Ok(output) => output,
+        Err(error) => {
+            return PlateSolveResult {
+                ra: 0.0,
+                dec: 0.0,
+                pixel_scale: 0.0,
+                rotation: 0.0,
+                field_width: 0.0,
+                field_height: 0.0,
+                success: false,
+                error: Some(format!(
+                    "Failed to run astrometry.net solve-field: {}",
+                    error
+                )),
+                solve_time_secs: start.elapsed().as_secs_f64(),
+            }
+        }
+    };
+
+    let solve_time = start.elapsed().as_secs_f64();
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return PlateSolveResult {
+            ra: 0.0,
+            dec: 0.0,
+            pixel_scale: 0.0,
+            rotation: 0.0,
+            field_width: 0.0,
+            field_height: 0.0,
+            success: false,
+            error: Some(format!("astrometry.net solve-field failed: {}", stderr)),
+            solve_time_secs: solve_time,
+        };
+    }
+
+    match parse_wcs_file_inner(&wcs_path, solve_time) {
+        Ok(result) => result,
         Err(error) => PlateSolveResult {
             ra: 0.0,
             dec: 0.0,
@@ -1134,9 +1274,26 @@ pub fn solve_near(
             field_width: 0.0,
             field_height: 0.0,
             success: false,
-            error: Some(error),
-            solve_time_secs: start.elapsed().as_secs_f64(),
+            error: Some(error.to_string()),
+            solve_time_secs: solve_time,
         },
+    }
+}
+
+fn external_solver_unavailable(start: std::time::Instant) -> PlateSolveResult {
+    PlateSolveResult {
+        ra: 0.0,
+        dec: 0.0,
+        pixel_scale: 0.0,
+        rotation: 0.0,
+        field_width: 0.0,
+        field_height: 0.0,
+        success: false,
+        error: Some(
+            "No supported external plate solver is configured. Install ASTAP and make astap_cli available on PATH or configure its executable path before solving."
+                .to_string(),
+        ),
+        solve_time_secs: start.elapsed().as_secs_f64(),
     }
 }
 
@@ -1156,20 +1313,19 @@ static SOLVER_AVAILABLE_CACHE: OnceLock<bool> = OnceLock::new();
 /// or via PATH lookup. Result is cached after first call; see
 /// `SOLVER_AVAILABLE_CACHE` doc for rationale.
 pub fn is_solver_available() -> bool {
-    *SOLVER_AVAILABLE_CACHE
-        .get_or_init(|| find_astap().is_some() || find_astrometry().is_some())
+    *SOLVER_AVAILABLE_CACHE.get_or_init(|| find_astap().is_some() || find_astrometry().is_some())
 }
 
 /// Get path to installed solver
 pub fn get_solver_path() -> Option<PathBuf> {
-    Some(PathBuf::from("internal:gpu-assisted"))
+    find_astap().or_else(find_astrometry)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        blind_solve, cpu_downsample_max_u16, parse_astap_ini_inner, parse_wcs_file_inner,
-        solve_near, PlateSolveError,
+        cpu_downsample_max_u16, external_solver_unavailable, parse_astap_ini_inner,
+        parse_wcs_file_inner, solve_internal, PlateSolveError,
     };
     use crate::{write_fits, FitsHeader, ImageData};
     use std::io::Write;
@@ -1258,25 +1414,36 @@ mod tests {
     }
 
     #[test]
-    fn internal_solver_solves_with_hint_and_blind_metadata() {
+    fn internal_solver_test_helper_estimates_with_hint_and_blind_metadata() {
         let path =
             std::env::temp_dir().join(format!("nightshade-platesolve-{}.fits", std::process::id()));
         write_test_fits(&path, 24.0);
 
-        let near = solve_near(&path, 150.0, 20.0, 5.0);
-        assert!(near.success, "near solve failed: {:?}", near.error);
+        let near = solve_internal(&path, Some(150.0), Some(20.0))
+            .expect("internal test helper should estimate metadata");
+        assert!(near.success);
         assert!((near.ra - 150.0).abs() < 1e-6);
         assert!((near.dec - 20.0).abs() < 1e-6);
         assert!((near.pixel_scale - 1.29126).abs() < 0.1);
         assert!(near.field_width > 0.08);
         assert!(near.field_height > 0.08);
 
-        let blind = blind_solve(&path);
-        assert!(blind.success, "blind solve failed: {:?}", blind.error);
+        let blind =
+            solve_internal(&path, None, None).expect("internal test helper should read metadata");
+        assert!(blind.success);
         assert!((blind.ra - 150.0).abs() < 1e-6);
         assert!((blind.dec - 20.0).abs() < 1e-6);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn unavailable_external_solver_fails_with_operator_guidance() {
+        let result = external_solver_unavailable(std::time::Instant::now());
+        assert!(!result.success);
+        let error = result.error.expect("error guidance");
+        assert!(error.contains("Install ASTAP"));
+        assert!(error.contains("astap_cli"));
     }
 
     #[test]
@@ -1400,8 +1567,7 @@ mod tests {
     /// "successful" zero-coordinate result.
     #[test]
     fn parse_astap_ini_rejects_unsolved_flag() {
-        let content =
-            "PLTSOLVD=F\nCRVAL1=150.0\nCRVAL2=20.0\nCDELT1=-0.000358\nCDELT2=0.000358\n";
+        let content = "PLTSOLVD=F\nCRVAL1=150.0\nCRVAL2=20.0\nCDELT1=-0.000358\nCDELT2=0.000358\n";
         let path = write_temp("ini-not-solved", content);
 
         let err = parse_astap_ini_inner(&path, 0.0).expect_err("PLTSOLVD=F must error");

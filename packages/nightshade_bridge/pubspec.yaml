@@ -4,7 +4,7 @@ version: 1.0.0
 publish_to: 'none'
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.3.0 <4.0.0"
   flutter: ">=3.0.0"
 
 dependencies:
@@ -26,4 +26,3 @@ dev_dependencies:
   ffigen: ^11.0.0
   build_runner: ^2.4.8
   freezed: ^2.4.7
-

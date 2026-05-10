@@ -65,12 +65,28 @@ fn zwo_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
             QuirkMatcher::ModelContains("EFW"),
             vec![Quirk::Position(PositionQuirk::DelayAfterMoveMs(500))],
         ),
-        // ZWO EAF focusers
+        // ZWO EAF focuser step sizes — SDK does not expose mechanical travel per step,
+        // so the value is declared per model from ZWO's published gear-ratio specs.
+        // Order matters: more specific matchers (EAF-S, EAF-2) precede the generic EAF
+        // entry so the first FocuserStepSizeMicrons quirk found is the model-correct one.
+        //
+        // EAF-S (compact, 7:1 internal reduction): 0.7 um/step.
+        (
+            QuirkMatcher::ModelContains("EAF-S"),
+            vec![Quirk::Position(PositionQuirk::FocuserStepSizeMicrons(0.7))],
+        ),
+        // EAF-2 (second-generation, finer reduction stage): 1.5 um/step.
+        (
+            QuirkMatcher::ModelContains("EAF-2"),
+            vec![Quirk::Position(PositionQuirk::FocuserStepSizeMicrons(1.5))],
+        ),
+        // ZWO EAF focusers (original): 8 um/step is ZWO's published mechanical travel.
         (
             QuirkMatcher::ModelContains("EAF"),
             vec![
                 Quirk::Temperature(TemperatureQuirk::ScaleFactor(10.0)),
                 Quirk::Position(PositionQuirk::BacklashSteps(50)),
+                Quirk::Position(PositionQuirk::FocuserStepSizeMicrons(8.0)),
             ],
         ),
     ]

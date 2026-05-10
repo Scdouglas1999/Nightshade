@@ -760,7 +760,7 @@ impl FujifilmSdk {
 
     /// Get the global SDK instance
     fn get() -> Option<&'static FujifilmSdk> {
-        FUJIFILM_SDK.get_or_init(|| Self::load()).as_ref()
+        FUJIFILM_SDK.get_or_init(Self::load).as_ref()
     }
 }
 
@@ -1908,8 +1908,8 @@ impl NativeCamera for FujifilmCamera {
             // Default Fujifilm ISO range if not queried
             Ok((100, 12800))
         } else {
-            let min = self.supported_isos.iter().min().copied().unwrap_or(100) as i32;
-            let max = self.supported_isos.iter().max().copied().unwrap_or(12800) as i32;
+            let min = self.supported_isos.iter().min().copied().unwrap_or(100);
+            let max = self.supported_isos.iter().max().copied().unwrap_or(12800);
             Ok((min, max))
         }
     }

@@ -355,9 +355,9 @@ fn parse_fits_value(s: &str) -> Result<FitsValue, FitsError> {
     let (value_part, _) = split_value_and_comment(s);
 
     // Check for string (enclosed in single quotes)
-    if value_part.starts_with('\'') {
-        if let Some(end) = value_part[1..].find('\'') {
-            return Ok(FitsValue::String(value_part[1..end + 1].trim().to_string()));
+    if let Some(stripped) = value_part.strip_prefix('\'') {
+        if let Some(end) = stripped.find('\'') {
+            return Ok(FitsValue::String(stripped[..end].trim().to_string()));
         }
         return Err(FitsError::InvalidFormat(
             "Unterminated FITS string literal".to_string(),

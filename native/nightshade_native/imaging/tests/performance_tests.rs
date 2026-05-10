@@ -10,12 +10,15 @@ use nightshade_imaging::{
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-#[tokio::test]
-async fn test_tiled_processing_completes() {
+// Why: post audit §6.7, `process_tiled`/`process_with_progress` are sync
+// CPU-bound functions; tests no longer need `tokio::test`.
+
+#[test]
+fn test_tiled_processing_completes() {
     // Test that tiled processing completes successfully
     let image = ImageData::new(2048, 2048, 1, PixelType::U16);
 
-    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None).await;
+    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None);
 
     assert!(
         result.is_ok(),
@@ -27,19 +30,15 @@ async fn test_tiled_processing_completes() {
     assert_eq!(processed.height, image.height);
 }
 
-#[tokio::test]
-async fn test_tiled_processing_faster_than_2gb() {
+#[test]
+fn test_tiled_processing_faster_than_2gb() {
     // Verify that 60MP image processing completes in reasonable time
     // 60MP ≈ 7746x7746 pixels
     let image = ImageData::new(7680, 7680, 1, PixelType::U16);
 
-    // Should use less than 2GB of memory (tile-based approach)
-    // Each 512x512 U16 tile = 512KB
-    // With 4 threads = ~2MB peak memory
-
     let start = Instant::now();
 
-    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None).await;
+    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None);
 
     let elapsed = start.elapsed();
 
@@ -97,8 +96,8 @@ fn test_tile_region_pixel_count() {
     assert_eq!(partial_tile.pixel_count(), 32768);
 }
 
-#[tokio::test]
-async fn test_progress_callback_called() {
+#[test]
+fn test_progress_callback_called() {
     // Test that progress callback is invoked
     let image = ImageData::new(1024, 1024, 1, PixelType::U16);
 
@@ -107,8 +106,7 @@ async fn test_progress_callback_called() {
 
     let result = process_with_progress(&image, ProcessOperation::Normalize, 256, move |progress| {
         progress_clone.lock().unwrap().push(progress);
-    })
-    .await;
+    });
 
     assert!(result.is_ok(), "Processing with progress should succeed");
 
@@ -134,13 +132,13 @@ async fn test_progress_callback_called() {
     }
 }
 
-#[tokio::test]
-async fn test_different_tile_sizes() {
+#[test]
+fn test_different_tile_sizes() {
     // Test processing with different tile sizes
     let image = ImageData::new(2048, 2048, 1, PixelType::U16);
 
     for tile_size in [128, 256, 512, 1024] {
-        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None).await;
+        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None);
 
         assert!(
             result.is_ok(),
@@ -150,8 +148,8 @@ async fn test_different_tile_sizes() {
     }
 }
 
-#[tokio::test]
-async fn test_auto_stretch_operation() {
+#[test]
+fn test_auto_stretch_operation() {
     // Test auto-stretch operation
     let image = ImageData::new(1024, 1024, 1, PixelType::U16);
 
@@ -164,18 +162,17 @@ async fn test_auto_stretch_operation() {
             highlight: 1.0,
         },
         None,
-    )
-    .await;
+    );
 
     assert!(result.is_ok(), "Auto-stretch should complete");
 }
 
-#[tokio::test]
-async fn test_gamma_operation() {
+#[test]
+fn test_gamma_operation() {
     // Test gamma correction
     let image = ImageData::new(1024, 1024, 1, PixelType::U16);
 
-    let result = process_tiled(&image, 512, ProcessOperation::Gamma { gamma: 2.2 }, None).await;
+    let result = process_tiled(&image, 512, ProcessOperation::Gamma { gamma: 2.2 }, None);
 
     assert!(result.is_ok(), "Gamma correction should complete");
 }
@@ -209,8 +206,8 @@ fn test_memory_usage_estimate() {
     // This is ~3500x less than loading the full 118MB image
 }
 
-#[tokio::test]
-async fn test_ui_responsiveness() {
+#[test]
+fn test_ui_responsiveness() {
     // Simulate UI responsiveness by processing in chunks
     let image = ImageData::new(4096, 4096, 1, PixelType::U16);
 
@@ -227,8 +224,7 @@ async fn test_ui_responsiveness() {
             *ui_updates_clone.lock().unwrap() += 1;
             *last = progress;
         }
-    })
-    .await;
+    });
 
     assert!(result.is_ok(), "Processing should complete");
     assert!(

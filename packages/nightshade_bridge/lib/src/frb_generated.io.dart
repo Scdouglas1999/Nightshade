@@ -39,6 +39,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           dynamic raw);
 
   @protected
+  Map<String, FieldAvailability> dco_decode_Map_String_field_availability_None(
+      dynamic raw);
+
+  @protected
   Map<String, int> dco_decode_Map_String_i_32_None(dynamic raw);
 
   @protected
@@ -154,6 +158,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ObserverLocation dco_decode_box_autoadd_observer_location(dynamic raw);
+
+  @protected
+  PierSide dco_decode_box_autoadd_pier_side(dynamic raw);
 
   @protected
   PolarAlignmentEvent dco_decode_box_autoadd_polar_alignment_event(dynamic raw);
@@ -297,6 +304,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  FieldAvailability dco_decode_field_availability(dynamic raw);
+
+  @protected
   FilterWheelCapabilities dco_decode_filter_wheel_capabilities(dynamic raw);
 
   @protected
@@ -409,6 +419,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QuirkInfo> dco_decode_list_quirk_info(dynamic raw);
 
   @protected
+  List<(String, FieldAvailability)>
+      dco_decode_list_record_string_field_availability(dynamic raw);
+
+  @protected
   List<(String, int)> dco_decode_list_record_string_i_32(dynamic raw);
 
   @protected
@@ -482,6 +496,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ObserverLocation? dco_decode_opt_box_autoadd_observer_location(dynamic raw);
+
+  @protected
+  PierSide? dco_decode_opt_box_autoadd_pier_side(dynamic raw);
 
   @protected
   ShutterStatus? dco_decode_opt_box_autoadd_shutter_status(dynamic raw);
@@ -561,6 +578,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (PlatformInt64, bool) dco_decode_record_i_64_bool(dynamic raw);
+
+  @protected
+  (String, FieldAvailability) dco_decode_record_string_field_availability(
+      dynamic raw);
 
   @protected
   (String, int) dco_decode_record_string_i_32(dynamic raw);
@@ -672,6 +693,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           SseDeserializer deserializer);
+
+  @protected
+  Map<String, FieldAvailability> sse_decode_Map_String_field_availability_None(
+      SseDeserializer deserializer);
 
   @protected
   Map<String, int> sse_decode_Map_String_i_32_None(
@@ -809,6 +834,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   ObserverLocation sse_decode_box_autoadd_observer_location(
       SseDeserializer deserializer);
+
+  @protected
+  PierSide sse_decode_box_autoadd_pier_side(SseDeserializer deserializer);
 
   @protected
   PolarAlignmentEvent sse_decode_box_autoadd_polar_alignment_event(
@@ -968,6 +996,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  FieldAvailability sse_decode_field_availability(SseDeserializer deserializer);
+
+  @protected
   FilterWheelCapabilities sse_decode_filter_wheel_capabilities(
       SseDeserializer deserializer);
 
@@ -1094,6 +1125,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QuirkInfo> sse_decode_list_quirk_info(SseDeserializer deserializer);
 
   @protected
+  List<(String, FieldAvailability)>
+      sse_decode_list_record_string_field_availability(
+          SseDeserializer deserializer);
+
+  @protected
   List<(String, int)> sse_decode_list_record_string_i_32(
       SseDeserializer deserializer);
 
@@ -1177,6 +1213,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   ObserverLocation? sse_decode_opt_box_autoadd_observer_location(
       SseDeserializer deserializer);
+
+  @protected
+  PierSide? sse_decode_opt_box_autoadd_pier_side(SseDeserializer deserializer);
 
   @protected
   ShutterStatus? sse_decode_opt_box_autoadd_shutter_status(
@@ -1268,6 +1307,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (PlatformInt64, bool) sse_decode_record_i_64_bool(
+      SseDeserializer deserializer);
+
+  @protected
+  (String, FieldAvailability) sse_decode_record_string_field_availability(
       SseDeserializer deserializer);
 
   @protected
@@ -1387,6 +1430,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       AnyhowException raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     throw UnimplementedError();
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_record_string_field_availability>
+      cst_encode_Map_String_field_availability_None(
+          Map<String, FieldAvailability> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_list_record_string_field_availability(
+        raw.entries.map((e) => (e.key, e.value)).toList());
   }
 
   @protected
@@ -1619,6 +1671,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     final ptr = wire.cst_new_box_autoadd_observer_location();
     cst_api_fill_to_wire_observer_location(raw, ptr.ref);
     return ptr;
+  }
+
+  @protected
+  ffi.Pointer<ffi.Int32> cst_encode_box_autoadd_pier_side(PierSide raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return wire.cst_new_box_autoadd_pier_side(cst_encode_pier_side(raw));
   }
 
   @protected
@@ -1966,6 +2024,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_list_record_string_field_availability>
+      cst_encode_list_record_string_field_availability(
+          List<(String, FieldAvailability)> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_record_string_field_availability(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_record_string_field_availability(
+          raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_list_record_string_i_32>
       cst_encode_list_record_string_i_32(List<(String, int)> raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -2110,6 +2181,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return raw == null
         ? ffi.nullptr
         : cst_encode_box_autoadd_observer_location(raw);
+  }
+
+  @protected
+  ffi.Pointer<ffi.Int32> cst_encode_opt_box_autoadd_pier_side(PierSide? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null ? ffi.nullptr : cst_encode_box_autoadd_pier_side(raw);
   }
 
   @protected
@@ -3043,6 +3120,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_field_availability(
+      FieldAvailability apiObj, wire_cst_field_availability wireObj) {
+    if (apiObj is FieldAvailability_Available) {
+      wireObj.tag = 0;
+      return;
+    }
+    if (apiObj is FieldAvailability_Unsupported) {
+      wireObj.tag = 1;
+      return;
+    }
+    if (apiObj is FieldAvailability_Error) {
+      var pre_field0 = cst_encode_String(apiObj.field0);
+      wireObj.tag = 2;
+      wireObj.kind.Error.field0 = pre_field0;
+      return;
+    }
+  }
+
+  @protected
   void cst_api_fill_to_wire_filter_wheel_capabilities(
       FilterWheelCapabilities apiObj,
       wire_cst_filter_wheel_capabilities wireObj) {
@@ -3488,19 +3584,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.tracking = cst_encode_bool(apiObj.tracking);
     wireObj.slewing = cst_encode_bool(apiObj.slewing);
     wireObj.parked = cst_encode_bool(apiObj.parked);
-    wireObj.at_home = cst_encode_bool(apiObj.atHome);
-    wireObj.side_of_pier = cst_encode_pier_side(apiObj.sideOfPier);
+    wireObj.at_home = cst_encode_opt_box_autoadd_bool(apiObj.atHome);
+    wireObj.side_of_pier =
+        cst_encode_opt_box_autoadd_pier_side(apiObj.sideOfPier);
     wireObj.right_ascension = cst_encode_f_64(apiObj.rightAscension);
     wireObj.declination = cst_encode_f_64(apiObj.declination);
-    wireObj.altitude = cst_encode_f_64(apiObj.altitude);
-    wireObj.azimuth = cst_encode_f_64(apiObj.azimuth);
-    wireObj.sidereal_time = cst_encode_f_64(apiObj.siderealTime);
-    wireObj.tracking_rate = cst_encode_tracking_rate(apiObj.trackingRate);
+    wireObj.altitude = cst_encode_opt_box_autoadd_f_64(apiObj.altitude);
+    wireObj.azimuth = cst_encode_opt_box_autoadd_f_64(apiObj.azimuth);
+    wireObj.sidereal_time =
+        cst_encode_opt_box_autoadd_f_64(apiObj.siderealTime);
+    wireObj.tracking_rate =
+        cst_encode_opt_box_autoadd_tracking_rate(apiObj.trackingRate);
     wireObj.can_park = cst_encode_bool(apiObj.canPark);
     wireObj.can_slew = cst_encode_bool(apiObj.canSlew);
     wireObj.can_sync = cst_encode_bool(apiObj.canSync);
     wireObj.can_pulse_guide = cst_encode_bool(apiObj.canPulseGuide);
     wireObj.can_set_tracking_rate = cst_encode_bool(apiObj.canSetTrackingRate);
+    wireObj.availability =
+        cst_encode_Map_String_field_availability_None(apiObj.availability);
   }
 
   @protected
@@ -3977,6 +4078,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       (PlatformInt64, bool) apiObj, wire_cst_record_i_64_bool wireObj) {
     wireObj.field0 = cst_encode_i_64(apiObj.$1);
     wireObj.field1 = cst_encode_bool(apiObj.$2);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_record_string_field_availability(
+      (String, FieldAvailability) apiObj,
+      wire_cst_record_string_field_availability wireObj) {
+    wireObj.field0 = cst_encode_String(apiObj.$1);
+    cst_api_fill_to_wire_field_availability(apiObj.$2, wireObj.field1);
   }
 
   @protected
@@ -4496,6 +4605,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           ArcAlpacaClient self, SseSerializer serializer);
 
   @protected
+  void sse_encode_Map_String_field_availability_None(
+      Map<String, FieldAvailability> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_Map_String_i_32_None(
       Map<String, int> self, SseSerializer serializer);
 
@@ -4634,6 +4747,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_observer_location(
       ObserverLocation self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_pier_side(
+      PierSide self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_polar_alignment_event(
@@ -4801,6 +4918,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_field_availability(
+      FieldAvailability self, SseSerializer serializer);
+
+  @protected
   void sse_encode_filter_wheel_capabilities(
       FilterWheelCapabilities self, SseSerializer serializer);
 
@@ -4941,6 +5062,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       List<QuirkInfo> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_record_string_field_availability(
+      List<(String, FieldAvailability)> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_record_string_i_32(
       List<(String, int)> self, SseSerializer serializer);
 
@@ -5031,6 +5156,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_observer_location(
       ObserverLocation? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_pier_side(
+      PierSide? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_shutter_status(
@@ -5128,6 +5257,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_record_i_64_bool(
       (PlatformInt64, bool) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_record_string_field_availability(
+      (String, FieldAvailability) self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_string_i_32(
@@ -12320,6 +12453,17 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_observer_locationPtr
           .asFunction<ffi.Pointer<wire_cst_observer_location> Function()>();
 
+  ffi.Pointer<ffi.Int32> cst_new_box_autoadd_pier_side(int value) {
+    return _cst_new_box_autoadd_pier_side(value);
+  }
+
+  late final _cst_new_box_autoadd_pier_sidePtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Int32> Function(ffi.Int32)>>(
+    'frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side',
+  );
+  late final _cst_new_box_autoadd_pier_side = _cst_new_box_autoadd_pier_sidePtr
+      .asFunction<ffi.Pointer<ffi.Int32> Function(int)>();
+
   ffi.Pointer<wire_cst_polar_alignment_event>
       cst_new_box_autoadd_polar_alignment_event() {
     return _cst_new_box_autoadd_polar_alignment_event();
@@ -12778,6 +12922,23 @@ class RustLibWire implements BaseWire {
               ffi.Int32)>>('frbgen_nightshade_bridge_cst_new_list_quirk_info');
   late final _cst_new_list_quirk_info = _cst_new_list_quirk_infoPtr
       .asFunction<ffi.Pointer<wire_cst_list_quirk_info> Function(int)>();
+
+  ffi.Pointer<wire_cst_list_record_string_field_availability>
+      cst_new_list_record_string_field_availability(int len) {
+    return _cst_new_list_record_string_field_availability(len);
+  }
+
+  late final _cst_new_list_record_string_field_availabilityPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_record_string_field_availability> Function(
+            ffi.Int32,
+          )>>(
+    'frbgen_nightshade_bridge_cst_new_list_record_string_field_availability',
+  );
+  late final _cst_new_list_record_string_field_availability =
+      _cst_new_list_record_string_field_availabilityPtr.asFunction<
+          ffi.Pointer<wire_cst_list_record_string_field_availability> Function(
+              int)>();
 
   ffi.Pointer<wire_cst_list_record_string_i_32> cst_new_list_record_string_i_32(
     int len,
@@ -14417,6 +14578,34 @@ final class wire_cst_list_quirk_info extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_FieldAvailability_Error extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> field0;
+}
+
+final class FieldAvailabilityKind extends ffi.Union {
+  external wire_cst_FieldAvailability_Error Error;
+}
+
+final class wire_cst_field_availability extends ffi.Struct {
+  @ffi.Int32()
+  external int tag;
+
+  external FieldAvailabilityKind kind;
+}
+
+final class wire_cst_record_string_field_availability extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> field0;
+
+  external wire_cst_field_availability field1;
+}
+
+final class wire_cst_list_record_string_field_availability extends ffi.Struct {
+  external ffi.Pointer<wire_cst_record_string_field_availability> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
 final class wire_cst_star_crop_api extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> pixels_base64;
 
@@ -14987,11 +15176,9 @@ final class wire_cst_mount_status extends ffi.Struct {
   @ffi.Bool()
   external bool parked;
 
-  @ffi.Bool()
-  external bool at_home;
+  external ffi.Pointer<ffi.Bool> at_home;
 
-  @ffi.Int32()
-  external int side_of_pier;
+  external ffi.Pointer<ffi.Int32> side_of_pier;
 
   @ffi.Double()
   external double right_ascension;
@@ -14999,17 +15186,13 @@ final class wire_cst_mount_status extends ffi.Struct {
   @ffi.Double()
   external double declination;
 
-  @ffi.Double()
-  external double altitude;
+  external ffi.Pointer<ffi.Double> altitude;
 
-  @ffi.Double()
-  external double azimuth;
+  external ffi.Pointer<ffi.Double> azimuth;
 
-  @ffi.Double()
-  external double sidereal_time;
+  external ffi.Pointer<ffi.Double> sidereal_time;
 
-  @ffi.Int32()
-  external int tracking_rate;
+  external ffi.Pointer<ffi.Int32> tracking_rate;
 
   @ffi.Bool()
   external bool can_park;
@@ -15025,6 +15208,9 @@ final class wire_cst_mount_status extends ffi.Struct {
 
   @ffi.Bool()
   external bool can_set_tracking_rate;
+
+  external ffi.Pointer<wire_cst_list_record_string_field_availability>
+      availability;
 }
 
 final class wire_cst_NightshadeError_DeviceNotFound extends ffi.Struct {

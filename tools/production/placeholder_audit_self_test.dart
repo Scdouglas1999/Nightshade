@@ -81,6 +81,21 @@ Future<void> main() async {
       'new high-risk marker compared to baseline should fail',
     );
 
+    // §7B.5: path-only allowlist entries must be rejected with exit 2.
+    await _writePathOnlyAllowlistFixture(temp);
+    final pathOnlyResult = await _runAudit(
+      script,
+      temp,
+      outHits: '.audit_hits.txt',
+      outHighRisk: '.audit_highrisk.txt',
+      allowFailure: true,
+    );
+    _expect(
+      pathOnlyResult.exitCode == 2,
+      'path-only allowlist entries should be rejected with exit 2 '
+      '(actual ${pathOnlyResult.exitCode}, stderr=${pathOnlyResult.stderr})',
+    );
+
     stdout.writeln('Placeholder audit self-test passed.');
   } finally {
     await temp.delete(recursive: true);
@@ -107,10 +122,12 @@ void allowed() {
 }
 ''',
   );
+  // §7B.5: path-only allowlist entries are rejected; require path:line or
+  // path:line:exact_text granularity.
   await _writeFile(
     root,
     'docs/production-readiness/placeholder-allowlist.txt',
-    'packages/release_fixture/lib/src/allowed.dart\n',
+    'packages/release_fixture/lib/src/allowed.dart:2\n',
   );
   await _writeFile(
     root,
@@ -142,6 +159,24 @@ Future<void> _writeBaselineFixture(Directory root) async {
     root,
     'baseline/highrisk.txt',
     'apps/desktop/lib/bad.dart:2:  throw UnimplementedError(\'release blocker\');\n',
+  );
+}
+
+Future<void> _writePathOnlyAllowlistFixture(Directory root) async {
+  await _resetWorkspace(root);
+  await _writeFile(
+    root,
+    'apps/desktop/lib/bad.dart',
+    '''
+void unsafeRuntimeStub() {
+  throw UnimplementedError('release blocker');
+}
+''',
+  );
+  await _writeFile(
+    root,
+    'docs/production-readiness/placeholder-allowlist.txt',
+    'apps/desktop/lib/bad.dart\n',
   );
 }
 

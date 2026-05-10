@@ -192,14 +192,12 @@ pub fn julian_day(dt: &DateTime<Utc>) -> f64 {
     let a = (y as f64 / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
 
-    let jd = (365.25 * (y as f64 + 4716.0)).floor()
+    (365.25 * (y as f64 + 4716.0)).floor()
         + (30.6001 * (m as f64 + 1.0)).floor()
         + day
         + hour / 24.0
         + b
-        - 1524.5;
-
-    jd
+        - 1524.5
 }
 
 /// Calculate Local Sidereal Time in hours
@@ -214,13 +212,12 @@ pub fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
     let lst = (gmst + longitude) % 360.0;
 
     // Convert to hours and normalize
-    let lst_hours = if lst < 0.0 {
+
+    if lst < 0.0 {
         (lst + 360.0) / 15.0
     } else {
         lst / 15.0
-    };
-
-    lst_hours
+    }
 }
 
 #[cfg(test)]

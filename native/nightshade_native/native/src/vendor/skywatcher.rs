@@ -71,7 +71,21 @@ mod commands {
 // MOTION MODE FLAGS
 // =============================================================================
 
-/// Motion mode byte construction
+/// Motion mode byte construction.
+///
+/// Why: The SynScan motor protocol overloads bit `0x02` based on bit `0x01`
+/// (the tracking/goto select bit):
+/// - Bit `0x01 = 0` (goto mode):    bit `0x02 = 1` selects FAST slew speed
+///                                   bit `0x04 = 1` selects CCW direction
+/// - Bit `0x01 = 1` (tracking mode): bit `0x02 = 1` selects CCW direction
+///                                   (fast/slow distinction is unused;
+///                                    tracking is always slow)
+///
+/// This is a protocol-level overload, not a code bug. We deliberately keep
+/// the `if is_tracking { 0x02 } else { 0x04 }` branch on the CCW bit to
+/// preserve the wire-format semantics. Reference: Sky-Watcher Motor
+/// Controller Command Set, "Set Motion Mode (G)" command, mode byte
+/// description.
 fn build_motion_mode(is_tracking: bool, is_fast: bool, is_ccw: bool) -> u8 {
     let mut mode: u8 = 0;
     if is_tracking {
@@ -93,7 +107,7 @@ fn build_motion_mode(is_tracking: bool, is_fast: bool, is_ccw: bool) -> u8 {
 /// Encode a 24-bit value to SynScan hex format (reversed byte pairs)
 fn encode_24bit(value: i64) -> String {
     let bytes = [
-        ((value >> 0) & 0xFF) as u8,
+        (value & 0xFF) as u8,
         ((value >> 8) & 0xFF) as u8,
         ((value >> 16) & 0xFF) as u8,
     ];
@@ -233,8 +247,8 @@ impl SkyWatcherMount {
         // Send command with CR terminator
         let cmd_bytes = format!("{}\r", command);
         port.write_all(cmd_bytes.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         // Read response until CR
         let mut response = Vec::new();
@@ -635,41 +649,58 @@ impl NativeMount for SkyWatcherMount {
         Ok(*self.is_tracking.lock().unwrap_or_else(|e| e.into_inner()))
     }
 
+    // Why: Pier-side derivation requires decoding the RA-axis encoder
+    // position against the meridian crossing point. This SynScan driver does
+    // not yet perform that decode, so reporting `Unknown` would let callers
+    // (e.g. the sequencer's meridian-flip planner) treat the value as
+    // authoritative. Returning `NotSupported` makes the missing capability
+    // explicit so the status layer marks it unavailable and the sequencer
+    // refuses to schedule a flip on this driver. Encoder-based decode is
+    // tracked as a follow-up (audit §5.5 long-term).
     async fn get_side_of_pier(&self) -> Result<PierSide, NativeError> {
-        Ok(PierSide::Unknown)
+        Err(NativeError::NotSupported)
     }
 
+    // Why: Alt/Az is a derived quantity (RA/Dec + LST + observer location).
+    // None of those inputs are tracked at the driver level here, and the
+    // SynScan protocol exposes no native Alt/Az query. Surfacing
+    // `NotSupported` is correct until the higher-level math is wired in.
     async fn get_alt_az(&self) -> Result<(f64, f64), NativeError> {
         Err(NativeError::NotSupported)
     }
 
+    // Why: Local sidereal time depends on system UTC + observer longitude;
+    // the SynScan protocol has no LST query and this driver has no observer
+    // context. Returning a fabricated value would silently corrupt any
+    // downstream flip / pier-side / hour-angle calculation.
     async fn get_sidereal_time(&self) -> Result<f64, NativeError> {
         Err(NativeError::NotSupported)
     }
 
-    async fn set_tracking_rate(&mut self, rate: TrackingRate) -> Result<(), NativeError> {
+    // Why: The `:G` (set motion mode) command in this driver hard-codes
+    // sidereal tracking via the motor-controller's default rate; there is no
+    // path here to program lunar/solar/king/custom rates onto the axis. Even
+    // for `Sidereal`, no per-rate configuration is sent — accepting the call
+    // with `Ok(())` would lie to callers that "the rate is now sidereal".
+    // Until per-rate programming is implemented, every variant must return
+    // `NotSupported` so the status layer marks the rate unavailable and
+    // callers (sequencer, UI) cannot rely on a fabricated value.
+    async fn set_tracking_rate(&mut self, _rate: TrackingRate) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
-
-        match rate {
-            TrackingRate::Sidereal => {
-                tracing::info!("Setting tracking rate to Sidereal");
-                Ok(())
-            }
-            TrackingRate::Lunar
-            | TrackingRate::Solar
-            | TrackingRate::King
-            | TrackingRate::Custom => Err(NativeError::NotSupported),
-        }
+        Err(NativeError::NotSupported)
     }
 
+    // Why: There is no SynScan query that reads back the active tracking-rate
+    // selection. Returning a hardcoded `Sidereal` would falsely confirm a
+    // rate that may never have been programmed. `NotSupported` is the honest
+    // answer until the driver tracks rate state itself.
     async fn get_tracking_rate(&self) -> Result<TrackingRate, NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
-
-        Ok(TrackingRate::Sidereal)
+        Err(NativeError::NotSupported)
     }
 
     fn can_slew(&self) -> bool {
@@ -807,4 +838,101 @@ pub async fn discover_mounts() -> Result<Vec<SkyWatcherMountInfo>, NativeError> 
 /// Check if Sky-Watcher protocol is available
 pub fn is_available() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a SkyWatcherMount instance forced into the "connected" state so
+    /// trait methods skip the `NotConnected` guard and exercise their real
+    /// branch. We never open a serial port — methods under test must reach
+    /// their `NotSupported` return without performing any I/O.
+    fn fake_connected_mount() -> SkyWatcherMount {
+        let mount = SkyWatcherMount::new_serial("test-port".to_string(), Some(9600));
+        *mount.connected.lock().unwrap() = true;
+        mount
+    }
+
+    fn assert_not_supported<T: std::fmt::Debug>(result: Result<T, NativeError>) {
+        match result {
+            Err(NativeError::NotSupported) => {}
+            other => panic!("expected Err(NotSupported), got {:?}", other),
+        }
+    }
+
+    // Why: §5.5 of the v2.5.0 audit requires this driver to report
+    // "unavailable" for capabilities it cannot actually provide, instead of
+    // returning fake values that mislead the meridian-flip planner.
+    #[tokio::test]
+    async fn get_side_of_pier_returns_not_supported() {
+        let mount = fake_connected_mount();
+        assert_not_supported(mount.get_side_of_pier().await);
+    }
+
+    #[tokio::test]
+    async fn get_alt_az_returns_not_supported() {
+        let mount = fake_connected_mount();
+        assert_not_supported(mount.get_alt_az().await);
+    }
+
+    #[tokio::test]
+    async fn get_sidereal_time_returns_not_supported() {
+        let mount = fake_connected_mount();
+        assert_not_supported(mount.get_sidereal_time().await);
+    }
+
+    #[tokio::test]
+    async fn set_tracking_rate_sidereal_returns_not_supported() {
+        let mut mount = fake_connected_mount();
+        // Sidereal previously returned a fake `Ok(())` no-op; it must now fail.
+        assert_not_supported(mount.set_tracking_rate(TrackingRate::Sidereal).await);
+    }
+
+    #[tokio::test]
+    async fn set_tracking_rate_non_sidereal_returns_not_supported() {
+        let mut mount = fake_connected_mount();
+        for rate in [
+            TrackingRate::Lunar,
+            TrackingRate::Solar,
+            TrackingRate::King,
+            TrackingRate::Custom,
+        ] {
+            assert_not_supported(mount.set_tracking_rate(rate).await);
+        }
+    }
+
+    #[tokio::test]
+    async fn get_tracking_rate_returns_not_supported() {
+        let mount = fake_connected_mount();
+        // Previously returned hardcoded `Sidereal`; must now report unavailable.
+        assert_not_supported(mount.get_tracking_rate().await);
+    }
+
+    // Why: §5.24 — the motion-mode byte intentionally overloads bit `0x02`
+    // with two meanings depending on bit `0x01`. Lock the encoding behavior
+    // in tests so the protocol overload cannot be silently broken by a
+    // refactor that "fixes" the apparent duplication.
+    #[test]
+    fn build_motion_mode_goto_uses_bit2_for_fast_and_bit4_for_ccw() {
+        // Goto, slow, CW
+        assert_eq!(build_motion_mode(false, false, false), 0x00);
+        // Goto, fast, CW => bit 0x02 set as FAST
+        assert_eq!(build_motion_mode(false, true, false), 0x02);
+        // Goto, slow, CCW => bit 0x04 set as CCW (NOT bit 0x02)
+        assert_eq!(build_motion_mode(false, false, true), 0x04);
+        // Goto, fast, CCW => 0x02 (fast) | 0x04 (ccw)
+        assert_eq!(build_motion_mode(false, true, true), 0x06);
+    }
+
+    #[test]
+    fn build_motion_mode_tracking_uses_bit2_for_ccw() {
+        // Tracking, slow, CW
+        assert_eq!(build_motion_mode(true, false, false), 0x01);
+        // Tracking, slow, CCW => bit 0x02 set as CCW (overloaded meaning)
+        assert_eq!(build_motion_mode(true, false, true), 0x03);
+        // Tracking, fast, CW => 0x01 | 0x02 (the encoder does not suppress
+        // the fast bit in tracking mode; protocol ignores it on the wire).
+        assert_eq!(build_motion_mode(true, true, false), 0x03);
+    }
 }

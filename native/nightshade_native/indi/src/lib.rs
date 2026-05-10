@@ -118,8 +118,8 @@ impl std::error::Error for UnsupportedFeatureError {}
 /// // Camera features are fully supported
 /// assert!(check_feature_support("camera", "capture").is_ok());
 ///
-/// // Weather devices are not supported
-/// assert!(check_feature_support("weather", "temperature").is_err());
+/// // BLOB streaming is not supported; use standard BLOB transfers instead.
+/// assert!(check_feature_support("camera", "blob_streaming").is_err());
 /// ```
 pub fn check_feature_support(
     device_type: &str,

@@ -779,7 +779,7 @@ Future<Map<String, dynamic>> _mountGetStatusHandler(String deviceId) async {
     'declination': status.declination,
     'altitude': status.altitude,
     'azimuth': status.azimuth,
-    'sideOfPier': status.sideOfPier.name,
+    'sideOfPier': status.sideOfPier?.name ?? 'unknown',
   };
 }
 

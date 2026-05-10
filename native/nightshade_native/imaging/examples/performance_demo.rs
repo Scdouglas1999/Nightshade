@@ -6,19 +6,17 @@
 //! - Thumbnail generation
 //! - Progress callbacks
 
+// Why: post audit §6.7, `process_tiled`/`process_with_progress` are sync
+// CPU-bound functions; demo no longer needs `.await` for those calls.
 use nightshade_imaging::{
     generate_thumbnail, process_tiled, process_with_progress, ImageData, MappedFitsReader,
     PixelType, ProcessOperation,
 };
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Instant;
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
-
     println!("=== Nightshade Performance Optimization Demo ===\n");
 
     // Example 1: Tiled Processing
@@ -49,7 +47,7 @@ async fn demo_tiled_processing() {
     for tile_size in [256, 512, 1024, 2048] {
         let start = Instant::now();
 
-        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None).await;
+        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None);
 
         let elapsed = start.elapsed();
 
@@ -205,8 +203,7 @@ async fn demo_progress_callbacks() {
                 std::io::stdout().flush().unwrap();
             }
         },
-    )
-    .await;
+    );
 
     println!(); // New line after progress
 
@@ -250,7 +247,7 @@ async fn performance_comparison() {
     // Optimized: Tiled processing
     println!("Optimized approach (tiled):");
     let start = Instant::now();
-    let _result = process_tiled(&image, 512, ProcessOperation::Normalize, None).await;
+    let _result = process_tiled(&image, 512, ProcessOperation::Normalize, None);
     let optimized_time = start.elapsed();
     let tile_memory = 512.0 * 512.0 * 2.0 / 1_048_576.0; // One tile in MB
     println!("  Time: {:.2}ms", optimized_time.as_secs_f64() * 1000.0);

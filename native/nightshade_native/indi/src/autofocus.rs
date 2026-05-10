@@ -891,6 +891,7 @@ fn detect_stars(
 }
 
 /// Measure a star's properties
+#[allow(clippy::too_many_arguments)]
 fn measure_star(
     pixels: &[f64],
     width: usize,

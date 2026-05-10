@@ -30,6 +30,39 @@ pub enum AlpacaError {
     #[error("Parse error: {0}")]
     ParseError(String),
 
+    // Why: §5.3 — surface the exact JSON pixel that failed to parse instead of
+    // silently zero-filling. `offset` is the linear pixel index into the array,
+    // `found` is the JSON token (e.g., `"NaN"`, `null`) we couldn't coerce.
+    #[error("Image array pixel parse failure at offset {offset}: {reason} (found: {found})")]
+    PixelParseError {
+        offset: usize,
+        found: String,
+        reason: String,
+    },
+
+    // Why: §5.3 — color (rank 3) image arrays carry a channel dimension that
+    // the legacy `download_image_data_typed` flattened away. Until the typed
+    // multi-plane consumer lands (W2-DRV-IBYTES), surface the situation
+    // explicitly rather than silently dropping data.
+    #[error(
+        "Color image array (rank 3, {width}x{height}x{planes}) requires multi-plane consumer; \
+         use `download_image_array_full_typed` instead"
+    )]
+    ColorImageUnsupported {
+        width: u32,
+        height: u32,
+        planes: u32,
+    },
+
+    // Why: §5.3 — when the JSON `Type` field is unknown or the (Rank, Type)
+    // pair has no parser, we must reject the frame instead of guessing.
+    #[error("Unsupported image array (rank={rank}, type={image_type}): {reason}")]
+    UnsupportedImageArray {
+        rank: i64,
+        image_type: i64,
+        reason: String,
+    },
+
     #[error("Not connected")]
     NotConnected,
 
@@ -82,6 +115,9 @@ impl AlpacaError {
             // Don't retry device errors, parse errors, validation failures
             AlpacaError::DeviceError { .. } => false,
             AlpacaError::ParseError(_) => false,
+            AlpacaError::PixelParseError { .. } => false,
+            AlpacaError::ColorImageUnsupported { .. } => false,
+            AlpacaError::UnsupportedImageArray { .. } => false,
             AlpacaError::NotConnected => false,
             AlpacaError::OperationFailed(_) => false,
             AlpacaError::UnsupportedApiVersion(_) => false,
@@ -435,8 +471,23 @@ impl AlpacaClient {
         })
     }
 
-    /// Build the URL for an API endpoint
-    fn build_url(&self, endpoint: &str) -> String {
+    /// Get the pooled HTTP client for issuing requests with custom per-request
+    /// timeouts.
+    ///
+    /// Why: §5.12 — image-download paths previously built a fresh
+    /// `reqwest::Client` per frame, forcing a TLS handshake + new TCP session
+    /// every shot. Callers should reuse this pooled client and override only
+    /// the per-request timeout via `RequestBuilder::timeout(...)`.
+    pub fn http_client(&self) -> Result<&Client, AlpacaError> {
+        self.standard_http_client()
+    }
+
+    /// Build the URL for an API endpoint.
+    ///
+    /// Why: exposed `pub(crate)` so the camera image-download path can build
+    /// the same canonical URL when issuing a request directly against the
+    /// pooled HTTP client (§5.12).
+    pub(crate) fn build_url(&self, endpoint: &str) -> String {
         format!(
             "{}/api/{}/{}/{}/{}",
             self.base_url,

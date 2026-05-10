@@ -139,6 +139,7 @@ class MountStatus {
   final bool canSync;
   final bool canPulseGuide;
   final bool canSetTrackingRate;
+  final Map<String, String> availability;
 
   const MountStatus({
     required this.connected,
@@ -158,6 +159,7 @@ class MountStatus {
     required this.canSync,
     required this.canPulseGuide,
     required this.canSetTrackingRate,
+    this.availability = const {},
   });
 
   /// Create from JSON (for network transport)
@@ -188,6 +190,9 @@ class MountStatus {
       canPulseGuide: json['can_pulse_guide'] ?? json['canPulseGuide'] ?? false,
       canSetTrackingRate:
           json['can_set_tracking_rate'] ?? json['canSetTrackingRate'] ?? false,
+      availability: (json['availability'] as Map?)
+              ?.map((key, value) => MapEntry(key.toString(), value.toString())) ??
+          const {},
     );
   }
 
@@ -210,6 +215,7 @@ class MountStatus {
         'canSync': canSync,
         'canPulseGuide': canPulseGuide,
         'canSetTrackingRate': canSetTrackingRate,
+        'availability': availability,
       };
 
   static PierSide _parsePierSide(dynamic value) {

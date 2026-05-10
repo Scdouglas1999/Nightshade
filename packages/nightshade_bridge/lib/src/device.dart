@@ -5,6 +5,8 @@
 
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+part 'device.freezed.dart';
 
 /// Calibrator (flat light) state
 enum CalibratorState {
@@ -403,6 +405,22 @@ enum DriverType {
   ;
 }
 
+@freezed
+sealed class FieldAvailability with _$FieldAvailability {
+  const FieldAvailability._();
+
+  /// Field was read successfully and the corresponding `Option<T>` is `Some`.
+  const factory FieldAvailability.available() = FieldAvailability_Available;
+
+  /// Driver/protocol explicitly reports the capability is not supported.
+  const factory FieldAvailability.unsupported() = FieldAvailability_Unsupported;
+
+  /// Read attempt failed; carries the driver-supplied reason.
+  const factory FieldAvailability.error(
+    String field0,
+  ) = FieldAvailability_Error;
+}
+
 /// Current status of a filter wheel
 class FilterWheelStatus {
   final bool connected;
@@ -497,44 +515,54 @@ enum FrameType {
   ;
 }
 
-/// Current status of a mount
+/// Current status of a mount.
+///
+/// Fields that vary by driver capability or that may legitimately fail to
+/// read are `Option<T>` and accompanied by an entry in `availability` so the
+/// UI can render "—" for `None`+`Unsupported` versus an error indicator for
+/// `None`+`Error(reason)`. See §5.4 of the v2.5.0 audit.
 class MountStatus {
   final bool connected;
   final bool tracking;
   final bool slewing;
   final bool parked;
-  final bool atHome;
-  final PierSide sideOfPier;
+  final bool? atHome;
+  final PierSide? sideOfPier;
   final double rightAscension;
   final double declination;
-  final double altitude;
-  final double azimuth;
-  final double siderealTime;
-  final TrackingRate trackingRate;
+  final double? altitude;
+  final double? azimuth;
+  final double? siderealTime;
+  final TrackingRate? trackingRate;
   final bool canPark;
   final bool canSlew;
   final bool canSync;
   final bool canPulseGuide;
   final bool canSetTrackingRate;
 
+  /// Per-field availability for the optional fields above.
+  /// Keyed by the constants in `mount_status_field`.
+  final Map<String, FieldAvailability> availability;
+
   const MountStatus({
     required this.connected,
     required this.tracking,
     required this.slewing,
     required this.parked,
-    required this.atHome,
-    required this.sideOfPier,
+    this.atHome,
+    this.sideOfPier,
     required this.rightAscension,
     required this.declination,
-    required this.altitude,
-    required this.azimuth,
-    required this.siderealTime,
-    required this.trackingRate,
+    this.altitude,
+    this.azimuth,
+    this.siderealTime,
+    this.trackingRate,
     required this.canPark,
     required this.canSlew,
     required this.canSync,
     required this.canPulseGuide,
     required this.canSetTrackingRate,
+    required this.availability,
   });
 
   @override
@@ -555,7 +583,8 @@ class MountStatus {
       canSlew.hashCode ^
       canSync.hashCode ^
       canPulseGuide.hashCode ^
-      canSetTrackingRate.hashCode;
+      canSetTrackingRate.hashCode ^
+      availability.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -578,7 +607,8 @@ class MountStatus {
           canSlew == other.canSlew &&
           canSync == other.canSync &&
           canPulseGuide == other.canPulseGuide &&
-          canSetTrackingRate == other.canSetTrackingRate;
+          canSetTrackingRate == other.canSetTrackingRate &&
+          availability == other.availability;
 }
 
 /// Side of pier for German Equatorial mounts

@@ -435,7 +435,9 @@ mod tests {
         // test reproducible without pulling in a `rand` dependency.
         let mut state: u64 = 0xDEADBEEF;
         let next = |state: &mut u64| -> u64 {
-            *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            *state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             *state
         };
 
@@ -453,9 +455,7 @@ mod tests {
             // shift triangular distribution so its mode lands on bg_mean
             let centered = avg - 32767;
             let scaled = (centered as f64) * (bg_amplitude_u16 as f64) / 32767.0;
-            let val = (bg_mean_u16 as f64 + scaled)
-                .round()
-                .clamp(0.0, 65535.0) as u16;
+            let val = (bg_mean_u16 as f64 + scaled).round().clamp(0.0, 65535.0) as u16;
             *px = val;
         }
 

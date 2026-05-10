@@ -11,9 +11,12 @@
 use crate::traits::*;
 use crate::NativeVendor;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::sync::Notify;
 
 /// Default baud rate for classic LX200 mounts
 const LX200_BAUD_RATE: u32 = 9600;
@@ -60,6 +63,16 @@ mod commands {
     pub const ONSTEP_SET_RATE_KING: &str = ":TK#";
 
     pub const GET_PRODUCT_NAME: &str = ":GVP#";
+
+    /// Meade alignment / status query.
+    ///
+    /// Returns 3-4 character status terminated by `#`. Position 0 reports
+    /// alignment mode and may include `P` when the mount is parked on
+    /// LX200GPS / LX200ACF / RCX400 firmware (Meade Telescope Serial
+    /// Command Protocol rev L). Older Classic LX200 firmware does not
+    /// expose park state via `:GW#`; if the response is non-empty but
+    /// lacks a recognizable parked indicator we cannot infer state.
+    pub const MEADE_GET_STATUS: &str = ":GW#";
 
     pub const PARK: &str = ":hP#";
     pub const UNPARK_MEADE: &str = ":PO#";
@@ -146,7 +159,7 @@ fn parse_dec(response: &str) -> Result<f64, NativeError> {
         (1.0, s)
     };
 
-    let parts: Vec<&str> = rest.split(|c| c == '*' || c == '°' || c == ':').collect();
+    let parts: Vec<&str> = rest.split(['*', '°', ':']).collect();
 
     if parts.len() >= 2 {
         let degrees: f64 = parts[0]
@@ -190,6 +203,160 @@ fn format_dec(dec_degrees: f64) -> String {
     format!("{}{}*{:02}:{:02}", sign, degrees, arcmin, arcsec)
 }
 
+// =============================================================================
+// PARK-STATE PERSISTENCE
+// =============================================================================
+//
+// Most LX200-family mounts (Losmandy Gemini in LX200 mode, generic clones,
+// pre-LX200GPS Meade firmware, certain 10Micron firmware) provide no telemetry
+// for "is the mount parked?". The protocol simply accepts `:hP#` and stops the
+// motors — there is no echo. The audit (§5.6) requires us to track our own
+// park sends and persist them across app restarts so a power-cycle does not
+// silently erase the canonical state. When neither telemetry nor a persisted
+// record exists we must surface `NotSupported` rather than fabricate `false`.
+
+/// Returns the path to the park-state JSON file in the user's app-data dir.
+///
+/// The file is intentionally kept outside the Drift database because this
+/// crate does not depend on the Flutter app and must be writable from a
+/// pure-Rust unit test. We resolve the dir in this priority order:
+///   1. `NIGHTSHADE_HOME` env var (used by tests and headless runs)
+///   2. `%APPDATA%\Nightshade` on Windows
+///   3. `$XDG_CONFIG_HOME/nightshade` or `$HOME/.config/nightshade` elsewhere
+///
+/// On total failure we fall back to a temp-dir path so the binary never
+/// panics on a read-only home dir; persistence is best-effort and the
+/// caller surfaces `NotSupported` if the cache cannot be loaded.
+fn lx200_state_file_path() -> PathBuf {
+    let base: PathBuf = if let Ok(custom) = std::env::var("NIGHTSHADE_HOME") {
+        PathBuf::from(custom)
+    } else if cfg!(windows) {
+        std::env::var("APPDATA")
+            .map(|s| PathBuf::from(s).join("Nightshade"))
+            .unwrap_or_else(|_| std::env::temp_dir().join("nightshade"))
+    } else if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(xdg).join("nightshade")
+    } else if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home).join(".config").join("nightshade")
+    } else {
+        std::env::temp_dir().join("nightshade")
+    };
+
+    base.join("lx200_park_state.json")
+}
+
+/// Read the persisted park-state map. `Ok(None)` for that device id means the
+/// file does not exist or contains no entry for this mount; the caller must
+/// then return `NotSupported` rather than guessing.
+fn read_persisted_park_state(device_id: &str) -> Result<Option<bool>, NativeError> {
+    let path = lx200_state_file_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let raw = std::fs::read_to_string(&path).map_err(|e| {
+        NativeError::Io(std::io::Error::new(
+            e.kind(),
+            format!("read park state: {}", e),
+        ))
+    })?;
+    let map: HashMap<String, bool> = serde_json::from_str(&raw)
+        .map_err(|e| NativeError::SdkError(format!("parse park state JSON: {}", e)))?;
+    Ok(map.get(device_id).copied())
+}
+
+/// Atomically update the persisted park state for one device.
+///
+/// We re-read the full map, mutate the single entry, then write the whole
+/// file back. The file is small (one bool per mount the user owns) so the
+/// rewrite cost is negligible compared to a serial command round-trip.
+fn write_persisted_park_state(device_id: &str, parked: bool) -> Result<(), NativeError> {
+    let path = lx200_state_file_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            NativeError::Io(std::io::Error::new(
+                e.kind(),
+                format!("create park state dir {:?}: {}", parent, e),
+            ))
+        })?;
+    }
+
+    let mut map: HashMap<String, bool> = if path.exists() {
+        let raw = std::fs::read_to_string(&path).map_err(|e| {
+            NativeError::Io(std::io::Error::new(
+                e.kind(),
+                format!("read park state: {}", e),
+            ))
+        })?;
+        // Tolerate an empty file (e.g., interrupted write) but surface real
+        // JSON corruption — silent fallbacks hide bugs (see CLAUDE.md).
+        if raw.trim().is_empty() {
+            HashMap::new()
+        } else {
+            serde_json::from_str(&raw)
+                .map_err(|e| NativeError::SdkError(format!("parse park state JSON: {}", e)))?
+        }
+    } else {
+        HashMap::new()
+    };
+
+    map.insert(device_id.to_string(), parked);
+
+    let serialized = serde_json::to_string_pretty(&map)
+        .map_err(|e| NativeError::SdkError(format!("serialize park state: {}", e)))?;
+    std::fs::write(&path, serialized).map_err(|e| {
+        NativeError::Io(std::io::Error::new(
+            e.kind(),
+            format!("write park state: {}", e),
+        ))
+    })?;
+    Ok(())
+}
+
+/// Parse a Meade `:GW#` response. Returns `Some(true)` if the firmware
+/// reports parked, `Some(false)` if it reports a non-parked alignment mode,
+/// and `None` if the response shape is unrecognised (older LX200 firmware,
+/// echo-only stub, garbage). The caller treats `None` as "no telemetry".
+///
+/// Meade Telescope Serial Command Protocol rev L (LX200GPS / LX200ACF /
+/// RCX400) defines position 0 as the alignment mode: `A` Alt-Az,
+/// `P` Polar/Parked, `L` Land, `G` German equatorial. On parked firmware,
+/// `P` in position 0 with `T`/`N` tracking-off in position 1 is the parked
+/// signal. On Polar-aligned-but-tracking firmware, `P` appears with `T`
+/// tracking on; we disambiguate using position 1 `N` (not tracking) plus
+/// position 2 == `0` (no alignment progress, mount idle).
+fn parse_meade_gw_park(response: &str) -> Option<bool> {
+    let s = response.trim().trim_end_matches('#');
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
+        return None;
+    }
+
+    // Position 0 must be a recognised alignment mode for us to trust the
+    // response at all. If the byte is something else we do not know what
+    // firmware variant this is, so we return None (NotSupported upstream).
+    let mode = bytes[0];
+    if !matches!(mode, b'A' | b'P' | b'L' | b'G') {
+        return None;
+    }
+
+    // If position 1 exists, it should be tracking on/off. Anything else =
+    // unknown firmware shape.
+    let tracking = bytes.get(1).copied();
+    match tracking {
+        Some(b'T') => Some(false), // tracking on → not parked
+        Some(b'N') => {
+            // Tracking off + Polar-mode position 0 == parked on the Meade
+            // firmwares that report park via :GW#. On other firmwares we
+            // see N with non-P mode (e.g., AN0# = Alt-Az, not tracking,
+            // not aligned) — that is "idle but not parked".
+            Some(mode == b'P')
+        }
+        Some(_) => None,
+        None => None,
+    }
+}
+
 pub struct Lx200Mount {
     device_id: String,
     name: String,
@@ -202,6 +369,15 @@ pub struct Lx200Mount {
     is_slewing: Mutex<bool>,
     tracking_rate: Mutex<TrackingRate>,
     product_name: Mutex<String>,
+    /// In-memory mirror of the persisted park flag. `None` = no canonical
+    /// record exists for this device yet; we return `NotSupported` on
+    /// is_parked queries until park/unpark has been called at least once
+    /// or telemetry confirms a state.
+    park_state: Mutex<Option<bool>>,
+    /// Cancellation channel for the standard-LX200 pulse-guide sleep
+    /// (audit §5.17). Notified by `abort_slew` so the start/stop pair
+    /// terminates immediately instead of waiting out the full duration.
+    pulse_guide_cancel: Arc<Notify>,
 }
 
 impl std::fmt::Debug for Lx200Mount {
@@ -236,6 +412,23 @@ impl Lx200Mount {
             Lx200MountType::Generic => "LX200",
         };
 
+        // Eagerly hydrate the local park flag from disk. A missing or
+        // unreadable cache means "no canonical state yet" — is_parked()
+        // will return NotSupported until park() or unpark() has run at
+        // least once (or telemetry confirms a state). We log read errors
+        // because silent fallbacks hide bugs (see CLAUDE.md).
+        let park_state_initial: Option<bool> = match read_persisted_park_state(&device_id) {
+            Ok(state) => state,
+            Err(e) => {
+                tracing::warn!(
+                    "LX200 park-state cache unreadable for {}: {} (treating as unknown)",
+                    device_id,
+                    e
+                );
+                None
+            }
+        };
+
         Self {
             device_id,
             name: format!("{} ({})", display_name, port),
@@ -248,6 +441,8 @@ impl Lx200Mount {
             is_slewing: Mutex::new(false),
             tracking_rate: Mutex::new(TrackingRate::Sidereal),
             product_name: Mutex::new(String::new()),
+            park_state: Mutex::new(park_state_initial),
+            pulse_guide_cancel: Arc::new(Notify::new()),
         }
     }
 
@@ -296,8 +491,8 @@ impl Lx200Mount {
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         let mut response = Vec::new();
         let mut buf = [0u8; 1];
@@ -337,8 +532,8 @@ impl Lx200Mount {
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         let mut buf = [0u8; 1];
         let timeout = std::time::Instant::now();
@@ -362,6 +557,20 @@ impl Lx200Mount {
         }
     }
 
+    /// Wait up to `duration_ms` or until the pulse-guide cancel is
+    /// notified, whichever comes first. Returns `true` if cancelled.
+    ///
+    /// Extracted from `pulse_guide` so the cancellation behaviour is
+    /// unit-testable without a serial port (audit §5.17).
+    async fn pulse_guide_wait(&self, duration_ms: u32) -> bool {
+        let cancel = Arc::clone(&self.pulse_guide_cancel);
+        let sleep = tokio::time::sleep(Duration::from_millis(duration_ms as u64));
+        tokio::select! {
+            _ = sleep => false,
+            _ = cancel.notified() => true,
+        }
+    }
+
     fn send_command_no_response(&self, command: &str) -> Result<(), NativeError> {
         let mut port_guard = self
             .serial_port
@@ -370,8 +579,8 @@ impl Lx200Mount {
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
-            .map_err(|e| NativeError::Io(e))?;
-        port.flush().map_err(|e| NativeError::Io(e))?;
+            .map_err(NativeError::Io)?;
+        port.flush().map_err(NativeError::Io)?;
 
         Ok(())
     }
@@ -547,6 +756,26 @@ impl NativeMount for Lx200Mount {
         tracing::info!("Parking mount");
         self.send_command_no_response(commands::PARK)?;
 
+        // Snapshot the canonical state. For OnStep / Meade this will be
+        // re-confirmed on the next is_parked() telemetry round-trip; for
+        // mounts without telemetry this is the only authoritative source
+        // of truth across an app restart (audit §5.6).
+        *self
+            .park_state
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(true);
+        if let Err(e) = write_persisted_park_state(&self.device_id, true) {
+            // Persistence failure must not silently mask a real park —
+            // log loudly and propagate so the operator knows the cache
+            // is broken (CLAUDE.md: errors are a feature).
+            tracing::error!(
+                "Failed to persist LX200 park state for {}: {}",
+                self.device_id,
+                e
+            );
+            return Err(e);
+        }
+
         Ok(())
     }
 
@@ -562,6 +791,19 @@ impl NativeMount for Lx200Mount {
             self.send_command_no_response(commands::ONSTEP_UNPARK)?;
         } else {
             self.send_command_no_response(commands::UNPARK_MEADE)?;
+        }
+
+        *self
+            .park_state
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(false);
+        if let Err(e) = write_persisted_park_state(&self.device_id, false) {
+            tracing::error!(
+                "Failed to persist LX200 unpark state for {}: {}",
+                self.device_id,
+                e
+            );
+            return Err(e);
         }
 
         Ok(())
@@ -586,18 +828,77 @@ impl NativeMount for Lx200Mount {
 
     async fn is_parked(&self) -> Result<bool, NativeError> {
         if !self.is_connected() {
-            return Ok(false);
+            return Err(NativeError::NotConnected);
         }
 
-        // OnStep can query actual park status
+        // 1) OnStep exposes parked-ness directly via :GU#. Trust telemetry,
+        //    refresh the local cache, and persist so cross-restart state
+        //    survives. A serial error here propagates — we will not lie
+        //    about park state to the sequencer (audit §5.6).
         if self.mount_type.is_onstep() {
-            if let Ok(status) = self.send_command(commands::ONSTEP_GET_STATUS) {
-                let (_, _, is_parked, _, _) = self.parse_onstep_status(&status);
-                return Ok(is_parked);
+            let status = self.send_command(commands::ONSTEP_GET_STATUS)?;
+            let (_, _, is_parked, _, _) = self.parse_onstep_status(&status);
+            *self
+                .park_state
+                .lock()
+                .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(is_parked);
+            // Best-effort persist: a write failure logs but does not mask
+            // a successful telemetry read.
+            if let Err(e) = write_persisted_park_state(&self.device_id, is_parked) {
+                tracing::warn!(
+                    "Persist OnStep park telemetry failed for {}: {}",
+                    self.device_id,
+                    e
+                );
             }
+            return Ok(is_parked);
         }
 
-        Ok(false)
+        // 2) Meade firmware (LX200GPS / LX200ACF / RCX400) exposes park
+        //    via :GW#. Older Classic firmware ignores or echoes garbage —
+        //    we accept telemetry only when the response shape is one we
+        //    recognise; otherwise we fall through to the persisted cache.
+        if matches!(self.mount_type, Lx200MountType::Meade) {
+            if let Ok(status) = self.send_command(commands::MEADE_GET_STATUS) {
+                if let Some(is_parked) = parse_meade_gw_park(&status) {
+                    *self
+                        .park_state
+                        .lock()
+                        .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? =
+                        Some(is_parked);
+                    if let Err(e) = write_persisted_park_state(&self.device_id, is_parked) {
+                        tracing::warn!(
+                            "Persist Meade park telemetry failed for {}: {}",
+                            self.device_id,
+                            e
+                        );
+                    }
+                    return Ok(is_parked);
+                }
+                tracing::debug!(
+                    "Meade :GW# response {:?} did not encode park state — falling back to local cache",
+                    status
+                );
+            }
+            // Fall through to persisted-state path on serial error or
+            // unparseable response. A connection-level failure has already
+            // been surfaced by send_command above on Ok-path; we only
+            // suppress per-command parse mismatches here.
+        }
+
+        // 3) Losmandy / 10Micron / Generic LX200, plus any Meade firmware
+        //    that did not answer :GW# usefully: the local cache (kept in
+        //    sync by park()/unpark()) is the canonical source. If we have
+        //    no cache entry, the state is genuinely unknown — surface it
+        //    as NotSupported rather than fabricate `false`.
+        let cached = *self
+            .park_state
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        match cached {
+            Some(parked) => Ok(parked),
+            None => Err(NativeError::NotSupported),
+        }
     }
 
     async fn pulse_guide(
@@ -632,7 +933,12 @@ impl NativeMount for Lx200Mount {
             return Ok(());
         }
 
-        // Standard LX200: set guide rate, start move, wait, stop move
+        // Standard LX200: set guide rate, start move, wait, stop move.
+        // Audit §5.17: the wait must be cancellable so abort_slew
+        // terminates the pulse immediately. Notify::notified() only
+        // observes notifications that fire after the future is created,
+        // so building it fresh per pulse_guide call is sufficient — no
+        // drain needed.
         self.send_command_no_response(commands::SET_RATE_GUIDE)?;
 
         let start_cmd = match direction {
@@ -641,19 +947,26 @@ impl NativeMount for Lx200Mount {
             GuideDirection::East => commands::MOVE_EAST,
             GuideDirection::West => commands::MOVE_WEST,
         };
-        self.send_command_no_response(start_cmd)?;
-
-        tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
-
         let stop_cmd = match direction {
             GuideDirection::North => commands::STOP_MOVE_NORTH,
             GuideDirection::South => commands::STOP_MOVE_SOUTH,
             GuideDirection::East => commands::STOP_MOVE_EAST,
             GuideDirection::West => commands::STOP_MOVE_WEST,
         };
-        self.send_command_no_response(stop_cmd)?;
+        self.send_command_no_response(start_cmd)?;
 
-        Ok(())
+        let cancelled = self.pulse_guide_wait(duration_ms).await;
+
+        let stop_result = self.send_command_no_response(stop_cmd);
+
+        if cancelled {
+            tracing::info!(
+                "LX200 pulse_guide cancelled mid-sleep; stop {} sent immediately",
+                stop_cmd
+            );
+        }
+
+        stop_result
     }
 
     async fn abort_slew(&mut self) -> Result<(), NativeError> {
@@ -662,6 +975,11 @@ impl NativeMount for Lx200Mount {
         }
 
         tracing::info!("Aborting slew");
+        // Wake any in-flight standard-LX200 pulse_guide so it stops the
+        // motors immediately instead of waiting out the duration_ms timer
+        // (audit §5.17). notify_waiters wakes only currently-parked
+        // futures; if no pulse is active this is a cheap no-op.
+        self.pulse_guide_cancel.notify_waiters();
         self.send_command_no_response(commands::STOP_SLEW)?;
         *self
             .is_slewing

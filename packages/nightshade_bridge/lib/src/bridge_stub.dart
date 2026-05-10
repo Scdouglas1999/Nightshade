@@ -441,6 +441,7 @@ class NativeBridge {
       canSync: true,
       canPulseGuide: true,
       canSetTrackingRate: true,
+      availability: const {},
     );
 
     _focuserStatus = const FocuserStatus(

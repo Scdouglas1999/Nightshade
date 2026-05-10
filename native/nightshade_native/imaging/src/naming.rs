@@ -45,6 +45,7 @@ impl FrameType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "light" => Some(FrameType::Light),

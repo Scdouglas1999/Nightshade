@@ -395,17 +395,9 @@ impl Default for LoopConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ParallelConfig {
     pub required_successes: Option<usize>,
-}
-
-impl Default for ParallelConfig {
-    fn default() -> Self {
-        Self {
-            required_successes: None, // All must succeed
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -530,8 +522,9 @@ impl Default for ExposureConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Binning {
+    #[default]
     One,
     Two,
     Three,
@@ -551,12 +544,30 @@ impl Binning {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutofocusConfig {
+    #[serde(default)]
     pub method: AutofocusMethod,
+    #[serde(default = "default_af_step_size")]
     pub step_size: i32,
+    #[serde(default = "default_af_steps_out")]
     pub steps_out: u32,
+    #[serde(default = "default_af_exposure_duration")]
     pub exposure_duration: f64,
+    #[serde(default)]
     pub filter: Option<String>,
+    #[serde(default)]
     pub binning: Binning,
+    /// Backlash compensation in focuser steps.
+    #[serde(default = "default_af_backlash_compensation")]
+    pub backlash_compensation: i32,
+    /// Whether the autofocus engine may use temperature prediction.
+    #[serde(default = "default_af_use_temperature_prediction")]
+    pub use_temperature_prediction: bool,
+    /// Reject autofocus points when star count changes beyond this fraction.
+    #[serde(default = "default_af_max_star_count_change")]
+    pub max_star_count_change: Option<f64>,
+    /// Sigma threshold for autofocus outlier rejection. Use 0 to disable.
+    #[serde(default = "default_af_outlier_rejection_sigma")]
+    pub outlier_rejection_sigma: f64,
     /// Maximum duration in seconds before the autofocus run is aborted.
     /// Default 600s (10 minutes).
     #[serde(default = "default_af_max_duration")]
@@ -567,22 +578,75 @@ fn default_af_max_duration() -> f64 {
     600.0
 }
 
+fn default_af_step_size() -> i32 {
+    100
+}
+
+fn default_af_steps_out() -> u32 {
+    7
+}
+
+fn default_af_exposure_duration() -> f64 {
+    3.0
+}
+
+fn default_af_backlash_compensation() -> i32 {
+    50
+}
+
+fn default_af_use_temperature_prediction() -> bool {
+    true
+}
+
+fn default_af_max_star_count_change() -> Option<f64> {
+    Some(0.5)
+}
+
+fn default_af_outlier_rejection_sigma() -> f64 {
+    3.0
+}
+
 impl Default for AutofocusConfig {
     fn default() -> Self {
         Self {
             method: AutofocusMethod::VCurve,
-            step_size: 100,
-            steps_out: 7,
-            exposure_duration: 3.0,
+            step_size: default_af_step_size(),
+            steps_out: default_af_steps_out(),
+            exposure_duration: default_af_exposure_duration(),
             filter: None,
             binning: Binning::One,
-            max_duration_secs: 600.0,
+            backlash_compensation: default_af_backlash_compensation(),
+            use_temperature_prediction: default_af_use_temperature_prediction(),
+            max_star_count_change: default_af_max_star_count_change(),
+            outlier_rejection_sigma: default_af_outlier_rejection_sigma(),
+            max_duration_secs: default_af_max_duration(),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+impl From<&AutofocusConfig> for crate::autofocus::AutofocusConfig {
+    fn from(config: &AutofocusConfig) -> Self {
+        Self {
+            method: match config.method {
+                AutofocusMethod::VCurve => crate::autofocus::AutofocusMethod::VCurve,
+                AutofocusMethod::Quadratic => crate::autofocus::AutofocusMethod::Quadratic,
+                AutofocusMethod::Hyperbolic => crate::autofocus::AutofocusMethod::Hyperbolic,
+            },
+            step_size: config.step_size,
+            steps_out: config.steps_out,
+            exposure_duration: config.exposure_duration,
+            backlash_compensation: config.backlash_compensation,
+            use_temperature_prediction: config.use_temperature_prediction,
+            max_star_count_change: config.max_star_count_change,
+            outlier_rejection_sigma: config.outlier_rejection_sigma,
+            max_duration_secs: config.max_duration_secs,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AutofocusMethod {
+    #[default]
     VCurve,
     Quadratic,
     Hyperbolic,
@@ -654,7 +718,7 @@ impl Default for StartGuidingConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FilterConfig {
     pub filter_name: String,
     pub filter_index: Option<i32>,
@@ -664,16 +728,6 @@ pub struct FilterConfig {
     /// may require longer timeouts.
     #[serde(default)]
     pub timeout_secs: Option<u32>,
-}
-
-impl Default for FilterConfig {
-    fn default() -> Self {
-        Self {
-            filter_name: String::new(),
-            filter_index: None,
-            timeout_secs: None, // Use default (120 seconds)
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -738,19 +792,10 @@ impl Default for RotatorConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WaitTimeConfig {
     pub wait_until: Option<i64>, // Unix timestamp
     pub wait_for_twilight: Option<TwilightType>,
-}
-
-impl Default for WaitTimeConfig {
-    fn default() -> Self {
-        Self {
-            wait_until: None,
-            wait_for_twilight: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

@@ -162,6 +162,7 @@ struct TriggerActionContext {
     filter_focus_offsets: HashMap<String, i32>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_trigger_autofocus_context(
     trigger_context: &TriggerActionContext,
     target_name: Option<String>,
@@ -200,6 +201,8 @@ fn build_trigger_flip_context(
     target_name: String,
     target_ra_hours: Option<f64>,
     target_dec_degrees: Option<f64>,
+    cancellation_token: Option<Arc<AtomicBool>>,
+    trigger_state: Option<Arc<RwLock<TriggerState>>>,
 ) -> Option<crate::meridian_flip_executor::FlipContext> {
     Some(crate::meridian_flip_executor::FlipContext {
         target_name,
@@ -208,6 +211,10 @@ fn build_trigger_flip_context(
         mount_id: trigger_context.mount_id.clone()?,
         camera_id: trigger_context.camera_id.clone(),
         focuser_id: trigger_context.focuser_id.clone(),
+        cover_calibrator_id: trigger_context.cover_calibrator_id.clone(),
+        cancellation_token,
+        trigger_state,
+        autofocus_config: None,
     })
 }
 
@@ -836,14 +843,14 @@ impl SequenceExecutor {
                         let node_name = update
                             .message
                             .as_ref()
-                            .and_then(|m| {
+                            .map(|m| {
                                 if let Some(name) = m.strip_prefix("Executing: ") {
-                                    Some(name.to_string())
+                                    name.to_string()
                                 } else if let Some(rest) = m.split_once(": ").map(|(_, rest)| rest)
                                 {
-                                    Some(rest.to_string())
+                                    rest.to_string()
                                 } else {
-                                    Some(m.clone())
+                                    m.clone()
                                 }
                             })
                             .unwrap_or_else(|| "Unknown".to_string());
@@ -903,17 +910,17 @@ impl SequenceExecutor {
                         } else {
                             pending_completion.remove(&update.node_id);
                         }
-                    } else if current == *last {
-                        if pending_completion.get(&update.node_id).copied() == Some(current) {
-                            if let Some((duration_secs, _filter)) = metadata {
-                                exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
-                                    frame: current,
-                                    total,
-                                    duration_secs,
-                                });
-                            }
-                            pending_completion.remove(&update.node_id);
+                    } else if current == *last
+                        && pending_completion.get(&update.node_id).copied() == Some(current)
+                    {
+                        if let Some((duration_secs, _filter)) = metadata {
+                            exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
+                                frame: current,
+                                total,
+                                duration_secs,
+                            });
                         }
+                        pending_completion.remove(&update.node_id);
                     }
 
                     drop(pending_completion);
@@ -1086,6 +1093,9 @@ impl SequenceExecutor {
                 }
             };
 
+            let streaming_filter_focus_offsets = context.filter_focus_offsets.clone();
+            let streaming_safety_fail_mode = context.safety_fail_mode;
+
             // Execute the sequence
             let execution = async { root_node.execute(&mut context).await };
 
@@ -1095,9 +1105,79 @@ impl SequenceExecutor {
             let is_cancelled_clone = is_cancelled.clone();
             let is_paused_for_triggers = is_paused.clone();
             let skip_to_next_target_for_triggers = skip_to_next_target.clone();
-            // Clone progress for streaming checkpoint saves
             let progress_for_checkpoint = progress.clone();
             let state_for_checkpoint = state.clone();
+            let is_cancelled_for_checkpoint = is_cancelled.clone();
+            let trigger_manager_for_checkpoint = trigger_manager.clone();
+            let streaming_triggers_enabled = triggers_enabled;
+            let streaming_checkpoint_task = async move {
+                let Some(checkpoint_dir) = streaming_checkpoint_dir else {
+                    std::future::pending::<()>().await;
+                    return;
+                };
+                let Some(sequence) = streaming_sequence else {
+                    std::future::pending::<()>().await;
+                    return;
+                };
+
+                let checkpoint_mgr = crate::checkpoint::CheckpointManager::new(checkpoint_dir);
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+
+                loop {
+                    interval.tick().await;
+
+                    if is_cancelled_for_checkpoint.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    let exec_state = *state_for_checkpoint.read().await;
+                    if !matches!(exec_state, ExecutorState::Running | ExecutorState::Paused) {
+                        continue;
+                    }
+
+                    let prog = progress_for_checkpoint.read().clone();
+                    let mut checkpoint =
+                        crate::checkpoint::SessionCheckpoint::new(sequence.clone());
+                    checkpoint.node_statuses = prog.node_statuses.clone();
+                    checkpoint.current_node = prog.current_node_id.clone();
+                    checkpoint.executor_state = exec_state;
+                    checkpoint.completed_exposures = prog.completed_exposures;
+                    checkpoint.completed_integration_secs = prog.completed_integration_secs;
+                    checkpoint.is_active = true;
+                    checkpoint.set_devices(
+                        streaming_camera_id.clone(),
+                        streaming_mount_id.clone(),
+                        streaming_focuser_id.clone(),
+                        streaming_filterwheel_id.clone(),
+                        streaming_rotator_id.clone(),
+                    );
+                    checkpoint.set_location(streaming_latitude, streaming_longitude);
+                    checkpoint.set_save_path(streaming_save_path.clone());
+
+                    let trigger_state = {
+                        let manager = trigger_manager_for_checkpoint.read().await;
+                        manager.state()
+                    };
+                    let trigger_state = trigger_state.read().await;
+                    checkpoint.set_trigger_state(
+                        crate::checkpoint::TriggerStateSnapshot::from_state(
+                            &trigger_state,
+                            streaming_safety_fail_mode,
+                            streaming_triggers_enabled,
+                            streaming_filter_focus_offsets.clone(),
+                        ),
+                    );
+
+                    match checkpoint_mgr.save(&checkpoint) {
+                        Ok(()) => tracing::debug!(
+                            "Streaming checkpoint saved ({} exposures, {:.1}s integration)",
+                            checkpoint.completed_exposures,
+                            checkpoint.completed_integration_secs
+                        ),
+                        Err(e) => tracing::warn!("Streaming checkpoint save failed: {}", e),
+                    }
+                }
+            };
             let trigger_monitor = async {
                 if !triggers_enabled {
                     // If triggers disabled, just wait forever (let other tasks complete)
@@ -1108,12 +1188,20 @@ impl SequenceExecutor {
                 let mut check_interval = tokio::time::interval(std::time::Duration::from_secs(1));
                 let mut fired_triggers: Vec<(String, RecoveryAction)> = Vec::new();
 
-                // Streaming checkpoint: save every 30 seconds during execution
-                let streaming_checkpoint_mgr = streaming_checkpoint_dir
-                    .as_ref()
-                    .map(|dir| crate::checkpoint::CheckpointManager::new(dir));
-                let mut last_checkpoint_save = std::time::Instant::now();
-                const STREAMING_CHECKPOINT_INTERVAL_SECS: u64 = 30;
+                // Tracks whether the previous safety poll already failed. Used to
+                // rate-limit the per-mode warning so a permanently offline safety
+                // device does not flood the log every second. See SafetyFailMode
+                // dispatch below.
+                let mut safety_poll_last_was_error = false;
+
+                // Tracks per-trigger Retry attempt counts so we can escalate after
+                // exhausting `max_attempts`. Keyed by trigger ID.
+                let mut retry_attempts: HashMap<String, u32> = HashMap::new();
+
+                // §1.14: Streaming-checkpoint cadence is now driven by an independent
+                // task spawned alongside this monitor (see streaming_checkpoint_task).
+                // Keeping the monitor focused on trigger evaluation avoids dropping
+                // checkpoint saves when triggers_enabled = false.
 
                 // Mark that mount tracking is expected while the trigger monitor is active.
                 // This enables the MountTrackingLost and OnTrackingLimitHit triggers to detect
@@ -1139,35 +1227,73 @@ impl SequenceExecutor {
                         break;
                     }
 
-                    // Poll weather/safety status and update trigger state
+                    // Poll weather/safety status and update trigger state. Each
+                    // SafetyFailMode variant has a distinct, observable behaviour:
+                    // - FailClosed: poll errors mark the run unsafe so WeatherUnsafe
+                    //   fires the configured park-and-abort path. Recommended for
+                    //   unattended runs.
+                    // - FailOpen: poll errors are treated as safe so the sequence
+                    //   keeps running. Intended for daytime / shutdown sequences
+                    //   where the safety device is intentionally unavailable. The
+                    //   warning is rate-limited (only once per error transition) so
+                    //   logs do not flood when the device is permanently offline.
+                    // - WarnOnly: poll errors do NOT change weather_safe (last good
+                    //   reading wins), but a one-shot Error event is emitted so the
+                    //   UI can alert the operator. Existing safe/unsafe state is
+                    //   preserved.
                     let is_safe = match device_ops_for_triggers.safety_is_safe(None).await {
-                        Ok(safe) => safe,
-                        Err(e) => {
-                            // Strict production behavior: safety read errors are always unsafe.
-                            match safety_fail_mode {
-                                SafetyFailMode::FailOpen => {
-                                    tracing::trace!(
-                                        "Safety poll error: {} - fail_open requested but strict fail-closed is enforced",
-                                        e
-                                    );
-                                    false
-                                }
-                                SafetyFailMode::FailClosed => {
-                                    tracing::warn!(
-                                        "Safety poll error: {} - treating as unsafe (fail-closed)",
-                                        e
-                                    );
-                                    false
-                                }
-                                SafetyFailMode::WarnOnly => {
-                                    tracing::warn!(
-                                        "Safety poll error: {} - warn_only requested but strict fail-closed is enforced",
-                                        e
-                                    );
-                                    false
-                                }
+                        Ok(safe) => {
+                            if safety_poll_last_was_error {
+                                tracing::info!(
+                                    "Safety poll recovered (mode: {:?})",
+                                    safety_fail_mode
+                                );
+                                safety_poll_last_was_error = false;
                             }
+                            Some(safe)
                         }
+                        Err(e) => match safety_fail_mode {
+                            SafetyFailMode::FailClosed => {
+                                if !safety_poll_last_was_error {
+                                    tracing::warn!(
+                                        "Safety poll error: {} - treating as unsafe (FailClosed)",
+                                        e
+                                    );
+                                    safety_poll_last_was_error = true;
+                                }
+                                Some(false)
+                            }
+                            SafetyFailMode::FailOpen => {
+                                if !safety_poll_last_was_error {
+                                    tracing::warn!(
+                                        "Safety poll error: {} - treating as safe (FailOpen). \
+                                         Sequence will continue. Do not use FailOpen for \
+                                         unattended runs.",
+                                        e
+                                    );
+                                    safety_poll_last_was_error = true;
+                                }
+                                Some(true)
+                            }
+                            SafetyFailMode::WarnOnly => {
+                                if !safety_poll_last_was_error {
+                                    tracing::warn!(
+                                        "Safety poll error: {} - WarnOnly mode, leaving \
+                                         weather_safe unchanged and emitting alert",
+                                        e
+                                    );
+                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                        message: format!(
+                                            "Safety poll failed: {}. WarnOnly mode keeps the \
+                                             previous safety state — operator attention required.",
+                                            e
+                                        ),
+                                    });
+                                    safety_poll_last_was_error = true;
+                                }
+                                None
+                            }
+                        },
                     };
 
                     // Poll guiding status if guiding is enabled
@@ -1181,7 +1307,11 @@ impl SequenceExecutor {
                         let manager = trigger_manager.read().await;
                         let trigger_state = manager.state();
                         let mut state = trigger_state.write().await;
-                        state.weather_safe = is_safe;
+                        // WarnOnly returns None to mean "preserve previous reading" — that
+                        // is the contract that distinguishes it from FailOpen/FailClosed.
+                        if let Some(safe) = is_safe {
+                            state.weather_safe = safe;
+                        }
 
                         // Update guiding RMS if available
                         if let Some(rms) = guiding_rms {
@@ -1350,57 +1480,6 @@ impl SequenceExecutor {
                                     tstate.set_guide_star_lost(true);
                                 }
                             }
-                        }
-                    }
-
-                    // Streaming checkpoint: save periodically during execution
-                    if let Some(ref checkpoint_mgr) = streaming_checkpoint_mgr {
-                        if last_checkpoint_save.elapsed().as_secs()
-                            >= STREAMING_CHECKPOINT_INTERVAL_SECS
-                        {
-                            if let Some(ref sequence) = streaming_sequence {
-                                let prog = progress_for_checkpoint.read().clone();
-                                let exec_state = *state_for_checkpoint.read().await;
-
-                                let mut checkpoint =
-                                    crate::checkpoint::SessionCheckpoint::new(sequence.clone());
-                                checkpoint.node_statuses = prog.node_statuses.clone();
-                                checkpoint.current_node = prog.current_node_id.clone();
-                                checkpoint.executor_state = exec_state;
-                                checkpoint.completed_exposures = prog.completed_exposures;
-                                checkpoint.completed_integration_secs =
-                                    prog.completed_integration_secs;
-                                checkpoint.is_active = matches!(
-                                    exec_state,
-                                    ExecutorState::Running | ExecutorState::Paused
-                                );
-                                checkpoint.set_devices(
-                                    streaming_camera_id.clone(),
-                                    streaming_mount_id.clone(),
-                                    streaming_focuser_id.clone(),
-                                    streaming_filterwheel_id.clone(),
-                                    streaming_rotator_id.clone(),
-                                );
-                                checkpoint.set_location(streaming_latitude, streaming_longitude);
-                                checkpoint.set_save_path(streaming_save_path.clone());
-
-                                match checkpoint_mgr.save(&checkpoint) {
-                                    Ok(_) => {
-                                        tracing::debug!(
-                                            "Streaming checkpoint saved ({} exposures, {:.1}s integration)",
-                                            prog.completed_exposures,
-                                            prog.completed_integration_secs
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            "Failed to save streaming checkpoint: {}",
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                            last_checkpoint_save = std::time::Instant::now();
                         }
                     }
 
@@ -1584,6 +1663,35 @@ impl SequenceExecutor {
                                     }
                                 }
                             }
+                            RecoveryAction::Retry { max_attempts } => {
+                                let attempts =
+                                    retry_attempts.entry(trigger_id.clone()).or_insert(0);
+                                if *attempts < *max_attempts {
+                                    *attempts += 1;
+                                    tracing::warn!(
+                                        "Trigger '{}' requested retry attempt {}/{}",
+                                        trigger_name,
+                                        attempts,
+                                        max_attempts
+                                    );
+                                } else {
+                                    tracing::error!(
+                                        "Trigger '{}' exhausted {} retry attempts; pausing sequence",
+                                        trigger_name,
+                                        max_attempts
+                                    );
+                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                    *state_clone.write().await = ExecutorState::Paused;
+                                    let _ = event_tx_clone2
+                                        .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                        message: format!(
+                                            "Trigger '{}' exhausted {} retry attempts; sequence paused",
+                                            trigger_name, max_attempts
+                                        ),
+                                    });
+                                }
+                            }
                             RecoveryAction::MeridianFlip(config) => {
                                 // Execute meridian flip
                                 tracing::info!(
@@ -1607,6 +1715,8 @@ impl SequenceExecutor {
                                     target_name.clone(),
                                     target_ra,
                                     target_dec,
+                                    Some(is_cancelled_clone.clone()),
+                                    Some(trigger_state_for_actions.clone()),
                                 ) {
                                     let mut flip_executor =
                                         crate::meridian_flip_executor::MeridianFlipExecutor::new(
@@ -1712,6 +1822,7 @@ impl SequenceExecutor {
             let result = tokio::select! {
                 _ = command_handler => NodeStatus::Cancelled,
                 result = execution => result,
+                _ = streaming_checkpoint_task => NodeStatus::Cancelled,
                 _triggers = trigger_monitor => {
                     if triggers_enabled && !is_cancelled.load(Ordering::Relaxed) {
                         tracing::error!(
@@ -1955,6 +2066,17 @@ impl SequenceExecutor {
         );
         checkpoint.set_location(self.latitude, self.longitude);
         checkpoint.set_save_path(self.save_path.clone());
+        let trigger_state = {
+            let manager = self.trigger_manager.read().await;
+            manager.state()
+        };
+        let trigger_state = trigger_state.read().await;
+        checkpoint.set_trigger_state(crate::checkpoint::TriggerStateSnapshot::from_state(
+            &trigger_state,
+            self.safety_fail_mode,
+            self.triggers_enabled,
+            self.filter_focus_offsets.clone(),
+        ));
 
         manager.save(&checkpoint)?;
 
@@ -2006,6 +2128,18 @@ impl SequenceExecutor {
             for node_id in checkpoint.get_completed_nodes() {
                 root.mark_completed(&node_id);
             }
+        }
+
+        if let Some(snapshot) = checkpoint.trigger_state.as_ref() {
+            let trigger_state = {
+                let manager = self.trigger_manager.read().await;
+                manager.state()
+            };
+            let mut trigger_state = trigger_state.write().await;
+            snapshot.restore_into(&mut trigger_state);
+            self.safety_fail_mode = snapshot.safety_fail_mode;
+            self.triggers_enabled = snapshot.triggers_enabled;
+            self.filter_focus_offsets = snapshot.filter_focus_offsets.clone();
         }
 
         tracing::info!(
@@ -2233,9 +2367,15 @@ mod tests {
             ..TriggerActionContext::default()
         };
 
-        let flip_ctx =
-            build_trigger_flip_context(&trigger_context, "M42".to_string(), Some(5.5), Some(-5.0))
-                .expect("flip context should be created");
+        let flip_ctx = build_trigger_flip_context(
+            &trigger_context,
+            "M42".to_string(),
+            Some(5.5),
+            Some(-5.0),
+            None,
+            None,
+        )
+        .expect("flip context should be created");
 
         assert_eq!(flip_ctx.focuser_id.as_deref(), Some("focuser"));
         assert_eq!(flip_ctx.mount_id, "mount");

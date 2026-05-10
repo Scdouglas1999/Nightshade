@@ -742,7 +742,7 @@ impl AlpacaTelescope {
     ) -> Result<bool, AlpacaError> {
         self.slew_to_coordinates_async(ra, dec)
             .await
-            .map_err(|e| AlpacaError::OperationFailed(e))?;
+            .map_err(AlpacaError::OperationFailed)?;
         self.wait_for_slew_complete(poll_interval, timeout).await
     }
 
@@ -756,7 +756,7 @@ impl AlpacaTelescope {
     ) -> Result<bool, AlpacaError> {
         self.slew_to_alt_az_async(alt, az)
             .await
-            .map_err(|e| AlpacaError::OperationFailed(e))?;
+            .map_err(AlpacaError::OperationFailed)?;
         self.wait_for_slew_complete(poll_interval, timeout).await
     }
 

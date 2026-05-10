@@ -265,7 +265,6 @@ pub async fn discover_local_network(timeout: Duration) -> Vec<IndiServer> {
 
         for i in 1..=254u8 {
             let ip = format!("{}.{}.{}.{}", subnet.0, subnet.1, subnet.2, i);
-            let timeout = timeout;
 
             handles.push(tokio::spawn(async move {
                 let addr = format!("{}:{}", ip, INDI_DEFAULT_PORT);

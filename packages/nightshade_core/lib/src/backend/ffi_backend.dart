@@ -1657,19 +1657,26 @@ class FfiBackend implements NightshadeBackend {
       tracking: s.tracking,
       slewing: s.slewing,
       parked: s.parked,
-      atHome: s.atHome,
-      sideOfPier: _fromBridgePierSide(s.sideOfPier),
+      atHome: s.atHome ?? false,
+      sideOfPier: s.sideOfPier == null
+          ? dart_types.PierSide.unknown
+          : _fromBridgePierSide(s.sideOfPier!),
       rightAscension: s.rightAscension,
       declination: s.declination,
-      altitude: s.altitude,
-      azimuth: s.azimuth,
-      siderealTime: s.siderealTime,
-      trackingRate: _fromBridgeTrackingRate(s.trackingRate),
+      altitude: s.altitude ?? 0.0,
+      azimuth: s.azimuth ?? 0.0,
+      siderealTime: s.siderealTime ?? 0.0,
+      trackingRate: s.trackingRate == null
+          ? dart_caps.TrackingRate.sidereal
+          : _fromBridgeTrackingRate(s.trackingRate!),
       canPark: s.canPark,
       canSlew: s.canSlew,
       canSync: s.canSync,
       canPulseGuide: s.canPulseGuide,
       canSetTrackingRate: s.canSetTrackingRate,
+      availability: s.availability.map(
+        (key, value) => MapEntry(key, value.toString()),
+      ),
     );
   }
 

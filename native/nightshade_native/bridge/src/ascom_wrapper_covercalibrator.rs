@@ -126,6 +126,18 @@ impl AscomCoverCalibratorWrapper {
                 }
             }
 
+            // Why: COM teardown ordering — release the typed
+            // `AscomCoverCalibrator` (which holds an IDispatch) BEFORE
+            // `uninit_com()`. The Drop on `AscomDeviceConnection` is
+            // intentionally a no-op so this is the only correct location to
+            // issue the final disconnect.
+            if let Err(e) = cover_cal.disconnect() {
+                tracing::warn!(
+                    "ASCOM cover calibrator STA-worker shutdown disconnect failed: {}",
+                    e
+                );
+            }
+            drop(cover_cal);
             uninit_com();
         });
 
