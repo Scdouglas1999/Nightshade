@@ -587,11 +587,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildResultSection(CenteringResult result, ColorScheme colorScheme) {
+  Widget _buildResultSection(CenteringResult result, NightshadeColors colors) {
     final theme = Theme.of(context);
     final isSuccess = result.success;
     final icon = isSuccess ? LucideIcons.checkCircle : LucideIcons.xCircle;
-    final color = isSuccess ? colorScheme.tertiary : colorScheme.error;
+    final color = isSuccess ? colors.success : colors.error;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -624,7 +624,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           if (isSuccess && result.finalOffsetArcsec != null)
             Text(
               'Final offset: ${(result.finalOffsetArcsec! / 60.0).toStringAsFixed(2)}\' (${result.finalOffsetArcsec!.toStringAsFixed(1)}")',
-              style: theme.textTheme.bodySmall,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.textPrimary,
+              ),
             ),
           if (!isSuccess && result.errorMessage != null)
             Text(
@@ -634,7 +636,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           Text(
             '${result.iterations} iteration${result.iterations != 1 ? 's' : ''}',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.5),
+              color: colors.textMuted,
             ),
           ),
         ],
@@ -643,7 +645,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Widget _buildIterationHistory(
-      List<CenteringIteration> history, ColorScheme colorScheme) {
+      List<CenteringIteration> history, NightshadeColors colors) {
     final theme = Theme.of(context);
 
     return Column(
@@ -653,13 +655,13 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           'Iterations',
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface.withValues(alpha: 0.6),
+            color: colors.textSecondary,
           ),
         ),
         const SizedBox(height: 6),
         ...history.map((iter) {
           final isSuccess = iter.plateSolveSuccess;
-          final color = isSuccess ? colorScheme.tertiary : colorScheme.error;
+          final color = isSuccess ? colors.success : colors.error;
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(
@@ -688,6 +690,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                       ? Text(
                           '${iter.offsetArcmin?.toStringAsFixed(2) ?? '?'}\' offset',
                           style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.textPrimary,
                             fontFeatures: [const FontFeature.tabularFigures()],
                           ),
                         )
@@ -710,6 +713,29 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         }),
       ],
     );
+  }
+
+  // Abort path: latch _abortInFlight so the button disables immediately and
+  // a second tap can't queue a duplicate stop() (which would also issue a
+  // duplicate abortMountSlew). The centering loop's own _abortRequested
+  // poll surfaces the cancellation as a CenteringResult.failure('Aborted by
+  // user'), which _startCentering's normal completion path renders.
+  Future<void> _abortCentering() async {
+    setState(() => _abortInFlight = true);
+    try {
+      await ref.read(centeringServiceProvider).stop();
+    } catch (e) {
+      // Surface the failure rather than swallow it: per CLAUDE.md a silent
+      // abort failure could leave the mount slewing after the user thinks
+      // they aborted.
+      if (mounted) {
+        context.showErrorSnackBar('Abort failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _abortInFlight = false);
+      }
+    }
   }
 
   Future<void> _startCentering() async {
