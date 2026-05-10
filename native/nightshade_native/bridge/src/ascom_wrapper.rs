@@ -13,6 +13,47 @@ use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
+/// Compute remaining exposure time from ASCOM `PercentCompleted` (0..=100)
+/// and the total exposure duration we tracked at `StartExposure` time.
+///
+/// Why: ASCOM does not expose a "seconds remaining" property; per ICameraV3
+/// the only progress signal is `PercentCompleted`. Both inputs must be
+/// present and `pct` must be in range — anything else maps to `None` so
+/// the UI can render "unknown" rather than a fabricated value.
+fn compute_exposure_remaining(percent_completed: Option<i32>, total_secs: Option<f64>) -> Option<f64> {
+    match (percent_completed, total_secs) {
+        (Some(pct), Some(total)) if (0..=100).contains(&pct) && total >= 0.0 => {
+            let remaining = ((100 - pct) as f64 / 100.0) * total;
+            // Why: floating point can produce tiny negatives near the end of
+            // the exposure; clamp at zero rather than surfacing -0.0001.
+            Some(remaining.max(0.0))
+        }
+        _ => None,
+    }
+}
+
+/// Try-once-cache lookup for an ASCOM "Can*" capability that the driver
+/// does not expose declaratively. Probes via `probe()` only on the first
+/// call; subsequent calls return the cached result.
+///
+/// Why: per audit §5.16, the previous code probed `cam.cooler_power()` on
+/// every capability query. That is slow (one COM round-trip per status)
+/// and inverts ASCOM's "Can*" convention which is supposed to be cheap.
+/// Caching the result on the STA worker thread (where this is the only
+/// caller of the underlying COM property) is sufficient — the cache is
+/// reset on disconnect so a reconnect re-probes.
+fn cooler_power_supported(
+    cache: &mut Option<bool>,
+    probe: impl FnOnce() -> Result<f64, String>,
+) -> bool {
+    if let Some(v) = *cache {
+        return v;
+    }
+    let supported = probe().is_ok();
+    *cache = Some(supported);
+    supported
+}
+
 /// Connection health status for ASCOM devices
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CameraConnectionHealth {
@@ -115,6 +156,14 @@ impl AscomCameraWrapper {
 
             // Track the last set temperature setpoint (ASCOM SetCCDTemperature is write-only)
             let mut last_target_temp: Option<f64> = None;
+            // Why: ASCOM has no "last commanded exposure duration" property.
+            // We capture it at StartExposure time so that GetStatus can convert
+            // `PercentCompleted` (0..100) into a wall-clock seconds-remaining
+            // value (audit §5.19). Cleared on abort/stop/disconnect.
+            let mut last_exposure_duration: Option<f64> = None;
+            // Try-once-cache for the `CanGetCoolerPower` capability (§5.16).
+            // `None` = not yet probed; `Some(_)` = cached result.
+            let mut cooler_power_cache: Option<bool> = None;
 
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
@@ -134,6 +183,12 @@ impl AscomCameraWrapper {
                     }
                     AscomCommand::Disconnect(reply) => {
                         if let Some(cam) = &mut camera {
+                            // Why: a reconnect may target a different driver instance
+                            // (e.g. user picked another camera in SetupDialog), so the
+                            // cached `CanGetCoolerPower` probe and the in-flight
+                            // exposure tracking must be invalidated here.
+                            cooler_power_cache = None;
+                            last_exposure_duration = None;
                             let _ = reply.send(cam.disconnect().map_err(|e| e.to_string()));
                         } else {
                             let _ = reply.send(Err("Camera not created".to_string()));
@@ -171,6 +226,20 @@ impl AscomCameraWrapper {
                                     None
                                 };
 
+                            // Why (§5.19): ASCOM `PercentCompleted` is only valid while
+                            // CameraState is in {Exposing, Reading, Downloading}; outside
+                            // that window we treat it (and exposure_remaining) as None
+                            // rather than fabricating a stale residual.
+                            let exposure_remaining = match state {
+                                CameraState::Exposing
+                                | CameraState::Reading
+                                | CameraState::Downloading => compute_exposure_remaining(
+                                    full_status.percent_completed,
+                                    last_exposure_duration,
+                                ),
+                                _ => None,
+                            };
+
                             let status = CameraStatus {
                                 state,
                                 sensor_temp: full_status.thermal.temperature,
@@ -181,7 +250,7 @@ impl AscomCameraWrapper {
                                 offset: full_status.exposure_settings.offset.unwrap_or(0),
                                 bin_x: full_status.exposure_settings.bin_x.unwrap_or(1),
                                 bin_y: full_status.exposure_settings.bin_y.unwrap_or(1),
-                                exposure_remaining: None, // ASCOM doesn't provide this directly
+                                exposure_remaining,
                             };
                             let _ = reply.send(Ok(status));
                         } else {
@@ -190,9 +259,59 @@ impl AscomCameraWrapper {
                     }
                     AscomCommand::GetCapabilities(reply) => {
                         if let Some(cam) = &camera {
-                            // Query all capability properties from the ASCOM device
+                            // Why (§5.9): sensor width/height and bit-depth are load-bearing
+                            // for every downstream image operation (FITS header, debayer,
+                            // calibration). A transient COM failure must propagate as Err
+                            // rather than fabricating a 1x1 sensor or a wrong bit-depth.
                             let sensor_config = cam.get_sensor_config();
-                            let max_adu = cam.max_adu().unwrap_or(65535);
+                            let width = match sensor_config.width {
+                                Some(w) if w > 0 => w as u32,
+                                Some(w) => {
+                                    let _ = reply.send(Err(format!(
+                                        "ASCOM camera reported invalid CameraXSize={}",
+                                        w
+                                    )));
+                                    continue;
+                                }
+                                None => {
+                                    let _ = reply.send(Err(
+                                        "ASCOM camera CameraXSize property failed"
+                                            .to_string(),
+                                    ));
+                                    continue;
+                                }
+                            };
+                            let height = match sensor_config.height {
+                                Some(h) if h > 0 => h as u32,
+                                Some(h) => {
+                                    let _ = reply.send(Err(format!(
+                                        "ASCOM camera reported invalid CameraYSize={}",
+                                        h
+                                    )));
+                                    continue;
+                                }
+                                None => {
+                                    let _ = reply.send(Err(
+                                        "ASCOM camera CameraYSize property failed"
+                                            .to_string(),
+                                    ));
+                                    continue;
+                                }
+                            };
+
+                            // Why (§5.9): bit-depth derives from `MaxADU` and feeds image
+                            // scaling on every frame; a heuristic default of 65535 silently
+                            // produces wrong output for 8-bit or 32-bit sensors. Propagate.
+                            let max_adu = match cam.max_adu() {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    let _ = reply.send(Err(format!(
+                                        "ASCOM camera MaxADU property failed: {}",
+                                        e
+                                    )));
+                                    continue;
+                                }
+                            };
                             let bit_depth = if max_adu > 65535 {
                                 32
                             } else if max_adu > 255 {
@@ -215,19 +334,28 @@ impl AscomCameraWrapper {
                                 _ => Some("Unknown".to_string()),
                             };
 
-                            // Get readout modes if available
+                            // Why: ReadoutModes is optional in ASCOM ICameraV3; an Err here
+                            // (typically NotImplementedException) just means the driver does
+                            // not advertise readout modes. Treating absence as empty list is
+                            // semantically correct, not a silent fallback.
                             let readout_modes = cam.readout_modes().unwrap_or_default();
                             let exposure_settings = cam.get_exposure_settings();
 
+                            // §5.16: try-once-cache the CanGetCoolerPower probe.
+                            let can_get_cooler_power = cooler_power_supported(
+                                &mut cooler_power_cache,
+                                || cam.cooler_power(),
+                            );
+
                             let caps = AscomCameraCapabilities {
-                                max_width: sensor_config.width.unwrap_or(0) as u32,
-                                max_height: sensor_config.height.unwrap_or(0) as u32,
+                                max_width: width,
+                                max_height: height,
                                 bit_depth,
                                 has_shutter: cam.has_shutter().unwrap_or(false),
                                 can_set_ccd_temperature: cam
                                     .can_set_ccd_temperature()
                                     .unwrap_or(false),
-                                can_get_cooler_power: cam.cooler_power().is_ok(),
+                                can_get_cooler_power,
                                 can_bin: sensor_config.max_bin_x.unwrap_or(1) > 1,
                                 max_bin_x: sensor_config.max_bin_x.unwrap_or(1),
                                 max_bin_y: sensor_config.max_bin_y.unwrap_or(1),
@@ -260,6 +388,10 @@ impl AscomCameraWrapper {
                             match cam.start_exposure(params.duration_secs, true) {
                                 Ok(_) => {
                                     tracing::info!("ASCOM: start_exposure succeeded");
+                                    // Why (§5.19): capture the commanded duration so
+                                    // GetStatus can convert ASCOM `PercentCompleted`
+                                    // into a wall-clock seconds-remaining figure.
+                                    last_exposure_duration = Some(params.duration_secs);
                                     let _ = reply.send(Ok(()));
                                 }
                                 Err(e) => {
@@ -279,6 +411,11 @@ impl AscomCameraWrapper {
                             let result = cam
                                 .abort_exposure()
                                 .map_err(|e| format!("Failed to abort exposure: {}", e));
+                            // Why: aborted exposure has no defined remaining time;
+                            // clearing prevents stale ETA figures on the next status read.
+                            if result.is_ok() {
+                                last_exposure_duration = None;
+                            }
                             let _ = reply.send(result);
                         } else {
                             let _ = reply.send(Err("Camera not created".to_string()));
@@ -305,8 +442,35 @@ impl AscomCameraWrapper {
                         tracing::info!("ASCOM: DownloadImage called");
                         if let Some(cam) = &camera {
                             tracing::info!("ASCOM: Getting camera dimensions");
-                            let width = cam.camera_x_size().unwrap_or(1) as u32;
-                            let height = cam.camera_y_size().unwrap_or(1) as u32;
+                            // Why (§5.9): the dimensions used here are only for the log
+                            // line below — the authoritative dimensions come from
+                            // `image_array()` itself which returns the SAFEARRAY shape.
+                            // Even so, a transient COM error on CameraXSize/YSize must
+                            // not silently produce a "1x1" log; propagate as Err so the
+                            // bridge dispatch marks the device Disconnected rather than
+                            // pretending the image download will succeed.
+                            let width = match cam.camera_x_size() {
+                                Ok(v) => v as u32,
+                                Err(e) => {
+                                    let _ = reply.send(Err(format!(
+                                        "ASCOM camera CameraXSize failed: {}",
+                                        e
+                                    )));
+                                    last_exposure_duration = None;
+                                    continue;
+                                }
+                            };
+                            let height = match cam.camera_y_size() {
+                                Ok(v) => v as u32,
+                                Err(e) => {
+                                    let _ = reply.send(Err(format!(
+                                        "ASCOM camera CameraYSize failed: {}",
+                                        e
+                                    )));
+                                    last_exposure_duration = None;
+                                    continue;
+                                }
+                            };
                             tracing::info!("ASCOM: Camera dimensions: {}x{}", width, height);
 
                             tracing::info!("ASCOM: Calling cam.image_array()");
@@ -341,7 +505,7 @@ impl AscomCameraWrapper {
                                         bits_per_pixel: 16,
                                         bayer_pattern: None, // ASCOM doesn't provide bayer pattern info easily
                                         metadata: nightshade_native::camera::ImageMetadata {
-                                            exposure_time: 0.0, // Would need to track this
+                                            exposure_time: last_exposure_duration.unwrap_or(0.0),
                                             gain: 0,
                                             offset: 0,
                                             bin_x: 1,
@@ -357,10 +521,16 @@ impl AscomCameraWrapper {
                                         "ASCOM: Sending ImageData with {} pixels",
                                         image_data.data.len()
                                     );
+                                    // Why (§5.19): once the frame has been delivered the
+                                    // tracked duration is no longer the "current" exposure;
+                                    // clear it so subsequent GetStatus calls return None
+                                    // instead of computing remaining-time from a stale total.
+                                    last_exposure_duration = None;
                                     let _ = reply.send(Ok(image_data));
                                 }
                                 Err(e) => {
                                     tracing::error!("ASCOM: image_array() failed: {}", e);
+                                    last_exposure_duration = None;
                                     let _ =
                                         reply.send(Err(format!("Failed to download image: {}", e)));
                                 }
@@ -553,6 +723,12 @@ impl AscomCameraWrapper {
                             let result = cam
                                 .stop_exposure()
                                 .map_err(|e| format!("Failed to stop exposure: {}", e));
+                            // Why: stopping the exposure terminates progress reporting;
+                            // any subsequent GetStatus must report `None` rather than a
+                            // residual based on the now-defunct duration.
+                            if result.is_ok() {
+                                last_exposure_duration = None;
+                            }
                             let _ = reply.send(result);
                         } else {
                             let _ = reply.send(Err("Camera not created".to_string()));
@@ -779,66 +955,6 @@ impl AscomCameraWrapper {
     }
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    fn build_test_wrapper<F>(handler: F) -> AscomCameraWrapper
-    where
-        F: FnMut(AscomCommand) -> bool + Send + 'static,
-    {
-        let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
-            let mut handler = handler;
-            while let Some(cmd) = rx.blocking_recv() {
-                if handler(cmd) {
-                    break;
-                }
-            }
-        });
-
-        AscomCameraWrapper {
-            id: "test-camera".to_string(),
-            name: "Test Camera".to_string(),
-            sender: tx,
-            _thread_handle: Arc::new(handle),
-            connected: AtomicBool::new(false),
-            cached_capabilities: std::sync::RwLock::new(CameraCapabilities::default()),
-            cached_sensor_info: std::sync::RwLock::new(SensorInfo::default()),
-            cached_readout_modes: std::sync::RwLock::new(Vec::new()),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_disconnect_sends_stop_command() {
-        let stop_called = Arc::new(AtomicBool::new(false));
-        let stop_flag = Arc::clone(&stop_called);
-
-        let mut wrapper = build_test_wrapper(move |cmd| {
-            match cmd {
-                AscomCommand::Stop(reply) => {
-                    stop_flag.store(true, Ordering::SeqCst);
-                    let _ = reply.send(Ok(()));
-                }
-                AscomCommand::Disconnect(reply) => {
-                    let _ = reply.send(Ok(()));
-                    return true;
-                }
-                _ => {}
-            }
-            false
-        });
-
-        wrapper.disconnect().await.expect("disconnect");
-        assert!(stop_called.load(Ordering::SeqCst));
-    }
-}
-
 #[async_trait::async_trait]
 impl NativeDevice for AscomCameraWrapper {
     fn id(&self) -> &str {
@@ -863,17 +979,34 @@ impl NativeDevice for AscomCameraWrapper {
             .send(AscomCommand::Connect(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
-        if result.is_ok() {
-            self.connected.store(true, Ordering::SeqCst);
-            if let Err(err) = self.get_capabilities().await {
-                tracing::warn!(
-                    "Failed to refresh ASCOM camera capabilities after connect: {}",
-                    err
-                );
+        Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await?;
+        self.connected.store(true, Ordering::SeqCst);
+        // Why (§5.9): sensor size and bit depth are load-bearing for every
+        // downstream image operation. If the device cannot answer those
+        // properties immediately after connect, the camera is unusable and
+        // must be marked Disconnected instead of pretending the connection
+        // succeeded — otherwise the bridge dispatch would fabricate a 1x1
+        // sensor for the first frame.
+        if let Err(err) = self.get_capabilities().await {
+            tracing::error!(
+                "ASCOM camera capability refresh failed after connect; marking Disconnected: {}",
+                err
+            );
+            self.connected.store(false, Ordering::SeqCst);
+            // Best-effort hardware disconnect so the COM device is not left
+            // in a half-connected state.
+            let (dtx, drx) = oneshot::channel();
+            if self
+                .sender
+                .send(AscomCommand::Disconnect(dtx))
+                .await
+                .is_ok()
+            {
+                let _ = Self::recv_with_timeout(drx, Timeouts::connection(), "disconnect").await;
             }
+            return Err(err);
         }
-        result
+        Ok(())
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
@@ -1073,5 +1206,237 @@ impl NativeCamera for AscomCameraWrapper {
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
         // Return a reasonable default offset range
         Ok((0, 255))
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+
+    fn build_test_wrapper<F>(handler: F) -> AscomCameraWrapper
+    where
+        F: FnMut(AscomCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomCameraWrapper {
+            id: "test-camera".to_string(),
+            name: "Test Camera".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
+            cached_capabilities: std::sync::RwLock::new(CameraCapabilities::default()),
+            cached_sensor_info: std::sync::RwLock::new(SensorInfo::default()),
+            cached_readout_modes: std::sync::RwLock::new(Vec::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_sends_stop_command() {
+        let stop_called = Arc::new(AtomicBool::new(false));
+        let stop_flag = Arc::clone(&stop_called);
+
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            match cmd {
+                AscomCommand::Stop(reply) => {
+                    stop_flag.store(true, Ordering::SeqCst);
+                    let _ = reply.send(Ok(()));
+                }
+                AscomCommand::Disconnect(reply) => {
+                    let _ = reply.send(Ok(()));
+                    return true;
+                }
+                _ => {}
+            }
+            false
+        });
+
+        wrapper.disconnect().await.expect("disconnect");
+        assert!(stop_called.load(Ordering::SeqCst));
+    }
+
+    /// Audit §5.9: a transient COM error during DownloadImage must propagate
+    /// as Err. The previous implementation called `cam.camera_x_size().unwrap_or(1)`
+    /// which silently fabricated a 1x1 image; here we verify the wrapper now
+    /// surfaces the worker error to the caller.
+    #[tokio::test]
+    async fn test_download_image_propagates_com_error() {
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            if let AscomCommand::DownloadImage(reply) = cmd {
+                let _ = reply.send(Err(
+                    "ASCOM camera CameraXSize failed: COM error 0x80004005".to_string(),
+                ));
+                return true;
+            }
+            false
+        });
+
+        let result = wrapper.download_image().await;
+        assert!(result.is_err(), "transient COM error must propagate");
+        match result.unwrap_err() {
+            NativeError::SdkError(msg) => assert!(
+                msg.contains("CameraXSize"),
+                "error must reference the failed property, got: {}",
+                msg
+            ),
+            other => panic!("expected SdkError, got {:?}", other),
+        }
+    }
+
+    /// Audit §5.9: GetCapabilities must propagate sensor-size/bit-depth errors.
+    #[tokio::test]
+    async fn test_get_capabilities_propagates_com_error() {
+        let wrapper = build_test_wrapper(move |cmd| {
+            if let AscomCommand::GetCapabilities(reply) = cmd {
+                let _ = reply.send(Err(
+                    "ASCOM camera MaxADU property failed: COM error 0x80004005".to_string(),
+                ));
+                return true;
+            }
+            false
+        });
+
+        let result = wrapper.get_capabilities().await;
+        assert!(result.is_err(), "MaxADU failure must propagate");
+        match result.unwrap_err() {
+            NativeError::SdkError(msg) => assert!(
+                msg.contains("MaxADU"),
+                "error must reference the failed property, got: {}",
+                msg
+            ),
+            other => panic!("expected SdkError, got {:?}", other),
+        }
+    }
+
+    /// Audit §5.16: the cooler-power capability cache must probe at most once.
+    #[test]
+    fn test_cooler_power_supported_caches_first_probe() {
+        let probe_count = Arc::new(AtomicI32::new(0));
+
+        // First call: probe runs.
+        let mut cache: Option<bool> = None;
+        let count1 = Arc::clone(&probe_count);
+        let supported = cooler_power_supported(&mut cache, move || {
+            count1.fetch_add(1, Ordering::SeqCst);
+            Ok(0.5)
+        });
+        assert!(supported);
+        assert_eq!(probe_count.load(Ordering::SeqCst), 1);
+        assert_eq!(cache, Some(true));
+
+        // Second call: probe must NOT run again.
+        let count2 = Arc::clone(&probe_count);
+        let supported_again = cooler_power_supported(&mut cache, move || {
+            count2.fetch_add(1, Ordering::SeqCst);
+            Ok(0.5)
+        });
+        assert!(supported_again);
+        assert_eq!(
+            probe_count.load(Ordering::SeqCst),
+            1,
+            "cache hit must not invoke the probe closure"
+        );
+    }
+
+    /// Audit §5.16: a probe failure caches `false` so we don't pay the COM
+    /// round-trip on every subsequent capability query.
+    #[test]
+    fn test_cooler_power_supported_caches_failure() {
+        let probe_count = Arc::new(AtomicI32::new(0));
+        let mut cache: Option<bool> = None;
+
+        let count1 = Arc::clone(&probe_count);
+        let supported = cooler_power_supported(&mut cache, move || {
+            count1.fetch_add(1, Ordering::SeqCst);
+            Err("not implemented".to_string())
+        });
+        assert!(!supported);
+        assert_eq!(cache, Some(false));
+
+        let count2 = Arc::clone(&probe_count);
+        let supported_again = cooler_power_supported(&mut cache, move || {
+            count2.fetch_add(1, Ordering::SeqCst);
+            Err("not implemented".to_string())
+        });
+        assert!(!supported_again);
+        assert_eq!(
+            probe_count.load(Ordering::SeqCst),
+            1,
+            "failed probe must cache the negative result"
+        );
+    }
+
+    /// Audit §5.19: PercentCompleted (0..100) translates into a wall-clock
+    /// seconds-remaining figure when the total exposure duration is known.
+    #[test]
+    fn test_compute_exposure_remaining_typical() {
+        // 25% complete on a 100s exposure → 75s remaining.
+        assert_eq!(
+            compute_exposure_remaining(Some(25), Some(100.0)),
+            Some(75.0)
+        );
+        // 0% complete → full duration remaining.
+        assert_eq!(
+            compute_exposure_remaining(Some(0), Some(60.0)),
+            Some(60.0)
+        );
+        // 100% complete → zero remaining.
+        assert_eq!(compute_exposure_remaining(Some(100), Some(60.0)), Some(0.0));
+    }
+
+    /// Audit §5.19: missing inputs or out-of-range values map to None
+    /// rather than fabricating a residual.
+    #[test]
+    fn test_compute_exposure_remaining_invalid_inputs() {
+        assert_eq!(compute_exposure_remaining(None, Some(60.0)), None);
+        assert_eq!(compute_exposure_remaining(Some(50), None), None);
+        assert_eq!(compute_exposure_remaining(Some(-1), Some(60.0)), None);
+        assert_eq!(compute_exposure_remaining(Some(101), Some(60.0)), None);
+        assert_eq!(compute_exposure_remaining(Some(50), Some(-1.0)), None);
+    }
+
+    /// Audit §5.19: the wrapper plumbs an `exposure_remaining` value
+    /// reported by the worker through to the public `get_status` API.
+    #[tokio::test]
+    async fn test_get_status_plumbs_exposure_remaining() {
+        let wrapper = build_test_wrapper(move |cmd| {
+            if let AscomCommand::GetStatus(reply) = cmd {
+                let status = CameraStatus {
+                    state: CameraState::Exposing,
+                    sensor_temp: None,
+                    cooler_power: None,
+                    target_temp: None,
+                    cooler_on: false,
+                    gain: 0,
+                    offset: 0,
+                    bin_x: 1,
+                    bin_y: 1,
+                    exposure_remaining: Some(7.5),
+                };
+                let _ = reply.send(Ok(status));
+                return true;
+            }
+            false
+        });
+
+        let status = wrapper.get_status().await.expect("get_status");
+        assert_eq!(
+            status.exposure_remaining,
+            Some(7.5),
+            "exposure_remaining must be plumbed through the wrapper"
+        );
     }
 }

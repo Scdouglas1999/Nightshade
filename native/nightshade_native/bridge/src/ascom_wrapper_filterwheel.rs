@@ -78,10 +78,28 @@ impl AscomFilterWheelWrapper {
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
                     AscomFilterWheelCommand::Connect(reply) => {
-                        let result = fw.connect().map_err(|e| e.to_string());
-                        let _ = reply.send(result.and_then(|()| {
-                            // Now that we're connected, read filter names to get count
-                            let names = fw.names().unwrap_or_default();
+                        let result = fw.connect().map_err(|e| e.to_string()).and_then(|()| {
+                            // Why: Names is the source of truth for filter count and
+                            // is required to populate saved-profile filter offsets. If
+                            // it errors, returning a zero-count silently breaks every
+                            // downstream filter operation; per audit §5.11 the device
+                            // must be marked unusable, so we propagate and force the
+                            // caller (bridge dispatch) to drop the wrapper before it
+                            // is registered.
+                            let names = fw.names().map_err(|e| {
+                                let msg = format!(
+                                    "ASCOM FilterWheel `Names` query failed after connect: {}",
+                                    e
+                                );
+                                tracing::error!("{}", msg);
+                                if let Err(d) = fw.disconnect() {
+                                    tracing::warn!(
+                                        "ASCOM FilterWheel disconnect after Names failure failed: {}",
+                                        d
+                                    );
+                                }
+                                msg
+                            })?;
                             let count = names.len() as i32;
                             tracing::info!(
                                 "ASCOM FilterWheel connected with {} filters: {:?}",
@@ -104,7 +122,8 @@ impl AscomFilterWheelWrapper {
                             }
 
                             Ok(count)
-                        }));
+                        });
+                        let _ = reply.send(result);
                     }
                     AscomFilterWheelCommand::Disconnect(reply) => {
                         let _ = reply.send(fw.disconnect().map_err(|e| e.to_string()));
@@ -333,5 +352,97 @@ impl AscomFilterWheelWrapper {
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "supported_actions").await
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+//
+// Why: `new()` spawns a real STA thread that requires Windows COM to load the
+// ASCOM driver. The tests below build a wrapper struct directly with a mock
+// worker thread that intercepts `AscomFilterWheelCommand` messages, so we can
+// exercise the public `connect`/`disconnect` API without any COM dependency.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_test_wrapper<F>(handler: F) -> AscomFilterWheelWrapper
+    where
+        F: FnMut(AscomFilterWheelCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomFilterWheelWrapper {
+            id: "test-fw".to_string(),
+            name: "Test FW".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
+            filter_count: AtomicI32::new(0),
+        }
+    }
+
+    /// Audit §5.11: when the worker reports a `Names` failure during connect,
+    /// `connect()` must return Err and leave the wrapper in the disconnected
+    /// state. The bridge dispatch in `devices.rs` propagates this error and
+    /// drops the wrapper, so the device is effectively marked unusable.
+    #[tokio::test]
+    async fn test_connect_propagates_names_failure() {
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            if let AscomFilterWheelCommand::Connect(reply) = cmd {
+                let _ = reply.send(Err(
+                    "ASCOM FilterWheel `Names` query failed after connect: COM error 0x80004005"
+                        .to_string(),
+                ));
+                return true;
+            }
+            false
+        });
+
+        let result = wrapper.connect().await;
+        assert!(result.is_err(), "Names failure must propagate as Err");
+        match result.unwrap_err() {
+            NativeError::SdkError(msg) => {
+                assert!(
+                    msg.contains("Names"),
+                    "error message should mention Names property, got: {}",
+                    msg
+                );
+            }
+            other => panic!("expected SdkError, got {:?}", other),
+        }
+        assert!(!wrapper.is_connected(), "wrapper must remain disconnected");
+        assert_eq!(
+            wrapper.get_filter_count(),
+            0,
+            "filter count must remain zero after failed connect"
+        );
+    }
+
+    /// Sanity check that the connect path stores the filter count when the
+    /// worker reports success. This guards against regressions where a future
+    /// refactor of the Result chain might silently drop the count.
+    #[tokio::test]
+    async fn test_connect_success_records_filter_count() {
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            if let AscomFilterWheelCommand::Connect(reply) = cmd {
+                let _ = reply.send(Ok(7));
+                return true;
+            }
+            false
+        });
+
+        wrapper.connect().await.expect("connect should succeed");
+        assert!(wrapper.is_connected());
+        assert_eq!(wrapper.get_filter_count(), 7);
     }
 }
