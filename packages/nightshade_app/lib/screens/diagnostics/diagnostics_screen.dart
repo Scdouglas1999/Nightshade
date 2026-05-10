@@ -180,41 +180,6 @@ class _SessionSelector extends StatelessWidget {
   }
 }
 
-class _NoSessionSelected extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _NoSessionSelected({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.star, size: 48, color: colors.textMuted),
-          const SizedBox(height: 16),
-          Text(
-            context.l10n.text('diagnosticsNoSessionTitle'),
-            style: TextStyle(
-              fontSize: 15,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            context.l10n.text('diagnosticsNoSessionBody'),
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textMuted,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _DiagnosticsContent extends ConsumerWidget {
   final int sessionId;
   final bool isMobile;
