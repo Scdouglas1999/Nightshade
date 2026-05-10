@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class FilterSidebar extends ConsumerWidget {
   final bool isExpanded;
@@ -15,32 +16,78 @@ class FilterSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Tokenized surface so Red Night theme stays red instead of falling
+    // back to neutral grey — see audit §4.15.
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: isExpanded ? 220 : 48,
       decoration: BoxDecoration(
-        color: Colors.grey[900]?.withValues(alpha: 0.95),
+        color: colors.surfaceOverlay.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(8),
           bottomLeft: Radius.circular(8),
         ),
       ),
-      child: isExpanded ? _buildExpandedContent(ref) : _buildCollapsedContent(),
+      child: isExpanded
+          ? _buildExpandedContent(ref, colors)
+          : _buildCollapsedContent(ref, colors),
     );
   }
 
-  Widget _buildCollapsedContent() {
+  Widget _buildCollapsedContent(WidgetRef ref, NightshadeColors colors) {
+    // Compact status dots mirror KStars filter-count badges so users can see
+    // which categories are on without expanding. Listed in same order as the
+    // expanded toggles.
+    final config = ref.watch(skyRenderConfigProvider);
+    final showGround = ref.watch(showGroundPlaneProvider);
+
+    final categories = <_CategoryStatus>[
+      _CategoryStatus('Stars', config.showStars, colors.warning),
+      _CategoryStatus('Planets', config.showPlanets, colors.info),
+      _CategoryStatus('Deep Sky', config.showDSOs, colors.accent),
+      _CategoryStatus('Grid', config.showCoordinateGrid, colors.textSecondary),
+      _CategoryStatus(
+          'Constellations', config.showConstellationLines, colors.primary),
+      _CategoryStatus(
+          'Boundaries', config.showConstellationBoundaries, colors.border),
+      _CategoryStatus(
+          'Constellation Art', config.showConstellationArt, colors.accent),
+      _CategoryStatus('Ground', showGround, colors.success),
+    ];
+
     return Column(
       children: [
         IconButton(
           icon: const Icon(LucideIcons.panelRightOpen),
           onPressed: onToggle,
+          tooltip: 'Show filters',
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                for (final cat in categories)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: _FilterStatusDot(
+                      label: cat.label,
+                      active: cat.active,
+                      accent: cat.accent,
+                      mutedBorder: colors.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildExpandedContent(WidgetRef ref) {
+  Widget _buildExpandedContent(WidgetRef ref, NightshadeColors colors) {
     final config = ref.watch(skyRenderConfigProvider);
 
     return Column(
@@ -124,6 +171,46 @@ class FilterSidebar extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CategoryStatus {
+  final String label;
+  final bool active;
+  final Color accent;
+  const _CategoryStatus(this.label, this.active, this.accent);
+}
+
+class _FilterStatusDot extends StatelessWidget {
+  final String label;
+  final bool active;
+  final Color accent;
+  final Color mutedBorder;
+
+  const _FilterStatusDot({
+    required this.label,
+    required this.active,
+    required this.accent,
+    required this.mutedBorder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '$label: ${active ? 'on' : 'off'}',
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: active ? accent : Colors.transparent,
+          border: Border.all(
+            color: active ? accent : mutedBorder,
+            width: 1,
+          ),
+        ),
+      ),
     );
   }
 }

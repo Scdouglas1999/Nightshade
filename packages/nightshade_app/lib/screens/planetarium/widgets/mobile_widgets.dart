@@ -1365,8 +1365,10 @@ class CompassCalibrationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tokenized surface so this dialog respects Red Night theme — audit §4.15.
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
     return AlertDialog(
-      backgroundColor: Colors.grey[900],
+      backgroundColor: colors.surfaceOverlay,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       title: const Row(
         children: [

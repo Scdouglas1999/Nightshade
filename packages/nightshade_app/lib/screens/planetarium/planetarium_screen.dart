@@ -624,9 +624,12 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   }
 
   void _showFilterBottomSheet(BuildContext context) {
+    // Tokenized colors so Red Night theme keeps its red wash across mobile
+    // filter sheets — audit §4.15.
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey[900],
+      backgroundColor: colors.surfaceOverlay,
       isScrollControlled: true,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.7,
@@ -647,7 +650,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white38,
+                      color: colors.textMuted,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
