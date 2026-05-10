@@ -69,6 +69,17 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       }
     });
 
+    // Sync provider -> controller via a listen hook rather than peeking at
+    // the provider during build(). The build-time animateTo() worked most
+    // of the time but fired under window-resize storms / hot-reload,
+    // causing flicker (audit §4.3).
+    ref.listenManual<int>(sequencerTabProvider, (prev, next) {
+      if (!mounted) return;
+      if (_tabController.index != next) {
+        _tabController.animateTo(next);
+      }
+    });
+
     // Create a default sequence if none exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final sequence = ref.read(currentSequenceProvider);
@@ -91,12 +102,10 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
+    // Tab sync runs via ref.listenManual in initState (audit §4.3). The
+    // current value is still read for the shortcut bindings below that
+    // gate behaviour to the Builder tab.
     final currentTab = ref.watch(sequencerTabProvider);
-
-    // Sync tab controller with provider
-    if (_tabController.index != currentTab) {
-      _tabController.animateTo(currentTab);
-    }
 
     return ContextualTourPrompt(
       screenId: 'sequencer',
@@ -481,30 +490,35 @@ class _DesktopBuilderLayout extends ConsumerWidget {
               const bothCollapsedMinWidth =
                   collapsedPanelWidth + minCenterWidth + collapsedPanelWidth;
 
-              // On very narrow screens, use FAB overlays instead
+              // Below the absolute minimum, fall back to a rail-only layout
+              // that keeps a thin draggable icon palette so users can still
+              // drop nodes onto the tree (audit §4.7).
               if (availableWidth < bothCollapsedMinWidth) {
                 return _NarrowDesktopLayout(colors: colors);
               }
 
-              // Determine if we need to force collapse based on space
-              // If not enough space for both expanded, auto-collapse based on context
-              final needsCollapse = availableWidth < bothExpandedWidth;
+              // §4.7: auto-collapse is *derived* — never write back to the
+              // user-pref providers. When the user later widens the
+              // window, their original toolboxCollapsed/propertiesCollapsed
+              // preferences come back unchanged.
+              final spaceTight = availableWidth < bothExpandedWidth;
 
-              // Auto-collapse logic: if space is tight, collapse one panel
-              // Prefer keeping properties open if a node is selected
-              bool effectiveToolboxCollapsed = toolboxCollapsed;
-              bool effectivePropertiesCollapsed = propertiesCollapsed;
+              // If both prefs say "expanded" but we can't fit both, pick
+              // which one to force-collapse based on whether a node is
+              // selected (selected = show its properties).
+              final autoCollapseToolbox = spaceTight &&
+                  !toolboxCollapsed &&
+                  !propertiesCollapsed &&
+                  selectedNodeId != null;
+              final autoCollapseProperties = spaceTight &&
+                  !toolboxCollapsed &&
+                  !propertiesCollapsed &&
+                  selectedNodeId == null;
 
-              if (needsCollapse && !toolboxCollapsed && !propertiesCollapsed) {
-                // Not enough space and neither is collapsed - auto-collapse one
-                if (selectedNodeId != null) {
-                  // Node selected - collapse toolbox to show properties
-                  effectiveToolboxCollapsed = true;
-                } else {
-                  // No node selected - collapse properties to show toolbox
-                  effectivePropertiesCollapsed = true;
-                }
-              }
+              final effectiveToolboxCollapsed =
+                  toolboxCollapsed || autoCollapseToolbox;
+              final effectivePropertiesCollapsed =
+                  propertiesCollapsed || autoCollapseProperties;
 
               return Row(
                 children: [
@@ -522,17 +536,14 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     collapsedIcon: LucideIcons.layoutGrid,
                     collapsedTooltip: 'Show Toolbox',
                     onToggle: () {
+                      // Only toggle this panel's pref. The derived
+                      // effective* values above handle the other panel
+                      // automatically when space is tight (§4.7).
                       final wasCollapsed =
                           ref.read(sequencerToolboxCollapsedProvider);
                       ref
                           .read(sequencerToolboxCollapsedProvider.notifier)
                           .state = !wasCollapsed;
-                      // If expanding toolbox on tight screen, collapse properties
-                      if (wasCollapsed && needsCollapse) {
-                        ref
-                            .read(sequencerPropertiesCollapsedProvider.notifier)
-                            .state = true;
-                      }
                     },
                     child: _ToolboxPanel(
                       key: SequencerTutorialKeys.nodePalette,
@@ -580,12 +591,6 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                       ref
                           .read(sequencerPropertiesCollapsedProvider.notifier)
                           .state = !wasCollapsed;
-                      // If expanding properties on tight screen, collapse toolbox
-                      if (wasCollapsed && needsCollapse) {
-                        ref
-                            .read(sequencerToolboxCollapsedProvider.notifier)
-                            .state = true;
-                      }
                     },
                     child: NodePropertiesPanel(
                       key: SequencerTutorialKeys.propertiesPanel,
@@ -630,12 +635,22 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    // Sync with provider state
-    final showSnippets = ref.read(snippetPaletteVisibleProvider);
-    if (showSnippets) {
-      _tabController.animateTo(1);
+    // Seed initial tab from the provider once. After this, sync flows via
+    // the ref.listenManual hook below — keeps animateTo out of build()
+    // (audit §4.3).
+    final initialShowSnippets = ref.read(snippetPaletteVisibleProvider);
+    if (initialShowSnippets) {
+      _tabController.index = 1;
     }
     _tabController.addListener(_onTabChanged);
+
+    ref.listenManual<bool>(snippetPaletteVisibleProvider, (prev, next) {
+      if (!mounted) return;
+      final target = next ? 1 : 0;
+      if (_tabController.index != target) {
+        _tabController.animateTo(target);
+      }
+    });
   }
 
   void _onTabChanged() {
@@ -654,16 +669,6 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
 
   @override
   Widget build(BuildContext context) {
-    // Watch provider to sync tabs
-    final showSnippets = ref.watch(snippetPaletteVisibleProvider);
-    if (_tabController.index != (showSnippets ? 1 : 0)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _tabController.animateTo(showSnippets ? 1 : 0);
-        }
-      });
-    }
-
     return Container(
       decoration: BoxDecoration(
         color: widget.colors.surface,
@@ -1456,12 +1461,19 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
   }
 }
 
-/// Layout for very narrow desktop/tablet screens
-/// Shows only the sequence tree with FAB buttons for accessing panels
+/// Layout for very narrow desktop/tablet screens.
+///
+/// Per audit §4.7: below the minimum-width threshold we keep a thin
+/// draggable icon-only rail on the left so users can still drag nodes
+/// onto the tree. A "More..." button at the bottom of the rail opens the
+/// full node palette sheet for search/discovery. The properties FAB is
+/// preserved for editing the selected node.
 class _NarrowDesktopLayout extends ConsumerWidget {
   final NightshadeColors colors;
 
   const _NarrowDesktopLayout({required this.colors});
+
+  static const double _railWidth = 48.0;
 
   void _showNodePaletteSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1515,86 +1527,303 @@ class _NarrowDesktopLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
     final selectedNodeId = ref.watch(selectedNodeIdProvider);
-    final isDragging = ref.watch(isDraggingNodeProvider);
 
     return Stack(
       children: [
-        // Sequence tree - full width
-        SequenceTree(key: SequencerTutorialKeys.canvas, colors: colors),
+        Row(
+          children: [
+            _NarrowNodePaletteRail(
+              colors: colors,
+              width: _railWidth,
+              onShowFullPalette: () => _showNodePaletteSheet(context),
+            ),
+            Expanded(
+              child:
+                  SequenceTree(key: SequencerTutorialKeys.canvas, colors: colors),
+            ),
+          ],
+        ),
 
-        // Floating palette overlay during active drag on narrow screens.
-        // This keeps the palette visible so nodes can be dragged to the tree.
-        if (isDragging)
+        // Properties FAB — selecting a node still needs an editing affordance
+        // on the narrow layout. The rail handles node insertion.
+        if (selectedNodeId != null)
           Positioned(
-            left: 8,
-            bottom: 80,
-            child: Container(
-              width: 200,
-              height: 48,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: colors.primary.withValues(alpha: 0.4)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.info, size: 14, color: colors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Drop on tree to insert',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'narrow_properties_fab',
+              backgroundColor: colors.accent,
+              onPressed: () => _showPropertiesSheet(context, ref),
+              child: Icon(
+                LucideIcons.settings2,
+                color: onPrimary,
+                size: 20,
               ),
             ),
           ),
+      ],
+    );
+  }
+}
 
-        // FABs for accessing panels
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: Column(
+/// Vertical icon strip showing one draggable button per palette item,
+/// for use under the narrow-desktop threshold (audit §4.7). Each icon is
+/// a `Draggable<NodePaletteItem>` whose drop is accepted by the same
+/// `DragTarget<Object>` in `sequence_tree.dart` that the expanded palette
+/// uses, so insertion semantics are identical.
+class _NarrowNodePaletteRail extends ConsumerWidget {
+  final NightshadeColors colors;
+  final double width;
+  final VoidCallback onShowFullPalette;
+
+  const _NarrowNodePaletteRail({
+    required this.colors,
+    required this.width,
+    required this.onShowFullPalette,
+  });
+
+  IconData _resolveIcon(String iconName) {
+    switch (iconName) {
+      case 'target':
+        return LucideIcons.target;
+      case 'camera':
+        return LucideIcons.camera;
+      case 'circle':
+        return LucideIcons.circle;
+      case 'shuffle':
+        return LucideIcons.shuffle;
+      case 'compass':
+        return LucideIcons.compass;
+      case 'crosshair':
+        return LucideIcons.crosshair;
+      case 'parking-circle':
+        return LucideIcons.parkingCircle;
+      case 'unlock':
+        return LucideIcons.unlock;
+      case 'focus':
+        return LucideIcons.focus;
+      case 'snowflake':
+        return LucideIcons.snowflake;
+      case 'flame':
+        return LucideIcons.flame;
+      case 'rotate-cw':
+        return LucideIcons.rotateCw;
+      case 'workflow':
+        return LucideIcons.workflow;
+      case 'repeat':
+        return LucideIcons.repeat;
+      case 'git-merge':
+        return LucideIcons.gitMerge;
+      case 'git-branch':
+        return LucideIcons.gitBranch;
+      case 'shield-check':
+        return LucideIcons.shieldCheck;
+      case 'clock':
+        return LucideIcons.clock;
+      case 'timer':
+        return LucideIcons.timer;
+      case 'wrench':
+        return LucideIcons.wrench;
+      case 'bell':
+        return LucideIcons.bell;
+      case 'code':
+        return LucideIcons.code;
+      case 'aperture':
+        return LucideIcons.aperture;
+      case 'door-open':
+        return LucideIcons.doorOpen;
+      case 'door-closed':
+        return LucideIcons.doorClosed;
+      case 'lightbulb':
+        return LucideIcons.lightbulb;
+      case 'lightbulb-off':
+        return LucideIcons.lightbulbOff;
+      default:
+        return LucideIcons.box;
+    }
+  }
+
+  Color _categoryColor(String name) {
+    switch (name) {
+      case 'Target':
+        return colors.warning;
+      case 'Imaging':
+        return colors.primary;
+      case 'Mount':
+        return colors.info;
+      case 'Focus':
+        return colors.accent;
+      case 'Camera':
+        return colors.primary;
+      case 'Logic':
+        return colors.accent;
+      case 'Timing':
+        return colors.warning;
+      case 'Utilities':
+        return colors.textMuted;
+      case 'Flat Panel':
+        return colors.warning;
+      case 'Dome':
+        return colors.info;
+      case 'Guiding':
+        return colors.primary;
+      default:
+        return colors.textSecondary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(nodePaletteProvider);
+
+    final flat = <({NodePaletteItem item, Color tint})>[
+      for (final cat in categories)
+        for (final item in cat.items)
+          (item: item, tint: _categoryColor(cat.name)),
+    ];
+
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(right: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              itemCount: flat.length,
+              itemBuilder: (context, index) {
+                final entry = flat[index];
+                return _RailDraggable(
+                  item: entry.item,
+                  tint: entry.tint,
+                  icon: _resolveIcon(entry.item.icon),
+                  colors: colors,
+                );
+              },
+            ),
+          ),
+          Divider(height: 1, color: colors.border),
+          Tooltip(
+            message: 'More nodes…',
+            child: IconButton(
+              icon: Icon(
+                LucideIcons.moreHorizontal,
+                size: 18,
+                color: colors.textSecondary,
+              ),
+              onPressed: onShowFullPalette,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RailDraggable extends ConsumerStatefulWidget {
+  final NodePaletteItem item;
+  final Color tint;
+  final IconData icon;
+  final NightshadeColors colors;
+
+  const _RailDraggable({
+    required this.item,
+    required this.tint,
+    required this.icon,
+    required this.colors,
+  });
+
+  @override
+  ConsumerState<_RailDraggable> createState() => _RailDraggableState();
+}
+
+class _RailDraggableState extends ConsumerState<_RailDraggable> {
+  bool _hovered = false;
+
+  void _addNodeViaDoubleTap() {
+    // Mirrors `_NodePaletteItem._addNode` in node_palette.dart so the rail
+    // double-tap matches the expanded-palette insertion semantics.
+    final node = widget.item.createNode();
+    final selectedId = ref.read(selectedNodeIdProvider);
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    notifier.addNode(node, parentId: selectedId);
+    final children = widget.item.createChildren?.call();
+    if (children != null) {
+      for (final c in children) {
+        notifier.addNode(c, parentId: node.id);
+      }
+    }
+    ref.read(selectedNodeIdProvider.notifier).state = node.id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Draggable<NodePaletteItem>(
+      data: widget.item,
+      onDragStarted: () =>
+          ref.read(isDraggingNodeProvider.notifier).state = true,
+      onDragEnd: (_) =>
+          ref.read(isDraggingNodeProvider.notifier).state = false,
+      onDraggableCanceled: (_, __) =>
+          ref.read(isDraggingNodeProvider.notifier).state = false,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.tint.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.tint.withValues(alpha: 0.5)),
+          ),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Properties FAB (only when a node is selected)
-              if (selectedNodeId != null) ...[
-                FloatingActionButton.small(
-                  heroTag: 'narrow_properties_fab',
-                  backgroundColor: colors.accent,
-                  onPressed: () => _showPropertiesSheet(context, ref),
-                  child: Icon(
-                    LucideIcons.settings2,
-                    color: onPrimary,
-                    size: 20,
-                  ),
+              Icon(widget.icon, size: 14, color: widget.tint),
+              const SizedBox(width: 6),
+              Text(
+                widget.item.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: widget.colors.textPrimary,
                 ),
-                const SizedBox(height: 12),
-              ],
-              // Add node FAB
-              FloatingActionButton(
-                heroTag: 'narrow_add_node_fab',
-                backgroundColor: colors.primary,
-                onPressed: () => _showNodePaletteSheet(context),
-                child: Icon(LucideIcons.plus, color: onPrimary),
               ),
             ],
           ),
         ),
-      ],
+      ),
+      child: Tooltip(
+        message: widget.item.name,
+        waitDuration: const Duration(milliseconds: 300),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            onDoubleTap: _addNodeViaDoubleTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              height: 36,
+              decoration: BoxDecoration(
+                color: _hovered
+                    ? widget.tint.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _hovered
+                      ? widget.tint.withValues(alpha: 0.5)
+                      : Colors.transparent,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(widget.icon, size: 18, color: widget.tint),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

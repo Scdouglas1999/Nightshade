@@ -53,17 +53,142 @@ class SequenceToolbar extends ConsumerWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Calculate if we need to hide some elements based on available width
-          // Thresholds are calibrated to prevent overflow at each breakpoint
-          final hideSecondaryActions = constraints.maxWidth < 1100;
-          final hideSequenceInfo = constraints.maxWidth < 1000;
-          final hideSimulation = constraints.maxWidth < 900;
-          final hideEquipmentStatus = constraints.maxWidth < 850;
-          final hideFileOps = constraints.maxWidth < 700;
+          final notifier = ref.read(currentSequenceProvider.notifier);
+
+          // Build the list of secondary actions once. Each entry knows how
+          // to render itself inline (icon button) or as a PopupMenuItem so
+          // the overflow path can't drift from the inline path
+          // (audit §4.8).
+          void openWizard() => showDialog(
+                context: context,
+                builder: (_) => const QuickStartWizardDialog(),
+              );
+
+          Future<void> openSequenceFile() async {
+            try {
+              final fileService = ref.read(sequenceFileServiceProvider);
+              final imported = await fileService.importSequence();
+              if (imported != null) {
+                ref
+                    .read(currentSequenceProvider.notifier)
+                    .loadSequence(imported);
+                if (context.mounted) {
+                  context.showSuccessSnackBar(
+                      'Sequence "${imported.name}" loaded');
+                }
+              }
+            } catch (e) {
+              if (context.mounted) {
+                context.showErrorSnackBar('Failed to load sequence: $e');
+              }
+            }
+          }
+
+          Future<void> saveSequenceFile() async {
+            final current = ref.read(currentSequenceProvider);
+            if (current == null) {
+              if (context.mounted) {
+                context.showWarningSnackBar('No sequence to save');
+              }
+              return;
+            }
+            try {
+              final fileService = ref.read(sequenceFileServiceProvider);
+              await fileService.exportSequence(current);
+              if (context.mounted) {
+                context.showSuccessSnackBar(
+                    'Sequence "${current.name}" saved');
+              }
+            } catch (e) {
+              if (context.mounted) {
+                context.showErrorSnackBar('Failed to save sequence: $e');
+              }
+            }
+          }
+
+          Future<void> slewToTarget() async {
+            if (sequence == null || sequence.targetHeaders.isEmpty) return;
+            final targetGroup = sequence.targetHeaders.first;
+            try {
+              final deviceService = ref.read(deviceServiceProvider);
+              await deviceService.slewMountToCoordinates(
+                targetGroup.raHours,
+                targetGroup.decDegrees,
+              );
+              if (context.mounted) {
+                context.showInfoSnackBar(
+                    'Slewing to ${targetGroup.targetName}');
+              }
+            } catch (e) {
+              if (context.mounted) {
+                context.showErrorSnackBar('Failed to slew: $e');
+              }
+            }
+          }
+
+          final actions = <_ToolbarAction>[
+            const _ToolbarAction.divider(),
+            _ToolbarAction(
+              icon: LucideIcons.filePlus,
+              label: 'New Sequence',
+              onPressed: notifier.createSequence,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.wand2,
+              label: 'Quick-Start Wizard',
+              onPressed: openWizard,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.folderOpen,
+              label: 'Open Sequence',
+              onPressed: openSequenceFile,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.save,
+              label: 'Save Sequence',
+              onPressed: saveSequenceFile,
+            ),
+            const _ToolbarAction.divider(),
+            _ToolbarAction(
+              icon: LucideIcons.compass,
+              label: 'Polar Alignment',
+              onPressed: () => context.push('/polar-alignment'),
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.bellRing,
+              label: 'Exposure Triggers',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const TriggerConfigurationDialog(),
+              ),
+            ),
+            const _ToolbarAction.divider(),
+            if (sequence != null && sequence.targetHeaders.isNotEmpty)
+              _ToolbarAction(
+                icon: LucideIcons.navigation,
+                label: 'Slew to Target',
+                onPressed: slewToTarget,
+              ),
+            _ToolbarAction(
+              icon: LucideIcons.undo2,
+              label: 'Undo (Ctrl+Z)',
+              onPressed: notifier.canUndo ? notifier.undo : null,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.redo2,
+              label: 'Redo (Ctrl+Y)',
+              onPressed: notifier.canRedo ? notifier.redo : null,
+            ),
+          ];
+
+          // §4.8: single overflow threshold. Below it, everything that
+          // isn't the playback controls / time estimate / status badge
+          // funnels into a single overflow menu so nothing disappears.
+          final isCompact =
+              constraints.maxWidth < BreakpointTokens.breakpointDesktop;
 
           return Row(
             children: [
-              // Playback controls - always visible
               _PlaybackControls(
                 colors: colors,
                 isIdle: isIdle,
@@ -71,7 +196,6 @@ class SequenceToolbar extends ConsumerWidget {
                 isPaused: isPaused,
                 executionState: executionState,
                 onStart: () {
-                  // Show pre-flight validation dialog before starting
                   showDialog(
                     context: context,
                     builder: (context) => PreFlightValidationDialog(
@@ -88,191 +212,41 @@ class SequenceToolbar extends ConsumerWidget {
                 onReset: actionService.reset,
               ),
 
-              // File operations - hide on extremely narrow screens
-              if (!hideFileOps) ...[
-                const SizedBox(width: 24),
-                _Divider(colors: colors),
-                const SizedBox(width: 24),
-                _ToolbarIconButton(
-                  icon: LucideIcons.filePlus,
-                  tooltip: 'New Sequence',
-                  colors: colors,
-                  onPressed: () {
-                    ref.read(currentSequenceProvider.notifier).createSequence();
-                  },
-                ),
-                const SizedBox(width: 4),
-                _ToolbarIconButton(
-                  icon: LucideIcons.wand2,
-                  tooltip: 'Quick-Start Wizard',
-                  colors: colors,
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const QuickStartWizardDialog(),
-                    );
-                  },
-                ),
-                const SizedBox(width: 4),
-                _ToolbarIconButton(
-                  icon: LucideIcons.folderOpen,
-                  tooltip: 'Open Sequence',
-                  colors: colors,
-                  onPressed: () async {
-                    try {
-                      final fileService = ref.read(sequenceFileServiceProvider);
-                      final importedSequence =
-                          await fileService.importSequence();
-
-                      if (importedSequence != null) {
-                        ref
-                            .read(currentSequenceProvider.notifier)
-                            .loadSequence(importedSequence);
-
-                        if (context.mounted) {
-                          context.showSuccessSnackBar(
-                              'Sequence "${importedSequence.name}" loaded');
-                        }
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        context
-                            .showErrorSnackBar('Failed to load sequence: $e');
-                      }
-                    }
-                  },
-                ),
-                const SizedBox(width: 4),
-                _ToolbarIconButton(
-                  icon: LucideIcons.save,
-                  tooltip: 'Save Sequence',
-                  colors: colors,
-                  onPressed: () async {
-                    final currentSequence = ref.read(currentSequenceProvider);
-                    if (currentSequence == null) {
-                      if (context.mounted) {
-                        context.showWarningSnackBar('No sequence to save');
-                      }
-                      return;
-                    }
-
-                    try {
-                      final fileService = ref.read(sequenceFileServiceProvider);
-                      await fileService.exportSequence(currentSequence);
-
-                      if (context.mounted) {
-                        context.showSuccessSnackBar(
-                            'Sequence "${currentSequence.name}" saved');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        context
-                            .showErrorSnackBar('Failed to save sequence: $e');
-                      }
-                    }
-                  },
-                ),
-              ],
-
-              // Secondary actions - hide on narrow screens
-              if (!hideSecondaryActions) ...[
-                const SizedBox(width: 24),
-                _Divider(colors: colors),
-                const SizedBox(width: 24),
-
-                // Polar Alignment
-                _ToolbarIconButton(
-                  icon: LucideIcons.compass,
-                  tooltip: 'Polar Alignment',
-                  colors: colors,
-                  onPressed: () {
-                    context.push('/polar-alignment');
-                  },
-                ),
-                const SizedBox(width: 4),
-                // Trigger Configuration
-                _ToolbarIconButton(
-                  icon: LucideIcons.bellRing,
-                  tooltip: 'Exposure Triggers',
-                  colors: colors,
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const TriggerConfigurationDialog(),
-                    );
-                  },
-                ),
-
-                const SizedBox(width: 24),
-                _Divider(colors: colors),
-                const SizedBox(width: 24),
-
-                // Slew to Target (if sequence has a target)
-                if (sequence != null && sequence.targetHeaders.isNotEmpty) ...[
-                  _ToolbarIconButton(
-                    icon: LucideIcons.navigation,
-                    tooltip: 'Slew to Target',
-                    colors: colors,
-                    onPressed: () async {
-                      final targetGroup = sequence.targetHeaders.first;
-                      try {
-                        final deviceService = ref.read(deviceServiceProvider);
-                        await deviceService.slewMountToCoordinates(
-                          targetGroup.raHours,
-                          targetGroup.decDegrees,
-                        );
-
-                        if (context.mounted) {
-                          context.showInfoSnackBar(
-                              'Slewing to ${targetGroup.targetName}');
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          context.showErrorSnackBar('Failed to slew: $e');
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 4),
+              if (!isCompact) ...[
+                for (final a in actions) ...[
+                  if (a.isDivider) ...[
+                    const SizedBox(width: 24),
+                    _Divider(colors: colors),
+                    const SizedBox(width: 24),
+                  ] else ...[
+                    _ToolbarIconButton(
+                      icon: a.icon!,
+                      tooltip: a.label!,
+                      colors: colors,
+                      onPressed: a.onPressed,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                 ],
-
-                // Undo/Redo
-                _ToolbarIconButton(
-                  icon: LucideIcons.undo2,
-                  tooltip: 'Undo (Ctrl+Z)',
-                  colors: colors,
-                  onPressed: ref.read(currentSequenceProvider.notifier).canUndo
-                      ? () => ref.read(currentSequenceProvider.notifier).undo()
-                      : null,
-                ),
-                const SizedBox(width: 4),
-                _ToolbarIconButton(
-                  icon: LucideIcons.redo2,
-                  tooltip: 'Redo (Ctrl+Y)',
-                  colors: colors,
-                  onPressed: ref.read(currentSequenceProvider.notifier).canRedo
-                      ? () => ref.read(currentSequenceProvider.notifier).redo()
-                      : null,
-                ),
+              ] else ...[
+                const SizedBox(width: 12),
+                _ToolbarOverflowMenu(colors: colors, actions: actions),
               ],
 
               const Spacer(),
 
-              // Sequence info - hide on very narrow screens
-              if (!hideSequenceInfo && sequence != null) ...[
+              if (sequence != null) ...[
                 _SequenceTimeEstimate(colors: colors, sequence: sequence),
                 const SizedBox(width: 16),
               ],
 
-              // Equipment status indicators - hide on narrow screens
-              if (!hideEquipmentStatus)
+              if (!isCompact)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: EquipmentStatusWidget(colors: colors),
                 ),
 
-              // Simulation mode indicator - hide on narrow screens
-              if (!hideSimulation)
+              if (!isCompact)
                 Consumer(
                   builder: (context, ref, child) {
                     final settingsAsync = ref.watch(appSettingsProvider);
@@ -313,7 +287,6 @@ class SequenceToolbar extends ConsumerWidget {
                   },
                 ),
 
-              // Status badge
               _StatusBadge(
                 colors: colors,
                 executionState: executionState,
@@ -322,6 +295,96 @@ class SequenceToolbar extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// A single toolbar action. `isDivider == true` represents a visual
+/// separator between groups (inline) or the start of a new section in
+/// the overflow menu. Keeping both renderings driven by the same data
+/// is what audit §4.8 asks for so a hidden button never silently
+/// disappears.
+class _ToolbarAction {
+  final IconData? icon;
+  final String? label;
+  final VoidCallback? onPressed;
+  final bool isDivider;
+
+  const _ToolbarAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  }) : isDivider = false;
+
+  const _ToolbarAction.divider()
+      : icon = null,
+        label = null,
+        onPressed = null,
+        isDivider = true;
+}
+
+/// Single overflow popup that subsumes every secondary action below the
+/// compact breakpoint. PopupMenuItems are disabled-but-visible when an
+/// action's `onPressed` is null, matching inline behaviour (audit §4.8).
+class _ToolbarOverflowMenu extends StatelessWidget {
+  final NightshadeColors colors;
+  final List<_ToolbarAction> actions;
+
+  const _ToolbarOverflowMenu({required this.colors, required this.actions});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<int>(
+      tooltip: 'More actions',
+      icon: Icon(
+        LucideIcons.moreHorizontal,
+        size: 18,
+        color: colors.textSecondary,
+      ),
+      onSelected: (index) {
+        final action = actions[index];
+        action.onPressed?.call();
+      },
+      itemBuilder: (context) {
+        final items = <PopupMenuEntry<int>>[];
+        for (var i = 0; i < actions.length; i++) {
+          final a = actions[i];
+          if (a.isDivider) {
+            if (items.isNotEmpty) {
+              items.add(const PopupMenuDivider());
+            }
+            continue;
+          }
+          items.add(
+            PopupMenuItem<int>(
+              value: i,
+              enabled: a.onPressed != null,
+              child: Row(
+                children: [
+                  Icon(
+                    a.icon,
+                    size: 16,
+                    color: a.onPressed == null
+                        ? colors.textMuted
+                        : colors.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    a.label!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: a.onPressed == null
+                          ? colors.textMuted
+                          : colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return items;
+      },
     );
   }
 }
