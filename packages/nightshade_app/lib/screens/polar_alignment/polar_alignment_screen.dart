@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 
@@ -32,7 +33,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
-    )..repeat(reverse: true);
+    );
   }
 
   @override
@@ -48,26 +49,16 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       ref.read(polarAlignmentStateProvider.notifier).reset();
-      final colors = Theme.of(context).extension<NightshadeColors>()!;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              'Camera not connected. Please connect a camera before starting polar alignment.'),
-          backgroundColor: colors.error,
-        ),
+      context.showErrorSnackBar(
+        'Camera not connected. Please connect a camera before starting polar alignment.',
       );
       return;
     }
 
     if (mountState.connectionState != DeviceConnectionState.connected) {
       ref.read(polarAlignmentStateProvider.notifier).reset();
-      final colors = Theme.of(context).extension<NightshadeColors>()!;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              'Mount not connected. Please connect a mount before starting polar alignment.'),
-          backgroundColor: colors.error,
-        ),
+      context.showErrorSnackBar(
+        'Mount not connected. Please connect a mount before starting polar alignment.',
       );
       return;
     }
@@ -93,6 +84,17 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Pulse animation only ticks while alignment is running; otherwise it
+    // burns a frame/sec for a status indicator that isn't visible.
+    ref.listen<PolarAlignmentState>(polarAlignmentStateProvider, (prev, next) {
+      final wasRunning = prev?.isRunning ?? false;
+      if (next.isRunning && !wasRunning) {
+        _pulseController.repeat(reverse: true);
+      } else if (!next.isRunning && wasRunning) {
+        _pulseController.stop();
+      }
+    });
+
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(polarAlignmentStateProvider);
     final config = ref.watch(polarAlignmentConfigProvider);
