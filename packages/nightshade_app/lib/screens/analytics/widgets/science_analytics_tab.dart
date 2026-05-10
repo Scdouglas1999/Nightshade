@@ -15,18 +15,54 @@ import 'package:path_provider/path_provider.dart';
 import 'mpc_export_panel.dart';
 import 'period_analysis_panel.dart';
 import 'photometric_calibration_wizard.dart';
-import 'quick_csv_export.dart';
+import 'science_export_hub.dart';
 import 'science_insights_panel.dart';
 import 'science_kpi_strip.dart';
 import 'science_overlay_composer.dart';
 import 'science_surface_explorer.dart';
 import 'science_timeline_scrubber.dart';
 
-class ScienceAnalyticsTab extends ConsumerWidget {
+// Jump-nav anchor keys for the science tab. Declared at file scope so the
+// build method's section bar and section bodies share the same key instances
+// across rebuilds — Scrollable.ensureVisible needs a key whose context is in
+// the live tree at the moment of the jump.
+class _ScienceSectionKeys {
+  final GlobalKey photometry = GlobalKey();
+  final GlobalKey fieldQuality = GlobalKey();
+  final GlobalKey anomalies = GlobalKey();
+}
+
+class ScienceAnalyticsTab extends ConsumerStatefulWidget {
   const ScienceAnalyticsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScienceAnalyticsTab> createState() =>
+      _ScienceAnalyticsTabState();
+}
+
+class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
+  final _ScienceSectionKeys _sectionKeys = _ScienceSectionKeys();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _jumpTo(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      alignment: 0.05,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final activeSessionId = _resolveSessionId(ref);
 
@@ -108,9 +144,11 @@ class ScienceAnalyticsTab extends ConsumerWidget {
     final latestPsfTiles = _latestPsfSnapshot(psfTiles);
     final latestResiduals = _latestResidualSnapshot(residuals);
     final latestTileMetrics = _latestTileMetricSnapshot(tileMetrics);
-    final diagnostics = const OpticalTrainDiagnosticsService().analyze(
-      psfTiles: latestPsfTiles,
-      residualVectors: latestResiduals,
+    // Memoized via Riverpod so a re-render that doesn't change the underlying
+    // PSF/residual snapshots reuses the prior analysis instead of recomputing
+    // it on every frame (audit §6.20).
+    final diagnostics = ref.watch(
+      latestSnapshotOpticalTrainDiagnosticsProvider(activeSessionId),
     );
     final cameraState = ref.watch(cameraStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
@@ -150,11 +188,49 @@ class ScienceAnalyticsTab extends ConsumerWidget {
         transparencyRows.isEmpty ? null : transparencyRows.last;
     final isNarrow = MediaQuery.sizeOf(context).width < 1080;
 
+    // Audit §4.12: when neither an active session nor any standalone capture
+    // has produced science data, render a single shared placeholder instead
+    // of stacking nine "no data" cards (one per panel).
+    final bool allEmpty = lightCurve.isEmpty &&
+        transparency.isEmpty &&
+        transparencyRows.isEmpty &&
+        calibrations.isEmpty &&
+        psfTiles.isEmpty &&
+        residuals.isEmpty &&
+        moving.isEmpty &&
+        lineRatios.isEmpty &&
+        frameMetrics.isEmpty &&
+        tileMetrics.isEmpty;
+    if (allEmpty) {
+      return EmptyState(
+        icon: LucideIcons.flaskConical,
+        title: 'No science data yet',
+        body: activeSessionId == null
+            ? 'Capture some plate-solved frames to populate the science tab. '
+                'Photometry, PSF maps, and anomaly detections appear here once '
+                'a session has produced calibrated data.'
+            : 'This session has not produced calibrated science products yet. '
+                'PSF tiles, residual maps, and photometry will populate as '
+                'frames are processed.',
+      );
+    }
+
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Audit §4.13: jump nav for the three logical sections below. Sits
+          // at the top of the scroll view; the IndexedStack containing this
+          // tab keeps it pinned visually whenever the tab is active.
+          _ScienceJumpNav(
+            colors: colors,
+            onPhotometry: () => _jumpTo(_sectionKeys.photometry),
+            onFieldQuality: () => _jumpTo(_sectionKeys.fieldQuality),
+            onAnomalies: () => _jumpTo(_sectionKeys.anomalies),
+          ),
+          const SizedBox(height: 12),
           ScienceKpiStrip(
             colors: colors,
             latestCalibration: latestCal,
@@ -219,16 +295,30 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                 ),
               ],
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          // -------------------------------------------------------------
+          // Section: Photometry
+          // -------------------------------------------------------------
+          KeyedSubtree(
+            key: _sectionKeys.photometry,
+            child: _SectionHeading(
+              colors: colors,
+              label: 'PHOTOMETRY',
+              icon: LucideIcons.lineChart,
+            ),
+          ),
           Row(
             children: [
               Expanded(
                 child: _LightCurveChartCard(
                   colors: colors,
                   lightCurve: lightCurve,
-                  buildExportRows: lightCurve.isEmpty
+                  hubExportButton: lightCurve.isEmpty
                       ? null
-                      : () async => _buildPhotometryExportRows(lightCurve),
+                      : const _CardHubExportButton(
+                          tooltip: 'Open export hub (Photometry)',
+                          dataset: ScienceExportDataset.photometry,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -242,11 +332,12 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                           point.timestamp, point.transparencyPercent))
                       .toList(growable: false),
                   color: colors.info,
-                  buildExportRows: transparencyRows.isEmpty
+                  hubExportButton: transparencyRows.isEmpty
                       ? null
-                      : () async =>
-                          _buildTransparencyExportRows(transparencyRows),
-                  exportFilePrefix: 'transparency',
+                      : const _CardHubExportButton(
+                          tooltip: 'Open export hub (Transparency)',
+                          dataset: ScienceExportDataset.transparency,
+                        ),
                 ),
               ),
             ],
@@ -264,7 +355,18 @@ class ScienceAnalyticsTab extends ConsumerWidget {
             colors: colors,
             lightCurve: lightCurve,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          // -------------------------------------------------------------
+          // Section: Field Quality
+          // -------------------------------------------------------------
+          KeyedSubtree(
+            key: _sectionKeys.fieldQuality,
+            child: _SectionHeading(
+              colors: colors,
+              label: 'FIELD QUALITY',
+              icon: LucideIcons.grid,
+            ),
+          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -272,9 +374,12 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                 child: _PsfHeatmapCard(
                   colors: colors,
                   tiles: latestPsfTiles,
-                  buildExportRows: latestPsfTiles.isEmpty
+                  hubExportButton: latestPsfTiles.isEmpty
                       ? null
-                      : () async => _buildPsfExportRows(latestPsfTiles),
+                      : const _CardHubExportButton(
+                          tooltip: 'Open export hub (PSF tiles)',
+                          dataset: ScienceExportDataset.psfTiles,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -282,14 +387,30 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                 child: _ResidualCard(
                   colors: colors,
                   residuals: latestResiduals,
-                  buildExportRows: latestResiduals.isEmpty
+                  hubExportButton: latestResiduals.isEmpty
                       ? null
-                      : () async => _buildResidualExportRows(latestResiduals),
+                      : const _CardHubExportButton(
+                          tooltip: 'Open export hub (Astrometric residuals)',
+                          dataset: ScienceExportDataset.residuals,
+                        ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          _PhotometricTransformsCard(colors: colors),
+          const SizedBox(height: 24),
+          // -------------------------------------------------------------
+          // Section: Anomalies
+          // -------------------------------------------------------------
+          KeyedSubtree(
+            key: _sectionKeys.anomalies,
+            child: _SectionHeading(
+              colors: colors,
+              label: 'ANOMALIES',
+              icon: LucideIcons.orbit,
+            ),
+          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -297,9 +418,14 @@ class ScienceAnalyticsTab extends ConsumerWidget {
                 child: _MovingObjectCard(
                   colors: colors,
                   moving: moving,
-                  buildExportRows: moving.isEmpty
+                  hubExportButton: moving.isEmpty
                       ? null
-                      : () async => _buildMovingObjectExportRows(moving),
+                      : _CardHubExportButton(
+                          tooltip:
+                              'Open export hub (Moving object candidates)',
+                          dataset: ScienceExportDataset.movingObjects,
+                          mpcCandidates: moving,
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -317,8 +443,6 @@ class ScienceAnalyticsTab extends ConsumerWidget {
             const SizedBox(height: 16),
             MpcExportPanel(colors: colors, candidates: moving),
           ],
-          const SizedBox(height: 16),
-          _PhotometricTransformsCard(colors: colors),
         ],
       ),
     );
@@ -339,126 +463,182 @@ class ScienceAnalyticsTab extends ConsumerWidget {
   }
 }
 
-// =============================================================================
-// Quick-export row builders for in-memory data
-// =============================================================================
+/// Inline export button that routes to the consolidated [ScienceExportHub]
+/// pre-selected to a specific dataset. Replaces the per-card CSV writer so
+/// there is one canonical export surface (audit §4.14).
+class _CardHubExportButton extends StatelessWidget {
+  final String tooltip;
+  final ScienceExportDataset dataset;
+  final List<MovingObjectCandidateRow> mpcCandidates;
 
-List<List<dynamic>> _buildPhotometryExportRows(List<LightCurvePoint> points) {
-  return [
-    ['Timestamp', 'Flux', 'Differential Magnitude', 'SNR', 'Uncertainty'],
-    for (final p in points)
-      [
-        p.timestamp.toIso8601String(),
-        p.flux,
-        p.differentialMagnitude,
-        p.snr,
-        p.uncertainty,
-      ],
-  ];
+  const _CardHubExportButton({
+    required this.tooltip,
+    required this.dataset,
+    this.mpcCandidates = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (_) => ScienceExportHub(
+              initialDataset: dataset,
+              mpcCandidates: mpcCandidates,
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            LucideIcons.download,
+            size: 14,
+            color: colors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-List<List<dynamic>> _buildTransparencyExportRows(
-    List<TransparencySampleRow> samples) {
-  return [
-    [
-      'Timestamp',
-      'Transparency %',
-      'Extinction Coefficient',
-      'Quality Bucket',
-      'Confidence',
-    ],
-    for (final s in samples)
-      [
-        s.timestamp.toIso8601String(),
-        s.transparencyPercent,
-        s.extinctionCoefficient,
-        s.qualityBucket,
-        s.confidence,
-      ],
-  ];
+/// Sticky jump-nav row pinning Photometry / Field Quality / Anomalies tabs at
+/// the top of the science analytics scroll view. Implements audit §4.13 so
+/// users do not have to scroll through several hundred pixels of dense panels
+/// to reach the section they care about.
+class _ScienceJumpNav extends StatelessWidget {
+  final NightshadeColors colors;
+  final VoidCallback onPhotometry;
+  final VoidCallback onFieldQuality;
+  final VoidCallback onAnomalies;
+
+  const _ScienceJumpNav({
+    required this.colors,
+    required this.onPhotometry,
+    required this.onFieldQuality,
+    required this.onAnomalies,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          _JumpChip(
+            colors: colors,
+            icon: LucideIcons.lineChart,
+            label: 'Photometry',
+            onTap: onPhotometry,
+          ),
+          const SizedBox(width: 8),
+          _JumpChip(
+            colors: colors,
+            icon: LucideIcons.grid,
+            label: 'Field Quality',
+            onTap: onFieldQuality,
+          ),
+          const SizedBox(width: 8),
+          _JumpChip(
+            colors: colors,
+            icon: LucideIcons.orbit,
+            label: 'Anomalies',
+            onTap: onAnomalies,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-List<List<dynamic>> _buildPsfExportRows(List<PsfFieldTileRow> tiles) {
-  return [
-    [
-      'Tile Row',
-      'Tile Col',
-      'Star Count',
-      'Median FWHM',
-      'Median HFR',
-      'Median Eccentricity',
-      'Roundness',
-      'Timestamp',
-    ],
-    for (final t in tiles)
-      [
-        t.tileRow,
-        t.tileCol,
-        t.starCount,
-        t.medianFwhm,
-        t.medianHfr,
-        t.medianEccentricity,
-        t.roundness,
-        t.timestamp.toIso8601String(),
-      ],
-  ];
+class _JumpChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _JumpChip({
+    required this.colors,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: colors.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-List<List<dynamic>> _buildResidualExportRows(
-    List<AstrometryResidualVectorRow> residuals) {
-  return [
-    [
-      'X',
-      'Y',
-      'dX (arcsec)',
-      'dY (arcsec)',
-      'Magnitude (arcsec)',
-      'Recommendation',
-      'Timestamp',
-    ],
-    for (final r in residuals)
-      [
-        r.x,
-        r.y,
-        r.dxArcsec,
-        r.dyArcsec,
-        r.magnitudeArcsec,
-        r.recommendationCode ?? '',
-        r.timestamp.toIso8601String(),
-      ],
-  ];
+class _SectionHeading extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final IconData icon;
+
+  const _SectionHeading({
+    required this.colors,
+    required this.label,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-List<List<dynamic>> _buildMovingObjectExportRows(
-    List<MovingObjectCandidateRow> objects) {
-  return [
-    [
-      'Candidate ID',
-      'RA (deg)',
-      'Dec (deg)',
-      'Motion (arcsec/min)',
-      'Position Angle (deg)',
-      'Confidence',
-      'Known Object',
-      'Object Name',
-      'Source',
-      'Timestamp',
-    ],
-    for (final m in objects)
-      [
-        m.candidateId,
-        m.raDegrees,
-        m.decDegrees,
-        m.motionArcsecPerMinute,
-        m.positionAngleDegrees,
-        m.confidence,
-        m.isKnownObject,
-        m.objectName ?? '',
-        m.source,
-        m.timestamp.toIso8601String(),
-      ],
-  ];
-}
+// Per-card CSV row builders were removed once the science analytics tab
+// stopped writing CSV inline. Exports now route exclusively through the
+// consolidated [ScienceExportHub] (audit §4.14), which builds its rows from
+// the DAO providers and therefore covers every session, not just the visible
+// snapshot.
 
 List<PsfFieldTileRow> _latestPsfSnapshot(List<PsfFieldTileRow> rows) {
   if (rows.isEmpty) {
@@ -804,8 +984,10 @@ class _SeriesChartCard extends StatelessWidget {
   final String yLabel;
   final List<_ChartPoint> points;
   final Color color;
-  final Future<List<List<dynamic>>> Function()? buildExportRows;
-  final String? exportFilePrefix;
+  // Optional inline button that opens the consolidated export hub with the
+  // matching dataset pre-selected. Replaces the old per-card CSV writer so
+  // there is one canonical export surface (audit §4.14).
+  final Widget? hubExportButton;
 
   const _SeriesChartCard({
     required this.colors,
@@ -813,8 +995,7 @@ class _SeriesChartCard extends StatelessWidget {
     required this.yLabel,
     required this.points,
     required this.color,
-    this.buildExportRows,
-    this.exportFilePrefix,
+    this.hubExportButton,
   });
 
   @override
@@ -873,12 +1054,7 @@ class _SeriesChartCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (buildExportRows != null)
-                  QuickExportButton(
-                    tooltip: 'Export $title CSV',
-                    buildRows: buildExportRows!,
-                    filePrefix: exportFilePrefix ?? 'series',
-                  ),
+                if (hubExportButton != null) hubExportButton!,
                 _ScienceInfoButton(title: title),
               ],
             ),
@@ -1126,12 +1302,12 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
 class _LightCurveChartCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<LightCurvePoint> lightCurve;
-  final Future<List<List<dynamic>>> Function()? buildExportRows;
+  final Widget? hubExportButton;
 
   const _LightCurveChartCard({
     required this.colors,
     required this.lightCurve,
-    this.buildExportRows,
+    this.hubExportButton,
   });
 
   @override
@@ -1198,12 +1374,7 @@ class _LightCurveChartCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (buildExportRows != null)
-                  QuickExportButton(
-                    tooltip: 'Export photometry CSV',
-                    buildRows: buildExportRows!,
-                    filePrefix: 'photometry',
-                  ),
+                if (hubExportButton != null) hubExportButton!,
                 const _ScienceInfoButton(title: 'Differential Photometry'),
               ],
             ),
@@ -1341,12 +1512,12 @@ class _LightCurveChartCard extends StatelessWidget {
 class _PsfHeatmapCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<PsfFieldTileRow> tiles;
-  final Future<List<List<dynamic>>> Function()? buildExportRows;
+  final Widget? hubExportButton;
 
   const _PsfHeatmapCard({
     required this.colors,
     required this.tiles,
-    this.buildExportRows,
+    this.hubExportButton,
   });
 
   @override
@@ -1368,12 +1539,7 @@ class _PsfHeatmapCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (buildExportRows != null)
-                  QuickExportButton(
-                    tooltip: 'Export PSF tiles CSV',
-                    buildRows: buildExportRows!,
-                    filePrefix: 'psf_tiles',
-                  ),
+                if (hubExportButton != null) hubExportButton!,
                 const _ScienceInfoButton(title: 'PSF Field Map'),
               ],
             ),
@@ -1503,12 +1669,12 @@ class _PsfHeatmapGrid extends StatelessWidget {
 class _ResidualCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<AstrometryResidualVectorRow> residuals;
-  final Future<List<List<dynamic>>> Function()? buildExportRows;
+  final Widget? hubExportButton;
 
   const _ResidualCard({
     required this.colors,
     required this.residuals,
-    this.buildExportRows,
+    this.hubExportButton,
   });
 
   @override
@@ -1539,12 +1705,7 @@ class _ResidualCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (buildExportRows != null)
-                  QuickExportButton(
-                    tooltip: 'Export residuals CSV',
-                    buildRows: buildExportRows!,
-                    filePrefix: 'astrometric_residuals',
-                  ),
+                if (hubExportButton != null) hubExportButton!,
                 const _ScienceInfoButton(title: 'Astrometric Residuals'),
               ],
             ),
@@ -1577,12 +1738,12 @@ class _ResidualCard extends StatelessWidget {
 class _MovingObjectCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<MovingObjectCandidateRow> moving;
-  final Future<List<List<dynamic>>> Function()? buildExportRows;
+  final Widget? hubExportButton;
 
   const _MovingObjectCard({
     required this.colors,
     required this.moving,
-    this.buildExportRows,
+    this.hubExportButton,
   });
 
   @override
@@ -1604,12 +1765,7 @@ class _MovingObjectCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (buildExportRows != null)
-                  QuickExportButton(
-                    tooltip: 'Export moving objects CSV',
-                    buildRows: buildExportRows!,
-                    filePrefix: 'moving_objects',
-                  ),
+                if (hubExportButton != null) hubExportButton!,
                 const _ScienceInfoButton(title: 'Moving Object Candidates'),
               ],
             ),

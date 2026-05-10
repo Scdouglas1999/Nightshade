@@ -12,10 +12,39 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../services/observation_report_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import 'mpc_export_panel.dart';
+
+/// Identifier for a science dataset that the hub can export. Exposed so that
+/// per-card export buttons in the science analytics tab can route into the
+/// hub with the relevant card pre-highlighted (audit §4.14 consolidation).
+enum ScienceExportDataset {
+  photometry,
+  frameQuality,
+  transparency,
+  psfTiles,
+  residuals,
+  calibration,
+  movingObjects,
+  mpcReport,
+}
 
 /// Dialog listing all exportable science data types with CSV export and filters.
 class ScienceExportHub extends ConsumerStatefulWidget {
-  const ScienceExportHub({super.key});
+  /// When set, the dialog scrolls to and visually highlights the matching
+  /// dataset row so that opening the hub from a card's export button feels
+  /// like a continuation of the user's intent, not a context switch.
+  final ScienceExportDataset? initialDataset;
+
+  /// Optional moving-object candidates list used by the MPC report row.
+  /// The science analytics tab passes the in-memory snapshot it is already
+  /// rendering, so the hub does not need to re-query the database.
+  final List<MovingObjectCandidateRow> mpcCandidates;
+
+  const ScienceExportHub({
+    super.key,
+    this.initialDataset,
+    this.mpcCandidates = const [],
+  });
 
   @override
   ConsumerState<ScienceExportHub> createState() => _ScienceExportHubState();
@@ -27,6 +56,32 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
   int? _selectedSessionId;
   bool _isExporting = false;
   String? _lastExportResult;
+
+  // Keys per dataset row so we can scroll a deep-linked row into view and
+  // pulse a highlight ring around it on first frame.
+  final Map<ScienceExportDataset, GlobalKey> _rowKeys = {
+    for (final d in ScienceExportDataset.values) d: GlobalKey(),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialDataset;
+    if (initial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ctx = _rowKeys[initial]?.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            alignment: 0.1,
+          );
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,77 +223,118 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 child: Column(
                   children: [
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.photometry],
                       colors: colors,
                       title: 'Photometry Measurements',
                       description:
                           'Differential photometry: object ID, flux, magnitude, SNR, uncertainty, timestamp',
                       icon: LucideIcons.lineChart,
                       isExporting: _isExporting,
-                      onExport: () => _exportData(_ScienceDataType.photometry),
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.photometry,
+                      onExport: () => _exportData(ScienceExportDataset.photometry),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.frameQuality],
                       colors: colors,
                       title: 'Frame Quality Metrics',
                       description:
                           'Per-frame statistics: SNR, background, noise, clipping, uniformity, gradients',
                       icon: LucideIcons.barChart2,
                       isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.frameQuality,
                       onExport: () =>
-                          _exportData(_ScienceDataType.frameQuality),
+                          _exportData(ScienceExportDataset.frameQuality),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.transparency],
                       colors: colors,
                       title: 'Transparency Samples',
                       description:
                           'Sky transparency %, extinction coefficient, quality bucket per frame',
                       icon: LucideIcons.cloud,
                       isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.transparency,
                       onExport: () =>
-                          _exportData(_ScienceDataType.transparency),
+                          _exportData(ScienceExportDataset.transparency),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.psfTiles],
                       colors: colors,
                       title: 'PSF Field Tiles',
                       description:
                           'Per-tile FWHM, HFR, eccentricity, roundness, star count across field',
                       icon: LucideIcons.grid,
                       isExporting: _isExporting,
-                      onExport: () => _exportData(_ScienceDataType.psfTiles),
+                      highlight:
+                          widget.initialDataset == ScienceExportDataset.psfTiles,
+                      onExport: () => _exportData(ScienceExportDataset.psfTiles),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.residuals],
                       colors: colors,
                       title: 'Astrometric Residuals',
                       description:
                           'Plate solve residual vectors: position, magnitude (arcsec), recommendation',
                       icon: LucideIcons.crosshair,
                       isExporting: _isExporting,
-                      onExport: () => _exportData(_ScienceDataType.residuals),
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.residuals,
+                      onExport: () => _exportData(ScienceExportDataset.residuals),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.calibration],
                       colors: colors,
                       title: 'Photometric Calibration',
                       description:
                           'Zero-point, limiting magnitude, matched star count, RMS per frame',
                       icon: LucideIcons.gauge,
                       isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.calibration,
                       onExport: () =>
-                          _exportData(_ScienceDataType.calibration),
+                          _exportData(ScienceExportDataset.calibration),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.movingObjects],
                       colors: colors,
                       title: 'Moving Object Candidates',
                       description:
                           'Detected movers: RA/Dec, motion rate, confidence, known object matches',
                       icon: LucideIcons.orbit,
                       isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.movingObjects,
                       onExport: () =>
-                          _exportData(_ScienceDataType.movingObjects),
+                          _exportData(ScienceExportDataset.movingObjects),
+                    ),
+                    const SizedBox(height: 8),
+                    // MPC astrometry uses a separate selection UI (per-observation
+                    // checkbox list + 80-column format), so the hub launches that
+                    // panel as a sub-dialog rather than producing CSV inline.
+                    _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.mpcReport],
+                      colors: colors,
+                      title: 'MPC Astrometry Report',
+                      description: widget.mpcCandidates.isEmpty
+                          ? 'No moving object candidates available to report yet.'
+                          : 'Submit selected moving-object detections in MPC 80-column format',
+                      icon: LucideIcons.send,
+                      isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.mpcReport,
+                      enabled: widget.mpcCandidates.isNotEmpty,
+                      actionLabel: 'Open',
+                      actionIcon: LucideIcons.externalLink,
+                      onExport: _openMpcPanel,
                     ),
                     const SizedBox(height: 16),
                     Divider(color: colors.border),
@@ -314,7 +410,35 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     }
   }
 
-  Future<void> _exportData(_ScienceDataType dataType) async {
+  Future<void> _openMpcPanel() async {
+    if (widget.mpcCandidates.isEmpty) {
+      context.showInfoSnackBar(
+        'No moving object candidates available to report yet.',
+      );
+      return;
+    }
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: colors.surface,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: MpcExportPanel(
+                colors: colors,
+                candidates: widget.mpcCandidates,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _exportData(ScienceExportDataset dataType) async {
     setState(() {
       _isExporting = true;
       _lastExportResult = null;
@@ -335,27 +459,32 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       final String filePrefix;
 
       switch (dataType) {
-        case _ScienceDataType.photometry:
+        case ScienceExportDataset.photometry:
           rows = await _buildPhotometryRows(sessionIds);
           filePrefix = 'photometry';
-        case _ScienceDataType.frameQuality:
+        case ScienceExportDataset.frameQuality:
           rows = await _buildFrameQualityRows(sessionIds);
           filePrefix = 'frame_quality';
-        case _ScienceDataType.transparency:
+        case ScienceExportDataset.transparency:
           rows = await _buildTransparencyRows(sessionIds);
           filePrefix = 'transparency';
-        case _ScienceDataType.psfTiles:
+        case ScienceExportDataset.psfTiles:
           rows = await _buildPsfTileRows(sessionIds);
           filePrefix = 'psf_tiles';
-        case _ScienceDataType.residuals:
+        case ScienceExportDataset.residuals:
           rows = await _buildResidualRows(sessionIds);
           filePrefix = 'astrometric_residuals';
-        case _ScienceDataType.calibration:
+        case ScienceExportDataset.calibration:
           rows = await _buildCalibrationRows(sessionIds);
           filePrefix = 'photometric_calibration';
-        case _ScienceDataType.movingObjects:
+        case ScienceExportDataset.movingObjects:
           rows = await _buildMovingObjectRows(sessionIds);
           filePrefix = 'moving_objects';
+        case ScienceExportDataset.mpcReport:
+          // MPC report has its own dialog/flow; should not land here, but
+          // surfacing an error keeps the contract honest if a future caller
+          // routes a "Download CSV" intent to the wrong dataset.
+          throw StateError('MPC report uses the dedicated panel, not CSV export.');
       }
 
       if (rows.length <= 1) {
@@ -770,16 +899,6 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
   }
 }
 
-enum _ScienceDataType {
-  photometry,
-  frameQuality,
-  transparency,
-  psfTiles,
-  residuals,
-  calibration,
-  movingObjects,
-}
-
 class _ExportTypeCard extends StatelessWidget {
   final NightshadeColors colors;
   final String title;
@@ -787,24 +906,39 @@ class _ExportTypeCard extends StatelessWidget {
   final IconData icon;
   final bool isExporting;
   final VoidCallback onExport;
+  final bool highlight;
+  final bool enabled;
+  final String actionLabel;
+  final IconData actionIcon;
 
   const _ExportTypeCard({
+    super.key,
     required this.colors,
     required this.title,
     required this.description,
     required this.icon,
     required this.isExporting,
     required this.onExport,
+    this.highlight = false,
+    this.enabled = true,
+    this.actionLabel = 'CSV',
+    this.actionIcon = LucideIcons.download,
   });
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = highlight
+        ? colors.primary.withValues(alpha: 0.7)
+        : colors.border;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+        border: Border.all(
+          color: borderColor,
+          width: highlight ? 1.5 : 1.0,
+        ),
       ),
       child: Row(
         children: [
@@ -835,11 +969,11 @@ class _ExportTypeCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           NightshadeButton(
-            label: 'CSV',
-            icon: LucideIcons.download,
+            label: actionLabel,
+            icon: actionIcon,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
-            onPressed: isExporting ? null : onExport,
+            onPressed: (isExporting || !enabled) ? null : onExport,
           ),
         ],
       ),
