@@ -7091,6 +7091,21 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         }),
                     ))
                 }
+                ExecutorEvent::RuntimeConfigUpdated { what } => {
+                    // Audit §1.8: surface runtime-config updates as a generic
+                    // sequencer Error event with informational severity so the
+                    // existing UI subscriber sees the change without needing
+                    // a new typed payload (a typed payload would require an
+                    // FRB regen).
+                    tracing::info!("[EVENT_SUB] Runtime config updated: {}", what);
+                    Some(create_event_auto_id(
+                        EventSeverity::Info,
+                        EventCategory::Sequencer,
+                        EventPayload::Sequencer(SequencerEvent::Error {
+                            message: format!("Runtime config updated: {}", what),
+                        }),
+                    ))
+                }
             };
 
             if let Some(e) = nightshade_event {

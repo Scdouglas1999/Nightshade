@@ -1971,24 +1971,56 @@ impl RuntimeNode {
             .filter_map(|r| r.ok())
             .collect();
 
-        // Restore children from mutex wrappers
-        // All spawned tasks have completed, so Arc::try_unwrap should succeed
+        // Restore children from mutex wrappers.
+        //
+        // Audit §1.12: `Arc::try_unwrap` failure here means another task
+        // somewhere is still holding a clone of the child Arc — i.e. the
+        // parallel-execution invariant ("all tasks completed before we
+        // restore") has been violated. Previously we silently dropped the
+        // unrecovered child, which corrupted the node tree without telling
+        // the user. Now we surface the violation by returning Failure,
+        // matching the audit's "errors are a feature" rule. The unrecovered
+        // children are replaced with placeholder Failed nodes so subsequent
+        // walks of `self.children` still see a structurally valid tree
+        // (length and order preserved) and the next execute() call cannot
+        // misindex.
         let mut restored_children = Vec::with_capacity(children.len());
+        let mut unrecovered = 0usize;
         for child_mutex in children {
             match Arc::try_unwrap(child_mutex) {
                 Ok(mutex) => {
                     restored_children.push(mutex.into_inner());
                 }
-                Err(_) => {
-                    // This should never happen since all tasks completed
+                Err(_arc) => {
+                    // Why: see audit §1.12. We cannot un-Arc a still-shared
+                    // child without ub'ing — the only safe choice is to
+                    // (a) record the failure for the caller and (b) leave
+                    // a stand-in so tree shape stays valid.
                     tracing::error!(
-                        "Failed to restore child from parallel execution - this is a bug"
+                        "[NODE_TREE] Failed to reclaim child from parallel execution; a spawned task is still holding the Arc. \
+                         This is a logical-impossibility violation — returning Failure so the user is told."
                     );
-                    // Can't recover the child, leave it out
+                    unrecovered += 1;
+                    let placeholder_def = NodeDefinition {
+                        id: format!("__unrecovered_child_{}", unrecovered),
+                        name: "Unrecovered parallel child".to_string(),
+                        // Why: a unit-variant NodeType keeps the placeholder
+                        // small and unambiguous. Park is a no-op for the
+                        // walker; the surrounding NodeStatus::Failure return
+                        // is the actual signal to the caller.
+                        node_type: NodeType::Park,
+                        enabled: false,
+                        children: Vec::new(),
+                    };
+                    let placeholder = RuntimeNode::from_definition(placeholder_def);
+                    restored_children.push(Box::new(placeholder));
                 }
             }
         }
         self.children = restored_children;
+        if unrecovered > 0 {
+            return NodeStatus::Failure;
+        }
 
         // Check for cancellation
         if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
@@ -2390,50 +2422,11 @@ async fn wait_until_timestamp_or_cancel(
 // Astronomical Helper Functions
 // ============================================================================
 
-/// Calculate Julian Day from a chrono DateTime
-pub fn julian_day(dt: &chrono::DateTime<chrono::Utc>) -> f64 {
-    use chrono::{Datelike, Timelike};
-    let year = dt.year();
-    let month = dt.month();
-    let day = dt.day();
-    let hour = dt.hour();
-    let minute = dt.minute();
-    let second = dt.second();
-
-    let (y, m) = if month <= 2 {
-        (year - 1, month + 12)
-    } else {
-        (year, month)
-    };
-
-    let a = y / 100;
-    let b = 2 - a + a / 4;
-
-    let jd = (365.25 * (y as f64 + 4716.0)).floor()
-        + (30.6001 * (m as f64 + 1.0)).floor()
-        + day as f64
-        + b as f64
-        - 1524.5;
-
-    let time_fraction = (hour as f64 + minute as f64 / 60.0 + second as f64 / 3600.0) / 24.0;
-
-    jd + time_fraction
-}
-
-pub fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
-    let t = (jd - 2451545.0) / 36525.0;
-
-    // Greenwich Mean Sidereal Time in degrees
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
-        - t * t * t / 38710000.0;
-
-    let lst = (gmst + longitude) % 360.0;
-    if lst < 0.0 {
-        (lst + 360.0) / 15.0
-    } else {
-        lst / 15.0
-    }
-}
+// Audit §1.6: deleted `julian_day` and `local_sidereal_time` duplicates.
+// Re-exported from `crate::meridian` so existing call sites
+// (`crate::node::julian_day`, `crate::node::local_sidereal_time`) keep
+// working with a single source of truth.
+pub use crate::meridian::{julian_day, local_sidereal_time};
 
 #[cfg(test)]
 mod tests {

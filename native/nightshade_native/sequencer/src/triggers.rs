@@ -295,7 +295,14 @@ impl Trigger {
             TriggerType::GuidingFailed {
                 rms_threshold,
                 duration_secs,
+                rms_retention_secs: _,
             } => {
+                // Audit §1.21: the configured retention is propagated to
+                // the trigger state by `TriggerManager::sync_state_from_config`
+                // (called after every config edit and on standard-trigger
+                // construction). Reading state here is sufficient — the
+                // history has already been trimmed by `update_guiding_rms`
+                // using the propagated retention.
                 if let Some(rms_history) = &state.guiding_rms_history {
                     // Check if RMS has been above threshold for duration
                     let recent: Vec<_> = rms_history
@@ -450,6 +457,20 @@ impl Trigger {
                     None => false, // No humidity data - can't trigger
                 }
             }
+            TriggerType::DriftLimit { max_pixels } => {
+                // Audit §1.11: fire when accumulated plate-solve drift exceeds
+                // the configured pixel budget. The state holds the most recent
+                // plate-solve coordinates and pixel scale; absent any of them
+                // we cannot evaluate drift and the trigger stays inactive.
+                let Some((ra_px, dec_px)) = state.calculate_drift_pixels() else {
+                    return false;
+                };
+                // Combine in quadrature so a small drift on one axis cannot
+                // mask a large drift on the other. `calculate_drift_pixels`
+                // already returns absolute values.
+                let drift = (ra_px * ra_px + dec_px * dec_px).sqrt();
+                drift > *max_pixels
+            }
         };
 
         if triggered {
@@ -524,7 +545,7 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
 }
 
 /// State information used by triggers
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TriggerState {
     // HFR tracking
     pub baseline_hfr: Option<f64>,
@@ -551,6 +572,17 @@ pub struct TriggerState {
     pub guiding_enabled: bool,
     /// Whether the guide star has been lost (guider reports no star / lost lock)
     pub guide_star_lost: bool,
+    /// Audit §1.21: configurable retention window (seconds) for
+    /// `guiding_rms_history`. Set by the trigger evaluator from the
+    /// `GuidingFailed` trigger configuration so a user-tuned value is
+    /// honoured. Defaults to 300s (5 minutes), matching the previous
+    /// hardcoded behaviour.
+    pub guiding_rms_retention_secs: u64,
+    /// Audit §1.9: pier side recorded at the moment a flip was marked
+    /// performed, so a subsequent observable return to that side can clear
+    /// `has_flipped_this_target`. `None` means no flip has been recorded yet
+    /// for the current target.
+    pub flip_origin_pier_side: Option<PierSide>,
 
     // Humidity
     /// Current humidity percentage (0-100)
@@ -614,6 +646,60 @@ pub struct TriggerState {
     pub grid_dither_index: u32,
 }
 
+impl Default for TriggerState {
+    fn default() -> Self {
+        Self {
+            baseline_hfr: None,
+            current_hfr: None,
+            autofocus_invalidated: false,
+            autofocus_invalidation_reason: None,
+            current_hour_angle: None,
+            pier_side: None,
+            mount_tracking_limit_time: None,
+            has_flipped_this_target: false,
+            current_target_name: None,
+            next_meridian_flip_time: None,
+            guiding_rms_history: None,
+            guiding_enabled: false,
+            guide_star_lost: false,
+            // Audit §1.21: 300s preserves the previous hardcoded retention so
+            // un-configured triggers behave exactly as before.
+            guiding_rms_retention_secs: 300,
+            flip_origin_pier_side: None,
+            current_humidity: None,
+            current_altitude: None,
+            weather_safe: false,
+            baseline_temperature: None,
+            current_temperature: None,
+            baseline_focuser_position: None,
+            filter_changed: false,
+            current_filter: None,
+            dawn_time: None,
+            observer_latitude: None,
+            observer_longitude: None,
+            completed_exposures: 0,
+            last_autofocus_frame: 0,
+            last_dither_frame: 0,
+            last_plate_solve_ra: None,
+            last_plate_solve_dec: None,
+            last_plate_solve_pixel_scale: None,
+            target_ra: None,
+            target_dec: None,
+            mount_is_tracking: None,
+            mount_tracking_expected: false,
+            mount_tracking_lost: false,
+            mount_slewing: None,
+            mount_parked: None,
+            mount_status_query_failed: false,
+            tracking_limit_detected_at: None,
+            meridian_trigger_method: None,
+            dome_shutter_status: None,
+            dome_shutter_open_expected: false,
+            grid_dither_index: 0,
+        }
+    }
+}
+
 impl TriggerState {
     pub fn new() -> Self {
         Self {
@@ -642,17 +728,29 @@ impl TriggerState {
         tracing::info!("Autofocus invalidated: {}", reason);
     }
 
+    /// Append a guiding-RMS sample and trim the rolling history to
+    /// `self.guiding_rms_retention_secs`. Audit §1.21: the previously hardcoded
+    /// 300-second window is now configurable via
+    /// `set_guiding_rms_retention_secs` (driven by the GuidingFailed trigger
+    /// configuration in the trigger evaluator). Default remains 300s.
     pub fn update_guiding_rms(&mut self, rms: f64) {
         if self.guiding_rms_history.is_none() {
             self.guiding_rms_history = Some(Vec::new());
         }
 
+        let retention = self.guiding_rms_retention_secs.max(1);
         if let Some(history) = &mut self.guiding_rms_history {
             history.push((Instant::now(), rms));
-
-            // Keep only last 5 minutes of history
-            history.retain(|(time, _)| time.elapsed().as_secs() < 300);
+            history.retain(|(time, _)| time.elapsed().as_secs() < retention);
         }
+    }
+
+    /// Audit §1.21: set the retention window (seconds) for
+    /// `guiding_rms_history`. Driven by the GuidingFailed trigger configuration
+    /// so a user-tuned `rms_retention_secs` is honoured at runtime instead of
+    /// silently falling back to the previous 300-second hardcode.
+    pub fn set_guiding_rms_retention_secs(&mut self, secs: u64) {
+        self.guiding_rms_retention_secs = secs.max(1);
     }
 
     pub fn update_temperature(&mut self, temp: f64) {
@@ -823,9 +921,57 @@ impl TriggerState {
         self.current_hour_angle = Some(hour_angle);
     }
 
-    /// Update the current pier side
+    /// Update the current pier side and clear `has_flipped_this_target` if
+    /// the mount has returned to the side it was on before the recorded flip.
+    /// Audit §1.9: a long single-target session that crosses two meridians
+    /// (high latitude / pause-resume / mosaic-with-shared-name) used to
+    /// silently skip the second flip because the flag was only ever cleared
+    /// by a target-name change. Observing the original pier side is
+    /// authoritative evidence that the mount is back on the pre-flip side
+    /// and a fresh flip is again required.
     pub fn update_pier_side(&mut self, pier_side: PierSide) {
         self.pier_side = Some(pier_side);
+        self.on_pier_side_observed(pier_side);
+    }
+
+    /// Audit §1.9: invariant check. Called from `update_pier_side` (and any
+    /// other code path that observes mount pier-side telemetry); clears
+    /// `has_flipped_this_target` when the observed side matches the
+    /// pre-flip side recorded by `mark_flip_performed`. Public so external
+    /// observers (e.g., bridge layer reading mount state on a different
+    /// cadence) can apply the same invariant without going through
+    /// `update_pier_side`.
+    pub fn on_pier_side_observed(&mut self, side: PierSide) {
+        if !self.has_flipped_this_target {
+            return;
+        }
+        let Some(origin) = self.flip_origin_pier_side else {
+            // Why: without an origin we cannot reason about a return-to-pre-flip
+            // event. Clearing on every observation would re-introduce the
+            // double-flip bug §1.3 fixed, so we leave the flag set until the
+            // user changes target.
+            return;
+        };
+        // Unknown is non-actionable — wait for a real reading.
+        if matches!(side, PierSide::Unknown) {
+            return;
+        }
+        if side == origin {
+            tracing::info!(
+                "[MERIDIAN] Pier side returned to pre-flip side ({:?}); clearing has_flipped_this_target so a second flip can be triggered for the same target",
+                origin
+            );
+            self.has_flipped_this_target = false;
+            self.flip_origin_pier_side = None;
+        }
+    }
+
+    /// Audit §1.9: explicit reset of the flip-performed bookkeeping. Called
+    /// at natural target-boundaries (sequence reset, target group entry)
+    /// where a double-flip on the new target is impossible by construction.
+    pub fn clear_flipped_state(&mut self) {
+        self.has_flipped_this_target = false;
+        self.flip_origin_pier_side = None;
     }
 
     /// Update mount tracking limit time (if mount reports it)
@@ -839,19 +985,40 @@ impl TriggerState {
         if self.current_target_name.as_ref() != Some(&target_name) {
             let previous = self.current_target_name.clone();
             self.current_target_name = Some(target_name);
+            // Audit §1.9: a target change is a natural boundary; reset both
+            // the flag and the recorded origin so flip bookkeeping starts
+            // fresh.
             self.has_flipped_this_target = false;
+            self.flip_origin_pier_side = None;
             if let Some(previous) = previous {
                 self.invalidate_autofocus(format!("target changed from {}", previous));
             }
         }
     }
 
-    /// Mark that a meridian flip has been performed for the current target
+    /// Mark that a meridian flip has been performed for the current target.
+    /// Audit §1.9: also records the pier side that was active *before* the
+    /// flip (in `flip_origin_pier_side`) so `on_pier_side_observed` can
+    /// detect the mount returning to that side and clear the flag, allowing
+    /// a second flip on the same long-running target.
     pub fn mark_flip_performed(&mut self) {
         self.has_flipped_this_target = true;
+        // The pier side was updated immediately after the flip, so it now
+        // reflects the *post-flip* side. The origin (pre-flip) side is the
+        // opposite of the current side. East <-> West; Unknown stays Unknown
+        // and prevents future return-detection until telemetry recovers.
+        self.flip_origin_pier_side = match self.pier_side {
+            Some(PierSide::East) => Some(PierSide::West),
+            Some(PierSide::West) => Some(PierSide::East),
+            // Why: if telemetry is unavailable we cannot compute the origin
+            // safely; leaving it None keeps the flag latched until target
+            // change (matches §1.9's safe-default policy).
+            _ => None,
+        };
         tracing::info!(
-            "[MERIDIAN] Flip marked as completed for target: {:?}",
-            self.current_target_name
+            "[MERIDIAN] Flip marked as completed for target: {:?} (origin pier side: {:?})",
+            self.current_target_name,
+            self.flip_origin_pier_side
         );
     }
 
@@ -861,6 +1028,7 @@ impl TriggerState {
         self.pier_side = None;
         self.mount_tracking_limit_time = None;
         self.has_flipped_this_target = false;
+        self.flip_origin_pier_side = None; // Audit §1.9.
         self.current_target_name = None;
         self.next_meridian_flip_time = None;
         self.tracking_limit_detected_at = None;
@@ -957,6 +1125,12 @@ impl TriggerManager {
             return Vec::new();
         }
 
+        // Audit §1.21: propagate per-trigger retention/configuration into the
+        // shared trigger state before evaluation so updates to e.g.
+        // `GuidingFailed::rms_retention_secs` take effect on the next sample
+        // without requiring a sequence reload.
+        self.sync_state_from_config().await;
+
         // Clone the state once before the loop
         let state = self.state.read().await.clone();
         let mut fired = Vec::new();
@@ -969,6 +1143,34 @@ impl TriggerManager {
         }
 
         fired
+    }
+
+    /// Audit §1.21: copy configurable runtime values from each trigger's
+    /// config into the shared `TriggerState`. Currently only
+    /// `GuidingFailed::rms_retention_secs` requires propagation; new
+    /// configurable retention windows added in future audits should be
+    /// wired here so the trigger evaluator never needs to mutate state
+    /// behind an immutable borrow.
+    pub async fn sync_state_from_config(&self) {
+        let mut retention: Option<u64> = None;
+        for trigger in &self.triggers {
+            if !trigger.enabled {
+                continue;
+            }
+            if let TriggerType::GuidingFailed {
+                rms_retention_secs, ..
+            } = &trigger.trigger_type
+            {
+                retention = Some(*rms_retention_secs);
+                break;
+            }
+        }
+        if let Some(secs) = retention {
+            let mut state = self.state.write().await;
+            if state.guiding_rms_retention_secs != secs {
+                state.set_guiding_rms_retention_secs(secs);
+            }
+        }
     }
 
     /// Create standard triggers
@@ -1009,6 +1211,9 @@ impl TriggerManager {
                 TriggerType::GuidingFailed {
                     rms_threshold: 2.0,
                     duration_secs: 30.0,
+                    // Audit §1.21: 300s preserves the previous hardcoded
+                    // retention; users can change it via UI/profile JSON.
+                    rms_retention_secs: crate::default_guiding_rms_retention_secs(),
                 },
                 RecoveryAction::Retry { max_attempts: 3 },
             )
@@ -1105,15 +1310,18 @@ impl TriggerManager {
             .with_cooldown(30), // 30 second cooldown
         );
 
-        // Focus drift detection trigger
+        // Focus drift detection trigger.
+        // Audit §1.21: defaults pulled from the shared
+        // `default_focus_drift_*` helpers so config loaders and this builder
+        // cannot diverge.
         self.add_trigger(
             Trigger::new(
                 "focus_drift",
                 "Focus Drift",
                 TriggerType::FocusDrift {
-                    window_size: 10,
-                    min_increasing_count: 5,
-                    min_total_increase: 0.5, // 0.5 pixel/arcsec total increase over the run
+                    window_size: crate::default_focus_drift_window_size(),
+                    min_increasing_count: crate::default_focus_drift_min_increasing_count(),
+                    min_total_increase: crate::default_focus_drift_min_total_increase(),
                 },
                 RecoveryAction::Autofocus,
             )
@@ -1129,6 +1337,35 @@ impl TriggerManager {
                 RecoveryAction::Pause, // Pause (not abort) - humidity may drop again
             )
             .with_cooldown(60), // 60 second cooldown
+        );
+
+        // Audit §1.11: plate-solve drift trigger. Default 30 px is a pragmatic
+        // mid-range value: small enough to catch real drift before it becomes
+        // image-ruining, large enough to ignore single-pixel jitter from
+        // imperfect plate-solve solutions. Recovery is `Recenter`, not Pause,
+        // so the sequence keeps imaging.
+        self.add_trigger(
+            Trigger::new(
+                "drift_limit",
+                "Plate-Solve Drift Limit",
+                TriggerType::DriftLimit { max_pixels: 30.0 },
+                RecoveryAction::Recenter,
+            )
+            .with_cooldown(120), // 2 min cooldown so a single recenter is given time to settle
+        );
+
+        // Audit §1.5: standard `DitherInterval` trigger so periodic dithering
+        // happens in sequences that don't include an explicit Dither node.
+        // Default cadence 5 frames matches typical mosaic guidance. Recovery
+        // is `Dither(default config)`; users override via UI/profile JSON.
+        self.add_trigger(
+            Trigger::new(
+                "dither_interval",
+                "Dither Interval",
+                TriggerType::DitherInterval { every_n_frames: 5 },
+                RecoveryAction::Dither(crate::DitherConfig::default()),
+            )
+            .with_cooldown(0), // Cadence is exposure-count-driven; no time-based cooldown.
         );
     }
 }
@@ -1265,6 +1502,7 @@ mod tests {
             TriggerType::GuidingFailed {
                 rms_threshold: 2.0,
                 duration_secs: 10.0,
+                rms_retention_secs: 300,
             },
             RecoveryAction::Retry { max_attempts: 3 },
         );
@@ -1914,5 +2152,163 @@ mod tests {
         state.reset_tracking_limit_detection();
         assert!(state.tracking_limit_detected_at.is_none());
         assert!(!state.mount_tracking_lost);
+    }
+
+    /// Audit §1.9: a flip moves the mount from one pier side to the other,
+    /// `mark_flip_performed` records the *origin* side, and a subsequent
+    /// observed return to the origin side must clear `has_flipped_this_target`
+    /// so a second flip is allowed for the same long-running target.
+    #[tokio::test]
+    async fn audit_1_9_pier_side_return_clears_flipped_flag() {
+        let mut state = TriggerState::new();
+        state.set_meridian_target("M101".to_string());
+
+        // Pre-flip: mount on West side.
+        state.update_pier_side(PierSide::West);
+        assert!(!state.has_flipped_this_target);
+
+        // Flip happens — pier side now reads East. The executor publishes
+        // pier-side first, then calls mark_flip_performed (this is the live
+        // sequence in `meridian_flip_executor::execute`'s success path).
+        state.update_pier_side(PierSide::East);
+        state.mark_flip_performed();
+        assert!(state.has_flipped_this_target);
+        assert_eq!(state.flip_origin_pier_side, Some(PierSide::West));
+
+        // Some time later the mount returns to the original (West) side.
+        // The §1.9 invariant clears the flag so the trigger can fire again.
+        state.update_pier_side(PierSide::West);
+        assert!(
+            !state.has_flipped_this_target,
+            "has_flipped_this_target must clear when the mount returns to the pre-flip side"
+        );
+        assert_eq!(state.flip_origin_pier_side, None);
+    }
+
+    /// Audit §1.9: pier side `Unknown` must NOT clear the flag (it is not
+    /// authoritative evidence of a return-to-origin).
+    #[tokio::test]
+    async fn audit_1_9_unknown_pier_side_does_not_clear_flipped_flag() {
+        let mut state = TriggerState::new();
+        state.set_meridian_target("NGC 6888".to_string());
+        state.update_pier_side(PierSide::West);
+        state.update_pier_side(PierSide::East);
+        state.mark_flip_performed();
+        assert!(state.has_flipped_this_target);
+
+        state.update_pier_side(PierSide::Unknown);
+        assert!(
+            state.has_flipped_this_target,
+            "Unknown pier side must keep the flag latched until a real reading arrives"
+        );
+    }
+
+    /// Audit §1.11: DriftLimit fires when accumulated plate-solve drift
+    /// exceeds the configured pixel budget. With a 30 px budget and a
+    /// (40, 30) drift the quadrature sum is 50 px and the trigger must fire.
+    #[tokio::test]
+    async fn audit_1_11_drift_limit_fires_when_drift_exceeds_threshold() {
+        let mut trigger = Trigger::new(
+            "test_drift",
+            "Test Drift",
+            TriggerType::DriftLimit { max_pixels: 30.0 },
+            RecoveryAction::Recenter,
+        );
+        let mut state = TriggerState::new();
+        // Target at RA=0deg, Dec=0deg — keeps the cos(dec) factor predictable.
+        state.set_target(0.0, 0.0);
+        // Pixel scale 1 arcsec/pixel so RA drift in arcsec equals pixels.
+        // RA = 40/3600 deg drift, Dec = 30/3600 deg drift -> 40 px / 30 px.
+        state.update_plate_solve(40.0 / 3600.0, 30.0 / 3600.0, 1.0);
+        let drift = state.calculate_drift_pixels().expect("drift available");
+        // Verify the helper math before exercising the trigger.
+        assert!((drift.0 - 40.0).abs() < 0.001);
+        assert!((drift.1 - 30.0).abs() < 0.001);
+        assert!(trigger.check(&state).await, "drift 50 px must exceed 30 px");
+    }
+
+    /// Audit §1.11: DriftLimit must NOT fire below the budget (3 px drift
+    /// against a 30 px budget — quadrature sum stays well under).
+    #[tokio::test]
+    async fn audit_1_11_drift_limit_does_not_fire_below_threshold() {
+        let mut trigger = Trigger::new(
+            "test_drift",
+            "Test Drift",
+            TriggerType::DriftLimit { max_pixels: 30.0 },
+            RecoveryAction::Recenter,
+        );
+        let mut state = TriggerState::new();
+        state.set_target(0.0, 0.0);
+        state.update_plate_solve(2.0 / 3600.0, 2.0 / 3600.0, 1.0);
+        assert!(!trigger.check(&state).await);
+    }
+
+    /// Audit §1.11: with no plate-solve recorded the trigger evaluator
+    /// returns false (not error / not silent fire).
+    #[tokio::test]
+    async fn audit_1_11_drift_limit_inactive_without_plate_solve() {
+        let mut trigger = Trigger::new(
+            "test_drift",
+            "Test Drift",
+            TriggerType::DriftLimit { max_pixels: 30.0 },
+            RecoveryAction::Recenter,
+        );
+        let state = TriggerState::new();
+        assert!(!trigger.check(&state).await);
+    }
+
+    /// Audit §1.5: the standard-trigger builder now creates a
+    /// `DitherInterval` trigger so periodic dithering is honoured even when
+    /// the sequence does not contain an explicit Dither node. The standard
+    /// `DriftLimit` trigger is also registered for §1.11.
+    #[tokio::test]
+    async fn audit_1_5_and_1_11_standard_triggers_include_new_audit_triggers() {
+        let mut manager = TriggerManager::new();
+        manager.create_standard_triggers();
+        let names: Vec<String> =
+            manager.triggers().iter().map(|t| t.id.clone()).collect();
+        assert!(
+            names.contains(&"dither_interval".to_string()),
+            "DitherInterval standard trigger missing — audit §1.5 regression. ids: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"drift_limit".to_string()),
+            "DriftLimit standard trigger missing — audit §1.11 regression. ids: {:?}",
+            names
+        );
+    }
+
+    /// Audit §1.21: the GuidingFailed standard trigger ships
+    /// `rms_retention_secs = default_guiding_rms_retention_secs()` (300s)
+    /// and `TriggerManager::sync_state_from_config` propagates that value
+    /// into the shared trigger state on every check_all. A user-tuned value
+    /// flows through without a sequence reload.
+    #[tokio::test]
+    async fn audit_1_21_guiding_rms_retention_propagates_via_sync() {
+        let mut manager = TriggerManager::new();
+        manager.create_standard_triggers();
+
+        // Find the GuidingFailed trigger and bump its retention.
+        let trigger = manager
+            .get_trigger_mut("guiding_failed")
+            .expect("standard guiding_failed trigger registered");
+        if let TriggerType::GuidingFailed {
+            rms_retention_secs, ..
+        } = &mut trigger.trigger_type
+        {
+            *rms_retention_secs = 600;
+        } else {
+            panic!("guiding_failed trigger must be GuidingFailed variant");
+        }
+
+        // Synchronise — would be called from check_all in production.
+        manager.sync_state_from_config().await;
+        let state = manager.state();
+        let guard = state.read().await;
+        assert_eq!(
+            guard.guiding_rms_retention_secs, 600,
+            "sync_state_from_config must push rms_retention_secs into TriggerState"
+        );
     }
 }

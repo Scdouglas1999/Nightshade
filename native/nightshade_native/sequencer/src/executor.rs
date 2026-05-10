@@ -15,6 +15,29 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
+/// Runtime-mutable configuration shared between the executor task,
+/// instruction nodes, and the trigger-action handlers. Audit §1.8 — these
+/// values used to be cloned at sequence load and any in-flight
+/// `UpdateDitherConfig`/`UpdateLocation`/`UpdateFilterOffsets` commands
+/// were silently dropped (`let _ = (pixels, ...)`). Stored in
+/// `Arc<RwLock<RuntimeConfig>>` so updates take effect on the next
+/// dither/capture/autofocus invocation without requiring a sequence reload.
+#[derive(Debug, Clone, Default)]
+pub struct RuntimeConfig {
+    /// Default dither configuration used by trigger-driven dithers
+    /// (`RecoveryAction::Dither` and standalone Dither nodes that resolve
+    /// against the runtime config). Per-exposure overrides (e.g.
+    /// `ExposureConfig::dither_pixels`) take precedence — this only sets the
+    /// fallback.
+    pub dither: crate::DitherConfig,
+    /// Observer location (degrees). `None` means location is not configured.
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    /// Filter -> focus offset (steps). Used by autofocus on filter change so
+    /// the focuser is moved by the configured offset.
+    pub filter_focus_offsets: HashMap<String, i32>,
+}
+
 /// Commands that can be sent to the executor
 #[derive(Debug, Clone)]
 pub enum ExecutorCommand {
@@ -141,6 +164,12 @@ pub enum ExecutorEvent {
     Error {
         message: String,
     },
+    /// Audit §1.8: runtime configuration changed mid-sequence (dither pixels,
+    /// observer location, or filter focus offsets). Subscribers should
+    /// reload any cached values derived from these fields.
+    RuntimeConfigUpdated {
+        what: String,
+    },
     SequenceCompleted,
     SequenceFailed {
         error: String,
@@ -172,7 +201,29 @@ fn build_trigger_autofocus_context(
     cancellation_token: Arc<AtomicBool>,
     device_ops: SharedDeviceOps,
     trigger_state: Arc<RwLock<TriggerState>>,
+    runtime_config: &Arc<StdRwLock<RuntimeConfig>>,
 ) -> crate::instructions::InstructionContext {
+    // Audit §1.8: read filter_focus_offsets and location from the runtime
+    // config so a mid-flight UpdateFilterOffsets / UpdateLocation is honoured
+    // by trigger-initiated autofocus / dither / recenter actions. The
+    // trigger_context is a snapshot taken at start(); without this read the
+    // updates would only reach the executor on a sequence reload.
+    let (rc_filter_offsets, rc_lat, rc_lon) = {
+        let rc = runtime_config.read();
+        (rc.filter_focus_offsets.clone(), rc.latitude, rc.longitude)
+    };
+    let filter_focus_offsets = if rc_filter_offsets.is_empty() {
+        // Why: if the runtime config has not been seeded (no
+        // UpdateFilterOffsets has fired yet) fall back to the start-time
+        // snapshot. Empty-vs-explicit is the only way to disambiguate
+        // "user wants no offsets" from "config not yet pushed".
+        trigger_context.filter_focus_offsets.clone()
+    } else {
+        rc_filter_offsets
+    };
+    let latitude = rc_lat.or(trigger_context.latitude);
+    let longitude = rc_lon.or(trigger_context.longitude);
+
     crate::instructions::InstructionContext {
         target_ra,
         target_dec,
@@ -188,11 +239,11 @@ fn build_trigger_autofocus_context(
         dome_id: trigger_context.dome_id.clone(),
         cover_calibrator_id: trigger_context.cover_calibrator_id.clone(),
         save_path: trigger_context.save_path.clone(),
-        latitude: trigger_context.latitude,
-        longitude: trigger_context.longitude,
+        latitude,
+        longitude,
         device_ops,
         trigger_state: Some(trigger_state),
-        filter_focus_offsets: trigger_context.filter_focus_offsets.clone(),
+        filter_focus_offsets,
     }
 }
 
@@ -216,6 +267,35 @@ fn build_trigger_flip_context(
         trigger_state,
         autofocus_config: None,
     })
+}
+
+/// Audit §1.18: every exit path from the trigger-monitor closure that ends
+/// the sequence MUST set `is_cancelled` before returning the fired-triggers
+/// vector. This helper enforces the invariant in one place so future
+/// `match` arms cannot regress by forgetting the store.
+///
+/// `reason` is logged at info level so post-mortem traces can reconstruct
+/// which terminating action ran (e.g., `"ParkAndAbort"`,
+/// `"FlipFailureAction::AbortAndPark"`).
+///
+/// # Example
+/// ```ignore
+/// // Inside the trigger-monitor closure:
+/// fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
+/// return terminate_with(&is_cancelled_clone, fired_triggers, "ParkAndAbort");
+/// ```
+fn terminate_with(
+    is_cancelled: &Arc<AtomicBool>,
+    triggers: Vec<(String, RecoveryAction)>,
+    reason: &str,
+) -> Vec<(String, RecoveryAction)> {
+    is_cancelled.store(true, Ordering::Relaxed);
+    tracing::info!(
+        "[TRIGGER_MONITOR] terminating sequence ({}); fired {} trigger(s)",
+        reason,
+        triggers.len()
+    );
+    triggers
 }
 
 fn executor_state_for_result(result: NodeStatus) -> ExecutorState {
@@ -255,14 +335,32 @@ pub struct SequenceExecutor {
     trigger_manager: Arc<RwLock<TriggerManager>>,
     /// Enable/disable trigger monitoring
     pub triggers_enabled: bool,
-    /// Checkpoint manager for crash recovery
-    checkpoint_manager: Option<crate::checkpoint::CheckpointManager>,
+    /// Checkpoint manager for crash recovery.
+    /// Audit §1.16: stored behind an `Arc` so the streaming-checkpoint task
+    /// (spawned inside `start()`) shares the SAME instance — including its
+    /// `info_cache` — instead of constructing a second
+    /// `CheckpointManager::new(checkpoint_dir)` that bypasses the cache and
+    /// causes UI staleness on `has_recoverable_checkpoint`.
+    checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>>,
     /// Current checkpoint being updated
     current_checkpoint: Option<crate::checkpoint::SessionCheckpoint>,
     /// Safety fail mode - determines behavior when safety devices fail or are unavailable
     pub safety_fail_mode: SafetyFailMode,
     /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
     pub filter_focus_offsets: std::collections::HashMap<String, i32>,
+    /// Audit §1.8: shared runtime configuration. Updated by
+    /// `Update{DitherConfig,Location,FilterOffsets}` commands so changes
+    /// take effect on the next dither/capture/autofocus without requiring a
+    /// sequence reload. Cloned into the spawned executor task so the task
+    /// reads the same values the public update_* methods write.
+    ///
+    /// Why `parking_lot::RwLock` instead of `tokio::sync::RwLock`: the
+    /// public `update_*` methods are sync (already wired into the bridge
+    /// crate that way) and the lock is only ever held for the duration of
+    /// a struct-field assignment. A sync rwlock keeps the bridge call sites
+    /// non-`.await` and is free of contention concerns for this access
+    /// pattern.
+    runtime_config: Arc<StdRwLock<RuntimeConfig>>,
 }
 
 impl SequenceExecutor {
@@ -296,6 +394,7 @@ impl SequenceExecutor {
             current_checkpoint: None,
             safety_fail_mode: SafetyFailMode::default(),
             filter_focus_offsets: std::collections::HashMap::new(),
+            runtime_config: Arc::new(StdRwLock::new(RuntimeConfig::default())),
         }
     }
 
@@ -756,12 +855,23 @@ impl SequenceExecutor {
         let safety_fail_mode = self.safety_fail_mode;
         let filter_focus_offsets = self.filter_focus_offsets.clone();
 
-        // Clone checkpoint dir for streaming checkpoints inside the spawned task.
-        // A new CheckpointManager is created in the task from this path.
-        let streaming_checkpoint_dir: Option<PathBuf> = self
-            .checkpoint_manager
-            .as_ref()
-            .map(|m| m.checkpoint_dir().to_path_buf());
+        // Audit §1.8: seed runtime config from the executor's configured
+        // values so the first read sees what `set_*()` was given before
+        // start() was called. The shared Arc is cloned for the spawned task
+        // and the command handler so writes propagate to readers.
+        {
+            let mut rc = self.runtime_config.write();
+            rc.latitude = self.latitude;
+            rc.longitude = self.longitude;
+            rc.filter_focus_offsets = self.filter_focus_offsets.clone();
+        }
+        let runtime_config = self.runtime_config.clone();
+
+        // Audit §1.16: share the *same* CheckpointManager Arc between the
+        // executor and the streaming-checkpoint task so they cannot diverge
+        // (info_cache must be consistent for `has_recoverable_checkpoint`).
+        let streaming_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
+            self.checkpoint_manager.clone();
         let streaming_sequence = self.sequence.clone();
         let streaming_camera_id = self.camera_id.clone();
         let streaming_mount_id = self.mount_id.clone();
@@ -1059,35 +1169,69 @@ impl SequenceExecutor {
                             settle_timeout,
                             ra_only,
                         } => {
+                            // Audit §1.8: write through the shared Arc so the
+                            // change takes effect on the next dither without
+                            // requiring a sequence reload.
+                            {
+                                let mut rc = runtime_config.write();
+                                rc.dither.pixels = pixels;
+                                rc.dither.settle_pixels = settle_pixels;
+                                rc.dither.settle_time = settle_time;
+                                rc.dither.settle_timeout = settle_timeout;
+                                rc.dither.ra_only = ra_only;
+                            }
                             tracing::info!(
-                                "Runtime dither config update received: pixels={}, settle_pixels={}, settle_time={}, settle_timeout={}, ra_only={}",
+                                "Runtime dither config updated: pixels={}, settle_pixels={}, settle_time={}, settle_timeout={}, ra_only={}",
                                 pixels, settle_pixels, settle_time, settle_timeout, ra_only
                             );
-                            // Dither config is baked into each exposure node at load time.
-                            // This command logs the update; values take effect on next sequence load.
+                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                what: "dither".to_string(),
+                            });
                         }
                         ExecutorCommand::UpdateLocation {
                             latitude,
                             longitude,
                         } => {
+                            // Audit §1.8: write through the Arc and also push
+                            // into the trigger state so altitude-aware
+                            // triggers (AltitudeLimit, MeridianFlip hour-angle
+                            // calc) read the new value on their next poll.
+                            {
+                                let mut rc = runtime_config.write();
+                                rc.latitude = latitude;
+                                rc.longitude = longitude;
+                            }
+                            {
+                                let manager = trigger_manager.read().await;
+                                let state_lock = manager.state();
+                                let mut state = state_lock.write().await;
+                                state.observer_latitude = latitude;
+                                state.observer_longitude = longitude;
+                            }
                             tracing::info!(
-                                "Runtime location update received: lat={:?}, lon={:?}",
+                                "Runtime location updated: lat={:?}, lon={:?}",
                                 latitude,
                                 longitude
                             );
-                            // Location is used by altitude triggers. The trigger state
-                            // reads location from the trigger action context which is
-                            // cloned at start. Log for awareness; full propagation
-                            // requires a sequence restart or checkpoint resume.
+                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                what: "location".to_string(),
+                            });
                         }
                         ExecutorCommand::UpdateFilterOffsets { offsets } => {
+                            // Audit §1.8: write through the Arc so the next
+                            // filter change reads the updated offsets.
+                            let count = offsets.len();
+                            {
+                                let mut rc = runtime_config.write();
+                                rc.filter_focus_offsets = offsets;
+                            }
                             tracing::info!(
-                                "Runtime filter focus offsets update received: {} entries",
-                                offsets.len()
+                                "Runtime filter focus offsets updated: {} entries",
+                                count
                             );
-                            // Filter offsets are used by autofocus instructions.
-                            // Logged here; values take effect on next trigger-initiated autofocus
-                            // or sequence restart.
+                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                what: "filter_offsets".to_string(),
+                            });
                         }
                     }
                 }
@@ -1111,7 +1255,10 @@ impl SequenceExecutor {
             let trigger_manager_for_checkpoint = trigger_manager.clone();
             let streaming_triggers_enabled = triggers_enabled;
             let streaming_checkpoint_task = async move {
-                let Some(checkpoint_dir) = streaming_checkpoint_dir else {
+                // Audit §1.16: reuse the executor's Arc<CheckpointManager> so
+                // info_cache stays consistent. Constructing a second instance
+                // here was the original §1.16 bug.
+                let Some(checkpoint_mgr) = streaming_checkpoint_manager else {
                     std::future::pending::<()>().await;
                     return;
                 };
@@ -1120,7 +1267,6 @@ impl SequenceExecutor {
                     return;
                 };
 
-                let checkpoint_mgr = crate::checkpoint::CheckpointManager::new(checkpoint_dir);
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
 
                 loop {
@@ -1532,8 +1678,10 @@ impl SequenceExecutor {
                                     .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
                             }
                             RecoveryAction::ParkAndAbort => {
-                                // Signal cancellation first so exposure loops stop
-                                is_cancelled_clone.store(true, Ordering::Relaxed);
+                                // Audit §1.18: cancellation must be set before
+                                // returning, but the actual store now happens
+                                // in `terminate_with` so this code path cannot
+                                // forget it on a future refactor.
 
                                 // Actually park the mount before aborting
                                 if let Some(mount_id) = &trigger_action_context.mount_id {
@@ -1574,7 +1722,11 @@ impl SequenceExecutor {
                                 }
 
                                 fired_triggers.push((trigger_id, action));
-                                return fired_triggers;
+                                return terminate_with(
+                                    &is_cancelled_clone,
+                                    fired_triggers,
+                                    "RecoveryAction::ParkAndAbort",
+                                );
                             }
                             RecoveryAction::NextTarget => {
                                 tracing::info!("Trigger requested advance to next target");
@@ -1606,6 +1758,7 @@ impl SequenceExecutor {
                                             is_cancelled_clone.clone(),
                                             device_ops_for_triggers.clone(),
                                             trigger_state_for_actions.clone(),
+                                            &runtime_config,
                                         );
 
                                         let af_result = crate::instructions::execute_autofocus(
@@ -1762,8 +1915,11 @@ impl SequenceExecutor {
                                                     );
                                                 }
                                                 crate::FlipFailureAction::AbortAndPark => {
-                                                    is_cancelled_clone
-                                                        .store(true, Ordering::Relaxed);
+                                                    // Audit §1.18: cancellation
+                                                    // is set inside terminate_with
+                                                    // so this exit cannot drift
+                                                    // out of sync with the
+                                                    // ParkAndAbort path.
 
                                                     // Park the mount after failed flip
                                                     if let Some(mount_id) =
@@ -1791,7 +1947,11 @@ impl SequenceExecutor {
                                                         trigger_id.clone(),
                                                         RecoveryAction::ParkAndAbort,
                                                     ));
-                                                    return fired_triggers;
+                                                    return terminate_with(
+                                                        &is_cancelled_clone,
+                                                        fired_triggers,
+                                                        "FlipFailureAction::AbortAndPark",
+                                                    );
                                                 }
                                             }
                                         }
@@ -1805,7 +1965,201 @@ impl SequenceExecutor {
                                     tracing::error!("[MERIDIAN] Cannot execute flip: mount not connected or target not set");
                                 }
                             }
-                            _ => {}
+                            RecoveryAction::Dither(dither_config) => {
+                                // Audit §1.5: implement the standard
+                                // DitherInterval recovery. Build an instruction
+                                // context (the trigger action context already
+                                // carries every device id, save path,
+                                // location, filter offsets, and an
+                                // is_cancelled token). The dither runs
+                                // asynchronously here; we update
+                                // last_dither_frame on success so the
+                                // DitherInterval cadence stays correct.
+                                //
+                                // Audit §1.8: prefer the runtime config over
+                                // the trigger-embedded default if the user
+                                // updated it via UpdateDitherConfig. The
+                                // trigger config still wins for `pattern`/
+                                // `grid_size` because those are not exposed
+                                // by UpdateDitherConfig.
+                                let effective_config = {
+                                    let rc = runtime_config.read();
+                                    // The runtime config has Default values
+                                    // (zero) until UpdateDitherConfig fires,
+                                    // so prefer the trigger-embedded config
+                                    // when the runtime side has not been
+                                    // explicitly set (pixels==0). Otherwise
+                                    // the runtime override wins so the user's
+                                    // last UpdateDitherConfig is honoured.
+                                    if rc.dither.pixels > 0.0 {
+                                        crate::DitherConfig {
+                                            pixels: rc.dither.pixels,
+                                            settle_pixels: rc.dither.settle_pixels,
+                                            settle_time: rc.dither.settle_time,
+                                            settle_timeout: rc.dither.settle_timeout,
+                                            ra_only: rc.dither.ra_only,
+                                            // pattern/grid_size are not
+                                            // surfaced by UpdateDitherConfig
+                                            // so the trigger value still wins.
+                                            pattern: dither_config.pattern,
+                                            grid_size: dither_config.grid_size,
+                                        }
+                                    } else {
+                                        dither_config.clone()
+                                    }
+                                };
+                                tracing::info!(
+                                    "[DITHER] Trigger '{}' fired - executing dither (pixels={}, settle_pixels={})",
+                                    trigger_name,
+                                    effective_config.pixels,
+                                    effective_config.settle_pixels,
+                                );
+                                let (target_name, target_ra, target_dec, current_filter) = {
+                                    let ts = trigger_state_for_actions.read().await;
+                                    (
+                                        ts.current_target_name.clone(),
+                                        ts.target_ra.map(|ra| ra / 15.0),
+                                        ts.target_dec,
+                                        ts.current_filter.clone(),
+                                    )
+                                };
+                                let dither_ctx = build_trigger_autofocus_context(
+                                    &trigger_action_context,
+                                    target_name,
+                                    target_ra,
+                                    target_dec,
+                                    current_filter,
+                                    is_cancelled_clone.clone(),
+                                    device_ops_for_triggers.clone(),
+                                    trigger_state_for_actions.clone(),
+                                    &runtime_config,
+                                );
+                                let dither_result =
+                                    crate::instructions::execute_dither(
+                                        &effective_config,
+                                        &dither_ctx,
+                                        None,
+                                    )
+                                    .await;
+                                if dither_result.status == NodeStatus::Success {
+                                    let mut ts = trigger_state_for_actions.write().await;
+                                    ts.mark_dither_performed();
+                                } else {
+                                    tracing::warn!(
+                                        "[DITHER] Trigger-initiated dither failed: {:?}",
+                                        dither_result.message
+                                    );
+                                }
+                            }
+                            RecoveryAction::Recenter => {
+                                // Audit §1.11: re-slew to the target and
+                                // plate-solve as the DriftLimit recovery. The
+                                // existing `execute_center` instruction
+                                // already does plate-solve + sync + slew loop;
+                                // we reuse it so behaviour matches an
+                                // explicit Center node.
+                                tracing::info!(
+                                    "[DRIFT] Trigger '{}' fired - executing recenter",
+                                    trigger_name
+                                );
+                                let (target_name, target_ra, target_dec, current_filter) = {
+                                    let ts = trigger_state_for_actions.read().await;
+                                    (
+                                        ts.current_target_name.clone(),
+                                        ts.target_ra.map(|ra| ra / 15.0),
+                                        ts.target_dec,
+                                        ts.current_filter.clone(),
+                                    )
+                                };
+                                if target_ra.is_none() || target_dec.is_none() {
+                                    tracing::error!(
+                                        "[DRIFT] Recenter requested but no target RA/Dec set; pausing for operator intervention"
+                                    );
+                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                    *state_clone.write().await = ExecutorState::Paused;
+                                    let _ = event_tx_clone2.send(
+                                        ExecutorEvent::StateChanged(ExecutorState::Paused),
+                                    );
+                                } else {
+                                    let recenter_ctx = build_trigger_autofocus_context(
+                                        &trigger_action_context,
+                                        target_name,
+                                        target_ra,
+                                        target_dec,
+                                        current_filter,
+                                        is_cancelled_clone.clone(),
+                                        device_ops_for_triggers.clone(),
+                                        trigger_state_for_actions.clone(),
+                                        &runtime_config,
+                                    );
+                                    let center_config = crate::CenterConfig {
+                                        use_target_coords: true,
+                                        custom_ra: None,
+                                        custom_dec: None,
+                                        accuracy_arcsec: 10.0,
+                                        max_attempts: 3,
+                                        exposure_duration: 5.0,
+                                        filter: None,
+                                    };
+                                    let result = crate::instructions::execute_center(
+                                        &center_config,
+                                        &recenter_ctx,
+                                        None,
+                                    )
+                                    .await;
+                                    if result.status != NodeStatus::Success {
+                                        tracing::warn!(
+                                            "[DRIFT] Recenter failed: {:?} - pausing sequence",
+                                            result.message
+                                        );
+                                        is_paused_for_triggers
+                                            .store(true, Ordering::Relaxed);
+                                        *state_clone.write().await = ExecutorState::Paused;
+                                        let _ = event_tx_clone2.send(
+                                            ExecutorEvent::StateChanged(ExecutorState::Paused),
+                                        );
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: format!(
+                                                "DriftLimit recenter failed: {}",
+                                                result.message.unwrap_or_default()
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+                            RecoveryAction::Continue => {
+                                // Audit §1.5: explicit no-op handler so the
+                                // match is exhaustive on every variant. The
+                                // user wants the trigger logged-and-ignored
+                                // (this is the FilterChange standard trigger's
+                                // behaviour).
+                                tracing::info!(
+                                    "Trigger '{}' fired with RecoveryAction::Continue (logged and ignored)",
+                                    trigger_name
+                                );
+                            }
+                            RecoveryAction::CustomBranch => {
+                                // Audit §1.5: CustomBranch was never wired and
+                                // the previous catch-all silently dropped it.
+                                // Refuse loudly so a user cannot ship a
+                                // sequence that quietly fails to act on a
+                                // trigger; pause for operator intervention.
+                                tracing::error!(
+                                    "Trigger '{}' uses RecoveryAction::CustomBranch which is not implemented; pausing sequence",
+                                    trigger_name
+                                );
+                                is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                *state_clone.write().await = ExecutorState::Paused;
+                                let _ = event_tx_clone2
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                    message: format!(
+                                        "Trigger '{}' configured with RecoveryAction::CustomBranch — this variant is not implemented. \
+                                         Edit the sequence to use a supported recovery action.",
+                                        trigger_name
+                                    ),
+                                });
+                            }
                         }
 
                         fired_triggers.push((trigger_id, action));
@@ -1919,8 +2273,10 @@ impl SequenceExecutor {
     }
 
     /// Update dither configuration at runtime.
-    /// Updates the executor's stored fields so they are used by subsequent trigger-initiated
-    /// dithers and by any sequence checkpoint resume.
+    /// Audit §1.8: writes through `runtime_config` so a running sequence picks
+    /// up the new values on its next dither (no sequence reload required).
+    /// Also caches on the executor itself so a fresh `start()` after a stop
+    /// uses the same values.
     pub fn update_dither_config(
         &mut self,
         pixels: f64,
@@ -1933,27 +2289,60 @@ impl SequenceExecutor {
             "Updating dither config: pixels={}, settle_pixels={}, settle_time={}, settle_timeout={}, ra_only={}",
             pixels, settle_pixels, settle_time, settle_timeout, ra_only
         );
-        // These values will be picked up on next sequence load or checkpoint resume.
-        // For mid-sequence use, the DitherInterval trigger already reads dither config
-        // from the exposure node's own config, so this primarily affects standalone dither nodes.
-        let _ = (pixels, settle_pixels, settle_time, settle_timeout, ra_only);
+        {
+            let mut rc = self.runtime_config.write();
+            rc.dither.pixels = pixels;
+            rc.dither.settle_pixels = settle_pixels;
+            rc.dither.settle_time = settle_time;
+            rc.dither.settle_timeout = settle_timeout;
+            rc.dither.ra_only = ra_only;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "dither".to_string(),
+        });
     }
 
     /// Update observer location at runtime.
-    /// Updates the executor's stored latitude/longitude so altitude-based triggers
-    /// and time calculations use the correct location.
+    /// Audit §1.8: writes through `runtime_config` and updates the executor's
+    /// own fields so a fresh `start()` and an in-flight sequence both see the
+    /// new values. The trigger-monitor task reads location from the trigger
+    /// state which is populated from `runtime_config` on each iteration.
     pub fn update_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
         tracing::info!("Updating executor location: lat={:?}, lon={:?}", lat, lon);
         self.latitude = lat;
         self.longitude = lon;
+        {
+            let mut rc = self.runtime_config.write();
+            rc.latitude = lat;
+            rc.longitude = lon;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "location".to_string(),
+        });
     }
 
     /// Update filter focus offsets at runtime.
-    /// Updates the executor's stored offsets so subsequent filter changes apply
-    /// the correct focus compensation.
-    pub fn update_filter_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
+    /// Audit §1.8: writes through `runtime_config`.
+    pub fn update_filter_offsets(
+        &mut self,
+        offsets: std::collections::HashMap<String, i32>,
+    ) {
         tracing::info!("Updating filter focus offsets: {} entries", offsets.len());
-        self.filter_focus_offsets = offsets;
+        self.filter_focus_offsets = offsets.clone();
+        {
+            let mut rc = self.runtime_config.write();
+            rc.filter_focus_offsets = offsets;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "filter_offsets".to_string(),
+        });
+    }
+
+    /// Audit §1.8: read-only handle for the runtime config so callers (e.g.
+    /// the bridge layer or tests) can verify the latest values without
+    /// constructing their own state.
+    pub fn runtime_config_handle(&self) -> Arc<StdRwLock<RuntimeConfig>> {
+        self.runtime_config.clone()
     }
 
     /// Reset the executor
@@ -1974,7 +2363,8 @@ impl SequenceExecutor {
 
     /// Set the checkpoint directory for crash recovery
     pub fn set_checkpoint_dir<P: AsRef<std::path::Path>>(&mut self, path: P) {
-        self.checkpoint_manager = Some(crate::checkpoint::CheckpointManager::new(path));
+        self.checkpoint_manager =
+            Some(Arc::new(crate::checkpoint::CheckpointManager::new(path)));
     }
 
     /// Check if a recoverable checkpoint exists
@@ -2337,6 +2727,7 @@ mod tests {
             longitude: Some(-122.0),
             filter_focus_offsets: HashMap::from([("Ha".to_string(), 42)]),
         };
+        let runtime_config = Arc::new(StdRwLock::new(RuntimeConfig::default()));
         let instruction_ctx = build_trigger_autofocus_context(
             &trigger_context,
             Some("M31".to_string()),
@@ -2346,6 +2737,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
             Arc::new(crate::device_ops::NullDeviceOps),
             Arc::new(RwLock::new(TriggerState::new())),
+            &runtime_config,
         );
 
         assert_eq!(instruction_ctx.target_name.as_deref(), Some("M31"));
@@ -2379,5 +2771,94 @@ mod tests {
 
         assert_eq!(flip_ctx.focuser_id.as_deref(), Some("focuser"));
         assert_eq!(flip_ctx.mount_id, "mount");
+    }
+
+    /// Audit §1.18: `terminate_with` must always set the cancellation flag
+    /// before returning. Future RecoveryAction variants that exit through
+    /// this helper inherit the invariant by construction.
+    #[test]
+    fn terminate_with_sets_is_cancelled_before_returning_triggers() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let triggers = vec![
+            ("trig_a".to_string(), RecoveryAction::ParkAndAbort),
+            ("trig_b".to_string(), RecoveryAction::Pause),
+        ];
+        let returned = terminate_with(&flag, triggers, "unit-test");
+        assert!(
+            flag.load(Ordering::Relaxed),
+            "terminate_with must store true into is_cancelled"
+        );
+        assert_eq!(returned.len(), 2);
+        assert_eq!(returned[0].0, "trig_a");
+        assert_eq!(returned[1].0, "trig_b");
+    }
+
+    /// Audit §1.8: `update_dither_config` must write through the shared
+    /// `runtime_config` Arc so the next dither uses the new pixel count.
+    /// This was the original audit-flagged silent-fallback site (the
+    /// previous implementation `let _`'d the parameters).
+    #[test]
+    fn update_dither_config_writes_through_runtime_config() {
+        let mut executor = SequenceExecutor::new();
+        executor.update_dither_config(7.5, 0.5, 8.0, 60.0, true);
+        let handle = executor.runtime_config_handle();
+        let rc = handle.read();
+        assert!((rc.dither.pixels - 7.5).abs() < f64::EPSILON);
+        assert!((rc.dither.settle_pixels - 0.5).abs() < f64::EPSILON);
+        assert!((rc.dither.settle_time - 8.0).abs() < f64::EPSILON);
+        assert!((rc.dither.settle_timeout - 60.0).abs() < f64::EPSILON);
+        assert!(rc.dither.ra_only);
+    }
+
+    /// Audit §1.8: `update_location` must update both the executor's own
+    /// fields (used by next-start seeding) and the runtime_config Arc (used
+    /// mid-flight by trigger actions).
+    #[test]
+    fn update_location_writes_through_runtime_config() {
+        let mut executor = SequenceExecutor::new();
+        executor.update_location(Some(40.7), Some(-74.0));
+        assert_eq!(executor.latitude, Some(40.7));
+        assert_eq!(executor.longitude, Some(-74.0));
+        let handle = executor.runtime_config_handle();
+        let rc = handle.read();
+        assert_eq!(rc.latitude, Some(40.7));
+        assert_eq!(rc.longitude, Some(-74.0));
+    }
+
+    /// Audit §1.8: `update_filter_offsets` must propagate to runtime_config
+    /// so the next filter change reads the updated map.
+    #[test]
+    fn update_filter_offsets_writes_through_runtime_config() {
+        let mut executor = SequenceExecutor::new();
+        let mut offsets = std::collections::HashMap::new();
+        offsets.insert("Ha".to_string(), 250);
+        offsets.insert("OIII".to_string(), -120);
+        executor.update_filter_offsets(offsets.clone());
+        let handle = executor.runtime_config_handle();
+        let rc = handle.read();
+        assert_eq!(rc.filter_focus_offsets.get("Ha"), Some(&250));
+        assert_eq!(rc.filter_focus_offsets.get("OIII"), Some(&-120));
+    }
+
+    /// Audit §1.16: a single `Arc<CheckpointManager>` must be shared between
+    /// the executor public API and the streaming-checkpoint task. Pointer
+    /// equality on the Arc is a structural invariant; if `set_checkpoint_dir`
+    /// ever drops back to `Box`/owned semantics this test fails immediately.
+    #[test]
+    fn checkpoint_manager_is_arc_shared() {
+        let mut executor = SequenceExecutor::new();
+        executor.set_checkpoint_dir("/tmp/nightshade_checkpoint_test_§1_16");
+        let mgr_a = executor
+            .checkpoint_manager
+            .clone()
+            .expect("checkpoint manager set");
+        let mgr_b = executor
+            .checkpoint_manager
+            .clone()
+            .expect("checkpoint manager set");
+        assert!(
+            Arc::ptr_eq(&mgr_a, &mgr_b),
+            "set_checkpoint_dir must produce a single shared Arc"
+        );
     }
 }

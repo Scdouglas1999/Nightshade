@@ -572,6 +572,12 @@ pub struct AutofocusConfig {
     /// Default 600s (10 minutes).
     #[serde(default = "default_af_max_duration")]
     pub max_duration_secs: f64,
+    /// Minimum number of stars per V-curve frame for the result to count as
+    /// a valid sample (audit §1.21). Frames with fewer stars are rejected;
+    /// if more than half the frames are rejected the autofocus run fails.
+    /// Default 10 — matches the previous hardcoded `MIN_STAR_COUNT` constant.
+    #[serde(default = "default_af_min_star_count")]
+    pub min_star_count: u32,
 }
 
 fn default_af_max_duration() -> f64 {
@@ -606,6 +612,10 @@ fn default_af_outlier_rejection_sigma() -> f64 {
     3.0
 }
 
+fn default_af_min_star_count() -> u32 {
+    10
+}
+
 impl Default for AutofocusConfig {
     fn default() -> Self {
         Self {
@@ -620,6 +630,7 @@ impl Default for AutofocusConfig {
             max_star_count_change: default_af_max_star_count_change(),
             outlier_rejection_sigma: default_af_outlier_rejection_sigma(),
             max_duration_secs: default_af_max_duration(),
+            min_star_count: default_af_min_star_count(),
         }
     }
 }
@@ -1017,6 +1028,12 @@ pub enum TriggerType {
     GuidingFailed {
         rms_threshold: f64,
         duration_secs: f64,
+        /// Audit §1.21: how many seconds of guiding-RMS history to retain.
+        /// `update_guiding_rms` trims the rolling window to this duration so
+        /// older (stale) samples cannot mask a recent spike. Default 300s
+        /// (5 minutes) — preserves the previous hardcoded behaviour.
+        #[serde(default = "default_guiding_rms_retention_secs")]
+        rms_retention_secs: u64,
     },
     /// Trigger when altitude too low
     AltitudeLimit { min_altitude: f64 },
@@ -1053,13 +1070,62 @@ pub enum TriggerType {
         /// Maximum humidity percentage before triggering (e.g., 85.0)
         max_percent: f64,
     },
+    /// Plate-solve drift trigger (audit §1.11). Fires when the most recent
+    /// plate-solve reports an accumulated drift from the target exceeding
+    /// `max_pixels`. The drift is computed by `TriggerState::calculate_drift_pixels`
+    /// using the last plate-solve coordinates, the target coordinates, and the
+    /// solver-reported pixel scale; both the RA and Dec axes are summed in
+    /// quadrature so a small drift in either axis cannot mask a large drift
+    /// in the other. Default standard recovery is `Recenter`.
+    DriftLimit {
+        /// Maximum drift in pixels before the trigger fires.
+        max_pixels: f64,
+    },
 }
 
 fn default_consecutive_frames() -> u32 {
     1
 }
 
-/// Recovery action to take when a trigger fires or error occurs
+/// Default rolling-window length (seconds) for guiding-RMS history retained
+/// in `TriggerState::guiding_rms_history`. Audit §1.21.
+pub fn default_guiding_rms_retention_secs() -> u64 {
+    300
+}
+
+/// Default focus-drift window size (samples) for the standard `FocusDrift`
+/// trigger. Audit §1.21 — moved out of the magic-number site so config
+/// loaders and the standard-trigger builder share the same default.
+pub fn default_focus_drift_window_size() -> usize {
+    10
+}
+
+/// Default minimum-consecutive-increasing-frame count for the standard
+/// `FocusDrift` trigger. Audit §1.21.
+pub fn default_focus_drift_min_increasing_count() -> usize {
+    5
+}
+
+/// Default minimum total HFR increase across the increasing run for the
+/// standard `FocusDrift` trigger. Audit §1.21.
+pub fn default_focus_drift_min_total_increase() -> f64 {
+    0.5
+}
+
+/// Recovery action to take when a trigger fires or error occurs.
+///
+/// Audit §1.5:
+/// - `Dither(DitherConfig)` was added so the standard `DitherInterval` trigger
+///   has a real action to run; without it the trigger would silently drop into
+///   the catch-all match arm.
+/// - `CustomBranch` is retained for serialised on-disk compatibility with
+///   stored sequences but is rejected as a configuration error at runtime
+///   (the executor emits an error event and pauses the sequence) until a
+///   child-node recovery branch is wired. Treating it as a no-op was the
+///   silent-drop bug §1.5 called out — refusing it loudly is the policy.
+/// - `Recenter` was added (audit §1.11) so the new `DriftLimit` trigger has
+///   a non-destructive recovery path: re-slew to the target and plate-solve
+///   instead of pausing the whole sequence.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum RecoveryAction {
     /// Continue execution (ignore error)
@@ -1075,8 +1141,18 @@ pub enum RecoveryAction {
     Retry { max_attempts: u32 },
     /// Park and abort
     ParkAndAbort,
-    /// Execute custom recovery branch
+    /// Reserved variant — see the enum-level rustdoc. Stored sequences may
+    /// still contain this value, so it must round-trip; the executor refuses
+    /// it at runtime instead of silently treating it as a no-op.
     CustomBranch,
     /// Execute meridian flip with given config
     MeridianFlip(MeridianFlipConfig),
+    /// Run a dither using the supplied config. Used by the standard
+    /// `DitherInterval` trigger so periodic dithering is honoured even when
+    /// no explicit Dither instruction node is in the sequence. Audit §1.5.
+    Dither(DitherConfig),
+    /// Re-slew to the target and plate-solve. Used by the `DriftLimit` trigger
+    /// (audit §1.11) when accumulated drift exceeds the configured pixel
+    /// budget — a recenter is the lowest-risk recovery (no flip, no abort).
+    Recenter,
 }

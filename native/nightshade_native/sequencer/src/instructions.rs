@@ -6,7 +6,7 @@
 use crate::device_ops::{ImageData, SharedDeviceOps};
 use crate::*;
 use chrono::NaiveDate;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -384,7 +384,14 @@ pub async fn execute_slew(
     }
 }
 
-/// Wait for mount to stop slewing with timeout
+/// Wait for mount to stop slewing with timeout.
+///
+/// Audit §1.6: previously the only caller was the inline execute_meridian_flip
+/// body that has been replaced by a thin `MeridianFlipExecutor` wrapper.
+/// Kept as a public-style helper with `#[allow(dead_code)]` so future
+/// instruction-level slew helpers do not have to re-implement the polling
+/// loop.
+#[allow(dead_code)]
 async fn wait_for_mount_idle(
     mount_id: &str,
     ctx: &InstructionContext,
@@ -591,11 +598,35 @@ fn ensure_unique_save_path(path: PathBuf) -> PathBuf {
         return path;
     }
 
-    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("image");
+    // Audit §1.15: parent and stem fallbacks here are defensive — by the time
+    // we enter this function the caller has already passed a fully-formed
+    // path. If the parent is None (file at filesystem root) we keep using an
+    // empty PathBuf so `.join()` writes into the cwd; that mirrors the
+    // pre-audit behaviour but is now explicit. If the stem is missing we
+    // fall back to "image" but log so the operator can audit how a stemless
+    // path was constructed.
+    let parent = match path.parent() {
+        Some(p) => p.to_path_buf(),
+        None => {
+            tracing::warn!(
+                "[FS] ensure_unique_save_path: path has no parent component ({}). \
+                 Suffixed candidates will be written to the current working directory.",
+                path.display()
+            );
+            PathBuf::new()
+        }
+    };
+    let stem = match path.file_stem().and_then(|v| v.to_str()) {
+        Some(s) if !s.is_empty() => s.to_string(),
+        _ => {
+            tracing::warn!(
+                "[FS] ensure_unique_save_path: path has no usable file stem ({}); \
+                 falling back to \"image\" for suffix generation.",
+                path.display()
+            );
+            "image".to_string()
+        }
+    };
     let extension = path.extension().and_then(|value| value.to_str());
 
     let mut suffix = 1;
@@ -864,10 +895,16 @@ pub async fn execute_exposure(
         Err(e) => return e,
     };
 
+    // Audit §1.15: log "(no filter set)" instead of substituting a filter
+    // name like "unfiltered". The substituted token used to look like a
+    // valid filter in operator logs.
     tracing::info!(
         "Starting {} {} x {:.1}s exposures",
         config.count,
-        config.filter.as_deref().unwrap_or("unfiltered"),
+        match config.filter.as_deref() {
+            Some(name) if !name.is_empty() => name.to_string(),
+            _ => "(no filter set)".to_string(),
+        },
         config.duration_secs
     );
 
@@ -982,12 +1019,37 @@ pub async fn execute_exposure(
             .or_else(|| ctx.save_path.clone());
 
         if let Some(base_path) = save_path {
-            let filename = format!(
-                "{}_{}_{:04}.fits",
-                ctx.target_name.as_deref().unwrap_or("image"),
-                config.filter.as_deref().unwrap_or("L"),
-                frame
-            );
+            // Audit §1.15: never silently substitute target name or filter.
+            // A missing target name during normal imaging is a configuration
+            // bug — emitting `image_L_0001.fits` hides which session the
+            // frame belongs to and cannot be undone after the fact.
+            // A missing filter labelled `L` mis-labels narrowband captures
+            // as luminance.
+            //
+            // We log at warn! and use distinct synthetic placeholders that
+            // are obvious in directory listings so an operator can audit
+            // the run. If both fields are present this code path is silent.
+            let target_label = match ctx.target_name.as_deref() {
+                Some(name) if !name.is_empty() => name.to_string(),
+                _ => {
+                    tracing::warn!(
+                        "[CAPTURE] Saving frame with no target name — using synthetic label \"untargeted\". \
+                         This indicates the sequence was started without a TargetHeader/TargetGroup; review the configuration."
+                    );
+                    "untargeted".to_string()
+                }
+            };
+            let filter_label = match config.filter.as_deref() {
+                Some(name) if !name.is_empty() => name.to_string(),
+                _ => {
+                    tracing::warn!(
+                        "[CAPTURE] Saving frame with no filter set — using synthetic label \"nofilter\" (NOT \"L\"). \
+                         A missing filter for narrowband/RGB captures would mis-label the frame as luminance."
+                    );
+                    "nofilter".to_string()
+                }
+            };
+            let filename = format!("{}_{}_{:04}.fits", target_label, filter_label, frame);
             let full_path = ensure_unique_save_path(base_path.join(&filename));
 
             if let Err(e) = ctx
@@ -1164,8 +1226,11 @@ pub async fn execute_autofocus(
         Binning::Four => (4, 4),
     };
 
-    // Minimum star count required for valid autofocus
-    const MIN_STAR_COUNT: u32 = 10;
+    // Audit §1.21: minimum star count is now `config.min_star_count`
+    // (default 10 from `default_af_min_star_count`); previously a hardcoded
+    // local const. A user with a fast/dim setup can lower it without
+    // patching the binary.
+    let min_star_count: u32 = config.min_star_count.max(1);
     // Minimum HFR variance required for a valid V-curve
     const MIN_HFR_VARIANCE: f64 = 1.0;
     // Minimum RÃ‚Â² quality for curve fit
@@ -1275,13 +1340,13 @@ pub async fn execute_autofocus(
         );
 
         // Check for insufficient stars
-        if measurement.star_count < MIN_STAR_COUNT {
+        if measurement.star_count < min_star_count {
             low_star_count_warnings += 1;
             tracing::warn!(
                 "Low star count at position {}: {} stars (minimum: {})",
                 position,
                 measurement.star_count,
-                MIN_STAR_COUNT
+                min_star_count
             );
 
             // If too many points have low star count, fail immediately
@@ -1302,7 +1367,7 @@ pub async fn execute_autofocus(
                 return InstructionResult::failure(format!(
                     "Autofocus failed: Insufficient stars detected. Only {} stars found (minimum: {}). \
                      This may indicate clouds, poor seeing, or incorrect camera settings.",
-                    measurement.star_count, MIN_STAR_COUNT
+                    measurement.star_count, min_star_count
                 ));
             }
         }
@@ -1609,9 +1674,14 @@ pub async fn execute_dither(
                     );
                 }
 
-                // If dec_offset is ~0, we can do RA-only dither
-                let ra_only = dec_offset.abs() < 0.01;
-                (magnitude, ra_only)
+                // Audit §1.13: previously we collapsed grid-mode to RA-only
+                // when `dec_offset.abs() < 0.01`, a magic threshold that
+                // surreptitiously changed user-requested 2D grid behaviour
+                // into 1D dithering for any cell whose Dec component happened
+                // to round near zero. Grid mode now passes the user's
+                // explicit `ra_only` flag through unchanged so the next grid
+                // cell's RA *and* Dec offsets are honoured by the guider.
+                (magnitude, config.ra_only)
             } else {
                 // No trigger state available - fall back to random dither
                 tracing::warn!(
@@ -2535,8 +2605,9 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     let now = chrono::Utc::now();
     let today = now.date_naive();
 
-    // Calculate Julian Day
-    let jd = calculate_julian_day(now);
+    // Calculate Julian Day. Audit §1.6: reuse `crate::meridian::julian_day`
+    // instead of the previous local duplicate.
+    let jd = crate::meridian::julian_day(&now);
 
     // Calculate solar position
     let (solar_dec, equation_of_time) = calculate_solar_position(jd);
@@ -2590,31 +2661,8 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     twilight_timestamp
 }
 
-/// Calculate Julian Day from UTC datetime
-fn calculate_julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
-    use chrono::{Datelike, Timelike};
-
-    let year = dt.year();
-    let month = dt.month() as i32;
-    let day = dt.day() as f64;
-    let hour = dt.hour() as f64 + dt.minute() as f64 / 60.0 + dt.second() as f64 / 3600.0;
-
-    let (y, m) = if month <= 2 {
-        (year - 1, month + 12)
-    } else {
-        (year, month)
-    };
-
-    let a = (y as f64 / 100.0).floor();
-    let b = 2.0 - a + (a / 4.0).floor();
-
-    (365.25 * (y as f64 + 4716.0)).floor()
-        + (30.6001 * (m as f64 + 1.0)).floor()
-        + day
-        + hour / 24.0
-        + b
-        - 1524.5
-}
+// Audit §1.6: the local `calculate_julian_day` was deleted; use
+// `crate::meridian::julian_day(&dt)` — same formula, single source of truth.
 
 fn build_utc_naive_time_or_fallback(
     date: NaiveDate,
@@ -2823,47 +2871,37 @@ pub async fn execute_script(config: &ScriptConfig, ctx: &InstructionContext) -> 
 // MERIDIAN FLIP INSTRUCTION
 // =============================================================================
 
-/// Execute meridian flip with comprehensive safety checks and error handling
+/// Execute a meridian flip via the canonical [`MeridianFlipExecutor`].
+///
+/// Audit §1.6: this used to be a 394-line second implementation that diverged
+/// from the executor on timeouts, post-flip altitude check, autofocus
+/// parameters, settle behaviour, plate-solve failure handling, pier-side
+/// telemetry fallback, and abort-during-flip semantics. The single-source-
+/// of-truth executor lives in `crate::meridian_flip_executor`. This wrapper
+/// builds a [`FlipContext`] from the instruction context and calls
+/// `executor.execute()`. The cancellation token, the trigger-state flip
+/// bookkeeping, the cover-state pre-check (audit §1.19), and the
+/// configurable autofocus parameters all flow through the FlipContext.
 pub async fn execute_meridian_flip(
     config: &MeridianFlipConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
+    // Surface a "starting" progress immediately so UI shows activity even
+    // before the executor begins emitting its own events. The executor uses
+    // its event channel for granular per-step progress so we do not wire
+    // through that channel here — the explicit instruction node has its own
+    // progress reporter (the callback we received) and a brief
+    // 0%/100% bracket is sufficient.
+    if let Some(cb) = progress_callback {
+        cb(0.0, "Starting meridian flip".to_string());
+    }
+
     let mount_id = match ctx.mount_id() {
         Ok(id) => id.to_string(),
         Err(e) => return e,
     };
 
-    tracing::info!("=== Meridian Flip Sequence Started ===");
-
-    // Emit initial progress
-    if let Some(cb) = progress_callback {
-        cb(0.0, "Starting meridian flip".to_string());
-    }
-
-    // =========================================================================
-    // SAFETY CHECK 1: Verify mount capability
-    // =========================================================================
-    let can_flip = match ctx.device_ops.mount_can_flip(&mount_id).await {
-        Ok(capable) => Some(capable),
-        Err(e) => {
-            tracing::warn!(
-                "Mount flip capability unavailable ({}); continuing with runtime verification",
-                e
-            );
-            None
-        }
-    };
-
-    if matches!(can_flip, Some(false)) {
-        return InstructionResult::failure(
-            "Mount does not support meridian flips. Please configure mount to allow flips or disable meridian flip instruction."
-        );
-    }
-
-    // =========================================================================
-    // SAFETY CHECK 2: Verify we have target coordinates
-    // =========================================================================
     let target_ra = match ctx.target_ra {
         Some(ra) => ra,
         None => return InstructionResult::failure("No target RA available for meridian flip"),
@@ -2876,9 +2914,15 @@ pub async fn execute_meridian_flip(
         }
     };
 
-    // =========================================================================
-    // SAFETY CHECK 3: Verify observer location is known
-    // =========================================================================
+    let target_name = ctx
+        .target_name
+        .clone()
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    // Pre-flight: do not invoke the executor when no flip is actually needed
+    // — its altitude/cover/pier-side preflight assume the flip is required
+    // and would otherwise emit confusing "Aborted" events for routine
+    // pre-meridian sequence runs.
     let (_lat, lon) = match ctx.device_ops.get_observer_location() {
         Some((lat, lon)) => (lat, lon),
         None => {
@@ -2888,13 +2932,9 @@ pub async fn execute_meridian_flip(
         }
     };
 
-    // =========================================================================
-    // STEP 1: Calculate hour angle and verify flip is actually needed
-    // =========================================================================
     let now = chrono::Utc::now();
     let should_flip =
         crate::meridian::should_flip_now(target_ra, lon, now, config.minutes_past_meridian);
-
     if !should_flip {
         let ha = crate::meridian::hour_angle(
             target_ra,
@@ -2905,312 +2945,69 @@ pub async fn execute_meridian_flip(
             ha,
             config.minutes_past_meridian
         );
+        if let Some(cb) = progress_callback {
+            cb(100.0, "Flip not yet required".to_string());
+        }
         return InstructionResult::success_with_message("Meridian flip not yet required");
     }
 
-    // Get current pier side for verification
-    let initial_pier_side = match ctx.device_ops.mount_side_of_pier(&mount_id).await {
-        Ok(side) if side != crate::meridian::PierSide::Unknown => Some(side),
-        Ok(_) => {
-            tracing::warn!(
-                "Initial pier side is unknown; will verify flip using position convergence"
-            );
-            None
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Failed to read initial pier side before flip ({}); will verify flip using position convergence",
-                e
-            );
-            None
-        }
+    let flip_ctx = crate::meridian_flip_executor::FlipContext {
+        target_name,
+        target_ra_hours: target_ra,
+        target_dec_degrees: target_dec,
+        mount_id,
+        camera_id: ctx.camera_id.clone(),
+        focuser_id: ctx.focuser_id.clone(),
+        cover_calibrator_id: ctx.cover_calibrator_id.clone(),
+        cancellation_token: Some(ctx.cancellation_token.clone()),
+        trigger_state: ctx.trigger_state.clone(),
+        // §1.6 backport: post-flip refocus pulls user-tuned autofocus
+        // parameters from the equipment profile rather than the executor's
+        // hardcoded constants. The instruction-side has no profile reference
+        // here; pass None and let the executor fall back to
+        // AutofocusConfig::default() (which reflects the user's
+        // serde-default values).
+        autofocus_config: None,
     };
 
-    tracing::info!(
-        "Flip required - Current pier side: {}",
-        initial_pier_side
-            .map(|side| format!("{:?}", side))
-            .unwrap_or_else(|| "unknown".to_string())
+    let mut flip_executor = crate::meridian_flip_executor::MeridianFlipExecutor::new(
+        config.clone(),
+        ctx.device_ops.clone(),
     );
 
-    // =========================================================================
-    // STEP 2: Stop guiding (if requested)
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(10.0, "Stopping guider...".to_string());
-    }
-    let was_guiding = if config.pause_guiding {
-        tracing::info!("Stopping guider...");
-        match ctx.device_ops.guider_stop().await {
-            Ok(_) => {
-                tracing::info!("Guiding stopped successfully");
-                true
-            }
-            Err(e) => {
-                tracing::warn!("Failed to stop guiding: {}", e);
-                false // Continue anyway
-            }
-        }
-    } else {
-        false
-    };
-
-    // =========================================================================
-    // STEP 3: Stop tracking (for safety during flip)
-    // =========================================================================
-    let tracking_state_before_flip = match ctx.device_ops.mount_is_tracking(&mount_id).await {
-        Ok(is_tracking) => Some(is_tracking),
-        Err(e) => {
-            tracing::warn!(
-                "Failed to read mount tracking state before flip ({}); skipping explicit tracking pause/resume",
-                e
+    match flip_executor.execute(&flip_ctx).await {
+        crate::meridian_flip_executor::FlipResult::Success {
+            new_pier_side,
+            duration_secs,
+        } => {
+            tracing::info!(
+                "Meridian flip complete (pier side: {:?}, took {:.1}s)",
+                new_pier_side,
+                duration_secs
             );
-            None
-        }
-    };
-
-    if matches!(tracking_state_before_flip, Some(true)) {
-        tracing::debug!("Pausing tracking for flip...");
-        if let Err(e) = ctx.device_ops.mount_set_tracking(&mount_id, false).await {
-            tracing::warn!(
-                "Failed to stop tracking before meridian flip ({}); continuing because some mounts manage tracking automatically during slew",
-                e
-            );
-        }
-    }
-
-    // =========================================================================
-    // STEP 4: Record pre-flip position for verification
-    // =========================================================================
-    let pre_flip_coords = match ctx.device_ops.mount_get_coordinates(&mount_id).await {
-        Ok(coords) => Some(coords),
-        Err(e) => {
-            tracing::warn!(
-                "Failed to read pre-flip mount coordinates ({}); using target coordinates for downstream verification baseline",
-                e
-            );
-            None
-        }
-    };
-    if let Some((pre_flip_ra, pre_flip_dec)) = pre_flip_coords {
-        tracing::info!(
-            "Pre-flip position: RA={:.4}h, Dec={:.4}deg",
-            pre_flip_ra,
-            pre_flip_dec
-        );
-    } else {
-        tracing::info!(
-            "Pre-flip position unavailable; target position baseline RA={:.4}h, Dec={:.4}deg",
-            target_ra,
-            target_dec
-        );
-    }
-
-    // =========================================================================
-    // STEP 5: Execute the flip by slewing to same coordinates
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(30.0, "Executing flip slew...".to_string());
-    }
-    tracing::info!(
-        "Executing flip slew to RA={:.4}h, Dec={:.4}deg...",
-        target_ra,
-        target_dec
-    );
-
-    let slew_result = tokio::select! {
-        result = ctx.device_ops.mount_slew_to_coordinates(&mount_id, target_ra, target_dec) => {
-            result
-        }
-        _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
-            tracing::warn!("Meridian flip cancelled during slew, aborting...");
-            let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
-
-            // Try to restore tracking before returning
-            if matches!(tracking_state_before_flip, Some(true)) {
-                let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
+            if let Some(cb) = progress_callback {
+                cb(100.0, "Flip complete".to_string());
             }
-
-            return InstructionResult::cancelled("Meridian flip cancelled");
+            // §1.6: mark_flip_performed is invoked inside the executor on
+            // success when trigger_state is supplied; the instruction-path
+            // populates trigger_state via the FlipContext above so the same
+            // bookkeeping happens regardless of caller.
+            InstructionResult::success_with_message(format!(
+                "Meridian flip completed successfully (pier side: {:?})",
+                new_pier_side
+            ))
         }
-    };
-
-    if let Err(e) = slew_result {
-        // Restore tracking before failing
-        if matches!(tracking_state_before_flip, Some(true)) {
-            let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
-        }
-        return InstructionResult::failure(format!("Flip slew failed: {}", e));
-    }
-
-    // Wait for slew to complete with timeout
-    tracing::info!("Waiting for flip slew to complete...");
-    if let Err(e) = wait_for_mount_idle(&mount_id, ctx, Duration::from_secs(300)).await {
-        if matches!(tracking_state_before_flip, Some(true)) {
-            let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
-        }
-        return InstructionResult::failure(format!("Flip slew timeout: {}", e));
-    }
-
-    // =========================================================================
-    // STEP 6: Verify pier side changed (if mount reports pier side)
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(60.0, "Verifying pier side...".to_string());
-    }
-    let final_pier_side = match ctx.device_ops.mount_side_of_pier(&mount_id).await {
-        Ok(side) if side != crate::meridian::PierSide::Unknown => Some(side),
-        Ok(_) => None,
-        Err(e) => {
-            tracing::warn!(
-                "Failed to read final pier side after flip ({}); falling back to coordinate verification",
-                e
-            );
-            None
-        }
-    };
-
-    if let (Some(initial), Some(final_)) = (initial_pier_side, final_pier_side) {
-        if initial == final_ {
-            return InstructionResult::failure_with_recovery(
-                format!(
-                    "Pier side did not change after flip (before: {:?}, after: {:?}).",
-                    initial, final_
-                ),
-                "FLIP_PIER_SIDE_UNCHANGED",
-            );
-        }
-        tracing::info!(
-            "Flip verified: pier side changed from {:?} to {:?}",
-            initial,
-            final_
-        );
-    } else {
-        let (post_ra, post_dec) = match ctx.device_ops.mount_get_coordinates(&mount_id).await {
-            Ok(coords) => coords,
-            Err(e) => {
-                return InstructionResult::failure_with_recovery(
-                    format!(
-                        "Flip slew completed but verification failed: unable to read final coordinates: {}",
-                        e
-                    ),
-                    "FLIP_VERIFICATION_UNAVAILABLE",
-                );
-            }
-        };
-        if let Err(e) = validate_slew_position(
-            target_ra,
-            target_dec,
-            post_ra,
-            post_dec,
-            SLEW_POSITION_TOLERANCE_DEG,
-        ) {
-            return InstructionResult::failure_with_recovery(
-                format!(
-                    "Flip verification failed without pier-side telemetry: {}",
-                    e
-                ),
-                "FLIP_POSITION_UNVERIFIED",
-            );
-        }
-        tracing::info!("Flip verified by coordinate convergence (pier side telemetry unavailable)");
-    }
-
-    // =========================================================================
-    // STEP 7: Resume tracking
-    // =========================================================================
-    if matches!(tracking_state_before_flip, Some(true)) {
-        tracing::debug!("Resuming tracking...");
-        if let Err(e) = ctx.device_ops.mount_set_tracking(&mount_id, true).await {
-            return InstructionResult::failure(format!(
-                "Failed to resume tracking after flip: {}",
-                e
-            ));
+        crate::meridian_flip_executor::FlipResult::Failed {
+            error,
+            action_taken,
+        } => InstructionResult::failure_with_recovery(
+            format!("Meridian flip failed: {} (action taken: {:?})", error, action_taken),
+            "FLIP_FAILED",
+        ),
+        crate::meridian_flip_executor::FlipResult::Aborted { reason } => {
+            InstructionResult::cancelled(reason)
         }
     }
-
-    // =========================================================================
-    // STEP 8: Settle time
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(70.0, "Settling...".to_string());
-    }
-    if config.settle_time > 0.0 {
-        tracing::info!("Settling for {:.1}s...", config.settle_time);
-
-        let settle_duration = Duration::from_secs_f64(config.settle_time);
-        let settle_start = std::time::Instant::now();
-
-        while settle_start.elapsed() < settle_duration {
-            if ctx.cancellation_token.load(Ordering::Relaxed) {
-                return InstructionResult::cancelled("Cancelled during settle");
-            }
-            // Poll at 250ms with +/-20ms jitter to avoid synchronization effects
-            // when multiple devices or threads check state at the same cadence
-            let jitter_ms = (settle_start.elapsed().subsec_nanos() % 41) as u64;
-            sleep(Duration::from_millis(230 + jitter_ms)).await;
-        }
-    }
-
-    // =========================================================================
-    // STEP 9: Plate solve and center (if enabled)
-    // =========================================================================
-    if config.auto_center {
-        if let Some(cb) = progress_callback {
-            cb(80.0, "Centering after flip...".to_string());
-        }
-        tracing::info!("Centering after flip...");
-        let center_config = CenterConfig {
-            use_target_coords: true,
-            custom_ra: None,
-            custom_dec: None,
-            accuracy_arcsec: 10.0, // Slightly looser tolerance for post-flip
-            max_attempts: 3,
-            exposure_duration: 5.0,
-            filter: None,
-        };
-
-        // Pass None for progress callback since meridian flip has its own progress
-        let center_result = execute_center(&center_config, ctx, None).await;
-
-        if center_result.status != NodeStatus::Success {
-            tracing::warn!("Post-flip centering failed, but flip itself succeeded");
-            // Don't fail the whole operation - centering is optional
-        } else {
-            tracing::info!("Post-flip centering successful");
-        }
-    }
-
-    // =========================================================================
-    // STEP 10: Resume guiding (if it was stopped)
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(95.0, "Resuming guiding...".to_string());
-    }
-    if was_guiding && config.pause_guiding {
-        tracing::info!("Resuming guiding...");
-        match ctx.device_ops.guider_start(1.5, 5.0, 120.0).await {
-            Ok(_) => {
-                tracing::info!("Guiding resumed successfully");
-            }
-            Err(e) => {
-                tracing::warn!("Failed to resume guiding: {}", e);
-                // Don't fail - let the user decide whether to continue or abort
-            }
-        }
-    }
-
-    // =========================================================================
-    // Success!
-    // =========================================================================
-    if let Some(cb) = progress_callback {
-        cb(100.0, "Flip complete".to_string());
-    }
-    tracing::info!("=== Meridian Flip Sequence Complete ===");
-    InstructionResult::success_with_message(format!(
-        "Meridian flip completed successfully (pier side: {:?} -> {:?})",
-        initial_pier_side, final_pier_side
-    ))
 }
 
 // =============================================================================
