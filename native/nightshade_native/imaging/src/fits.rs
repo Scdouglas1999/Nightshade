@@ -8,28 +8,43 @@
 //! - Header with 80-character keyword records
 //! - Data in big-endian format
 
-use crate::{ImageData, PixelType};
+use crate::{BayerPattern, ImageData, PixelType};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
-/// FITS header containing all keywords
+/// FITS header containing all keywords plus separate COMMENT and HISTORY blocks.
+///
+/// Why: COMMENT and HISTORY are not value cards — they have no `=` separator and
+/// the card body is a free-form text run from columns 9..80. Storing them in the
+/// same `keywords` map as value cards (with synthetic names like `COMMENT_3`)
+/// produced malformed cards on writeback and silently corrupted round-trips.
 #[derive(Debug, Clone, Default)]
 pub struct FitsHeader {
-    /// Keyword-value pairs
+    /// Keyword-value pairs (uppercase keys; never includes COMMENT/HISTORY).
     pub keywords: HashMap<String, FitsValue>,
-    /// Keywords in order (for writing)
+    /// Keywords in original order (for stable rewrite).
     keyword_order: Vec<String>,
+    /// Optional inline comment text for each keyword (`KEY = value / comment`).
+    keyword_comments: HashMap<String, String>,
+    /// COMMENT card text in original order.
+    pub comments: Vec<String>,
+    /// HISTORY card text in original order.
+    pub history: Vec<String>,
 }
 
-/// FITS value types
+/// FITS value types. COMMENT/HISTORY are intentionally NOT a value variant —
+/// they live in `FitsHeader::comments` and `FitsHeader::history` because they
+/// are not value cards in the FITS sense.
 #[derive(Debug, Clone)]
 pub enum FitsValue {
     String(String),
     Integer(i64),
     Float(f64),
     Boolean(bool),
+    /// Retained only for backward source compatibility; never produced by the
+    /// reader and treated as a free-form value-style string by the writer.
     Comment(String),
 }
 
@@ -103,6 +118,31 @@ impl FitsHeader {
         self.keywords.insert(key_upper, FitsValue::Boolean(value));
     }
 
+    /// Attach an inline comment to an existing keyword. Emitted as
+    /// `KEY = value / comment` on write, truncated if the card would exceed 80 bytes.
+    pub fn set_comment(&mut self, key: &str, comment: &str) {
+        self.keyword_comments
+            .insert(key.to_uppercase(), comment.to_string());
+    }
+
+    /// Append a free-form COMMENT card.
+    pub fn add_comment(&mut self, text: &str) {
+        self.comments.push(text.to_string());
+    }
+
+    /// Append a HISTORY card.
+    pub fn add_history(&mut self, text: &str) {
+        self.history.push(text.to_string());
+    }
+
+    /// Remove a keyword (and any inline comment) from the header.
+    fn remove(&mut self, key: &str) {
+        let key_upper = key.to_uppercase();
+        self.keywords.remove(&key_upper);
+        self.keyword_comments.remove(&key_upper);
+        self.keyword_order.retain(|k| k != &key_upper);
+    }
+
     pub fn get(&self, key: &str) -> Option<&FitsValue> {
         self.keywords.get(&key.to_uppercase())
     }
@@ -118,6 +158,12 @@ impl FitsHeader {
     pub fn get_float(&self, key: &str) -> Option<f64> {
         self.get(key).and_then(|v| v.as_f64())
     }
+
+    pub fn get_comment(&self, key: &str) -> Option<&str> {
+        self.keyword_comments
+            .get(&key.to_uppercase())
+            .map(|s| s.as_str())
+    }
 }
 
 /// FITS file reading errors
@@ -127,6 +173,13 @@ pub enum FitsError {
     InvalidFormat(String),
     UnsupportedBitpix(i32),
     MissingKeyword(String),
+    /// FITS files with NAXIS > 3 (4-D cubes / hyperspectral) are not supported.
+    /// Why: silently dropping planes corrupts science data; explicit failure forces
+    /// the caller to choose a real handling strategy.
+    Unsupported4DCube { naxis: i64 },
+    /// Caller passed a sub-horizon altitude to an airmass routine; the optical
+    /// path is undefined below the horizon. The caller decides how to handle.
+    BelowHorizon { altitude_degrees: f64 },
 }
 
 impl std::fmt::Display for FitsError {
@@ -136,6 +189,16 @@ impl std::fmt::Display for FitsError {
             FitsError::InvalidFormat(s) => write!(f, "Invalid FITS format: {}", s),
             FitsError::UnsupportedBitpix(b) => write!(f, "Unsupported BITPIX: {}", b),
             FitsError::MissingKeyword(k) => write!(f, "Missing required keyword: {}", k),
+            FitsError::Unsupported4DCube { naxis } => write!(
+                f,
+                "Unsupported FITS dimensionality: NAXIS={} (only NAXIS<=3 is supported)",
+                naxis
+            ),
+            FitsError::BelowHorizon { altitude_degrees } => write!(
+                f,
+                "Altitude {:.4}° is below the horizon; airmass is undefined",
+                altitude_degrees
+            ),
         }
     }
 }
@@ -164,7 +227,7 @@ pub fn read_fits_from_bytes(bytes: &[u8]) -> Result<(ImageData, FitsHeader), Fit
 /// Internal function to read FITS from any reader
 fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHeader), FitsError> {
     // Read header
-    let header = read_header(reader)?;
+    let mut header = read_header(reader)?;
 
     // Get image dimensions
     let bitpix = header
@@ -179,6 +242,13 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
         return Ok((ImageData::new(0, 0, 1, PixelType::U16), header));
     }
 
+    // Why: 4-D cubes (NAXIS > 3) cannot be represented by `ImageData` (which has a
+    // single channel/depth axis). Silently loading only the first plane corrupts
+    // science workflows that depend on the full cube. Reject explicitly per audit §6.5.
+    if naxis > 3 {
+        return Err(FitsError::Unsupported4DCube { naxis });
+    }
+
     let width = header
         .get_int("NAXIS1")
         .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))? as u32;
@@ -190,12 +260,17 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
         1
     };
     let depth = if naxis >= 3 {
-        header.get_int("NAXIS3").unwrap_or(1) as u32
+        header
+            .get_int("NAXIS3")
+            .ok_or_else(|| FitsError::MissingKeyword("NAXIS3".to_string()))? as u32
     } else {
         1
     };
 
-    // Get scaling parameters
+    // Get scaling parameters. Why: per FITS 4.4.2.5, the in-memory data after applying
+    // BSCALE/BZERO is the "physical" value; storing the original BSCALE/BZERO in the
+    // returned header would cause a subsequent write_fits to apply a second scaling pass
+    // (audit §6.3 — CRITICAL data corruption).
     let bzero = header.get_float("BZERO").unwrap_or(0.0);
     let bscale = header.get_float("BSCALE").unwrap_or(1.0);
 
@@ -281,6 +356,13 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
         data,
     };
 
+    // Why: after BSCALE/BZERO have been folded into the data buffer, the header
+    // entries are stale. Leaving them in `keyword_order` would cause write_fits
+    // to emit them, double-scaling on round-trip. Strip them now so the next
+    // write computes fresh values for the chosen output BITPIX (audit §6.3).
+    header.remove("BZERO");
+    header.remove("BSCALE");
+
     Ok((image, header))
 }
 
@@ -318,20 +400,30 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
             )));
         }
 
-        // Parse the value
-        if record.len() > 10 && &record[8..10] == "= " {
-            let value_str = record[10..].trim();
-            let value = parse_fits_value(value_str)?;
-            header.keywords.insert(keyword.to_string(), value);
-            if !header.keyword_order.contains(&keyword.to_string()) {
-                header.keyword_order.push(keyword.to_string());
+        // Parse the card. COMMENT/HISTORY cards have NO `=` separator per FITS 4.4.2.4
+        // and their text occupies columns 9..80; route them to dedicated vectors so
+        // they are never mistaken for value cards and re-emitted with `=` (audit §6.5).
+        if keyword == "COMMENT" {
+            let text = record[8..].trim_end().to_string();
+            header.comments.push(text);
+        } else if keyword == "HISTORY" {
+            let text = record[8..].trim_end().to_string();
+            header.history.push(text);
+        } else if record.len() > 10 && &record[8..10] == "= " {
+            let raw_after = &record[10..];
+            let (value_part, comment_part) = split_value_and_comment(raw_after);
+            let value = parse_fits_value(value_part)?;
+            let key_owned = keyword.to_string();
+            header.keywords.insert(key_owned.clone(), value);
+            if !header.keyword_order.contains(&key_owned) {
+                header.keyword_order.push(key_owned.clone());
             }
-        } else if keyword == "COMMENT" || keyword == "HISTORY" {
-            let comment = record[8..].trim().to_string();
-            header.keywords.insert(
-                format!("{}_{}", keyword, header.keyword_order.len()),
-                FitsValue::Comment(comment),
-            );
+            if let Some(comment) = comment_part {
+                let trimmed = comment.trim().to_string();
+                if !trimmed.is_empty() {
+                    header.keyword_comments.insert(key_owned, trimmed);
+                }
+            }
         }
     }
 
@@ -349,7 +441,8 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
     Ok(header)
 }
 
-/// Parse a FITS value from string
+/// Parse a FITS value from string. `s` may still contain a trailing `/ comment`;
+/// callers that have already split the comment off can pass either form.
 fn parse_fits_value(s: &str) -> Result<FitsValue, FitsError> {
     let s = s.trim();
     let (value_part, _) = split_value_and_comment(s);
@@ -503,7 +596,15 @@ fn read_f64_data<R: Read>(
     Ok(data)
 }
 
-/// Write a FITS file to disk
+/// Write a FITS file to disk.
+///
+/// Why: this writer enforces three FITS-spec invariants that the prior version
+/// violated (audit §6.3 and §6.5):
+///  * BSCALE/BZERO are computed fresh from the in-memory pixel type, never
+///    inherited from a stale source header.
+///  * String values are padded to ≥8 characters between single quotes (FITS 4.2.1.1).
+///  * COMMENT/HISTORY cards are emitted without an `=` separator and free-form
+///    text in columns 9..80; they are NOT routed through the value-card writer.
 pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result<(), FitsError> {
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
@@ -518,53 +619,77 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
     };
 
     // Write mandatory keywords
-    write_keyword(&mut writer, "SIMPLE", "T")?;
-    write_keyword(&mut writer, "BITPIX", &bitpix.to_string())?;
-    write_keyword(
+    write_value_card(&mut writer, "SIMPLE", "T", None)?;
+    write_value_card(&mut writer, "BITPIX", &bitpix.to_string(), None)?;
+    write_value_card(
         &mut writer,
         "NAXIS",
         &format!("{}", if image.channels > 1 { 3 } else { 2 }),
+        None,
     )?;
-    write_keyword(&mut writer, "NAXIS1", &image.width.to_string())?;
-    write_keyword(&mut writer, "NAXIS2", &image.height.to_string())?;
+    write_value_card(&mut writer, "NAXIS1", &image.width.to_string(), None)?;
+    write_value_card(&mut writer, "NAXIS2", &image.height.to_string(), None)?;
     if image.channels > 1 {
-        write_keyword(&mut writer, "NAXIS3", &image.channels.to_string())?;
+        write_value_card(&mut writer, "NAXIS3", &image.channels.to_string(), None)?;
     }
 
-    // Write BZERO for unsigned 16-bit
+    // Why: per audit §6.3 the writer must always emit fresh BSCALE/BZERO matching
+    // the chosen output BITPIX. The decoder strips them from `keyword_order`, so
+    // these are the only BSCALE/BZERO cards in the file.
     if image.pixel_type == PixelType::U16 {
-        write_keyword(&mut writer, "BZERO", "32768")?;
-        write_keyword(&mut writer, "BSCALE", "1")?;
+        write_value_card(&mut writer, "BZERO", "32768", None)?;
+        write_value_card(&mut writer, "BSCALE", "1", None)?;
     }
 
-    // Write additional header keywords
+    // Write additional header keywords. SIMPLE/BITPIX/NAXIS*/BZERO/BSCALE/END are
+    // skipped because they are owned by this writer.
     for key in &header.keyword_order {
-        if ![
-            "SIMPLE", "BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3", "BZERO", "BSCALE",
+        if [
+            "SIMPLE", "BITPIX", "NAXIS", "NAXIS1", "NAXIS2", "NAXIS3", "BZERO", "BSCALE", "END",
         ]
         .contains(&key.as_str())
         {
-            if let Some(value) = header.keywords.get(key) {
-                let value_str = match value {
-                    FitsValue::String(s) => format!("'{}'", s),
-                    FitsValue::Integer(i) => i.to_string(),
-                    FitsValue::Float(f) => format!("{:.10E}", f),
-                    FitsValue::Boolean(b) => {
-                        if *b {
-                            "T".to_string()
-                        } else {
-                            "F".to_string()
-                        }
-                    }
-                    FitsValue::Comment(c) => c.clone(),
-                };
-                write_keyword(&mut writer, key, &value_str)?;
+            continue;
+        }
+        let Some(value) = header.keywords.get(key) else {
+            continue;
+        };
+        let comment = header.keyword_comments.get(key).map(|s| s.as_str());
+        match value {
+            FitsValue::String(s) => {
+                let formatted = format_fits_string_value(s);
+                write_value_card(&mut writer, key, &formatted, comment)?;
+            }
+            FitsValue::Integer(i) => {
+                write_value_card(&mut writer, key, &i.to_string(), comment)?;
+            }
+            FitsValue::Float(f) => {
+                write_value_card(&mut writer, key, &format_fits_float(*f), comment)?;
+            }
+            FitsValue::Boolean(b) => {
+                let token = if *b { "T" } else { "F" };
+                write_value_card(&mut writer, key, token, comment)?;
+            }
+            // Why: legacy callers may still construct FitsValue::Comment directly.
+            // Treat it as a free-form COMMENT card to avoid producing a malformed
+            // value card. New code should call `add_comment()` on FitsHeader instead.
+            FitsValue::Comment(c) => {
+                write_text_card(&mut writer, "COMMENT", c)?;
             }
         }
     }
 
+    // Emit COMMENT cards. Why: §6.5 — these have no `=` separator and the text
+    // body occupies columns 9..80, padded with spaces.
+    for text in &header.comments {
+        write_text_card(&mut writer, "COMMENT", text)?;
+    }
+    for text in &header.history {
+        write_text_card(&mut writer, "HISTORY", text)?;
+    }
+
     // Write END keyword
-    write_keyword(&mut writer, "END", "")?;
+    write_end_card(&mut writer)?;
 
     // Pad header to 2880-byte boundary
     let pos = writer.stream_position()? as usize;
@@ -620,9 +745,95 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
     Ok(())
 }
 
-/// Write a single keyword record
-fn write_keyword<W: Write>(writer: &mut W, keyword: &str, value: &str) -> Result<(), FitsError> {
-    if !is_valid_keyword(keyword) && keyword != "END" {
+/// Format a FITS string value with the FITS 4.2.1.1 minimum-length rule.
+///
+/// Why: PixInsight, AstroPixelProcessor, and several legacy tools reject string
+/// cards whose quoted body is shorter than 8 characters. The spec requires the
+/// quoted text to be space-padded out to at least 8 characters before the closing
+/// quote (audit §6.5 item 1).
+fn format_fits_string_value(value: &str) -> String {
+    // Why: a single-quote inside the string must be escaped as `''` per FITS 4.2.1.1.
+    let escaped = value.replace('\'', "''");
+    let body = if escaped.chars().count() < 8 {
+        // Pad with trailing spaces to the 8-char minimum.
+        let needed = 8 - escaped.chars().count();
+        format!("{}{}", escaped, " ".repeat(needed))
+    } else {
+        escaped
+    };
+    format!("'{}'", body)
+}
+
+/// Format a float for a FITS value card. Why: FITS uses standard scientific
+/// notation; we keep enough precision (10 significant digits) for double-precision
+/// astrometry values without exceeding the 70-byte value field.
+fn format_fits_float(value: f64) -> String {
+    // Why: integer-valued floats round-trip through `f64::to_string` as e.g. "1",
+    // which silently changes the type from Float to Integer on re-parse. Force a
+    // decimal point for true integer values to preserve Float typing.
+    if value.is_finite() && value.fract() == 0.0 && value.abs() < 1.0e16 {
+        format!("{:.1}", value)
+    } else {
+        format!("{:.10E}", value)
+    }
+}
+
+/// Write the END card. END has no `=` and no value body.
+fn write_end_card<W: Write>(writer: &mut W) -> Result<(), FitsError> {
+    let mut record = [b' '; 80];
+    record[..3].copy_from_slice(b"END");
+    writer.write_all(&record)?;
+    Ok(())
+}
+
+/// Write a free-form text card (COMMENT, HISTORY, or any spec-defined commentary
+/// keyword). Per FITS 4.4.2.4 these have no `=` separator; the text body fills
+/// columns 9..80 (1-indexed) and is padded with trailing spaces. Long text is
+/// split across multiple cards. Why: emitting a value-card for COMMENT/HISTORY
+/// (the previous behavior) produced malformed cards like `COMMENT = some text`.
+fn write_text_card<W: Write>(writer: &mut W, keyword: &str, text: &str) -> Result<(), FitsError> {
+    if keyword.len() > 8 {
+        return Err(FitsError::InvalidFormat(format!(
+            "Commentary keyword '{}' exceeds 8 chars",
+            keyword
+        )));
+    }
+    // Up to 72 bytes of text per card (cols 9..80). Wrap longer payloads.
+    let bytes = text.as_bytes();
+    let chunk_size = 72;
+    if bytes.is_empty() {
+        let mut record = [b' '; 80];
+        let key_bytes = keyword.as_bytes();
+        record[..key_bytes.len()].copy_from_slice(key_bytes);
+        writer.write_all(&record)?;
+        return Ok(());
+    }
+    for chunk in bytes.chunks(chunk_size) {
+        let mut record = [b' '; 80];
+        let key_bytes = keyword.as_bytes();
+        record[..key_bytes.len()].copy_from_slice(key_bytes);
+        // Why: column 9 is the first text byte (0-indexed offset 8) and the spec
+        // does not place an `=` at column 9 for commentary keywords.
+        let copy_len = chunk.len().min(72);
+        record[8..8 + copy_len].copy_from_slice(&chunk[..copy_len]);
+        writer.write_all(&record)?;
+    }
+    Ok(())
+}
+
+/// Write a value-card record `KEYNAME = value [/ comment]`.
+///
+/// `comment` is an optional inline comment. The card is truncated at 80 bytes;
+/// if the comment would push the card past 80 bytes it is shortened (or omitted)
+/// rather than wrapped, since FITS 4.4.2.3 forbids continuation of value-card
+/// inline comments.
+fn write_value_card<W: Write>(
+    writer: &mut W,
+    keyword: &str,
+    value: &str,
+    comment: Option<&str>,
+) -> Result<(), FitsError> {
+    if !is_valid_keyword(keyword) {
         return Err(FitsError::InvalidFormat(format!(
             "Invalid FITS keyword for write: {}",
             keyword
@@ -636,43 +847,161 @@ fn write_keyword<W: Write>(writer: &mut W, keyword: &str, value: &str) -> Result
     let keyword_len = keyword_bytes.len().min(8);
     record[..keyword_len].copy_from_slice(&keyword_bytes[..keyword_len]);
 
-    if keyword != "END" && !value.is_empty() {
-        // Write "= " indicator
-        record[8] = b'=';
-        record[9] = b' ';
+    if value.is_empty() {
+        writer.write_all(&record)?;
+        return Ok(());
+    }
 
-        // Write value (right-justified for numbers, left for strings)
-        let value_bytes = value.as_bytes();
-        let start = if value.starts_with('\'') {
-            if value_bytes.len() > 70 {
-                return Err(FitsError::InvalidFormat(format!(
-                    "FITS string value too long for {}",
-                    keyword
-                )));
-            }
-            10 // Strings start at position 10
-        } else {
-            if value_bytes.len() > 70 {
-                return Err(FitsError::InvalidFormat(format!(
-                    "FITS value too long for {}",
-                    keyword
-                )));
-            }
-            // Numbers are right-justified ending at position 30
-            30_usize.saturating_sub(value_bytes.len())
-        };
-        let value_len = value_bytes.len().min(70);
-        if start + value_len > record.len() {
+    // "= " indicator at columns 9..10 (0-indexed 8..10).
+    record[8] = b'=';
+    record[9] = b' ';
+
+    let value_bytes = value.as_bytes();
+    // Strings start at column 11 (offset 10); numerics are right-justified ending at
+    // column 30 (offset 30).
+    let is_string = value.starts_with('\'');
+    let start = if is_string {
+        if value_bytes.len() > 70 {
             return Err(FitsError::InvalidFormat(format!(
-                "FITS value overflows 80-byte card for {}",
+                "FITS string value too long for {}",
                 keyword
             )));
         }
-        record[start..start + value_len].copy_from_slice(&value_bytes[..value_len]);
+        10
+    } else {
+        if value_bytes.len() > 70 {
+            return Err(FitsError::InvalidFormat(format!(
+                "FITS value too long for {}",
+                keyword
+            )));
+        }
+        30_usize.saturating_sub(value_bytes.len())
+    };
+    let value_len = value_bytes.len().min(70);
+    if start + value_len > record.len() {
+        return Err(FitsError::InvalidFormat(format!(
+            "FITS value overflows 80-byte card for {}",
+            keyword
+        )));
+    }
+    record[start..start + value_len].copy_from_slice(&value_bytes[..value_len]);
+
+    // Inline comment. Why: FITS 4.4.2.3 — the format is `value / comment` with at
+    // least one space on each side of the `/`. Truncate (never wrap) to fit 80 bytes.
+    if let Some(comment_text) = comment {
+        let trimmed = comment_text.trim();
+        if !trimmed.is_empty() {
+            let value_end = start + value_len;
+            // Need " / " (3 bytes) plus at least one comment byte.
+            if value_end + 4 <= 80 {
+                let separator = b" / ";
+                let sep_start = value_end + 1; // leave a space after the value
+                if sep_start + 2 < 80 {
+                    record[sep_start..sep_start + 2].copy_from_slice(&separator[1..3]);
+                    let comment_start = sep_start + 2;
+                    let available = 80 - comment_start;
+                    let comment_bytes = trimmed.as_bytes();
+                    let copy_len = comment_bytes.len().min(available);
+                    record[comment_start..comment_start + copy_len]
+                        .copy_from_slice(&comment_bytes[..copy_len]);
+                }
+            }
+        }
     }
 
     writer.write_all(&record)?;
     Ok(())
+}
+
+/// Parsed Bayer geometry from a FITS header, accounting for subframe offsets.
+///
+/// Why: `BAYERPAT` describes the color pattern at the *full-sensor* origin.
+/// When a frame is captured with a subframe whose top-left pixel is at odd
+/// offsets relative to the sensor, the effective pattern at the in-memory
+/// origin (0,0) is shifted. `XBAYROFF`/`YBAYROFF` keywords (NINA, ASIAIR,
+/// SharpCap, ASTAP, INDI) record those offsets so the consumer can apply the
+/// correct pattern. Without this, every odd-offset subframe is debayered with
+/// the wrong color mapping (audit §6.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BayerGeometry {
+    /// Effective Bayer pattern at the image origin (after applying offsets).
+    pub effective: BayerPattern,
+    /// Source pattern as stored in BAYERPAT.
+    pub source: BayerPattern,
+    /// X offset of the subframe top-left, relative to the sensor origin.
+    pub x_offset: i64,
+    /// Y offset of the subframe top-left, relative to the sensor origin.
+    pub y_offset: i64,
+}
+
+/// Compose a base Bayer pattern with subframe offsets, returning the effective
+/// pattern at the in-memory image origin (0,0).
+///
+/// Composition table — `effective_bayer_pattern(source, x % 2, y % 2)`:
+///
+/// | source | (0,0) | (1,0) | (0,1) | (1,1) |
+/// |--------|-------|-------|-------|-------|
+/// | RGGB   | RGGB  | GRBG  | GBRG  | BGGR  |
+/// | BGGR   | BGGR  | GBRG  | GRBG  | RGGB  |
+/// | GRBG   | GRBG  | RGGB  | BGGR  | GBRG  |
+/// | GBRG   | GBRG  | BGGR  | RGGB  | GRBG  |
+///
+/// Negative offsets are wrapped via Euclidean mod 2 to keep the table consistent.
+pub fn effective_bayer_pattern(
+    source: BayerPattern,
+    x_offset: i64,
+    y_offset: i64,
+) -> BayerPattern {
+    // Why: rust's `%` is sign-preserving; for offset composition we need a true
+    // modulo so a -1 offset behaves like a +1 offset (parity is what matters).
+    let xb = x_offset.rem_euclid(2) as usize;
+    let yb = y_offset.rem_euclid(2) as usize;
+    match (source, xb, yb) {
+        (BayerPattern::RGGB, 0, 0) => BayerPattern::RGGB,
+        (BayerPattern::RGGB, 1, 0) => BayerPattern::GRBG,
+        (BayerPattern::RGGB, 0, 1) => BayerPattern::GBRG,
+        (BayerPattern::RGGB, 1, 1) => BayerPattern::BGGR,
+
+        (BayerPattern::BGGR, 0, 0) => BayerPattern::BGGR,
+        (BayerPattern::BGGR, 1, 0) => BayerPattern::GBRG,
+        (BayerPattern::BGGR, 0, 1) => BayerPattern::GRBG,
+        (BayerPattern::BGGR, 1, 1) => BayerPattern::RGGB,
+
+        (BayerPattern::GRBG, 0, 0) => BayerPattern::GRBG,
+        (BayerPattern::GRBG, 1, 0) => BayerPattern::RGGB,
+        (BayerPattern::GRBG, 0, 1) => BayerPattern::BGGR,
+        (BayerPattern::GRBG, 1, 1) => BayerPattern::GBRG,
+
+        (BayerPattern::GBRG, 0, 0) => BayerPattern::GBRG,
+        (BayerPattern::GBRG, 1, 0) => BayerPattern::BGGR,
+        (BayerPattern::GBRG, 0, 1) => BayerPattern::RGGB,
+        (BayerPattern::GBRG, 1, 1) => BayerPattern::GRBG,
+
+        // Why: rem_euclid(2) only ever returns 0 or 1, but the match must be
+        // exhaustive in (BayerPattern, usize, usize); unreachable! signals the
+        // invariant rather than silently picking a wrong arm.
+        _ => unreachable!("rem_euclid(2) returned out-of-range value"),
+    }
+}
+
+/// Read the Bayer geometry from a FITS header.
+///
+/// Returns `None` if `BAYERPAT` is absent or unrecognized. When present,
+/// `XBAYROFF`/`YBAYROFF` are read as integer keywords (default 0) and composed
+/// with the source pattern via [`effective_bayer_pattern`] so the caller's
+/// debayer step uses the correct origin (audit §6.6).
+pub fn read_bayer_geometry(header: &FitsHeader) -> Option<BayerGeometry> {
+    let pat_str = header.get_string("BAYERPAT")?;
+    let source = BayerPattern::from_str(pat_str.trim())?;
+    let x_offset = header.get_int("XBAYROFF").unwrap_or(0);
+    let y_offset = header.get_int("YBAYROFF").unwrap_or(0);
+    let effective = effective_bayer_pattern(source, x_offset, y_offset);
+    Some(BayerGeometry {
+        effective,
+        source,
+        x_offset,
+        y_offset,
+    })
 }
 
 /// WCS (World Coordinate System) information from plate solving
@@ -834,44 +1163,83 @@ impl StandardKeywords {
     pub const RADESYS: &'static str = "RADESYS";
 }
 
-/// Calculate airmass from altitude using Pickering's formula
+/// Calculate airmass from true (geometric) altitude.
 ///
-/// Airmass is the optical path length through Earth's atmosphere
-/// for light from a celestial source compared to the zenith.
+/// Airmass is the relative optical path length through Earth's atmosphere
+/// compared to the zenith. The implementation uses **Pickering (2002)** above
+/// 10° true altitude where it is well-conditioned (worst-case error vs.
+/// rigorous radiative transfer is < 0.0008 airmass) and **Young (1994)** below
+/// 10° down to the true horizon where Pickering's `1/sin(h + 244/(165+47*h^1.1))`
+/// term degrades sharply (audit §6.14).
 ///
 /// # Arguments
-/// * `altitude_degrees` - Altitude angle in degrees (0-90)
+/// * `altitude_degrees` - True altitude angle in degrees (must be ≥ 0)
 ///
 /// # Returns
-/// Airmass value (1.0 at zenith, increases toward horizon)
+/// * `Ok(X)` — airmass value, ≥ 1.0 at the zenith and increasing toward the
+///   horizon (Young's formula evaluated at h=0° gives ≈31.74).
+/// * `Err(FitsError::BelowHorizon)` — for altitudes below 0°. Why: airmass is
+///   physically undefined for sub-horizon paths; silently clamping (the prior
+///   behavior) hides scheduler/coord-transform bugs that send the mount below
+///   the horizon. The caller decides how to handle (skip, retry, alert).
 ///
-/// # Formula
-/// Uses Pickering (2002) formula which is accurate for altitudes above 10 degrees:
-/// X = 1 / sin(h + 244/(165 + 47*h^1.1))
-/// where h is altitude in degrees
-pub fn calculate_airmass(altitude_degrees: f64) -> f64 {
-    // Clamp altitude to valid range
-    let alt = altitude_degrees.clamp(0.0, 90.0);
+/// # Validity range
+/// - Pickering 2002: 10° ≤ h ≤ 90° (chosen here for matching that range)
+/// - Young 1994: 0° ≤ h ≤ 90° (used here for h < 10°)
+///
+/// # References
+/// * Pickering, K. A. 2002. "The Southern Limits of the Ancient Star Catalog."
+///   *DIO* 12 #1, p. 20.
+/// * Young, A. T. 1994. "Air mass and refraction." *Applied Optics* 33, 1108–1110.
+pub fn calculate_airmass(altitude_degrees: f64) -> Result<f64, FitsError> {
+    if !altitude_degrees.is_finite() {
+        return Err(FitsError::InvalidFormat(format!(
+            "Altitude must be finite, got {}",
+            altitude_degrees
+        )));
+    }
+    if altitude_degrees < 0.0 {
+        return Err(FitsError::BelowHorizon {
+            altitude_degrees,
+        });
+    }
+    // Clamp upper bound only — the math is well-defined at 90° but we guard
+    // against numerical noise like 90.000001 that would push trig sin(90+) past 1.
+    let alt = altitude_degrees.min(90.0);
 
-    // At zenith (90 degrees), airmass is exactly 1.0
     if alt >= 89.9 {
-        return 1.0;
+        // Why: at zenith the formulas converge to 1.0; this avoids floating-point
+        // jitter producing values like 0.99999999.
+        return Ok(1.0);
     }
 
-    // Below horizon, airmass is undefined (set to very large value)
-    if alt <= 0.0 {
-        return 40.0;
+    let airmass = if alt >= 10.0 {
+        // Pickering 2002 — accurate to < 0.001 at h ≥ 10°.
+        let h_pow = alt.powf(1.1);
+        let correction = 244.0 / (165.0 + 47.0 * h_pow);
+        let effective_alt = alt + correction;
+        1.0 / effective_alt.to_radians().sin()
+    } else {
+        // Young 1994 — empirical formula valid all the way to h = 0°. Form:
+        //   X(z) = (1.002432 cos²z + 0.148386 cos z + 0.0096467) /
+        //          (cos³z + 0.149864 cos²z + 0.0102963 cos z + 0.000303978)
+        // where z = 90° - h is the true zenith angle. At h = 0°, X ≈ 38.0.
+        let z = (90.0 - alt).to_radians();
+        let cos_z = z.cos();
+        let cos2 = cos_z * cos_z;
+        let cos3 = cos2 * cos_z;
+        let numerator = 1.002432 * cos2 + 0.148386 * cos_z + 0.0096467;
+        let denominator = cos3 + 0.149864 * cos2 + 0.0102963 * cos_z + 0.000303978;
+        numerator / denominator
+    };
+
+    if !airmass.is_finite() {
+        return Err(FitsError::InvalidFormat(format!(
+            "Airmass computation produced non-finite result for altitude {}°",
+            altitude_degrees
+        )));
     }
-
-    // Pickering (2002) formula - accurate for alt > 10 degrees
-    // X = 1 / sin(h + 244/(165 + 47*h^1.1))
-    let h_pow = alt.powf(1.1);
-    let correction = 244.0 / (165.0 + 47.0 * h_pow);
-    let effective_alt = alt + correction;
-    let airmass = 1.0 / effective_alt.to_radians().sin();
-
-    // Clamp to reasonable range
-    airmass.clamp(1.0, 40.0)
+    Ok(airmass)
 }
 
 /// Image validation result
@@ -1402,13 +1770,13 @@ mod tests {
 
     #[test]
     fn test_calculate_airmass_zenith() {
-        let airmass = calculate_airmass(90.0);
+        let airmass = calculate_airmass(90.0).expect("zenith airmass must succeed");
         assert_eq!(airmass, 1.0, "Airmass at zenith should be 1.0");
     }
 
     #[test]
     fn test_calculate_airmass_45_degrees() {
-        let airmass = calculate_airmass(45.0);
+        let airmass = calculate_airmass(45.0).expect("45 deg airmass must succeed");
         assert!(
             airmass > 1.0 && airmass < 2.0,
             "Airmass at 45° should be between 1.0 and 2.0"
@@ -1421,17 +1789,56 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_airmass_horizon() {
-        let airmass = calculate_airmass(0.0);
-        assert_eq!(
-            airmass, 40.0,
-            "Airmass at horizon should be clamped to 40.0"
+    fn test_calculate_airmass_horizon_uses_young_1994() {
+        // Why: Young 1994 evaluated at z=90° (h=0°) gives airmass ≈ 31.74. This
+        // replaces the old sentinel-clamp value of 40.0 (audit §6.14).
+        let airmass = calculate_airmass(0.0).expect("h=0° must succeed via Young 1994");
+        assert!(
+            (airmass - 31.74).abs() < 0.5,
+            "Young 1994 airmass at horizon should be near 31.74, got {}",
+            airmass
+        );
+    }
+
+    #[test]
+    fn test_calculate_airmass_5_degrees_uses_young() {
+        // At 5° true altitude Young 1994 yields ~10.32. Pickering would yield
+        // ~10.4 — both are reasonable, but the test verifies a real number
+        // (no clamp to 40) and that the function does not error in the low band.
+        let airmass = calculate_airmass(5.0).expect("h=5° must succeed");
+        assert!(
+            (8.0..=12.0).contains(&airmass),
+            "Young 1994 airmass at 5° should be 8-12, got {}",
+            airmass
+        );
+    }
+
+    #[test]
+    fn test_calculate_airmass_15_degrees_uses_pickering() {
+        // 15° is in the Pickering range; expect ~3.81.
+        let airmass = calculate_airmass(15.0).expect("h=15° must succeed");
+        assert!(
+            (3.5..=4.1).contains(&airmass),
+            "Pickering airmass at 15° should be ~3.8, got {}",
+            airmass
+        );
+    }
+
+    #[test]
+    fn test_calculate_airmass_below_horizon_errors() {
+        // Audit §6.14 — sub-horizon altitudes must surface an error rather than
+        // silently clamping. The caller decides how to handle.
+        let err = calculate_airmass(-1.0).expect_err("below-horizon must error");
+        assert!(
+            matches!(err, FitsError::BelowHorizon { altitude_degrees } if altitude_degrees < 0.0),
+            "Expected BelowHorizon error, got {:?}",
+            err
         );
     }
 
     #[test]
     fn test_calculate_airmass_30_degrees() {
-        let airmass = calculate_airmass(30.0);
+        let airmass = calculate_airmass(30.0).expect("h=30° must succeed");
         assert!(
             airmass > 1.5 && airmass < 3.0,
             "Airmass at 30° should be between 1.5 and 3.0"
@@ -1803,7 +2210,7 @@ mod tests {
     fn test_write_keyword_rejects_overflowing_string() {
         let mut out = Vec::new();
         let value = format!("'{}'", "A".repeat(71));
-        let err = write_keyword(&mut out, "OBJECT", &value).unwrap_err();
+        let err = write_value_card(&mut out, "OBJECT", &value, None).unwrap_err();
         assert!(matches!(err, FitsError::InvalidFormat(_)));
     }
 
@@ -1868,7 +2275,355 @@ mod tests {
     fn test_write_keyword_rejects_overflowing_numeric_value() {
         let mut out = Vec::new();
         let value = "1".repeat(71);
-        let err = write_keyword(&mut out, "EXPTIME", &value).unwrap_err();
+        let err = write_value_card(&mut out, "EXPTIME", &value, None).unwrap_err();
         assert!(matches!(err, FitsError::InvalidFormat(_)));
+    }
+
+    /// Helper: assemble a minimal FITS byte stream from in-order 80-byte cards.
+    fn synth_fits_with_cards(cards: &[&str], data: &[u8]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for card in cards {
+            let mut buf = [b' '; 80];
+            let raw = card.as_bytes();
+            let copy = raw.len().min(80);
+            buf[..copy].copy_from_slice(&raw[..copy]);
+            bytes.extend_from_slice(&buf);
+        }
+        let mut buf = [b' '; 80];
+        buf[..3].copy_from_slice(b"END");
+        bytes.extend_from_slice(&buf);
+        // Pad header to 2880-byte boundary
+        let pad = (2880 - (bytes.len() % 2880)) % 2880;
+        bytes.extend(std::iter::repeat(b' ').take(pad));
+        bytes.extend_from_slice(data);
+        let pad = (2880 - (bytes.len() % 2880)) % 2880;
+        bytes.extend(std::iter::repeat(0u8).take(pad));
+        bytes
+    }
+
+    // -------------------- §6.3 BSCALE/BZERO round-trip --------------------
+
+    #[test]
+    fn test_decode_strips_bscale_bzero_from_header() {
+        // Build a U16 file with explicit BSCALE=2.0/BZERO=1000.0 stored as i16
+        // big-endian. Decode must apply the scaling AND remove BSCALE/BZERO from
+        // the returned header so a follow-up write does not double-apply them.
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    2",
+            "NAXIS2  =                    1",
+            "BZERO   =               1000.0",
+            "BSCALE  =                  2.0",
+        ];
+        // i16 big-endian: pixels {-100, 50}
+        let data: Vec<u8> = vec![0xFF, 0x9C, 0x00, 0x32]; // -100, 50 in BE
+        let bytes = synth_fits_with_cards(&cards, &data);
+
+        let (image, header) = read_fits_from_bytes(&bytes).expect("read should succeed");
+        assert!(
+            header.get("BZERO").is_none(),
+            "BZERO must be stripped after decode (audit §6.3)"
+        );
+        assert!(
+            header.get("BSCALE").is_none(),
+            "BSCALE must be stripped after decode (audit §6.3)"
+        );
+        // Pixels: physical = raw * 2 + 1000 → {-100*2+1000=800, 50*2+1000=1100}
+        assert_eq!(image.pixel_type, PixelType::U16);
+        let pix: Vec<u16> = image
+            .data
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        assert_eq!(pix, vec![800, 1100]);
+    }
+
+    #[test]
+    fn test_round_trip_with_nontrivial_bscale_bzero() {
+        // CRITICAL: write the read-back header to a temp file, reload, and
+        // assert pixels are identical (no double-scaling).
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    4",
+            "NAXIS2  =                    1",
+            "BZERO   =               1000.0",
+            "BSCALE  =                  2.0",
+            "OBJECT  = 'NGC1'",
+        ];
+        // Four i16 BE pixels: -200, 100, 0, 32000  →  physical: 600, 1200, 1000, 65000
+        let data: Vec<u8> = vec![
+            0xFF, 0x38, 0x00, 0x64, 0x00, 0x00, 0x7D, 0x00,
+        ];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let (image_a, header_a) = read_fits_from_bytes(&bytes).expect("first read");
+        let pix_a: Vec<u16> = image_a
+            .data
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        assert_eq!(pix_a, vec![600, 1200, 1000, 65000]);
+
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_bscale_roundtrip_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image_a, &header_a).expect("write");
+        let on_disk = std::fs::read(&path).expect("read back");
+        let _ = std::fs::remove_file(&path);
+
+        let (image_b, header_b) = read_fits_from_bytes(&on_disk).expect("second read");
+        let pix_b: Vec<u16> = image_b
+            .data
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        assert_eq!(
+            pix_a, pix_b,
+            "Pixels must round-trip exactly (no double scaling)"
+        );
+        // After the second read, BSCALE/BZERO have again been folded into pixels
+        // and stripped from the header.
+        assert!(header_b.get("BSCALE").is_none());
+        assert!(header_b.get("BZERO").is_none());
+    }
+
+    // -------------------- §6.5 header invariants --------------------
+
+    #[test]
+    fn test_format_fits_string_value_pads_short_strings() {
+        // FITS 4.2.1.1 — string body must be ≥ 8 chars between the quotes.
+        let formatted = format_fits_string_value("ABC");
+        assert_eq!(formatted, "'ABC     '", "short strings must pad to 8 chars");
+        let formatted = format_fits_string_value("LongerThanEight");
+        assert_eq!(formatted, "'LongerThanEight'");
+    }
+
+    #[test]
+    fn test_format_fits_string_value_escapes_quote() {
+        let formatted = format_fits_string_value("O'Brien");
+        // Internal `'` becomes `''` per FITS 4.2.1.1; total quoted body is 8 chars.
+        assert_eq!(formatted, "'O''Brien'");
+    }
+
+    #[test]
+    fn test_write_emits_short_string_padded() {
+        let mut header = FitsHeader::new();
+        header.set_string("OBJECT", "M31");
+        let image = ImageData::from_u16(2, 1, 1, &[10, 20]);
+
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_strpad_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image, &header).expect("write");
+        let on_disk = std::fs::read(&path).expect("read");
+        let _ = std::fs::remove_file(&path);
+
+        let header_text = String::from_utf8_lossy(&on_disk[..2880]);
+        // The OBJECT card must contain the padded form "M31     " between quotes.
+        assert!(
+            header_text.contains("'M31     '"),
+            "OBJECT card must pad short string to 8 chars, header was:\n{}",
+            header_text
+        );
+    }
+
+    #[test]
+    fn test_write_emits_comment_and_history_without_equals() {
+        let mut header = FitsHeader::new();
+        header.add_comment("Calibrated with master flat 2026-04-09");
+        header.add_history("STAR-DETECT v2.5 ran 2026-05-09T22:14:11");
+        let image = ImageData::from_u16(2, 1, 1, &[1, 2]);
+
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_comment_history_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image, &header).expect("write");
+        let on_disk = std::fs::read(&path).expect("read");
+        let _ = std::fs::remove_file(&path);
+
+        // Locate the COMMENT card and verify columns 9..10 are NOT "= ".
+        let header_block = &on_disk[..2880];
+        let mut found_comment = false;
+        let mut found_history = false;
+        for chunk in header_block.chunks_exact(80) {
+            if chunk.starts_with(b"COMMENT ") {
+                // Per FITS 4.4.2.4 the text body starts at column 9 (offset 8) and
+                // there must be no `=` at offset 8.
+                assert_ne!(
+                    chunk[8], b'=',
+                    "COMMENT card must not have `=` separator"
+                );
+                let body = String::from_utf8_lossy(&chunk[8..]);
+                assert!(body.contains("Calibrated with master flat"));
+                found_comment = true;
+            }
+            if chunk.starts_with(b"HISTORY ") {
+                assert_ne!(
+                    chunk[8], b'=',
+                    "HISTORY card must not have `=` separator"
+                );
+                let body = String::from_utf8_lossy(&chunk[8..]);
+                assert!(body.contains("STAR-DETECT v2.5"));
+                found_history = true;
+            }
+        }
+        assert!(found_comment, "COMMENT card not emitted");
+        assert!(found_history, "HISTORY card not emitted");
+    }
+
+    #[test]
+    fn test_read_routes_comment_history_to_dedicated_vectors() {
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    1",
+            "NAXIS2  =                    1",
+            "COMMENT free-form note one",
+            "HISTORY processed at 2026-04-01",
+            "COMMENT free-form note two",
+        ];
+        let data: Vec<u8> = vec![0x00, 0x10];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let (_image, header) = read_fits_from_bytes(&bytes).expect("read");
+        assert_eq!(header.comments.len(), 2);
+        assert!(header.comments[0].contains("note one"));
+        assert!(header.comments[1].contains("note two"));
+        assert_eq!(header.history.len(), 1);
+        assert!(header.history[0].contains("processed at 2026-04-01"));
+        // The `keywords` map must NOT contain synthetic COMMENT_<n>/HISTORY_<n> keys.
+        for key in header.keywords.keys() {
+            assert!(
+                !key.starts_with("COMMENT") && !key.starts_with("HISTORY"),
+                "keywords map must not contain COMMENT/HISTORY synthetic keys, found: {}",
+                key
+            );
+        }
+    }
+
+    #[test]
+    fn test_inline_comment_round_trips() {
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    1",
+            "NAXIS2  =                    1",
+            "EXPTIME =                300.0 / total integration in seconds",
+        ];
+        let data: Vec<u8> = vec![0x00, 0x10];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let (_image, header) = read_fits_from_bytes(&bytes).expect("read");
+        assert_eq!(
+            header.get_comment("EXPTIME"),
+            Some("total integration in seconds")
+        );
+    }
+
+    #[test]
+    fn test_naxis_4_rejected() {
+        // Audit §6.5 — 4-D cubes are not silently truncated; the reader must Err.
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    4",
+            "NAXIS1  =                    1",
+            "NAXIS2  =                    1",
+            "NAXIS3  =                    1",
+            "NAXIS4  =                    1",
+        ];
+        let data: Vec<u8> = vec![0x00, 0x10];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let err = read_fits_from_bytes(&bytes).unwrap_err();
+        assert!(
+            matches!(err, FitsError::Unsupported4DCube { naxis: 4 }),
+            "expected Unsupported4DCube, got {:?}",
+            err
+        );
+    }
+
+    // -------------------- §6.6 XBAYROFF/YBAYROFF composition --------------------
+
+    #[test]
+    fn test_effective_bayer_pattern_zero_offset_identity() {
+        for src in [
+            BayerPattern::RGGB,
+            BayerPattern::BGGR,
+            BayerPattern::GRBG,
+            BayerPattern::GBRG,
+        ] {
+            assert_eq!(effective_bayer_pattern(src, 0, 0), src);
+            assert_eq!(effective_bayer_pattern(src, 2, 4), src);
+        }
+    }
+
+    #[test]
+    fn test_effective_bayer_pattern_rggb_x1_y0_yields_grbg() {
+        // Audit §6.6 explicit case.
+        assert_eq!(
+            effective_bayer_pattern(BayerPattern::RGGB, 1, 0),
+            BayerPattern::GRBG
+        );
+    }
+
+    #[test]
+    fn test_effective_bayer_pattern_rggb_x0_y1_yields_gbrg() {
+        assert_eq!(
+            effective_bayer_pattern(BayerPattern::RGGB, 0, 1),
+            BayerPattern::GBRG
+        );
+    }
+
+    #[test]
+    fn test_effective_bayer_pattern_rggb_x1_y1_yields_bggr() {
+        assert_eq!(
+            effective_bayer_pattern(BayerPattern::RGGB, 1, 1),
+            BayerPattern::BGGR
+        );
+    }
+
+    #[test]
+    fn test_effective_bayer_pattern_negative_offset_wraps() {
+        // -1 has the same parity as +1, so result must match.
+        assert_eq!(
+            effective_bayer_pattern(BayerPattern::RGGB, -1, 0),
+            effective_bayer_pattern(BayerPattern::RGGB, 1, 0),
+        );
+    }
+
+    #[test]
+    fn test_read_bayer_geometry_from_header() {
+        let mut header = FitsHeader::new();
+        header.set_string("BAYERPAT", "RGGB");
+        header.set_int("XBAYROFF", 1);
+        header.set_int("YBAYROFF", 0);
+        let geo = read_bayer_geometry(&header).expect("geometry");
+        assert_eq!(geo.source, BayerPattern::RGGB);
+        assert_eq!(geo.effective, BayerPattern::GRBG);
+        assert_eq!(geo.x_offset, 1);
+        assert_eq!(geo.y_offset, 0);
+    }
+
+    #[test]
+    fn test_read_bayer_geometry_defaults_offsets_to_zero() {
+        let mut header = FitsHeader::new();
+        header.set_string("BAYERPAT", "BGGR");
+        let geo = read_bayer_geometry(&header).expect("geometry");
+        assert_eq!(geo.source, BayerPattern::BGGR);
+        assert_eq!(geo.effective, BayerPattern::BGGR);
+        assert_eq!(geo.x_offset, 0);
+        assert_eq!(geo.y_offset, 0);
+    }
+
+    #[test]
+    fn test_read_bayer_geometry_returns_none_without_bayerpat() {
+        let header = FitsHeader::new();
+        assert!(read_bayer_geometry(&header).is_none());
     }
 }

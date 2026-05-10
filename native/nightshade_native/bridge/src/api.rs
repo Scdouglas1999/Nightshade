@@ -9257,7 +9257,16 @@ pub async fn api_save_fits_file(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        let airmass = calculate_airmass(altitude);
+        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // that as an OperationFailed so the caller knows the frame metadata was
+        // attempted with an invalid altitude rather than silently writing a
+        // sentinel value or omitting the keyword.
+        let airmass = calculate_airmass(altitude).map_err(|e| {
+            NightshadeError::OperationFailed(format!(
+                "Cannot compute AIRMASS for altitude {}°: {}",
+                altitude, e
+            ))
+        })?;
         header.set_float("AIRMASS", airmass);
     }
 
@@ -9410,7 +9419,16 @@ pub async fn api_save_fits_from_last_capture(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        let airmass = calculate_airmass(altitude);
+        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // that as an OperationFailed so the caller knows the frame metadata was
+        // attempted with an invalid altitude rather than silently writing a
+        // sentinel value or omitting the keyword.
+        let airmass = calculate_airmass(altitude).map_err(|e| {
+            NightshadeError::OperationFailed(format!(
+                "Cannot compute AIRMASS for altitude {}°: {}",
+                altitude, e
+            ))
+        })?;
         header.set_float("AIRMASS", airmass);
     }
 
