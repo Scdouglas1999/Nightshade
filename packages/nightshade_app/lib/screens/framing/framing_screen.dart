@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -11,8 +10,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     hide TargetSearchState, targetSearchProvider;
-import 'package:nightshade_core/src/providers/framing_provider.dart'
-    as framing_provider show MosaicConfig, MosaicPanel;
 import 'framing_search_provider.dart';
 import 'altitude_chart.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
@@ -40,8 +37,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   final _searchFocusNode = FocusNode();
   final _raController = TextEditingController();
   final _decController = TextEditingController();
-  Timer? _altAzTimer;
-  (double, double)? _currentAltAz;
 
   late TabController _tabController;
 
@@ -59,10 +54,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
         });
       }
     });
-    // Update alt/az every 10 seconds
-    _altAzTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _updateAltAz();
-    });
+    // Alt/Az is recomputed lazily in build() from target + settings; no need
+    // for a periodic poll that fires while the screen is off-tab/off-focus.
     // Load the most recent target if no target is currently set
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPersistedTarget();
@@ -81,7 +74,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       _searchController.text = currentState.target!.name;
       _raController.text = currentState.target!.raFormatted;
       _decController.text = currentState.target!.decFormatted;
-      _updateAltAz();
     }
   }
 
@@ -92,45 +84,27 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     _searchFocusNode.dispose();
     _raController.dispose();
     _decController.dispose();
-    _altAzTimer?.cancel();
     super.dispose();
   }
 
-  void _updateAltAz() {
-    final framingState = ref.read(framingProvider);
-    if (framingState.target == null) return;
-
-    // Get location from settings
-    final settingsAsync = ref.read(appSettingsProvider);
-    final settings = settingsAsync.valueOrNull;
-    if (settings == null) return;
-
-    // Use location from settings
+  /// Compute current alt/az from target + location lazily during build.
+  /// Returns null when no target or no usable location is available.
+  (double, double)? _computeCurrentAltAz(
+    FramingTarget? target,
+    AppSettings? settings,
+  ) {
+    if (target == null || settings == null) return null;
     final lat = settings.latitude;
     final lon = settings.longitude;
-
-    // If no location set, use defaults
-    if (lat == 0.0 && lon == 0.0) {
-      setState(() {
-        _currentAltAz = null;
-      });
-      return;
-    }
-
-    final now = DateTime.now();
-    final target = framingState.target!;
-
-    final (alt, az) = calculateCurrentAltAz(
+    // (0,0) is the sentinel for "no location set"; avoid reporting nonsense.
+    if (lat == 0.0 && lon == 0.0) return null;
+    return calculateCurrentAltAz(
       raHours: target.raHours,
       decDegrees: target.decDegrees,
       latitudeDeg: lat,
       longitudeDeg: lon,
-      time: now,
+      time: DateTime.now(),
     );
-
-    setState(() {
-      _currentAltAz = (alt, az);
-    });
   }
 
   @override
@@ -139,6 +113,11 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     final framingState = ref.watch(framingProvider);
     final searchState = ref.watch(targetSearchProvider);
     final equipmentResult = ref.watch(framingFOVProvider);
+    // Recompute alt/az lazily on each build (cheap trig, no IO). This naturally
+    // refreshes whenever the framing target or location settings change; the
+    // previous 10-second periodic timer fired even when off-tab/off-focus.
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final currentAltAz = _computeCurrentAltAz(framingState.target, settings);
 
     return Column(
       children: [
@@ -151,8 +130,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
             index: _currentTabIndex,
             children: [
               // Tab 0: Framing
-              _buildFramingContent(
-                  colors, framingState, searchState, equipmentResult),
+              _buildFramingContent(colors, framingState, searchState,
+                  equipmentResult, currentAltAz),
               // Tab 1: Suggestions
               _SuggestionsTab(
                 onTargetSelected: (suggestion) =>
@@ -234,6 +213,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     FramingState framingState,
     TargetSearchState searchState,
     AsyncValue<FramingEquipmentResult> equipmentResult,
+    (double, double)? currentAltAz,
   ) {
     return ContextualTourPrompt(
       screenId: 'framing',
@@ -335,7 +315,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                           _buildFramingControls(
                               colors, framingState, equipmentResult),
                           const SizedBox(height: 20),
-                          _buildCoordinatesPanel(colors, framingState),
+                          _buildCoordinatesPanel(
+                              colors, framingState, currentAltAz),
                           const SizedBox(height: 20),
                           _buildAltitudePanel(colors, framingState),
                           const SizedBox(height: 20),
@@ -392,7 +373,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     _searchController.text = suggestion.targetName;
     _raController.text = CoordinateUtils.formatRA(suggestion.raHours);
     _decController.text = CoordinateUtils.formatDec(suggestion.decDegrees);
-    _updateAltAz();
+    // Alt/Az auto-refreshes on the next build via _computeCurrentAltAz.
   }
 
   Widget _buildTargetSearch(
@@ -609,7 +590,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     _raController.text = target.raFormatted;
     _decController.text = target.decFormatted;
     _searchFocusNode.unfocus();
-    _updateAltAz();
+    // Alt/Az auto-refreshes on the next build (framingProvider watch triggers it).
   }
 
   Future<void> _resolveAndSelectTarget(String name) async {
@@ -634,7 +615,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       ref
           .read(framingProvider.notifier)
           .setTargetCoordinates(ra, dec, name: 'Custom Location');
-      _updateAltAz();
+      // Alt/Az auto-refreshes on the next build (framingProvider watch triggers it).
     } else {
       context.showInfoSnackBar('Invalid coordinates');
     }
@@ -1014,7 +995,10 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   }
 
   Widget _buildCoordinatesPanel(
-      NightshadeColors colors, FramingState framingState) {
+    NightshadeColors colors,
+    FramingState framingState,
+    (double, double)? currentAltAz,
+  ) {
     final target = framingState.target;
 
     return Container(
@@ -1070,22 +1054,22 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
           const Divider(height: 20),
           _CoordRow(
             label: 'Alt',
-            value: _currentAltAz != null
-                ? '${_currentAltAz!.$1.toStringAsFixed(1)}°'
+            value: currentAltAz != null
+                ? '${currentAltAz.$1.toStringAsFixed(1)}°'
                 : '--',
             colors: colors,
-            isGood: _currentAltAz != null && _currentAltAz!.$1 > 30,
-            isBad: _currentAltAz != null && _currentAltAz!.$1 < 15,
+            isGood: currentAltAz != null && currentAltAz.$1 > 30,
+            isBad: currentAltAz != null && currentAltAz.$1 < 15,
           ),
           const SizedBox(height: 6),
           _CoordRow(
             label: 'Az',
-            value: _currentAltAz != null
-                ? '${_currentAltAz!.$2.toStringAsFixed(1)}°'
+            value: currentAltAz != null
+                ? '${currentAltAz.$2.toStringAsFixed(1)}°'
                 : '--',
             colors: colors,
           ),
-          if (_currentAltAz != null && _currentAltAz!.$1 < 0)
+          if (currentAltAz != null && currentAltAz.$1 < 0)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(
@@ -2468,8 +2452,8 @@ class _CrosshairPainter extends CustomPainter {
 }
 
 class _MosaicGridPainter extends CustomPainter {
-  final framing_provider.MosaicConfig config;
-  final List<framing_provider.MosaicPanel> panels;
+  final MosaicConfig config;
+  final List<MosaicPanel> panels;
   final double fovWidth;
   final double fovHeight;
   final double zoom;
@@ -4077,7 +4061,7 @@ class _CornerOption extends StatelessWidget {
 
 class _ExportMosaicButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-  final List<framing_provider.MosaicPanel> panels;
+  final List<MosaicPanel> panels;
   final String targetName;
 
   const _ExportMosaicButton({

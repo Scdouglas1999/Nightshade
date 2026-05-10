@@ -1,7 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// MosaicConfig/MosaicPanel collide with framing_provider's UI-level versions
+// in the public barrel; this handler operates on MosaicService geometry types,
+// so we hide the barrel versions and pull the service variants directly.
+import 'package:nightshade_core/nightshade_core.dart'
+    hide MosaicConfig, MosaicPanel;
+import 'package:nightshade_core/src/services/mosaic_service.dart'
+    show MosaicConfig, MosaicPanel;
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';

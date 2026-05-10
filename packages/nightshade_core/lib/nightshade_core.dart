@@ -60,7 +60,11 @@ export 'src/providers/equipment_provider.dart';
 export 'src/providers/unified_discovery_provider.dart';
 export 'src/providers/device_backend_selection_provider.dart';
 export 'src/providers/event_provider.dart';
-export 'src/providers/framing_provider.dart' hide MosaicConfig, MosaicPanel;
+// framing_provider owns the canonical UI-facing MosaicConfig / MosaicPanel
+// (grid-based: columns/rows/overlapPercent). mosaic_service has its own
+// geometry-flavored versions (centerRa/panelWidthArcmin/...) which we hide
+// here to disambiguate the public barrel and prevent private-path imports.
+export 'src/providers/framing_provider.dart';
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
@@ -144,7 +148,10 @@ export 'src/services/auto_save_service.dart';
 export 'src/services/notification_service.dart';
 export 'src/services/push_notification_service.dart';
 export 'src/services/session_export_service.dart';
-export 'src/services/mosaic_service.dart';
+// MosaicConfig/MosaicPanel collide with framing_provider's UI-level versions;
+// service-internal callers (MosaicService consumers) import them via the
+// service file directly.
+export 'src/services/mosaic_service.dart' hide MosaicConfig, MosaicPanel;
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
 export 'src/services/calibration_service.dart';
