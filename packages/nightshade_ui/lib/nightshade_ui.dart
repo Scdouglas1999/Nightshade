@@ -6,6 +6,7 @@ export 'src/theme/nightshade_theme.dart';
 export 'src/theme/nightshade_colors.dart';
 export 'src/theme/nightshade_tokens.dart';
 export 'src/theme/nightshade_typography.dart';
+export 'src/tokens/breakpoint_tokens.dart';
 
 // Utils
 export 'src/utils/responsive_utils.dart';
@@ -30,6 +31,10 @@ export 'src/components/animated_value.dart';
 export 'src/components/nightshade_tooltip.dart';
 export 'src/components/focus_ring.dart';
 export 'src/components/screen_header.dart';
+export 'src/components/collapsible_sidebar.dart';
+
+// Dialogs
+export 'src/dialogs/nightshade_dialog.dart';
 
 // Widgets
 export 'src/widgets/polar_alignment_wizard.dart';
