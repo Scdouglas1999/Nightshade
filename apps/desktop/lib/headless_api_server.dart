@@ -18,6 +18,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'headless_api/auth/cors_policy.dart';
 import 'headless_api/auth/pairing_attempt_tracker.dart';
 import 'headless_api/auth/pairing_service.dart';
+import 'headless_api/auth/timing.dart';
 import 'headless_api/auth/token_resolver.dart';
 import 'headless_api/auth/ws_ticket_manager.dart';
 import 'headless_api/auth_policy.dart';
@@ -888,6 +889,13 @@ class HeadlessApiServer {
     _socketLastSeenAt.clear();
     _sockets.clear();
     _collaborationManager.dispose();
+    // Why close the pairing DB: PairingService owns a Drift connection.
+    // Leaving it open across server restarts leaks file handles in tests.
+    final pairing = _pairingService;
+    if (pairing != null) {
+      await pairing.close();
+      _pairingService = null;
+    }
   }
 
   /// Broadcast an event to all connected WebSocket clients
@@ -964,10 +972,15 @@ class HeadlessApiServer {
         'authenticationMode':
             _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
         'authScopes': _availableAuthScopes(),
-        'pairingSupported': false,
+        'pairingSupported': true,
         'apiOnlyMode': true,
         'webUIAvailable': false,
-        'publicEndpoints': ['/api/info', '/dashboard'],
+        'publicEndpoints': [
+          '/api/info',
+          '/api/pairing/start',
+          '/api/pairing/verify',
+          '/dashboard',
+        ],
         'endpoints': _getAvailableEndpoints(),
       },
       headers: _apiCompatibilityHeaders(),
@@ -990,6 +1003,9 @@ class HeadlessApiServer {
       'GET /api/status',
       'GET /api/self-test',
       'GET /api/openapi.json',
+      'POST /api/pairing/start',
+      'POST /api/pairing/verify',
+      'POST /api/ws/ticket',
       'GET /api/collaboration/state',
       'POST /api/collaboration/viewers/join',
       'POST /api/collaboration/viewers/leave',
@@ -1670,6 +1686,198 @@ class HeadlessApiServer {
     return jsonOk({'sessionHandoff': null});
   }
 
+  // ===========================================================================
+  // Pairing flow (§2.1) — first-run dashboard onboarding.
+  //
+  // The desktop console prints the 6-digit code; the dashboard user retypes it
+  // into the Pair sheet. Verifying the code mints a long-lived bearer token
+  // that the dashboard then uses for all authenticated calls. The code itself
+  // is never returned in the HTTP response body so a network observer (or a
+  // logging proxy) cannot harvest it without console access.
+  // ===========================================================================
+
+  /// Returns the [PairingService], lazily constructing one on first use.
+  /// Why lazy: the constructor cannot await a [PairingDatabase] open, but the
+  /// service must outlive a single request. We create it on demand and reuse
+  /// the same instance for the rest of the server lifetime.
+  PairingService _ensurePairingService() {
+    return _pairingService ??= PairingService();
+  }
+
+  Future<Response> _handlePairingStart(Request request) async {
+    final requestId = _requestIdFrom(request);
+    final clientKey = _rateLimitClientKey(request);
+
+    final lockedFor = _pairingAttempts.retryAfter(clientKey);
+    if (lockedFor != null) {
+      _logWarning(
+        '[PAIR][$requestId] start rate-limited from $clientKey '
+        'retry=${lockedFor.inSeconds}s',
+      );
+      return jsonRateLimited(
+        {
+          'error': 'Pairing attempts temporarily locked',
+          'retryAfterSeconds':
+              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
+          'requestId': requestId,
+        },
+        headers: {
+          _requestIdHeader: requestId,
+          'retry-after':
+              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
+        },
+      );
+    }
+
+    final service = _ensurePairingService();
+    final result = await service.startPairing();
+
+    // The code itself goes only to the operator's stdout/log so an off-host
+    // attacker cannot harvest it from HTTP traces. The dashboard polls for
+    // success on /api/pairing/verify with the user-typed code.
+    _logInfo(
+      '[PAIR][$requestId] Pairing started; enter this 6-digit code on the '
+      'dashboard within ${service.codeLifetime.inMinutes} minutes: '
+      '${result.code}',
+    );
+    return jsonOk(
+      {
+        'expiresAt': result.expiresAt.toUtc().toIso8601String(),
+        'expiresInSeconds':
+            result.expiresAt.difference(DateTime.now()).inSeconds,
+      },
+      headers: {_requestIdHeader: requestId},
+    );
+  }
+
+  Future<Response> _handlePairingVerify(Request request) async {
+    final requestId = _requestIdFrom(request);
+    final clientKey = _rateLimitClientKey(request);
+
+    final lockedFor = _pairingAttempts.retryAfter(clientKey);
+    if (lockedFor != null) {
+      _logWarning(
+        '[PAIR][$requestId] verify rate-limited from $clientKey '
+        'retry=${lockedFor.inSeconds}s',
+      );
+      return jsonRateLimited(
+        {
+          'error': 'Pairing attempts temporarily locked',
+          'retryAfterSeconds':
+              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
+          'requestId': requestId,
+        },
+        headers: {
+          _requestIdHeader: requestId,
+          'retry-after':
+              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
+        },
+      );
+    }
+
+    final payload = await readJsonObject(request);
+    final code = requireString(payload, 'code', maxLength: 16);
+    // deviceId/deviceName/deviceType identify the dashboard instance for the
+    // PairingDatabase. Defaults are conservative so a minimal browser client
+    // can pair without sending hardware fingerprints.
+    final deviceId = optionalString(payload, 'deviceId', maxLength: 128) ??
+        'dashboard:${clientKey.replaceAll(':', '_')}';
+    final deviceName =
+        optionalString(payload, 'deviceName', maxLength: 128) ?? 'Dashboard';
+    final deviceType =
+        optionalString(payload, 'deviceType', maxLength: 32) ?? 'browser';
+
+    final service = _ensurePairingService();
+    final result = await service.verifyPairing(
+      code: code,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      deviceType: deviceType,
+    );
+
+    switch (result.outcome) {
+      case PairingVerifyOutcome.success:
+        final token = result.sessionToken!;
+        // Why admin scope: the desktop console operator (the only one who
+        // can read the 6-digit code) is consenting to full control. Finer-
+        // grained scopes are a configured-token concern, not a paired-
+        // session one.
+        _pairedSessionTokens[token] = HeadlessTokenScope.admin;
+        _pairingAttempts.clear(clientKey);
+        _logInfo(
+          '[PAIR][$requestId] Pairing succeeded for device=$deviceId',
+        );
+        return jsonOk(
+          {
+            'token': token,
+            'tokenScope': headlessTokenScopeName(HeadlessTokenScope.admin),
+            'expiresAt': result.expiresAt!.toUtc().toIso8601String(),
+          },
+          headers: {_requestIdHeader: requestId},
+        );
+      case PairingVerifyOutcome.invalidCode:
+        _pairingAttempts.recordFailure(clientKey);
+        _logWarning(
+          '[PAIR][$requestId] Invalid pairing code from $clientKey',
+        );
+        return jsonUnauthorized(
+          {
+            'error': 'invalid_pairing_code',
+            'message': 'The pairing code is not recognised.',
+            'requestId': requestId,
+          },
+          headers: {_requestIdHeader: requestId},
+        );
+      case PairingVerifyOutcome.codeExpired:
+        _pairingAttempts.recordFailure(clientKey);
+        _logWarning(
+          '[PAIR][$requestId] Expired pairing code from $clientKey',
+        );
+        return jsonUnauthorized(
+          {
+            'error': 'pairing_code_expired',
+            'message':
+                'The pairing code has expired. Request a new one from the desktop console.',
+            'requestId': requestId,
+          },
+          headers: {_requestIdHeader: requestId},
+        );
+      case PairingVerifyOutcome.codeAlreadyUsed:
+        _pairingAttempts.recordFailure(clientKey);
+        _logWarning(
+          '[PAIR][$requestId] Reused pairing code from $clientKey',
+        );
+        return jsonUnauthorized(
+          {
+            'error': 'pairing_code_already_used',
+            'message':
+                'The pairing code has already been claimed. Request a new one.',
+            'requestId': requestId,
+          },
+          headers: {_requestIdHeader: requestId},
+        );
+    }
+  }
+
+  // ===========================================================================
+  // WebSocket auth ticket (§2.28) — single-use ticket so browsers do not have
+  // to leak the bearer token via WS query parameters into HTTP/proxy logs.
+  // ===========================================================================
+  Future<Response> _handleWsTicketIssue(Request request) async {
+    final requestId = _requestIdFrom(request);
+    // Auth middleware has already verified the bearer token before we get
+    // here (the route is not public). We just mint a one-shot ticket the
+    // caller can present on the WS upgrade.
+    final ticket = _wsTicketManager.issue();
+    return jsonOk(
+      {
+        'ticket': ticket,
+        'expiresInSeconds': _wsTicketManager.ticketLifetime.inSeconds,
+      },
+      headers: {_requestIdHeader: requestId},
+    );
+  }
+
   Future<Response> _handleGetDevices(Request request) async {
     final requestId = _requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices');
@@ -1677,21 +1885,48 @@ class HeadlessApiServer {
       final deviceTypeStr = request.url.queryParameters['deviceType'];
       final backend = container.read(backendProvider);
 
-      // If no device type specified, discover all device types
+      // If no device type specified, discover all device types.
       List<DeviceInfo> allDevices = [];
+      // Why surfaced: silent catch_(_) hid persistent driver failures (e.g.
+      // missing TouptekSdk DLL, INDI server unreachable) for months because
+      // the UI saw an empty discovery list and shrugged (§2.26). Per-type
+      // errors now bubble up to the response so the dashboard can render an
+      // actionable warning per category.
+      final discoveryErrors = <String, String>{};
       if (deviceTypeStr != null) {
         final deviceType = _parseDeviceType(deviceTypeStr);
         if (deviceType != null) {
-          allDevices = await backend.discoverDevices(deviceType);
+          try {
+            allDevices = await backend.discoverDevices(deviceType);
+          } catch (e, stackTrace) {
+            discoveryErrors[deviceType.name] = e.toString();
+            _logWarning(
+              '[API][$requestId] Discovery failed for ${deviceType.name}: $e',
+              fields: {
+                'requestId': requestId,
+                'deviceType': deviceType.name,
+                'error': e.toString(),
+                'stack': stackTrace.toString(),
+              },
+            );
+          }
         }
       } else {
-        // Discover all device types
         for (final dt in DeviceType.values) {
           try {
             final devices = await backend.discoverDevices(dt);
             allDevices.addAll(devices);
-          } catch (_) {
-            // Ignore errors for individual device types
+          } catch (e, stackTrace) {
+            discoveryErrors[dt.name] = e.toString();
+            _logWarning(
+              '[API][$requestId] Discovery failed for ${dt.name}: $e',
+              fields: {
+                'requestId': requestId,
+                'deviceType': dt.name,
+                'error': e.toString(),
+                'stack': stackTrace.toString(),
+              },
+            );
           }
         }
       }
@@ -1706,6 +1941,7 @@ class HeadlessApiServer {
                   'description': d.description,
                 })
             .toList(),
+        if (discoveryErrors.isNotEmpty) 'discoveryErrors': discoveryErrors,
       });
     } catch (e, stackTrace) {
       _logError('[API][$requestId] Get devices error: $e\n$stackTrace');
@@ -2513,23 +2749,17 @@ class HeadlessApiServer {
   }
 
   String? _resolveAllowedOrigin(Request request, String? origin) {
-    if (origin == null || origin.isEmpty) {
-      return null;
-    }
-
-    final originUri = Uri.tryParse(origin);
-    if (originUri == null) {
-      return null;
-    }
-
-    final requestedUri = request.requestedUri;
-    if (originUri.scheme != requestedUri.scheme ||
-        originUri.host.toLowerCase() != requestedUri.host.toLowerCase() ||
-        originUri.port != requestedUri.port) {
-      return null;
-    }
-
-    return origin;
+    // Why delegate: previous behaviour reflected any origin that matched the
+    // bound host:port, which let any local-loopback browser app bypass CORS
+    // on a different port (§2.27). [CorsAllowList] applies the explicit
+    // configured allow-list and an even stricter rule for high-risk control
+    // paths; the same-origin escape hatch is preserved so the bundled
+    // dashboard continues to work without configuration.
+    return _corsAllowList.resolve(
+      requestOrigin: origin,
+      requestUri: request.requestedUri,
+      path: '/${request.url.path}',
+    );
   }
 
   /// Middleware that validates Bearer token authentication.
@@ -2541,16 +2771,25 @@ class HeadlessApiServer {
   /// They accept the token via Authorization header or `token` query parameter
   /// (since browsers cannot set custom headers on WebSocket upgrades).
   Middleware _authMiddleware() {
-    // Endpoints that don't require authentication
-    const publicPaths = {'/api/info'};
+    // Endpoints that don't require authentication. Pairing endpoints are
+    // public because the dashboard has no bearer token until the user
+    // completes the first pairing flow; the 6-digit code shown on the
+    // desktop console is the out-of-band trust factor (§2.1).
+    const publicPaths = {
+      '/api/info',
+      '/api/pairing/start',
+      '/api/pairing/verify',
+    };
 
-    // WebSocket paths that support query-param auth
+    // WebSocket paths that support query-param auth (legacy ?token=) or the
+    // single-use ?ticket= flow added in §2.28.
     const webSocketPaths = {'/api/ws', '/events'};
 
     return createMiddleware(
       requestHandler: (request) {
         // Skip auth if no token is configured
-        if (_effectiveAuthTokensByValue.isEmpty) {
+        if (_effectiveAuthTokensByValue.isEmpty &&
+            _pairedSessionTokens.isEmpty) {
           return null;
         }
 
@@ -2561,19 +2800,47 @@ class HeadlessApiServer {
           return null;
         }
 
-        // For WebSocket paths, also accept token as query parameter
+        // For WebSocket paths, accept either the legacy ?token=<bearer> (with
+        // a deprecation warning) or the §2.28 one-shot ?ticket= which is
+        // consumed and invalidated here so it cannot be reused.
         if (webSocketPaths.contains(path)) {
-          final queryToken = request.url.queryParameters['token'];
-          final queryScope = _scopeForToken(queryToken);
-          if (queryScope != null &&
-              HeadlessAuthPolicy.allows(
-                actual: queryScope,
-                method: 'WS',
-                path: path,
-              )) {
-            return null; // Valid token via query param
+          final queryTicket = request.url.queryParameters['ticket'];
+          if (queryTicket != null && queryTicket.isNotEmpty) {
+            if (_wsTicketManager.consume(queryTicket)) {
+              return null; // Ticket valid; one-shot consumed.
+            }
+            // Bad/expired ticket — do NOT fall through to legacy token to
+            // avoid masking a stolen-ticket replay attempt with a successful
+            // bearer-token outcome. Reject explicitly.
+            _logWarning(
+              '[AUTH][$requestId] Rejected WS upgrade to $path - invalid or expired ticket',
+            );
+            return jsonUnauthorized(
+              {
+                'error': 'Authentication required',
+                'message': 'Invalid or expired WebSocket ticket',
+              },
+              headers: {_requestIdHeader: requestId},
+            );
           }
-          // Fall through to check Authorization header below
+
+          final queryToken = request.url.queryParameters['token'];
+          if (queryToken != null && queryToken.isNotEmpty) {
+            final queryScope = _scopeForToken(queryToken);
+            if (queryScope != null &&
+                HeadlessAuthPolicy.allows(
+                  actual: queryScope,
+                  method: 'WS',
+                  path: path,
+                )) {
+              _logWarning(
+                '[AUTH][$requestId] WS upgrade to $path used legacy ?token=. '
+                'Switch to POST /api/ws/ticket + ?ticket= (audit §2.28).',
+              );
+              return null;
+            }
+          }
+          // Fall through to check Authorization header below.
         }
 
         // Check for Authorization header
@@ -2610,8 +2877,30 @@ class HeadlessApiServer {
 
         // Extract and validate token
         final token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        final clientKey = _rateLimitClientKey(request);
+        // Why pre-check: the constant-time loop is O(N*L) over the token
+        // table; an attacker spamming bad tokens could make it a CPU-burn
+        // vector (§2.22). The resolver tracks per-client failure counts and
+        // we shed load with 429 once the bucket fills.
+        if (_tokenResolver.isRateLimited(clientKey)) {
+          _logWarning(
+            '[AUTH][$requestId] Rate-limited token comparisons from $clientKey on $path',
+          );
+          return jsonRateLimited(
+            {
+              'error': 'Rate limit exceeded',
+              'message': 'Too many authentication failures',
+              'requestId': requestId,
+            },
+            headers: {
+              _requestIdHeader: requestId,
+              'retry-after': '60',
+            },
+          );
+        }
         final tokenScope = _scopeForToken(token);
         if (tokenScope == null) {
+          _tokenResolver.recordFailure(clientKey);
           _logWarning(
               '[AUTH][$requestId] Rejected request to $path - invalid token');
           return jsonForbidden(
@@ -2624,6 +2913,9 @@ class HeadlessApiServer {
             },
           );
         }
+        // Token recognised — clear stale failures so a successful login
+        // resets the counter for that client.
+        _tokenResolver.clearFailures(clientKey);
 
         if (!HeadlessAuthPolicy.allows(
           actual: tokenScope,
@@ -2662,7 +2954,24 @@ class HeadlessApiServer {
     if (token == null || token.isEmpty) {
       return null;
     }
-    return _effectiveAuthTokensByValue[token];
+    // Why constant-time + full-iteration: a naive Map[token] short-circuits on
+    // hash mismatch, leaking per-character timing of the bearer token to a
+    // network attacker (§2.22). The resolver iterates the entire map and uses
+    // XOR-based comparison so timing is independent of which entry matches.
+    final scope = _tokenResolver.resolve(token);
+    if (scope != null) {
+      return scope;
+    }
+    // Paired-session tokens live outside the immutable static map (Drift-
+    // backed). Mirror the same constant-time iteration here so the choice
+    // between "static config token" and "paired token" is not observable.
+    HeadlessTokenScope? pairedMatch;
+    for (final entry in _pairedSessionTokens.entries) {
+      if (constantTimeCompareStrings(entry.key, token)) {
+        pairedMatch = entry.value;
+      }
+    }
+    return pairedMatch;
   }
 
   /// Generates a cryptographically secure random token.

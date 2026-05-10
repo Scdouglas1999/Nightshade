@@ -39,6 +39,11 @@ const _headlessLogSource = 'HeadlessMain';
 ///   --allow-unauthenticated-lan
 ///                         Bind to the LAN without auth. Unsafe; intended only
 ///                         for isolated development networks.
+///   --cors-origin=<origin>
+///                         Add an origin to the CORS allow-list (may be passed
+///                         multiple times). Why explicit list: the dashboard's
+///                         own origin is always allowed, but cross-origin
+///                         control from other web apps must be opted in here.
 ///
 ///   Environment variables:
 ///   NIGHTSHADE_AUTH_TOKEN  Authentication token
@@ -48,6 +53,9 @@ const _headlessLogSource = 'HeadlessMain';
 ///   NIGHTSHADE_PORT        Server port (default: 8080)
 ///   NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN=true
 ///                         Same as --allow-unauthenticated-lan
+///   NIGHTSHADE_CORS_ORIGINS
+///                         Comma-separated CORS allow-list (same effect as
+///                         passing --cors-origin repeatedly).
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -98,6 +106,7 @@ void main(List<String> args) async {
       requireAuth: authConfig.requireAuth,
       bindLocalOnly: authConfig.bindLocalOnly,
       port: authConfig.port,
+      corsAllowedOrigins: authConfig.corsAllowedOrigins,
     );
     runtimeLogger.info('Headless API server started',
         source: _headlessLogSource);
@@ -173,6 +182,7 @@ class _AuthConfig {
   final bool bindLocalOnly;
   final int port;
   final Map<String, HeadlessTokenScope> scopedTokens;
+  final List<String> corsAllowedOrigins;
 
   _AuthConfig({
     this.token,
@@ -180,6 +190,7 @@ class _AuthConfig {
     this.bindLocalOnly = true,
     this.port = 8080,
     this.scopedTokens = const {},
+    this.corsAllowedOrigins = const [],
   });
 }
 
@@ -190,6 +201,7 @@ _AuthConfig _parseAuthConfig(List<String> args) {
       _envFlag('NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN');
   var port = 8080;
   final scopedTokens = <String, HeadlessTokenScope>{};
+  final corsAllowedOrigins = <String>[];
 
   token = Platform.environment['NIGHTSHADE_AUTH_TOKEN'];
   _addScopedTokenFromEnv(
@@ -204,6 +216,18 @@ _AuthConfig _parseAuthConfig(List<String> args) {
   );
   if (Platform.environment['NIGHTSHADE_PORT'] != null) {
     port = int.tryParse(Platform.environment['NIGHTSHADE_PORT']!) ?? 8080;
+  }
+
+  // Why env-first: NIGHTSHADE_CORS_ORIGINS is the systemd/docker idiom; CLI
+  // overrides allow operators to extend the list at launch time.
+  final envCors = Platform.environment['NIGHTSHADE_CORS_ORIGINS'];
+  if (envCors != null && envCors.trim().isNotEmpty) {
+    for (final raw in envCors.split(',')) {
+      final trimmed = raw.trim();
+      if (trimmed.isNotEmpty) {
+        corsAllowedOrigins.add(trimmed);
+      }
+    }
   }
 
   for (final arg in args) {
@@ -227,6 +251,11 @@ _AuthConfig _parseAuthConfig(List<String> args) {
       );
     } else if (arg.startsWith('--port=')) {
       port = int.tryParse(arg.substring('--port='.length)) ?? port;
+    } else if (arg.startsWith('--cors-origin=')) {
+      final value = arg.substring('--cors-origin='.length).trim();
+      if (value.isNotEmpty) {
+        corsAllowedOrigins.add(value);
+      }
     }
   }
 
@@ -242,6 +271,7 @@ _AuthConfig _parseAuthConfig(List<String> args) {
     bindLocalOnly: !hasAuthentication && !allowUnauthenticatedLan,
     port: port,
     scopedTokens: Map.unmodifiable(scopedTokens),
+    corsAllowedOrigins: List.unmodifiable(corsAllowedOrigins),
   );
 }
 
@@ -278,6 +308,7 @@ Future<HeadlessApiServer?> _startHeadlessServices(
   bool requireAuth = false,
   bool bindLocalOnly = true,
   int port = 8080,
+  List<String> corsAllowedOrigins = const [],
 }) async {
   try {
     container.read(databaseProvider);
@@ -314,6 +345,7 @@ Future<HeadlessApiServer?> _startHeadlessServices(
     scopedAuthTokens: scopedAuthTokens,
     requireAuth: requireAuth,
     bindLocalOnly: bindLocalOnly,
+    corsAllowedOrigins: corsAllowedOrigins,
   );
 
   try {
