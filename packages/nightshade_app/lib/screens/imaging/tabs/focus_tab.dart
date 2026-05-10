@@ -453,9 +453,15 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Go To Position input and Step size chips row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  // Go To Position input and Step size chips. Was a hard
+                  // `Row(SizedBox, SizedBox, Expanded(Wrap))` which squeezed
+                  // the chip row off-screen on narrow cards. Replaced with a
+                  // top-level `Wrap` so the chip group falls under the input
+                  // instead of being clipped (audit §4.9).
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       // Go To Position
                       SizedBox(
@@ -535,44 +541,42 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // Step size chips
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              'Step Size:',
-                              style: TextStyle(
-                                  fontSize: 12, color: colors.textSecondary),
-                            ),
-                            _StepChip(
-                              label: '10',
-                              isSelected: focusSettings.stepSize == 10,
-                              onTap: () => ref
-                                  .read(focusSettingsProvider.notifier)
-                                  .update(focusSettings.copyWith(stepSize: 10)),
-                            ),
-                            _StepChip(
-                              label: '100',
-                              isSelected: focusSettings.stepSize == 100,
-                              onTap: () => ref
-                                  .read(focusSettingsProvider.notifier)
-                                  .update(focusSettings.copyWith(stepSize: 100)),
-                            ),
-                            _StepChip(
-                              label: '1000',
-                              isSelected: focusSettings.stepSize == 1000,
-                              onTap: () => ref
-                                  .read(focusSettingsProvider.notifier)
-                                  .update(
-                                    focusSettings.copyWith(stepSize: 1000),
-                                  ),
-                            ),
-                          ],
-                        ),
+                      // Step size chips — own `Wrap` so individual chips
+                      // re-flow when the group wraps under the input.
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Step Size:',
+                            style: TextStyle(
+                                fontSize: 12, color: colors.textSecondary),
+                          ),
+                          _StepChip(
+                            label: '10',
+                            isSelected: focusSettings.stepSize == 10,
+                            onTap: () => ref
+                                .read(focusSettingsProvider.notifier)
+                                .update(focusSettings.copyWith(stepSize: 10)),
+                          ),
+                          _StepChip(
+                            label: '100',
+                            isSelected: focusSettings.stepSize == 100,
+                            onTap: () => ref
+                                .read(focusSettingsProvider.notifier)
+                                .update(focusSettings.copyWith(stepSize: 100)),
+                          ),
+                          _StepChip(
+                            label: '1000',
+                            isSelected: focusSettings.stepSize == 1000,
+                            onTap: () => ref
+                                .read(focusSettingsProvider.notifier)
+                                .update(
+                                  focusSettings.copyWith(stepSize: 1000),
+                                ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -832,213 +836,244 @@ class _FocusTabState extends ConsumerState<FocusTab> {
     );
   }
 
-  /// Builds autofocus section for desktop (side-by-side)
+  /// Builds the Autofocus settings card. Pulled out of the desktop section so
+  /// the layout can hand it to a `Wrap` and let it collapse to a full-width
+  /// row on laptop widths instead of being squeezed by `Expanded`.
+  Widget _buildAutofocusSettingsCard(
+    NightshadeColors colors,
+    FocusSettings focusSettings,
+    bool isConnected,
+  ) {
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Autofocus',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _SettingRow(
+              label: 'Method',
+              child: NightshadeDropdown(
+                value: focusSettings.method,
+                items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
+                onChanged: (value) {
+                  if (value != null) {
+                    ref
+                        .read(focusSettingsProvider.notifier)
+                        .update(focusSettings.copyWith(method: value));
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SettingRow(
+              label: 'Exposure Time',
+              child: NightshadeTextField(
+                initialValue: focusSettings.exposureTime.toString(),
+                suffix: 's',
+                onChanged: (value) {
+                  final v = double.tryParse(value);
+                  if (v != null) {
+                    ref
+                        .read(focusSettingsProvider.notifier)
+                        .update(focusSettings.copyWith(exposureTime: v));
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SettingRow(
+              label: 'Step Size',
+              child: NightshadeTextField(
+                initialValue: focusSettings.afStepSize.toString(),
+                suffix: 'steps',
+                onChanged: (value) {
+                  final v = int.tryParse(value);
+                  if (v != null) {
+                    ref
+                        .read(focusSettingsProvider.notifier)
+                        .update(focusSettings.copyWith(afStepSize: v));
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SettingRow(
+              label: 'Steps Out',
+              child: NightshadeTextField(
+                initialValue: focusSettings.stepsOut.toString(),
+                onChanged: (value) {
+                  final v = int.tryParse(value);
+                  if (v != null) {
+                    ref
+                        .read(focusSettingsProvider.notifier)
+                        .update(focusSettings.copyWith(stepsOut: v));
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_afStatus != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  _afStatus!,
+                  style: TextStyle(
+                    color: _afStatus!.contains('Failed')
+                        ? colors.error
+                        : colors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            SizedBox(
+              width: double.infinity,
+              child: NightshadeButton(
+                label: _isRunningAf ? 'Running...' : 'Run Autofocus',
+                icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
+                size: ButtonSize.large,
+                onPressed:
+                    (isConnected && !_isRunningAf) ? _runAutofocus : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds the "Last Autofocus Run" card. Pulled out so the desktop section
+  /// can hand it to a `Wrap`. Sibling to `_buildAutofocusSettingsCard`.
+  Widget _buildLastAutofocusRunCard(NightshadeColors colors) {
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Builder(
+          builder: (context) {
+            final afResult = ref.watch(autofocusResultProvider);
+            final hasResult = afResult != null;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Last Autofocus Run',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: hasResult && afResult.focusData.isNotEmpty
+                      ? _buildFocusCurve(afResult, colors)
+                      : Center(
+                          child: Text(
+                            hasResult
+                                ? 'No curve data'
+                                : 'No autofocus run yet',
+                            style: TextStyle(
+                                fontSize: 10, color: colors.textMuted),
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 16),
+                _InfoRow(
+                  label: 'Best Position',
+                  value:
+                      hasResult ? afResult.bestPosition.toString() : '---',
+                ),
+                _InfoRow(
+                  label: 'Best HFR',
+                  value: hasResult
+                      ? afResult.bestHfr.toStringAsFixed(2)
+                      : '---',
+                ),
+                _InfoRow(
+                  label: 'Temp at Focus',
+                  value: hasResult && afResult.temperature != null
+                      ? '${afResult.temperature!.toStringAsFixed(1)}°C'
+                      : '---',
+                ),
+                _InfoRow(
+                  label: 'Method',
+                  value: hasResult ? afResult.method : '---',
+                ),
+                _InfoRow(
+                  label: 'Data Points',
+                  value: hasResult
+                      ? afResult.focusData.length.toString()
+                      : '---',
+                ),
+                const SizedBox(height: 12),
+                NightshadeButton(
+                  label: 'View Details',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: hasResult
+                      ? () => _showAutofocusDetails(context, afResult)
+                      : null,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Builds autofocus section for desktop. Previously a fixed
+  /// `Row(Expanded, SizedBox, Expanded)` that silently squeezed both cards
+  /// when the imaging screen was narrow (sidebars expanded, multi-pane
+  /// layout). Per audit §4.9, replaces that with a `LayoutBuilder` + `Wrap`
+  /// so the second card flows under the first once we drop below the
+  /// wide-desktop breakpoint, keeping all controls fully readable.
   Widget _buildDesktopAutofocusSection(
     NightshadeColors colors,
     FocusSettings focusSettings,
     bool isConnected,
   ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Autofocus settings
-        Expanded(
-          child: NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Autofocus',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingRow(
-                    label: 'Method',
-                    child: NightshadeDropdown(
-                      value: focusSettings.method,
-                      items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
-                      onChanged: (value) {
-                        if (value != null) {
-                          ref
-                              .read(focusSettingsProvider.notifier)
-                              .update(focusSettings.copyWith(method: value));
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _SettingRow(
-                    label: 'Exposure Time',
-                    child: NightshadeTextField(
-                      initialValue: focusSettings.exposureTime.toString(),
-                      suffix: 's',
-                      onChanged: (value) {
-                        final v = double.tryParse(value);
-                        if (v != null) {
-                          ref
-                              .read(focusSettingsProvider.notifier)
-                              .update(
-                                  focusSettings.copyWith(exposureTime: v));
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _SettingRow(
-                    label: 'Step Size',
-                    child: NightshadeTextField(
-                      initialValue: focusSettings.afStepSize.toString(),
-                      suffix: 'steps',
-                      onChanged: (value) {
-                        final v = int.tryParse(value);
-                        if (v != null) {
-                          ref
-                              .read(focusSettingsProvider.notifier)
-                              .update(focusSettings.copyWith(afStepSize: v));
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _SettingRow(
-                    label: 'Steps Out',
-                    child: NightshadeTextField(
-                      initialValue: focusSettings.stepsOut.toString(),
-                      onChanged: (value) {
-                        final v = int.tryParse(value);
-                        if (v != null) {
-                          ref
-                              .read(focusSettingsProvider.notifier)
-                              .update(focusSettings.copyWith(stepsOut: v));
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_afStatus != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _afStatus!,
-                        style: TextStyle(
-                          color: _afStatus!.contains('Failed')
-                              ? colors.error
-                              : colors.success,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: NightshadeButton(
-                      label: _isRunningAf ? 'Running...' : 'Run Autofocus',
-                      icon:
-                          _isRunningAf ? LucideIcons.loader : LucideIcons.play,
-                      size: ButtonSize.large,
-                      onPressed:
-                          (isConnected && !_isRunningAf) ? _runAutofocus : null,
-                    ),
-                  ),
-                ],
-              ),
+    const cardGap = 24.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        // Below the wide-desktop boundary, two side-by-side cards leave each
+        // half too narrow for the autofocus controls — stack instead.
+        final twoUp = BreakpointTokens.isDesktopWide(width) ||
+            BreakpointTokens.isUltraWide(width);
+        final childWidth =
+            twoUp ? (width - cardGap) / 2 : width;
+        return Wrap(
+          spacing: cardGap,
+          runSpacing: cardGap,
+          crossAxisAlignment: WrapCrossAlignment.start,
+          children: [
+            SizedBox(
+              width: childWidth,
+              child: _buildAutofocusSettingsCard(
+                  colors, focusSettings, isConnected),
             ),
-          ),
-        ),
-
-        const SizedBox(width: 24),
-
-        // Last autofocus run
-        Expanded(
-          child: NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Builder(
-                builder: (context) {
-                  final afResult = ref.watch(autofocusResultProvider);
-                  final hasResult = afResult != null;
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Last Autofocus Run',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        height: 150,
-                        decoration: BoxDecoration(
-                          color: colors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: hasResult && afResult.focusData.isNotEmpty
-                            ? _buildFocusCurve(afResult, colors)
-                            : Center(
-                                child: Text(
-                                  hasResult
-                                      ? 'No curve data'
-                                      : 'No autofocus run yet',
-                                  style: TextStyle(
-                                      fontSize: 10, color: colors.textMuted),
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-                      _InfoRow(
-                        label: 'Best Position',
-                        value: hasResult
-                            ? afResult.bestPosition.toString()
-                            : '---',
-                      ),
-                      _InfoRow(
-                        label: 'Best HFR',
-                        value: hasResult
-                            ? afResult.bestHfr.toStringAsFixed(2)
-                            : '---',
-                      ),
-                      _InfoRow(
-                        label: 'Temp at Focus',
-                        value: hasResult && afResult.temperature != null
-                            ? '${afResult.temperature!.toStringAsFixed(1)}°C'
-                            : '---',
-                      ),
-                      _InfoRow(
-                        label: 'Method',
-                        value: hasResult ? afResult.method : '---',
-                      ),
-                      _InfoRow(
-                        label: 'Data Points',
-                        value: hasResult
-                            ? afResult.focusData.length.toString()
-                            : '---',
-                      ),
-                      const SizedBox(height: 12),
-                      NightshadeButton(
-                        label: 'View Details',
-                        variant: ButtonVariant.outline,
-                        size: ButtonSize.small,
-                        onPressed: hasResult
-                            ? () => _showAutofocusDetails(context, afResult)
-                            : null,
-                      ),
-                    ],
-                  );
-                },
-              ),
+            SizedBox(
+              width: childWidth,
+              child: _buildLastAutofocusRunCard(colors),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

@@ -204,26 +204,47 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
 
             const SizedBox(height: 16),
 
-            // Cooler controls
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    label: _isSetting ? 'Setting...' : 'Cooler ON',
-                    onPressed: (isConnected && !_isSetting)
-                        ? () => _setCooling(true)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    label: 'Cooler OFF',
-                    variant: ButtonVariant.outline,
-                    onPressed: isConnected ? () => _setCooling(false) : null,
-                  ),
-                ),
-              ],
+            // Cooler controls. LayoutBuilder + Wrap rather than the previous
+            // `Row(Expanded, Expanded)` so the ON/OFF buttons stack instead
+            // of compressing their labels when the card sits in a narrow
+            // grid column on laptop widths (audit §4.9).
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const buttonGap = 8.0;
+                // Minimum readable button width with "Setting..." label and
+                // the Nightshade button's internal padding. Below this we
+                // stack vertically.
+                const minButtonWidth = 120.0;
+                final stack =
+                    constraints.maxWidth < (minButtonWidth * 2 + buttonGap);
+                final childWidth = stack
+                    ? constraints.maxWidth
+                    : (constraints.maxWidth - buttonGap) / 2;
+                return Wrap(
+                  spacing: buttonGap,
+                  runSpacing: buttonGap,
+                  children: [
+                    SizedBox(
+                      width: childWidth,
+                      child: NightshadeButton(
+                        label: _isSetting ? 'Setting...' : 'Cooler ON',
+                        onPressed: (isConnected && !_isSetting)
+                            ? () => _setCooling(true)
+                            : null,
+                      ),
+                    ),
+                    SizedBox(
+                      width: childWidth,
+                      child: NightshadeButton(
+                        label: 'Cooler OFF',
+                        variant: ButtonVariant.outline,
+                        onPressed:
+                            isConnected ? () => _setCooling(false) : null,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 16),
