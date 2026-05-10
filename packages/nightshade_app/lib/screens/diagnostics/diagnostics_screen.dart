@@ -84,7 +84,11 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
           // Main content
           Expanded(
             child: _selectedSessionId == null
-                ? _NoSessionSelected(colors: colors)
+                ? EmptyState(
+                    icon: LucideIcons.star,
+                    title: l10n.text('diagnosticsNoSessionTitle'),
+                    body: l10n.text('diagnosticsNoSessionBody'),
+                  )
                 : _DiagnosticsContent(
                     sessionId: _selectedSessionId!,
                     isMobile: isMobile,

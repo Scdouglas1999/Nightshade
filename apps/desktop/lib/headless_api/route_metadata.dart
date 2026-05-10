@@ -210,6 +210,13 @@ String? highRiskAuditActionFor({
   return _highRiskAuditActions[path];
 }
 
+/// Whether [path] is in the high-risk control allow-list (used by CORS
+/// policy and rate-limit tier selection). Why exposed: the CORS middleware
+/// needs to apply a stricter origin allow-list rule for these endpoints.
+bool isHighRiskControlPath(String path) {
+  return _highRiskControlPaths.contains(path);
+}
+
 bool isPublicEndpoint({
   required String method,
   required String path,

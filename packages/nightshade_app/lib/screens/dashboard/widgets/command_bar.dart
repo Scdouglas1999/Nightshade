@@ -44,16 +44,15 @@ class DashboardCommandBar extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        // Responsive thresholds for command bar elements
-        final showClock = width >= 900;
-        final showDividers = width >= 850;
-        final showStats = width >= 800;
-        final compactPadding = width < 900;
+        // Single compact threshold drives every hide/shrink decision below.
+        // Splitting it into per-element widths produced inconsistent layouts
+        // where dividers vanished before the items they were dividing.
+        final isCompact = width < _commandBarCompactWidth;
 
         return Container(
           padding: EdgeInsets.symmetric(
-            horizontal: compactPadding ? 12 : 16,
-            vertical: compactPadding ? 8 : 10,
+            horizontal: isCompact ? 12 : 16,
+            vertical: isCompact ? 8 : 10,
           ),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
@@ -67,7 +66,7 @@ class DashboardCommandBar extends ConsumerWidget {
               Flexible(
                 flex: 0,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: width < 900 ? 120 : 180),
+                  constraints: BoxConstraints(maxWidth: isCompact ? 120 : 180),
                   child: _SessionStatusIndicator(
                     colors: colors,
                     pulseController: pulseController,
@@ -77,41 +76,28 @@ class DashboardCommandBar extends ConsumerWidget {
                 ),
               ),
 
-              if (showDividers) ...[
-                SizedBox(width: compactPadding ? 12 : 24),
+              if (!isCompact) ...[
+                const SizedBox(width: 24),
                 Container(
                   width: 1,
                   height: 32,
                   color: colors.border,
                 ),
-                SizedBox(width: compactPadding ? 12 : 24),
-              ] else
-                SizedBox(width: compactPadding ? 8 : 16),
-
-              // Quick Stats Strip - only show on wider layouts
-              if (showStats)
+                const SizedBox(width: 24),
                 Expanded(
                   child: _QuickStatsStrip(colors: colors),
-                )
-              else
-                const Spacer(),
-
-              if (showDividers && showStats) ...[
-                SizedBox(width: compactPadding ? 12 : 24),
+                ),
+                const SizedBox(width: 24),
                 Container(
                   width: 1,
                   height: 32,
                   color: colors.border,
                 ),
-              ],
-
-              SizedBox(width: compactPadding ? 8 : 16),
-
-              // Clock/LST - hide on narrower layouts
-              if (showClock) ...[
+                const SizedBox(width: 16),
                 DashboardClockWidget(colors: colors),
-                SizedBox(width: compactPadding ? 8 : 16),
-              ],
+                const SizedBox(width: 16),
+              ] else
+                const Spacer(),
 
               // Edit Controls
               DashboardHeaderActions(
@@ -119,7 +105,7 @@ class DashboardCommandBar extends ConsumerWidget {
                 onToggleEdit: onToggleEdit,
                 onManageWidgets: onManageWidgets,
                 onResetLayout: onResetLayout,
-                compact: !showClock,
+                compact: isCompact,
               ),
             ],
           ),
@@ -128,6 +114,12 @@ class DashboardCommandBar extends ConsumerWidget {
     );
   }
 }
+
+// Compact-mode cutoff: below this width the bar drops stats, clock, and
+// dividers together rather than peeling them off one by one across multiple
+// thresholds. 900 keeps room for full content on a 1024 px laptop after a
+// reasonable side rail.
+const double _commandBarCompactWidth = 900.0;
 
 /// Session status indicator showing capture state and current target.
 class _SessionStatusIndicator extends StatelessWidget {

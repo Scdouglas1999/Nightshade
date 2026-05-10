@@ -1,19 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import '../../theme/nightshade_colors.dart';
 
-/// A point representing a guide error measurement
-class GuideErrorPoint {
-  final double raError;
-  final double decError;
-  final DateTime timestamp;
-
-  const GuideErrorPoint({
-    required this.raError,
-    required this.decError,
-    required this.timestamp,
-  });
-}
+// GuideErrorPoint is owned by nightshade_core (phd2_models.dart) so the entire
+// app can share one canonical model rather than duplicating it per layer.
 
 /// Widget that displays a PHD2-style target display showing guide error history
 ///

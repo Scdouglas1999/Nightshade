@@ -1079,22 +1079,70 @@ class _ActionButtons extends ConsumerWidget {
 
         // Capture frame
         try {
-          await backend.cameraStartExposure(
-            deviceId: cameraId,
-            exposureTime: calibrationResult.exposure,
-            frameType: FrameType.flat,
-            gain: cameraState.gain ?? 0,
-            offset: cameraState.offset ?? 0,
-            binX: 1,
-            binY: 1,
-          );
+          // Subscribe to imaging events BEFORE starting the exposure so a fast
+          // camera that fires ExposureComplete / ImageReady before our await
+          // resumes does not slip past us into a false "image not ready" path.
+          final exposureCompleter = Completer<void>();
+          final eventSubscription = backend.eventStream.listen((event) {
+            if (event.category != EventCategory.imaging) return;
+            switch (event.eventType) {
+              case 'ExposureComplete':
+              case 'ExposureCompleted':
+              case 'ImageReady':
+                if (!exposureCompleter.isCompleted) {
+                  exposureCompleter.complete();
+                }
+                break;
+              case 'ExposureFailed':
+                if (!exposureCompleter.isCompleted) {
+                  final reason = (event.data['error'] as String?) ??
+                      (event.data['reason'] as String?) ??
+                      'Camera reported exposure failure';
+                  exposureCompleter
+                      .completeError(Exception('Exposure failed: $reason'));
+                }
+                break;
+              case 'ExposureCancelled':
+                if (!exposureCompleter.isCompleted) {
+                  exposureCompleter
+                      .completeError(Exception('Exposure cancelled'));
+                }
+                break;
+            }
+          });
 
-          // Wait for exposure to complete
-          await Future.delayed(
-            Duration(
-                milliseconds:
-                    (calibrationResult.exposure * 1000 + 500).toInt()),
-          );
+          try {
+            await backend.cameraStartExposure(
+              deviceId: cameraId,
+              exposureTime: calibrationResult.exposure,
+              frameType: FrameType.flat,
+              gain: cameraState.gain ?? 0,
+              offset: cameraState.offset ?? 0,
+              binX: 1,
+              binY: 1,
+            );
+
+            // Bound the wait at exposureTime + readout/download margin. 30s
+            // matches imaging_service.dart and flat_wizard_service.dart, which
+            // covers the slow-USB / large-sensor case the audit calls out.
+            final timeout = Duration(
+              milliseconds:
+                  (calibrationResult.exposure * 1000).toInt() + 30000,
+            );
+            await exposureCompleter.future.timeout(
+              timeout,
+              onTimeout: () {
+                throw TimeoutException(
+                  'Camera did not report image-ready within '
+                  '${timeout.inSeconds}s for ${filterSetting.filterName} '
+                  'frame $frameNum',
+                  timeout,
+                );
+              },
+            );
+          } finally {
+            await eventSubscription.cancel();
+          }
 
           notifier.setExposing(false);
 

@@ -130,6 +130,9 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
                   Expanded(
                     child: _DeviceDashboard(
                       profile: selectedProfile,
+                      onConnectAll: _connectAllDevices,
+                      onEditProfile: (profile) =>
+                          _showProfileEditor(context, profile),
                     ),
                   ),
 
@@ -632,7 +635,22 @@ class _ConnectionStatusSummary extends ConsumerWidget {
 class _DeviceDashboard extends ConsumerWidget {
   final EquipmentProfileModel? profile;
 
-  const _DeviceDashboard({this.profile});
+  /// Invoked when the empty-state primary CTA is pressed. Required so the
+  /// "Connect Devices" button is discoverable directly from the empty state
+  /// itself rather than only from the (potentially collapsed) sidebar.
+  /// See audit §4.6.
+  final void Function(EquipmentProfileModel) onConnectAll;
+
+  /// Invoked when the empty-state secondary CTA is pressed in the
+  /// "no devices assigned" branch. Routes to the profile editor so the user
+  /// can attach equipment without hunting through the sidebar menu.
+  final void Function(EquipmentProfileModel) onEditProfile;
+
+  const _DeviceDashboard({
+    this.profile,
+    required this.onConnectAll,
+    required this.onEditProfile,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -751,6 +769,10 @@ class _DeviceDashboard extends ConsumerWidget {
               (p.weatherId != null && p.weatherId!.isNotEmpty) ||
               (p.coverCalibratorId != null && p.coverCalibratorId!.isNotEmpty);
 
+      // Audit §4.6: surface a primary CTA in the empty state itself.
+      // Previously the copy advised the user to find "Connect All" in the
+      // sidebar — which lives inside the per-profile menu and is undiscoverable
+      // when the sidebar is collapsed.
       if (hasDevicesAssigned) {
         // Profile has devices but none connected
         return Center(
@@ -769,11 +791,18 @@ class _DeviceDashboard extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Use "Connect All" in the sidebar to connect your equipment',
+                'Connect the equipment assigned to this profile.',
                 style: TextStyle(
                   fontSize: 13,
                   color: colors.textSecondary,
                 ),
+              ),
+              const SizedBox(height: 20),
+              NightshadeButton(
+                label: 'Connect Devices',
+                icon: LucideIcons.plug,
+                variant: ButtonVariant.primary,
+                onPressed: () => onConnectAll(p),
               ),
             ],
           ),
@@ -796,11 +825,18 @@ class _DeviceDashboard extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Edit the profile to add devices, or use discovery below',
+                'Add equipment to this profile to begin, or discover devices below.',
                 style: TextStyle(
                   fontSize: 13,
                   color: colors.textSecondary,
                 ),
+              ),
+              const SizedBox(height: 20),
+              NightshadeButton(
+                label: 'Edit Profile',
+                icon: LucideIcons.pencil,
+                variant: ButtonVariant.primary,
+                onPressed: () => onEditProfile(p),
               ),
             ],
           ),

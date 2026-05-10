@@ -3,7 +3,11 @@
 /// Keep this policy in sync with nightshade_core's RemoteApiCompatibility.
 class NightshadeServerCompatibility {
   static const apiVersionHeader = 'x-nightshade-api-version';
-  static const minimumSupportedVersion = ServerSemanticVersion(2, 0, 0);
+  // 2.4.0 is the floor: prior releases lacked the auth/pairing surface and the
+  // `x-nightshade-api-version` handshake this client now relies on. Older
+  // servers will surface a clear `server_too_old` error instead of a confusing
+  // partial connection.
+  static const minimumSupportedVersion = ServerSemanticVersion(2, 4, 0);
   static const serverApiVersion = ServerSemanticVersion(2, 5, 0);
   static const clientApiVersion = serverApiVersion;
 

@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 
-/// Screen for scanning QR codes to connect to Nightshade servers
+/// Screen for scanning QR codes to connect to Nightshade servers.
+///
+/// Pops with one of three results:
+///   * [QrConnectionData] — payload was schema-valid, host was local, and the
+///     operator confirmed the host+fingerprint sheet.
+///   * `null` — operator backed out before a confirmed scan.
+///
+/// Anything that fails validation surfaces as a snackbar inside the scanner
+/// and resumes scanning; the audit specifically calls out that the previous
+/// `startsWith('{')` check was too permissive and let arbitrary JSON through.
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
 
@@ -12,7 +22,11 @@ class QrScannerScreen extends StatefulWidget {
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
   MobileScannerController? _controller;
+  // Two flags so we don't fire detect callbacks while a confirmation sheet is
+  // open; releasing on cancel lets the operator try a different code without
+  // leaving the scanner.
   bool _hasScanned = false;
+  bool _confirming = false;
 
   @override
   void initState() {
@@ -29,21 +43,126 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    if (_hasScanned) return;
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_hasScanned || _confirming) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
+    for (final barcode in capture.barcodes) {
       final value = barcode.rawValue;
-      if (value != null && value.isNotEmpty) {
-        // Check if it looks like valid JSON connection data
-        if (value.startsWith('{') && value.contains('host')) {
-          setState(() => _hasScanned = true);
-          Navigator.of(context).pop(value);
+      if (value == null || value.isEmpty) continue;
+
+      // Mark scanned upfront so a stream of identical detections doesn't queue
+      // multiple confirmation sheets.
+      _hasScanned = true;
+      _confirming = true;
+
+      try {
+        final data = QrConnectionData.parseStrict(value);
+        final confirmed = await _confirmConnection(data);
+        if (!mounted) return;
+        if (confirmed) {
+          Navigator.of(context).pop(data);
           return;
         }
+        // Operator cancelled — let them rescan a different code.
+        _confirming = false;
+        _hasScanned = false;
+        return;
+      } on QrValidationException catch (e) {
+        if (!mounted) return;
+        _confirming = false;
+        _hasScanned = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rejected QR code: ${e.message}'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
       }
     }
+  }
+
+  Future<bool> _confirmConnection(QrConnectionData data) async {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.surface,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Confirm pairing',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 15,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Connect to '),
+                      TextSpan(
+                        text: '${data.host}:${data.webPort}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const TextSpan(
+                        text: '?\n\nServer fingerprint: ',
+                      ),
+                      TextSpan(
+                        text: data.shortFingerprint,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Verify this fingerprint matches the desktop app before continuing.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Connect'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result == true;
   }
 
   @override

@@ -54,6 +54,7 @@ export 'src/models/optical_config.dart';
 export 'src/models/science/science_models.dart';
 
 // Providers
+export 'src/providers/app_version_provider.dart';
 export 'src/providers/database_provider.dart';
 export 'src/providers/equipment_provider.dart';
 export 'src/providers/unified_discovery_provider.dart';
@@ -61,6 +62,7 @@ export 'src/providers/device_backend_selection_provider.dart';
 export 'src/providers/event_provider.dart';
 export 'src/providers/framing_provider.dart' hide MosaicConfig, MosaicPanel;
 export 'src/providers/imaging_provider.dart';
+export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence_stats_provider.dart';
 export 'src/providers/session_provider.dart';

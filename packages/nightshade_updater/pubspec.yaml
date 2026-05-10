@@ -20,6 +20,8 @@ dependencies:
   archive: ^3.4.10
   crypto: ^3.0.3
   cryptography: ^2.7.0
+  nightshade_core:
+    path: ../nightshade_core
   nightshade_ui:
     path: ../nightshade_ui
 

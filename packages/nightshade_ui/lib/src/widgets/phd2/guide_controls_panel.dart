@@ -1,41 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import '../../theme/nightshade_colors.dart';
 
-/// PHD2 guiding state
-enum Phd2GuidingState {
-  disconnected,
-  stopped,
-  looping,
-  calibrating,
-  guiding,
-  paused,
-  settling,
-  lostLock,
-}
-
-extension Phd2GuidingStateExtension on Phd2GuidingState {
-  String get displayName {
-    switch (this) {
-      case Phd2GuidingState.disconnected:
-        return 'Disconnected';
-      case Phd2GuidingState.stopped:
-        return 'Stopped';
-      case Phd2GuidingState.looping:
-        return 'Looping';
-      case Phd2GuidingState.calibrating:
-        return 'Calibrating';
-      case Phd2GuidingState.guiding:
-        return 'Guiding';
-      case Phd2GuidingState.paused:
-        return 'Paused';
-      case Phd2GuidingState.settling:
-        return 'Settling';
-      case Phd2GuidingState.lostLock:
-        return 'Lost Lock';
-    }
-  }
-
+// Phd2GuidingState (and its displayName extension) are owned by nightshade_core.
+// This UI-only extension layers on the icon mapping that's specific to widgets.
+extension Phd2GuidingStateIcon on Phd2GuidingState {
   IconData get icon {
     switch (this) {
       case Phd2GuidingState.disconnected:

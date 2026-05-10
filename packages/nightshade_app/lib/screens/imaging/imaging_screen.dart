@@ -53,13 +53,6 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   bool _isLooping = false;
   bool _isSingleCapture = false;
 
-  // Image view state
-  double _zoomLevel = 1.0;
-  Offset _panOffset = Offset.zero;
-  bool _showCrosshair = true;
-  bool _showGrid = false;
-  bool _showStarOverlay = false;
-
   @override
   void initState() {
     super.initState();
@@ -90,9 +83,13 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     ref.invalidate(annotationBannerDismissedProvider);
   }
 
-  /// On first capture with annotations enabled but no catalogs, show a dialog
-  void _checkFirstUseCatalogPrompt() {
-    final annotationState = ref.watch(annotationStateProvider);
+  /// On first capture with annotations enabled but no catalogs, show a dialog.
+  ///
+  /// Driven by `ref.listen(annotationStateProvider, ...)` in `build`, which
+  /// fires only on actual provider transitions instead of on every rebuild —
+  /// this prevents duplicate dialogs from window-resize storms / hot-reload
+  /// rebuilds (audit §4.3).
+  void _maybeShowFirstUseCatalogPrompt(AnnotationState annotationState) {
     if (annotationState.status != AnnotationStatus.catalogsNotInstalled) return;
 
     // Only show once per session
@@ -100,13 +97,15 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     if (shownThisSession) return;
 
     // Check if the prompt was permanently dismissed
-    final dismissed = ref.read(annotationBannerDismissedProvider).valueOrNull ?? false;
+    final dismissed =
+        ref.read(annotationBannerDismissedProvider).valueOrNull ?? false;
     if (dismissed) return;
 
     // Mark as shown this session immediately to prevent re-triggering
     ref.read(_catalogDialogShownThisSessionProvider.notifier).state = true;
 
-    // Show dialog on next frame to avoid building during build
+    // Defer the dialog so we don't open it inside the listener callback,
+    // which can fire mid-frame when other providers transition.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showFirstUseCatalogDialog();
@@ -296,40 +295,18 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }
 
   // =========================================================================
-  // ZOOM/PAN CONTROLS
+  // ZOOM/PAN CONTROLS — delegates to imagingViewerStateProvider so window
+  // navigation and rebuilds don't reset the user's view (audit §4.10).
   // =========================================================================
 
-  void _zoomIn() {
-    setState(() {
-      _zoomLevel = (_zoomLevel * 1.25).clamp(0.25, 8.0);
-    });
-  }
+  ImagingViewerStateNotifier get _viewer =>
+      ref.read(imagingViewerStateProvider.notifier);
 
-  void _zoomOut() {
-    setState(() {
-      _zoomLevel = (_zoomLevel / 1.25).clamp(0.25, 8.0);
-    });
-  }
-
-  void _fitToWindow() {
-    setState(() {
-      _zoomLevel = 1.0;
-      _panOffset = Offset.zero;
-    });
-  }
-
-  void _zoom1to1() {
-    setState(() {
-      _zoomLevel = 1.0;
-      _panOffset = Offset.zero;
-    });
-  }
-
-  void _panPreview(Offset delta) {
-    setState(() {
-      _panOffset += delta;
-    });
-  }
+  void _zoomIn() => _viewer.zoomIn();
+  void _zoomOut() => _viewer.zoomOut();
+  void _fitToWindow() => _viewer.fitToWindow();
+  void _zoom1to1() => _viewer.zoom1to1();
+  void _panPreview(Offset delta) => _viewer.pan(delta);
 
   @override
   Widget build(BuildContext context) {
@@ -347,8 +324,15 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         catalogInstalled.valueOrNull == false &&
         !(bannerDismissed.valueOrNull ?? false);
 
-    // Listen for first capture with annotations enabled but no catalogs - show dialog once
-    _checkFirstUseCatalogPrompt();
+    // Watch shared viewer state so rebuilds reflect zoom/pan/overlay changes.
+    final viewerState = ref.watch(imagingViewerStateProvider);
+
+    // Replace the previous build-time `_checkFirstUseCatalogPrompt()` call:
+    // ref.listen fires only on actual provider transitions, so resize storms
+    // and hot reloads no longer trigger duplicate dialogs (audit §4.3).
+    ref.listen<AnnotationState>(annotationStateProvider, (prev, next) {
+      _maybeShowFirstUseCatalogPrompt(next);
+    });
 
     return ContextualTourPrompt(
       screenId: 'imaging',
@@ -386,8 +370,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
           // Main content
           Expanded(
             child: Responsive.isMobile(context)
-                ? _buildMobileLayout(colors, selectedPanel)
-                : _buildDesktopLayout(colors, selectedPanel),
+                ? _buildMobileLayout(colors, selectedPanel, viewerState)
+                : _buildDesktopLayout(colors, selectedPanel, viewerState),
           ),
         ],
       ),
@@ -395,7 +379,11 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }
 
   /// Mobile layout: Tabs at bottom, full-width content
-  Widget _buildMobileLayout(NightshadeColors colors, int selectedPanel) {
+  Widget _buildMobileLayout(
+    NightshadeColors colors,
+    int selectedPanel,
+    ImagingViewerState viewerState,
+  ) {
     return Column(
       children: [
         // Live preview area (compact on mobile)
@@ -404,22 +392,20 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
           child: LivePreviewArea(
             key: ImagingTutorialKeys.previewArea,
             colors: colors,
-            zoomLevel: _zoomLevel,
-            panOffset: _panOffset,
-            showCrosshair: _showCrosshair,
-            showGrid: _showGrid,
-            showStarOverlay: _showStarOverlay,
+            zoomLevel: viewerState.zoomLevel,
+            panOffset: viewerState.panOffset,
+            showCrosshair: viewerState.showCrosshair,
+            showGrid: viewerState.showGrid,
+            showStarOverlay: viewerState.showStarOverlay,
             onZoomIn: _zoomIn,
             onZoomOut: _zoomOut,
             onFitToWindow: _fitToWindow,
             onZoom1to1: _zoom1to1,
             onAbortCapture: _abortCapture,
             onPanUpdate: _panPreview,
-            onToggleCrosshair: () =>
-                setState(() => _showCrosshair = !_showCrosshair),
-            onToggleGrid: () => setState(() => _showGrid = !_showGrid),
-            onToggleStarOverlay: () =>
-                setState(() => _showStarOverlay = !_showStarOverlay),
+            onToggleCrosshair: _viewer.toggleCrosshair,
+            onToggleGrid: _viewer.toggleGrid,
+            onToggleStarOverlay: _viewer.toggleStarOverlay,
           ),
         ),
 
@@ -472,7 +458,11 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }
 
   /// Desktop layout: Side panel with tabs, image viewer takes most space
-  Widget _buildDesktopLayout(NightshadeColors colors, int selectedPanel) {
+  Widget _buildDesktopLayout(
+    NightshadeColors colors,
+    int selectedPanel,
+    ImagingViewerState viewerState,
+  ) {
     return Row(
       children: [
         // Main content area (image + controls)
@@ -486,22 +476,20 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 child: LivePreviewArea(
                   key: ImagingTutorialKeys.previewArea,
                   colors: colors,
-                  zoomLevel: _zoomLevel,
-                  panOffset: _panOffset,
-                  showCrosshair: _showCrosshair,
-                  showGrid: _showGrid,
-                  showStarOverlay: _showStarOverlay,
+                  zoomLevel: viewerState.zoomLevel,
+                  panOffset: viewerState.panOffset,
+                  showCrosshair: viewerState.showCrosshair,
+                  showGrid: viewerState.showGrid,
+                  showStarOverlay: viewerState.showStarOverlay,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
                   onFitToWindow: _fitToWindow,
                   onZoom1to1: _zoom1to1,
                   onAbortCapture: _abortCapture,
                   onPanUpdate: _panPreview,
-                  onToggleCrosshair: () =>
-                      setState(() => _showCrosshair = !_showCrosshair),
-                  onToggleGrid: () => setState(() => _showGrid = !_showGrid),
-                  onToggleStarOverlay: () =>
-                      setState(() => _showStarOverlay = !_showStarOverlay),
+                  onToggleCrosshair: _viewer.toggleCrosshair,
+                  onToggleGrid: _viewer.toggleGrid,
+                  onToggleStarOverlay: _viewer.toggleStarOverlay,
                 ),
               ),
 
@@ -725,134 +713,122 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
           );
         }
 
-        // On larger screens, use horizontal layout
+        // On larger screens, use a wrapping grid so Capture / Exposure /
+        // Filter / Display / Stats flow onto a second line when horizontal
+        // space is tight. Replaces the previous SingleChildScrollView, which
+        // silently scrolled the Capture buttons offscreen on narrow desktop
+        // windows (audit §4.9).
+        final wrapSpacing = sectionSpacing;
+        final sections = <Widget>[
+          ControlSection(
+            title: 'Capture',
+            colors: colors,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                BigActionButton(
+                  key: ImagingTutorialKeys.snapshotBtn,
+                  icon: _isSingleCapture
+                      ? LucideIcons.loader2
+                      : LucideIcons.camera,
+                  label: _isSingleCapture ? 'Taking...' : 'Snapshot',
+                  color: colors.primary,
+                  isLoading: _isSingleCapture,
+                  isEnabled: isConnected && !isCapturing,
+                  onPressed: _takeSnapshot,
+                ),
+                const SizedBox(width: 12),
+                BigActionButton(
+                  key: ImagingTutorialKeys.loopBtn,
+                  icon: _isLooping ? LucideIcons.square : LucideIcons.video,
+                  label: _isLooping ? 'Stop' : 'Loop',
+                  color: _isLooping ? colors.error : colors.accent,
+                  isEnabled: isConnected && !_isSingleCapture,
+                  onPressed: _toggleLoop,
+                ),
+              ],
+            ),
+          ),
+          ControlSection(
+            title: 'Exposure',
+            colors: colors,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                EditableCompactInput(
+                  key: ImagingTutorialKeys.exposureSlider,
+                  label: 'Duration',
+                  value: exposureSettings.exposureTime.toStringAsFixed(0),
+                  suffix: 's',
+                  colors: colors,
+                  isMobile: isMobile,
+                  onChanged: (value) {
+                    final parsed = double.tryParse(value);
+                    if (parsed != null && parsed > 0) {
+                      ref.read(exposureSettingsProvider.notifier).state =
+                          exposureSettings.copyWith(exposureTime: parsed);
+                    }
+                  },
+                ),
+                SizedBox(width: isMobile ? 8.0 : 12.0),
+                EditableCompactInput(
+                  key: ImagingTutorialKeys.gainControl,
+                  label: 'Gain',
+                  value: exposureSettings.gain.toString(),
+                  colors: colors,
+                  isMobile: isMobile,
+                  onChanged: (value) {
+                    final parsed = int.tryParse(value);
+                    if (parsed != null && parsed >= 0) {
+                      ref.read(exposureSettingsProvider.notifier).state =
+                          exposureSettings.copyWith(gain: parsed);
+                    }
+                  },
+                ),
+                SizedBox(width: isMobile ? 8.0 : 12.0),
+                EditableCompactInput(
+                  label: 'Offset',
+                  value: exposureSettings.offset.toString(),
+                  colors: colors,
+                  isMobile: isMobile,
+                  onChanged: (value) {
+                    final parsed = int.tryParse(value);
+                    if (parsed != null && parsed >= 0) {
+                      ref.read(exposureSettingsProvider.notifier).state =
+                          exposureSettings.copyWith(offset: parsed);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          ControlSection(
+            title: 'Filter',
+            colors: colors,
+            child: FilterWheelSelector(
+              key: ImagingTutorialKeys.filterSelector,
+              style: FilterSelectorStyle.buttons,
+              compact: isMobile,
+            ),
+          ),
+          ControlSection(
+            title: 'Display',
+            colors: colors,
+            child: const StretchControls(compact: true),
+          ),
+          if (!isMobile)
+            // Quick stats with live data (hide on mobile to save space)
+            QuickStatsPanel(colors: colors),
+        ];
+
         return Padding(
           padding: EdgeInsets.symmetric(
               horizontal: horizontalPadding, vertical: verticalPadding),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Capture controls
-                ControlSection(
-                  title: 'Capture',
-                  colors: colors,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      BigActionButton(
-                        key: ImagingTutorialKeys.snapshotBtn,
-                        icon: _isSingleCapture
-                            ? LucideIcons.loader2
-                            : LucideIcons.camera,
-                        label: _isSingleCapture ? 'Taking...' : 'Snapshot',
-                        color: colors.primary,
-                        isLoading: _isSingleCapture,
-                        isEnabled: isConnected && !isCapturing,
-                        onPressed: _takeSnapshot,
-                      ),
-                      const SizedBox(width: 12),
-                      BigActionButton(
-                        key: ImagingTutorialKeys.loopBtn,
-                        icon:
-                            _isLooping ? LucideIcons.square : LucideIcons.video,
-                        label: _isLooping ? 'Stop' : 'Loop',
-                        color: _isLooping ? colors.error : colors.accent,
-                        isEnabled: isConnected && !_isSingleCapture,
-                        onPressed: _toggleLoop,
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(width: sectionSpacing),
-
-                // Exposure settings
-                ControlSection(
-                  title: 'Exposure',
-                  colors: colors,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      EditableCompactInput(
-                        key: ImagingTutorialKeys.exposureSlider,
-                        label: 'Duration',
-                        value: exposureSettings.exposureTime.toStringAsFixed(0),
-                        suffix: 's',
-                        colors: colors,
-                        isMobile: isMobile,
-                        onChanged: (value) {
-                          final parsed = double.tryParse(value);
-                          if (parsed != null && parsed > 0) {
-                            ref.read(exposureSettingsProvider.notifier).state =
-                                exposureSettings.copyWith(exposureTime: parsed);
-                          }
-                        },
-                      ),
-                      SizedBox(width: isMobile ? 8.0 : 12.0),
-                      EditableCompactInput(
-                        key: ImagingTutorialKeys.gainControl,
-                        label: 'Gain',
-                        value: exposureSettings.gain.toString(),
-                        colors: colors,
-                        isMobile: isMobile,
-                        onChanged: (value) {
-                          final parsed = int.tryParse(value);
-                          if (parsed != null && parsed >= 0) {
-                            ref.read(exposureSettingsProvider.notifier).state =
-                                exposureSettings.copyWith(gain: parsed);
-                          }
-                        },
-                      ),
-                      SizedBox(width: isMobile ? 8.0 : 12.0),
-                      EditableCompactInput(
-                        label: 'Offset',
-                        value: exposureSettings.offset.toString(),
-                        colors: colors,
-                        isMobile: isMobile,
-                        onChanged: (value) {
-                          final parsed = int.tryParse(value);
-                          if (parsed != null && parsed >= 0) {
-                            ref.read(exposureSettingsProvider.notifier).state =
-                                exposureSettings.copyWith(offset: parsed);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(width: sectionSpacing),
-
-                // Filter selection
-                ControlSection(
-                  title: 'Filter',
-                  colors: colors,
-                  child: FilterWheelSelector(
-                    key: ImagingTutorialKeys.filterSelector,
-                    style: FilterSelectorStyle.buttons,
-                    compact: isMobile,
-                  ),
-                ),
-
-                SizedBox(width: sectionSpacing),
-
-                // Stretch controls
-                ControlSection(
-                  title: 'Display',
-                  colors: colors,
-                  child: const StretchControls(compact: true),
-                ),
-
-                if (!isMobile) ...[
-                  SizedBox(width: sectionSpacing),
-                  // Quick stats with live data (hide on mobile to save space)
-                  QuickStatsPanel(colors: colors),
-                ],
-              ],
-            ),
+          child: Wrap(
+            spacing: wrapSpacing,
+            runSpacing: wrapSpacing,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            children: sections,
           ),
         );
       },

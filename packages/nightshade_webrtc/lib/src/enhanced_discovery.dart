@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nsd/nsd.dart';
@@ -9,7 +11,13 @@ import 'package:nsd/nsd.dart';
 import 'discovery.dart';
 import 'server_compatibility.dart';
 
-/// SharedPreferences keys for server persistence
+/// SharedPreferences keys for server persistence.
+///
+/// The auth-token key has been split: [lastServerAuthToken] is the legacy
+/// plaintext SharedPreferences slot we read once on first launch and then
+/// purge. The live token now lives in [_secureAuthTokenKey] inside
+/// flutter_secure_storage (Keychain on iOS, EncryptedSharedPreferences on
+/// Android, libsecret/DPAPI on desktop).
 class _DiscoveryPrefs {
   static const lastServerHost = 'nightshade_last_server_host';
   static const lastServerPort = 'nightshade_last_server_port';
@@ -22,16 +30,93 @@ class _DiscoveryPrefs {
   static const lastServerAuthMode = 'nightshade_last_server_auth_mode';
   static const lastServerPairingSupported =
       'nightshade_last_server_pairing_supported';
+  // Legacy plaintext slot. Reads only — never written. Cleared after migration.
   static const lastServerAuthToken = 'nightshade_last_server_auth_token';
+  // Set once after the legacy plaintext token has been read into secure
+  // storage so we don't keep poking SharedPreferences on every load.
+  static const authTokenMigrated = 'nightshade_auth_token_migrated_v1';
 }
 
-/// QR code connection data format
+const String _secureAuthTokenKey = 'nightshade_last_server_auth_token';
+
+const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+  // iOS: token survives reinstall but is bound to passcode/biometrics so a
+  // jailbroken or backed-up device cannot exfiltrate it without unlock.
+  iOptions: IOSOptions(
+    accessibility: KeychainAccessibility.first_unlock_this_device,
+  ),
+  // Android: EncryptedSharedPreferences with hardware-backed keys when
+  // available.
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
+
+/// One-shot migration: lift any plaintext token sitting in SharedPreferences
+/// into secure storage and wipe the original. Idempotent — guarded by
+/// [_DiscoveryPrefs.authTokenMigrated].
+Future<void> _migrateAuthTokenIfNeeded(SharedPreferences prefs) async {
+  if (prefs.getBool(_DiscoveryPrefs.authTokenMigrated) == true) return;
+  final legacy = prefs.getString(_DiscoveryPrefs.lastServerAuthToken);
+  if (legacy != null && legacy.isNotEmpty) {
+    // Don't clobber an existing secure value — if both somehow exist, the
+    // secure one wins (it was the result of an explicit save).
+    final existing = await _secureStorage.read(key: _secureAuthTokenKey);
+    if (existing == null || existing.isEmpty) {
+      await _secureStorage.write(key: _secureAuthTokenKey, value: legacy);
+    }
+  }
+  await prefs.remove(_DiscoveryPrefs.lastServerAuthToken);
+  await prefs.setBool(_DiscoveryPrefs.authTokenMigrated, true);
+  developer.log(
+    'Migrated auth token from SharedPreferences to secure storage',
+    name: 'EnhancedDiscovery',
+  );
+}
+
+/// Service discriminator embedded in every Nightshade pairing QR.
+/// Mobile clients reject any payload whose `service` field does not match this
+/// constant — the QR scanner must refuse arbitrary JSON-shaped blobs.
+const String kQrServiceMarker = 'nightshade';
+
+/// Reasons a QR payload can be rejected. Surfaced to the UI so operators see
+/// *why* the scan failed instead of a generic "invalid QR".
+enum QrRejectionReason {
+  notJson,
+  missingService,
+  wrongService,
+  missingHost,
+  invalidHost,
+  hostNotLocal,
+  missingPort,
+  invalidPort,
+  missingVersion,
+  invalidVersion,
+  missingFingerprint,
+  invalidFingerprint,
+}
+
+class QrValidationException implements Exception {
+  final QrRejectionReason reason;
+  final String message;
+  const QrValidationException(this.reason, this.message);
+
+  @override
+  String toString() => 'QrValidationException(${reason.name}): $message';
+}
+
+/// QR code connection data format.
+///
+/// `service`, `host`, `port`, `version`, and `fingerprint` are mandatory and
+/// validated by [QrConnectionData.parseStrict]. The remaining fields are
+/// optional metadata that survives round-tripping but is not part of the
+/// trust-establishment contract.
 class QrConnectionData {
+  final String service;
   final String host;
   final int webPort;
   final int signalingPort;
+  final String version;
+  final String fingerprint;
   final String? serverName;
-  final String? version;
   final String mode;
   final bool authRequired;
   final String authenticationMode;
@@ -39,11 +124,13 @@ class QrConnectionData {
   final String? authToken;
 
   QrConnectionData({
+    this.service = kQrServiceMarker,
     required this.host,
     required this.webPort,
-    required this.signalingPort,
+    required this.version,
+    required this.fingerprint,
+    this.signalingPort = 45678,
     this.serverName,
-    this.version,
     this.mode = 'desktop',
     this.authRequired = false,
     this.authenticationMode = 'none',
@@ -51,27 +138,18 @@ class QrConnectionData {
     this.authToken,
   });
 
-  factory QrConnectionData.fromJson(Map<String, dynamic> json) {
-    return QrConnectionData(
-      host: json['host'] as String,
-      webPort: json['webPort'] as int,
-      signalingPort: json['signalingPort'] as int? ?? 45678,
-      serverName: json['name'] as String?,
-      version: json['version'] as String?,
-      mode: json['mode'] as String? ?? 'desktop',
-      authRequired: json['authRequired'] as bool? ?? false,
-      authenticationMode: json['authenticationMode'] as String? ?? 'none',
-      pairingSupported: json['pairingSupported'] as bool? ?? false,
-      authToken: json['authToken'] as String?,
-    );
-  }
+  /// Short hash for confirmation UI (first 16 chars of the fingerprint).
+  String get shortFingerprint =>
+      fingerprint.length <= 16 ? fingerprint : fingerprint.substring(0, 16);
 
   Map<String, dynamic> toJson() => {
+        'service': service,
         'host': host,
-        'webPort': webPort,
+        'port': webPort,
         'signalingPort': signalingPort,
+        'version': version,
+        'fingerprint': fingerprint,
         if (serverName != null) 'name': serverName,
-        if (version != null) 'version': version,
         'mode': mode,
         'authRequired': authRequired,
         'authenticationMode': authenticationMode,
@@ -81,13 +159,138 @@ class QrConnectionData {
 
   String toQrString() => jsonEncode(toJson());
 
-  static QrConnectionData? fromQrString(String data) {
+  /// Strict parser. Throws [QrValidationException] on any schema violation —
+  /// the audit calls out that lenient parsing was the bug. Callers are
+  /// expected to surface the reason to the operator.
+  static QrConnectionData parseStrict(String data) {
+    final dynamic decoded;
     try {
-      final json = jsonDecode(data) as Map<String, dynamic>;
-      return QrConnectionData.fromJson(json);
-    } catch (e) {
-      return null;
+      decoded = jsonDecode(data);
+    } catch (_) {
+      throw const QrValidationException(
+        QrRejectionReason.notJson,
+        'QR payload is not valid JSON.',
+      );
     }
+    if (decoded is! Map<String, dynamic>) {
+      throw const QrValidationException(
+        QrRejectionReason.notJson,
+        'QR payload is not a JSON object.',
+      );
+    }
+
+    final service = decoded['service'];
+    if (service == null) {
+      throw const QrValidationException(
+        QrRejectionReason.missingService,
+        'QR payload is missing the "service" discriminator.',
+      );
+    }
+    if (service is! String || service != kQrServiceMarker) {
+      throw const QrValidationException(
+        QrRejectionReason.wrongService,
+        'QR payload is not a Nightshade pairing code.',
+      );
+    }
+
+    final host = decoded['host'];
+    if (host == null) {
+      throw const QrValidationException(
+        QrRejectionReason.missingHost,
+        'QR payload is missing "host".',
+      );
+    }
+    if (host is! String || host.isEmpty) {
+      throw const QrValidationException(
+        QrRejectionReason.invalidHost,
+        'QR payload "host" is not a non-empty string.',
+      );
+    }
+    if (!isLocalNetworkHost(host)) {
+      throw QrValidationException(
+        QrRejectionReason.hostNotLocal,
+        'QR payload "$host" is not on a local/private network.',
+      );
+    }
+
+    final port = decoded['port'];
+    if (port == null) {
+      throw const QrValidationException(
+        QrRejectionReason.missingPort,
+        'QR payload is missing "port".',
+      );
+    }
+    if (port is! int || port <= 0 || port > 65535) {
+      throw const QrValidationException(
+        QrRejectionReason.invalidPort,
+        'QR payload "port" is not a valid TCP port.',
+      );
+    }
+
+    final version = decoded['version'];
+    if (version == null) {
+      throw const QrValidationException(
+        QrRejectionReason.missingVersion,
+        'QR payload is missing "version".',
+      );
+    }
+    if (version is! String || version.isEmpty) {
+      throw const QrValidationException(
+        QrRejectionReason.invalidVersion,
+        'QR payload "version" is not a non-empty string.',
+      );
+    }
+
+    final fingerprint = decoded['fingerprint'];
+    if (fingerprint == null) {
+      throw const QrValidationException(
+        QrRejectionReason.missingFingerprint,
+        'QR payload is missing "fingerprint".',
+      );
+    }
+    if (fingerprint is! String || fingerprint.length < 8) {
+      throw const QrValidationException(
+        QrRejectionReason.invalidFingerprint,
+        'QR payload "fingerprint" is not at least 8 characters.',
+      );
+    }
+
+    final signalingPort = decoded['signalingPort'];
+    final int parsedSignalingPort;
+    if (signalingPort == null) {
+      parsedSignalingPort = 45678;
+    } else if (signalingPort is int &&
+        signalingPort > 0 &&
+        signalingPort <= 65535) {
+      parsedSignalingPort = signalingPort;
+    } else {
+      throw const QrValidationException(
+        QrRejectionReason.invalidPort,
+        'QR payload "signalingPort" is not a valid TCP port.',
+      );
+    }
+
+    return QrConnectionData(
+      service: service,
+      host: host,
+      webPort: port,
+      signalingPort: parsedSignalingPort,
+      version: version,
+      fingerprint: fingerprint,
+      serverName: decoded['name'] is String ? decoded['name'] as String : null,
+      mode: decoded['mode'] is String ? decoded['mode'] as String : 'desktop',
+      authRequired: decoded['authRequired'] is bool
+          ? decoded['authRequired'] as bool
+          : false,
+      authenticationMode: decoded['authenticationMode'] is String
+          ? decoded['authenticationMode'] as String
+          : 'none',
+      pairingSupported: decoded['pairingSupported'] is bool
+          ? decoded['pairingSupported'] as bool
+          : false,
+      authToken:
+          decoded['authToken'] is String ? decoded['authToken'] as String : null,
+    );
   }
 
   DiscoveredServer toDiscoveredServer() => DiscoveredServer(
@@ -95,7 +298,7 @@ class QrConnectionData {
         webPort: webPort,
         signalingPort: signalingPort,
         name: serverName ?? 'Nightshade',
-        version: version ?? '2.0.0',
+        version: version,
         mode: mode,
         authRequired: authRequired,
         authenticationMode: authenticationMode,
@@ -104,14 +307,85 @@ class QrConnectionData {
       );
 }
 
+/// Returns `true` iff [host] is in an RFC1918 / link-local / loopback / IPv6
+/// link-local range, or is an `.local` mDNS name. Public-Internet hosts in a
+/// pairing QR almost certainly mean the QR was tampered with.
+bool isLocalNetworkHost(String host) {
+  if (host.isEmpty) return false;
+  final lower = host.toLowerCase();
+
+  // mDNS / Bonjour names. `localhost` covered by the IPv4 path below too.
+  if (lower == 'localhost' || lower.endsWith('.local')) return true;
+
+  // IPv6: strip optional brackets and zone-id suffix (e.g. `fe80::1%eth0`).
+  var candidate = lower;
+  if (candidate.startsWith('[') && candidate.endsWith(']')) {
+    candidate = candidate.substring(1, candidate.length - 1);
+  }
+  final zoneIdx = candidate.indexOf('%');
+  if (zoneIdx >= 0) {
+    candidate = candidate.substring(0, zoneIdx);
+  }
+
+  final ipv4 = _parseIpv4(candidate);
+  if (ipv4 != null) {
+    final a = ipv4[0];
+    final b = ipv4[1];
+    // 10.0.0.0/8
+    if (a == 10) return true;
+    // 172.16.0.0/12
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    // 192.168.0.0/16
+    if (a == 192 && b == 168) return true;
+    // 127.0.0.0/8 (loopback)
+    if (a == 127) return true;
+    // 169.254.0.0/16 (link-local)
+    if (a == 169 && b == 254) return true;
+    return false;
+  }
+
+  // IPv6 loopback `::1` and link-local `fe80::/10`. We don't fully parse
+  // arbitrary IPv6 forms here — InternetAddress.tryParse is the cheap canon.
+  final parsed = InternetAddress.tryParse(candidate);
+  if (parsed != null && parsed.type == InternetAddressType.IPv6) {
+    if (parsed.isLoopback) return true;
+    final raw = parsed.rawAddress;
+    if (raw.length >= 2) {
+      // fe80::/10 → first byte 0xFE, top two bits of second byte 0b10xxxxxx.
+      if (raw[0] == 0xFE && (raw[1] & 0xC0) == 0x80) return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
+List<int>? _parseIpv4(String value) {
+  final parts = value.split('.');
+  if (parts.length != 4) return null;
+  final out = <int>[];
+  for (final part in parts) {
+    if (part.isEmpty) return null;
+    final n = int.tryParse(part);
+    if (n == null || n < 0 || n > 255) return null;
+    out.add(n);
+  }
+  return out;
+}
+
 /// Discovery status callback type
 typedef DiscoveryStatusCallback = void Function(String status);
 
 /// Enhanced discovery service with multiple fallback methods
 class EnhancedNightshadeDiscovery {
-  /// Save successful connection for future reconnects
+  /// Save successful connection for future reconnects.
+  ///
+  /// Host/port/version metadata stays in SharedPreferences — none of it is
+  /// secret and reading it on the cold path doesn't need a Keychain unlock.
+  /// The bearer token is written exclusively to secure storage.
   static Future<void> saveLastServer(DiscoveredServer server) async {
     final prefs = await SharedPreferences.getInstance();
+    await _migrateAuthTokenIfNeeded(prefs);
     await prefs.setString(_DiscoveryPrefs.lastServerHost, server.host);
     await prefs.setInt(_DiscoveryPrefs.lastServerPort, server.webPort);
     await prefs.setInt(
@@ -126,24 +400,28 @@ class EnhancedNightshadeDiscovery {
     await prefs.setBool(
         _DiscoveryPrefs.lastServerPairingSupported, server.pairingSupported);
     if (server.authToken != null && server.authToken!.isNotEmpty) {
-      await prefs.setString(
-          _DiscoveryPrefs.lastServerAuthToken, server.authToken!);
+      await _secureStorage.write(
+          key: _secureAuthTokenKey, value: server.authToken);
     } else {
-      await prefs.remove(_DiscoveryPrefs.lastServerAuthToken);
+      await _secureStorage.delete(key: _secureAuthTokenKey);
     }
     developer.log('Saved server: ${server.name} at ${server.host}',
         name: 'EnhancedDiscovery');
   }
 
-  /// Load last server from preferences
+  /// Load last server from preferences. Migrates the auth token out of
+  /// plaintext SharedPreferences on first call.
   static Future<DiscoveredServer?> loadLastServer() async {
     final prefs = await SharedPreferences.getInstance();
+    await _migrateAuthTokenIfNeeded(prefs);
     final host = prefs.getString(_DiscoveryPrefs.lastServerHost);
     final port = prefs.getInt(_DiscoveryPrefs.lastServerPort);
 
     if (host == null || port == null) {
       return null;
     }
+
+    final authToken = await _secureStorage.read(key: _secureAuthTokenKey);
 
     return DiscoveredServer(
       host: host,
@@ -159,11 +437,11 @@ class EnhancedNightshadeDiscovery {
           prefs.getString(_DiscoveryPrefs.lastServerAuthMode) ?? 'none',
       pairingSupported:
           prefs.getBool(_DiscoveryPrefs.lastServerPairingSupported) ?? false,
-      authToken: prefs.getString(_DiscoveryPrefs.lastServerAuthToken),
+      authToken: (authToken != null && authToken.isNotEmpty) ? authToken : null,
     );
   }
 
-  /// Clear saved server
+  /// Clear saved server (and wipe the secure-storage token).
   static Future<void> clearLastServer() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_DiscoveryPrefs.lastServerHost);
@@ -175,7 +453,10 @@ class EnhancedNightshadeDiscovery {
     await prefs.remove(_DiscoveryPrefs.lastServerAuthRequired);
     await prefs.remove(_DiscoveryPrefs.lastServerAuthMode);
     await prefs.remove(_DiscoveryPrefs.lastServerPairingSupported);
+    // Legacy slot — should already be empty post-migration but flush anyway
+    // in case the user wiped storage out from under us.
     await prefs.remove(_DiscoveryPrefs.lastServerAuthToken);
+    await _secureStorage.delete(key: _secureAuthTokenKey);
     developer.log('Cleared saved server', name: 'EnhancedDiscovery');
   }
 
@@ -457,11 +738,13 @@ class EnhancedNightshadeDiscovery {
     return NightshadeDiscovery.discoverServers(timeout: timeout);
   }
 
-  /// Parse QR code data into connection info
-  static DiscoveredServer? parseQrCode(String qrData) {
-    final data = QrConnectionData.fromQrString(qrData);
-    return data?.toDiscoveredServer();
-  }
+  /// Parse QR code data into connection info.
+  ///
+  /// Returns the validated [QrConnectionData] (NOT a [DiscoveredServer]) so
+  /// callers can show a confirmation sheet with host + fingerprint *before*
+  /// any network call. Throws [QrValidationException] on schema violation.
+  static QrConnectionData parseQrCodeStrict(String qrData) =>
+      QrConnectionData.parseStrict(qrData);
 
   /// Full discovery flow with cascading fallbacks
   /// Order: Last server (2s) → mDNS (3s) → UDP broadcast (3s) → null
@@ -511,13 +794,17 @@ class EnhancedNightshadeDiscovery {
     return null;
   }
 
-  /// Generate QR code data string for a server
+  /// Generate QR code data string for a server.
+  ///
+  /// `version` and `fingerprint` are mandatory — the mobile scanner refuses
+  /// payloads without them (see §3.1 of the v2.5.0 audit).
   static String generateQrData({
     required String host,
     required int webPort,
+    required String version,
+    required String fingerprint,
     int signalingPort = 45678,
     String? serverName,
-    String? version,
     String mode = 'desktop',
     bool authRequired = false,
     String authenticationMode = 'none',
@@ -528,8 +815,9 @@ class EnhancedNightshadeDiscovery {
       host: host,
       webPort: webPort,
       signalingPort: signalingPort,
-      serverName: serverName,
       version: version,
+      fingerprint: fingerprint,
+      serverName: serverName,
       mode: mode,
       authRequired: authRequired,
       authenticationMode: authenticationMode,

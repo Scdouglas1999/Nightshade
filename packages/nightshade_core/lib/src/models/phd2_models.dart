@@ -4,10 +4,12 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'phd2_models.freezed.dart';
 part 'phd2_models.g.dart';
 
-/// PHD2 guiding state
+/// PHD2 guiding state — canonical home for the guiding-screen state machine.
+/// `stopped` matches `Phd2State.stopped` from the FRB bridge: connected to PHD2
+/// but not actively looping/calibrating/guiding.
 enum Phd2GuidingState {
   disconnected,
-  connected,
+  stopped,
   calibrating,
   guiding,
   looping,
@@ -22,8 +24,8 @@ extension Phd2GuidingStateExtension on Phd2GuidingState {
     switch (this) {
       case Phd2GuidingState.disconnected:
         return 'Disconnected';
-      case Phd2GuidingState.connected:
-        return 'Connected';
+      case Phd2GuidingState.stopped:
+        return 'Stopped';
       case Phd2GuidingState.calibrating:
         return 'Calibrating';
       case Phd2GuidingState.guiding:

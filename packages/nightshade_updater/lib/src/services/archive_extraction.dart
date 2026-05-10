@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as path;
 
 class UnsafeArchiveEntryException implements Exception {
@@ -13,10 +14,22 @@ class UnsafeArchiveEntryException implements Exception {
   String toString() => 'Unsafe archive entry "$entryName": $reason';
 }
 
+/// Stream-extract `zipFile` into `destination`.
+///
+/// Why streaming: a release ZIP is up to ~256 MiB; calling
+/// `zipFile.readAsBytes()` would load the entire archive into the Dart
+/// heap, OOM'ing on low-RAM imaging laptops (§7A.8). Instead we read
+/// the central directory off disk via [InputFileStream] and write each
+/// entry through [OutputFileStream] so neither input nor output ever
+/// fully materialises in memory.
 Future<void> extractZipSafely(File zipFile, Directory destination) async {
-  final bytes = await zipFile.readAsBytes();
-  final archive = ZipDecoder().decodeBytes(bytes);
-  await extractArchiveSafely(archive, destination);
+  final input = InputFileStream(zipFile.path);
+  try {
+    final archive = ZipDecoder().decodeBuffer(input);
+    await extractArchiveSafely(archive, destination);
+  } finally {
+    await input.close();
+  }
 }
 
 Future<void> extractArchiveSafely(
@@ -38,7 +51,14 @@ Future<void> extractArchiveSafely(
       if (await outputFile.exists()) {
         await _assertInsideDestination(destinationRoot, outputFile);
       }
-      await outputFile.writeAsBytes(entry.content as List<int>);
+      // Stream entry content directly to disk via OutputFileStream so a
+      // multi-hundred-megabyte file never lands in the Dart heap.
+      final output = OutputFileStream(outputPath);
+      try {
+        entry.writeContent(output);
+      } finally {
+        await output.close();
+      }
     } else {
       final outputDirectory = Directory(outputPath);
       await outputDirectory.create(recursive: true);

@@ -29,6 +29,137 @@ class OpticalTrainDiagnostics {
   });
 
   bool get hasIssues => issues.isNotEmpty;
+
+  /// Single source of truth for the A/B/C/D/F grade derived from this run.
+  OpticalHealthScore get healthScore => OpticalHealthScore.fromDiagnostics(this);
+}
+
+/// Letter grade buckets shared by the diagnostics screen and any analytics
+/// surface that needs to summarise optical-train quality. Defined here so two
+/// views never disagree about whether an 80/100 score is a "B" or a "C".
+enum OpticalHealthGrade { a, b, c, d, f }
+
+extension OpticalHealthGradeLabel on OpticalHealthGrade {
+  String get letter {
+    switch (this) {
+      case OpticalHealthGrade.a:
+        return 'A';
+      case OpticalHealthGrade.b:
+        return 'B';
+      case OpticalHealthGrade.c:
+        return 'C';
+      case OpticalHealthGrade.d:
+        return 'D';
+      case OpticalHealthGrade.f:
+        return 'F';
+    }
+  }
+
+  String get qualityLabel {
+    switch (this) {
+      case OpticalHealthGrade.a:
+        return 'Excellent';
+      case OpticalHealthGrade.b:
+        return 'Good';
+      case OpticalHealthGrade.c:
+        return 'Fair';
+      case OpticalHealthGrade.d:
+        return 'Poor';
+      case OpticalHealthGrade.f:
+        return 'Critical';
+    }
+  }
+}
+
+/// Shared optical-train health summary. Centralises the score → grade mapping
+/// AND the per-axis severity thresholds so the diagnostics letter grade and
+/// the per-card severity chips never drift apart. `tiltScore` and
+/// `collimationScore` are penalties (lower is better, 0..100).
+class OpticalHealthScore {
+  final double tiltScore;
+  final double collimationScore;
+  final double overallScore;
+  final OpticalHealthGrade grade;
+  final OpticalIssueSeverity tiltSeverity;
+  final OpticalIssueSeverity collimationSeverity;
+
+  // Penalty thresholds per axis. Kept here (not inlined in widgets) so the
+  // diagnostics cards, KPI strips, and any future analytics view all bucket
+  // identical raw numbers into identical ratings.
+  static const double tiltWarnThreshold = 18.0;
+  static const double tiltCriticalThreshold = 30.0;
+  static const double collimationWarnThreshold = 15.0;
+  static const double collimationCriticalThreshold = 25.0;
+
+  // Letter-grade bands on the inverted overall score (higher is better).
+  static const double aThreshold = 90.0;
+  static const double bThreshold = 75.0;
+  static const double cThreshold = 55.0;
+  static const double dThreshold = 35.0;
+
+  const OpticalHealthScore._({
+    required this.tiltScore,
+    required this.collimationScore,
+    required this.overallScore,
+    required this.grade,
+    required this.tiltSeverity,
+    required this.collimationSeverity,
+  });
+
+  factory OpticalHealthScore.fromDiagnostics(OpticalTrainDiagnostics d) {
+    return OpticalHealthScore.fromScores(
+      tiltScore: d.tiltScore,
+      collimationScore: d.collimationScore,
+    );
+  }
+
+  factory OpticalHealthScore.fromScores({
+    required double tiltScore,
+    required double collimationScore,
+  }) {
+    final tiltPenalty = tiltScore.clamp(0.0, 100.0);
+    final collPenalty = collimationScore.clamp(0.0, 100.0);
+    // Equal-weight blend: tilt and spacing both contribute to field shape.
+    final overall =
+        (100.0 - (tiltPenalty * 0.5 + collPenalty * 0.5)).clamp(0.0, 100.0);
+    return OpticalHealthScore._(
+      tiltScore: tiltPenalty,
+      collimationScore: collPenalty,
+      overallScore: overall,
+      grade: _gradeForOverall(overall),
+      tiltSeverity: _severityFor(
+        tiltPenalty,
+        warnAt: tiltWarnThreshold,
+        criticalAt: tiltCriticalThreshold,
+      ),
+      collimationSeverity: _severityFor(
+        collPenalty,
+        warnAt: collimationWarnThreshold,
+        criticalAt: collimationCriticalThreshold,
+      ),
+    );
+  }
+
+  String get letterGrade => grade.letter;
+  String get qualityLabel => grade.qualityLabel;
+
+  static OpticalHealthGrade _gradeForOverall(double score) {
+    if (score >= aThreshold) return OpticalHealthGrade.a;
+    if (score >= bThreshold) return OpticalHealthGrade.b;
+    if (score >= cThreshold) return OpticalHealthGrade.c;
+    if (score >= dThreshold) return OpticalHealthGrade.d;
+    return OpticalHealthGrade.f;
+  }
+
+  static OpticalIssueSeverity _severityFor(
+    double penalty, {
+    required double warnAt,
+    required double criticalAt,
+  }) {
+    if (penalty >= criticalAt) return OpticalIssueSeverity.critical;
+    if (penalty >= warnAt) return OpticalIssueSeverity.warning;
+    return OpticalIssueSeverity.info;
+  }
 }
 
 /// Converts science PSF and residual maps into imaging-train guidance.

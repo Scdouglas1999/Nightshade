@@ -15,10 +15,16 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'headless_api/auth/cors_policy.dart';
+import 'headless_api/auth/pairing_attempt_tracker.dart';
+import 'headless_api/auth/pairing_service.dart';
+import 'headless_api/auth/token_resolver.dart';
+import 'headless_api/auth/ws_ticket_manager.dart';
 import 'headless_api/auth_policy.dart';
 import 'headless_api/handlers.dart';
 import 'headless_api/response_helpers.dart';
 import 'headless_api/route_metadata.dart' as route_metadata;
+import 'headless_api/validation.dart';
 
 /// Headless API server using Shelf router with modular handlers
 class HeadlessApiServer {
@@ -45,6 +51,13 @@ class HeadlessApiServer {
   final Duration webSocketHeartbeatInterval;
   final Duration webSocketHeartbeatTimeout;
 
+  /// Extra browser/origin values allowed to issue cross-origin requests
+  /// (beyond same-origin to the bound host:port). Pass as e.g.
+  /// `['http://192.168.1.50:3000']`. Why explicit list: the previous policy
+  /// reflected any origin matching host:port, which let any local-loopback
+  /// app bypass CORS. See §2.27 in 2026-05-09-v250-audit-fixes.md.
+  final List<String> corsAllowedOrigins;
+
   HttpServer? _server;
   final List<WebSocketChannel> _sockets = [];
   final Map<WebSocketChannel, String> _socketViewerIds = {};
@@ -61,6 +74,16 @@ class HeadlessApiServer {
   /// The effective auth token (either provided or generated)
   late final String? _effectiveAuthToken;
   late final Map<String, HeadlessTokenScope> _effectiveAuthTokensByValue;
+  late final TokenResolver _tokenResolver;
+  late final CorsAllowList _corsAllowList;
+  late final WsTicketManager _wsTicketManager;
+  late final PairingAttemptTracker _pairingAttempts;
+  PairingService? _pairingService;
+  // Tokens minted by completed pairing flows that grant admin scope. Why
+  // separate from the configured token table: pairing tokens are persisted
+  // in the PairingDatabase (Drift), and we want to honour them without
+  // mutating the immutable map of configured tokens.
+  final Map<String, HeadlessTokenScope> _pairedSessionTokens = {};
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -125,7 +148,10 @@ class HeadlessApiServer {
     this.scopedAuthTokens = const {},
     this.webSocketHeartbeatInterval = const Duration(seconds: 30),
     this.webSocketHeartbeatTimeout = const Duration(seconds: 90),
+    this.corsAllowedOrigins = const [],
+    PairingService? pairingService,
   }) {
+    _pairingService = pairingService;
     final tokensByValue = <String, HeadlessTokenScope>{};
 
     // Determine effective auth token
@@ -151,6 +177,16 @@ class HeadlessApiServer {
       }
     }
     _effectiveAuthTokensByValue = Map.unmodifiable(tokensByValue);
+    // Why: the resolver iterates the entire token map every lookup with
+    // constant-time comparison. The map captured here is the union of the
+    // configured static tokens; paired-session tokens are checked alongside
+    // via [_pairedSessionTokens] (also constant-time) when present.
+    _tokenResolver = TokenResolver(tokensByValue: _effectiveAuthTokensByValue);
+    _corsAllowList = CorsAllowList.fromConfig(
+      additionalOrigins: corsAllowedOrigins,
+    );
+    _wsTicketManager = WsTicketManager();
+    _pairingAttempts = PairingAttemptTracker();
 
     // Initialize handler instances
     _deviceHandlers = DeviceHandlers(container);
@@ -196,6 +232,15 @@ class HeadlessApiServer {
     router.get('/api/status', _handleStatus);
     router.get('/api/self-test', _handleSelfTest);
     router.get('/api/openapi.json', _handleOpenApiSpec);
+
+    // Pairing flow (web dashboard first-run UX). See §2.1 in
+    // 2026-05-09-v250-audit-fixes.md.
+    router.post('/api/pairing/start', _handlePairingStart);
+    router.post('/api/pairing/verify', _handlePairingVerify);
+
+    // WebSocket auth ticket (§2.28). Issues a one-shot ticket so browsers
+    // don't have to leak the bearer token via WS query parameters.
+    router.post('/api/ws/ticket', _handleWsTicketIssue);
     router.get('/api/collaboration/state', _handleCollaborationState);
     router.post('/api/collaboration/viewers/join', _handleCollaborationJoin);
     router.post('/api/collaboration/viewers/leave', _handleCollaborationLeave);
@@ -775,8 +820,17 @@ class HeadlessApiServer {
     router.get('/dashboard/', _handleDashboardIndex);
     router.get('/dashboard/<path|.*>', _handleDashboardFile);
 
-    final handler = const Pipeline()
+    final handler = Pipeline()
         .addMiddleware(_requestTrackingMiddleware())
+        // Why placement: error translation must wrap downstream so
+        // BadRequestError thrown anywhere lower becomes a structured 400.
+        // It must be _outside_ auth/CORS so 4xx auth responses keep their
+        // intended status (errorTranslationMiddleware only intercepts
+        // exceptions, not non-2xx responses).
+        .addMiddleware(errorTranslationMiddleware(
+          logError: _logError,
+          requestIdFor: _requestIdFrom,
+        ))
         .addMiddleware(_corsMiddleware())
         .addMiddleware(_requestSizeLimitMiddleware())
         .addMiddleware(_apiVersionMiddleware())

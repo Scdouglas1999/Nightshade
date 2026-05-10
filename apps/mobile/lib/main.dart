@@ -81,6 +81,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       TextEditingController(text: '');
   bool _showManualEntry = false;
   bool _skippedConnection = false;
+  // Tokens are sensitive — default to obscured. Trailing icon toggles for
+  // operators who need to verify the value during pairing.
+  bool _accessTokenVisible = false;
 
   Timer? _connectionMonitorTimer;
   int _failedConnectionChecks = 0;
@@ -276,28 +279,23 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   }
 
   Future<void> _scanQrCode() async {
-    final result = await Navigator.push<String>(
+    // Scanner now performs strict schema + host-locality validation and pops
+    // a confirmed [QrConnectionData] (or null on cancel). The previous
+    // string-based round-trip went through a permissive parser.
+    final data = await Navigator.push<QrConnectionData>(
       context,
       MaterialPageRoute(builder: (_) => const QrScannerScreen()),
     );
 
-    if (result != null) {
-      final server = EnhancedNightshadeDiscovery.parseQrCode(result);
-      if (server != null) {
-        setState(() {
-          _isDiscovering = true;
-          _statusMessage = 'Connecting via QR code...';
-          _error = null;
-        });
+    if (data == null) return;
 
-        await _connectToServer(server);
-      } else {
-        setState(() {
-          _error =
-              'Invalid QR code. Please scan a Nightshade connection QR code.';
-        });
-      }
-    }
+    setState(() {
+      _isDiscovering = true;
+      _statusMessage = 'Connecting via QR code...';
+      _error = null;
+    });
+
+    await _connectToServer(data.toDiscoveredServer());
   }
 
   Future<void> _connectManually() async {
@@ -704,10 +702,26 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _accessTokenController,
+                    obscureText: !_accessTokenVisible,
                     decoration: InputDecoration(
                       labelText: 'Access Token',
                       hintText: 'Optional for paired or protected hosts',
                       prefixIcon: const Icon(Icons.vpn_key),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _accessTokenVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        tooltip: _accessTokenVisible
+                            ? 'Hide access token'
+                            : 'Show access token',
+                        onPressed: () {
+                          setState(() {
+                            _accessTokenVisible = !_accessTokenVisible;
+                          });
+                        },
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

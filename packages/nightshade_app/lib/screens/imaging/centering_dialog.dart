@@ -28,6 +28,9 @@ class CenteringDialog extends ConsumerStatefulWidget {
 
 class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   bool _isCentering = false;
+  // Latched while CenteringService.stop() is in flight so the user can't
+  // double-click Abort and queue up two abortMountSlew calls.
+  bool _abortInFlight = false;
   CenteringResult? _result;
   late final TextEditingController _exposureController;
 
@@ -65,133 +68,144 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final centeringStatus = ref.watch(centeringStatusProvider);
     final currentImage = ref.watch(currentImageProvider);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = theme.extension<NightshadeColors>()!;
 
-    return Dialog(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        width: _isCentering || _result != null ? 900 : 600,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            _buildHeader(theme, colorScheme),
-            const SizedBox(height: 16),
+    // Block back-button / Escape dismissal mid-run; the only sanctioned exit
+    // while centering is the Abort button, which also stops the service.
+    return PopScope(
+      canPop: !_isCentering,
+      child: Dialog(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          width: _isCentering || _result != null ? 900 : 600,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
+              _buildHeader(theme, colors),
+              const SizedBox(height: 16),
 
-            // Main content area
-            if (_isCentering ||
-                _result != null ||
-                centeringStatus.iterationHistory.isNotEmpty)
-              Flexible(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left: Image preview
-                    if (currentImage != null &&
-                        (_isCentering || _result != null))
+              // Main content area
+              if (_isCentering ||
+                  _result != null ||
+                  centeringStatus.iterationHistory.isNotEmpty)
+                Flexible(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left: Image preview
+                      if (currentImage != null &&
+                          (_isCentering || _result != null))
+                        Expanded(
+                          flex: 1,
+                          child:
+                              _buildImagePreview(currentImage, colors, theme),
+                        ),
+                      if (currentImage != null &&
+                          (_isCentering || _result != null))
+                        const SizedBox(width: 16),
+
+                      // Right: Status and info
                       Expanded(
                         flex: 1,
-                        child: _buildImagePreview(
-                            currentImage, colorScheme, theme),
-                      ),
-                    if (currentImage != null &&
-                        (_isCentering || _result != null))
-                      const SizedBox(width: 16),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Coordinates
+                              if (widget.targetRa != null &&
+                                  widget.targetDec != null)
+                                _buildCoordinatesCompact(
+                                    centeringStatus, colors, theme),
 
-                    // Right: Status and info
-                    Expanded(
-                      flex: 1,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Coordinates
-                            if (widget.targetRa != null &&
-                                widget.targetDec != null)
-                              _buildCoordinatesCompact(
-                                  centeringStatus, colorScheme, theme),
+                              if (widget.targetRa != null &&
+                                  widget.targetDec != null)
+                                const SizedBox(height: 12),
 
-                            if (widget.targetRa != null &&
-                                widget.targetDec != null)
+                              // Exposure settings
+                              _buildExposureSettings(colors, theme),
                               const SizedBox(height: 12),
 
-                            // Exposure settings
-                            _buildExposureSettings(colorScheme, theme),
-                            const SizedBox(height: 12),
+                              // Status section
+                              if (_isCentering)
+                                _buildStatusSection(centeringStatus, colors),
 
-                            // Status section
-                            if (_isCentering)
-                              _buildStatusSection(centeringStatus, colorScheme),
+                              // Result section
+                              if (_result != null && !_isCentering)
+                                _buildResultSection(_result!, colors),
 
-                            // Result section
-                            if (_result != null && !_isCentering)
-                              _buildResultSection(_result!, colorScheme),
-
-                            // Iteration history
-                            if (centeringStatus
-                                .iterationHistory.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _buildIterationHistory(
-                                  centeringStatus.iterationHistory,
-                                  colorScheme),
+                              // Iteration history
+                              if (centeringStatus
+                                  .iterationHistory.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _buildIterationHistory(
+                                    centeringStatus.iterationHistory, colors),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
+                    ],
+                  ),
+                )
+              else ...[
+                // Pre-centering: simple vertical layout
+                if (widget.targetRa != null && widget.targetDec != null) ...[
+                  _buildCoordinatesCompact(centeringStatus, colors, theme),
+                  const SizedBox(height: 16),
+                ],
+                _buildExposureSettings(colors, theme),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Action buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (_isCentering)
+                    NightshadeButton(
+                      label: 'Abort',
+                      icon: LucideIcons.octagon,
+                      onPressed: _abortInFlight ? null : _abortCentering,
+                      isLoading: _abortInFlight,
+                      variant: ButtonVariant.destructive,
+                    )
+                  else ...[
+                    NightshadeButton(
+                      label: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      variant: ButtonVariant.outline,
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      label: 'Start Centering',
+                      icon: LucideIcons.target,
+                      onPressed: _startCentering,
+                      variant: ButtonVariant.primary,
                     ),
                   ],
-                ),
-              )
-            else ...[
-              // Pre-centering: simple vertical layout
-              if (widget.targetRa != null && widget.targetDec != null) ...[
-                _buildCoordinatesCompact(centeringStatus, colorScheme, theme),
-                const SizedBox(height: 16),
-              ],
-              _buildExposureSettings(colorScheme, theme),
-            ],
-
-            const SizedBox(height: 16),
-
-            // Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (!_isCentering) ...[
-                  NightshadeButton(
-                    label: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    variant: ButtonVariant.outline,
-                  ),
-                  const SizedBox(width: 12),
                 ],
-                NightshadeButton(
-                  label: _isCentering ? 'Centering...' : 'Start Centering',
-                  icon: _isCentering ? LucideIcons.loader2 : LucideIcons.target,
-                  onPressed: _isCentering ? null : _startCentering,
-                  isLoading: _isCentering,
-                  variant: ButtonVariant.primary,
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildHeader(ThemeData theme, NightshadeColors colors) {
     return Row(
       children: [
         Icon(
           LucideIcons.target,
-          color: colorScheme.primary,
+          color: colors.accent,
           size: 28,
         ),
         const SizedBox(width: 12),
@@ -203,38 +217,37 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 'Target Centering',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: colors.textPrimary,
                 ),
               ),
               if (widget.targetName != null)
                 Text(
                   widget.targetName!,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    color: colors.textSecondary,
                   ),
                 ),
             ],
           ),
         ),
-        IconButton(
-          icon: const Icon(LucideIcons.x),
-          onPressed: _isCentering ? null : () => Navigator.of(context).pop(),
-        ),
+        // Footer Abort/Close handles dismissal; the header X used to be the
+        // *only* exit but was disabled mid-run, trapping users. Drop it.
       ],
     );
   }
 
   Widget _buildImagePreview(
     CapturedImageData imageData,
-    ColorScheme colorScheme,
+    NightshadeColors colors,
     ThemeData theme,
   ) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 400),
       decoration: BoxDecoration(
-        color: colorScheme.scrim,
+        color: colors.background,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.3),
+          color: colors.border,
         ),
       ),
       child: ClipRRect(
@@ -254,7 +267,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             Positioned.fill(
               child: CustomPaint(
                 painter: _CrosshairPainter(
-                  color: colorScheme.primary.withValues(alpha: 0.5),
+                  color: colors.accent.withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -286,14 +299,14 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Widget _buildCoordinatesCompact(
-      CenteringStatus status, ColorScheme colorScheme, ThemeData theme) {
+      CenteringStatus status, NightshadeColors colors, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.3),
+          color: colors.border,
         ),
       ),
       child: Column(
@@ -305,6 +318,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   'Target RA',
                   _formatRa(widget.targetRa!),
                   LucideIcons.compass,
+                  colors,
                 ),
               ),
               const SizedBox(width: 12),
@@ -313,14 +327,14 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   'Target Dec',
                   _formatDec(widget.targetDec!),
                   LucideIcons.moveVertical,
+                  colors,
                 ),
               ),
             ],
           ),
           if (status.solvedRa != null && status.solvedDec != null) ...[
             const SizedBox(height: 8),
-            Divider(
-                height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
+            Divider(height: 1, color: colors.border),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -329,6 +343,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                     'Solved RA',
                     _formatRa(status.solvedRa!),
                     LucideIcons.sparkles,
+                    colors,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -337,6 +352,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                     'Solved Dec',
                     _formatDec(status.solvedDec!),
                     LucideIcons.sparkles,
+                    colors,
                   ),
                 ),
               ],
@@ -347,25 +363,24 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildExposureSettings(ColorScheme colorScheme, ThemeData theme) {
+  Widget _buildExposureSettings(NightshadeColors colors, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.2),
+          color: colors.border,
         ),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.camera,
-              size: 16, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+          Icon(LucideIcons.camera, size: 16, color: colors.textSecondary),
           const SizedBox(width: 8),
           Text(
             'Solve exposure:',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.7),
+              color: colors.textSecondary,
             ),
           ),
           const SizedBox(width: 8),
@@ -380,6 +395,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
                 fontFeatures: [const FontFeature.tabularFigures()],
               ),
               decoration: InputDecoration(
@@ -388,20 +404,18 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(
-                      color: colorScheme.outline.withValues(alpha: 0.3)),
+                  borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(
-                      color: colorScheme.outline.withValues(alpha: 0.3)),
+                  borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: colorScheme.primary),
+                  borderSide: BorderSide(color: colors.accent),
                 ),
                 filled: true,
-                fillColor: colorScheme.surface,
+                fillColor: colors.surface,
               ),
             ),
           ),
@@ -409,7 +423,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           Text(
             's',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha: 0.5),
+              color: colors.textMuted,
             ),
           ),
         ],
@@ -417,23 +431,32 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildCoordInfo(String label, String value, IconData icon) {
+  Widget _buildCoordInfo(
+    String label,
+    String value,
+    IconData icon,
+    NightshadeColors colors,
+  ) {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 14, color: theme.colorScheme.primary),
+        Icon(icon, size: 14, color: colors.accent),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: theme.textTheme.labelSmall?.copyWith(fontSize: 10),
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 10,
+                color: colors.textSecondary,
+              ),
             ),
             Text(
               value,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
                 fontFeatures: [const FontFeature.tabularFigures()],
               ),
             ),
@@ -443,7 +466,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildStatusSection(CenteringStatus status, ColorScheme colorScheme) {
+  Widget _buildStatusSection(
+      CenteringStatus status, NightshadeColors colors) {
     final theme = Theme.of(context);
 
     String stateText;
@@ -454,37 +478,37 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       case CenteringState.exposing:
         stateText = 'Capturing...';
         stateIcon = LucideIcons.camera;
-        stateColor = colorScheme.primary;
+        stateColor = colors.accent;
         break;
       case CenteringState.solving:
         stateText = 'Plate solving...';
         stateIcon = LucideIcons.sparkles;
-        stateColor = colorScheme.primary;
+        stateColor = colors.accent;
         break;
       case CenteringState.slewing:
         stateText = 'Correcting...';
         stateIcon = LucideIcons.moveHorizontal;
-        stateColor = colorScheme.primary;
+        stateColor = colors.accent;
         break;
       case CenteringState.verifying:
         stateText = 'Verifying...';
         stateIcon = LucideIcons.checkCircle;
-        stateColor = colorScheme.primary;
+        stateColor = colors.accent;
         break;
       case CenteringState.completed:
         stateText = 'Centered!';
         stateIcon = LucideIcons.checkCircle;
-        stateColor = colorScheme.tertiary;
+        stateColor = colors.success;
         break;
       case CenteringState.error:
         stateText = 'Error';
         stateIcon = LucideIcons.alertCircle;
-        stateColor = colorScheme.error;
+        stateColor = colors.error;
         break;
       default:
         stateText = 'Ready';
         stateIcon = LucideIcons.circle;
-        stateColor = colorScheme.onSurface.withValues(alpha: 0.5);
+        stateColor = colors.textMuted;
     }
 
     return Container(
@@ -515,7 +539,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               Text(
                 '${status.currentIteration}/${status.maxIterations}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  color: colors.textSecondary,
                   fontFeatures: [const FontFeature.tabularFigures()],
                 ),
               ),
@@ -534,11 +558,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                                   _centeringConfig.toleranceArcsec)
                               .clamp(0.0, 2.0) /
                           2.0,
-                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      backgroundColor: colors.surfaceAlt,
                       color: status.currentOffsetArcsec! <=
                               _centeringConfig.toleranceArcsec
-                          ? colorScheme.tertiary
-                          : colorScheme.primary,
+                          ? colors.success
+                          : colors.accent,
                       minHeight: 6,
                     ),
                   ),
@@ -551,8 +575,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                     fontFeatures: [const FontFeature.tabularFigures()],
                     color: status.currentOffsetArcsec! <=
                             _centeringConfig.toleranceArcsec
-                        ? colorScheme.tertiary
-                        : colorScheme.onSurface,
+                        ? colors.success
+                        : colors.textPrimary,
                   ),
                 ),
               ],

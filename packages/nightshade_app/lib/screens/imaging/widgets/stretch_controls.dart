@@ -354,20 +354,45 @@ class _StretchSettingsDialog extends StatefulWidget {
 }
 
 class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
+  /// Settings as the user is editing them in this dialog. Held locally so
+  /// Close discards changes and Apply explicitly commits them — required by
+  /// audit §4.11 (the previous "Done" button silently kept whatever was
+  /// already pushed live, with no way to back out).
   late AutoStretchSettings _localSettings;
+
+  /// Snapshot of the provider settings at dialog open, so Close can restore
+  /// the user's prior state if the dialog briefly drove a live preview.
+  late final AutoStretchSettings _initialSettings;
+
+  /// Tracks whether the local edits diverge from the committed (initial)
+  /// settings, so the Apply button reflects whether there's anything to apply.
+  bool get _hasChanges => _localSettings != _initialSettings;
 
   @override
   void initState() {
     super.initState();
     _localSettings = widget.settings;
+    _initialSettings = widget.settings;
   }
 
-  void _updateSettings(AutoStretchSettings newSettings) {
+  void _updateLocalSettings(AutoStretchSettings newSettings) {
     setState(() {
       _localSettings = newSettings;
     });
-    // Update the provider immediately for live preview
-    widget.onSettingsChanged(newSettings);
+  }
+
+  void _close() {
+    // Discard any local edits by restoring the provider to its pre-dialog
+    // value. If nothing was changed, this is a no-op write of the same value.
+    if (_hasChanges) {
+      widget.onSettingsChanged(_initialSettings);
+    }
+    Navigator.of(context).pop();
+  }
+
+  void _apply() {
+    widget.onSettingsChanged(_localSettings);
+    Navigator.of(context).pop();
   }
 
   @override
@@ -410,7 +435,8 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
                       size: 18,
                       color: widget.colors.textSecondary,
                     ),
-                    onPressed: () => Navigator.of(context).pop(),
+                    // Header X behaves like Close: discard local edits.
+                    onPressed: _close,
                     splashRadius: 16,
                   ),
                 ],
@@ -432,22 +458,32 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
 
               const SizedBox(height: 20),
 
-              // Expanded controls
+              // Expanded controls — these mutate local state only; the
+              // provider isn't updated until the user presses Apply.
               _ExpandedStretchControls(
                 settings: _localSettings,
                 colors: widget.colors,
-                onSettingsChanged: _updateSettings,
+                onSettingsChanged: _updateLocalSettings,
               ),
 
               const SizedBox(height: 20),
 
-              // Close button
+              // Footer: explicit Close + Apply (audit §4.11). Apply is
+              // disabled when there's nothing to commit so users can tell
+              // at a glance whether they have unsaved edits.
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   NightshadeButton(
-                    label: 'Done',
-                    onPressed: () => Navigator.of(context).pop(),
+                    label: 'Close',
+                    variant: ButtonVariant.ghost,
+                    onPressed: _close,
+                  ),
+                  const SizedBox(width: 8),
+                  NightshadeButton(
+                    label: 'Apply',
+                    variant: ButtonVariant.primary,
+                    onPressed: _hasChanges ? _apply : null,
                   ),
                 ],
               ),

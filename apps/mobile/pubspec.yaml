@@ -55,6 +55,10 @@ dependencies:
   # mDNS/Bonjour discovery
   nsd: ^3.0.0
 
+  # Secure storage for auth tokens (Keychain / EncryptedSharedPreferences).
+  # Audit §3.3: tokens must not live in plaintext SharedPreferences.
+  flutter_secure_storage: ^9.2.2
+
   # QR code scanning
   mobile_scanner: ^5.2.3
 

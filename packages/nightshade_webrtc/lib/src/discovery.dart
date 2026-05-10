@@ -62,120 +62,196 @@ class DiscoveredServer {
   String toString() => '$name ($host:$webPort)';
 }
 
-/// Automatic discovery service for Nightshade instances on local network
-/// Uses UDP broadcast for zero-configuration discovery
+/// Handle returned from [NightshadeDiscovery.startBroadcasting] so callers
+/// can terminate the announcement loop without leaking the periodic timer.
+///
+/// Audit §3.11: previous implementation called `Timer.periodic(2 s)` with no
+/// reference and no cancellation, leaking one timer per call.
+class DiscoveryBroadcaster {
+  final RawDatagramSocket socket;
+  final Timer _timer;
+  bool _stopped = false;
+
+  DiscoveryBroadcaster._(this.socket, this._timer);
+
+  /// Cancel the periodic broadcast and close the socket. Idempotent.
+  void stop() {
+    if (_stopped) return;
+    _stopped = true;
+    _timer.cancel();
+    try {
+      socket.close();
+    } catch (_) {
+      // Socket may already be closed by an earlier teardown — best-effort.
+    }
+  }
+}
+
+/// Automatic discovery service for Nightshade instances on local network.
+/// Uses UDP broadcast for zero-configuration discovery.
+///
+/// Wire format: every datagram is a JSON object plus the UTF-8 prefix
+/// `[_responsePrefix]` (server announcements) or `[_requestPrefix]` (client
+/// probes). The previous implementation used `:`-delimited substrings which
+/// collided with Nightshade device IDs (e.g. `native:vendor:idx`).
 class NightshadeDiscovery {
-  static const int _discoveryPort = 45679;
-  static const String _discoveryMessage = 'NIGHTSHADE_DISCOVERY';
-  static const String _responsePrefix = 'NIGHTSHADE_RESPONSE:';
+  /// Server-side fixed port — desktop instances bind here so clients can
+  /// target a known address.
+  static const int _serverPort = 45679;
+  // Marker bytes so we never mistake a stray UDP datagram for a Nightshade
+  // packet. JSON alone is not sufficient — anything on the local LAN can
+  // emit `{...}`.
+  static const String _requestPrefix = 'NIGHTSHADE_DISCOVERY_V2:';
+  static const String _responsePrefix = 'NIGHTSHADE_RESPONSE_V2:';
+  static const String _protocolVersion = '2';
 
-
-  /// Start broadcasting this server's presence (desktop/server side)
-  static Future<RawDatagramSocket> startBroadcasting({
+  /// Start broadcasting this server's presence (desktop/server side).
+  ///
+  /// Returned [DiscoveryBroadcaster] owns the socket + timer. Callers MUST
+  /// call [DiscoveryBroadcaster.stop] on shutdown.
+  static Future<DiscoveryBroadcaster> startBroadcasting({
     required int webPort,
     required int signalingPort,
     String name = 'Nightshade',
     String version = '2.0.0',
+    Duration interval = const Duration(seconds: 2),
   }) async {
     final socket = await RawDatagramSocket.bind(
       InternetAddress.anyIPv4,
-      0,
+      _serverPort,
       reuseAddress: true,
     );
-
     socket.broadcastEnabled = true;
 
-    // Broadcast server info periodically
-    Timer.periodic(const Duration(seconds: 2), (timer) {
-      final info = {
-        'name': name,
-        'version': version,
-        'webPort': webPort,
-        'signalingPort': signalingPort,
-      };
-      final message = '$_responsePrefix${jsonEncode(info)}';
-      final data = utf8.encode(message);
+    // Build the announcement once — payload is invariant across the run.
+    final payload = {
+      'protocol': _protocolVersion,
+      'name': name,
+      'version': version,
+      'webPort': webPort,
+      'signalingPort': signalingPort,
+    };
+    final messageBytes =
+        utf8.encode('$_responsePrefix${jsonEncode(payload)}');
 
-      // Broadcast to all interfaces
-      // Works on Windows, Linux, and macOS
+    void emit() {
       try {
-        socket.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
-      } catch (e) {
-        // Ignore errors (network might not be ready, or firewall blocking)
-        // On Windows, firewall may block UDP broadcasts initially
+        socket.send(
+          messageBytes,
+          InternetAddress('255.255.255.255'),
+          _serverPort,
+        );
+      } catch (_) {
+        // Network may not be ready, firewall may be blocking — keep trying
+        // on the next tick rather than killing the loop.
+      }
+    }
+
+    // Immediate emit so a client probing in this same tick gets a response,
+    // then resume on the periodic schedule.
+    emit();
+    final timer = Timer.periodic(interval, (_) => emit());
+
+    // Also respond directly to client probes so a client that joined after
+    // our last broadcast tick doesn't have to wait for the next one.
+    socket.listen((event) {
+      if (event != RawSocketEvent.read) return;
+      final datagram = socket.receive();
+      if (datagram == null) return;
+      try {
+        final raw = utf8.decode(datagram.data);
+        if (!raw.startsWith(_requestPrefix)) return;
+        socket.send(messageBytes, datagram.address, datagram.port);
+      } catch (_) {
+        // Malformed datagrams are ignored — they are noise on a shared LAN.
       }
     });
 
-    return socket;
+    return DiscoveryBroadcaster._(socket, timer);
   }
 
-  /// Discover Nightshade servers on the local network (mobile/client side)
+  /// Discover Nightshade servers on the local network (mobile/client side).
+  ///
+  /// Binds an ephemeral UDP port (port 0) so multiple clients on the same
+  /// host don't fight for [_serverPort] — that port is reserved for the
+  /// server. Sends a probe to the server port and listens on the ephemeral
+  /// port for the responses targeted back at us.
   static Future<List<DiscoveredServer>> discoverServers({
     Duration timeout = const Duration(seconds: 3),
   }) async {
     final servers = <DiscoveredServer>[];
     final seen = <String>{};
+    RawDatagramSocket? socket;
 
     try {
-      developer.log('Creating UDP socket for discovery...', name: 'NightshadeDiscovery');
-      // Create socket for receiving responses
-      // Must bind to the specific discovery port to receive broadcasts sent to that port
-      final socket = await RawDatagramSocket.bind(
+      developer.log('Creating UDP socket for discovery (ephemeral port)...',
+          name: 'NightshadeDiscovery');
+      socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
-        _discoveryPort,
+        0,
         reuseAddress: true,
       );
       socket.broadcastEnabled = true;
-      developer.log('Socket bound to port $_discoveryPort, listening for broadcasts...', name: 'NightshadeDiscovery');
+      developer.log(
+        'Client socket bound to ephemeral port ${socket.port}; '
+        'targeting server port $_serverPort',
+        name: 'NightshadeDiscovery',
+      );
 
       socket.listen((RawSocketEvent event) {
-        if (event == RawSocketEvent.read) {
-          final datagram = socket.receive();
-          if (datagram != null) {
-            try {
-              final message = utf8.decode(datagram.data);
-              developer.log('Received UDP packet from ${datagram.address.address}', name: 'NightshadeDiscovery');
-              if (message.startsWith(_responsePrefix)) {
-                final jsonStr = message.substring(_responsePrefix.length);
-                final info = jsonDecode(jsonStr) as Map<String, dynamic>;
+        if (event != RawSocketEvent.read) return;
+        final datagram = socket!.receive();
+        if (datagram == null) return;
+        try {
+          final message = utf8.decode(datagram.data);
+          if (!message.startsWith(_responsePrefix)) return;
+          final jsonStr = message.substring(_responsePrefix.length);
+          final info = jsonDecode(jsonStr);
+          if (info is! Map<String, dynamic>) return;
+          if (info['webPort'] is! int || info['signalingPort'] is! int) return;
 
-                final host = datagram.address.address;
-                final key = '${host}:${info['webPort']}';
-
-                if (!seen.contains(key)) {
-                  seen.add(key);
-                  final server = DiscoveredServer(
-                    host: host,
-                    webPort: info['webPort'] as int,
-                    signalingPort: info['signalingPort'] as int,
-                    name: info['name'] as String? ?? 'Nightshade',
-                    version: info['version'] as String? ?? '2.0.0',
-                  );
-                  servers.add(server);
-                  developer.log('Found server: ${server.name} at $host', name: 'NightshadeDiscovery', level: 800);
-                }
-              }
-            } catch (e) {
-              developer.log('Error parsing packet: $e', name: 'NightshadeDiscovery', level: 1000);
-            }
-          }
+          final host = datagram.address.address;
+          final webPort = info['webPort'] as int;
+          final key = '$host:$webPort';
+          if (seen.contains(key)) return;
+          seen.add(key);
+          servers.add(DiscoveredServer(
+            host: host,
+            webPort: webPort,
+            signalingPort: info['signalingPort'] as int,
+            name: info['name'] is String
+                ? info['name'] as String
+                : 'Nightshade',
+            version: info['version'] is String
+                ? info['version'] as String
+                : '2.0.0',
+          ));
+          developer.log('Found server: ${servers.last.name} at $host',
+              name: 'NightshadeDiscovery', level: 800);
+        } catch (e) {
+          developer.log('Error parsing packet: $e',
+              name: 'NightshadeDiscovery', level: 1000);
         }
       });
 
-      // Send discovery broadcast
-      developer.log('Sending discovery broadcast to 255.255.255.255:$_discoveryPort', name: 'NightshadeDiscovery');
-      final discoveryData = utf8.encode(_discoveryMessage);
-      socket.send(discoveryData, InternetAddress('255.255.255.255'), _discoveryPort);
+      // Structured probe — server-side validates the prefix; the JSON body
+      // gives us a forward-compat hook for adding device-id / pairing fields
+      // without breaking the protocol again.
+      final probe = utf8.encode(
+        '$_requestPrefix${jsonEncode({'protocol': _protocolVersion})}',
+      );
+      socket.send(probe, InternetAddress('255.255.255.255'), _serverPort);
 
-      // Wait for responses
       await Future.delayed(timeout);
-      developer.log('Discovery timeout reached, found ${servers.length} servers', name: 'NightshadeDiscovery');
-      socket.close();
-
+      developer.log('Discovery timeout reached, found ${servers.length} servers',
+          name: 'NightshadeDiscovery');
       return servers;
     } catch (e) {
-      developer.log('Discovery error: $e', name: 'NightshadeDiscovery', level: 1000);
+      developer.log('Discovery error: $e',
+          name: 'NightshadeDiscovery', level: 1000);
       return servers;
+    } finally {
+      socket?.close();
     }
   }
 

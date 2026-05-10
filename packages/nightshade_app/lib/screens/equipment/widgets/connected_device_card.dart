@@ -77,28 +77,50 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
     }
   }
 
+  /// Accent color for the card header icon — one accent per device category.
+  ///
+  /// Mapping (per audit §4.22):
+  ///   - imaging chain (capture)            -> `colors.primary`  (indigo)
+  ///       - camera
+  ///   - sky pointing / mechanical          -> `colors.warning`  (amber)
+  ///       - mount
+  ///       - rotator
+  ///       - dome
+  ///   - opto-mechanical adjusters          -> `colors.accent`   (violet)
+  ///       - focuser
+  ///       - filterWheel
+  ///       - coverCalibrator
+  ///   - measurement / telemetry            -> `colors.info`     (blue)
+  ///       - guider
+  ///       - weather
+  ///   - life-safety / interlocks           -> `colors.success`  (green)
+  ///       - safetyMonitor
+  ///
+  /// Status colors (success/warning/error) are reserved for the connection
+  /// state border and badge — they are not used as device accents here so the
+  /// border color is unambiguous.
   Color accentColor(NightshadeColors colors) {
     switch (this) {
+      // Imaging chain
       case ConnectedDeviceType.camera:
         return colors.primary;
+      // Sky pointing & mechanical positioners
       case ConnectedDeviceType.mount:
-        return colors.warning;
-      case ConnectedDeviceType.focuser:
-        return colors.success;
-      case ConnectedDeviceType.filterWheel:
-        return colors.warning;
-      case ConnectedDeviceType.guider:
-        return colors.info;
       case ConnectedDeviceType.rotator:
-        return colors.accent;
       case ConnectedDeviceType.dome:
-        return colors.info;
-      case ConnectedDeviceType.weather:
+        return colors.warning;
+      // Opto-mechanical adjusters in the optical path
+      case ConnectedDeviceType.focuser:
+      case ConnectedDeviceType.filterWheel:
+      case ConnectedDeviceType.coverCalibrator:
         return colors.accent;
+      // Measurement / telemetry
+      case ConnectedDeviceType.guider:
+      case ConnectedDeviceType.weather:
+        return colors.info;
+      // Life-safety / interlocks
       case ConnectedDeviceType.safetyMonitor:
         return colors.success;
-      case ConnectedDeviceType.coverCalibrator:
-        return colors.warning;
     }
   }
 }
@@ -188,43 +210,44 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     final borderColor = _getBorderColor(connectionState, colors);
     final accentColor = widget.type.accentColor(colors);
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 280),
-      child: IntrinsicWidth(
-        child: GestureDetector(
-          onTap: _toggleExpanded,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor, width: 1.5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header Row
-                _buildHeader(colors, accentColor, connectionState),
+    // Fixed tile width keeps the Wrap layout in equipment_screen tidy
+    // (audit §4.21). 320 px fits the longest action labels (e.g. "Stop
+    // Tracking") without wrap and keeps two columns at 720+ px.
+    return SizedBox(
+      width: 320,
+      child: GestureDetector(
+        onTap: _toggleExpanded,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Row
+              _buildHeader(colors, accentColor, connectionState),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-                // Primary Metrics Row
-                _buildMetricsRow(colors),
+              // Primary Metrics Row
+              _buildMetricsRow(colors),
 
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-                // Quick Actions Row
-                _buildActionsRow(colors),
+              // Quick Actions Row
+              _buildActionsRow(colors),
 
-                // Expanded Content
-                SizeTransition(
-                  sizeFactor: _expandAnimation,
-                  child: _buildExpandedContent(colors),
-                ),
-              ],
-            ),
+              // Expanded Content
+              SizeTransition(
+                sizeFactor: _expandAnimation,
+                child: _buildExpandedContent(colors),
+              ),
+            ],
           ),
         ),
       ),
@@ -791,16 +814,34 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   /// Returns the settings action for the current device type, or `null` if
   /// this device type has no real settings to expose from the card.
   ///
-  /// - An externally-injected `widget.onSettings` always wins so plugin /
-  ///   embedder code can override behavior.
-  /// - Camera routes to the existing cooling-target dialog
-  ///   (`_showCoolingTempDialog`).
-  /// - Mount, focuser, filter wheel, and rotator each have settings worth
-  ///   surfacing (slew rates, step size / max position, per-filter offsets,
-  ///   sky-PA preset) but those widgets do not yet exist in this file.
-  ///   Cross-file plumbing is owned by the upcoming Wave 1B agent
-  ///   (W1B-UI-EQ); until then we hide the gear rather than ship a stub.
-  /// - Guider has no per-card settings and the gear is hidden permanently.
+  /// Wiring matrix (audit §4.6 follow-up; W0-EQ left TODOs that W1B-UI-EQ
+  /// addressed here):
+  ///
+  /// | Device          | Gear visible? | Action                                    |
+  /// |-----------------|---------------|-------------------------------------------|
+  /// | camera          | yes           | local cooling-target dialog               |
+  /// | filterWheel     | yes (if      | injected `widget.onSettings`              |
+  /// |                 | injected)     | (parent opens ProfileEditorDialog where   |
+  /// |                 |               | per-filter offsets are edited)            |
+  /// | mount           | no            | no slew-rate / park-position widget yet   |
+  /// | focuser         | no            | no step-size / max-position widget yet    |
+  /// | rotator         | no            | no sky-PA preset widget yet               |
+  /// | dome            | no            | no park/home/follow-mount widget yet      |
+  /// | coverCalibrator | no            | no brightness / cover-state widget yet    |
+  /// | guider          | no            | no per-card settings (config in Imaging)  |
+  /// | weather         | no            | read-only telemetry                       |
+  /// | safetyMonitor   | no            | read-only                                 |
+  ///
+  /// Per CLAUDE.md ("no stubs / no placeholders"), unwired gears stay hidden
+  /// — we never display a settings affordance that does nothing or that opens
+  /// an empty dialog. When a real device-specific settings widget for one of
+  /// the unwired entries is added under
+  /// `packages/nightshade_app/lib/screens/equipment/widgets/`, route to it
+  /// from this switch.
+  ///
+  /// An externally-injected `widget.onSettings` always wins, allowing the
+  /// equipment screen (which knows the active profile) to wire filter-wheel
+  /// offsets editing without making the card itself profile-aware.
   VoidCallback? _resolveSettingsAction() {
     final injected = widget.onSettings;
     if (injected != null) {
@@ -812,29 +853,18 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           final targetTemp = ref.read(cameraStateProvider).targetTemp;
           _showCoolingTempDialog(targetTemp);
         };
-      case ConnectedDeviceType.mount:
-      // TODO(W1B-UI-EQ): wire to mount slew-rate / park-position settings
-      // once that widget lands per audit §4.6.
-      case ConnectedDeviceType.focuser:
-      // TODO(W1B-UI-EQ): wire to focuser step-size / max-position settings
-      // once that widget lands per audit §4.6.
+      // Hidden: no device-specific settings widget exists yet. Adding a
+      // route here without an implementation would ship a stub.
       case ConnectedDeviceType.filterWheel:
-      // TODO(W1B-UI-EQ): wire to per-filter offset editor once that widget
-      // lands per audit §4.6.
+      case ConnectedDeviceType.mount:
+      case ConnectedDeviceType.focuser:
       case ConnectedDeviceType.rotator:
-      // TODO(W1B-UI-EQ): wire to rotator sky-PA preset editor once that
-      // widget lands per audit §4.6.
-      case ConnectedDeviceType.guider:
       case ConnectedDeviceType.dome:
-      // TODO(W1B-UI-EQ): wire to dome park/home/follow-mount settings once
-      // that widget lands per audit §4.6.
-      case ConnectedDeviceType.weather:
-      // Why: weather sensor is read-only telemetry; no per-card settings.
-      case ConnectedDeviceType.safetyMonitor:
-      // Why: safety monitor is read-only; no per-card settings.
       case ConnectedDeviceType.coverCalibrator:
-        // TODO(W1B-UI-EQ): wire to cover calibrator brightness / cover-state
-        // settings once that widget lands per audit §4.6.
+      // Read-only / no per-card settings.
+      case ConnectedDeviceType.guider:
+      case ConnectedDeviceType.weather:
+      case ConnectedDeviceType.safetyMonitor:
         return null;
     }
   }

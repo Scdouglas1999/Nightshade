@@ -39,6 +39,7 @@ export 'src/widgets/update_dialog.dart';
 export 'src/widgets/accessible_icon_button.dart';
 export 'src/widgets/focus_traversal_scaffold.dart';
 export 'src/widgets/design_system_gallery.dart';
+export 'src/widgets/empty_state.dart';
 
 // PHD2 Widgets
 export 'src/widgets/phd2/guide_star_view.dart';

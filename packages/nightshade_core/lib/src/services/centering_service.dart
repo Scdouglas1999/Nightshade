@@ -199,7 +199,40 @@ class CenteringStatus {
 class CenteringService {
   final Ref _ref;
 
+  // Flag flipped by [stop]; checked at every centering loop yield-point so the
+  // user-visible Abort path returns promptly and the post-stop status is
+  // explicit ("aborted") rather than ambiguous.
+  bool _abortRequested = false;
+
   CenteringService(this._ref);
+
+  /// True while a centering run has been asked to stop but hasn't returned yet.
+  bool get isAborting => _abortRequested;
+
+  /// Abort the current centering run.
+  ///
+  /// Cancels the in-flight exposure (so the camera doesn't sit idle for the
+  /// remainder of [CenteringConfig.exposureTime]) and aborts any in-progress
+  /// mount slew, then sets the abort flag that the centering loop polls. The
+  /// loop returns a [CenteringResult.failure] with `errorMessage: 'Aborted'`.
+  ///
+  /// Safe to call when no run is active: it just no-ops the providers.
+  Future<void> stop() async {
+    _abortRequested = true;
+
+    // Cancel exposure first: an in-flight capture is the longest-running step
+    // in a centering iteration and the most impactful to release.
+    final imagingService = _ref.read(imagingServiceProvider);
+    imagingService.cancelExposure();
+
+    // Mount may be mid-slew when Abort is hit; halt it so the scope doesn't
+    // keep moving after the dialog closes.
+    final deviceService = _ref.read(deviceServiceProvider);
+    final mountState = _ref.read(mountStateProvider);
+    if (mountState.connectionState == DeviceConnectionState.connected) {
+      await deviceService.abortMountSlew();
+    }
+  }
 
   /// Center on target coordinates with iterative plate solve and slew
   ///
@@ -211,20 +244,38 @@ class CenteringService {
     CenteringConfig config = const CenteringConfig(),
     void Function(CenteringStatus)? onStatusUpdate,
   }) async {
-    return _centerOnTargetInternal(
-      targetRa: targetRa,
-      targetDec: targetDec,
-      solverConfig: solverConfig,
-      config: config,
-      onStatusUpdate: onStatusUpdate,
-    ).timeout(
-      config.overallTimeout,
-      onTimeout: () => CenteringResult.failure(
-        errorMessage:
-            'Centering timed out after ${config.overallTimeout.inSeconds} seconds',
-        iterations: 0,
-        iterationHistory: const [],
-      ),
+    // Reset abort flag so a stale [stop] from a previous run can't poison a
+    // fresh attempt.
+    _abortRequested = false;
+    try {
+      return await _centerOnTargetInternal(
+        targetRa: targetRa,
+        targetDec: targetDec,
+        solverConfig: solverConfig,
+        config: config,
+        onStatusUpdate: onStatusUpdate,
+      ).timeout(
+        config.overallTimeout,
+        onTimeout: () => CenteringResult.failure(
+          errorMessage:
+              'Centering timed out after ${config.overallTimeout.inSeconds} seconds',
+          iterations: 0,
+          iterationHistory: const [],
+        ),
+      );
+    } finally {
+      _abortRequested = false;
+    }
+  }
+
+  CenteringResult _abortedResult(
+    int iteration,
+    List<CenteringIteration> iterations,
+  ) {
+    return CenteringResult.failure(
+      errorMessage: 'Aborted by user',
+      iterations: iteration,
+      iterationHistory: iterations,
     );
   }
 
@@ -261,6 +312,8 @@ class CenteringService {
     final deviceService = _ref.read(deviceServiceProvider);
 
     for (int iteration = 1; iteration <= config.maxIterations; iteration++) {
+      if (_abortRequested) return _abortedResult(iteration - 1, iterations);
+
       // Update status
       onStatusUpdate?.call(CenteringStatus(
         state: CenteringState.exposing,
@@ -288,6 +341,11 @@ class CenteringService {
           targetName: 'Centering',
         );
       } catch (e) {
+        // Abort interrupts the in-flight exposure via cancelExposure() — the
+        // imaging service surfaces this as a thrown error. Translate to an
+        // explicit aborted result so the UI doesn't show "Centering Failed:
+        // exposure cancelled".
+        if (_abortRequested) return _abortedResult(iteration, iterations);
         final iter = CenteringIteration(
           iterationNumber: iteration,
           plateSolveSuccess: false,
@@ -304,6 +362,10 @@ class CenteringService {
       }
 
       if (capturedImage == null) {
+        // imagingService.cancelExposure() can return null instead of throwing;
+        // attribute null-on-abort to the user, not to the camera.
+        if (_abortRequested) return _abortedResult(iteration, iterations);
+
         final iter = CenteringIteration(
           iterationNumber: iteration,
           plateSolveSuccess: false,
@@ -318,6 +380,8 @@ class CenteringService {
           iterationHistory: iterations,
         );
       }
+
+      if (_abortRequested) return _abortedResult(iteration, iterations);
 
       // Step 2: Plate solve the image
       onStatusUpdate?.call(CenteringStatus(
@@ -375,6 +439,7 @@ class CenteringService {
             lastImagePath: capturedImage.filePath,
           ));
           await Future.delayed(const Duration(milliseconds: 500));
+          if (_abortRequested) return _abortedResult(iteration, iterations);
           continue;
         }
 
@@ -477,12 +542,17 @@ class CenteringService {
           await deviceService.slewMountToCoordinates(targetRa, targetDec);
         }
       } catch (e) {
+        // Abort triggers abortMountSlew() which surfaces as a thrown error
+        // from the in-flight slew future; report as user abort, not failure.
+        if (_abortRequested) return _abortedResult(iteration, iterations);
         return CenteringResult.failure(
           errorMessage: 'Mount slew failed: $e',
           iterations: iteration,
           iterationHistory: iterations,
         );
       }
+
+      if (_abortRequested) return _abortedResult(iteration, iterations);
 
       // Add a small delay before next iteration
       await Future.delayed(const Duration(seconds: 2));

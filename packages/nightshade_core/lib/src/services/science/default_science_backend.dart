@@ -146,19 +146,12 @@ class DefaultScienceBackend implements ScienceBackend {
 
     final stars =
         await measureStars(imagePath, const PhotometryOptions(minSnr: 5.0));
+    // WHY: writing a sentinel-RMS isCalibrated:false row would let downstream
+    // aggregations (transparency confidence, observation reports) treat the
+    // row as data. Returning null instead means no DB row is inserted —
+    // "not calibrated" is encoded by absence, not by a fabricated metric.
     if (stars.length < 8) {
-      return FramePhotometricCalibration(
-        capturedImageId: context.capturedImageId,
-        sessionId: context.sessionId,
-        timestamp: timestamp,
-        airmass: context.airmass,
-        exposureSeconds: exposureSeconds,
-        isCalibrated: false,
-        matchedStarCount: stars.length,
-        calibrationRms: 1.0,
-        solverId: wcs.solverId,
-        catalogSource: catalog,
-      );
+      return null;
     }
 
     final matches = await _catalogMatches(
@@ -169,18 +162,7 @@ class DefaultScienceBackend implements ScienceBackend {
       maxMatchPx: 9.0,
     );
     if (matches.length < 8) {
-      return FramePhotometricCalibration(
-        capturedImageId: context.capturedImageId,
-        sessionId: context.sessionId,
-        timestamp: timestamp,
-        airmass: context.airmass,
-        exposureSeconds: exposureSeconds,
-        isCalibrated: false,
-        matchedStarCount: matches.length,
-        calibrationRms: 0.8,
-        solverId: wcs.solverId,
-        catalogSource: catalog,
-      );
+      return null;
     }
 
     final zpSamples = matches
@@ -193,18 +175,7 @@ class DefaultScienceBackend implements ScienceBackend {
         .toList(growable: false);
     final clipped = _sigmaClip(zpSamples, sigma: 2.8, iterations: 4);
     if (clipped.length < 6) {
-      return FramePhotometricCalibration(
-        capturedImageId: context.capturedImageId,
-        sessionId: context.sessionId,
-        timestamp: timestamp,
-        airmass: context.airmass,
-        exposureSeconds: exposureSeconds,
-        isCalibrated: false,
-        matchedStarCount: clipped.length,
-        calibrationRms: 0.8,
-        solverId: wcs.solverId,
-        catalogSource: catalog,
-      );
+      return null;
     }
 
     final zeroPoint = _median(clipped);
@@ -212,6 +183,18 @@ class DefaultScienceBackend implements ScienceBackend {
       clipped.map((v) => v - zeroPoint).fold<double>(0, (s, d) => s + d * d) /
           clipped.length,
     );
+    // WHY: a non-finite zero-point or RMS means the fit is structurally
+    // broken (e.g. all magnitudes collapsed to the same value, or one slipped
+    // through the isFinite filter). Per CLAUDE.md, surface this as an error
+    // rather than persisting a poisoned calibration row.
+    if (!zeroPoint.isFinite || !rms.isFinite) {
+      throw ScienceCalibrationError(
+        code: ScienceCalibrationErrorCode.fitFailed,
+        message:
+            'Photometric fit produced non-finite zero-point=$zeroPoint rms=$rms '
+            'for $imagePath (matched=${matches.length} clipped=${clipped.length}).',
+      );
+    }
 
     final bg = _median(
       stars
@@ -258,7 +241,10 @@ class DefaultScienceBackend implements ScienceBackend {
       limitingMag3Sigma: lim3,
       limitingMag5Sigma: lim5,
       matchedStarCount: clipped.length,
-      calibrationRms: rms.clamp(0.0, 1.5),
+      // WHY: do NOT cap RMS at a sentinel ceiling — that would hide poor fits
+      // from observation-report aggregates and the science insights panel.
+      // High RMS is real data; downstream code already thresholds at 0.2.
+      calibrationRms: rms,
       solverId: wcs.solverId,
       catalogSource: catalog,
     );
@@ -590,15 +576,11 @@ class DefaultScienceBackend implements ScienceBackend {
 
       final dxPx = matched.x - star.x;
       final dyPx = matched.y - star.y;
-      // Convert to sky-up convention (Y increases toward North) then
-      // apply the inverse WCS rotation (R^T) so the position angle is
-      // measured in celestial coordinates (N through E).
-      final dxUp = dxPx;
-      final dyUp = -dyPx; // pixel Y-axis is flipped relative to sky
-      final rotRad = wcs.rotationDegrees * math.pi / 180.0;
-      final dxSky = dxUp * math.cos(rotRad) + dyUp * math.sin(rotRad);
-      final dySky = -dxUp * math.sin(rotRad) + dyUp * math.cos(rotRad);
-      final pa = (math.atan2(dxSky, dySky) * 180.0 / math.pi + 360.0) % 360.0;
+      final pa = computePixelMotionPositionAngle(
+        dxPixels: dxPx,
+        dyPixels: dyPx,
+        wcsRotationDegrees: wcs.rotationDegrees,
+      );
       final motion = (bestDist * wcs.pixelScaleArcsecPerPixel) / dtMin;
       final mid = _pixelToSky(
         wcs: wcs,
@@ -782,27 +764,35 @@ class DefaultScienceBackend implements ScienceBackend {
     final ha = await apiReadFitsLinearData(filePath: set.hAlphaPath);
     final oiii = await apiReadFitsLinearData(filePath: set.oiiiPath);
     final sii = await apiReadFitsLinearData(filePath: set.siiPath);
-    if (options.requireMatchingDimensions &&
-        (ha.width != oiii.width ||
-            ha.width != sii.width ||
-            ha.height != oiii.height ||
-            ha.height != sii.height)) {
-      return LineRatioProduct(createdAt: DateTime.now(), metrics: const [
-        LineRatioMetric(label: 'SII/Ha', value: 0),
-        LineRatioMetric(label: 'OIII/Ha', value: 0),
-        LineRatioMetric(label: 'SII/OIII', value: 0),
-      ]);
+    // WHY: writing fake-zero ratios into line_ratio_products would corrupt
+    // BPT diagrams and any downstream classification. Throw a structured
+    // error so the UI/handler renders an explicit error tile and the row is
+    // never inserted.
+    final dimsOk = ha.width == oiii.width &&
+        ha.width == sii.width &&
+        ha.height == oiii.height &&
+        ha.height == sii.height;
+    if (options.requireMatchingDimensions && !dimsOk) {
+      throw LineRatioError(
+        code: LineRatioErrorCode.dimensionMismatch,
+        message:
+            'Narrowband frame dimensions differ: '
+            'Ha=${ha.width}x${ha.height} OIII=${oiii.width}x${oiii.height} '
+            'SII=${sii.width}x${sii.height}.',
+      );
     }
     final len = math.min(
       ha.linearData.length,
       math.min(oiii.linearData.length, sii.linearData.length),
     );
     if (len <= 0) {
-      return LineRatioProduct(createdAt: DateTime.now(), metrics: const [
-        LineRatioMetric(label: 'SII/Ha', value: 0),
-        LineRatioMetric(label: 'OIII/Ha', value: 0),
-        LineRatioMetric(label: 'SII/OIII', value: 0),
-      ]);
+      throw LineRatioError(
+        code: LineRatioErrorCode.emptyPixelData,
+        message:
+            'Narrowband frame has no usable pixel data: '
+            'Ha=${ha.linearData.length} OIII=${oiii.linearData.length} '
+            'SII=${sii.linearData.length}.',
+      );
     }
 
     final stride = math.max(1, len ~/ 220000);
@@ -1680,4 +1670,75 @@ class _QualityResult {
 final scienceBackendProvider = Provider<ScienceBackend>((ref) {
   return DefaultScienceBackend(ref);
 });
+
+/// Convert a pixel-space motion vector (dxPixels, dyPixels in image pixels)
+/// to a celestial position angle measured North-through-East in degrees,
+/// given a WCS rotation in degrees.
+///
+/// WHY: the rotation convention here is "WCS rotation = angle from celestial
+/// North to image up (after the standard pixel-Y → sky-Y flip)", matching
+/// the FITS CROTA2 sense used by ASTAP and Astrometry.net. Under that
+/// convention the inverse-rotation matrix is the *transpose* of the standard
+/// 2D rotation, which is what we apply here. If a future plate solver
+/// reports rotation in the opposite sense, flip the sign of `wcsRotationDegrees`
+/// at the boundary rather than rewriting this transform.
+///
+/// Visible for tests so the convention can be verified against known WCS
+/// solutions and MPC astrometric reports.
+double computePixelMotionPositionAngle({
+  required double dxPixels,
+  required double dyPixels,
+  required double wcsRotationDegrees,
+}) {
+  // Pixel Y axis is flipped relative to celestial North.
+  final dxUp = dxPixels;
+  final dyUp = -dyPixels;
+  final rotRad = wcsRotationDegrees * math.pi / 180.0;
+  final cosR = math.cos(rotRad);
+  final sinR = math.sin(rotRad);
+  // Inverse rotation (transpose of standard 2D R) takes the image-up vector
+  // to the celestial-N/E frame.
+  final dxSky = dxUp * cosR + dyUp * sinR;
+  final dySky = -dxUp * sinR + dyUp * cosR;
+  // PA is measured from North (+sky-Y) through East (+sky-X), which is
+  // exactly atan2(east, north).
+  final pa = (math.atan2(dxSky, dySky) * 180.0 / math.pi + 360.0) % 360.0;
+  return pa;
+}
+
+/// Error codes emitted by photometric calibration when a structured failure
+/// must propagate to the caller (UI / handler) instead of producing a
+/// poisoned database row.
+enum ScienceCalibrationErrorCode {
+  /// Photometric fit produced a non-finite zero-point or RMS.
+  fitFailed,
+}
+
+class ScienceCalibrationError implements Exception {
+  final ScienceCalibrationErrorCode code;
+  final String message;
+
+  const ScienceCalibrationError({required this.code, required this.message});
+
+  @override
+  String toString() => 'ScienceCalibrationError(${code.name}): $message';
+}
+
+/// Error codes emitted by line-ratio computation when the inputs cannot
+/// produce a meaningful ratio. The UI must render an explicit error tile;
+/// fake-zero ratios must never be persisted.
+enum LineRatioErrorCode {
+  dimensionMismatch,
+  emptyPixelData,
+}
+
+class LineRatioError implements Exception {
+  final LineRatioErrorCode code;
+  final String message;
+
+  const LineRatioError({required this.code, required this.message});
+
+  @override
+  String toString() => 'LineRatioError(${code.name}): $message';
+}
 

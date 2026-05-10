@@ -23,33 +23,22 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
-  late AnimationController _fadeController;
   late AnimationController _pulseController;
-  late Animation<double> _fadeAnimation;
   bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
+    // Pulse is created stopped; build() drives it based on device activity so
+    // it doesn't burn frames on an idle dashboard.
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
     );
-    _fadeController.forward();
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
@@ -62,6 +51,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     ref.watch(phd2ControllerProvider);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
 
+    // Drive the pulse only while there is something to indicate. Watching the
+    // session + connection states here keeps the gating reactive without
+    // leaking listeners into every consumer of pulseController.
+    final sessionCapturing =
+        ref.watch(sessionStateProvider.select((s) => s.isCapturing));
+    final cameraConnected = ref.watch(cameraStateProvider
+            .select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final mountConnected = ref.watch(mountStateProvider
+            .select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final guiderConnected = ref.watch(guiderStateProvider
+            .select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final focuserConnected = ref.watch(focuserStateProvider
+            .select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final shouldPulse = sessionCapturing ||
+        cameraConnected ||
+        mountConnected ||
+        guiderConnected ||
+        focuserConnected;
+    if (shouldPulse) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else if (_pulseController.isAnimating) {
+      _pulseController.stop();
+    }
+
     return ContextualTourPrompt(
       screenId: 'dashboard',
       tourCategory: TutorialCategory.dashboardTour,
@@ -69,9 +88,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       description: context.l10n.text('dashboardTourDescription'),
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
-      child: FadeTransition(
-        opacity: _fadeAnimation,
-        child: layoutAsync.when(
+      child: layoutAsync.when(
           data: (layout) => _ZoneBasedDashboard(
             layout: layout,
             colors: colors,
@@ -106,7 +123,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             onReset: _resetLayout,
           ),
         ),
-      ),
     );
   }
 
@@ -135,8 +151,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 /// - Tertiary Zone: Bottom row with compact status cards (mount, focus, weather)
 ///
 /// Responsive breakpoints:
-/// - >1440px: Full three-zone layout
-/// - 1024-1440px: Primary + collapsible secondary panel
+/// - >=1280px: Full three-zone layout
+/// - 1024-1280px: Two-column compact (primary + secondary, no inline tertiary split)
 /// - 768-1024px: Stacked (primary above secondary)
 /// - <768px: Single column with tabbed navigation
 class _ZoneBasedDashboard extends StatelessWidget {
@@ -173,17 +189,25 @@ class _ZoneBasedDashboard extends StatelessWidget {
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
 
-        // Responsive layout selection based on breakpoints
+        // Responsive layout selection based on breakpoints. The 1280 cutoff
+        // covers most laptops where the full three-column split would crush
+        // the secondary column under its 280 px clamp.
         if (screenWidth < NightshadeTokens.breakpointTablet) {
           return _buildCompactLayout(context);
         } else if (screenWidth < NightshadeTokens.breakpointDesktop) {
           return _buildStackedLayout(context);
+        } else if (screenWidth < _twoColumnFullThreshold) {
+          return _buildTwoColumnCompactLayout(context, constraints);
         } else {
           return _buildFullLayout(context, constraints);
         }
       },
     );
   }
+
+  // Width at which the full three-column split has enough room for both the
+  // hero zone and a usable secondary column without starving either.
+  static const double _twoColumnFullThreshold = 1280.0;
 
   /// Full three-zone layout for wide screens (>1024px)
   Widget _buildFullLayout(BuildContext context, BoxConstraints constraints) {
@@ -339,6 +363,112 @@ class _ZoneBasedDashboard extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Intermediate two-column layout for 1024-1280 px (most laptops).
+  ///
+  /// At this width the full layout's 280-360 px secondary column clamp leaves
+  /// the primary too narrow for the hero preview. Drop the inline tertiary
+  /// split and let tertiary cards run as a single wrap below the two columns.
+  Widget _buildTwoColumnCompactLayout(
+      BuildContext context, BoxConstraints constraints) {
+    final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
+    final primaryTiles = layout.tilesForZone(DashboardZone.primary);
+    final secondaryTiles = layout.tilesForZone(DashboardZone.secondary);
+    final tertiaryTiles = layout.tilesForZone(DashboardZone.tertiary);
+
+    // Reserve more room for the hero zone than the full layout does, since
+    // the secondary tiles can be skimmed via scroll without losing context.
+    const horizontalPadding = 32.0;
+    const columnGap = 16.0;
+    final availableWidth = constraints.maxWidth - horizontalPadding;
+    final secondaryWidth =
+        ((availableWidth - columnGap) * 0.36).clamp(300.0, 380.0);
+    final primaryWidth = availableWidth - secondaryWidth - columnGap;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: DashboardCommandBar(
+            colors: colors,
+            pulseController: pulseController,
+            isEditing: isEditing,
+            onToggleEdit: onToggleEdit,
+            onManageWidgets: onManageWidgets,
+            onResetLayout: onResetLayout,
+          ),
+        ),
+        if (isEditing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: EditModeBanner(colors: colors),
+          ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: primaryWidth,
+                      child: DashboardZoneColumn(
+                        zone: DashboardZone.primary,
+                        tiles: primaryTiles,
+                        registry: registry,
+                        colors: colors,
+                        pulseController: pulseController,
+                        isEditing: isEditing,
+                        cardVariant: CardVariant.elevated,
+                        isHeroZone: true,
+                        onReorder: onReorder,
+                        onResize: onResize,
+                        onToggleEnabled: onToggleEnabled,
+                      ),
+                    ),
+                    const SizedBox(width: columnGap),
+                    SizedBox(
+                      width: secondaryWidth,
+                      child: DashboardZoneColumn(
+                        zone: DashboardZone.secondary,
+                        tiles: secondaryTiles,
+                        registry: registry,
+                        colors: colors,
+                        pulseController: pulseController,
+                        isEditing: isEditing,
+                        cardVariant: CardVariant.standard,
+                        isHeroZone: false,
+                        onReorder: onReorder,
+                        onResize: onResize,
+                        onToggleEnabled: onToggleEnabled,
+                      ),
+                    ),
+                  ],
+                ),
+                if (tertiaryTiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  TertiaryZoneRow(
+                    tiles: tertiaryTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
+                  ),
+                ],
               ],
             ),
           ),
