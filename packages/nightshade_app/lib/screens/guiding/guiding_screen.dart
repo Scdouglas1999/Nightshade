@@ -1,14 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_ui/nightshade_ui.dart'
-    hide Phd2GuidingState, GuideErrorPoint;
-import 'package:nightshade_ui/nightshade_ui.dart' as ui
-    show
-        Phd2GuidingState,
-        GuideErrorPoint,
-        GuideTargetDisplay,
-        GuideControlsPanel;
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
@@ -260,10 +253,10 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                         icon: LucideIcons.target,
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: ui.GuideTargetDisplay(
+                          child: GuideTargetDisplay(
                             key: GuidingTutorialKeys.targetDisplay,
                             errorHistory: errorHistory
-                                .map((e) => ui.GuideErrorPoint(
+                                .map((e) => GuideErrorPoint(
                                       raError: e.raError,
                                       decError: e.decError,
                                       timestamp: e.timestamp,
@@ -333,10 +326,10 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                     icon: LucideIcons.target,
                     child: AspectRatio(
                       aspectRatio: 1,
-                      child: ui.GuideTargetDisplay(
+                      child: GuideTargetDisplay(
                         key: GuidingTutorialKeys.targetDisplay,
                         errorHistory: errorHistory
-                            .map((e) => ui.GuideErrorPoint(
+                            .map((e) => GuideErrorPoint(
                                   raError: e.raError,
                                   decError: e.decError,
                                   timestamp: e.timestamp,
@@ -397,7 +390,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               final controlsHeight = constraints.maxWidth < 360 ? 340.0 : 380.0;
               return SizedBox(
                 height: controlsHeight,
-                child: ui.GuideControlsPanel(
+                child: GuideControlsPanel(
                   key: GuidingTutorialKeys.controls,
                   state: _mapPhd2State(phd2State),
                   isConnected: isConnected,
@@ -831,10 +824,10 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             icon: LucideIcons.target,
             child: AspectRatio(
               aspectRatio: 1,
-              child: ui.GuideTargetDisplay(
+              child: GuideTargetDisplay(
                 key: GuidingTutorialKeys.targetDisplay,
                 errorHistory: errorHistory
-                    .map((e) => ui.GuideErrorPoint(
+                    .map((e) => GuideErrorPoint(
                           raError: e.raError,
                           decError: e.decError,
                           timestamp: e.timestamp,
@@ -1099,7 +1092,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
         // Controls panel
         Expanded(
           flex: 3,
-          child: ui.GuideControlsPanel(
+          child: GuideControlsPanel(
             key: GuidingTutorialKeys.controls,
             state: _mapPhd2State(phd2State),
             isConnected: isConnected,
@@ -1253,24 +1246,24 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     }
   }
 
-  ui.Phd2GuidingState _mapPhd2State(Phd2State state) {
+  Phd2GuidingState _mapPhd2State(Phd2State state) {
     switch (state) {
       case Phd2State.stopped:
-        return ui.Phd2GuidingState.stopped;
+        return Phd2GuidingState.stopped;
       case Phd2State.looping:
-        return ui.Phd2GuidingState.looping;
+        return Phd2GuidingState.looping;
       case Phd2State.calibrating:
-        return ui.Phd2GuidingState.calibrating;
+        return Phd2GuidingState.calibrating;
       case Phd2State.guiding:
-        return ui.Phd2GuidingState.guiding;
+        return Phd2GuidingState.guiding;
       case Phd2State.paused:
-        return ui.Phd2GuidingState.paused;
+        return Phd2GuidingState.paused;
       case Phd2State.settling:
-        return ui.Phd2GuidingState.settling;
+        return Phd2GuidingState.settling;
       case Phd2State.lostLock:
-        return ui.Phd2GuidingState.lostLock;
+        return Phd2GuidingState.lostLock;
       default:
-        return ui.Phd2GuidingState.disconnected;
+        return Phd2GuidingState.disconnected;
     }
   }
 

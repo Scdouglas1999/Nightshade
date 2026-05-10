@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_ui/nightshade_ui.dart'
-    hide Phd2GuidingState, GuideErrorPoint;
-import 'package:nightshade_ui/nightshade_ui.dart' as ui
-    show Phd2GuidingState, GuideControlsPanel;
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
@@ -212,7 +209,7 @@ class GuidingTab extends ConsumerWidget {
           const SizedBox(height: 12),
 
           // Controls panel (scrollable)
-          ui.GuideControlsPanel(
+          GuideControlsPanel(
             state: _mapPhd2State(phd2State, isConnected),
             isConnected: isConnected,
             onStartGuiding: () =>
@@ -432,7 +429,7 @@ class GuidingTab extends ConsumerWidget {
                     // Controls - using shared GuideControlsPanel widget
                     SizedBox(
                       height: 280,
-                      child: ui.GuideControlsPanel(
+                      child: GuideControlsPanel(
                         state: _mapPhd2State(phd2State, isConnected),
                         isConnected: isConnected,
                         onStartGuiding: () =>
@@ -615,27 +612,27 @@ class GuidingTab extends ConsumerWidget {
     Phd2ConnectionDialog.show(context, ref);
   }
 
-  ui.Phd2GuidingState _mapPhd2State(Phd2State state, bool isConnected) {
+  Phd2GuidingState _mapPhd2State(Phd2State state, bool isConnected) {
     if (!isConnected) {
-      return ui.Phd2GuidingState.disconnected;
+      return Phd2GuidingState.disconnected;
     }
     switch (state) {
       case Phd2State.stopped:
-        return ui.Phd2GuidingState.stopped;
+        return Phd2GuidingState.stopped;
       case Phd2State.looping:
-        return ui.Phd2GuidingState.looping;
+        return Phd2GuidingState.looping;
       case Phd2State.calibrating:
-        return ui.Phd2GuidingState.calibrating;
+        return Phd2GuidingState.calibrating;
       case Phd2State.guiding:
-        return ui.Phd2GuidingState.guiding;
+        return Phd2GuidingState.guiding;
       case Phd2State.paused:
-        return ui.Phd2GuidingState.paused;
+        return Phd2GuidingState.paused;
       case Phd2State.settling:
-        return ui.Phd2GuidingState.settling;
+        return Phd2GuidingState.settling;
       case Phd2State.lostLock:
-        return ui.Phd2GuidingState.lostLock;
+        return Phd2GuidingState.lostLock;
       default:
-        return ui.Phd2GuidingState.disconnected;
+        return Phd2GuidingState.disconnected;
     }
   }
 }
