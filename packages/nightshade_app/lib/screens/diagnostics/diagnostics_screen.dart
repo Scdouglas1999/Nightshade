@@ -71,14 +71,26 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
             ],
           ),
           const SizedBox(height: 8),
+          // Users frequently confuse diagnostics with analytics; the audit
+          // (§4.19) called out that the prior single-line intro didn't make
+          // the scope obvious. Spell out the mechanical-health framing,
+          // contrast it with analytics, and tell people when to come here.
           Text(
-            'Lower tilt and collimation scores are better. Use this screen to judge field shape and spacing before changing hardware.',
+            'Optical-train mechanical health — collimation, tilt, sensor backfocus, and image-plane flatness — the hardware issues that show up as systematic PSF aberrations across the field. '
+            'Analytics tracks per-frame image quality and photometry; diagnostics aggregates anomaly patterns across the whole session to point at the underlying hardware cause. '
+            'Come here when imaging shows degraded HFR or eccentricity, or when analytics keeps flagging the same quality issue. Lower tilt and collimation scores are better.',
             style: TextStyle(
               fontSize: 12,
               color: colors.textSecondary,
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 8),
+          // No external docs site is wired up yet, so the chip uses a
+          // `nightshade://docs/diagnostics` anchor as a stable target for a
+          // future in-app docs viewer. Until that lands, the chip stays
+          // informational — tapping is a no-op rather than a broken link.
+          _DocsInfoChip(colors: colors),
           const SizedBox(height: 16),
 
           // Main content
@@ -95,6 +107,50 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Sits under the intro paragraph as a low-key affordance. Inline `InkWell`
+// over a small icon + label keeps the chip visually quieter than
+// `NightshadeButton.ghost`, which is sized for primary actions.
+class _DocsInfoChip extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _DocsInfoChip({required this.colors});
+
+  // Routed to the in-app docs viewer once it's available; see §4.19 note.
+  static const String _docsAnchor = 'nightshade://docs/diagnostics';
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      // Until the docs viewer ships, surface the anchor in a tooltip so
+      // power users can see where the link will go without it appearing
+      // broken on tap.
+      onTap: null,
+      child: Tooltip(
+        message: _docsAnchor,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.info, size: 14, color: colors.accent),
+              const SizedBox(width: 6),
+              Text(
+                'Learn more about optical diagnostics',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.accent,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
