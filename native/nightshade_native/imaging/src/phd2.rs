@@ -33,6 +33,14 @@ pub enum Phd2State {
     Settling,
     /// Lost lock on guide star
     LostLock,
+    /// PHD2 reported a state name we do not recognise. Preserves the raw
+    /// string so callers can log or surface it instead of being lied to with
+    /// a synthesised `Connected`.
+    ///
+    /// Why: PHD2 has historically added states (e.g. `GuidingPaused`,
+    /// `StarFound`); silently mapping the unknown to `Connected` masked real
+    /// guiding regressions until a session-end review.
+    Unknown(String),
 }
 
 /// PHD2 guide statistics
@@ -809,17 +817,7 @@ impl Phd2Client {
     pub fn get_app_state(&mut self) -> Result<Phd2State, String> {
         let result = self.send_request("get_app_state", None)?;
         let state_str = result.as_str().unwrap_or("Unknown");
-
-        Ok(match state_str {
-            "Stopped" => Phd2State::Connected,
-            "Selected" => Phd2State::Connected,
-            "Calibrating" => Phd2State::Calibrating,
-            "Guiding" => Phd2State::Guiding,
-            "Looping" => Phd2State::Looping,
-            "Paused" => Phd2State::Paused,
-            "LostLock" => Phd2State::LostLock,
-            _ => Phd2State::Connected,
-        })
+        Ok(parse_phd2_app_state(state_str))
     }
 
     /// Get connected equipment
@@ -1179,17 +1177,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                 .get("State")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let state = match state_str {
-                "Stopped" => Phd2State::Connected,
-                "Selected" => Phd2State::Connected,
-                "Calibrating" => Phd2State::Calibrating,
-                "Guiding" => Phd2State::Guiding,
-                "Looping" => Phd2State::Looping,
-                "Paused" => Phd2State::Paused,
-                "LostLock" => Phd2State::LostLock,
-                _ => Phd2State::Connected,
-            };
-            Some(Phd2Event::StateChanged(state))
+            Some(Phd2Event::StateChanged(parse_phd2_app_state(state_str)))
         }
         "StartCalibration" => Some(Phd2Event::StateChanged(Phd2State::Calibrating)),
         "CalibrationComplete" => Some(Phd2Event::CalibrationComplete),
@@ -1241,6 +1229,35 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             })
         }
         _ => None,
+    }
+}
+
+/// Map a PHD2 application-state string to a `Phd2State`.
+///
+/// PHD2's documented states are `Stopped`, `Selected`, `Calibrating`,
+/// `Guiding`, `Looping`, `Paused`, and `LostLock`; the `Settling` state shows
+/// up via dedicated events. Newer PHD2 builds occasionally introduce
+/// additional state names (e.g. `GuidingPaused`, `StarFound`). When we see an
+/// unrecognised value, we **must not** silently coerce it to `Connected` —
+/// that masked guiding regressions for the duration of an entire imaging
+/// session. Instead, surface it as `Phd2State::Unknown(raw)` and emit a
+/// warn-level log so the operator (and our diagnostics) can react.
+fn parse_phd2_app_state(state_str: &str) -> Phd2State {
+    match state_str {
+        "Stopped" => Phd2State::Connected,
+        "Selected" => Phd2State::Connected,
+        "Calibrating" => Phd2State::Calibrating,
+        "Guiding" => Phd2State::Guiding,
+        "Looping" => Phd2State::Looping,
+        "Paused" => Phd2State::Paused,
+        "LostLock" => Phd2State::LostLock,
+        other => {
+            tracing::warn!(
+                "PHD2: unrecognised app-state {:?} — preserving as Phd2State::Unknown",
+                other
+            );
+            Phd2State::Unknown(other.to_string())
+        }
     }
 }
 
@@ -1406,5 +1423,40 @@ pub fn launch_phd2() -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to launch PHD2: {}", e))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// §6.23: documented PHD2 app states map deterministically and
+    /// unambiguously. Two of them (`Stopped`, `Selected`) collapse to
+    /// `Connected` per PHD2's protocol semantics; the rest are 1:1.
+    #[test]
+    fn parses_known_phd2_app_states() {
+        assert_eq!(parse_phd2_app_state("Stopped"), Phd2State::Connected);
+        assert_eq!(parse_phd2_app_state("Selected"), Phd2State::Connected);
+        assert_eq!(parse_phd2_app_state("Calibrating"), Phd2State::Calibrating);
+        assert_eq!(parse_phd2_app_state("Guiding"), Phd2State::Guiding);
+        assert_eq!(parse_phd2_app_state("Looping"), Phd2State::Looping);
+        assert_eq!(parse_phd2_app_state("Paused"), Phd2State::Paused);
+        assert_eq!(parse_phd2_app_state("LostLock"), Phd2State::LostLock);
+    }
+
+    /// §6.23: unknown PHD2 state names must surface as `Unknown(raw)` so the
+    /// raw string is preserved end-to-end (logs, telemetry, UI). Previously
+    /// we silently mapped them to `Connected`, hiding e.g. `GuidingPaused`.
+    #[test]
+    fn unknown_phd2_state_preserves_raw_string() {
+        for sample in &["GuidingPaused", "StarFound", "", "TotallyMadeUpState"] {
+            match parse_phd2_app_state(sample) {
+                Phd2State::Unknown(raw) => assert_eq!(raw, *sample, "raw string must round-trip"),
+                other => panic!(
+                    "expected Phd2State::Unknown({:?}), got {:?}",
+                    sample, other
+                ),
+            }
+        }
     }
 }

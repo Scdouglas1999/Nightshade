@@ -858,6 +858,59 @@ fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
     Ok(ImageData::from_u16(out_width, out_height, 1, &output))
 }
 
+/// Sigma multiplier for the plate-solve detection threshold.
+///
+/// Why: 5σ above the robust background gives ~1 false positive in 3.5 million
+/// pixels of pure Gaussian noise — comfortably below the candidate-list size
+/// the matcher consumes. We also blend in a 25 % skew toward the dynamic
+/// range so very high-contrast frames still favour the actual stars over
+/// hot-pixel noise.
+#[cfg(test)]
+const PLATESOLVE_DETECTION_SIGMA: f64 = 5.0;
+
+/// Estimate `(median, sigma)` of a u16 image using the MAD of a stride-1
+/// sample. Robust against bright stars dominating a naive variance.
+///
+/// Why: the previous detector used a hardcoded 250-ADU floor — meaningless
+/// for a 10-bit camera or a pre-stretched JPEG. An estimator gives us a
+/// noise-aware threshold that scales with the actual sky background.
+#[cfg(test)]
+fn estimate_background_u16(pixels: &[u16]) -> (f64, f64) {
+    if pixels.is_empty() {
+        return (0.0, 1.0);
+    }
+    let mut sorted: Vec<u16> = pixels.to_vec();
+    sorted.sort_unstable();
+    let median = sorted[sorted.len() / 2] as f64;
+    // MAD → σ via the standard 1.4826 scale factor for Gaussian-distributed
+    // backgrounds. Compute on a deviations vector so we don't disturb
+    // `sorted` (callers don't depend on it but keep it readable).
+    let mut deviations: Vec<f64> =
+        sorted.iter().map(|&v| (v as f64 - median).abs()).collect();
+    deviations.sort_by(|a, b| a.total_cmp(b));
+    let mad = deviations[deviations.len() / 2];
+    let sigma = (mad * 1.4826).max(1.0);
+    (median, sigma)
+}
+
+/// Pick a `min_separation` (in **downsampled** pixels) for the plate-solve
+/// candidate cull, scaling with image size so dense star fields aren't
+/// over-merged on small frames or under-merged on huge ones.
+///
+/// Why: the previous code hardcoded 2.0 px (= 8 px on the original 4×
+/// downsample). On a 9576×6388 frame that is ~0.0008 % of the diagonal —
+/// useless as a deduplication radius. Scale gently with the frame's longer
+/// edge so large images get a proportionally larger merge radius without
+/// blowing up dense star fields on small ones.
+#[cfg(test)]
+fn plate_solve_min_separation(width: u32, height: u32) -> f64 {
+    let longest = width.max(height) as f64;
+    // 1 unit per ~512 downsampled px, clamped to a sensible band. The lower
+    // bound preserves the historical behaviour for 1k-class frames; the
+    // upper bound stops 50-megapixel frames from aliasing distinct stars.
+    (longest / 512.0).clamp(2.0, 8.0)
+}
+
 #[cfg(test)]
 fn detect_local_maxima(
     image: &ImageData,
@@ -870,11 +923,16 @@ fn detect_local_maxima(
         return Err("Image too small for star detection".to_string());
     }
 
-    let mut sorted = pixels.clone();
-    sorted.sort_unstable();
-    let median = sorted[sorted.len() / 2] as f64;
-    let max_value = *sorted.last().unwrap_or(&0) as f64;
-    let threshold = median + ((max_value - median) * 0.25).max(250.0);
+    let (background, sigma) = estimate_background_u16(&pixels);
+    let max_value = *pixels.iter().max().unwrap_or(&0) as f64;
+    // Why: combine a noise-aware floor (Nσ above background) with a fraction
+    // of the dynamic range so that on heavily stretched frames we still
+    // ignore the long tail of background-clipped pixels. Replaces the
+    // previous absolute 250-ADU floor that was meaningless for 10-bit
+    // sensors and pre-stretched JPEGs.
+    let sigma_floor = background + PLATESOLVE_DETECTION_SIGMA * sigma;
+    let dynamic_floor = background + (max_value - background) * 0.25;
+    let threshold = sigma_floor.max(dynamic_floor);
 
     let mut candidates = Vec::<crate::DetectedStar>::new();
     for y in 1..(image.height - 1) {
@@ -906,8 +964,12 @@ fn detect_local_maxima(
                 hfr: 1.0,
                 fwhm: 2.0,
                 peak: value,
-                background: median,
-                snr: if median > 0.0 { value / median } else { value },
+                background,
+                snr: if sigma > 0.0 {
+                    (value - background) / sigma
+                } else {
+                    value
+                },
                 eccentricity: 0.0,
                 sharpness: 0.5,
             });
@@ -943,7 +1005,11 @@ fn extract_plate_stars(image: &ImageData) -> Result<Vec<crate::DetectedStar>, St
         }
     };
 
-    let mut stars = detect_local_maxima(&downsampled, 2.0)?
+    // Why: scale the dedup radius with the downsampled frame instead of the
+    // historical hardcoded 2.0 px. See `plate_solve_min_separation` doc
+    // comment for the chosen scaling.
+    let min_separation = plate_solve_min_separation(downsampled.width, downsampled.height);
+    let mut stars = detect_local_maxima(&downsampled, min_separation)?
         .into_iter()
         .map(|mut star| {
             star.x *= factor as f64;
@@ -1574,5 +1640,139 @@ mod tests {
         assert!(matches!(err, PlateSolveError::SolveFailed { .. }));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    /// Helper for §6.15 tests: build a synthetic u16 image where every
+    /// background pixel is sampled from a small uniform-noise envelope
+    /// centred on `bg`, with a handful of point-like injected stars.
+    /// Deterministic via a tiny xorshift so the tests are reproducible.
+    fn synthetic_image_with_stars(
+        width: u32,
+        height: u32,
+        background: u16,
+        noise_amplitude: u16,
+        stars: &[(u32, u32, u16)],
+    ) -> ImageData {
+        let mut state: u32 = 0x1234_5678;
+        let mut pixels = vec![0u16; (width * height) as usize];
+        for px in pixels.iter_mut() {
+            // xorshift32
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            let jitter = (state % (2 * noise_amplitude as u32 + 1)) as i32 - noise_amplitude as i32;
+            *px = (background as i32 + jitter).clamp(0, u16::MAX as i32) as u16;
+        }
+        for &(sx, sy, peak) in stars {
+            // 3×3 bright core to ensure local-maximum predicate holds even after
+            // the noise floor is added.
+            for dy in -1i32..=1 {
+                for dx in -1i32..=1 {
+                    let x = sx as i32 + dx;
+                    let y = sy as i32 + dy;
+                    if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+                        continue;
+                    }
+                    let idx = (y as u32 * width + x as u32) as usize;
+                    let attenuation = if dx == 0 && dy == 0 { 1.0 } else { 0.6 };
+                    let signal = (peak as f64 * attenuation) as u16;
+                    pixels[idx] = pixels[idx].saturating_add(signal);
+                }
+            }
+        }
+        ImageData::from_u16(width, height, 1, &pixels)
+    }
+
+    /// §6.15: even on a low-contrast image (10-bit camera, no stretch), the
+    /// detector must find injected stars instead of being blocked by the old
+    /// 250-ADU absolute floor.
+    #[test]
+    fn detect_local_maxima_finds_low_contrast_stars() {
+        // Background ≈ 100, noise σ small, peaks only ~80 ADU above background.
+        // 250-ADU floor would have rejected every candidate — sigma threshold
+        // must succeed here.
+        let stars = [(40u32, 40u32, 180u16), (90, 60, 200), (140, 110, 220)];
+        let image = synthetic_image_with_stars(192, 192, 100, 4, &stars);
+
+        let detected =
+            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+
+        assert!(
+            detected.len() >= stars.len(),
+            "expected at least {} stars on low-contrast frame, got {}",
+            stars.len(),
+            detected.len()
+        );
+
+        // Every injected star must show up within 2 px of its true centre.
+        for &(sx, sy, _) in &stars {
+            let hit = detected.iter().any(|s| {
+                let dx = s.x - sx as f64;
+                let dy = s.y - sy as f64;
+                (dx * dx + dy * dy).sqrt() < 2.0
+            });
+            assert!(hit, "missed injected star at ({}, {})", sx, sy);
+        }
+    }
+
+    /// §6.15: a high-contrast frame (deep stretch, very dark sky) with **no
+    /// injected stars** must not produce a flood of false positives from
+    /// background noise. The sigma-aware threshold gates this.
+    #[test]
+    fn detect_local_maxima_rejects_noise_only_image() {
+        // Deliberately exaggerated noise so the old 250-ADU floor would have
+        // gated nothing while a sigma-aware floor still gates correctly.
+        let image = synthetic_image_with_stars(192, 192, 200, 60, &[]);
+
+        let detected =
+            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+
+        // A handful of pixels can sit at the extreme tail of the noise
+        // distribution; a noise-aware threshold should keep this well below
+        // the 32-star cap. The previous absolute floor produced unbounded
+        // false positives on stretched frames.
+        assert!(
+            detected.len() < 8,
+            "noise-only image produced {} false positives — threshold not noise-aware",
+            detected.len()
+        );
+    }
+
+    /// §6.15: high-contrast frame with real stars must still recover them
+    /// while leaving the noise alone.
+    #[test]
+    fn detect_local_maxima_high_contrast_recovers_stars() {
+        let stars = [(50u32, 50u32, 60_000u16), (120, 80, 55_000)];
+        let image = synthetic_image_with_stars(192, 192, 200, 8, &stars);
+
+        let detected =
+            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+
+        for &(sx, sy, _) in &stars {
+            let hit = detected.iter().any(|s| {
+                let dx = s.x - sx as f64;
+                let dy = s.y - sy as f64;
+                (dx * dx + dy * dy).sqrt() < 2.0
+            });
+            assert!(hit, "missed bright star at ({}, {})", sx, sy);
+        }
+    }
+
+    /// §6.15: `min_separation` must scale with image size so dense star
+    /// fields are not over-merged on small frames or under-merged on huge
+    /// ones.
+    #[test]
+    fn plate_solve_min_separation_scales_with_image_size() {
+        // Small frame keeps the minimum (== historical 2.0).
+        assert_eq!(super::plate_solve_min_separation(640, 480), 2.0);
+
+        // Mid-range frame produces a value strictly above the historical
+        // floor.
+        let mid = super::plate_solve_min_separation(2048, 1536);
+        assert!(mid > 2.0 && mid < 8.0, "mid frame got {mid}");
+
+        // A 50-megapixel-class frame (ZWO ASI6200, full chip) clamps to the
+        // upper bound rather than running away to absurd radii.
+        assert_eq!(super::plate_solve_min_separation(9576, 6388), 8.0);
     }
 }

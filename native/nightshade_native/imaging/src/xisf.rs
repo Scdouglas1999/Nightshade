@@ -444,11 +444,34 @@ fn parse_property_value(value: &str, prop_type: &str) -> XisfProperty {
             .parse()
             .map(XisfProperty::Float64)
             .unwrap_or(XisfProperty::String(value.to_string())),
-        "Boolean" => XisfProperty::Boolean(value == "true" || value == "1"),
+        // Why: XISF spec accepts case-insensitive Boolean literals; PixInsight
+        // emits "True", external tools may emit "TRUE". Treat anything else as
+        // a non-boolean string so downstream code can detect malformed values.
+        "Boolean" => parse_boolean_property(value),
         "TimePoint" => XisfProperty::TimePoint(value.to_string()),
         _ => XisfProperty::String(value.to_string()),
     }
 }
+
+/// Parse an XISF Boolean attribute value.
+///
+/// XISF accepts the literals `true`/`false` and `1`/`0`; the spec is
+/// case-insensitive. Anything else (including empty strings) is preserved as
+/// a `String` so callers can surface a malformed-property error rather than a
+/// silent `false`.
+fn parse_boolean_property(value: &str) -> XisfProperty {
+    let folded = value.trim().to_ascii_lowercase();
+    match folded.as_str() {
+        "true" | "1" => XisfProperty::Boolean(true),
+        "false" | "0" => XisfProperty::Boolean(false),
+        _ => XisfProperty::String(value.to_string()),
+    }
+}
+
+/// Compile-time Nightshade product version sourced from `version.yaml` via
+/// `build.rs`. Centralised here so XISF (and any other writer) reports the
+/// real version instead of a hardcoded literal.
+const NIGHTSHADE_PRODUCT_VERSION: &str = env!("NIGHTSHADE_VERSION");
 
 /// Write an XISF file
 pub fn write_xisf(
@@ -596,10 +619,14 @@ fn build_xisf_xml(
     xml_writer.write_event(Event::Start(image_start))?;
 
     // Creator property
+    // Why: PixInsight relies on XISF:CreatorApplication for provenance/issue
+    // reporting; emit the real product version sourced from version.yaml so
+    // bug reports against a specific build don't all read "Nightshade 2.0".
+    let creator_value = format!("Nightshade {}", NIGHTSHADE_PRODUCT_VERSION);
     let mut creator_prop = BytesStart::new("Property");
     creator_prop.push_attribute(("id", "XISF:CreatorApplication"));
     creator_prop.push_attribute(("type", "String"));
-    creator_prop.push_attribute(("value", "Nightshade 2.0"));
+    creator_prop.push_attribute(("value", creator_value.as_str()));
     xml_writer.write_event(Event::Empty(creator_prop))?;
 
     // Creation time property
@@ -687,5 +714,91 @@ mod tests {
 
         let expected_offset = align_offset(16 + resolved.0.len());
         assert_eq!(resolved.1, expected_offset);
+    }
+
+    /// §6.21: Boolean parsing must accept all spec-permitted literals
+    /// case-insensitively. The previous implementation only matched `"true"`
+    /// and `"1"` exactly, so PixInsight-emitted `"True"` was silently treated
+    /// as `false` (turning real flags into wrong defaults).
+    #[test]
+    fn parses_boolean_property_case_insensitive() {
+        for truthy in &["true", "True", "TRUE", " true ", "1"] {
+            match parse_property_value(truthy, "Boolean") {
+                XisfProperty::Boolean(b) => assert!(b, "{:?} should parse as true", truthy),
+                other => panic!("{:?} parsed as {:?}, expected Boolean(true)", truthy, other),
+            }
+        }
+        for falsy in &["false", "False", "FALSE", "0"] {
+            match parse_property_value(falsy, "Boolean") {
+                XisfProperty::Boolean(b) => assert!(!b, "{:?} should parse as false", falsy),
+                other => panic!("{:?} parsed as {:?}, expected Boolean(false)", falsy, other),
+            }
+        }
+        // Empty / unrecognised values must NOT silently become `false`.
+        for malformed in &["", "yes", "no", "maybe"] {
+            match parse_property_value(malformed, "Boolean") {
+                XisfProperty::String(s) => assert_eq!(s, *malformed),
+                other => panic!(
+                    "{:?} parsed as {:?}, expected fallback String preserving the raw value",
+                    malformed, other
+                ),
+            }
+        }
+    }
+
+    /// §6.22: the XISF Creator property must reflect the real product version
+    /// (sourced from `version.yaml` via `build.rs`), not a hardcoded "2.0".
+    #[test]
+    fn xisf_creator_contains_real_version() {
+        let header = resolve_stable_xml_header(
+            &ImageData {
+                width: 4,
+                height: 4,
+                channels: 1,
+                pixel_type: PixelType::U16,
+                data: vec![0; 4 * 4 * 2],
+            },
+            &XisfMetadata::default(),
+            4 * 4 * 2,
+        )
+        .expect("header generation should succeed");
+        let xml = std::str::from_utf8(&header.0).expect("XISF header is valid UTF-8");
+
+        // The compile-time version constant matches what is written into the file.
+        let expected = format!("Nightshade {}", NIGHTSHADE_PRODUCT_VERSION);
+        assert!(
+            xml.contains(&expected),
+            "XISF header should contain {:?}; got: {}",
+            expected,
+            xml
+        );
+        // The hardcoded sentinel value must no longer appear unless the real
+        // version is literally 2.0 (in which case the assertion above already
+        // matched the dynamic string and this is a no-op).
+        if NIGHTSHADE_PRODUCT_VERSION != "2.0" {
+            assert!(
+                !xml.contains("\"Nightshade 2.0\""),
+                "XISF header still contains the legacy hardcoded \"Nightshade 2.0\" literal"
+            );
+        }
+        // Sanity: version constant is non-empty and matches a SemVer-ish shape.
+        // The const-is-empty allow is deliberate: we want this assertion to
+        // fail loudly if a future build.rs regression injects an empty value.
+        #[allow(clippy::const_is_empty)]
+        {
+            assert!(
+                !NIGHTSHADE_PRODUCT_VERSION.is_empty(),
+                "NIGHTSHADE_VERSION env var was empty at build time"
+            );
+        }
+        assert!(
+            NIGHTSHADE_PRODUCT_VERSION
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false),
+            "NIGHTSHADE_VERSION should start with a digit; got {:?}",
+            NIGHTSHADE_PRODUCT_VERSION
+        );
     }
 }

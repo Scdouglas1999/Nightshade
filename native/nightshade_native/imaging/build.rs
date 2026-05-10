@@ -24,6 +24,24 @@ fn main() {
         .expect("Failed to find workspace root")
         .to_path_buf();
 
+    // Why: version.yaml is the single source of truth for the user-facing
+    // product version. Cargo.toml is pinned at 0.1.0 and would mislead
+    // downstream consumers (XISF Creator field, FITS history, etc.).
+    let version_yaml = workspace_root.join("version.yaml");
+    println!("cargo:rerun-if-changed={}", version_yaml.display());
+    let nightshade_version = read_nightshade_version(&version_yaml).unwrap_or_else(|err| {
+        // Errors are a feature — refuse to silently fall back to a fake version.
+        panic!(
+            "build.rs: unable to determine Nightshade version from {}: {}",
+            version_yaml.display(),
+            err
+        );
+    });
+    println!(
+        "cargo:rustc-env=NIGHTSHADE_VERSION={}",
+        nightshade_version
+    );
+
     // Platform-specific library configuration
     #[cfg(target_os = "windows")]
     {
@@ -79,4 +97,37 @@ fn main() {
         println!("cargo:rustc-link-search=native=/usr/local/lib");
         println!("cargo:rustc-link-search=native=/opt/homebrew/lib");
     }
+}
+
+/// Extract the `version: "X.Y.Z"` field from `version.yaml`.
+///
+/// Why: avoid pulling a YAML dependency into build.rs for one scalar string.
+/// The format is fixed by the project (see `version.yaml` in repo root).
+fn read_nightshade_version(path: &std::path::Path) -> Result<String, String> {
+    let contents = std::fs::read_to_string(path)
+        .map_err(|err| format!("failed to read {}: {}", path.display(), err))?;
+    for raw_line in contents.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some(rest) = line.strip_prefix("version:") else {
+            continue;
+        };
+        let value = rest.trim();
+        // Tolerate both `"2.5.0"` and `2.5.0` (YAML allows unquoted scalars).
+        let stripped = value
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .or_else(|| value.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
+            .unwrap_or(value);
+        if stripped.is_empty() {
+            return Err(format!("`version:` key in {} is empty", path.display()));
+        }
+        return Ok(stripped.to_string());
+    }
+    Err(format!(
+        "`version:` key not found in {}",
+        path.display()
+    ))
 }

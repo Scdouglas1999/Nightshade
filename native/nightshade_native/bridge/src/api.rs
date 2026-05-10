@@ -5771,6 +5771,21 @@ pub async fn api_phd2_connect(
                     nightshade_imaging::Phd2State::Looping => GuidingEvent::Looping,
                     nightshade_imaging::Phd2State::Calibrating => GuidingEvent::Calibrating,
                     nightshade_imaging::Phd2State::Settling => GuidingEvent::Settling,
+                    // Why: PHD2 occasionally introduces new app-states; we
+                    // forward the raw name as a generic `Disconnected` event
+                    // (the safest superset for sequencer logic) but the
+                    // warning is already emitted upstream in
+                    // `parse_phd2_app_state`. Surfacing the literal string in
+                    // the GuidingEvent stream would require extending the
+                    // FFI enum, which is out of scope here.
+                    nightshade_imaging::Phd2State::Unknown(raw) => {
+                        tracing::warn!(
+                            "PHD2: unrecognised state {:?} bubbled into bridge — \
+                             treating as Disconnected for guiding-event mapping",
+                            raw
+                        );
+                        GuidingEvent::Disconnected
+                    }
                 }
             }
             nightshade_imaging::Phd2Event::StarLost => GuidingEvent::LostStar,
@@ -5943,20 +5958,25 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
 
     let pixel_scale = client.get_pixel_scale().unwrap_or(0.0);
 
-    let state_str = match state {
-        nightshade_imaging::Phd2State::Disconnected => "Disconnected",
-        nightshade_imaging::Phd2State::Connected => "Connected",
-        nightshade_imaging::Phd2State::Calibrating => "Calibrating",
-        nightshade_imaging::Phd2State::Guiding => "Guiding",
-        nightshade_imaging::Phd2State::Looping => "Looping",
-        nightshade_imaging::Phd2State::Paused => "Paused",
-        nightshade_imaging::Phd2State::Settling => "Settling",
-        nightshade_imaging::Phd2State::LostLock => "LostLock",
+    // Why: forward the raw PHD2 state name when unrecognised so the desktop
+    // UI can render "PHD2 says: GuidingPaused" instead of pretending
+    // everything is fine. Known variants stay as &'static str literals;
+    // Unknown owns its String, so we convert to String at the join point.
+    let state_str: String = match state {
+        nightshade_imaging::Phd2State::Disconnected => "Disconnected".to_string(),
+        nightshade_imaging::Phd2State::Connected => "Connected".to_string(),
+        nightshade_imaging::Phd2State::Calibrating => "Calibrating".to_string(),
+        nightshade_imaging::Phd2State::Guiding => "Guiding".to_string(),
+        nightshade_imaging::Phd2State::Looping => "Looping".to_string(),
+        nightshade_imaging::Phd2State::Paused => "Paused".to_string(),
+        nightshade_imaging::Phd2State::Settling => "Settling".to_string(),
+        nightshade_imaging::Phd2State::LostLock => "LostLock".to_string(),
+        nightshade_imaging::Phd2State::Unknown(raw) => raw,
     };
 
     Ok(Phd2Status {
         connected: true,
-        state: state_str.to_string(),
+        state: state_str,
         rms_ra: 0.0, // Would need to track from events
         rms_dec: 0.0,
         rms_total: 0.0,

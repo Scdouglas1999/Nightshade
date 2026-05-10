@@ -126,6 +126,15 @@ pub enum RawError {
     LibRawError(String),
     UnsupportedFormat(String),
     InvalidPath(String),
+    /// A user-supplied path could not be passed through the LibRaw C ABI
+    /// because it contained an interior NUL byte. Carries `which` (which
+    /// processing parameter — `bad_pixels` or `dark_frame`) plus the
+    /// underlying `NulError` so callers can pinpoint the offending input.
+    InvalidCStringPath {
+        which: &'static str,
+        path: String,
+        source: std::ffi::NulError,
+    },
     NullPointer,
 }
 
@@ -136,12 +145,29 @@ impl std::fmt::Display for RawError {
             RawError::LibRawError(s) => write!(f, "LibRaw error: {}", s),
             RawError::UnsupportedFormat(s) => write!(f, "Unsupported format: {}", s),
             RawError::InvalidPath(s) => write!(f, "Invalid path: {}", s),
+            RawError::InvalidCStringPath {
+                which,
+                path,
+                source,
+            } => write!(
+                f,
+                "Invalid {} path {:?} (cannot be converted to a C string): {}",
+                which, path, source
+            ),
             RawError::NullPointer => write!(f, "Null pointer from LibRaw"),
         }
     }
 }
 
-impl std::error::Error for RawError {}
+impl std::error::Error for RawError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            RawError::Io(e) => Some(e),
+            RawError::InvalidCStringPath { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
 
 impl From<std::io::Error> for RawError {
     fn from(e: std::io::Error) -> Self {
@@ -244,6 +270,32 @@ impl Default for RawProcessingParams {
             max_memory_mb: None,
         }
     }
+}
+
+/// Convert an optional filesystem `Path` into an owned `CString` for the
+/// LibRaw FFI, surfacing every failure mode with full context.
+///
+/// `which` identifies which `RawProcessingParams` field the path came from
+/// (e.g. `"bad_pixels"` / `"dark_frame"`) so the resulting `RawError` can
+/// pinpoint the offending input. Errors are never swallowed: a non-UTF-8
+/// path or an interior NUL byte both propagate.
+fn path_to_cstring(
+    which: &'static str,
+    path: Option<&Path>,
+) -> Result<Option<CString>, RawError> {
+    let Some(path) = path else { return Ok(None) };
+    let path_str = path.to_str().ok_or_else(|| {
+        RawError::InvalidPath(format!(
+            "{} path {:?} is not valid UTF-8 and cannot be passed to LibRaw",
+            which, path
+        ))
+    })?;
+    let c_str = CString::new(path_str).map_err(|source| RawError::InvalidCStringPath {
+        which,
+        path: path_str.to_string(),
+        source,
+    })?;
+    Ok(Some(c_str))
 }
 
 /// Read a RAW file with native X-Trans support
@@ -354,14 +406,11 @@ pub fn read_raw(
         } else {
             None
         };
-        // Keep CString storage alive until LibRaw finishes processing.
+        // Why: keep CString storage alive until LibRaw finishes processing —
+        // the FFI struct only holds raw pointers, not owned data.
         let mut _bad_pixels_c_str: Option<CString> = None;
         let mut _dark_frame_c_str: Option<CString> = None;
 
-        // Instead, we locate `params` by its sRGB gamma defaults (gamm[0]=1/2.222≈0.45045,
-        // gamm[1]=4.5, output_color=1) which LibRaw initializes in libraw_init(). The search
-        // is bounded and validated, and we error out if the struct cannot be found rather than
-        // silently falling back to defaults.
         let white_balance_mode = match params.white_balance {
             WhiteBalanceMode::Camera => 0,
             WhiteBalanceMode::Auto => 1,
@@ -373,19 +422,23 @@ pub fn read_raw(
             _ => [0.0; 4],
         };
 
-        if let Some(path) = &params.bad_pixels_path {
-            if let Some(s) = path.to_str() {
-                if let Ok(c_str) = CString::new(s) {
-                    _bad_pixels_c_str = Some(c_str);
-                }
+        // Why: previously a `CString::new` failure here was silently swallowed,
+        // leaving LibRaw to use its defaults while the user believed their
+        // bad-pixels / dark-frame path was active. Surface the failure with
+        // enough context to identify which path is at fault — and close the
+        // already-opened LibRaw processor before propagating so we don't leak.
+        match path_to_cstring("bad_pixels", params.bad_pixels_path.as_deref()) {
+            Ok(value) => _bad_pixels_c_str = value,
+            Err(err) => {
+                libraw_close(processor);
+                return Err(err);
             }
         }
-
-        if let Some(path) = &params.dark_frame_path {
-            if let Some(s) = path.to_str() {
-                if let Ok(c_str) = CString::new(s) {
-                    _dark_frame_c_str = Some(c_str);
-                }
+        match path_to_cstring("dark_frame", params.dark_frame_path.as_deref()) {
+            Ok(value) => _dark_frame_c_str = value,
+            Err(err) => {
+                libraw_close(processor);
+                return Err(err);
             }
         }
 
@@ -820,5 +873,58 @@ mod tests {
         assert!(is_raw_file(Path::new("test.raf"))); // Fujifilm X-Trans!
         assert!(!is_raw_file(Path::new("test.fits")));
         assert!(!is_raw_file(Path::new("test.jpg")));
+    }
+
+    /// §6.25: a `None` input must round-trip to `Ok(None)` (no error, no
+    /// surprise allocation), while a normal path produces a usable CString.
+    #[test]
+    fn path_to_cstring_passes_through_normal_inputs() {
+        assert!(matches!(path_to_cstring("bad_pixels", None), Ok(None)));
+
+        let normal = std::path::PathBuf::from("/tmp/bad_pixels.txt");
+        let c_str = path_to_cstring("bad_pixels", Some(normal.as_path()))
+            .expect("clean path must succeed")
+            .expect("clean path must produce Some(CString)");
+        assert_eq!(c_str.to_str().unwrap(), "/tmp/bad_pixels.txt");
+    }
+
+    /// §6.25: a path containing an interior NUL byte must propagate
+    /// `RawError::InvalidCStringPath` with the offending field name and the
+    /// original string. The previous implementation silently dropped the
+    /// path, so LibRaw quietly used its defaults.
+    #[test]
+    fn path_to_cstring_propagates_interior_nul() {
+        // PathBuf::from accepts strings with NULs on Unix; on Windows we
+        // synthesise the same scenario by going through OsString. Both
+        // platforms surface the NUL via CString::new.
+        let bad_path = std::path::PathBuf::from("contains\0nul");
+        let err = path_to_cstring("bad_pixels", Some(bad_path.as_path()))
+            .expect_err("interior NUL must produce RawError::InvalidCStringPath");
+        match err {
+            RawError::InvalidCStringPath { which, path, .. } => {
+                assert_eq!(which, "bad_pixels");
+                assert!(
+                    path.contains('\0'),
+                    "stored path should preserve the original (NUL-bearing) string for diagnostics"
+                );
+            }
+            other => panic!(
+                "expected RawError::InvalidCStringPath, got {:?} ({})",
+                other, other
+            ),
+        }
+    }
+
+    /// §6.25: same propagation for `dark_frame` so both paths share a single
+    /// helper (no copy-paste rot where one swallows and the other doesn't).
+    #[test]
+    fn path_to_cstring_dark_frame_path_propagates() {
+        let bad_path = std::path::PathBuf::from("dark\0frame");
+        let err = path_to_cstring("dark_frame", Some(bad_path.as_path()))
+            .expect_err("interior NUL must produce RawError::InvalidCStringPath");
+        match err {
+            RawError::InvalidCStringPath { which, .. } => assert_eq!(which, "dark_frame"),
+            other => panic!("expected RawError::InvalidCStringPath, got {:?}", other),
+        }
     }
 }
