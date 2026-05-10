@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // MosaicConfig/MosaicPanel collide with framing_provider's UI-level versions
 // in the public barrel; this handler operates on MosaicService geometry types,
@@ -11,6 +9,7 @@ import 'package:nightshade_core/src/services/mosaic_service.dart'
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for mosaic generation
 class MosaicHandlers {
@@ -22,8 +21,6 @@ class MosaicHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'MosaicHandlers');
-  void _logError(String message) =>
-      _logger.error(message, source: 'MosaicHandlers');
 
   // ===========================================================================
   // Generate Mosaic Panels
@@ -31,22 +28,15 @@ class MosaicHandlers {
 
   Future<Response> handleGeneratePanels(Request request) async {
     _logInfo('[API] POST /api/mosaic/generate-panels');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
+    final config = _parseMosaicConfig(requireObject(payload, 'config'));
 
-      final config =
-          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+    const service = MosaicService();
+    final panels = service.generatePanels(config);
 
-      const service = MosaicService();
-      final panels = service.generatePanels(config);
-
-      return jsonOk({
-        "panels": panels.map((p) => _panelToJson(p)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Generate panels error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'panels': panels.map((p) => _panelToJson(p)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -55,51 +45,46 @@ class MosaicHandlers {
 
   Future<Response> handleGenerateSequence(Request request) async {
     _logInfo('[API] POST /api/mosaic/generate-sequence');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      final mosaicName = payload['mosaicName'] as String? ?? 'Mosaic';
-      final config =
-          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
-      final exposure =
-          _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
-      final options = payload['options'] != null
-          ? _parseSequenceOptions(payload['options'] as Map<String, dynamic>)
-          : const MosaicSequenceOptions();
+    final mosaicName = optionalString(payload, 'mosaicName') ?? 'Mosaic';
+    final config = _parseMosaicConfig(requireObject(payload, 'config'));
+    final exposure =
+        _parseExposureSettings(requireObject(payload, 'exposure'));
+    final optionsJson = optionalObject(payload, 'options');
+    final options = optionsJson != null
+        ? _parseSequenceOptions(optionsJson)
+        : const MosaicSequenceOptions();
 
-      const service = MosaicService();
-      final nodes = service.createMosaicSequence(
-        mosaicName: mosaicName,
-        config: config,
-        exposure: exposure,
-        options: options,
-      );
+    const service = MosaicService();
+    final nodes = service.createMosaicSequence(
+      mosaicName: mosaicName,
+      config: config,
+      exposure: exposure,
+      options: options,
+    );
 
-      // Find the root node ID
-      String? rootNodeId;
-      for (final entry in nodes.entries) {
-        if (entry.value is InstructionSetNode) {
-          final node = entry.value as InstructionSetNode;
-          if (node.parentId == null) {
-            rootNodeId = node.id;
-            break;
-          }
+    // Find the root node ID
+    String? rootNodeId;
+    for (final entry in nodes.entries) {
+      if (entry.value is InstructionSetNode) {
+        final node = entry.value as InstructionSetNode;
+        if (node.parentId == null) {
+          rootNodeId = node.id;
+          break;
         }
       }
-
-      return jsonOk({
-        "sequence": {
-          "name": mosaicName,
-          "rootNodeId": rootNodeId,
-          "nodes": nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
-          "totalPanels": config.totalPanels,
-          "estimatedTimeSecs": service.estimateMosaicTime(config, exposure),
-        },
-      });
-    } catch (e) {
-      _logError('[API] Generate mosaic sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
     }
+
+    return jsonOk({
+      'sequence': {
+        'name': mosaicName,
+        'rootNodeId': rootNodeId,
+        'nodes': nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
+        'totalPanels': config.totalPanels,
+        'estimatedTimeSecs': service.estimateMosaicTime(config, exposure),
+      },
+    });
   }
 
   // ===========================================================================
@@ -108,23 +93,16 @@ class MosaicHandlers {
 
   Future<Response> handleCalculateArea(Request request) async {
     _logInfo('[API] POST /api/mosaic/calculate-area');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
+    final config = _parseMosaicConfig(requireObject(payload, 'config'));
 
-      final config =
-          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+    const service = MosaicService();
+    final area = service.calculateMosaicArea(config);
 
-      const service = MosaicService();
-      final area = service.calculateMosaicArea(config);
-
-      return jsonOk({
-        "areaSquareDegrees": area,
-        "totalPanels": config.totalPanels,
-      });
-    } catch (e) {
-      _logError('[API] Calculate area error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'areaSquareDegrees': area,
+      'totalPanels': config.totalPanels,
+    });
   }
 
   // ===========================================================================
@@ -133,24 +111,17 @@ class MosaicHandlers {
 
   Future<Response> handleValidateMosaic(Request request) async {
     _logInfo('[API] POST /api/mosaic/validate');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
+    final config = _parseMosaicConfig(requireObject(payload, 'config'));
 
-      final config =
-          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+    const service = MosaicService();
+    final validation = service.validateMosaic(config);
 
-      const service = MosaicService();
-      final validation = service.validateMosaic(config);
-
-      return jsonOk({
-        "isValid": validation.isValid,
-        "errors": validation.errors,
-        "warnings": validation.warnings,
-      });
-    } catch (e) {
-      _logError('[API] Validate mosaic error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'isValid': validation.isValid,
+      'errors': validation.errors,
+      'warnings': validation.warnings,
+    });
   }
 
   // ===========================================================================
@@ -159,32 +130,26 @@ class MosaicHandlers {
 
   Future<Response> handleEstimateTime(Request request) async {
     _logInfo('[API] POST /api/mosaic/estimate-time');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      final config =
-          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
-      final exposure =
-          _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
-      final overheadPerPanel =
-          (payload['overheadPerPanelSecs'] as num?)?.toDouble() ?? 60.0;
+    final config = _parseMosaicConfig(requireObject(payload, 'config'));
+    final exposure =
+        _parseExposureSettings(requireObject(payload, 'exposure'));
+    final overheadPerPanel =
+        optionalDouble(payload, 'overheadPerPanelSecs') ?? 60.0;
 
-      const service = MosaicService();
-      final timeSecs = service.estimateMosaicTime(
-        config,
-        exposure,
-        overheadPerPanelSecs: overheadPerPanel,
-      );
+    const service = MosaicService();
+    final timeSecs = service.estimateMosaicTime(
+      config,
+      exposure,
+      overheadPerPanelSecs: overheadPerPanel,
+    );
 
-      return jsonOk({
-        "estimatedTimeSecs": timeSecs,
-        "estimatedTimeHours": timeSecs / 3600,
-        "totalPanels": config.totalPanels,
-      });
-    } catch (e) {
-      _logError('[API] Estimate time error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'estimatedTimeSecs': timeSecs,
+      'estimatedTimeHours': timeSecs / 3600,
+      'totalPanels': config.totalPanels,
+    });
   }
 
   // ===========================================================================
@@ -193,38 +158,39 @@ class MosaicHandlers {
 
   MosaicConfig _parseMosaicConfig(Map<String, dynamic> json) {
     return MosaicConfig(
-      centerRa: (json['centerRa'] as num).toDouble(),
-      centerDec: (json['centerDec'] as num).toDouble(),
-      panelWidthArcmin: (json['panelWidthArcmin'] as num).toDouble(),
-      panelHeightArcmin: (json['panelHeightArcmin'] as num).toDouble(),
-      overlapPercent: (json['overlapPercent'] as num?)?.toDouble() ?? 10.0,
-      rotation: (json['rotation'] as num?)?.toDouble() ?? 0.0,
-      panelsHorizontal: json['panelsHorizontal'] as int,
-      panelsVertical: json['panelsVertical'] as int,
+      centerRa: requireDouble(json, 'centerRa'),
+      centerDec: requireDouble(json, 'centerDec'),
+      panelWidthArcmin: requireDouble(json, 'panelWidthArcmin'),
+      panelHeightArcmin: requireDouble(json, 'panelHeightArcmin'),
+      overlapPercent: optionalDouble(json, 'overlapPercent') ?? 10.0,
+      rotation: optionalDouble(json, 'rotation') ?? 0.0,
+      panelsHorizontal: requireInt(json, 'panelsHorizontal', min: 1),
+      panelsVertical: requireInt(json, 'panelsVertical', min: 1),
     );
   }
 
   MosaicExposureSettings _parseExposureSettings(Map<String, dynamic> json) {
     return MosaicExposureSettings(
-      exposureSeconds: (json['exposureSeconds'] as num).toDouble(),
-      exposuresPerPanel: json['exposuresPerPanel'] as int,
-      filterName: json['filterName'] as String?,
-      binning: json['binning'] as int?,
-      gain: (json['gain'] as num?)?.toDouble(),
-      offset: (json['offset'] as num?)?.toDouble(),
+      exposureSeconds: requireDouble(json, 'exposureSeconds'),
+      exposuresPerPanel: requireInt(json, 'exposuresPerPanel', min: 1),
+      filterName: optionalString(json, 'filterName'),
+      binning: optionalInt(json, 'binning'),
+      gain: optionalDouble(json, 'gain'),
+      offset: optionalDouble(json, 'offset'),
     );
   }
 
   MosaicSequenceOptions _parseSequenceOptions(Map<String, dynamic> json) {
     return MosaicSequenceOptions(
-      serpentineOrdering: json['serpentineOrdering'] as bool? ?? false,
-      autofocusPerPanel: json['autofocusPerPanel'] as bool? ?? false,
-      autofocusInterval: json['autofocusInterval'] as int? ?? 0,
-      centerAfterSlew: json['centerAfterSlew'] as bool? ?? false,
-      ditherBetweenExposures: json['ditherBetweenExposures'] as bool? ?? false,
-      ditherPixels: (json['ditherPixels'] as num?)?.toDouble(),
-      minAltitude: (json['minAltitude'] as num?)?.toDouble(),
-      maxAltitude: (json['maxAltitude'] as num?)?.toDouble(),
+      serpentineOrdering: optionalBool(json, 'serpentineOrdering') ?? false,
+      autofocusPerPanel: optionalBool(json, 'autofocusPerPanel') ?? false,
+      autofocusInterval: optionalInt(json, 'autofocusInterval') ?? 0,
+      centerAfterSlew: optionalBool(json, 'centerAfterSlew') ?? false,
+      ditherBetweenExposures:
+          optionalBool(json, 'ditherBetweenExposures') ?? false,
+      ditherPixels: optionalDouble(json, 'ditherPixels'),
+      minAltitude: optionalDouble(json, 'minAltitude'),
+      maxAltitude: optionalDouble(json, 'maxAltitude'),
     );
   }
 

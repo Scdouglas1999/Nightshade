@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for flat frame calibration and sequence generation
 class FlatWizardHandlers {
@@ -16,8 +15,6 @@ class FlatWizardHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'FlatWizardHandlers');
-  void _logError(String message) =>
-      _logger.error(message, source: 'FlatWizardHandlers');
 
   // ===========================================================================
   // Calibrate Single Filter
@@ -25,39 +22,34 @@ class FlatWizardHandlers {
 
   Future<Response> handleCalibrateFilter(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/calibrate');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      final deviceId = payload['deviceId'] as String;
-      final filter = payload['filter'] as String;
-      final targetAdu = (payload['targetAdu'] as num).toDouble();
-      final tolerance = (payload['tolerance'] as num?)?.toDouble() ?? 10.0;
-      final minExposure = (payload['minExposure'] as num?)?.toDouble() ?? 0.001;
-      final maxExposure = (payload['maxExposure'] as num?)?.toDouble() ?? 30.0;
-      final maxIterations = payload['maxIterations'] as int? ?? 10;
-      final binX = payload['binX'] as int? ?? 1;
-      final binY = payload['binY'] as int? ?? 1;
+    final deviceId = requireString(payload, 'deviceId');
+    final filter = requireString(payload, 'filter');
+    final targetAdu = requireDouble(payload, 'targetAdu');
+    final tolerance = optionalDouble(payload, 'tolerance') ?? 10.0;
+    final minExposure = optionalDouble(payload, 'minExposure') ?? 0.001;
+    final maxExposure = optionalDouble(payload, 'maxExposure') ?? 30.0;
+    final maxIterations = optionalInt(payload, 'maxIterations') ?? 10;
+    final binX = optionalInt(payload, 'binX') ?? 1;
+    final binY = optionalInt(payload, 'binY') ?? 1;
 
-      final service = container.read(flatWizardServiceProvider);
-      final result = await service.calibrateFilter(
-        deviceId: deviceId,
-        filter: filter,
-        targetAdu: targetAdu,
-        tolerance: tolerance,
-        minExposure: minExposure,
-        maxExposure: maxExposure,
-        maxIterations: maxIterations,
-        binX: binX,
-        binY: binY,
-      );
+    final service = container.read(flatWizardServiceProvider);
+    final result = await service.calibrateFilter(
+      deviceId: deviceId,
+      filter: filter,
+      targetAdu: targetAdu,
+      tolerance: tolerance,
+      minExposure: minExposure,
+      maxExposure: maxExposure,
+      maxIterations: maxIterations,
+      binX: binX,
+      binY: binY,
+    );
 
-      return jsonOk({
-        "result": _flatResultToJson(result),
-      });
-    } catch (e) {
-      _logError('[API] Calibrate filter error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'result': _flatResultToJson(result),
+    });
   }
 
   // ===========================================================================
@@ -66,39 +58,34 @@ class FlatWizardHandlers {
 
   Future<Response> handleCalibrateMultipleFilters(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/calibrate-multi');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      final deviceId = payload['deviceId'] as String;
-      final filters = (payload['filters'] as List).cast<String>();
-      final targetAdu = (payload['targetAdu'] as num).toDouble();
-      final tolerance = (payload['tolerance'] as num?)?.toDouble() ?? 10.0;
-      final minExposure = (payload['minExposure'] as num?)?.toDouble() ?? 0.001;
-      final maxExposure = (payload['maxExposure'] as num?)?.toDouble() ?? 30.0;
-      final maxIterations = payload['maxIterations'] as int? ?? 10;
-      final binX = payload['binX'] as int? ?? 1;
-      final binY = payload['binY'] as int? ?? 1;
+    final deviceId = requireString(payload, 'deviceId');
+    final filters = requireList<String>(payload, 'filters');
+    final targetAdu = requireDouble(payload, 'targetAdu');
+    final tolerance = optionalDouble(payload, 'tolerance') ?? 10.0;
+    final minExposure = optionalDouble(payload, 'minExposure') ?? 0.001;
+    final maxExposure = optionalDouble(payload, 'maxExposure') ?? 30.0;
+    final maxIterations = optionalInt(payload, 'maxIterations') ?? 10;
+    final binX = optionalInt(payload, 'binX') ?? 1;
+    final binY = optionalInt(payload, 'binY') ?? 1;
 
-      final service = container.read(flatWizardServiceProvider);
-      final results = await service.calibrateMultipleFilters(
-        deviceId: deviceId,
-        filters: filters,
-        targetAdu: targetAdu,
-        tolerance: tolerance,
-        minExposure: minExposure,
-        maxExposure: maxExposure,
-        maxIterations: maxIterations,
-        binX: binX,
-        binY: binY,
-      );
+    final service = container.read(flatWizardServiceProvider);
+    final results = await service.calibrateMultipleFilters(
+      deviceId: deviceId,
+      filters: filters,
+      targetAdu: targetAdu,
+      tolerance: tolerance,
+      minExposure: minExposure,
+      maxExposure: maxExposure,
+      maxIterations: maxIterations,
+      binX: binX,
+      binY: binY,
+    );
 
-      return jsonOk({
-        "results": results.map((r) => _flatResultToJson(r)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Calibrate multiple filters error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'results': results.map((r) => _flatResultToJson(r)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -107,52 +94,61 @@ class FlatWizardHandlers {
 
   Future<Response> handleGenerateSequence(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/generate-sequence');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      // Parse calibration results
-      final calibrationsJson = payload['calibrations'] as List;
-      final calibrations = calibrationsJson
-          .map((c) => FlatResult(
-                filter: c['filter'] as String,
-                exposure: (c['exposure'] as num).toDouble(),
-                adu: (c['adu'] as num).toDouble(),
-                success: c['success'] as bool,
-                iterations: c['iterations'] as int? ?? 0,
-                errorMessage: c['errorMessage'] as String?,
-              ))
-          .toList();
-
-      final framesPerFilter = payload['framesPerFilter'] as int;
-      final sequenceName =
-          payload['sequenceName'] as String? ?? 'Flat Frame Sequence';
-      final description = payload['description'] as String?;
-      final binX = payload['binX'] as int? ?? 1;
-      final binY = payload['binY'] as int? ?? 1;
-      final gain = payload['gain'] as int?;
-      final offset = payload['offset'] as int?;
-      final onlySuccessful = payload['onlySuccessful'] as bool? ?? false;
-
-      final service = container.read(flatWizardServiceProvider);
-      final sequence = service.generateCompleteSequence(
-        calibrations: calibrations,
-        framesPerFilter: framesPerFilter,
-        sequenceName: sequenceName,
-        description: description,
-        binX: binX,
-        binY: binY,
-        gain: gain,
-        offset: offset,
-        onlySuccessful: onlySuccessful,
-      );
-
-      return jsonOk({
-        "sequence": _sequenceToJson(sequence),
-      });
-    } catch (e) {
-      _logError('[API] Generate sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    // Why we hand-validate each calibration entry instead of using the
+    // typed helpers: requireList<Map<String, dynamic>> rejects List<dynamic>
+    // (JSON's natural list type), so we read as a generic list and validate
+    // each element through readJsonObject-equivalent shape checks.
+    final calibrationsRaw = payload['calibrations'];
+    if (calibrationsRaw is! List) {
+      throw BadRequestError(field: 'calibrations', expected: 'array');
     }
+    final calibrations = <FlatResult>[];
+    for (var i = 0; i < calibrationsRaw.length; i++) {
+      final entry = calibrationsRaw[i];
+      if (entry is! Map<String, dynamic>) {
+        throw BadRequestError(
+          field: 'calibrations[$i]',
+          expected: 'object',
+        );
+      }
+      calibrations.add(FlatResult(
+        filter: requireString(entry, 'filter'),
+        exposure: requireDouble(entry, 'exposure'),
+        adu: requireDouble(entry, 'adu'),
+        success: requireBool(entry, 'success'),
+        iterations: optionalInt(entry, 'iterations') ?? 0,
+        errorMessage: optionalString(entry, 'errorMessage'),
+      ));
+    }
+
+    final framesPerFilter = requireInt(payload, 'framesPerFilter', min: 1);
+    final sequenceName =
+        optionalString(payload, 'sequenceName') ?? 'Flat Frame Sequence';
+    final description = optionalString(payload, 'description');
+    final binX = optionalInt(payload, 'binX') ?? 1;
+    final binY = optionalInt(payload, 'binY') ?? 1;
+    final gain = optionalInt(payload, 'gain');
+    final offset = optionalInt(payload, 'offset');
+    final onlySuccessful = optionalBool(payload, 'onlySuccessful') ?? false;
+
+    final service = container.read(flatWizardServiceProvider);
+    final sequence = service.generateCompleteSequence(
+      calibrations: calibrations,
+      framesPerFilter: framesPerFilter,
+      sequenceName: sequenceName,
+      description: description,
+      binX: binX,
+      binY: binY,
+      gain: gain,
+      offset: offset,
+      onlySuccessful: onlySuccessful,
+    );
+
+    return jsonOk({
+      'sequence': _sequenceToJson(sequence),
+    });
   }
 
   // ===========================================================================
@@ -161,34 +157,29 @@ class FlatWizardHandlers {
 
   Future<Response> handleQuickCalibrate(Request request) async {
     _logInfo('[API] POST /api/flat-wizard/quick-calibrate');
-    try {
-      final payload = jsonDecode(await request.readAsString());
+    final payload = await readJsonObject(request);
 
-      final deviceId = payload['deviceId'] as String;
-      final filter = payload['filter'] as String;
-      final targetAdu = (payload['targetAdu'] as num?)?.toDouble() ?? 30000;
-      final tolerancePercent =
-          (payload['tolerancePercent'] as num?)?.toDouble() ?? 10.0;
-      final binX = payload['binX'] as int? ?? 1;
-      final binY = payload['binY'] as int? ?? 1;
+    final deviceId = requireString(payload, 'deviceId');
+    final filter = requireString(payload, 'filter');
+    final targetAdu = optionalDouble(payload, 'targetAdu') ?? 30000;
+    final tolerancePercent =
+        optionalDouble(payload, 'tolerancePercent') ?? 10.0;
+    final binX = optionalInt(payload, 'binX') ?? 1;
+    final binY = optionalInt(payload, 'binY') ?? 1;
 
-      final service = container.read(flatWizardServiceProvider);
-      final result = await service.quickCalibrate(
-        deviceId: deviceId,
-        filter: filter,
-        targetAdu: targetAdu,
-        tolerancePercent: tolerancePercent,
-        binX: binX,
-        binY: binY,
-      );
+    final service = container.read(flatWizardServiceProvider);
+    final result = await service.quickCalibrate(
+      deviceId: deviceId,
+      filter: filter,
+      targetAdu: targetAdu,
+      tolerancePercent: tolerancePercent,
+      binX: binX,
+      binY: binY,
+    );
 
-      return jsonOk({
-        "result": _flatResultToJson(result),
-      });
-    } catch (e) {
-      _logError('[API] Quick calibrate error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'result': _flatResultToJson(result),
+    });
   }
 
   // ===========================================================================

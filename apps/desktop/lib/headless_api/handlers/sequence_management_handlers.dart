@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/database_entities.dart'
@@ -9,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for sequence management (CRUD operations)
 /// This is SEPARATE from sequencer_handlers.dart which controls sequencer execution.
@@ -21,8 +20,24 @@ class SequenceManagementHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'SequenceManagementHandlers');
-  void _logError(String message) =>
-      _logger.error(message, source: 'SequenceManagementHandlers');
+
+  /// Parse a numeric URL path segment to an int.
+  ///
+  /// Why a dedicated helper: `int.parse(id)` throws `FormatException` on a
+  /// bad segment, which the errorTranslationMiddleware would map to 500 +
+  /// requestId. That's wrong — a non-numeric path segment is a client-side
+  /// error, so we raise BadRequestError and the middleware emits a clean 400.
+  int _parsePathId(String value, String field) {
+    final parsed = int.tryParse(value);
+    if (parsed == null) {
+      throw BadRequestError(
+        field: field,
+        expected: 'integer',
+        message: 'Path segment "$value" is not a valid integer id',
+      );
+    }
+    return parsed;
+  }
 
   // ===========================================================================
   // Get All Sequences
@@ -30,17 +45,12 @@ class SequenceManagementHandlers {
 
   Future<Response> handleGetAllSequences(Request request) async {
     _logInfo('[API] GET /api/sequence-management/list');
-    try {
-      final database = container.read(databaseProvider);
-      final sequences = await database.sequencesDao.getAllSequences();
+    final database = container.read(databaseProvider);
+    final sequences = await database.sequencesDao.getAllSequences();
 
-      return jsonOk({
-        "sequences": sequences.map((s) => _sequenceToJson(s)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get all sequences error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'sequences': sequences.map((s) => _sequenceToJson(s)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -49,17 +59,12 @@ class SequenceManagementHandlers {
 
   Future<Response> handleGetAllTemplates(Request request) async {
     _logInfo('[API] GET /api/sequence-management/templates');
-    try {
-      final database = container.read(databaseProvider);
-      final templates = await database.sequencesDao.getAllTemplates();
+    final database = container.read(databaseProvider);
+    final templates = await database.sequencesDao.getAllTemplates();
 
-      return jsonOk({
-        "templates": templates.map((s) => _sequenceToJson(s)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get all templates error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'templates': templates.map((s) => _sequenceToJson(s)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -68,20 +73,15 @@ class SequenceManagementHandlers {
 
   Future<Response> handleGetSequenceById(Request request, String id) async {
     _logInfo('[API] GET /api/sequence-management/$id');
-    try {
-      final sequenceId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final sequence = await database.sequencesDao.getSequenceById(sequenceId);
+    final sequenceId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final sequence = await database.sequencesDao.getSequenceById(sequenceId);
 
-      if (sequence == null) {
-        return jsonNotFound({"error": "Sequence not found: $id"});
-      }
-
-      return jsonOk({"sequence": _sequenceToJson(sequence)});
-    } catch (e) {
-      _logError('[API] Get sequence by ID error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (sequence == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
     }
+
+    return jsonOk({'sequence': _sequenceToJson(sequence)});
   }
 
   // ===========================================================================
@@ -90,18 +90,13 @@ class SequenceManagementHandlers {
 
   Future<Response> handleGetNodesForSequence(Request request, String id) async {
     _logInfo('[API] GET /api/sequence-management/$id/nodes');
-    try {
-      final sequenceId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final nodes = await database.sequencesDao.getNodesForSequence(sequenceId);
+    final sequenceId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final nodes = await database.sequencesDao.getNodesForSequence(sequenceId);
 
-      return jsonOk({
-        "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get nodes for sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'nodes': nodes.map((n) => _nodeToJson(n)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -110,24 +105,19 @@ class SequenceManagementHandlers {
 
   Future<Response> handleCreateSequence(Request request) async {
     _logInfo('[API] POST /api/sequence-management');
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      final companion = SequencesCompanion.insert(
-        name: payload['name'] as String,
-        description: Value(payload['description'] as String?),
-        rootNodeId: Value(payload['rootNodeId'] as String?),
-        isTemplate: Value(payload['isTemplate'] as bool? ?? false),
-      );
+    final companion = SequencesCompanion.insert(
+      name: requireString(payload, 'name'),
+      description: Value(optionalString(payload, 'description')),
+      rootNodeId: Value(optionalString(payload, 'rootNodeId')),
+      isTemplate: Value(optionalBool(payload, 'isTemplate') ?? false),
+    );
 
-      final id = await database.sequencesDao.createSequence(companion);
+    final id = await database.sequencesDao.createSequence(companion);
 
-      return jsonOk({"status": "created", "id": id});
-    } catch (e) {
-      _logError('[API] Create sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'created', 'id': id});
   }
 
   // ===========================================================================
@@ -136,35 +126,32 @@ class SequenceManagementHandlers {
 
   Future<Response> handleUpdateSequence(Request request, String id) async {
     _logInfo('[API] PUT /api/sequence-management/$id');
-    try {
-      final sequenceId = int.parse(id);
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final sequenceId = _parsePathId(id, 'id');
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      // Get existing sequence
-      final existing = await database.sequencesDao.getSequenceById(sequenceId);
-      if (existing == null) {
-        return jsonNotFound({"error": "Sequence not found: $id"});
-      }
-
-      // Build updated sequence
-      final updated = existing.copyWith(
-        name: payload['name'] as String? ?? existing.name,
-        description:
-            Value(payload['description'] as String? ?? existing.description),
-        rootNodeId:
-            Value(payload['rootNodeId'] as String? ?? existing.rootNodeId),
-        isTemplate: payload['isTemplate'] as bool? ?? existing.isTemplate,
-        updatedAt: DateTime.now(),
-      );
-
-      await database.sequencesDao.updateSequence(updated);
-
-      return jsonOk({"status": "updated"});
-    } catch (e) {
-      _logError('[API] Update sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    // Get existing sequence
+    final existing = await database.sequencesDao.getSequenceById(sequenceId);
+    if (existing == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
     }
+
+    // Build updated sequence. optionalString returning null when the field is
+    // absent means we fall back to the existing values, preserving partial-
+    // update semantics.
+    final updated = existing.copyWith(
+      name: optionalString(payload, 'name') ?? existing.name,
+      description:
+          Value(optionalString(payload, 'description') ?? existing.description),
+      rootNodeId:
+          Value(optionalString(payload, 'rootNodeId') ?? existing.rootNodeId),
+      isTemplate: optionalBool(payload, 'isTemplate') ?? existing.isTemplate,
+      updatedAt: DateTime.now(),
+    );
+
+    await database.sequencesDao.updateSequence(updated);
+
+    return jsonOk({'status': 'updated'});
   }
 
   // ===========================================================================
@@ -173,17 +160,12 @@ class SequenceManagementHandlers {
 
   Future<Response> handleDeleteSequence(Request request, String id) async {
     _logInfo('[API] DELETE /api/sequence-management/$id');
-    try {
-      final sequenceId = int.parse(id);
-      final database = container.read(databaseProvider);
+    final sequenceId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
 
-      await database.sequencesDao.deleteSequence(sequenceId);
+    await database.sequencesDao.deleteSequence(sequenceId);
 
-      return jsonOk({"status": "deleted"});
-    } catch (e) {
-      _logError('[API] Delete sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'deleted'});
   }
 
   // ===========================================================================
@@ -192,20 +174,15 @@ class SequenceManagementHandlers {
 
   Future<Response> handleDuplicateSequence(Request request, String id) async {
     _logInfo('[API] POST /api/sequence-management/$id/duplicate');
-    try {
-      final sequenceId = int.parse(id);
-      final payload = jsonDecode(await request.readAsString());
-      final newName = payload['name'] as String? ?? 'Copy';
-      final database = container.read(databaseProvider);
+    final sequenceId = _parsePathId(id, 'id');
+    final payload = await readJsonObject(request);
+    final newName = optionalString(payload, 'name') ?? 'Copy';
+    final database = container.read(databaseProvider);
 
-      final newId =
-          await database.sequencesDao.duplicateSequence(sequenceId, newName);
+    final newId =
+        await database.sequencesDao.duplicateSequence(sequenceId, newName);
 
-      return jsonOk({"status": "duplicated", "id": newId});
-    } catch (e) {
-      _logError('[API] Duplicate sequence error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'duplicated', 'id': newId});
   }
 
   // ===========================================================================
@@ -214,33 +191,28 @@ class SequenceManagementHandlers {
 
   Future<Response> handleCreateNode(Request request, String sequenceId) async {
     _logInfo('[API] POST /api/sequence-management/$sequenceId/nodes');
-    try {
-      final seqId = int.parse(sequenceId);
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final seqId = _parsePathId(sequenceId, 'sequenceId');
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      final propertiesValue = payload['properties'] as String? ?? '{}';
-      final companion = SequenceNodesCompanion.insert(
-        nodeId: payload['nodeId'] as String,
-        sequenceId: seqId,
-        targetId: Value(payload['targetId'] as int?),
-        nodeType: payload['nodeType'] as String,
-        specificType: payload['specificType'] as String,
-        name: payload['name'] as String,
-        properties: Value(propertiesValue),
-        recoveryConfig: Value(payload['recoveryConfig'] as String?),
-        parentNodeId: Value(payload['parentNodeId'] as String?),
-        orderIndex: Value(payload['orderIndex'] as int? ?? 0),
-        isEnabled: Value(payload['isEnabled'] as bool? ?? false),
-      );
+    final propertiesValue = optionalString(payload, 'properties') ?? '{}';
+    final companion = SequenceNodesCompanion.insert(
+      nodeId: requireString(payload, 'nodeId'),
+      sequenceId: seqId,
+      targetId: Value(optionalInt(payload, 'targetId')),
+      nodeType: requireString(payload, 'nodeType'),
+      specificType: requireString(payload, 'specificType'),
+      name: requireString(payload, 'name'),
+      properties: Value(propertiesValue),
+      recoveryConfig: Value(optionalString(payload, 'recoveryConfig')),
+      parentNodeId: Value(optionalString(payload, 'parentNodeId')),
+      orderIndex: Value(optionalInt(payload, 'orderIndex') ?? 0),
+      isEnabled: Value(optionalBool(payload, 'isEnabled') ?? false),
+    );
 
-      final id = await database.sequencesDao.createNode(companion);
+    final id = await database.sequencesDao.createNode(companion);
 
-      return jsonOk({"status": "created", "id": id});
-    } catch (e) {
-      _logError('[API] Create node error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'created', 'id': id});
   }
 
   // ===========================================================================
@@ -249,41 +221,37 @@ class SequenceManagementHandlers {
 
   Future<Response> handleUpdateNode(Request request, String nodeId) async {
     _logInfo('[API] PUT /api/sequence-management/nodes/$nodeId');
-    try {
-      final nid = int.parse(nodeId);
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final nid = _parsePathId(nodeId, 'nodeId');
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      // Get existing node
-      final existing = await database.sequencesDao.getNodeById(nid);
-      if (existing == null) {
-        return jsonNotFound({"error": "Node not found: $nodeId"});
-      }
-
-      // Build updated node
-      final updatedProperties =
-          payload['properties'] as String? ?? existing.properties;
-      final updated = existing.copyWith(
-        name: payload['name'] as String? ?? existing.name,
-        nodeType: payload['nodeType'] as String? ?? existing.nodeType,
-        specificType:
-            payload['specificType'] as String? ?? existing.specificType,
-        properties: updatedProperties,
-        recoveryConfig: Value(
-            payload['recoveryConfig'] as String? ?? existing.recoveryConfig),
-        parentNodeId:
-            Value(payload['parentNodeId'] as String? ?? existing.parentNodeId),
-        orderIndex: payload['orderIndex'] as int? ?? existing.orderIndex,
-        isEnabled: payload['isEnabled'] as bool? ?? existing.isEnabled,
-      );
-
-      await database.sequencesDao.updateNode(updated);
-
-      return jsonOk({"status": "updated"});
-    } catch (e) {
-      _logError('[API] Update node error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    // Get existing node
+    final existing = await database.sequencesDao.getNodeById(nid);
+    if (existing == null) {
+      return jsonNotFound({'error': 'Node not found: $nodeId'});
     }
+
+    // Build updated node. As with handleUpdateSequence, missing fields fall
+    // back to existing values.
+    final updatedProperties =
+        optionalString(payload, 'properties') ?? existing.properties;
+    final updated = existing.copyWith(
+      name: optionalString(payload, 'name') ?? existing.name,
+      nodeType: optionalString(payload, 'nodeType') ?? existing.nodeType,
+      specificType:
+          optionalString(payload, 'specificType') ?? existing.specificType,
+      properties: updatedProperties,
+      recoveryConfig: Value(
+          optionalString(payload, 'recoveryConfig') ?? existing.recoveryConfig),
+      parentNodeId: Value(
+          optionalString(payload, 'parentNodeId') ?? existing.parentNodeId),
+      orderIndex: optionalInt(payload, 'orderIndex') ?? existing.orderIndex,
+      isEnabled: optionalBool(payload, 'isEnabled') ?? existing.isEnabled,
+    );
+
+    await database.sequencesDao.updateNode(updated);
+
+    return jsonOk({'status': 'updated'});
   }
 
   // ===========================================================================
@@ -292,20 +260,15 @@ class SequenceManagementHandlers {
 
   Future<Response> handleDeleteNode(Request request, String nodeId) async {
     _logInfo('[API] DELETE /api/sequence-management/nodes/$nodeId');
-    try {
-      final nid = int.parse(nodeId);
-      final database = container.read(databaseProvider);
+    final nid = _parsePathId(nodeId, 'nodeId');
+    final database = container.read(databaseProvider);
 
-      final deleted = await database.sequencesDao.deleteNode(nid);
-      if (deleted == 0) {
-        return jsonNotFound({"error": "Node not found: $nodeId"});
-      }
-
-      return jsonOk({"status": "deleted"});
-    } catch (e) {
-      _logError('[API] Delete node error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    final deleted = await database.sequencesDao.deleteNode(nid);
+    if (deleted == 0) {
+      return jsonNotFound({'error': 'Node not found: $nodeId'});
     }
+
+    return jsonOk({'status': 'deleted'});
   }
 
   // ===========================================================================
@@ -315,19 +278,14 @@ class SequenceManagementHandlers {
   Future<Response> handleReorderNodes(
       Request request, String sequenceId) async {
     _logInfo('[API] POST /api/sequence-management/$sequenceId/reorder');
-    try {
-      final seqId = int.parse(sequenceId);
-      final payload = jsonDecode(await request.readAsString());
-      final nodeIds = (payload['nodeIds'] as List).cast<String>();
-      final database = container.read(databaseProvider);
+    final seqId = _parsePathId(sequenceId, 'sequenceId');
+    final payload = await readJsonObject(request);
+    final nodeIds = requireList<String>(payload, 'nodeIds');
+    final database = container.read(databaseProvider);
 
-      await database.sequencesDao.reorderNodes(seqId, nodeIds);
+    await database.sequencesDao.reorderNodes(seqId, nodeIds);
 
-      return jsonOk({"status": "reordered"});
-    } catch (e) {
-      _logError('[API] Reorder nodes error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'reordered'});
   }
 
   // ===========================================================================
@@ -336,19 +294,14 @@ class SequenceManagementHandlers {
 
   Future<Response> handleSetNodeEnabled(Request request, String nodeId) async {
     _logInfo('[API] POST /api/sequence-management/nodes/$nodeId/enabled');
-    try {
-      final nid = int.parse(nodeId);
-      final payload = jsonDecode(await request.readAsString());
-      final enabled = payload['enabled'] as bool;
-      final database = container.read(databaseProvider);
+    final nid = _parsePathId(nodeId, 'nodeId');
+    final payload = await readJsonObject(request);
+    final enabled = requireBool(payload, 'enabled');
+    final database = container.read(databaseProvider);
 
-      await database.sequencesDao.setNodeEnabled(nid, enabled);
+    await database.sequencesDao.setNodeEnabled(nid, enabled);
 
-      return jsonOk({"status": "updated"});
-    } catch (e) {
-      _logError('[API] Set node enabled error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({'status': 'updated'});
   }
 
   // ===========================================================================
@@ -359,19 +312,14 @@ class SequenceManagementHandlers {
       Request request, String sequenceId, String parentNodeId) async {
     _logInfo(
         '[API] GET /api/sequence-management/$sequenceId/nodes/$parentNodeId/children');
-    try {
-      final seqId = int.parse(sequenceId);
-      final database = container.read(databaseProvider);
-      final nodes =
-          await database.sequencesDao.getChildNodes(seqId, parentNodeId);
+    final seqId = _parsePathId(sequenceId, 'sequenceId');
+    final database = container.read(databaseProvider);
+    final nodes =
+        await database.sequencesDao.getChildNodes(seqId, parentNodeId);
 
-      return jsonOk({
-        "nodes": nodes.map((n) => _nodeToJson(n)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get child nodes error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      'nodes': nodes.map((n) => _nodeToJson(n)).toList(),
+    });
   }
 
   // ===========================================================================

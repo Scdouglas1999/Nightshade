@@ -1,16 +1,33 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
+import 'package:uuid/uuid.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for backup and restore operations
 class BackupHandlers {
   static const int _maxBackupUploadBytes = 256 * 1024 * 1024;
+
+  /// Filename pattern: nightshade-backup-{timestamp}-{uuid}.nsbackup.
+  ///
+  /// §2.25: backup IDs must be stable across processes. Dart `hashCode` is not
+  /// stable across VM restarts and can collide, so we encode a UUID directly
+  /// into the filename and use it as the public REST identifier for delete /
+  /// download / metadata. The pattern matches both newly-created backups and
+  /// the legacy `nightshade_backup_*` / `nightshade_autosave_*` names that
+  /// existed before this commit (those fall back to a deterministic, process-
+  /// independent fingerprint — see [_idForBackupFile]).
+  static final RegExp _uuidInFilenamePattern = RegExp(
+    r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12})',
+  );
+
+  static const _uuid = Uuid();
 
   final ProviderContainer container;
   BackupHandlers(this.container);
@@ -30,41 +47,36 @@ class BackupHandlers {
 
   Future<Response> handleListBackups(Request request) async {
     _logInfo('[API] GET /api/backup/list');
-    try {
-      final service = container.read(backupServiceProvider);
-      final backupFiles = await service.listBackups();
+    final service = container.read(backupServiceProvider);
+    final backupFiles = await service.listBackups();
 
-      final backups = <Map<String, dynamic>>[];
-      for (final file in backupFiles) {
-        final metadata = await service.readBackupMetadata(file.path);
-        final stat = await file.stat();
+    final backups = <Map<String, dynamic>>[];
+    for (final file in backupFiles) {
+      final metadata = await service.readBackupMetadata(file.path);
+      final stat = await file.stat();
 
-        backups.add({
-          'id': file.path.hashCode.toString(),
-          'filePath': file.path,
-          'fileName': file.uri.pathSegments.last,
-          'createdAt': metadata?.createdAt.millisecondsSinceEpoch ??
-              stat.modified.millisecondsSinceEpoch,
-          'fileSize': stat.size,
-          'metadata': metadata != null
-              ? {
-                  'version': metadata.version,
-                  'appVersion': metadata.appVersion,
-                  'platform': metadata.platform,
-                  'settingsCount': metadata.settingsCount,
-                  'profilesCount': metadata.profilesCount,
-                  'sequencesCount': metadata.sequencesCount,
-                  'targetsCount': metadata.targetsCount,
-                }
-              : null,
-        });
-      }
-
-      return jsonOk({"backups": backups});
-    } catch (e) {
-      _logError('[API] List backups error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+      backups.add({
+        'id': _idForBackupFile(file),
+        'filePath': file.path,
+        'fileName': file.uri.pathSegments.last,
+        'createdAt': metadata?.createdAt.millisecondsSinceEpoch ??
+            stat.modified.millisecondsSinceEpoch,
+        'fileSize': stat.size,
+        'metadata': metadata != null
+            ? {
+                'version': metadata.version,
+                'appVersion': metadata.appVersion,
+                'platform': metadata.platform,
+                'settingsCount': metadata.settingsCount,
+                'profilesCount': metadata.profilesCount,
+                'sequencesCount': metadata.sequencesCount,
+                'targetsCount': metadata.targetsCount,
+              }
+            : null,
+      });
     }
+
+    return jsonOk({'backups': backups});
   }
 
   // ===========================================================================
@@ -73,37 +85,46 @@ class BackupHandlers {
 
   Future<Response> handleCreateBackup(Request request) async {
     _logInfo('[API] POST /api/backup/create');
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final customPath = payload['customPath'] as String?;
-      final autoSave = payload['autoSave'] as bool? ?? false;
+    final payload = await readJsonObject(request);
+    final customPath = optionalString(payload, 'customPath');
+    final autoSave = optionalBool(payload, 'autoSave') ?? false;
 
-      final service = container.read(backupServiceProvider);
+    final service = container.read(backupServiceProvider);
 
-      BackupResult result;
-      if (autoSave) {
-        result = await service.autoSaveBackup();
-      } else {
-        result = await service.createBackup(customPath: customPath);
-      }
-
-      if (result.success) {
-        return jsonOk({
-          "status": "created",
-          "filePath": result.filePath,
-          "itemsBackedUp": result.itemsBackedUp,
-          "timestamp": result.timestamp.millisecondsSinceEpoch,
-        });
-      } else {
-        return jsonOk({
-          "status": "failed",
-          "error": result.errorMessage,
-        });
-      }
-    } catch (e) {
-      _logError('[API] Create backup error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    final BackupResult result;
+    if (autoSave) {
+      // §2.25: route auto-save through createBackup with a UUID-bearing path
+      // (instead of service.autoSaveBackup) so the new backup has a stable
+      // identifier extractable from the filename. autoSaveBackup itself would
+      // produce a `nightshade_autosave_<ts>.nsbackup` name that the
+      // _idForBackupFile fallback can address as "legacy-..." but cannot turn
+      // into a real UUID, defeating the §2.25 stability guarantee for IDs
+      // returned to the caller in the create response.
+      final autoSavePath = await _defaultUuidBackupPath(service, tag: 'auto');
+      result = await service.createBackup(customPath: autoSavePath);
+    } else {
+      final effectivePath = customPath ?? await _defaultUuidBackupPath(service);
+      result = await service.createBackup(customPath: effectivePath);
     }
+
+    if (result.success) {
+      return jsonOk({
+        'status': 'created',
+        'id': result.filePath != null
+            ? _idForBackupFile(File(result.filePath!))
+            : null,
+        'filePath': result.filePath,
+        'itemsBackedUp': result.itemsBackedUp,
+        'timestamp': result.timestamp.millisecondsSinceEpoch,
+      });
+    }
+    // §2.23: failed create is a server-side problem (disk, db, ...). The
+    // caller cannot fix it by changing their request, so 500, not 200.
+    _logError('[API] Create backup failed: ${result.errorMessage}');
+    return jsonInternalServerError({
+      'status': 'failed',
+      'error': result.errorMessage,
+    });
   }
 
   // ===========================================================================
@@ -112,34 +133,32 @@ class BackupHandlers {
 
   Future<Response> handleRestoreBackup(Request request) async {
     _logInfo('[API] POST /api/backup/restore');
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final filePath = payload['filePath'] as String;
-      final replaceExisting = payload['replaceExisting'] as bool? ?? false;
+    final payload = await readJsonObject(request);
+    final filePath = requireString(payload, 'filePath');
+    final replaceExisting = optionalBool(payload, 'replaceExisting') ?? false;
 
-      final service = container.read(backupServiceProvider);
-      final result = await service.restoreBackup(
-        filePath: filePath,
-        replaceExisting: replaceExisting,
-      );
+    final service = container.read(backupServiceProvider);
+    final result = await service.restoreBackup(
+      filePath: filePath,
+      replaceExisting: replaceExisting,
+    );
 
-      if (result.success) {
-        return jsonOk({
-          "status": "restored",
-          "itemsRestored": result.itemsRestored,
-          "categoryCounts": result.categoryCounts,
-          "timestamp": result.timestamp.millisecondsSinceEpoch,
-        });
-      } else {
-        return jsonOk({
-          "status": "failed",
-          "error": result.errorMessage,
-        });
-      }
-    } catch (e) {
-      _logError('[API] Restore backup error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (result.success) {
+      return jsonOk({
+        'status': 'restored',
+        'itemsRestored': result.itemsRestored,
+        'categoryCounts': result.categoryCounts,
+        'timestamp': result.timestamp.millisecondsSinceEpoch,
+      });
     }
+    // §2.23: restore-from-disk failures aren't necessarily caused by a bad
+    // request body (the file path was valid syntactically). The most common
+    // cause is a corrupted/missing backup or db write failure, both 500-class.
+    _logError('[API] Restore backup failed: ${result.errorMessage}');
+    return jsonInternalServerError({
+      'status': 'failed',
+      'error': result.errorMessage,
+    });
   }
 
   // ===========================================================================
@@ -148,26 +167,20 @@ class BackupHandlers {
 
   Future<Response> handleDeleteBackup(Request request, String id) async {
     _logInfo('[API] DELETE /api/backup/$id');
-    try {
-      final service = container.read(backupServiceProvider);
-      final backupFiles = await service.listBackups();
+    final service = container.read(backupServiceProvider);
+    final backupFiles = await service.listBackups();
 
-      // Find backup by ID (hash of path)
-      final file = backupFiles
-          .where((f) => f.path.hashCode.toString() == id)
-          .firstOrNull;
+    final file = backupFiles
+        .where((f) => _idForBackupFile(f) == id)
+        .firstOrNull;
 
-      if (file == null) {
-        return jsonNotFound({"error": "Backup not found: $id"});
-      }
-
-      await file.delete();
-
-      return jsonOk({"status": "deleted"});
-    } catch (e) {
-      _logError('[API] Delete backup error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (file == null) {
+      return jsonNotFound({'error': 'Backup not found: $id'});
     }
+
+    await file.delete();
+
+    return jsonOk({'status': 'deleted'});
   }
 
   // ===========================================================================
@@ -176,31 +189,25 @@ class BackupHandlers {
 
   Future<Response> handleDownloadBackup(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/download');
-    try {
-      final service = container.read(backupServiceProvider);
-      final backupFiles = await service.listBackups();
+    final service = container.read(backupServiceProvider);
+    final backupFiles = await service.listBackups();
 
-      // Find backup by ID (hash of path)
-      final file = backupFiles
-          .where((f) => f.path.hashCode.toString() == id)
-          .firstOrNull;
+    final file = backupFiles
+        .where((f) => _idForBackupFile(f) == id)
+        .firstOrNull;
 
-      if (file == null) {
-        return jsonNotFound({"error": "Backup not found: $id"});
-      }
-
-      // Stream the file
-      final fileLength = await file.length();
-      return attachmentResponse(
-        file.openRead(),
-        fileName: file.uri.pathSegments.last,
-        contentType: jsonContentType,
-        contentLength: fileLength,
-      );
-    } catch (e) {
-      _logError('[API] Download backup error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (file == null) {
+      return jsonNotFound({'error': 'Backup not found: $id'});
     }
+
+    // Stream the file
+    final fileLength = await file.length();
+    return attachmentResponse(
+      file.openRead(),
+      fileName: file.uri.pathSegments.last,
+      contentType: jsonContentType,
+      contentLength: fileLength,
+    );
   }
 
   // ===========================================================================
@@ -209,31 +216,25 @@ class BackupHandlers {
 
   Future<Response> handleGetBackupMetadata(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/metadata');
-    try {
-      final service = container.read(backupServiceProvider);
-      final backupFiles = await service.listBackups();
+    final service = container.read(backupServiceProvider);
+    final backupFiles = await service.listBackups();
 
-      // Find backup by ID (hash of path)
-      final file = backupFiles
-          .where((f) => f.path.hashCode.toString() == id)
-          .firstOrNull;
+    final file = backupFiles
+        .where((f) => _idForBackupFile(f) == id)
+        .firstOrNull;
 
-      if (file == null) {
-        return jsonNotFound({"error": "Backup not found: $id"});
-      }
-
-      final metadata = await service.readBackupMetadata(file.path);
-      if (metadata == null) {
-        return jsonOk({"metadata": null});
-      }
-
-      return jsonOk({
-        "metadata": metadata.toJson(),
-      });
-    } catch (e) {
-      _logError('[API] Get backup metadata error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (file == null) {
+      return jsonNotFound({'error': 'Backup not found: $id'});
     }
+
+    final metadata = await service.readBackupMetadata(file.path);
+    if (metadata == null) {
+      return jsonOk({'metadata': null});
+    }
+
+    return jsonOk({
+      'metadata': metadata.toJson(),
+    });
   }
 
   // ===========================================================================
@@ -242,27 +243,30 @@ class BackupHandlers {
 
   Future<Response> handleAutoSaveBackup(Request request) async {
     _logInfo('[API] POST /api/backup/auto-save');
-    try {
-      final service = container.read(backupServiceProvider);
-      final result = await service.autoSaveBackup();
+    final service = container.read(backupServiceProvider);
+    // §2.25: see handleCreateBackup — go through createBackup with a
+    // UUID-bearing path so the returned id is stable.
+    final autoSavePath = await _defaultUuidBackupPath(service, tag: 'auto');
+    final result = await service.createBackup(customPath: autoSavePath);
 
-      if (result.success) {
-        return jsonOk({
-          "status": "created",
-          "filePath": result.filePath,
-          "itemsBackedUp": result.itemsBackedUp,
-          "timestamp": result.timestamp.millisecondsSinceEpoch,
-        });
-      } else {
-        return jsonOk({
-          "status": "failed",
-          "error": result.errorMessage,
-        });
-      }
-    } catch (e) {
-      _logError('[API] Auto save backup error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (result.success) {
+      return jsonOk({
+        'status': 'created',
+        'id': result.filePath != null
+            ? _idForBackupFile(File(result.filePath!))
+            : null,
+        'filePath': result.filePath,
+        'itemsBackedUp': result.itemsBackedUp,
+        'timestamp': result.timestamp.millisecondsSinceEpoch,
+      });
     }
+    // §2.23: same rationale as handleCreateBackup — auto-save failure is a
+    // local/server problem, not a request validation problem.
+    _logError('[API] Auto save backup failed: ${result.errorMessage}');
+    return jsonInternalServerError({
+      'status': 'failed',
+      'error': result.errorMessage,
+    });
   }
 
   Future<Response> handleUploadRestoreBackup(Request request) async {
@@ -337,13 +341,21 @@ class BackupHandlers {
         });
       }
 
-      return jsonOk({
+      // §2.23: restore from an uploaded file failing means the file we just
+      // wrote can't be parsed or applied — that's a server-side failure from
+      // the caller's perspective once the upload succeeded.
+      _logError('[API] Upload restore failed: ${result.errorMessage}');
+      return jsonInternalServerError({
         'status': 'failed',
         'error': result.errorMessage,
       });
     } catch (e) {
+      // Keep the explicit try/catch here because this handler streams the
+      // request body and owns a partial-file on disk on error. The
+      // errorTranslationMiddleware would still log and 500, but we must not
+      // leave a half-written file behind.
       _logError('[API] Upload restore backup error: $e');
-      return jsonInternalServerError({'error': e.toString()});
+      return jsonInternalServerError({'error': 'internal_error'});
     }
   }
 
@@ -436,5 +448,63 @@ class BackupHandlers {
     } catch (e) {
       return e.toString();
     }
+  }
+
+  // ===========================================================================
+  // §2.25: Stable backup ID derivation
+  // ===========================================================================
+
+  /// Build a stable identifier for the backup [file].
+  ///
+  /// Why: the previous `file.path.hashCode.toString()` scheme used Dart's
+  /// per-isolate hashCode, which is unstable across process restarts and can
+  /// collide. A collision on the delete endpoint could let one caller delete
+  /// the wrong backup.
+  ///
+  /// Strategy:
+  /// 1. If the filename contains a UUID (the pattern we now write for all new
+  ///    backups), extract and return it.
+  /// 2. Otherwise, derive a deterministic ID from the filename itself. The
+  ///    filename is process-independent (unlike hashCode) and unique within
+  ///    the backup directory because `_resolveUploadDestination` and
+  ///    `autoSaveBackup` both timestamp-suffix on collision. We prefix the
+  ///    derived ID with `legacy-` so callers can tell it apart from
+  ///    UUID-tagged ones.
+  String _idForBackupFile(File file) {
+    final name = file.uri.pathSegments.last;
+    final match = _uuidInFilenamePattern.firstMatch(name);
+    if (match != null) {
+      return match.group(1)!.toLowerCase();
+    }
+    // No UUID embedded (a backup created before §2.25 landed). Use the
+    // filename, sanitized to be URL-safe, as the stable id.
+    final sanitized = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    return 'legacy-$sanitized';
+  }
+
+  /// Compose a default backup path that embeds a UUID in the filename.
+  ///
+  /// Why: routes that do not pass a `customPath` previously got an OS file
+  /// chooser path from `BackupService.createBackup`, which is impossible in
+  /// headless mode. In headless mode we must supply the path ourselves; we
+  /// embed a UUID so `_idForBackupFile` can recover a stable id later. The
+  /// [tag] (defaults to `manual`) lets callers distinguish manual vs.
+  /// auto-save backups in the filename without breaking the UUID extraction
+  /// pattern.
+  Future<String> _defaultUuidBackupPath(
+    BackupService service, {
+    String tag = 'manual',
+  }) async {
+    final dir = await service.getBackupDirectory();
+    await dir.create(recursive: true);
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-');
+    final id = _uuid.v4();
+    return p.join(
+      dir.path,
+      'nightshade-backup-$tag-$timestamp-$id.nsbackup',
+    );
   }
 }
