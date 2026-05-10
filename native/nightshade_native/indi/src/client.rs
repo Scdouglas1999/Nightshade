@@ -268,6 +268,111 @@ fn rand_simple() -> f64 {
     }
 }
 
+/// Kind of an open XML element on the parser depth stack.
+///
+/// Why: differentiating `*Vector` containers from leaf elements lets us emit the right
+/// follow-up event when the frame closes (e.g. `PropertyUpdated` on `setVector` close)
+/// and lets `Event::End` validation decide which mismatch is actually fatal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum XmlContextKind {
+    /// `defNumberVector`/`defSwitchVector`/`defTextVector`/`defLightVector`/`defBLOBVector`.
+    DefVector,
+    /// `setNumberVector`/`setSwitchVector`/`setTextVector`/`setLightVector`/`setBLOBVector`
+    /// or `newNumberVector` etc.
+    SetOrNewVector,
+    /// `defNumber`/`defSwitch`/`defText`/`defLight`/`defBLOB` element inside a `def*Vector`.
+    DefElement,
+    /// `oneNumber`/`oneSwitch`/`oneText`/`oneLight` element inside a `set*`/`new*` vector.
+    OneElement,
+    /// `oneBLOB` — handled separately because it carries `format`/`size` attributes that
+    /// the BLOB receiver path needs to keep alive across the `Text` event.
+    OneBlob,
+    /// `getProperties`, `enableBLOB`, `delProperty`, `message`, root-level wrappers, etc.
+    /// We track them so depth bookkeeping stays correct, but they don't carry parser state.
+    Other,
+}
+
+/// One frame of the INDI XML parser depth stack.
+///
+/// Why: INDI bursts arrive as nested elements
+/// (`<defNumberVector device="…" name="…"> <defNumber name="…">42</defNumber> … </defNumberVector>`).
+/// A malformed or truncated stream with mismatched tags must not silently shift element text
+/// onto the wrong (device, property). Each frame remembers the qualified tag name (so `End`
+/// can verify it matches the popped frame) plus the device/property/element identifiers
+/// that were established when the frame opened. On pop we restore those identifiers from
+/// the new top of the stack so sibling `Text`/`Start` events resume against the correct
+/// parent context.
+#[derive(Debug, Clone)]
+struct XmlContext {
+    kind: XmlContextKind,
+    /// The exact bytes of the opening tag's qualified name. Used to check for unbalanced
+    /// `End` events; we keep it as a `Vec<u8>` because INDI XML stays ASCII.
+    tag: Vec<u8>,
+    device: Option<String>,
+    property: Option<String>,
+    element: Option<String>,
+}
+
+impl XmlContext {
+    fn new(kind: XmlContextKind, tag: &[u8]) -> Self {
+        Self {
+            kind,
+            tag: tag.to_vec(),
+            device: None,
+            property: None,
+            element: None,
+        }
+    }
+}
+
+/// Refresh the flat `current_*` mirrors from the depth stack.
+///
+/// Why: the existing parser body reads `current_device`/`current_property`/`current_element`
+/// directly in dozens of places. Rather than threading a stack lookup through every match
+/// arm, we keep those locals as derived projections of the top-of-stack frame and recompute
+/// them whenever a frame is pushed or popped.
+fn refresh_xml_context_mirrors(
+    stack: &[XmlContext],
+    current_device: &mut String,
+    current_property: &mut String,
+    current_element: &mut String,
+) {
+    current_device.clear();
+    current_property.clear();
+    current_element.clear();
+    for frame in stack {
+        if let Some(d) = &frame.device {
+            current_device.clear();
+            current_device.push_str(d);
+        }
+        if let Some(p) = &frame.property {
+            current_property.clear();
+            current_property.push_str(p);
+        }
+        if let Some(e) = &frame.element {
+            current_element.clear();
+            current_element.push_str(e);
+        }
+    }
+}
+
+/// Classify an INDI XML tag name into a context kind.
+fn classify_indi_tag(name: &[u8]) -> XmlContextKind {
+    if name.starts_with(b"def") && name.ends_with(b"Vector") {
+        XmlContextKind::DefVector
+    } else if (name.starts_with(b"set") || name.starts_with(b"new")) && name.ends_with(b"Vector") {
+        XmlContextKind::SetOrNewVector
+    } else if name == b"oneBLOB" {
+        XmlContextKind::OneBlob
+    } else if name.starts_with(b"def") {
+        XmlContextKind::DefElement
+    } else if name.starts_with(b"one") {
+        XmlContextKind::OneElement
+    } else {
+        XmlContextKind::Other
+    }
+}
+
 /// INDI client for communicating with an INDI server
 pub struct IndiClient {
     host: String,
@@ -742,7 +847,16 @@ impl IndiClient {
 
         let mut buf = Vec::new();
 
-        // State tracking
+        // Why: INDI is delivered as a stream of nested XML elements (`def*Vector` containing
+        // `def*` elements, `set*Vector` containing `one*` elements, etc.). A malformed or
+        // mid-stream-truncated message with unbalanced tags would, with a flat-string parser,
+        // attribute the next valid element's text to the wrong (device, property) pair.
+        // We track a depth stack of XmlContext frames and restore the surrounding device /
+        // property / element identifiers on every `End`/`Empty` event. The flat
+        // `current_device`/`current_property`/`current_element` strings remain as derived
+        // mirrors of the top-of-stack values so the rest of this function reads them as
+        // before — but the source of truth is now `xml_stack`.
+        let mut xml_stack: Vec<XmlContext> = Vec::new();
         let mut current_device = String::new();
         let mut current_property = String::new();
         let mut current_element = String::new();
@@ -810,7 +924,18 @@ impl IndiClient {
             let read_result = timeout(read_timeout, reader.read_event_into_async(&mut buf)).await;
 
             match read_result {
-                Ok(Ok(Event::Start(e))) => {
+                // Why: quick-xml emits self-closing tags (`<defSwitch …/>`) as `Event::Empty`
+                // rather than `Event::Start` + `Event::End`. INDI servers do legitimately
+                // produce self-closing element definitions when a switch/light has no body
+                // text. Routing both into the same arm — and popping immediately at the end
+                // when `is_empty == true` — keeps the depth stack in lockstep with the actual
+                // XML structure regardless of whether the server self-closed the tag.
+                Ok(Ok(ev @ Event::Start(_))) | Ok(Ok(ev @ Event::Empty(_))) => {
+                    let is_empty = matches!(ev, Event::Empty(_));
+                    let e = match &ev {
+                        Event::Start(b) | Event::Empty(b) => b,
+                        _ => unreachable!("matched Start/Empty above"),
+                    };
                     // Reset incomplete message tracking on successful event
                     incomplete_message_start = None;
                     incomplete_message_bytes = 0;
@@ -818,12 +943,18 @@ impl IndiClient {
                     // INDI element names are always ASCII, so byte comparison is safe and efficient.
                     let qname = e.name();
                     let name_bytes: &[u8] = qname.as_ref();
+                    let frame_kind = classify_indi_tag(name_bytes);
+                    // Snapshot mirrors so we can attribute new values to the frame even if
+                    // the body below overwrites them.
+                    let snapshot_device_before = current_device.clone();
+                    let snapshot_property_before = current_property.clone();
+                    let snapshot_element_before = current_element.clone();
 
                     // Handle property definitions (def*Vector)
                     if name_bytes.starts_with(b"def") && name_bytes.ends_with(b"Vector") {
-                        if let Some(dev) = get_attribute(&e, "device") {
+                        if let Some(dev) = get_attribute(e, "device") {
                             current_device = dev;
-                            if let Some(prop) = get_attribute(&e, "name") {
+                            if let Some(prop) = get_attribute(e, "name") {
                                 current_property = prop;
 
                                 // Determine type from the byte slice (avoids String allocation)
@@ -842,12 +973,12 @@ impl IndiClient {
                                 };
 
                                 // Parse state and perm
-                                let state_str = get_attribute(&e, "state")
+                                let state_str = get_attribute(e, "state")
                                     .unwrap_or_else(|| "Idle".to_string());
                                 let state = parse_state(&state_str);
 
                                 let perm_str =
-                                    get_attribute(&e, "perm").unwrap_or_else(|| "rw".to_string());
+                                    get_attribute(e, "perm").unwrap_or_else(|| "rw".to_string());
                                 let perm = parse_perm(&perm_str);
 
                                 // Add device if new
@@ -874,9 +1005,9 @@ impl IndiClient {
                                         IndiProperty {
                                             device: current_device.clone(),
                                             name: current_property.clone(),
-                                            label: get_attribute(&e, "label")
+                                            label: get_attribute(e, "label")
                                                 .unwrap_or_else(|| current_property.clone()),
-                                            group: get_attribute(&e, "group").unwrap_or_default(),
+                                            group: get_attribute(e, "group").unwrap_or_default(),
                                             property_type: prop_type.clone(),
                                             state,
                                             perm,
@@ -896,7 +1027,7 @@ impl IndiClient {
                     // Handle element definitions (defText, defNumber, etc. inside Vector)
                     else if name_bytes.starts_with(b"def") && !name_bytes.ends_with(b"Vector") {
                         if !current_device.is_empty() && !current_property.is_empty() {
-                            if let Some(elem_name) = get_attribute(&e, "name") {
+                            if let Some(elem_name) = get_attribute(e, "name") {
                                 current_element = elem_name.clone();
 
                                 // Add element to property
@@ -910,11 +1041,11 @@ impl IndiClient {
                                 // Extract min/max/step/format for number elements
                                 if name_bytes == b"defNumber" {
                                     let limits = NumberLimits {
-                                        min: get_attribute(&e, "min").and_then(|s| s.parse().ok()),
-                                        max: get_attribute(&e, "max").and_then(|s| s.parse().ok()),
-                                        step: get_attribute(&e, "step")
+                                        min: get_attribute(e, "min").and_then(|s| s.parse().ok()),
+                                        max: get_attribute(e, "max").and_then(|s| s.parse().ok()),
+                                        step: get_attribute(e, "step")
                                             .and_then(|s| s.parse().ok()),
-                                        format: get_attribute(&e, "format"),
+                                        format: get_attribute(e, "format"),
                                     };
 
                                     // Store limits
@@ -943,13 +1074,13 @@ impl IndiClient {
                     else if (name_bytes.starts_with(b"set") || name_bytes.starts_with(b"new"))
                         && name_bytes.ends_with(b"Vector")
                     {
-                        if let Some(dev) = get_attribute(&e, "device") {
+                        if let Some(dev) = get_attribute(e, "device") {
                             current_device = dev;
-                            if let Some(prop) = get_attribute(&e, "name") {
+                            if let Some(prop) = get_attribute(e, "name") {
                                 current_property = prop;
 
                                 // Update state
-                                if let Some(state_str) = get_attribute(&e, "state") {
+                                if let Some(state_str) = get_attribute(e, "state") {
                                     let state = parse_state(&state_str);
                                     let mut props = properties.write().await;
                                     if let Some(p) = map_get_mut_2(
@@ -965,14 +1096,14 @@ impl IndiClient {
                     }
                     // Handle BLOB elements with format attribute
                     else if name_bytes == b"oneBLOB" {
-                        if let Some(elem) = get_attribute(&e, "name") {
+                        if let Some(elem) = get_attribute(e, "name") {
                             current_element = elem;
                         }
                         // Extract format attribute (e.g., ".fits", ".jpeg", ".png")
                         current_blob_format =
-                            get_attribute(&e, "format").unwrap_or_else(|| ".fits".to_string());
+                            get_attribute(e, "format").unwrap_or_else(|| ".fits".to_string());
                         // Extract size attribute
-                        current_blob_size = get_attribute(&e, "size")
+                        current_blob_size = get_attribute(e, "size")
                             .and_then(|s| s.parse().ok())
                             .unwrap_or(0);
                         // Start BLOB reception timeout tracking
@@ -987,13 +1118,13 @@ impl IndiClient {
                     }
                     // Handle elements values (oneSwitch, oneNumber, etc.)
                     else if name_bytes.starts_with(b"one") && name_bytes != b"oneBLOB" {
-                        if let Some(elem) = get_attribute(&e, "name") {
+                        if let Some(elem) = get_attribute(e, "name") {
                             current_element = elem;
                         }
                     }
                     // Detect protocol version from server response
                     else if name_bytes == b"getProperties" {
-                        if let Some(version) = get_attribute(&e, "version") {
+                        if let Some(version) = get_attribute(e, "version") {
                             let mut sv = server_version.write().await;
                             *sv = Some(version.clone());
                             let _ = event_tx.send(IndiEvent::ProtocolVersionDetected(version));
@@ -1003,6 +1134,60 @@ impl IndiClient {
                     // Update keepalive response timestamp on any valid message
                     // This is used to detect connection health - any server response counts
                     last_keepalive_response_ms.store(current_time_ms(), Ordering::SeqCst);
+
+                    // Build a frame describing what this tag contributed to the mirrors.
+                    // Why: the parser body above clobbered the flat strings to apply attribute
+                    // values; on `End` we have to be able to undo those clobbers and restore
+                    // the surrounding (parent) context. Each frame stores only the
+                    // identifiers IT introduced, so refreshing from the stack rebuilds the
+                    // correct state regardless of how deep we are.
+                    let mut frame = XmlContext::new(frame_kind, name_bytes);
+                    match frame_kind {
+                        XmlContextKind::DefVector | XmlContextKind::SetOrNewVector => {
+                            if current_device != snapshot_device_before {
+                                frame.device = Some(current_device.clone());
+                            }
+                            if current_property != snapshot_property_before {
+                                frame.property = Some(current_property.clone());
+                            }
+                        }
+                        XmlContextKind::DefElement
+                        | XmlContextKind::OneElement
+                        | XmlContextKind::OneBlob => {
+                            if current_element != snapshot_element_before {
+                                frame.element = Some(current_element.clone());
+                            }
+                        }
+                        XmlContextKind::Other => {}
+                    }
+                    let was_set_or_new_vector = frame.kind == XmlContextKind::SetOrNewVector;
+                    let frame_device_for_event = frame.device.clone();
+                    let frame_property_for_event = frame.property.clone();
+                    xml_stack.push(frame);
+
+                    if is_empty {
+                        // Why: quick-xml does not synthesise an `End` event for self-closing
+                        // tags. Pop our just-pushed frame so the depth stack does not leak,
+                        // then re-derive the mirror strings from whatever parent context
+                        // remains on the stack.
+                        let _ = xml_stack.pop();
+                        refresh_xml_context_mirrors(
+                            &xml_stack,
+                            &mut current_device,
+                            &mut current_property,
+                            &mut current_element,
+                        );
+                        // A self-closing `setVector` / `newVector` has no body but should
+                        // still notify subscribers that the property update completed —
+                        // mirror what `Event::End` does for the multi-event form.
+                        if was_set_or_new_vector {
+                            if let (Some(dev), Some(prop)) =
+                                (frame_device_for_event, frame_property_for_event)
+                            {
+                                let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
+                            }
+                        }
+                    }
                 }
                 Ok(Ok(Event::Text(e))) => {
                     // Reset incomplete message tracking on successful event
@@ -1092,15 +1277,75 @@ impl IndiClient {
                     // Use byte comparison to avoid allocating a String for every end tag
                     let end_qname = e.name();
                     let end_name = end_qname.as_ref();
-                    if end_name.starts_with(b"set") || end_name.starts_with(b"new") {
-                        // Property update complete
-                        let _ = event_tx.send(IndiEvent::PropertyUpdated(
-                            current_device.clone(),
-                            current_property.clone(),
-                        ));
-                        current_property.clear();
-                    } else if end_name.starts_with(b"one") || end_name.starts_with(b"def") {
-                        current_element.clear();
+
+                    match xml_stack.pop() {
+                        Some(popped) => {
+                            if popped.tag.as_slice() != end_name {
+                                // Why: the INDI spec implies well-formed XML, but real
+                                // servers (and lossy proxies) occasionally emit malformed
+                                // streams — duplicate `</setNumberVector>`, mismatched
+                                // nesting, etc. Rather than poison the rest of the stream
+                                // by trusting the broken nesting, we log a warning and
+                                // attempt to recover by walking the stack to find a
+                                // matching opener. If none is found, we restore the frame
+                                // we just popped so siblings are still attributed sanely.
+                                tracing::warn!(
+                                    "INDI XML unbalanced end tag: got </{}>, expected </{}>. \
+                                     Attempting recovery.",
+                                    String::from_utf8_lossy(end_name),
+                                    String::from_utf8_lossy(&popped.tag)
+                                );
+                                let _ = event_tx.send(IndiEvent::Error(format!(
+                                    "Unbalanced XML: got </{}>, expected </{}>",
+                                    String::from_utf8_lossy(end_name),
+                                    String::from_utf8_lossy(&popped.tag)
+                                )));
+
+                                if let Some(match_idx) = xml_stack
+                                    .iter()
+                                    .rposition(|f| f.tag.as_slice() == end_name)
+                                {
+                                    // Drop everything above (and including) the matched
+                                    // frame to re-establish a consistent depth.
+                                    xml_stack.truncate(match_idx);
+                                } else {
+                                    // No matching opener anywhere on the stack — keep the
+                                    // pre-pop state so the next event still has reasonable
+                                    // device/property context.
+                                    xml_stack.push(popped.clone());
+                                }
+                            } else if popped.kind == XmlContextKind::SetOrNewVector {
+                                // Why: `set*Vector` / `new*Vector` close == "property update
+                                // complete" notification. Read identifiers from the popped
+                                // frame so we always use the device/property that THIS frame
+                                // established, not whatever sibling frames may have set.
+                                if let (Some(dev), Some(prop)) = (popped.device, popped.property) {
+                                    let _ = event_tx
+                                        .send(IndiEvent::PropertyUpdated(dev, prop));
+                                }
+                            }
+
+                            refresh_xml_context_mirrors(
+                                &xml_stack,
+                                &mut current_device,
+                                &mut current_property,
+                                &mut current_element,
+                            );
+                        }
+                        None => {
+                            // Why: end tag with no matching opener on the stack. This is a
+                            // protocol violation; log and continue. The recovery branch
+                            // above handles partial nesting; here we can only swallow the
+                            // stray closer.
+                            tracing::warn!(
+                                "INDI XML stray end tag </{}>: no matching opener on stack",
+                                String::from_utf8_lossy(end_name)
+                            );
+                            let _ = event_tx.send(IndiEvent::Error(format!(
+                                "Stray XML end tag </{}>",
+                                String::from_utf8_lossy(end_name)
+                            )));
+                        }
                     }
                 }
                 Ok(Ok(Event::Eof)) => {
@@ -1117,6 +1362,11 @@ impl IndiClient {
                     );
                     let _ = event_tx.send(IndiEvent::Error(format!("XML parse error: {}", e)));
                     buf.clear();
+                    // Why: a hard parser error means the underlying stream is no longer
+                    // trustable — drop all in-flight depth bookkeeping along with the
+                    // mirror strings so the freshly-recreated reader starts from a clean
+                    // top-level context.
+                    xml_stack.clear();
                     current_device.clear();
                     current_property.clear();
                     current_element.clear();
@@ -2847,5 +3097,259 @@ mod tests {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok();
         assert!(acquired_after_release);
+    }
+
+    // =========================================================================
+    // XML depth-stack parser tests (audit §5.18)
+    // =========================================================================
+
+    #[test]
+    fn test_classify_indi_tag_dispatches_each_kind() {
+        assert_eq!(
+            classify_indi_tag(b"defNumberVector"),
+            XmlContextKind::DefVector
+        );
+        assert_eq!(
+            classify_indi_tag(b"defSwitchVector"),
+            XmlContextKind::DefVector
+        );
+        assert_eq!(
+            classify_indi_tag(b"setNumberVector"),
+            XmlContextKind::SetOrNewVector
+        );
+        assert_eq!(
+            classify_indi_tag(b"newSwitchVector"),
+            XmlContextKind::SetOrNewVector
+        );
+        assert_eq!(classify_indi_tag(b"defNumber"), XmlContextKind::DefElement);
+        assert_eq!(classify_indi_tag(b"defSwitch"), XmlContextKind::DefElement);
+        assert_eq!(classify_indi_tag(b"oneNumber"), XmlContextKind::OneElement);
+        assert_eq!(classify_indi_tag(b"oneSwitch"), XmlContextKind::OneElement);
+        assert_eq!(classify_indi_tag(b"oneBLOB"), XmlContextKind::OneBlob);
+        assert_eq!(classify_indi_tag(b"getProperties"), XmlContextKind::Other);
+        assert_eq!(classify_indi_tag(b"message"), XmlContextKind::Other);
+    }
+
+    #[test]
+    fn test_refresh_xml_context_mirrors_walks_full_stack() {
+        let stack = vec![
+            XmlContext {
+                kind: XmlContextKind::DefVector,
+                tag: b"defNumberVector".to_vec(),
+                device: Some("MountSim".to_string()),
+                property: Some("EQUATORIAL_EOD_COORD".to_string()),
+                element: None,
+            },
+            XmlContext {
+                kind: XmlContextKind::DefElement,
+                tag: b"defNumber".to_vec(),
+                device: None,
+                property: None,
+                element: Some("RA".to_string()),
+            },
+        ];
+        let mut device = String::new();
+        let mut property = String::new();
+        let mut element = String::new();
+        refresh_xml_context_mirrors(&stack, &mut device, &mut property, &mut element);
+        assert_eq!(device, "MountSim");
+        assert_eq!(property, "EQUATORIAL_EOD_COORD");
+        assert_eq!(element, "RA");
+    }
+
+    #[test]
+    fn test_refresh_xml_context_mirrors_clears_on_empty_stack() {
+        let mut device = "stale".to_string();
+        let mut property = "stale".to_string();
+        let mut element = "stale".to_string();
+        refresh_xml_context_mirrors(&[], &mut device, &mut property, &mut element);
+        assert!(device.is_empty());
+        assert!(property.is_empty());
+        assert!(element.is_empty());
+    }
+
+    /// Build a minimum reader-task fixture and run the XML parser over `xml`.
+    /// Returns the populated `property_values` map plus the events that were
+    /// broadcast during parsing. `&[]` after the payload triggers EOF, which
+    /// breaks the parser's main loop cleanly.
+    async fn drive_parser(xml: &str) -> (PropertyValueMap, Vec<IndiEvent>) {
+        let devices = Arc::new(RwLock::new(HashMap::new()));
+        let properties = Arc::new(RwLock::new(HashMap::new()));
+        let property_values = Arc::new(RwLock::new(HashMap::new()));
+        let number_limits = Arc::new(RwLock::new(HashMap::new()));
+        let latest_blobs = Arc::new(RwLock::new(HashMap::new()));
+        let connected = Arc::new(AtomicBool::new(true));
+        let (event_tx, mut event_rx) = broadcast::channel::<IndiEvent>(1024);
+        let server_version = Arc::new(RwLock::new(None));
+        let last_keepalive_response_ms = Arc::new(AtomicU64::new(current_time_ms()));
+
+        // The reader is a Cursor; reading past the end returns 0 bytes which
+        // quick-xml surfaces as `Event::Eof`, and the parser loop then breaks.
+        let cursor = std::io::Cursor::new(xml.as_bytes().to_vec());
+        let reader = tokio::io::BufReader::new(cursor);
+
+        // Put a separate clone of property_values into the parser so the test
+        // can read the final state without contention.
+        let pv_clone = property_values.clone();
+        let result = IndiClient::reader_task_with_timeout(
+            reader,
+            devices,
+            properties,
+            pv_clone,
+            number_limits,
+            latest_blobs,
+            connected,
+            event_tx,
+            server_version,
+            last_keepalive_response_ms,
+            IndiTimeoutConfig::default(),
+        )
+        .await;
+        assert!(result.is_ok(), "parser returned error: {:?}", result);
+
+        let mut events = Vec::new();
+        while let Ok(ev) = event_rx.try_recv() {
+            events.push(ev);
+        }
+        let pv_snapshot = property_values.read().await.clone();
+        (pv_snapshot, events)
+    }
+
+    #[tokio::test]
+    async fn test_parser_attributes_nested_def_number_correctly() {
+        // Why: well-formed nested defNumberVector with multiple defNumber children must
+        // attribute each text body to (device, property, element) of THAT element, not
+        // bleed values across siblings.
+        let xml = r#"
+            <defNumberVector device="MountSim" name="EQUATORIAL_EOD_COORD" state="Idle" perm="rw">
+                <defNumber name="RA" min="0" max="24">12.5</defNumber>
+                <defNumber name="DEC" min="-90" max="90">-30.25</defNumber>
+            </defNumberVector>
+        "#;
+        let (values, _events) = drive_parser(xml).await;
+        let ra = values
+            .get(&(
+                "MountSim".to_string(),
+                "EQUATORIAL_EOD_COORD".to_string(),
+                "RA".to_string(),
+            ))
+            .expect("RA value missing");
+        assert_eq!(ra, "12.5");
+        let dec = values
+            .get(&(
+                "MountSim".to_string(),
+                "EQUATORIAL_EOD_COORD".to_string(),
+                "DEC".to_string(),
+            ))
+            .expect("DEC value missing");
+        assert_eq!(dec, "-30.25");
+    }
+
+    #[tokio::test]
+    async fn test_parser_handles_self_closing_def_switch() {
+        // Why: INDI servers may emit `<defSwitch name="X" />` with no body for switches
+        // whose state is "Off" by default. quick-xml delivers this as `Event::Empty`,
+        // which our parser must treat as a push+pop in one event so the depth stack does
+        // not leak and the element gets registered against the right property.
+        let xml = r#"
+            <defSwitchVector device="MountSim" name="CONNECTION" state="Idle" perm="rw">
+                <defSwitch name="CONNECT" />
+                <defSwitch name="DISCONNECT" />
+            </defSwitchVector>
+            <setSwitchVector device="MountSim" name="CONNECTION" state="Ok">
+                <oneSwitch name="CONNECT">On</oneSwitch>
+                <oneSwitch name="DISCONNECT">Off</oneSwitch>
+            </setSwitchVector>
+        "#;
+        let (values, events) = drive_parser(xml).await;
+        let connect = values
+            .get(&(
+                "MountSim".to_string(),
+                "CONNECTION".to_string(),
+                "CONNECT".to_string(),
+            ))
+            .expect("CONNECT value missing — self-closing defSwitch leaked frame state");
+        assert_eq!(connect, "On");
+        let disconnect = values
+            .get(&(
+                "MountSim".to_string(),
+                "CONNECTION".to_string(),
+                "DISCONNECT".to_string(),
+            ))
+            .expect("DISCONNECT value missing");
+        assert_eq!(disconnect, "Off");
+
+        // Why: a `setSwitchVector` close emits PropertyUpdated; verify it's there so we
+        // know the depth stack survived the self-closing children.
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                IndiEvent::PropertyUpdated(d, p)
+                    if d == "MountSim" && p == "CONNECTION"
+            )),
+            "PropertyUpdated event missing after self-closing children: {:?}",
+            events
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parser_recovers_from_unbalanced_end_tag() {
+        // Why: malformed streams (lossy proxy, mid-message reconnect, buggy server) may
+        // produce mismatched closing tags. The parser must NOT panic, must emit a
+        // diagnostic Error event, and must still process surrounding well-formed
+        // elements correctly.
+        let xml = r#"
+            <defNumberVector device="DevA" name="PropA" state="Idle" perm="rw">
+                <defNumber name="X">1.0</defNumber>
+            </defNumberVector>
+            <defNumberVector device="DevB" name="PropB" state="Idle" perm="rw">
+                <defNumber name="Y">2.0</defSwitch>
+            </defNumberVector>
+            <defNumberVector device="DevC" name="PropC" state="Idle" perm="rw">
+                <defNumber name="Z">3.0</defNumber>
+            </defNumberVector>
+        "#;
+        // The second block contains </defSwitch> where </defNumber> was expected.
+        // We must not crash; the well-formed surrounding blocks must still parse.
+        let (values, events) = drive_parser(xml).await;
+
+        // First block parses cleanly.
+        assert_eq!(
+            values
+                .get(&(
+                    "DevA".to_string(),
+                    "PropA".to_string(),
+                    "X".to_string()
+                ))
+                .map(String::as_str),
+            Some("1.0")
+        );
+        // Second block's element value lands before the bad close; either way the
+        // parser must not poison the stream.
+        let saw_unbalanced_warning = events.iter().any(|e| {
+            matches!(e, IndiEvent::Error(msg) if msg.contains("Unbalanced") || msg.contains("XML parse error"))
+        });
+        assert!(
+            saw_unbalanced_warning,
+            "expected an Error event reporting the malformed nesting; got {:?}",
+            events
+        );
+
+        // The third (well-formed) block must still parse — proves the parser recovered.
+        // Quick-xml may treat the malformed block as a hard parse error and bail through
+        // the recovery branch, which is acceptable; the recovery branch resets the stack
+        // and continues. Either path must yield DevC's value.
+        assert_eq!(
+            values
+                .get(&(
+                    "DevC".to_string(),
+                    "PropC".to_string(),
+                    "Z".to_string()
+                ))
+                .map(String::as_str),
+            Some("3.0"),
+            "parser failed to recover after malformed block; events={:?}",
+            events
+        );
     }
 }
