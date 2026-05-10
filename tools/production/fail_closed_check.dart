@@ -34,6 +34,11 @@ class _Rule {
 
 void main(List<String> args) {
   final rulesPath = _argValue(args, '--rules') ?? _defaultRulesPath;
+  // §7B.4 regression-pin: CI passes --min-files <N> so an accidental scope
+  // shrink (e.g., a glob change that excludes a package, or a vendored
+  // directory accidentally entering the exclude list) trips the gate instead
+  // of silently reducing coverage.
+  final assertMinFiles = _argValue(args, '--min-files');
   final rules = _loadRules(rulesPath);
 
   final violations = <Map<String, Object?>>[];
@@ -115,6 +120,23 @@ void main(List<String> args) {
   stdout.writeln('Rules: ${rules.length}');
   stdout.writeln('Scanned ${allFiles.length} files');
   stdout.writeln('Violations: ${violations.length}');
+
+  // Coverage assertion is evaluated before the violation exit so a scope
+  // regression is reported even when the rules happen to match nothing on
+  // the shrunken file list.
+  if (assertMinFiles != null) {
+    final required = int.tryParse(assertMinFiles);
+    if (required == null) {
+      stderr.writeln(
+          'Invalid --min-files value: $assertMinFiles');
+      exit(2);
+    }
+    if (allFiles.length < required) {
+      stderr.writeln(
+          'Fail-closed check scanned ${allFiles.length} files; required >= $required');
+      exit(1);
+    }
+  }
 
   if (violations.isEmpty) {
     stdout.writeln('Fail-closed policy checks passed.');

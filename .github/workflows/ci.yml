@@ -28,14 +28,21 @@ jobs:
       - name: Bootstrap workspace
         run: melos bootstrap
 
+      # §7B.4 regression-pin: --min-files asserts the auditor still walks the
+      # whole runtime tree. Raise the baseline whenever a new top-level
+      # package or native crate is added; never lower it without justifying
+      # which runtime files were legitimately removed.
+      # Baselines: placeholder=797 (current 839), behavioral=796 (current 838),
+      # fail_closed=1337 (current 1408). Each is current * 0.95 floored, so
+      # routine deletions do not break CI but a glob/exclude regression does.
       - name: Placeholder/Stub Audit Gate
-        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk
+        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk --min-files 797
 
       - name: Fail-Closed Policy Gate
-        run: dart run tools/production/fail_closed_check.dart
+        run: dart run tools/production/fail_closed_check.dart --min-files 1337
 
       - name: Behavioral Audit Gate
-        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt
+        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt --min-files 796
 
       - name: Dependency Hygiene Gate
         run: dart run tools/production/dependency_hygiene.dart
@@ -67,11 +74,13 @@ jobs:
       - name: Launch Analyzer Gate (zero production warnings)
         run: dart run tools/production/analyzer_rollup.dart --policy docs/production-readiness/analyzer-policy.yaml --critical-codes docs/production-readiness/critical-warning-codes.txt --report docs/production-readiness/analyzer-rollup.json
 
+      # §7B.4 regression-pin: keep --min-files in sync with the analyze job
+      # above. If you raise one baseline, raise both.
       - name: Runtime Placeholder Gate
-        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk
+        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk --min-files 797
 
       - name: Runtime Behavioral Gate
-        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt
+        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt --min-files 796
 
   test-dart:
     name: Dart Tests

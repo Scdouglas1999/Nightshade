@@ -102,7 +102,11 @@ void main(List<String> args) {
   final allowlistPath = _argValue(args, '--allowlist') ?? _defaultAllowlistPath;
   final failOnNewHighRisk = args.contains('--fail-on-new-highrisk');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
-  final assertMinFiles = _argValue(args, '--assert-at-least-files-scanned');
+  // §7B.4 regression-pin: CI passes either --min-files <N> or the older
+  // --assert-at-least-files-scanned <N>. Both names point at the same check;
+  // the short form is preferred in new YAML.
+  final assertMinFiles = _argValue(args, '--min-files') ??
+      _argValue(args, '--assert-at-least-files-scanned');
 
   final allowlist = _loadAllowlist(allowlistPath);
   final hits = <String>{};
@@ -175,7 +179,7 @@ void main(List<String> args) {
     final required = int.tryParse(assertMinFiles);
     if (required == null) {
       stderr.writeln(
-          'Invalid --assert-at-least-files-scanned value: $assertMinFiles');
+          'Invalid --min-files value: $assertMinFiles');
       exit(2);
     }
     if (filesScanned < required) {

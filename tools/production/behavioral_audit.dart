@@ -165,7 +165,11 @@ void main(List<String> args) {
   final failOnUnregistered = args.contains('--fail-on-unregistered');
   final failOnOpen = args.contains('--fail-on-open');
   final failOnAnyHighRisk = args.contains('--fail-on-any-highrisk');
-  final assertMinFiles = _argValue(args, '--assert-at-least-files-scanned');
+  // §7B.4 regression-pin: CI passes either --min-files <N> or the older
+  // --assert-at-least-files-scanned <N>. Both names point at the same check;
+  // the short form is preferred in new YAML.
+  final assertMinFiles = _argValue(args, '--min-files') ??
+      _argValue(args, '--assert-at-least-files-scanned');
 
   final findings = <String, String>{};
   final highRisk = <String>{};
@@ -238,7 +242,7 @@ void main(List<String> args) {
     final required = int.tryParse(assertMinFiles);
     if (required == null) {
       stderr.writeln(
-          'Invalid --assert-at-least-files-scanned value: $assertMinFiles');
+          'Invalid --min-files value: $assertMinFiles');
       exit(2);
     }
     if (filesScanned < required) {
