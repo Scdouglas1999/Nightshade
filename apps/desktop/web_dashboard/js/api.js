@@ -377,13 +377,41 @@ class NightshadeApi {
 
   async getWeatherSafeImaging() { return this._get('/api/weather/safe-imaging'); }
 
-  async pairWithCode(pairingCode, deviceName, deviceId) {
+  /**
+   * Start a pairing session. The server prints a 6-digit code to its console;
+   * the operator then types it into the dashboard's pairing modal.
+   * @returns {Promise<{expiresAt:string, expiresInSeconds:number}>}
+   */
+  async pairingStart() {
+    return this._post('/api/pairing/start', {});
+  }
+
+  /**
+   * Complete pairing by submitting the 6-digit code shown on the desktop
+   * console. On success the server returns a bearer token and scope.
+   * The server expects field name `code` (not `pairingCode`).
+   * @param {string} code 6-digit pairing code
+   * @param {string} deviceName Human-readable browser identity
+   * @param {string} deviceId Stable identifier for this browser profile
+   */
+  async pairWithCode(code, deviceName, deviceId) {
     return this._post('/api/pairing/verify', {
-      pairingCode,
+      code,
       deviceName,
       deviceId,
       deviceType: 'browser',
     });
+  }
+
+  /**
+   * Request a single-use 60-second WebSocket auth ticket. Used so the bearer
+   * token never has to appear as a query parameter on the /events upgrade
+   * (which would leak it into HTTP/proxy logs). Requires an authenticated
+   * session — the server's auth middleware verifies the bearer first.
+   * @returns {Promise<{ticket:string, expiresInSeconds:number}>}
+   */
+  async issueWebSocketTicket() {
+    return this._post('/api/ws/ticket', {});
   }
 
   // =========================================================================
@@ -393,15 +421,34 @@ class NightshadeApi {
   /**
    * Connect to the event WebSocket.
    * Events are dispatched to listeners registered via on().
+   *
+   * Why request a ticket first: ?token=<bearer> still works (legacy) but
+   * leaks the bearer into HTTP/proxy access logs. A single-use 60-second
+   * ticket is preferred; ?token is the fallback when the ticket endpoint is
+   * unavailable or when no token is configured.
    */
-  connectWebSocket() {
+  async connectWebSocket() {
     if (this._ws && (this._ws.readyState === WebSocket.OPEN || this._ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
+    let ticket = '';
+    if (this._authToken) {
+      try {
+        const result = await this.issueWebSocketTicket();
+        ticket = result && result.ticket ? String(result.ticket) : '';
+      } catch (e) {
+        // Why swallow: older servers did not expose /api/ws/ticket. Fall back
+        // to ?token=, which the server explicitly continues to accept.
+        ticket = '';
+      }
+    }
+
     let wsUrl = this._baseUrl.replace(/^http/, 'ws') + '/events';
     const query = [];
-    if (this._authToken) {
+    if (ticket) {
+      query.push('ticket=' + encodeURIComponent(ticket));
+    } else if (this._authToken) {
       query.push('token=' + encodeURIComponent(this._authToken));
     }
     if (this._deviceId) {
@@ -480,7 +527,11 @@ class NightshadeApi {
     if (this._wsReconnectTimer) return;
     this._wsReconnectTimer = setTimeout(() => {
       this._wsReconnectTimer = null;
-      this.connectWebSocket();
+      // Why fire-and-forget: connectWebSocket is async because it requests an
+      // auth ticket first. Failures here are surfaced via ws:error events.
+      this.connectWebSocket().catch((err) => {
+        this._emit('ws:error', { error: err });
+      });
     }, this._wsReconnectDelay);
     // Exponential backoff
     this._wsReconnectDelay = Math.min(this._wsReconnectDelay * 1.5, this._maxReconnectDelay);

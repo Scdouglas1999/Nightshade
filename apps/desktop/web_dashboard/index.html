@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' http://*:* https://*:* ws://*:* wss://*:*; object-src 'none'; base-uri 'none'">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP: connect-src restricted to same origin + same-origin WebSockets only (§2.4).
+       The previous "http://*:*" wildcard allowed an attacker-controlled page served
+       from the dashboard origin to relay credentials to any host on the network. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Nightshade Dashboard</title>
   <link rel="stylesheet" href="/dashboard/css/dashboard.css">
 </head>
@@ -17,11 +20,15 @@
         <span class="top-bar-version">Web Dashboard</span>
       </div>
       <div class="top-bar-right">
-        <label for="server-url" class="top-bar-label">Server:</label>
-        <input id="server-url" class="server-url-input" type="text" placeholder="http://host:port">
-        <button id="btn-connect" class="btn btn-primary btn-sm">Connect</button>
-        <div class="connection-status">
-          <span class="status-dot" id="status-dot"></span>
+        <!-- Manual server URL input is hidden unless ?debug=1 is set on the URL,
+             to satisfy §2.4 (CSP connect-src restricted to same origin). The
+             dashboard initialises serverUrl from window.location.origin. -->
+        <label for="server-url" class="top-bar-label sr-only" id="server-url-label">Server URL</label>
+        <input id="server-url" class="server-url-input" type="text" placeholder="http://host:port" hidden aria-labelledby="server-url-label">
+        <button id="btn-connect" class="btn btn-primary btn-sm" aria-label="Connect to server">Connect</button>
+        <span id="connect-progress" class="connect-progress" aria-live="polite"></span>
+        <div class="connection-status" role="status" aria-live="polite">
+          <span class="status-dot" id="status-dot" aria-hidden="true"></span>
           <span id="status-text">Disconnected</span>
         </div>
       </div>
@@ -31,63 +38,65 @@
     <div class="auth-bar hidden" id="auth-bar">
       <label for="device-name">Device:</label>
       <input id="device-name" type="text" placeholder="Browser name">
-      <label for="pairing-code">Pair Code:</label>
-      <input id="pairing-code" type="text" placeholder="ORION-LYRA-4821">
-      <button id="btn-pair" class="btn btn-sm btn-primary">Pair</button>
+      <button id="btn-pair" class="btn btn-sm btn-primary" aria-label="Pair this browser with Nightshade">Pair</button>
       <label for="auth-token">Token:</label>
-      <input id="auth-token" type="password" placeholder="Bearer token">
+      <input id="auth-token" type="password" placeholder="Bearer token" autocomplete="off" spellcheck="false">
       <label for="remember-token" class="checkbox-label">
         <input id="remember-token" type="checkbox">
-        Remember token
+        Remember on this device
       </label>
-      <button id="btn-apply-token" class="btn btn-sm">Apply</button>
+      <button id="btn-apply-token" class="btn btn-sm" aria-label="Apply token and connect">Apply</button>
     </div>
 
     <!-- ===== Dashboard Grid ===== -->
-    <div class="dashboard-grid">
+    <div class="dashboard-grid" id="dashboard-grid">
 
       <!-- ===== Device Status Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-devices" data-panel="devices">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#9881;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#9881;</span>
             Devices
           </span>
         </div>
-        <div class="panel-body" id="devices-list">
-          <div class="empty-state">Connect to server to see devices</div>
+        <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-devices" role="status" aria-live="polite"></div>
+          <div id="devices-list">
+            <div class="empty-state">Connect to server to see devices</div>
+          </div>
         </div>
       </div>
 
       <!-- ===== Camera Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-camera" data-panel="camera" data-device-type="camera">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#9898;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#9898;</span>
             Camera
           </span>
           <div class="panel-actions">
-            <button id="btn-expose" class="btn btn-primary btn-sm">Expose</button>
-            <button id="btn-abort-expose" class="btn btn-danger btn-sm">Abort</button>
+            <button id="btn-expose" class="btn btn-primary btn-sm" aria-label="Start exposure">Expose</button>
+            <button id="btn-abort-expose" class="btn btn-danger btn-sm" aria-label="Abort exposure">Abort</button>
           </div>
         </div>
         <div class="panel-body">
-          <div class="image-preview-container" id="image-preview">
+          <div class="panel-stale-indicator" id="stale-camera" role="status" aria-live="polite"></div>
+          <div class="image-preview-container" id="image-preview" role="img" aria-label="Most recent exposure preview">
             <div class="image-preview-placeholder">No image captured yet</div>
           </div>
           <div class="image-stats" id="image-stats"></div>
           <hr class="section-divider">
           <div class="control-row">
             <label for="exposure-time">Exposure (s)</label>
-            <input id="exposure-time" type="number" value="5" min="0.001" max="3600" step="0.1">
+            <input id="exposure-time" type="number" value="5" min="0.001" max="3600" step="0.1" aria-label="Exposure duration in seconds">
           </div>
           <div class="control-row">
             <label for="camera-gain">Gain</label>
-            <input id="camera-gain" type="number" value="100" min="0" max="600" step="1">
+            <input id="camera-gain" type="number" value="100" min="0" max="600" step="1" aria-label="Camera gain">
           </div>
           <div class="control-row">
             <label for="camera-binning">Binning</label>
-            <select id="camera-binning">
+            <select id="camera-binning" aria-label="Camera binning">
               <option value="1">1x1</option>
               <option value="2">2x2</option>
               <option value="3">3x3</option>
@@ -99,17 +108,18 @@
       </div>
 
       <!-- ===== Mount Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-mount" data-panel="mount" data-device-type="mount">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#9978;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#9978;</span>
             Mount
           </span>
           <div class="panel-actions">
-            <span id="mount-slewing" class="badge badge-running hidden-inline">SLEWING</span>
+            <span id="mount-slewing" class="badge badge-running hidden-inline" role="status">SLEWING</span>
           </div>
         </div>
         <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-mount" role="status" aria-live="polite"></div>
           <div class="two-column-compact">
             <div class="coord-display">
               <div class="coord-label">RA</div>
@@ -141,7 +151,7 @@
 
           <div class="slew-speed-select">
             <label for="slew-speed">Speed:</label>
-            <select id="slew-speed">
+            <select id="slew-speed" aria-label="Slew speed multiplier">
               <option value="0.1">0.1x</option>
               <option value="0.5">0.5x</option>
               <option value="1" selected>1x</option>
@@ -151,41 +161,45 @@
             </select>
           </div>
 
-          <div class="mount-dpad">
+          <!-- Press-and-hold d-pad. Each direction starts a slew on pointerdown and
+               stops it on pointerup/pointerleave/pointercancel; release == stop.
+               Keyboard: focus the d-pad container and use Arrow keys (§2.7, §2.15). -->
+          <div class="mount-dpad" id="mount-dpad" role="group" aria-label="Mount slew direction pad. Press and hold a direction to slew, release to stop. Use arrow keys when focused." tabindex="0">
             <div></div>
-            <button id="btn-mount-n" class="btn" title="North">&#9650;</button>
+            <button id="btn-mount-n" class="btn dpad-btn" data-axis="1" data-direction="1" aria-label="Slew North (hold)">&#9650;</button>
             <div></div>
-            <button id="btn-mount-w" class="btn" title="West">&#9664;</button>
-            <button id="btn-mount-stop" class="btn btn-danger btn-stop" title="Stop">STOP</button>
-            <button id="btn-mount-e" class="btn" title="East">&#9654;</button>
+            <button id="btn-mount-w" class="btn dpad-btn" data-axis="0" data-direction="-1" aria-label="Slew West (hold)">&#9664;</button>
+            <button id="btn-mount-stop" class="btn btn-danger btn-stop" aria-label="Emergency stop all mount motion">STOP</button>
+            <button id="btn-mount-e" class="btn dpad-btn" data-axis="0" data-direction="1" aria-label="Slew East (hold)">&#9654;</button>
             <div></div>
-            <button id="btn-mount-s" class="btn" title="South">&#9660;</button>
+            <button id="btn-mount-s" class="btn dpad-btn" data-axis="1" data-direction="-1" aria-label="Slew South (hold)">&#9660;</button>
             <div></div>
           </div>
 
           <div class="btn-group centered-actions">
-            <button id="btn-mount-park" class="btn btn-sm">Park</button>
-            <button id="btn-mount-unpark" class="btn btn-sm">Unpark</button>
-            <button id="btn-mount-tracking" class="btn btn-sm">Tracking OFF</button>
+            <button id="btn-mount-park" class="btn btn-sm" aria-label="Park mount">Park</button>
+            <button id="btn-mount-unpark" class="btn btn-sm" aria-label="Unpark mount">Unpark</button>
+            <button id="btn-mount-tracking" class="btn btn-sm" aria-label="Toggle mount tracking">Tracking OFF</button>
           </div>
         </div>
       </div>
 
       <!-- ===== Sequencer Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-sequencer" data-panel="sequencer">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#9654;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#9654;</span>
             Sequencer
           </span>
           <div class="panel-actions">
-            <button id="btn-seq-start" class="btn btn-success btn-sm">Start</button>
-            <button id="btn-seq-pause" class="btn btn-sm">Pause</button>
-            <button id="btn-seq-resume" class="btn btn-sm">Resume</button>
-            <button id="btn-seq-stop" class="btn btn-danger btn-sm">Stop</button>
+            <button id="btn-seq-start" class="btn btn-success btn-sm" aria-label="Start sequence">Start</button>
+            <button id="btn-seq-pause" class="btn btn-sm" aria-label="Pause sequence">Pause</button>
+            <button id="btn-seq-resume" class="btn btn-sm" aria-label="Resume sequence">Resume</button>
+            <button id="btn-seq-stop" class="btn btn-danger btn-sm" aria-label="Stop sequence">Stop</button>
           </div>
         </div>
         <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-sequencer" role="status" aria-live="polite"></div>
           <div class="status-row">
             <span class="status-label">Status</span>
             <span id="seq-status"><span class="badge badge-idle">idle</span></span>
@@ -199,7 +213,7 @@
             <span class="status-value info" id="seq-progress-text"></span>
           </div>
           <div class="sequence-progress">
-            <div class="progress-bar-container">
+            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="seq-progress-bar-container">
               <div class="progress-bar" id="seq-progress-bar"></div>
             </div>
           </div>
@@ -211,24 +225,25 @@
       </div>
 
       <!-- ===== Guiding Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-guiding" data-panel="guiding">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#10023;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#10023;</span>
             Guiding (PHD2)
           </span>
           <div class="panel-actions">
-            <button id="btn-guide-start" class="btn btn-success btn-sm">Start</button>
-            <button id="btn-guide-stop" class="btn btn-danger btn-sm">Stop</button>
+            <button id="btn-guide-start" class="btn btn-success btn-sm" aria-label="Start guiding">Start</button>
+            <button id="btn-guide-stop" class="btn btn-danger btn-sm" aria-label="Stop guiding">Stop</button>
           </div>
         </div>
         <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-guiding" role="status" aria-live="polite"></div>
           <div class="status-row">
             <span class="status-label">Status</span>
             <span id="guide-status"><span class="badge badge-idle">disconnected</span></span>
           </div>
           <div class="guide-graph-container">
-            <canvas id="guide-canvas"></canvas>
+            <canvas id="guide-canvas" aria-label="Guiding RA and Dec error history"></canvas>
           </div>
           <div class="guide-stats-row">
             <div class="guide-stat">
@@ -248,18 +263,18 @@
       </div>
 
       <!-- ===== Event Log Panel ===== -->
-      <div class="panel">
+      <div class="panel" id="panel-log" data-panel="log">
         <div class="panel-header">
           <span class="panel-title">
-            <span class="panel-title-icon">&#9776;</span>
+            <span class="panel-title-icon" aria-hidden="true">&#9776;</span>
             Event Log
           </span>
           <div class="panel-actions">
-            <button id="btn-clear-log" class="btn btn-sm">Clear</button>
+            <button id="btn-clear-log" class="btn btn-sm" aria-label="Clear event log">Clear</button>
           </div>
         </div>
         <div class="panel-body panel-body-compact">
-          <div class="log-container" id="log-container">
+          <div class="log-container" id="log-container" role="log" aria-live="polite" aria-relevant="additions">
             <div class="empty-state">Waiting for events...</div>
           </div>
         </div>
@@ -267,10 +282,39 @@
 
     </div><!-- /dashboard-grid -->
 
+    <!-- Phone bottom-tab navigation (only visible when .layout--phone is on body) -->
+    <nav class="phone-tabs" role="tablist" aria-label="Dashboard sections">
+      <button class="phone-tab" role="tab" data-target="panel-devices" aria-selected="false">Devices</button>
+      <button class="phone-tab" role="tab" data-target="panel-mount" aria-selected="false">Mount</button>
+      <button class="phone-tab" role="tab" data-target="panel-camera" aria-selected="false">Camera</button>
+      <button class="phone-tab" role="tab" data-target="panel-sequencer" aria-selected="false">Sequencer</button>
+      <button class="phone-tab" role="tab" data-target="panel-log" aria-selected="false">Log</button>
+    </nav>
+
   </div><!-- /app-layout -->
 
-  <!-- Toast container -->
-  <div class="toast-container" id="toast-container"></div>
+  <!-- Toast container — aria-live polite so screen readers announce notifications. -->
+  <div class="toast-container" id="toast-container" role="region" aria-live="polite" aria-label="Notifications"></div>
+
+  <!-- Pairing modal (§2.1) -->
+  <div class="modal-backdrop" id="pair-modal" role="dialog" aria-modal="true" aria-labelledby="pair-modal-title" aria-describedby="pair-modal-desc" hidden>
+    <div class="modal">
+      <h2 class="modal-title" id="pair-modal-title">Pair this browser</h2>
+      <div class="modal-body" id="pair-modal-desc">
+        Open the Nightshade desktop application and watch its console output. A
+        new 6-digit code will be printed there. Type it in below and press Pair
+        to complete first-run setup. The code expires after a few minutes; if it
+        does, click Pair again to request a fresh one.
+      </div>
+      <label for="pair-modal-code" class="sr-only">6-digit pairing code</label>
+      <input id="pair-modal-code" class="modal-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="------" aria-describedby="pair-modal-status">
+      <div class="modal-status" id="pair-modal-status" role="status" aria-live="polite"></div>
+      <div class="modal-actions">
+        <button id="btn-pair-cancel" class="btn btn-sm" aria-label="Cancel pairing">Cancel</button>
+        <button id="btn-pair-submit" class="btn btn-primary btn-sm" aria-label="Submit pairing code">Pair</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/dashboard/js/api.js"></script>
   <script src="/dashboard/js/app.js"></script>

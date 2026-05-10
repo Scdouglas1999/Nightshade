@@ -31,7 +31,41 @@
     maxLogEntries: 500,
     pollInterval: null,
     pingInterval: null,
+    wsFallbackPollInterval: null,
+    lastWsMessageAt: 0,
+    panelLastUpdate: { devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0 },
+    staleCheckInterval: null,
+    debugMode: false,
+    pendingImageFetchTimer: null,
+    pendingExposureExpectedBy: 0,
+    activePhoneTab: 'panel-devices',
+    dpadActiveButton: null,
+    dpadActiveAxis: null,
+    pressedKeys: new Set(),
+    connectRetryCount: 0,
   };
+
+  // Why a panel registry: §2.10 (stale indicators), §2.12 (per-panel enable),
+  // and §2.13 (phone tab routing) all need a mapping from panel id to the
+  // controlling device-type. Define it once.
+  const PANEL_DEVICE_TYPES = {
+    'panel-camera': 'camera',
+    'panel-mount': 'mount',
+  };
+
+  // Phone tabs: which panels are accessible via the bottom tab bar on phones.
+  const PHONE_PANELS = ['panel-devices', 'panel-mount', 'panel-camera',
+                        'panel-sequencer', 'panel-log'];
+
+  // §2.10 — if the WS has been silent for this long, fall back to REST polling.
+  const WS_FALLBACK_THRESHOLD_MS = 10000;
+  // Surface a stale-data badge on a panel after this much wall time since
+  // its last successful update.
+  const PANEL_STALE_THRESHOLD_MS = 10000;
+  // §2.8 — image-fetch fallback if no exposure_complete event arrives.
+  const IMAGE_FALLBACK_GRACE_MS = 30000;
+  // §2.11 — cap on base64-decoded image size for display.
+  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
   // =========================================================================
   // Initialization
@@ -40,13 +74,30 @@
   document.addEventListener('DOMContentLoaded', init);
 
   function init() {
-    // Read saved settings. Tokens stay in sessionStorage unless the user
-    // explicitly chooses to remember the token for this browser profile.
-    const storedUrl = normalizeServerUrl(localStorage.getItem('nightshade_url'));
+    // Honour ?debug=1 in the URL to allow manual server URL entry. Why: §2.4
+    // restricts the dashboard to its own origin; manual URL entry is a power-
+    // user escape hatch and is hidden by default.
+    state.debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
+    if (state.debugMode) {
+      const urlInput = document.getElementById('server-url');
+      urlInput.hidden = false;
+      const label = document.getElementById('server-url-label');
+      if (label) label.classList.remove('sr-only');
+    }
+
+    // Read saved settings. Tokens live in sessionStorage by default (§2.5);
+    // localStorage is only used when the user opts in to "Remember on this
+    // device" — and even then we leave a TODO to migrate to HttpOnly cookies.
     const servedFromServer =
       window.location.protocol === 'http:' || window.location.protocol === 'https:';
-    const savedUrl = storedUrl || defaultServerUrl();
-    const shouldAutoConnect = !!storedUrl || servedFromServer;
+    // §2.4 — initial server URL comes from window.location.origin only.
+    // Debug mode allows overriding via localStorage; production cannot.
+    let savedUrl = defaultServerUrl();
+    if (state.debugMode) {
+      const stored = normalizeServerUrl(localStorage.getItem('nightshade_url'));
+      if (stored) savedUrl = stored;
+    }
+    const shouldAutoConnect = servedFromServer || (state.debugMode && !!savedUrl);
     const rememberToken = localStorage.getItem('nightshade_remember_token') === 'true';
     const savedToken = readStoredToken(rememberToken);
     const savedDeviceName = localStorage.getItem('nightshade_device_name') || defaultDeviceName();
@@ -55,24 +106,31 @@
     document.getElementById('server-url').value = savedUrl;
     document.getElementById('auth-token').value = savedToken;
     document.getElementById('device-name').value = savedDeviceName;
+    // Default OFF for remember-token (§2.5). The bearer is sessionStorage-only
+    // unless the user opts in.
     document.getElementById('remember-token').checked = rememberToken;
     localStorage.setItem('nightshade_device_id', savedDeviceId);
 
-    // Connect button
-    document.getElementById('btn-connect').addEventListener('click', handleConnect);
-    document.getElementById('btn-pair').addEventListener('click', handlePair);
-    document.getElementById('btn-apply-token').addEventListener('click', handleConnect);
+    // Connect / pair buttons
+    document.getElementById('btn-connect').addEventListener('click', () => handleConnect());
+    document.getElementById('btn-pair').addEventListener('click', openPairModal);
+    document.getElementById('btn-apply-token').addEventListener('click', () => handleConnect());
     document.getElementById('remember-token').addEventListener('change', handleRememberTokenChanged);
+
+    // Pairing modal
+    document.getElementById('btn-pair-cancel').addEventListener('click', closePairModal);
+    document.getElementById('btn-pair-submit').addEventListener('click', handlePairSubmit);
+    document.getElementById('pair-modal-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handlePairSubmit();
+      if (e.key === 'Escape') closePairModal();
+    });
 
     // Camera controls
     document.getElementById('btn-expose').addEventListener('click', handleExpose);
     document.getElementById('btn-abort-expose').addEventListener('click', handleAbortExpose);
 
-    // Mount controls
-    document.getElementById('btn-mount-n').addEventListener('click', () => handleMountMove(0, 1));
-    document.getElementById('btn-mount-s').addEventListener('click', () => handleMountMove(0, -1));
-    document.getElementById('btn-mount-e').addEventListener('click', () => handleMountMove(1, 1));
-    document.getElementById('btn-mount-w').addEventListener('click', () => handleMountMove(1, -1));
+    // Mount controls — press-and-hold d-pad (§2.7).
+    setupDpad();
     document.getElementById('btn-mount-stop').addEventListener('click', handleMountStop);
     document.getElementById('btn-mount-park').addEventListener('click', handleMountPark);
     document.getElementById('btn-mount-unpark').addEventListener('click', handleMountUnpark);
@@ -91,11 +149,24 @@
     // Log controls
     document.getElementById('btn-clear-log').addEventListener('click', clearLog);
 
+    // Phone tabs (§2.13)
+    for (const tab of document.querySelectorAll('.phone-tab')) {
+      tab.addEventListener('click', () => activatePhoneTab(tab.dataset.target));
+    }
+
     // Guide graph canvas
     setupGuideCanvas();
     setConnectionStatus('disconnected');
 
-    // Auto-connect on load if we have a URL
+    // Phone layout — apply on load and on resize.
+    applyResponsiveLayout();
+    window.addEventListener('resize', applyResponsiveLayout);
+
+    // Default: every action button disabled until we connect & enumerate
+    // devices (§2.12).
+    refreshPanelEnablement();
+
+    // Auto-connect on load when served from the same origin (§2.4 + §2.16).
     if (shouldAutoConnect) {
       handleConnect();
     }
@@ -105,6 +176,11 @@
   // Connection
   // =========================================================================
 
+  /**
+   * Run the initial REST handshake with bounded exponential backoff (§2.16).
+   * Three attempts at 250 ms, 1 s, 4 s. WebSocket has its own reconnect logic
+   * and is not retried here.
+   */
   async function handleConnect() {
     const url = normalizeServerUrl(document.getElementById('server-url').value);
     const token = document.getElementById('auth-token').value.trim();
@@ -118,12 +194,17 @@
 
     document.getElementById('server-url').value = url;
 
-    // Persist connection preferences; token storage depends on Remember token.
-    localStorage.setItem('nightshade_url', url);
+    // Persist connection preferences; token storage depends on Remember.
+    // Production mode (no debug flag) refuses to remember anything that
+    // would override the same-origin URL (§2.4).
+    if (state.debugMode) {
+      localStorage.setItem('nightshade_url', url);
+    } else {
+      localStorage.removeItem('nightshade_url');
+    }
     localStorage.setItem('nightshade_device_id', deviceId);
     writeStoredToken(token, rememberToken);
 
-    // Configure API
     api.configure(url, token, deviceId);
     api.setConnectionState(false);
 
@@ -132,88 +213,182 @@
     api.removeAllListeners();
     setConnectionStatus('connecting');
 
-    try {
-      const info = await api.testConnection();
-      state.serverInfo = info;
+    // §2.16 — 3-attempt exponential backoff per audit. Pre-attempt sleeps:
+    // 250 ms, 1 s, 4 s. The total delay budget is ~5 s, which matches the
+    // user's mental model of "give it a moment" without making a healthy
+    // server feel slow.
+    const delays = [250, 1000, 4000];
+    let lastError = null;
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      await sleep(delays[attempt]);
+      state.connectRetryCount = attempt;
+      updateConnectProgress(attempt + 1, delays.length);
+      try {
+        const info = await api.testConnection();
+        state.serverInfo = info;
 
-      if (info.authRequired) {
-        document.getElementById('auth-bar').classList.remove('hidden');
-      } else {
-        document.getElementById('auth-bar').classList.add('hidden');
-      }
+        if (info.authRequired) {
+          document.getElementById('auth-bar').classList.remove('hidden');
+        } else {
+          document.getElementById('auth-bar').classList.add('hidden');
+        }
 
-      if (info.authRequired && !token) {
-        setConnectionStatus('disconnected');
-        showToast(
-          'Server requires pairing or a valid token before remote control is allowed.',
-          'error',
-        );
+        if (info.authRequired && !token) {
+          setConnectionStatus('disconnected');
+          updateConnectProgress(0, 0);
+          showToast(
+            info.pairingSupported
+              ? 'Click Pair to set up this browser, or paste a bearer token and click Apply.'
+              : 'Server requires a bearer token. Paste one and click Apply.',
+            'error',
+          );
+          return;
+        }
+
+        // The first authenticated request is the real connection gate.
+        // /api/info is public and only confirms reachability.
+        await api.getStatus();
+        setConnectionStatus('connected');
+        updateConnectProgress(0, 0);
+        api.setConnectionState(true);
+
+        addLogEntry('system', 'Connected to ' + info.name + ' v' + info.version);
+
+        // Wire up event listeners *before* opening the socket so we never
+        // miss the open/error/event signals fired during connect.
+        setupEventListeners();
+        // connectWebSocket is async (it requests a single-use ticket first).
+        api.connectWebSocket().catch((err) => {
+          addLogEntry('error', 'WebSocket connect failed: ' + err.message);
+        });
+
+        await fetchAllStatus();
+        startPolling();
         return;
+      } catch (e) {
+        lastError = e;
+        // Why log every attempt: opaque "Connection failed" with no retry trail
+        // made transient flaps look like permanent failures.
+        addLogEntry('error',
+          'Connect attempt ' + (attempt + 1) + '/' + delays.length + ': ' + e.message);
       }
+    }
 
-      // Treat the first protected request as the real connection gate.
-      // /api/info is public and only tells us the server is reachable.
-      await api.getStatus();
-      setConnectionStatus('connected');
-      api.setConnectionState(true);
+    setConnectionStatus('disconnected');
+    updateConnectProgress(0, 0);
+    api.setConnectionState(false);
+    showToast('Connection failed: ' + (lastError ? lastError.message : 'unknown'), 'error');
+  }
 
-      addLogEntry('system', 'Connected to ' + info.name + ' v' + info.version);
-
-      // Start WebSocket
-      setupEventListeners();
-      api.connectWebSocket();
-
-      // Initial data fetch
-      await fetchAllStatus();
-
-      // Start polling
-      startPolling();
-
-    } catch (e) {
-      setConnectionStatus('disconnected');
-      api.setConnectionState(false);
-      showToast('Connection failed: ' + e.message, 'error');
-      addLogEntry('error', 'Connection failed: ' + e.message);
+  function updateConnectProgress(attempt, total) {
+    const el = document.getElementById('connect-progress');
+    if (!el) return;
+    if (attempt > 0 && total > 0) {
+      el.textContent = '(attempt ' + attempt + '/' + total + ')';
+    } else {
+      el.textContent = '';
     }
   }
 
-  async function handlePair() {
+  // =========================================================================
+  // Pairing (§2.1)
+  // =========================================================================
+
+  function openPairModal() {
     const url = normalizeServerUrl(document.getElementById('server-url').value);
-    const pairingCode = document.getElementById('pairing-code').value.trim();
+    if (!url) {
+      showToast('Enter a valid server URL first', 'error');
+      return;
+    }
+    document.getElementById('server-url').value = url;
+    const modal = document.getElementById('pair-modal');
+    modal.removeAttribute('hidden');
+    modal.classList.add('visible');
+    setPairModalStatus('Requesting a pairing code...', '');
+
+    // Configure API for unauthenticated calls during the pairing handshake.
+    const deviceId = localStorage.getItem('nightshade_device_id') || generateDeviceId();
+    api.configure(url, '', deviceId);
+
+    // Kick off pairing/start on open so the operator immediately sees a code
+    // on the desktop console.
+    api.pairingStart()
+      .then((result) => {
+        const exp = result && result.expiresInSeconds ? result.expiresInSeconds : 0;
+        setPairModalStatus(
+          'Code printed to the Nightshade desktop console. Expires in ~' +
+          Math.max(1, Math.round(exp / 60)) + ' min.',
+          'success',
+        );
+      })
+      .catch((e) => {
+        setPairModalStatus('Failed to start pairing: ' + e.message, 'error');
+      });
+
+    const codeInput = document.getElementById('pair-modal-code');
+    codeInput.value = '';
+    setTimeout(() => codeInput.focus(), 50);
+  }
+
+  function closePairModal() {
+    const modal = document.getElementById('pair-modal');
+    modal.classList.remove('visible');
+    modal.setAttribute('hidden', '');
+    setPairModalStatus('', '');
+  }
+
+  function setPairModalStatus(message, type) {
+    const el = document.getElementById('pair-modal-status');
+    if (!el) return;
+    el.textContent = message;
+    el.className = 'modal-status' + (type ? ' ' + type : '');
+  }
+
+  async function handlePairSubmit() {
+    const url = normalizeServerUrl(document.getElementById('server-url').value);
+    const code = document.getElementById('pair-modal-code').value.trim();
     const deviceName = document.getElementById('device-name').value.trim() || defaultDeviceName();
     const deviceId = localStorage.getItem('nightshade_device_id') || generateDeviceId();
 
     if (!url) {
-      showToast('Enter a valid http:// or https:// server URL first', 'error');
+      setPairModalStatus('Server URL is empty.', 'error');
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setPairModalStatus('Enter the 6-digit code shown on the desktop console.', 'error');
       return;
     }
 
-    document.getElementById('server-url').value = url;
-
-    if (!pairingCode) {
-      showToast('Enter the pairing code shown in Nightshade', 'error');
-      return;
-    }
-
-    localStorage.setItem('nightshade_url', url);
     localStorage.setItem('nightshade_device_id', deviceId);
     localStorage.setItem('nightshade_device_name', deviceName);
     api.configure(url, '', deviceId);
 
+    setPairModalStatus('Verifying...', '');
     try {
-      const result = await api.pairWithCode(pairingCode, deviceName, deviceId);
-      const token = result.token || '';
+      const result = await api.pairWithCode(code, deviceName, deviceId);
+      const token = result && result.token ? String(result.token) : '';
       if (!token) {
         throw new Error('Pairing completed without a token');
       }
-
       document.getElementById('auth-token').value = token;
       writeStoredToken(token, document.getElementById('remember-token').checked);
-      document.getElementById('pairing-code').value = '';
-      showToast('Pairing complete. Connecting...', 'success');
-      handleConnect();
+      setPairModalStatus('Paired. Connecting...', 'success');
+      closePairModal();
+      showToast('Pairing complete', 'success');
+      await handleConnect();
     } catch (e) {
-      showToast('Pairing failed: ' + e.message, 'error');
+      // Server error codes per §2.1 brief — surface them as actionable text.
+      let msg = e.message || 'Pairing failed';
+      if (msg.includes('invalid_pairing_code')) {
+        msg = 'Pairing code is not recognised. Check the code on the desktop console.';
+      } else if (msg.includes('pairing_code_expired')) {
+        msg = 'Pairing code expired. Click Pair again to request a new one.';
+      } else if (msg.includes('pairing_code_already_used')) {
+        msg = 'That code has already been claimed. Click Pair to start over.';
+      } else if (msg.includes('429') || msg.includes('temporarily locked')) {
+        msg = 'Too many failed attempts. Wait a moment before trying again.';
+      }
+      setPairModalStatus(msg, 'error');
       addLogEntry('error', 'Pairing failed: ' + e.message);
     }
   }
@@ -222,6 +397,10 @@
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       return window.crypto.randomUUID();
     }
+    // Why Math.random fallback is acceptable here: the device ID is a non-
+    // secret correlation handle (used to match pairing requests with the
+    // resulting token row), not a credential or signing key. Old browsers
+    // without crypto.randomUUID still get a probabilistically unique value.
     return 'browser-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 
@@ -235,6 +414,10 @@
   function writeStoredToken(token, rememberToken) {
     localStorage.setItem('nightshade_remember_token', rememberToken ? 'true' : 'false');
     if (rememberToken) {
+      // TODO(§2.5 follow-up): migrate "remember" to an HttpOnly Secure
+      // SameSite=Strict cookie issued by POST /api/auth/cookie, with a
+      // matching CSRF token. Until then we keep localStorage parity with the
+      // existing flow but warn the user it's opt-in.
       localStorage.setItem('nightshade_token', token);
       sessionStorage.removeItem('nightshade_token');
     } else {
@@ -290,18 +473,78 @@
     } else {
       text.textContent = 'Disconnected';
     }
-    setActionControlsEnabled(status === 'connected');
+    refreshPanelEnablement();
   }
 
-  function setActionControlsEnabled(enabled) {
-    const controls = document.querySelectorAll('.panel button:not(#btn-clear-log)');
-    for (const control of controls) {
-      control.disabled = !enabled;
+  /**
+   * §2.12 — per-panel enable based on the connected-devices payload. Buttons
+   * inside a panel are only clickable when (a) the dashboard is connected to
+   * the server *and* (b) a device of the panel's type is connected.
+   *
+   * The clear-log button is exempt because it operates on local state.
+   */
+  function refreshPanelEnablement() {
+    const connected = api.isConnected;
+    for (const [panelId, deviceType] of Object.entries(PANEL_DEVICE_TYPES)) {
+      const panel = document.getElementById(panelId);
+      if (!panel) continue;
+      const hasDevice = connected && state.connectedDevices.some(
+        (d) => d.deviceType === deviceType,
+      );
+      setPanelEnabled(panel, deviceType, hasDevice);
+    }
+
+    // Sequencer/guiding/devices panels: enable iff connected. They don't
+    // require a specific device of their own.
+    for (const id of ['panel-sequencer', 'panel-guiding']) {
+      const panel = document.getElementById(id);
+      if (panel) setPanelEnabled(panel, null, connected);
+    }
+
+    // Top-level connect button is always usable.
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-clear-log').disabled = false;
+    document.getElementById('btn-pair').disabled = false;
+    document.getElementById('btn-apply-token').disabled = false;
+  }
+
+  function setPanelEnabled(panelEl, deviceType, enabled) {
+    if (!panelEl) return;
+    panelEl.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    const tooltip = enabled ? '' : (deviceType
+      ? humanDeviceType(deviceType) + ' not connected'
+      : 'Connect to the server first');
+    const buttons = panelEl.querySelectorAll('button');
+    for (const btn of buttons) {
+      // §2.7 — d-pad emergency Stop is always usable when connected even if
+      // no mount is currently reported. Better a no-op than a runaway slew
+      // that can't be cancelled.
+      if (btn.id === 'btn-mount-stop') {
+        btn.disabled = !api.isConnected;
+        continue;
+      }
+      btn.disabled = !enabled;
+      if (tooltip) btn.title = tooltip; else btn.removeAttribute('title');
+    }
+    const inputs = panelEl.querySelectorAll('input, select');
+    for (const input of inputs) {
+      input.disabled = !enabled;
+    }
+  }
+
+  function humanDeviceType(t) {
+    switch (t) {
+      case 'camera': return 'Camera';
+      case 'mount': return 'Mount';
+      case 'focuser': return 'Focuser';
+      case 'filterWheel': return 'Filter wheel';
+      default: return t;
     }
   }
 
   function setupEventListeners() {
     api.on('ws:connected', () => {
+      state.lastWsMessageAt = Date.now();
       addLogEntry('system', 'WebSocket connected');
     });
 
@@ -310,16 +553,30 @@
     });
 
     api.on('event', (data) => {
+      state.lastWsMessageAt = Date.now();
       handleServerEvent(data);
     });
   }
 
+  // =========================================================================
+  // Polling — WebSocket-driven by default, REST fallback only when stale.
+  // §2.10: drop the unconditional 3 s poll loop.
+  // =========================================================================
+
   function startPolling() {
     stopPolling();
-    // Poll every 3 seconds for status updates
-    state.pollInterval = setInterval(fetchAllStatus, 3000);
-    // Ping WebSocket every 30 seconds
+
+    // Initial refresh so panels populate immediately on connect — WS events
+    // arrive only when something changes.
+    fetchAllStatus();
+
     state.pingInterval = setInterval(() => api.sendPing(), 30000);
+
+    // Why a slow watchdog instead of a 3 s poll: WS pushes carry the panel
+    // state. We only re-fetch when the socket has been silent for
+    // WS_FALLBACK_THRESHOLD_MS — i.e., the socket is dead or the server
+    // dropped events. The watchdog also drives the stale-data indicator.
+    state.staleCheckInterval = setInterval(checkStaleness, 2000);
   }
 
   function stopPolling() {
@@ -331,6 +588,67 @@
       clearInterval(state.pingInterval);
       state.pingInterval = null;
     }
+    if (state.wsFallbackPollInterval) {
+      clearInterval(state.wsFallbackPollInterval);
+      state.wsFallbackPollInterval = null;
+    }
+    if (state.staleCheckInterval) {
+      clearInterval(state.staleCheckInterval);
+      state.staleCheckInterval = null;
+    }
+  }
+
+  function checkStaleness() {
+    const now = Date.now();
+    const wsSilentMs = state.lastWsMessageAt > 0 ? now - state.lastWsMessageAt : Infinity;
+
+    // Fallback polling: only when WS has been silent past the threshold.
+    if (api.isConnected && wsSilentMs > WS_FALLBACK_THRESHOLD_MS) {
+      if (!state.wsFallbackPollInterval) {
+        addLogEntry('system',
+          'WebSocket silent for ' + Math.round(wsSilentMs / 1000) +
+          's — falling back to REST polling');
+        state.wsFallbackPollInterval = setInterval(fetchAllStatus, 5000);
+        // Immediate one-shot so the user doesn't wait 5s for the next tick.
+        fetchAllStatus();
+      }
+    } else if (state.wsFallbackPollInterval) {
+      // WS came back. Drop the polling loop.
+      clearInterval(state.wsFallbackPollInterval);
+      state.wsFallbackPollInterval = null;
+      addLogEntry('system', 'WebSocket recovered — REST fallback disabled');
+    }
+
+    // Per-panel stale indicator: highlight any panel whose last data update
+    // is older than the threshold.
+    updateStaleIndicator('devices');
+    updateStaleIndicator('mount');
+    updateStaleIndicator('camera');
+    updateStaleIndicator('sequencer');
+    updateStaleIndicator('guiding');
+  }
+
+  function updateStaleIndicator(panelKey) {
+    const el = document.getElementById('stale-' + panelKey);
+    if (!el) return;
+    const last = state.panelLastUpdate[panelKey];
+    if (!last || !api.isConnected) {
+      el.classList.remove('visible');
+      el.textContent = '';
+      return;
+    }
+    const ageMs = Date.now() - last;
+    if (ageMs > PANEL_STALE_THRESHOLD_MS) {
+      el.classList.add('visible');
+      el.textContent = 'Stale: ' + Math.round(ageMs / 1000) + 's since last update';
+    } else {
+      el.classList.remove('visible');
+      el.textContent = '';
+    }
+  }
+
+  function markPanelFresh(panelKey) {
+    state.panelLastUpdate[panelKey] = Date.now();
   }
 
   // =========================================================================
@@ -338,26 +656,32 @@
   // =========================================================================
 
   async function fetchAllStatus() {
-    try {
-      await Promise.all([
-        fetchDevices(),
-        fetchSequencerStatus(),
-        fetchGuidingStatus(),
-        fetchMountStatusIfConnected(),
-        fetchCameraStatusIfConnected(),
-      ]);
-    } catch (e) {
-      // Individual fetch errors are handled inside each function
-    }
+    await Promise.all([
+      fetchDevices(),
+      fetchSequencerStatus(),
+      fetchGuidingStatus(),
+      fetchMountStatusIfConnected(),
+      fetchCameraStatusIfConnected(),
+    ]);
   }
 
   async function fetchDevices() {
     try {
       const result = await api.getConnectedDevices();
       state.connectedDevices = result.devices || [];
-      renderDevicesPanel();
 
-      // Auto-select device IDs from connected devices
+      // §2.4 hint: connected-devices may carry discoveryErrors. Surface them
+      // once per call in the log to avoid silent driver failures.
+      if (result.discoveryErrors && typeof result.discoveryErrors === 'object') {
+        for (const [dt, err] of Object.entries(result.discoveryErrors)) {
+          addLogEntry('error', 'Discovery error (' + dt + '): ' + err);
+        }
+      }
+
+      renderDevicesPanel();
+      markPanelFresh('devices');
+
+      // Auto-select device IDs from connected devices.
       for (const dev of state.connectedDevices) {
         switch (dev.deviceType) {
           case 'camera': state.cameraDeviceId = dev.id; break;
@@ -366,8 +690,12 @@
           case 'filterWheel': state.filterWheelDeviceId = dev.id; break;
         }
       }
+      refreshPanelEnablement();
     } catch (e) {
-      // Silently ignore - will retry next poll
+      // §2.10 — surface fetch errors via the panel stale indicator instead of
+      // swallowing them silently. Stale check will pick this up by virtue of
+      // panelLastUpdate.devices not being refreshed.
+      addLogEntry('error', 'Devices fetch failed: ' + e.message);
     }
   }
 
@@ -376,8 +704,9 @@
       const status = await api.sequencerGetStatus();
       state.sequencerStatus = status;
       renderSequencerPanel();
+      markPanelFresh('sequencer');
     } catch (e) {
-      // Silently ignore
+      addLogEntry('error', 'Sequencer fetch failed: ' + e.message);
     }
   }
 
@@ -386,8 +715,9 @@
       const status = await api.phd2GetStatus();
       state.guidingStatus = status;
       renderGuidingPanel();
+      markPanelFresh('guiding');
     } catch (e) {
-      // Silently ignore
+      addLogEntry('error', 'Guiding fetch failed: ' + e.message);
     }
   }
 
@@ -397,8 +727,9 @@
       const status = await api.getMountStatus(state.mountDeviceId);
       state.mountStatus = status;
       renderMountPanel();
+      markPanelFresh('mount');
     } catch (e) {
-      // Silently ignore
+      addLogEntry('error', 'Mount status fetch failed: ' + e.message);
     }
   }
 
@@ -408,8 +739,9 @@
       const status = await api.getCameraStatus(state.cameraDeviceId);
       state.cameraStatus = status;
       renderCameraStatusInfo();
+      markPanelFresh('camera');
     } catch (e) {
-      // Silently ignore
+      addLogEntry('error', 'Camera status fetch failed: ' + e.message);
     }
   }
 
@@ -418,32 +750,95 @@
   // =========================================================================
 
   function handleServerEvent(data) {
-    // Determine event category for logging
     const category = data.category || data.event_category || 'system';
-    const message = data.message || data.description || JSON.stringify(data);
+    const message = data.message || data.description || messageFromPayload(data);
 
     addLogEntry(category, message);
 
-    // Update specific panels based on event category
+    // §2.10 — drive panel state from WS events first; only fall back to
+    // REST when an event is too coarse to update the panel.
     if (category === 'camera' || category === 'imaging') {
-      // Refresh camera status on camera events
-      fetchCameraStatusIfConnected();
-      // If an exposure completed, fetch the last image
-      if (data.event === 'exposure_complete' || data.event === 'ExposureComplete'
-          || data.event === 'image_ready' || data.event === 'ImageReady') {
+      const eventType = data.eventType || data.event || '';
+      // For temperature/cooling updates we still need a REST round-trip
+      // because the WS event only carries the delta, not the full snapshot.
+      if (eventType === 'TemperatureChanged' || eventType === 'ExposureProgress'
+          || eventType === 'ExposureStarted' || eventType === 'ExposureStartedWithFrame') {
+        fetchCameraStatusIfConnected();
+      }
+      // §2.8 — image fetch is *only* driven by completion events. The legacy
+      // setTimeout((exposureTime+2)*1000) fallback has been removed.
+      if (isExposureCompleteEvent(eventType)) {
+        cancelPendingImageFetch();
         fetchLastImage();
       }
+      markPanelFresh('camera');
     } else if (category === 'mount') {
       fetchMountStatusIfConnected();
     } else if (category === 'sequencer') {
       fetchSequencerStatus();
     } else if (category === 'guiding' || category === 'phd2') {
-      fetchGuidingStatus();
-      // Extract guide data if present
-      if (data.raDistance !== undefined && data.decDistance !== undefined) {
-        addGuideDataPoint(data.raDistance, data.decDistance);
+      const eventType = data.eventType || data.event || '';
+      // §2.14 — canonical field names for guide-step coordinates are raPx
+      // / decPx. The server emitter now publishes these alongside legacy
+      // names; we accept either so we work across server versions during
+      // the deployment transition.
+      const payload = data.data || data;
+      const guide = extractGuideStep(payload);
+      if (guide) {
+        addGuideDataPoint(guide.raPx, guide.decPx);
       }
+      // Full status snapshots need a REST round-trip because the WS event
+      // doesn't carry the rolling RMS or app state.
+      if (eventType === 'GuidingStarted' || eventType === 'GuidingStopped'
+          || eventType === 'Settled' || eventType === 'Settling'
+          || eventType === 'AppState' || eventType === 'Connected'
+          || eventType === 'Disconnected') {
+        fetchGuidingStatus();
+      }
+      markPanelFresh('guiding');
+    } else if (category === 'equipment') {
+      // Equipment connect/disconnect changes the per-panel availability set.
+      fetchDevices();
     }
+  }
+
+  function isExposureCompleteEvent(eventType) {
+    if (!eventType) return false;
+    return eventType === 'exposure_complete' || eventType === 'ExposureComplete'
+        || eventType === 'image_ready' || eventType === 'ImageReady'
+        || eventType === 'ExposureCompleted' || eventType === 'ExposureCompletedWithFrame';
+  }
+
+  function extractGuideStep(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    // Canonical (§2.14): raPx, decPx.
+    if (payload.raPx !== undefined && payload.decPx !== undefined) {
+      return { raPx: Number(payload.raPx), decPx: Number(payload.decPx) };
+    }
+    // Backend currently emits RADistanceRaw/DECDistanceRaw inside the event
+    // `data` payload. Accept both so we work whether the backend has been
+    // updated yet or not.
+    if (payload.RADistanceRaw !== undefined && payload.DECDistanceRaw !== undefined) {
+      return {
+        raPx: Number(payload.RADistanceRaw),
+        decPx: Number(payload.DECDistanceRaw),
+      };
+    }
+    // Legacy camelCase that the dashboard *thought* it was receiving (§2.14
+    // root cause). Keep accepting for backward compatibility.
+    if (payload.raDistance !== undefined && payload.decDistance !== undefined) {
+      return {
+        raPx: Number(payload.raDistance),
+        decPx: Number(payload.decDistance),
+      };
+    }
+    return null;
+  }
+
+  function messageFromPayload(data) {
+    const t = data.eventType || data.event || data.type;
+    if (t) return String(t);
+    return JSON.stringify(data);
   }
 
   // =========================================================================
@@ -474,18 +869,45 @@
       addLogEntry('camera', 'Exposure started: ' + exposureTime + 's');
       showToast('Exposure started');
 
-      // Schedule fetching the image after exposure completes
-      setTimeout(() => fetchLastImage(), (exposureTime + 2) * 1000);
+      // §2.8 — replace the unconditional setTimeout((exposureTime+2)*1000)
+      // image fetch with an event-driven one. We arm a single fallback timer
+      // for (exposureTime + IMAGE_FALLBACK_GRACE_MS) so a missing
+      // exposure_complete event doesn't strand the operator with no preview.
+      scheduleImageFetchFallback(exposureTime);
     } catch (e) {
       showToast('Expose failed: ' + e.message, 'error');
       addLogEntry('error', 'Expose failed: ' + e.message);
     }
   }
 
+  function scheduleImageFetchFallback(exposureTime) {
+    cancelPendingImageFetch();
+    const waitMs = (exposureTime * 1000) + IMAGE_FALLBACK_GRACE_MS;
+    state.pendingExposureExpectedBy = Date.now() + waitMs;
+    state.pendingImageFetchTimer = setTimeout(() => {
+      state.pendingImageFetchTimer = null;
+      // One-shot fallback only — if the WS event arrives between scheduling
+      // and now, handleServerEvent already cancelled the timer.
+      addLogEntry('system',
+        'No exposure_complete event after ' + Math.round(waitMs / 1000) +
+        's; fetching last image as fallback');
+      fetchLastImage();
+    }, waitMs);
+  }
+
+  function cancelPendingImageFetch() {
+    if (state.pendingImageFetchTimer) {
+      clearTimeout(state.pendingImageFetchTimer);
+      state.pendingImageFetchTimer = null;
+    }
+    state.pendingExposureExpectedBy = 0;
+  }
+
   async function handleAbortExpose() {
     if (!state.cameraDeviceId) return;
     try {
       await api.cameraAbort(state.cameraDeviceId);
+      cancelPendingImageFetch();
       addLogEntry('camera', 'Exposure aborted');
     } catch (e) {
       showToast('Abort failed: ' + e.message, 'error');
@@ -498,7 +920,7 @@
       const result = await api.cameraGetLastImage(state.cameraDeviceId);
       if (result && result.image) {
         state.lastImage = result.image;
-        renderImagePreview();
+        await renderImagePreview();
       }
     } catch (e) {
       addLogEntry('error', 'Failed to fetch last image: ' + e.message);
@@ -506,18 +928,115 @@
   }
 
   // =========================================================================
-  // Mount Controls
+  // Mount Controls — press-and-hold d-pad (§2.7)
   // =========================================================================
 
-  async function handleMountMove(axis, direction) {
+  function setupDpad() {
+    const dpad = document.getElementById('mount-dpad');
+    if (!dpad) return;
+
+    const buttons = dpad.querySelectorAll('button.dpad-btn');
+    for (const btn of buttons) {
+      btn.addEventListener('pointerdown', onDpadPointerDown);
+      btn.addEventListener('pointerup', onDpadPointerStop);
+      btn.addEventListener('pointerleave', onDpadPointerStop);
+      btn.addEventListener('pointercancel', onDpadPointerStop);
+      // Why prevent click: pointerdown already starts the slew. Letting the
+      // browser fire a synthetic click on touch devices would re-issue a
+      // mountMoveAxis(...rate) with no matching stop and re-create the §2.7
+      // runaway-slew bug.
+      btn.addEventListener('click', (e) => e.preventDefault());
+      // Stop touch from scrolling the page when the user holds a button.
+      btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    }
+
+    // §2.15 — keyboard arrow keys move the axis while the d-pad container
+    // has focus. We require explicit focus (tabindex on the container) to
+    // avoid hijacking page-wide scrolling.
+    dpad.addEventListener('keydown', onDpadKeyDown);
+    dpad.addEventListener('keyup', onDpadKeyUp);
+    dpad.addEventListener('focus', () => dpad.classList.add('dpad-keyboard-active'));
+    dpad.addEventListener('blur', () => {
+      dpad.classList.remove('dpad-keyboard-active');
+      // Safety: releasing focus must release any held axis.
+      stopAllDpadMotion();
+      state.pressedKeys.clear();
+    });
+  }
+
+  function onDpadPointerDown(e) {
+    const btn = e.currentTarget;
+    const axis = parseInt(btn.dataset.axis, 10);
+    const direction = parseInt(btn.dataset.direction, 10);
+    if (isNaN(axis) || isNaN(direction)) return;
+    // Pointer capture ensures the matching pointerup fires on this element
+    // even if the finger / cursor drifts off it.
+    try { btn.setPointerCapture(e.pointerId); } catch (_) { /* not supported */ }
+    state.dpadActiveButton = btn;
+    state.dpadActiveAxis = axis;
+    btn.classList.add('active');
+    handleMountMoveStart(axis, direction);
+  }
+
+  function onDpadPointerStop(e) {
+    const btn = e.currentTarget;
+    btn.classList.remove('active');
+    if (state.dpadActiveButton === btn) {
+      const axis = state.dpadActiveAxis;
+      state.dpadActiveButton = null;
+      state.dpadActiveAxis = null;
+      if (axis !== null && axis !== undefined) {
+        handleMountMoveStop(axis);
+      }
+    }
+  }
+
+  function onDpadKeyDown(e) {
+    const map = {
+      'ArrowUp':    { axis: 1, direction:  1, btn: 'btn-mount-n' },
+      'ArrowDown':  { axis: 1, direction: -1, btn: 'btn-mount-s' },
+      'ArrowLeft':  { axis: 0, direction: -1, btn: 'btn-mount-w' },
+      'ArrowRight': { axis: 0, direction:  1, btn: 'btn-mount-e' },
+    };
+    const m = map[e.key];
+    if (!m) return;
+    e.preventDefault();
+    if (state.pressedKeys.has(e.key)) return; // ignore key-repeat
+    state.pressedKeys.add(e.key);
+    const btn = document.getElementById(m.btn);
+    if (btn) btn.classList.add('active');
+    handleMountMoveStart(m.axis, m.direction);
+  }
+
+  function onDpadKeyUp(e) {
+    const map = {
+      'ArrowUp':    { axis: 1, btn: 'btn-mount-n' },
+      'ArrowDown':  { axis: 1, btn: 'btn-mount-s' },
+      'ArrowLeft':  { axis: 0, btn: 'btn-mount-w' },
+      'ArrowRight': { axis: 0, btn: 'btn-mount-e' },
+    };
+    const m = map[e.key];
+    if (!m) return;
+    e.preventDefault();
+    state.pressedKeys.delete(e.key);
+    const btn = document.getElementById(m.btn);
+    if (btn) btn.classList.remove('active');
+    handleMountMoveStop(m.axis);
+  }
+
+  function stopAllDpadMotion() {
+    if (!state.mountDeviceId) return;
+    api.mountMoveAxis(state.mountDeviceId, 0, 0).catch(() => {});
+    api.mountMoveAxis(state.mountDeviceId, 1, 0).catch(() => {});
+  }
+
+  async function handleMountMoveStart(axis, direction) {
     if (!state.mountDeviceId) {
       showToast('No mount connected', 'error');
       return;
     }
-
     const speedSelect = document.getElementById('slew-speed');
     const rate = parseFloat(speedSelect.value) * direction;
-
     try {
       await api.mountMoveAxis(state.mountDeviceId, axis, rate);
     } catch (e) {
@@ -525,10 +1044,20 @@
     }
   }
 
+  async function handleMountMoveStop(axis) {
+    if (!state.mountDeviceId) return;
+    try {
+      await api.mountMoveAxis(state.mountDeviceId, axis, 0);
+    } catch (e) {
+      showToast('Mount stop failed: ' + e.message, 'error');
+    }
+  }
+
   async function handleMountStop() {
     if (!state.mountDeviceId) return;
     try {
-      // Stop both axes
+      // Stop both axes then issue a hard abort. Order matters: abort can
+      // interrupt MoveAxis on drivers that queue the requests.
       await api.mountMoveAxis(state.mountDeviceId, 0, 0);
       await api.mountMoveAxis(state.mountDeviceId, 1, 0);
       await api.mountAbort(state.mountDeviceId);
@@ -686,6 +1215,7 @@
         nameEl.className = 'device-name';
         const statusIconEl = document.createElement('span');
         statusIconEl.className = 'device-status-icon connected';
+        statusIconEl.setAttribute('aria-hidden', 'true');
         nameEl.appendChild(statusIconEl);
         nameEl.appendChild(document.createTextNode(' ' + (dev.name || dev.id || 'Unknown device')));
 
@@ -705,7 +1235,7 @@
   // Rendering: Camera Panel
   // =========================================================================
 
-  function renderImagePreview() {
+  async function renderImagePreview() {
     const container = document.getElementById('image-preview');
     const statsContainer = document.getElementById('image-stats');
     if (!container || !statsContainer) return;
@@ -720,14 +1250,35 @@
 
     const img = state.lastImage;
 
-    // displayData is base64-encoded PNG/JPEG from the backend
-    if (isSafeBase64ImageData(img.displayData)) {
-      const preview = document.createElement('img');
-      preview.src = 'data:image/png;base64,' + img.displayData;
-      preview.alt = 'Last capture';
-      container.appendChild(preview);
+    // §2.11 — cap base64 image at 2 MiB and decode off the main thread with
+    // createImageBitmap. Larger preview blobs would pin the main thread for
+    // tens to hundreds of milliseconds on phones.
+    const blob = decodeBase64ImageWithCap(img.displayData);
+    if (!blob) {
+      const placeholder = createImagePlaceholder(
+        img.displayData && img.displayData.length
+          ? 'Image too large for preview (max 2 MiB). Request a downsampled variant from the server.'
+          : 'Image data not available',
+      );
+      container.appendChild(placeholder);
     } else {
-      container.appendChild(createImagePlaceholder('Image data not available'));
+      try {
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '200px';
+        canvas.style.objectFit = 'contain';
+        canvas.setAttribute('aria-label', 'Last capture preview');
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        container.appendChild(canvas);
+      } catch (e) {
+        addLogEntry('error', 'Image decode failed: ' + e.message);
+        container.appendChild(createImagePlaceholder('Failed to decode image'));
+      }
     }
 
     // Render image stats
@@ -753,6 +1304,32 @@
         itemEl.appendChild(valueEl);
         statsContainer.appendChild(itemEl);
       }
+    }
+  }
+
+  /**
+   * §2.11 — validate a base64 string, enforce 2 MiB cap, and decode to a Blob
+   * so createImageBitmap can run off the main thread. Returns null when the
+   * data is missing, malformed, or too large.
+   */
+  function decodeBase64ImageWithCap(b64) {
+    if (!b64 || typeof b64 !== 'string') return null;
+    // Each 4 chars of base64 decode to 3 bytes; this estimate is enough to
+    // reject obviously-oversized inputs before we allocate.
+    const approxBytes = Math.floor(b64.length * 3 / 4);
+    if (approxBytes > MAX_IMAGE_BYTES) return null;
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return null;
+    try {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      // PNG and JPEG both work as image/* — the browser sniffs the magic
+      // bytes. Use image/png since the server documents this as PNG/JPEG.
+      return new Blob([bytes], { type: 'image/png' });
+    } catch (_) {
+      return null;
     }
   }
 
@@ -814,17 +1391,34 @@
       slewEl.classList.toggle('hidden-inline', !ms.isSlewing);
     }
 
-    // Pier side
+    // Pier side — §2.9 centralised formatter.
     const pierEl = document.getElementById('mount-pier');
     if (pierEl && ms.sideOfPier !== undefined) {
-      pierEl.textContent = ms.sideOfPier;
+      pierEl.textContent = formatPierSide(ms.sideOfPier);
     }
 
     // Alt/Az
     const altEl = document.getElementById('mount-alt');
     const azEl = document.getElementById('mount-az');
-    if (altEl && ms.altitude !== undefined) altEl.textContent = ms.altitude.toFixed(1) + '\u00B0';
-    if (azEl && ms.azimuth !== undefined) azEl.textContent = ms.azimuth.toFixed(1) + '\u00B0';
+    if (altEl && ms.altitude !== undefined) altEl.textContent = ms.altitude.toFixed(1) + '°';
+    if (azEl && ms.azimuth !== undefined) azEl.textContent = ms.azimuth.toFixed(1) + '°';
+  }
+
+  /**
+   * §2.9 — map ASCOM PierSide integer to human label. Backend returns:
+   *   1  → pierEast    (counterweight points west; tube points east)
+   *   0  → pierWest    (counterweight points east; tube points west)
+   *  -1  → pierUnknown
+   * Some drivers (or already-resolved API responses) send the string label
+   * directly; pass that through unchanged.
+   */
+  function formatPierSide(value) {
+    if (typeof value === 'string' && value.length > 0) return value;
+    const n = Number(value);
+    if (n === 1) return 'East';
+    if (n === 0) return 'West';
+    if (n === -1) return 'Unknown';
+    return '--';
   }
 
   // =========================================================================
@@ -836,6 +1430,7 @@
     const nodeEl = document.getElementById('seq-node');
     const messageEl = document.getElementById('seq-message');
     const progressBar = document.getElementById('seq-progress-bar');
+    const progressBarContainer = document.getElementById('seq-progress-bar-container');
     const progressText = document.getElementById('seq-progress-text');
 
     if (!state.sequencerStatus) {
@@ -843,6 +1438,7 @@
       if (nodeEl) nodeEl.textContent = '--';
       if (messageEl) messageEl.textContent = '';
       if (progressBar) progressBar.style.width = '0%';
+      if (progressBarContainer) progressBarContainer.setAttribute('aria-valuenow', '0');
       if (progressText) progressText.textContent = '';
       return;
     }
@@ -862,6 +1458,9 @@
       progressBar.style.width = progress + '%';
       if (progress >= 100) progressBar.classList.add('completed');
       else progressBar.classList.remove('completed');
+    }
+    if (progressBarContainer) {
+      progressBarContainer.setAttribute('aria-valuenow', String(Math.round(progress)));
     }
     if (progressText) progressText.textContent = progress.toFixed(0) + '%';
   }
@@ -898,7 +1497,7 @@
 
     if (statusEl) {
       const guidingState = g.state || g.appState || 'unknown';
-      const isGuiding = guidingState.toLowerCase().includes('guid');
+      const isGuiding = String(guidingState).toLowerCase().includes('guid');
       const badgeClass = isGuiding ? 'badge-running' : 'badge-idle';
       renderBadge(statusEl, guidingState, badgeClass);
     }
@@ -913,7 +1512,6 @@
     state.guideHistory.ra.push(ra);
     state.guideHistory.dec.push(dec);
 
-    // Trim to max points
     if (state.guideHistory.ra.length > state.maxGuidePoints) {
       state.guideHistory.ra.shift();
       state.guideHistory.dec.shift();
@@ -930,7 +1528,6 @@
     const canvas = document.getElementById('guide-canvas');
     if (!canvas) return;
 
-    // Set canvas size to match container
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       canvas.width = container.clientWidth;
@@ -949,22 +1546,18 @@
     const w = canvas.width;
     const h = canvas.height;
 
-    // Clear
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, w, h);
 
-    // Grid lines
     ctx.strokeStyle = '#21262d';
     ctx.lineWidth = 1;
     const midY = h / 2;
 
-    // Horizontal center line
     ctx.beginPath();
     ctx.moveTo(0, midY);
     ctx.lineTo(w, midY);
     ctx.stroke();
 
-    // Quarter lines
     ctx.strokeStyle = '#161b22';
     for (const frac of [0.25, 0.75]) {
       ctx.beginPath();
@@ -977,16 +1570,14 @@
     const decData = state.guideHistory.dec;
     if (raData.length < 2) return;
 
-    // Auto-scale: find the max absolute value
     let maxVal = 2; // minimum scale of 2 arcsec
     for (let i = 0; i < raData.length; i++) {
       maxVal = Math.max(maxVal, Math.abs(raData[i]), Math.abs(decData[i]));
     }
-    maxVal *= 1.2; // 20% padding
+    maxVal *= 1.2;
 
     const xStep = w / (state.maxGuidePoints - 1);
 
-    // Draw RA line (blue)
     ctx.strokeStyle = '#58a6ff';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -998,7 +1589,6 @@
     }
     ctx.stroke();
 
-    // Draw Dec line (red)
     ctx.strokeStyle = '#f85149';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -1010,7 +1600,6 @@
     }
     ctx.stroke();
 
-    // Scale label
     ctx.fillStyle = '#484f58';
     ctx.font = '10px sans-serif';
     ctx.fillText('+' + maxVal.toFixed(1) + '"', 4, 12);
@@ -1037,7 +1626,6 @@
     const container = document.getElementById('log-container');
     if (!container) return;
 
-    // Remove empty-state placeholder if present
     const emptyState = container.querySelector('.empty-state');
     if (emptyState) emptyState.remove();
 
@@ -1086,8 +1674,52 @@
   }
 
   // =========================================================================
+  // Phone Layout (§2.13)
+  // =========================================================================
+
+  function applyResponsiveLayout() {
+    const phone = window.matchMedia('(max-width: 600px)').matches;
+    document.body.classList.toggle('layout--phone', phone);
+    if (phone) {
+      activatePhoneTab(state.activePhoneTab);
+    } else {
+      // Make every panel visible again on tablet/desktop.
+      for (const id of PHONE_PANELS) {
+        const p = document.getElementById(id);
+        if (p) p.classList.remove('phone-active');
+      }
+      // Guiding panel is reachable on phone via the Sequencer tab grouping
+      // would hide it — leave it visible in the regular grid.
+      const guiding = document.getElementById('panel-guiding');
+      if (guiding) guiding.classList.remove('phone-active');
+    }
+  }
+
+  function activatePhoneTab(panelId) {
+    if (!PHONE_PANELS.includes(panelId)) return;
+    state.activePhoneTab = panelId;
+    for (const id of PHONE_PANELS) {
+      const p = document.getElementById(id);
+      if (p) p.classList.toggle('phone-active', id === panelId);
+    }
+    // Hide the guiding panel on phone (it's accessible via the desktop layout
+    // when rotating). Keeping it out of the tab strip avoids overcrowding the
+    // 5-slot bar.
+    const guiding = document.getElementById('panel-guiding');
+    if (guiding) guiding.classList.remove('phone-active');
+
+    for (const tab of document.querySelectorAll('.phone-tab')) {
+      tab.setAttribute('aria-selected', tab.dataset.target === panelId ? 'true' : 'false');
+    }
+  }
+
+  // =========================================================================
   // Utilities
   // =========================================================================
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   function formatRA(raHours) {
     if (raHours == null || isNaN(raHours)) return '--h --m --s';
@@ -1098,13 +1730,13 @@
   }
 
   function formatDec(decDeg) {
-    if (decDeg == null || isNaN(decDeg)) return '--\u00B0 --\' --"';
+    if (decDeg == null || isNaN(decDeg)) return '--° --\' --"';
     const sign = decDeg >= 0 ? '+' : '-';
     const abs = Math.abs(decDeg);
     const d = Math.floor(abs);
     const m = Math.floor((abs - d) * 60);
     const s = ((abs - d) * 60 - m) * 60;
-    return sign + pad2(d) + '\u00B0 ' + pad2(m) + "' " + pad2(s.toFixed(0)) + '"';
+    return sign + pad2(d) + '° ' + pad2(m) + "' " + pad2(s.toFixed(0)) + '"';
   }
 
   function pad2(val) {
@@ -1112,14 +1744,9 @@
     return s.length < 2 ? '0' + s : s;
   }
 
-  function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  // §2.18 — escapeHtml has been removed. Every rendering site uses textContent
+  // / appendChild instead, which DOM-escapes automatically. Keeping a dead
+  // helper around invites future contributors to reach for innerHTML.
 
   function clearElement(el) {
     while (el.firstChild) {
@@ -1163,12 +1790,6 @@
     container.appendChild(badge);
   }
 
-  function isSafeBase64ImageData(value) {
-    if (!value || typeof value !== 'string') return false;
-    if (value.length > 24 * 1024 * 1024) return false;
-    return /^[A-Za-z0-9+/]+={0,2}$/.test(value);
-  }
-
   // =========================================================================
   // Toast Notifications
   // =========================================================================
@@ -1179,6 +1800,7 @@
 
     const toast = document.createElement('div');
     toast.className = 'toast' + (type ? ' ' + type : '');
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     toast.textContent = message;
     container.appendChild(toast);
 

@@ -533,13 +533,16 @@ body {
 }
 
 /* ====== Mount Direction Pad ====== */
+/* Why 48px: meets Apple HIG (44pt) and Material (48dp) minimum touch targets
+   so the slew d-pad is usable on phones and not catastrophic when fat-fingered. */
 .mount-dpad {
   display: grid;
-  grid-template-columns: 40px 40px 40px;
-  grid-template-rows: 40px 40px 40px;
-  gap: 2px;
+  grid-template-columns: 48px 48px 48px;
+  grid-template-rows: 48px 48px 48px;
+  gap: 8px;
   justify-content: center;
   margin: 8px 0;
+  touch-action: none;
 }
 
 .mount-dpad .btn {
@@ -548,8 +551,21 @@ body {
   justify-content: center;
   padding: 0;
   font-size: 16px;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mount-dpad .btn:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+.mount-dpad.dpad-keyboard-active {
+  box-shadow: 0 0 0 2px var(--border-active);
+  border-radius: var(--radius-sm);
 }
 
 .mount-dpad .dpad-center {
@@ -813,6 +829,146 @@ body {
   }
 }
 
+/* ====== Phone Layout (≤600px) — bottom-tab navigation ======
+   Why a JS-applied class instead of pure @media: the layout flips from a grid
+   of always-visible panels to a one-panel-at-a-time tab view, which is far
+   simpler to drive from JS than via display:none toggles inside an @media. */
+.phone-tabs {
+  display: none;
+}
+
+.layout--phone html,
+.layout--phone body {
+  overflow: hidden;
+}
+
+.layout--phone .dashboard-grid {
+  display: block;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  padding: 4px;
+  gap: 0;
+  overflow: hidden;
+  /* Leave room for the bottom tab bar (56px) */
+  height: calc(100% - 56px);
+}
+
+.layout--phone .panel {
+  display: none;
+  height: 100%;
+  max-height: none;
+  border-radius: var(--radius);
+}
+
+.layout--phone .panel.phone-active {
+  display: flex;
+}
+
+.layout--phone .panel-body {
+  padding: 12px;
+}
+
+.layout--phone .image-preview-container img {
+  max-height: 60vh;
+}
+
+.layout--phone .top-bar {
+  height: 44px;
+  padding: 0 10px;
+}
+
+.layout--phone .server-url-input {
+  display: none;
+}
+
+.layout--phone .phone-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: 56px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.layout--phone .phone-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  padding: 6px 4px;
+  /* Why min-height 44px: matches iOS HIG tap target. */
+  min-height: 44px;
+}
+
+.layout--phone .phone-tab[aria-selected="true"] {
+  color: var(--accent-blue);
+  background: var(--bg-card);
+  border-top: 2px solid var(--accent-blue);
+}
+
+.layout--phone .phone-tab:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+
+.layout--phone .btn {
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.layout--phone .btn-sm {
+  min-height: 36px;
+}
+
+.layout--phone .panel-actions .btn {
+  min-width: 64px;
+}
+
+/* Accessibility: visually hidden but still announced by screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Stale-data indicator for panels (§2.10) */
+.panel-stale-indicator {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #d2992220;
+  border: 1px solid var(--accent-orange);
+  border-radius: var(--radius-sm);
+  color: var(--accent-orange);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.panel-stale-indicator.visible {
+  display: flex;
+}
+
+/* Disabled-panel visual cue (§2.12). */
+.panel[aria-disabled="true"] .panel-body {
+  opacity: 0.55;
+}
+
+.panel[aria-disabled="true"] .panel-body button,
+.panel[aria-disabled="true"] .panel-body input,
+.panel[aria-disabled="true"] .panel-body select {
+  pointer-events: none;
+}
+
 /* ====== Slew Speed Select ====== */
 .slew-speed-select {
   display: flex;
@@ -861,6 +1017,107 @@ body {
 .badge-paused { background: #d2992240; color: var(--accent-orange); }
 .badge-error { background: #a4232340; color: var(--accent-red); }
 .badge-completed { background: #1f6feb40; color: var(--accent-blue); }
+
+/* ====== Pairing Modal ======
+   Why a modal: the operator must see a focused single-purpose input for the
+   6-digit code shown on the desktop console. Inline placement next to the
+   token field made the previous UX confusing (users typed the code into the
+   bearer-token field). */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-backdrop.visible {
+  display: flex;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: min(420px, 92vw);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.modal-body code {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  background: var(--bg-input);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.modal-input {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  letter-spacing: 6px;
+  text-align: center;
+  padding: 10px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  outline: none;
+  min-height: 48px;
+}
+
+.modal-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-actions .btn {
+  min-height: 36px;
+}
+
+.modal-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+
+.modal-status.error {
+  color: var(--accent-red);
+}
+
+.modal-status.success {
+  color: var(--accent-green);
+}
+
+/* ====== Connection retry indicator ====== */
+.connect-progress {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
 
 /* ====== Loading Spinner ====== */
 .spinner {

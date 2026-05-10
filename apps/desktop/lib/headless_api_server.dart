@@ -906,9 +906,29 @@ class HeadlessApiServer {
     try {
       if (event is NightshadeEvent) {
         // Use NightshadeEvent.toJson() for proper schema
+        final json = event.toJson();
+        // §2.14 — emit canonical raPx/decPx alongside the existing
+        // RADistanceRaw/DECDistanceRaw fields for GuideStep events so the
+        // dashboard guide graph receives the field names it actually
+        // listens for. Backend code in nightshade_core still consumes the
+        // existing PHD2-shaped names; this is a non-breaking addition.
+        if (event.category == EventCategory.guiding &&
+            event.eventType == 'GuideStep') {
+          final data = json['data'];
+          if (data is Map<String, dynamic>) {
+            final raRaw = data['RADistanceRaw'];
+            final decRaw = data['DECDistanceRaw'];
+            if (raRaw is num && !data.containsKey('raPx')) {
+              data['raPx'] = raRaw.toDouble();
+            }
+            if (decRaw is num && !data.containsKey('decPx')) {
+              data['decPx'] = decRaw.toDouble();
+            }
+          }
+        }
         jsonEvent = jsonEncode({
           'type': 'event',
-          ...event.toJson(),
+          ...json,
         });
       } else if (event is Map<String, dynamic>) {
         // Already a map - add type wrapper

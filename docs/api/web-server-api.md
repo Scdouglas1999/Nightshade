@@ -455,28 +455,154 @@ List recent images.
 
 ### WebSocket Connection
 
-Connect to `/api/ws` for real-time updates.
+Connect to `/events` (preferred) or `/api/ws` for real-time updates.
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/api/ws');
+const ws = new WebSocket('ws://localhost:8080/events?ticket=<ticket>');
 ```
 
-**Message Format:**
+Authentication options (in order of preference):
+
+| Query parameter | Notes |
+| --- | --- |
+| `?ticket=<value>` | One-shot 60-second ticket from `POST /api/ws/ticket`. Preferred — does not leak the bearer to HTTP/proxy logs. |
+| `?token=<bearer>` | Legacy; still accepted with a deprecation warn-log. |
+
+**Ping / Pong:**
+
+```json
+{ "type": "ping" }
+```
+
+Server responds with `{ "type": "pong" }`. The server also sends unsolicited
+pings; clients must respond with a `pong` carrying an ISO-8601 `timestamp` or
+the connection will be closed after the heartbeat window elapses.
+
+### Server-pushed event envelope
+
+Every server-pushed event is encoded as:
+
 ```json
 {
-  "type": "ping"
+  "type": "event",
+  "timestamp": 1746816000000,
+  "severity": "info",            // info | warning | error | critical
+  "category": "guiding",         // see below
+  "eventType": "GuideStep",
+  "data": { /* event-specific payload */ }
 }
 ```
 
-**Response:**
-```json
-{
-  "type": "pong"
-}
-```
+Categories: `equipment`, `imaging`, `guiding`, `sequencer`, `safety`, `system`,
+`polarAlignment`.
 
-The server can broadcast messages to all connected clients for real-time updates (sequence progress, device status, etc.).
+### Event payloads (selected)
+
+The full list of `eventType` strings is large; the most commonly consumed
+payloads are documented here. Unspecified fields are reserved for future use.
+
+#### `category: guiding`
+
+| eventType | Payload fields |
+| --- | --- |
+| `Connected` | `{}` |
+| `Disconnected` | `{}` |
+| `GuidingStarted` | `{}` |
+| `GuidingStopped` | `{}` |
+| `Paused` | `{}` |
+| `Resumed` | `{}` |
+| `Settled` | `{ "rms": number }` |
+| `Settling` | `{}` |
+| `LoopingExposures` | `{}` |
+| `Calibrating` | `{}` |
+| `CalibrationComplete` | `{}` |
+| `DitherStarted` | `{ "pixels": number }` |
+| `DitherCompleted` | `{}` |
+| `StarLost` | `{}` |
+| `StarSelected` | `{ "X": number, "Y": number }` |
+| `AppState` | `{ "State": string }` |
+| `GuideStats` | `{ "SNR": number, "StarMass": number }` |
+| `GuideStep` | `{ "raPx": number, "decPx": number, "RADistanceRaw": number, "DECDistanceRaw": number, "RADistance": number, "DECDistance": number }` |
+
+`GuideStep.raPx` / `decPx` are the canonical pixel offsets emitted alongside
+the legacy PHD2 field names. Clients should prefer the canonical names;
+older clients consuming `RADistanceRaw` / `DECDistanceRaw` continue to work.
+
+#### `category: sequencer`
+
+| eventType | Payload fields |
+| --- | --- |
+| `Started` | `{ "sequence_name": string }` |
+| `Paused` | `{}` |
+| `Resumed` | `{}` |
+| `Stopped` | `{}` |
+| `Completed` | `{}` |
+| `NodeStarted` | `{ "node_id": string, "node_type": string }` |
+| `NodeCompleted` | `{ "node_id": string, "status": "success"\|"failed"\|"cancelled"\|"skipped" }` |
+| `Progress` | `{ "current": int, "total": int }` |
+| `TargetChanged` | `{ "target_name": string, "ra": number?, "dec": number? }` |
+| `TargetCompleted` | `{ "target_name": string }` |
+| `ExposureStarted` | `{ "frame": int, "total": int, "filter": string?, "duration_secs": number }` |
+| `ExposureCompleted` | `{ "frame": int, "total": int, "duration_secs": number }` |
+| `Error` | `{ "message": string }` |
+| `TriggerFired` | `{ "trigger_id": string, "trigger_name": string, "action": string }` |
+| `InstructionProgress` | `{ "node_id": string, "instruction": string, "progress_percent": number, "detail": string }` |
+
+#### `category: imaging`
+
+| eventType | Payload fields |
+| --- | --- |
+| `ExposureStarted` | `{ "duration_secs": number, "frame_type": string }` |
+| `ExposureStartedWithFrame` | `{ "duration_secs": number, "frame_type": string, "frame_number": int, "total_frames": int? }` |
+| `ExposureProgress` | `{ "progress": number, "remaining_secs": number }` |
+| `ExposureCompleted` | `{ "file_path": string?, "hfr": number, "stars_detected": int }` |
+| `ExposureCompletedWithFrame` | `{ "frame_number": int, "total_frames": int?, "hfr": number, "stars_detected": int }` |
+| `ImageReady` | `{ "width": int, "height": int }` |
+| `ImageSaved` | `{ "file_path": string }` |
+| `TemperatureChanged` | `{ "temp_celsius": number, "cooler_power": number }` |
+| `ExposureFailed` | `{ "error": string }` |
+| `ExposureCancelled` | `{}` |
+
+#### `category: equipment`
+
+| eventType | Payload fields |
+| --- | --- |
+| `Connecting` | `{ "device_type": string, "device_id": string }` |
+| `Connected` | `{ "device_type": string, "device_id": string }` |
+| `Disconnected` | `{ "device_type": string, "device_id": string }` |
+| `Error` | `{ "device_type": string, "device_id": string, "message": string }` |
+| `MountSlewStarted` | `{ "ra": number, "dec": number }` |
+| `MountSlewCompleted` | `{ "ra": number, "dec": number }` |
+| `MountTrackingStarted` / `MountTrackingStopped` | `{}` |
+| `MountParkStarted` / `MountParkCompleted` / `MountUnparked` | `{}` |
+| `FocuserMoveStarted` / `FocuserMoveCompleted` | `{ "target_position"\|"position": int }` |
+| `FocuserTemperatureChanged` | `{ "temperature": number }` |
+| `FilterChanging` / `FilterChanged` | `{ "from_position"?: int, "to_position"\|"position": int, "filter_name": string? }` |
+| `RotatorMoveStarted` / `RotatorMoveCompleted` | `{ "target_angle"\|"angle": number }` |
+| `CameraCoolingStarted` | `{ "target_temp": number }` |
+| `CameraCoolingReached` | `{ "temperature": number }` |
+| `HeartbeatStarted` / `HeartbeatStopped` / `HeartbeatStatusChanged` / `HeartbeatReconnecting` / `HeartbeatReconnected` | See `nightshade_bridge/event.dart`. |
+
+#### `category: safety`
+
+| eventType | Payload fields |
+| --- | --- |
+| `WeatherUnsafe` | `{ "reason": string }` |
+| `WeatherSafe` | `{}` |
+| `EmergencyStop` | `{ "reason": string }` |
+| `ParkInitiated` | `{ "reason": string }` |
+| `ParkCompleted` | `{}` |
+
+#### `category: system`
+
+| eventType | Payload fields |
+| --- | --- |
+| `Initialized` / `ShuttingDown` | `{}` |
+| `Error` | `{ "message": string }` |
+| `DiskSpaceLow` | `{ "available_gb": number }` |
+| `Notification` | `{ "title": string, "message": string, "level": string }` |
+| `EventsDropped` | `{ "droppedCount": int, "totalDropped": int }` |
 
 ## Error Responses
 
