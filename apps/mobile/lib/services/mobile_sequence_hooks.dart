@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_app/nightshade_app.dart' show iosBackgroundBannerProvider;
 import 'package:nightshade_core/nightshade_core.dart' hide NotificationService;
 import 'foreground_service.dart';
 import 'notification_service.dart';
@@ -81,6 +82,7 @@ class MobileSequenceHooks {
             errorMessage: 'Sequence stopped',
           );
         }
+        _setIosBackgroundBanner(false);
         break;
 
       case SequenceExecutionState.running:
@@ -91,16 +93,19 @@ class MobileSequenceHooks {
           // Sequence resumed - ensure services are still active
           await _powerService.acquireWakeLock();
         }
+        _setIosBackgroundBanner(Platform.isIOS);
         break;
 
       case SequenceExecutionState.paused:
         // Could optionally release wake lock during pause, but we'll keep it
         // to ensure we can resume quickly
+        _setIosBackgroundBanner(Platform.isIOS);
         break;
 
       case SequenceExecutionState.stopping:
         // Sequence is in the process of stopping
         // Keep services active until fully stopped (transitions to idle)
+        _setIosBackgroundBanner(Platform.isIOS);
         break;
 
       case SequenceExecutionState.completed:
@@ -109,6 +114,7 @@ class MobileSequenceHooks {
           completedExposures: progress.completedExposures,
           targetName: progress.currentTarget ?? sequence?.name ?? 'Unknown',
         );
+        _setIosBackgroundBanner(false);
         break;
 
       case SequenceExecutionState.failed:
@@ -117,7 +123,18 @@ class MobileSequenceHooks {
           errorMessage: progress.message ?? 'Sequence failed',
           targetName: progress.currentTarget ?? sequence?.name ?? 'Unknown',
         );
+        _setIosBackgroundBanner(false);
         break;
+    }
+  }
+
+  /// Toggle the iOS-only "honest banner" advisory. No-op on Android (where
+  /// the foreground service keeps monitoring alive). Audit §3.2.
+  void _setIosBackgroundBanner(bool visible) {
+    final desired = Platform.isIOS && visible;
+    final notifier = _ref.read(iosBackgroundBannerProvider.notifier);
+    if (notifier.state != desired) {
+      notifier.state = desired;
     }
   }
 

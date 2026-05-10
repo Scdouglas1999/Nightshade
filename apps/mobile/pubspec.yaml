@@ -71,6 +71,10 @@ dependencies:
   # Network connectivity monitoring
   connectivity_plus: ^5.0.0
 
+  # Persists mobile-only preferences (e.g., Android immersive mode toggle).
+  # The desktop AppSettings model is mobile-irrelevant for these UI choices.
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

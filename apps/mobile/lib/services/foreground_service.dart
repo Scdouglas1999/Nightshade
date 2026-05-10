@@ -1,5 +1,3 @@
-// ignore_for_file: unused_field
-
 import 'dart:async';
 import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -14,7 +12,6 @@ class ImagingForegroundService {
   bool _isRunning = false;
   String _currentTarget = '';
   int _completedExposures = 0;
-  int _totalExposures = 0;
   double _percentComplete = 0.0;
 
   bool get isRunning => _isRunning;
@@ -52,7 +49,6 @@ class ImagingForegroundService {
     required int totalExposures,
   }) async {
     _currentTarget = targetName;
-    _totalExposures = totalExposures;
     _completedExposures = 0;
     _percentComplete = 0.0;
 
@@ -84,11 +80,16 @@ class ImagingForegroundService {
     if (!_isRunning) return;
 
     _completedExposures = completedExposures;
-    _totalExposures = totalExposures;
     _percentComplete =
         totalExposures > 0 ? (completedExposures / totalExposures) * 100 : 0;
 
-    String text = '$completedExposures/$totalExposures exposures';
+    // Render completed/total plus a percentage so the operator can see
+    // long-sequence progress at a glance (audit §3.9).
+    final percentText = _percentComplete > 0
+        ? ' (${_percentComplete.toStringAsFixed(0)}%)'
+        : '';
+    String text =
+        '$completedExposures/$totalExposures exposures$percentText';
     if (currentFilter != null) {
       text += ' ($currentFilter)';
     }
@@ -128,7 +129,6 @@ class ImagingForegroundService {
     _isRunning = false;
     _currentTarget = '';
     _completedExposures = 0;
-    _totalExposures = 0;
     _percentComplete = 0.0;
   }
 

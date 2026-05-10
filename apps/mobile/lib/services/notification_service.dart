@@ -2,6 +2,13 @@ import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 
+/// Callback the app installs so notification taps can drive go_router.
+///
+/// The notification plugin fires on a platform thread without access to a
+/// BuildContext, so the app supplies a function that performs the navigation
+/// via the GoRouter instance it owns (audit §3.8).
+typedef NotificationNavigator = void Function(String location);
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -10,6 +17,9 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+
+  /// Installed by the app at startup — see [setNavigator].
+  NotificationNavigator? _navigator;
 
   // Notification IDs
   static const int _sequenceCompleteId = 100;
@@ -114,14 +124,68 @@ class NotificationService {
     await androidImplementation?.createNotificationChannel(pushChannel);
   }
 
+  /// Register a callback the service uses to deep-link into the app when
+  /// a notification is tapped. The app installs this once it has a router.
+  void setNavigator(NotificationNavigator navigator) {
+    _navigator = navigator;
+  }
+
   void _onNotificationTapped(NotificationResponse response) {
     final payload = response.payload;
     if (payload == null) return;
 
-    // Handle navigation based on payload
-    // This would integrate with go_router to navigate to appropriate screen
-    // Current behavior records tap payload until deep-link routing is wired.
-    debugPrint('[NotificationService] Notification tapped: $payload');
+    final route = _routeForPayload(payload);
+    if (route == null) {
+      // Unknown payload shape — surfacing it loudly beats silent fallback.
+      debugPrint(
+          '[NotificationService] Notification payload has no route: $payload');
+      return;
+    }
+
+    final navigator = _navigator;
+    if (navigator == null) {
+      // The app hasn't wired up the router yet (cold start path). Record
+      // the route so we don't pretend the tap did something.
+      debugPrint(
+          '[NotificationService] No navigator installed; dropped tap to $route ($payload)');
+      return;
+    }
+
+    navigator(route);
+  }
+
+  /// Map a notification [payload] to a go_router location.
+  ///
+  /// Payload format follows the conventions used elsewhere in the service:
+  ///   `image_ready:<imageId>`           -> `/imaging/preview/<imageId>`
+  ///   `sequence_complete:<target>`      -> `/sequencer`
+  ///   `sequence_failed:<target>`        -> `/sequencer`
+  ///   `meridian_flip:<target>`          -> `/sequencer`
+  ///   `low_battery:<percent>`           -> `/dashboard`
+  ///   `low_disk_space`                  -> `/dashboard`
+  ///   `push:<eventType>`                -> `/dashboard` (desktop pushes
+  ///                                        without an obvious target)
+  String? _routeForPayload(String payload) {
+    final colon = payload.indexOf(':');
+    final type = colon == -1 ? payload : payload.substring(0, colon);
+    final arg = colon == -1 ? null : payload.substring(colon + 1);
+
+    switch (type) {
+      case 'image_ready':
+        if (arg == null || arg.isEmpty) return '/imaging';
+        return '/imaging/preview/${Uri.encodeComponent(arg)}';
+      case 'sequence_complete':
+      case 'sequence_failed':
+      case 'meridian_flip':
+        return '/sequencer';
+      case 'low_battery':
+      case 'low_disk_space':
+        return '/dashboard';
+      case 'push':
+        return '/dashboard';
+      default:
+        return null;
+    }
   }
 
   Future<void> notifySequenceComplete(String targetName, int imageCount) async {

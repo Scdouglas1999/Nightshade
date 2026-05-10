@@ -7,24 +7,33 @@ import 'package:flutter/services.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// Hide nightshade_core's NotificationService — the mobile-side service of
+// the same name owns local-notification deep-linking (audit §3.8).
+import 'package:nightshade_core/nightshade_core.dart' hide NotificationService;
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/qr_scanner_screen.dart';
+import 'services/mobile_preferences.dart';
 import 'services/mobile_sequence_hooks.dart';
 import 'services/network_service.dart';
+import 'services/notification_service.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Hide Android status bar for fullscreen experience
+  // Audit §3.13: respect the user's immersive-mode preference. Default is
+  // leanBack so the system clock and battery indicator remain visible
+  // during long sequences; users who want full-screen can opt in.
   if (Platform.isAndroid) {
+    final prefs = await SharedPreferences.getInstance();
+    final immersiveSticky = MobilePreferences(prefs).androidImmersiveSticky;
     SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-      overlays: [],
+      immersiveSticky ? SystemUiMode.immersiveSticky : SystemUiMode.leanBack,
+      overlays: immersiveSticky ? const [] : SystemUiOverlay.values,
     );
   }
 
@@ -85,13 +94,35 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   // operators who need to verify the value during pairing.
   bool _accessTokenVisible = false;
 
-  Timer? _connectionMonitorTimer;
-  int _failedConnectionChecks = 0;
+  // WebSocket-driven liveness replaces the old 5 s HTTP poll (audit §3.6).
+  // The NetworkBackend already runs a ping/pong heartbeat and a backoff
+  // reconnector; this state machine just translates its connection-state
+  // stream into UI banners and a final tear-down once the grace expires.
+  StreamSubscription<BackendConnectionState>? _connectionStateSubscription;
+  Timer? _disconnectGraceTimer;
+  bool _connectionStale = false;
+
+  /// How long the WebSocket can stay disconnected before we declare the
+  /// session dead and route the user back to the connection screen. The
+  /// backend's own reconnector backs off up to 30 s; we wait the full
+  /// grace before kicking the user out so transient blips don't drop a
+  /// running session.
+  static const Duration _connectionGracePeriod = Duration(seconds: 30);
 
   void _stopConnectionMonitor() {
-    _connectionMonitorTimer?.cancel();
-    _connectionMonitorTimer = null;
-    _failedConnectionChecks = 0;
+    _connectionStateSubscription?.cancel();
+    _connectionStateSubscription = null;
+    _disconnectGraceTimer?.cancel();
+    _disconnectGraceTimer = null;
+    if (_connectionStale) {
+      _connectionStale = false;
+      // Clear the global banner so a re-connect doesn't briefly show stale.
+      // Skip the write if the State has already been unmounted — the
+      // provider scope is gone and the banner will be rebuilt fresh.
+      if (mounted) {
+        ref.read(connectionStaleProvider.notifier).state = false;
+      }
+    }
   }
 
   @override
@@ -101,60 +132,65 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     _autoConnect();
   }
 
-  void _startConnectionMonitor(String host, int port) {
+  void _startConnectionMonitor() {
     _stopConnectionMonitor();
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      // Only NetworkBackend exposes the WS heartbeat. Other backends
+      // either run locally (FfiBackend) or are explicitly disconnected.
+      return;
+    }
 
-    // Check every 5 seconds
-    _connectionMonitorTimer =
-        Timer.periodic(const Duration(seconds: 5), (timer) async {
-      if (_connectedServer == null) {
-        _stopConnectionMonitor();
-        return;
-      }
+    _connectionStateSubscription =
+        backend.connectionStateStream.listen((state) {
+      if (!mounted) return;
 
-      try {
-        final isReachable =
-            await EnhancedNightshadeDiscovery.testServerConnection(
-          host,
-          port,
-          authToken: _connectedServer?.authToken,
-        );
-        if (isReachable) {
-          _failedConnectionChecks = 0;
-        } else {
-          _failedConnectionChecks++;
-          developer.log('Failed connection check $_failedConnectionChecks/3',
-              name: 'Connection', level: 900);
-        }
-
-        if (_failedConnectionChecks >= 3) {
-          developer.log('Connection lost!', name: 'Connection', level: 1000);
-          _stopConnectionMonitor();
-
-          if (mounted) {
-            // Disconnect backend
-            ref.read(backendProvider.notifier).disconnect();
-
+      switch (state) {
+        case BackendConnectionState.connected:
+          _disconnectGraceTimer?.cancel();
+          _disconnectGraceTimer = null;
+          if (_connectionStale) {
+            _connectionStale = false;
+            ref.read(connectionStaleProvider.notifier).state = false;
             setState(() {
-              _connectedServer = null;
-              _isDiscovering = false;
-              _error = 'Connection to server lost. Please reconnect.';
               _statusMessage = '';
             });
           }
-        }
-      } catch (e) {
-        developer.log('Monitor error: $e', name: 'Connection', level: 1000);
-        _stopConnectionMonitor();
-        ref.read(backendProvider.notifier).disconnect();
-        if (mounted) {
-          setState(() {
-            _connectedServer = null;
-            _isDiscovering = false;
-            _error = 'Connection monitoring failed. Please reconnect.';
-            _statusMessage = '';
+          break;
+
+        case BackendConnectionState.reconnecting:
+        case BackendConnectionState.disconnected:
+          // Show the stale-state banner immediately but give the backend
+          // a chance to reconnect before we tear the session down.
+          if (!_connectionStale) {
+            _connectionStale = true;
+            ref.read(connectionStaleProvider.notifier).state = true;
+          }
+          _disconnectGraceTimer ??= Timer(_connectionGracePeriod, () {
+            if (!mounted) return;
+            final current = ref.read(backendProvider);
+            if (current is! NetworkBackend ||
+                current.connectionState ==
+                    BackendConnectionState.connected) {
+              return;
+            }
+            developer.log(
+              'WebSocket disconnected for ${_connectionGracePeriod.inSeconds}s — declaring connection lost',
+              name: 'Connection',
+              level: 1000,
+            );
+            _stopConnectionMonitor();
+            ref.read(backendProvider.notifier).disconnect();
+            ref.read(connectionStaleProvider.notifier).state = false;
+            setState(() {
+              _connectedServer = null;
+              _isDiscovering = false;
+              _connectionStale = false;
+              _error = 'Connection to server lost. Please reconnect.';
+              _statusMessage = '';
+            });
           });
-        }
+          break;
       }
     });
   }
@@ -211,8 +247,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     });
 
     try {
-      final enrichedServer =
-          await EnhancedNightshadeDiscovery.fetchServerInfo(server) ?? server;
+      // Audit §3.7: do not persist last-server based on synthetic
+      // metadata. Track whether the /api/info call actually returned
+      // server-supplied fields; if it didn't, we still allow the user
+      // to connect for this session but refuse to write the server to
+      // disk (next launch should re-discover or re-prompt).
+      final fetched =
+          await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+      final enrichedServer = fetched ?? server;
       final compatibility = NightshadeServerCompatibility.check(
         enrichedServer.version,
       );
@@ -243,7 +285,17 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           _statusMessage = '';
         });
 
-        await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
+        if (fetched != null) {
+          // Only persist after fetchServerInfo confirmed real metadata
+          // (audit §3.7). Otherwise we'd cache the manual-entry
+          // hardcoded version='2.0.0' / signalingPort=45678 lies.
+          await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
+        } else {
+          developer.log(
+              'Skipping saveLastServer — /api/info did not return metadata',
+              name: 'Discovery',
+              level: 900);
+        }
 
         // Update global backend state to use NetworkBackend
         ref.read(backendProvider.notifier).connect(
@@ -252,8 +304,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
               authToken: enrichedServer.authToken,
             );
 
-        // Start monitoring connection
-        _startConnectionMonitor(enrichedServer.host, enrichedServer.webPort);
+        // Start monitoring the WS heartbeat (audit §3.6)
+        _startConnectionMonitor();
 
         ref.invalidate(appSettingsProvider);
       } else {
@@ -425,22 +477,23 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   Widget build(BuildContext context) {
     try {
       final themeMode = ref.watch(themeModeProvider);
-      final backend = ref.watch(backendProvider);
 
-      // Handle disconnection from Settings - if backend becomes disconnected, return to connection screen
-      if (_connectedServer != null &&
-          backend is DisconnectedBackend &&
-          !_skippedConnection) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _connectedServer = null;
-              _error = null;
-              _statusMessage = '';
-            });
-          }
-        });
-      }
+      // Handle disconnection from Settings — if the backend becomes
+      // DisconnectedBackend, return to the connection screen. Listening
+      // (instead of watching+addPostFrameCallback in build) avoids the
+      // build-time setState cycle flagged in audit §3.10.
+      ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+        if (!mounted) return;
+        if (_connectedServer != null &&
+            next is DisconnectedBackend &&
+            !_skippedConnection) {
+          setState(() {
+            _connectedServer = null;
+            _error = null;
+            _statusMessage = '';
+          });
+        }
+      });
 
       // If not connected and not skipped, show connection screen
       if (_connectedServer == null && !_skippedConnection) {
@@ -468,6 +521,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
           // Initialize mobile sequence hooks for background operation support
           ref.watch(mobileSequenceHooksProvider);
+
+          // Wire notification taps into go_router (audit §3.8). The router
+          // is created lazily by `appRouterProvider`; reading it here also
+          // ensures it exists before a notification can fire.
+          final router = ref.watch(appRouterProvider);
+          NotificationService().setNavigator((location) {
+            router.go(location);
+          });
 
           // Check for checkpoint on first connection
           _checkForCheckpoint(context, ref);

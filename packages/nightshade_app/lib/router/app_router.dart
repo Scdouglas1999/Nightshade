@@ -52,6 +52,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
+            routes: [
+              // Deep-link target for `image_ready` notification taps
+              // (audit §3.8). The image identifier is passed through so the
+              // imaging screen can highlight the new capture; today the
+              // imaging screen reads :imageId from GoRouterState if it
+              // wants to scroll or focus that frame.
+              GoRoute(
+                path: 'preview/:imageId',
+                name: 'imaging-preview',
+                pageBuilder: (context, state) => const CustomTransitionPage(
+                  child: ImagingScreen(),
+                  transitionsBuilder: PageTransitions.slideFadeTransition,
+                  transitionDuration: Duration(milliseconds: 300),
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/guiding',

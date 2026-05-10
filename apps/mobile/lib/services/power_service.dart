@@ -33,7 +33,8 @@ class PowerService {
   Function()? onCriticalBattery;
 
   // Settings
-  bool enableScreenWakeLock = false; // Keep screen on (optional)
+  // Only CPU wake lock is honored. Screen wake lock was an unused config
+  // surface that misled callers (see audit §3.14).
   bool enableCpuWakeLock = true; // Keep CPU awake (required for imaging)
   int batteryCheckIntervalSeconds = 30;
 
@@ -70,7 +71,7 @@ class PowerService {
         // Enable wake lock to keep CPU running
         await WakelockPlus.enable();
         _wakeLockActive = true;
-        print('[PowerService] Wake lock acquired (CPU: true, Screen: $enableScreenWakeLock)');
+        print('[PowerService] Wake lock acquired (CPU)');
       }
     } catch (e) {
       print('[PowerService] Failed to acquire wake lock: $e');

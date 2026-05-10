@@ -15,6 +15,8 @@ import '../../widgets/welcome_flow.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
+import '../../widgets/connection_stale_banner.dart';
+import '../../widgets/ios_background_banner.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
 import 'widgets/title_bar.dart';
 import 'widgets/status_bar.dart';
@@ -416,6 +418,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                     ),
                   ),
+
+                // iOS background-monitoring advisory (audit §3.2). Renders
+                // above the weather banner so it's the first thing the
+                // operator sees while a sequence is running on iOS.
+                const IosBackgroundBanner(),
+
+                // Stale-connection advisory (audit §3.6). Visible during
+                // the WS reconnect grace window so the operator knows
+                // controls may be momentarily out of date.
+                const ConnectionStaleBanner(),
 
                 // Weather Alert Banner
                 const WeatherAlertBanner(),

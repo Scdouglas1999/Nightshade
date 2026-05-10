@@ -2,6 +2,7 @@
 library;
 
 export 'foreground_service.dart';
+export 'mobile_preferences.dart';
 export 'notification_service.dart';
 export 'power_service.dart';
 export 'mobile_sequence_hooks.dart';

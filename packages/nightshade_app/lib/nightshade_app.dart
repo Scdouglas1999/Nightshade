@@ -39,7 +39,9 @@ export 'widgets/tutorial_overlay.dart';
 export 'widgets/welcome_flow.dart';
 export 'widgets/tour_selection_sheet.dart';
 export 'widgets/contextual_tour_prompt.dart';
+export 'widgets/connection_stale_banner.dart';
 export 'widgets/equipment_status_indicator.dart';
+export 'widgets/ios_background_banner.dart';
 
 // Sequencer Wizards (Priority 2)
 export 'screens/sequencer/widgets/mosaic_wizard_dialog.dart';
