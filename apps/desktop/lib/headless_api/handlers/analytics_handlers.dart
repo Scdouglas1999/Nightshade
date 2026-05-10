@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for session management and analytics
 class AnalyticsHandlers {
@@ -16,8 +15,17 @@ class AnalyticsHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'AnalyticsHandlers');
-  void _logError(String message) =>
-      _logger.error(message, source: 'AnalyticsHandlers');
+
+  // Why: URL path segments like `/api/sessions/{id}` would otherwise reach
+  // `int.parse` and a malformed id (e.g. `/api/sessions/foo`) would surface
+  // as FormatException → HTTP 500. Translate at the boundary into a 400.
+  int _parsePathId(String raw, String field) {
+    final parsed = int.tryParse(raw);
+    if (parsed == null) {
+      throw BadRequestError(field: field, expected: 'integer');
+    }
+    return parsed;
+  }
 
   // ===========================================================================
   // Get All Sessions
@@ -25,17 +33,12 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetAllSessions(Request request) async {
     _logInfo('[API] GET /api/sessions');
-    try {
-      final database = container.read(databaseProvider);
-      final sessions = await database.sessionsDao.getAllSessions();
+    final database = container.read(databaseProvider);
+    final sessions = await database.sessionsDao.getAllSessions();
 
-      return jsonOk({
-        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get all sessions error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -44,20 +47,15 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetSessionById(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id');
-    try {
-      final sessionId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final session = await database.sessionsDao.getSessionById(sessionId);
+    final sessionId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final session = await database.sessionsDao.getSessionById(sessionId);
 
-      if (session == null) {
-        return jsonNotFound({"error": "Session not found: $id"});
-      }
-
-      return jsonOk({"session": _sessionToJson(session)});
-    } catch (e) {
-      _logError('[API] Get session by ID error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (session == null) {
+      return jsonNotFound({"error": "Session not found: $id"});
     }
+
+    return jsonOk({"session": _sessionToJson(session)});
   }
 
   // ===========================================================================
@@ -66,20 +64,15 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetActiveSession(Request request) async {
     _logInfo('[API] GET /api/sessions/active');
-    try {
-      final database = container.read(databaseProvider);
-      final activeSessions = await database.sessionsDao.getActiveSessions();
+    final database = container.read(databaseProvider);
+    final activeSessions = await database.sessionsDao.getActiveSessions();
 
-      if (activeSessions.isEmpty) {
-        return jsonOk({"session": null});
-      }
-
-      // Return the most recent active session
-      return jsonOk({"session": _sessionToJson(activeSessions.first)});
-    } catch (e) {
-      _logError('[API] Get active session error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (activeSessions.isEmpty) {
+      return jsonOk({"session": null});
     }
+
+    // Return the most recent active session
+    return jsonOk({"session": _sessionToJson(activeSessions.first)});
   }
 
   // ===========================================================================
@@ -90,18 +83,13 @@ class AnalyticsHandlers {
     final limitStr = request.url.queryParameters['limit'] ?? '10';
     final limit = int.tryParse(limitStr) ?? 10;
     _logInfo('[API] GET /api/sessions/recent?limit=$limit');
-    try {
-      final database = container.read(databaseProvider);
-      final sessions =
-          await database.sessionsDao.getRecentSessions(limit: limit);
+    final database = container.read(databaseProvider);
+    final sessions =
+        await database.sessionsDao.getRecentSessions(limit: limit);
 
-      return jsonOk({
-        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get recent sessions error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+    });
   }
 
   // ===========================================================================
@@ -110,22 +98,17 @@ class AnalyticsHandlers {
 
   Future<Response> handleCreateSession(Request request) async {
     _logInfo('[API] POST /api/sessions');
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      final id = await database.sessionsDao.startSession(
-        name: payload['name'] as String?,
-        profileId: payload['profileId'] as int?,
-        targetId: payload['targetId'] as int?,
-        sequenceId: payload['sequenceId'] as int?,
-      );
+    final id = await database.sessionsDao.startSession(
+      name: optionalString(payload, 'name'),
+      profileId: optionalInt(payload, 'profileId'),
+      targetId: optionalInt(payload, 'targetId'),
+      sequenceId: optionalInt(payload, 'sequenceId'),
+    );
 
-      return jsonOk({"status": "created", "id": id});
-    } catch (e) {
-      _logError('[API] Create session error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({"status": "created", "id": id});
   }
 
   // ===========================================================================
@@ -134,49 +117,45 @@ class AnalyticsHandlers {
 
   Future<Response> handleUpdateSession(Request request, String id) async {
     _logInfo('[API] PUT /api/sessions/$id');
-    try {
-      final sessionId = int.parse(id);
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final sessionId = _parsePathId(id, 'id');
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      // Update stats if provided
-      if (payload.containsKey('totalExposures') ||
-          payload.containsKey('successfulExposures') ||
-          payload.containsKey('failedExposures') ||
-          payload.containsKey('totalIntegrationSecs') ||
-          payload.containsKey('avgHfr') ||
-          payload.containsKey('avgGuidingRms') ||
-          payload.containsKey('autofocusCount')) {
-        await database.sessionsDao.updateSessionStats(
-          sessionId,
-          totalExposures: payload['totalExposures'] as int?,
-          successfulExposures: payload['successfulExposures'] as int?,
-          failedExposures: payload['failedExposures'] as int?,
-          totalIntegrationSecs:
-              (payload['totalIntegrationSecs'] as num?)?.toDouble(),
-          avgHfr: (payload['avgHfr'] as num?)?.toDouble(),
-          avgGuidingRms: (payload['avgGuidingRms'] as num?)?.toDouble(),
-          autofocusCount: payload['autofocusCount'] as int?,
-        );
-      }
-
-      // Update notes if provided
-      if (payload.containsKey('notes')) {
-        await database.sessionsDao
-            .updateNotes(sessionId, payload['notes'] as String);
-      }
-
-      // Update status if provided
-      if (payload.containsKey('status')) {
-        await database.sessionsDao
-            .updateSessionStatus(sessionId, payload['status'] as String);
-      }
-
-      return jsonOk({"status": "updated"});
-    } catch (e) {
-      _logError('[API] Update session error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    // Update stats if provided
+    if (payload.containsKey('totalExposures') ||
+        payload.containsKey('successfulExposures') ||
+        payload.containsKey('failedExposures') ||
+        payload.containsKey('totalIntegrationSecs') ||
+        payload.containsKey('avgHfr') ||
+        payload.containsKey('avgGuidingRms') ||
+        payload.containsKey('autofocusCount')) {
+      await database.sessionsDao.updateSessionStats(
+        sessionId,
+        totalExposures: optionalInt(payload, 'totalExposures'),
+        successfulExposures: optionalInt(payload, 'successfulExposures'),
+        failedExposures: optionalInt(payload, 'failedExposures'),
+        totalIntegrationSecs: optionalDouble(payload, 'totalIntegrationSecs'),
+        avgHfr: optionalDouble(payload, 'avgHfr'),
+        avgGuidingRms: optionalDouble(payload, 'avgGuidingRms'),
+        autofocusCount: optionalInt(payload, 'autofocusCount'),
+      );
     }
+
+    // Update notes if provided
+    if (payload.containsKey('notes')) {
+      await database.sessionsDao.updateNotes(
+        sessionId,
+        requireString(payload, 'notes', allowEmpty: true),
+      );
+    }
+
+    // Update status if provided
+    if (payload.containsKey('status')) {
+      await database.sessionsDao
+          .updateSessionStatus(sessionId, requireString(payload, 'status'));
+    }
+
+    return jsonOk({"status": "updated"});
   }
 
   // ===========================================================================
@@ -185,19 +164,14 @@ class AnalyticsHandlers {
 
   Future<Response> handleEndSession(Request request, String id) async {
     _logInfo('[API] POST /api/sessions/$id/end');
-    try {
-      final sessionId = int.parse(id);
-      final payload = jsonDecode(await request.readAsString());
-      final status = payload['status'] as String? ?? 'completed';
-      final database = container.read(databaseProvider);
+    final sessionId = _parsePathId(id, 'id');
+    final payload = await readJsonObject(request);
+    final status = optionalString(payload, 'status') ?? 'completed';
+    final database = container.read(databaseProvider);
 
-      await database.sessionsDao.endSession(sessionId, status: status);
+    await database.sessionsDao.endSession(sessionId, status: status);
 
-      return jsonOk({"status": "ended"});
-    } catch (e) {
-      _logError('[API] End session error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({"status": "ended"});
   }
 
   // ===========================================================================
@@ -206,20 +180,15 @@ class AnalyticsHandlers {
 
   Future<Response> handleDeleteSession(Request request, String id) async {
     _logInfo('[API] DELETE /api/sessions/$id');
-    try {
-      final sessionId = int.parse(id);
-      final database = container.read(databaseProvider);
+    final sessionId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
 
-      final deleted = await database.sessionsDao.deleteSession(sessionId);
-      if (deleted == 0) {
-        return jsonNotFound({"error": "Session not found: $id"});
-      }
-
-      return jsonOk({"status": "deleted"});
-    } catch (e) {
-      _logError('[API] Delete session error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    final deleted = await database.sessionsDao.deleteSession(sessionId);
+    if (deleted == 0) {
+      return jsonNotFound({"error": "Session not found: $id"});
     }
+
+    return jsonOk({"status": "deleted"});
   }
 
   // ===========================================================================
@@ -228,78 +197,73 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetSessionStats(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/stats');
-    try {
-      final sessionId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final session = await database.sessionsDao.getSessionById(sessionId);
+    final sessionId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final session = await database.sessionsDao.getSessionById(sessionId);
 
-      if (session == null) {
-        return jsonNotFound({"error": "Session not found: $id"});
-      }
-
-      // Get images for this session
-      final images = await database.imagesDao.getImagesForSession(sessionId);
-
-      // Calculate stats
-      int lightCount = 0;
-      int darkCount = 0;
-      int flatCount = 0;
-      int biasCount = 0;
-      double totalHfr = 0;
-      int hfrCount = 0;
-      final filterCounts = <String, int>{};
-
-      for (final img in images) {
-        switch (img.frameType) {
-          case 'light':
-            lightCount++;
-            break;
-          case 'dark':
-            darkCount++;
-            break;
-          case 'flat':
-            flatCount++;
-            break;
-          case 'bias':
-            biasCount++;
-            break;
-        }
-
-        if (img.hfr != null) {
-          totalHfr += img.hfr!;
-          hfrCount++;
-        }
-
-        if (img.filter != null) {
-          filterCounts[img.filter!] = (filterCounts[img.filter!] ?? 0) + 1;
-        }
-      }
-
-      return jsonOk({
-        "stats": {
-          "totalExposures": session.totalExposures,
-          "successfulExposures": session.successfulExposures,
-          "failedExposures": session.failedExposures,
-          "totalIntegrationSecs": session.totalIntegrationSecs,
-          "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : null,
-          "avgGuidingRms": session.avgGuidingRms,
-          "autofocusCount": session.autofocusCount,
-          "frameBreakdown": {
-            "light": lightCount,
-            "dark": darkCount,
-            "flat": flatCount,
-            "bias": biasCount,
-          },
-          "filterBreakdown": filterCounts,
-          "durationSecs": session.endTime != null
-              ? session.endTime!.difference(session.startTime).inSeconds
-              : DateTime.now().difference(session.startTime).inSeconds,
-        },
-      });
-    } catch (e) {
-      _logError('[API] Get session stats error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (session == null) {
+      return jsonNotFound({"error": "Session not found: $id"});
     }
+
+    // Get images for this session
+    final images = await database.imagesDao.getImagesForSession(sessionId);
+
+    // Calculate stats
+    int lightCount = 0;
+    int darkCount = 0;
+    int flatCount = 0;
+    int biasCount = 0;
+    double totalHfr = 0;
+    int hfrCount = 0;
+    final filterCounts = <String, int>{};
+
+    for (final img in images) {
+      switch (img.frameType) {
+        case 'light':
+          lightCount++;
+          break;
+        case 'dark':
+          darkCount++;
+          break;
+        case 'flat':
+          flatCount++;
+          break;
+        case 'bias':
+          biasCount++;
+          break;
+      }
+
+      if (img.hfr != null) {
+        totalHfr += img.hfr!;
+        hfrCount++;
+      }
+
+      if (img.filter != null) {
+        filterCounts[img.filter!] = (filterCounts[img.filter!] ?? 0) + 1;
+      }
+    }
+
+    return jsonOk({
+      "stats": {
+        "totalExposures": session.totalExposures,
+        "successfulExposures": session.successfulExposures,
+        "failedExposures": session.failedExposures,
+        "totalIntegrationSecs": session.totalIntegrationSecs,
+        "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : null,
+        "avgGuidingRms": session.avgGuidingRms,
+        "autofocusCount": session.autofocusCount,
+        "frameBreakdown": {
+          "light": lightCount,
+          "dark": darkCount,
+          "flat": flatCount,
+          "bias": biasCount,
+        },
+        "filterBreakdown": filterCounts,
+        "durationSecs": session.endTime != null
+            ? session.endTime!.difference(session.startTime).inSeconds
+            : DateTime.now().difference(session.startTime).inSeconds,
+      },
+    });
   }
 
   // ===========================================================================
@@ -308,36 +272,26 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetSessionPsfTiles(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/psf-tiles');
-    try {
-      final sessionId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final psfTiles =
-          await database.scienceDao.getPsfTilesForSession(sessionId);
+    final sessionId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final psfTiles =
+        await database.scienceDao.getPsfTilesForSession(sessionId);
 
-      return jsonOk({
-        'psfTiles': psfTiles.map(_psfTileToJson).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get session PSF tiles error: $e');
-      return jsonInternalServerError({'error': e.toString()});
-    }
+    return jsonOk({
+      'psfTiles': psfTiles.map(_psfTileToJson).toList(),
+    });
   }
 
   Future<Response> handleGetSessionResiduals(Request request, String id) async {
     _logInfo('[API] GET /api/sessions/$id/residuals');
-    try {
-      final sessionId = int.parse(id);
-      final database = container.read(databaseProvider);
-      final residuals =
-          await database.scienceDao.getResidualsForSession(sessionId);
+    final sessionId = _parsePathId(id, 'id');
+    final database = container.read(databaseProvider);
+    final residuals =
+        await database.scienceDao.getResidualsForSession(sessionId);
 
-      return jsonOk({
-        'residuals': residuals.map(_residualVectorToJson).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get session residuals error: $e');
-      return jsonInternalServerError({'error': e.toString()});
-    }
+    return jsonOk({
+      'residuals': residuals.map(_residualVectorToJson).toList(),
+    });
   }
 
   // ===========================================================================
@@ -346,38 +300,45 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetAnalyticsSummary(Request request) async {
     _logInfo('[API] GET /api/analytics/summary');
-    try {
-      final database = container.read(databaseProvider);
+    final database = container.read(databaseProvider);
 
-      // Parse date range if provided
-      final startDateStr = request.url.queryParameters['startDate'];
-      final endDateStr = request.url.queryParameters['endDate'];
+    // Parse date range if provided
+    final startDateStr = request.url.queryParameters['startDate'];
+    final endDateStr = request.url.queryParameters['endDate'];
 
-      List<ImagingSession> sessions;
-      if (startDateStr != null && endDateStr != null) {
-        final startDate = DateTime.parse(startDateStr);
-        final endDate = DateTime.parse(endDateStr);
-        sessions =
-            await database.sessionsDao.getSessionsInRange(startDate, endDate);
-      } else {
-        sessions = await database.sessionsDao.getAllSessions();
+    List<ImagingSession> sessions;
+    if (startDateStr != null && endDateStr != null) {
+      // Why: invalid ISO dates would otherwise become FormatException → 500;
+      // translate to 400 so clients learn the format is wrong.
+      final DateTime startDate;
+      final DateTime endDate;
+      try {
+        startDate = DateTime.parse(startDateStr);
+        endDate = DateTime.parse(endDateStr);
+      } on FormatException catch (e) {
+        throw BadRequestError(
+          field: 'startDate|endDate',
+          expected: 'iso8601_datetime',
+          message: e.message,
+        );
       }
-
-      // Calculate summary stats
-      final totalStats = await database.sessionsDao.getTotalStatistics();
-
-      return jsonOk({
-        "summary": {
-          "totalSessions": totalStats['totalSessions'],
-          "totalExposures": totalStats['totalExposures'],
-          "totalIntegrationHours": totalStats['totalIntegrationHours'],
-          "sessionsInRange": sessions.length,
-        },
-      });
-    } catch (e) {
-      _logError('[API] Get analytics summary error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+      sessions =
+          await database.sessionsDao.getSessionsInRange(startDate, endDate);
+    } else {
+      sessions = await database.sessionsDao.getAllSessions();
     }
+
+    // Calculate summary stats
+    final totalStats = await database.sessionsDao.getTotalStatistics();
+
+    return jsonOk({
+      "summary": {
+        "totalSessions": totalStats['totalSessions'],
+        "totalExposures": totalStats['totalExposures'],
+        "totalIntegrationHours": totalStats['totalIntegrationHours'],
+        "sessionsInRange": sessions.length,
+      },
+    });
   }
 
   // ===========================================================================
@@ -386,18 +347,13 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetTotalIntegrationTime(Request request) async {
     _logInfo('[API] GET /api/analytics/integration-time');
-    try {
-      final database = container.read(databaseProvider);
-      final stats = await database.sessionsDao.getTotalStatistics();
+    final database = container.read(databaseProvider);
+    final stats = await database.sessionsDao.getTotalStatistics();
 
-      return jsonOk({
-        "totalIntegrationSecs": stats['totalIntegrationHours']! * 3600,
-        "totalIntegrationHours": stats['totalIntegrationHours'],
-      });
-    } catch (e) {
-      _logError('[API] Get total integration time error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "totalIntegrationSecs": stats['totalIntegrationHours']! * 3600,
+      "totalIntegrationHours": stats['totalIntegrationHours'],
+    });
   }
 
   // ===========================================================================
@@ -407,16 +363,11 @@ class AnalyticsHandlers {
   Future<Response> handleGetTargetStatistics(
       Request request, String targetId) async {
     _logInfo('[API] GET /api/analytics/target/$targetId');
-    try {
-      final tid = int.parse(targetId);
-      final database = container.read(databaseProvider);
-      final stats = await database.sessionsDao.getTargetStatistics(tid);
+    final tid = _parsePathId(targetId, 'targetId');
+    final database = container.read(databaseProvider);
+    final stats = await database.sessionsDao.getTargetStatistics(tid);
 
-      return jsonOk({"stats": stats});
-    } catch (e) {
-      _logError('[API] Get target statistics error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({"stats": stats});
   }
 
   // ===========================================================================
@@ -426,18 +377,13 @@ class AnalyticsHandlers {
   Future<Response> handleGetSessionsForTarget(
       Request request, String targetId) async {
     _logInfo('[API] GET /api/analytics/target/$targetId/sessions');
-    try {
-      final tid = int.parse(targetId);
-      final database = container.read(databaseProvider);
-      final sessions = await database.sessionsDao.getSessionsForTarget(tid);
+    final tid = _parsePathId(targetId, 'targetId');
+    final database = container.read(databaseProvider);
+    final sessions = await database.sessionsDao.getSessionsForTarget(tid);
 
-      return jsonOk({
-        "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
-      });
-    } catch (e) {
-      _logError('[API] Get sessions for target error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "sessions": sessions.map((s) => _sessionToJson(s)).toList(),
+    });
   }
 
   // ===========================================================================

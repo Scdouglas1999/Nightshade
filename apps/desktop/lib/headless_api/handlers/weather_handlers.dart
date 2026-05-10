@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for weather data and alerts
 class WeatherHandlers {
@@ -16,8 +15,6 @@ class WeatherHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'WeatherHandlers');
-  void _logError(String message) =>
-      _logger.error(message, source: 'WeatherHandlers');
 
   // ===========================================================================
   // Get Radar Data
@@ -33,32 +30,32 @@ class WeatherHandlers {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
     }
 
-    try {
-      final service = container.read(weatherRadarServiceProvider);
-      service.initialize();
+    final service = container.read(weatherRadarServiceProvider);
+    service.initialize();
 
-      final result = await service.fetchRadarFrames(
-        latitude: lat,
-        longitude: lon,
-        forceRefresh: forceRefresh,
-      );
+    final result = await service.fetchRadarFrames(
+      latitude: lat,
+      longitude: lon,
+      forceRefresh: forceRefresh,
+    );
 
-      if (result.isSuccess) {
-        return jsonOk({
-          "frames": result.frames.map((f) => _frameToJson(f)).toList(),
-          "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
-          "cachedAt": DateTime.now().millisecondsSinceEpoch,
-        });
-      } else {
-        return jsonOk({
-          "frames": [],
-          "error": result.errorMessage,
-        });
-      }
-    } catch (e) {
-      _logError('[API] Get radar data error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (result.isSuccess) {
+      return jsonOk({
+        "frames": result.frames.map((f) => _frameToJson(f)).toList(),
+        "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
+        "cachedAt": DateTime.now().millisecondsSinceEpoch,
+      });
     }
+    // Why: upstream radar fetch failed — surface the failure with a non-2xx
+    // status (502 Bad Gateway). Previously this returned 200 with an empty
+    // frames list, hiding the failure from clients/observability.
+    return jsonResponse(
+      {
+        "error": result.errorMessage ?? 'radar_fetch_failed',
+        "frames": [],
+      },
+      statusCode: 502,
+    );
   }
 
   // ===========================================================================
@@ -74,27 +71,22 @@ class WeatherHandlers {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
     }
 
-    try {
-      // Weather forecast can be calculated from radar frames
-      final service = container.read(weatherRadarServiceProvider);
-      service.initialize();
+    // Weather forecast can be calculated from radar frames
+    final service = container.read(weatherRadarServiceProvider);
+    service.initialize();
 
-      final result = await service.fetchRadarFrames(
-        latitude: lat,
-        longitude: lon,
-      );
+    final result = await service.fetchRadarFrames(
+      latitude: lat,
+      longitude: lon,
+    );
 
-      // Return basic forecast info based on radar data
-      return jsonOk({
-        "hasData": result.isSuccess,
-        "frameCount": result.frames.length,
-        "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
-        "lastUpdated": DateTime.now().millisecondsSinceEpoch,
-      });
-    } catch (e) {
-      _logError('[API] Get forecast error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    // Return basic forecast info based on radar data
+    return jsonOk({
+      "hasData": result.isSuccess,
+      "frameCount": result.frames.length,
+      "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
+      "lastUpdated": DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   // ===========================================================================
@@ -103,21 +95,16 @@ class WeatherHandlers {
 
   Future<Response> handleGetAlerts(Request request) async {
     _logInfo('[API] GET /api/weather/alerts');
-    try {
-      final alertService = container.read(weatherAlertServiceProvider);
-      final currentAlert = alertService.currentAlert;
+    final alertService = container.read(weatherAlertServiceProvider);
+    final currentAlert = alertService.currentAlert;
 
-      if (currentAlert == null) {
-        return jsonOk({"alerts": []});
-      }
-
-      return jsonOk({
-        "alerts": [_alertToJson(currentAlert)],
-      });
-    } catch (e) {
-      _logError('[API] Get alerts error: $e');
-      return jsonInternalServerError({"error": e.toString()});
+    if (currentAlert == null) {
+      return jsonOk({"alerts": []});
     }
+
+    return jsonOk({
+      "alerts": [_alertToJson(currentAlert)],
+    });
   }
 
   // ===========================================================================
@@ -133,32 +120,27 @@ class WeatherHandlers {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
     }
 
-    try {
-      final service = container.read(weatherRadarServiceProvider);
-      service.initialize();
+    final service = container.read(weatherRadarServiceProvider);
+    service.initialize();
 
-      // Get cached frames for cloud cover analysis
-      final frames = service.getCachedFrames();
+    // Get cached frames for cloud cover analysis
+    final frames = service.getCachedFrames();
 
-      if (frames == null || frames.isEmpty) {
-        return jsonOk({
-          "hasData": false,
-          "message": "No cloud cover data available. Fetch radar data first.",
-        });
-      }
-
-      // Get the most recent frame
-      final latestFrame = frames.last;
-
+    if (frames == null || frames.isEmpty) {
       return jsonOk({
-        "hasData": true,
-        "timestamp": latestFrame.timestamp.millisecondsSinceEpoch,
-        "frameCount": frames.length,
+        "hasData": false,
+        "message": "No cloud cover data available. Fetch radar data first.",
       });
-    } catch (e) {
-      _logError('[API] Get cloud cover error: $e');
-      return jsonInternalServerError({"error": e.toString()});
     }
+
+    // Get the most recent frame
+    final latestFrame = frames.last;
+
+    return jsonOk({
+      "hasData": true,
+      "timestamp": latestFrame.timestamp.millisecondsSinceEpoch,
+      "frameCount": frames.length,
+    });
   }
 
   // ===========================================================================
@@ -167,30 +149,25 @@ class WeatherHandlers {
 
   Future<Response> handleGetSettings(Request request) async {
     _logInfo('[API] GET /api/weather/settings');
-    try {
-      final database = container.read(databaseProvider);
-      final settings = await database.weatherSettingsDao.getOrCreateSettings();
+    final database = container.read(databaseProvider);
+    final settings = await database.weatherSettingsDao.getOrCreateSettings();
 
-      return jsonOk({
-        "settings": {
-          "id": settings.id,
-          "preferredProvider": settings.preferredProvider,
-          "refreshIntervalSeconds": settings.refreshIntervalSeconds,
-          "triggerDistanceKm": settings.triggerDistanceKm,
-          "leadTimeMinutes": settings.leadTimeMinutes,
-          "cloudDensityThreshold": settings.cloudDensityThreshold,
-          "weatherSafetyEnabled": settings.weatherSafetyEnabled,
-          "maxHumidityPercent": settings.maxHumidityPercent,
-          "maxWindSpeedKph": settings.maxWindSpeedKph,
-          "maxCloudCoverPercent": settings.maxCloudCoverPercent,
-          "autoParkEnabled": settings.autoParkEnabled,
-          "autoResumeEnabled": settings.autoResumeEnabled,
-        },
-      });
-    } catch (e) {
-      _logError('[API] Get weather settings error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "settings": {
+        "id": settings.id,
+        "preferredProvider": settings.preferredProvider,
+        "refreshIntervalSeconds": settings.refreshIntervalSeconds,
+        "triggerDistanceKm": settings.triggerDistanceKm,
+        "leadTimeMinutes": settings.leadTimeMinutes,
+        "cloudDensityThreshold": settings.cloudDensityThreshold,
+        "weatherSafetyEnabled": settings.weatherSafetyEnabled,
+        "maxHumidityPercent": settings.maxHumidityPercent,
+        "maxWindSpeedKph": settings.maxWindSpeedKph,
+        "maxCloudCoverPercent": settings.maxCloudCoverPercent,
+        "autoParkEnabled": settings.autoParkEnabled,
+        "autoResumeEnabled": settings.autoResumeEnabled,
+      },
+    });
   }
 
   // ===========================================================================
@@ -199,31 +176,24 @@ class WeatherHandlers {
 
   Future<Response> handleUpdateSettings(Request request) async {
     _logInfo('[API] POST /api/weather/settings');
-    try {
-      final payload = jsonDecode(await request.readAsString());
-      final database = container.read(databaseProvider);
+    final payload = await readJsonObject(request);
+    final database = container.read(databaseProvider);
 
-      await database.weatherSettingsDao.updateSettings(
-        preferredProvider: payload['preferredProvider'] as String?,
-        refreshIntervalSeconds: payload['refreshIntervalSeconds'] as int?,
-        triggerDistanceKm: (payload['triggerDistanceKm'] as num?)?.toDouble(),
-        leadTimeMinutes: payload['leadTimeMinutes'] as int?,
-        cloudDensityThreshold:
-            (payload['cloudDensityThreshold'] as num?)?.toDouble(),
-        weatherSafetyEnabled: payload['weatherSafetyEnabled'] as bool?,
-        maxHumidityPercent: (payload['maxHumidityPercent'] as num?)?.toDouble(),
-        maxWindSpeedKph: (payload['maxWindSpeedKph'] as num?)?.toDouble(),
-        maxCloudCoverPercent:
-            (payload['maxCloudCoverPercent'] as num?)?.toDouble(),
-        autoParkEnabled: payload['autoParkEnabled'] as bool?,
-        autoResumeEnabled: payload['autoResumeEnabled'] as bool?,
-      );
+    await database.weatherSettingsDao.updateSettings(
+      preferredProvider: optionalString(payload, 'preferredProvider'),
+      refreshIntervalSeconds: optionalInt(payload, 'refreshIntervalSeconds'),
+      triggerDistanceKm: optionalDouble(payload, 'triggerDistanceKm'),
+      leadTimeMinutes: optionalInt(payload, 'leadTimeMinutes'),
+      cloudDensityThreshold: optionalDouble(payload, 'cloudDensityThreshold'),
+      weatherSafetyEnabled: optionalBool(payload, 'weatherSafetyEnabled'),
+      maxHumidityPercent: optionalDouble(payload, 'maxHumidityPercent'),
+      maxWindSpeedKph: optionalDouble(payload, 'maxWindSpeedKph'),
+      maxCloudCoverPercent: optionalDouble(payload, 'maxCloudCoverPercent'),
+      autoParkEnabled: optionalBool(payload, 'autoParkEnabled'),
+      autoResumeEnabled: optionalBool(payload, 'autoResumeEnabled'),
+    );
 
-      return jsonOk({"status": "updated"});
-    } catch (e) {
-      _logError('[API] Update weather settings error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({"status": "updated"});
   }
 
   // ===========================================================================
@@ -232,23 +202,18 @@ class WeatherHandlers {
 
   Future<Response> handleCheckSafeImaging(Request request) async {
     _logInfo('[API] GET /api/weather/safe-imaging');
-    try {
-      final alertService = container.read(weatherAlertServiceProvider);
-      final currentAlert = alertService.currentAlert;
+    final alertService = container.read(weatherAlertServiceProvider);
+    final currentAlert = alertService.currentAlert;
 
-      // Safe to image if no alert or alert level is clear
-      final isSafe =
-          currentAlert == null || currentAlert.level == AlertLevel.clear;
+    // Safe to image if no alert or alert level is clear
+    final isSafe =
+        currentAlert == null || currentAlert.level == AlertLevel.clear;
 
-      return jsonOk({
-        "safeToImage": isSafe,
-        "alertLevel": currentAlert?.level.name ?? "none",
-        "message": currentAlert?.message ?? "No weather data available",
-      });
-    } catch (e) {
-      _logError('[API] Check safe imaging error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({
+      "safeToImage": isSafe,
+      "alertLevel": currentAlert?.level.name ?? "none",
+      "message": currentAlert?.message ?? "No weather data available",
+    });
   }
 
   // ===========================================================================
@@ -257,15 +222,10 @@ class WeatherHandlers {
 
   Future<Response> handleClearCache(Request request) async {
     _logInfo('[API] POST /api/weather/clear-cache');
-    try {
-      final service = container.read(weatherRadarServiceProvider);
-      service.clearCache();
+    final service = container.read(weatherRadarServiceProvider);
+    service.clearCache();
 
-      return jsonOk({"status": "cache_cleared"});
-    } catch (e) {
-      _logError('[API] Clear cache error: $e');
-      return jsonInternalServerError({"error": e.toString()});
-    }
+    return jsonOk({"status": "cache_cleared"});
   }
 
   // ===========================================================================
