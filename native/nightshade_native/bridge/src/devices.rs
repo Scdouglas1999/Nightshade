@@ -11,25 +11,14 @@ use nightshade_native::traits::{
     NativeCamera, NativeDevice, NativeDome, NativeFilterWheel, NativeFocuser, NativeMount,
     NativeRotator, NativeSafetyMonitor, NativeWeather,
 };
-use nightshade_native::vendor::atik::AtikCamera;
-use nightshade_native::vendor::fli::{FliCamera, FliFilterWheel, FliFocuser};
-use nightshade_native::vendor::gphoto2::GPhoto2Camera;
-use nightshade_native::vendor::moravian::MoravianCamera;
-use nightshade_native::vendor::player_one::PlayerOneCamera;
-use nightshade_native::vendor::qhy::{QhyCamera, QhyFilterWheel};
-use nightshade_native::vendor::svbony::SvbonyCamera;
-use nightshade_native::vendor::touptek::TouptekCamera;
-use nightshade_native::vendor::zwo::{ZwoCamera, ZwoFilterWheel, ZwoFocuser};
+// Vendor SDK imports moved to crate::dispatch::native (the only consumer of
+// the camera/mount/filter wheel/focuser constructors).
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::interval;
 use tracing::warn;
-// Mount drivers
-use nightshade_native::vendor::ioptron::IOptronMount;
-use nightshade_native::vendor::lx200::{Lx200Mount, Lx200MountType};
-use nightshade_native::vendor::skywatcher::SkyWatcherMount;
 
 /// Configuration for automatic reconnection
 #[derive(Debug, Clone)]
@@ -239,100 +228,7 @@ impl Default for ReconnectConfig {
     }
 }
 
-fn infer_indi_device_type_from_properties(
-    properties: &[nightshade_indi::IndiProperty],
-) -> Option<DeviceType> {
-    let has = |name: &str| properties.iter().any(|p| p.name == name);
-
-    if has("CCD_EXPOSURE") || has("CCD_INFO") || has("CCD_FRAME") || has("CCD1") {
-        return Some(DeviceType::Camera);
-    }
-    if has("EQUATORIAL_EOD_COORD")
-        || has("ON_COORD_SET")
-        || has("TELESCOPE_TRACK_MODE")
-        || has("TELESCOPE_MOTION_NS")
-        || has("TELESCOPE_MOTION_WE")
-    {
-        return Some(DeviceType::Mount);
-    }
-    if has("ABS_FOCUS_POSITION") || has("REL_FOCUS_POSITION") || has("FOCUS_MOTION") {
-        return Some(DeviceType::Focuser);
-    }
-    if has("FILTER_SLOT") || has("FILTER_NAME") {
-        return Some(DeviceType::FilterWheel);
-    }
-    if has("DOME_SHUTTER") || has("DOME_MOTION") || has("ABS_DOME_POSITION") {
-        return Some(DeviceType::Dome);
-    }
-    if has("ABS_ROTATOR_ANGLE") || has("ROTATOR_ANGLE") {
-        return Some(DeviceType::Rotator);
-    }
-    if has("TELESCOPE_TIMED_GUIDE_NS") || has("TELESCOPE_TIMED_GUIDE_WE") {
-        return Some(DeviceType::Guider);
-    }
-    if has("SAFETY_STATUS") || has("AUX_SAFETY") {
-        return Some(DeviceType::SafetyMonitor);
-    }
-    if has("WEATHER_STATUS") || has("WEATHER_PARAMETERS") {
-        return Some(DeviceType::Weather);
-    }
-    if has("CAP_PARK")
-        || has("FLAT_LIGHT_CONTROL")
-        || has("FLAT_LIGHT_INTENSITY")
-        || has("DUSTCAP_CONTROL")
-        || has("LIGHTBOX_BRIGHTNESS")
-    {
-        return Some(DeviceType::CoverCalibrator);
-    }
-    if properties
-        .iter()
-        .any(|p| matches!(p.property_type, nightshade_indi::IndiPropertyType::Switch))
-    {
-        return Some(DeviceType::Switch);
-    }
-
-    None
-}
-
-fn infer_indi_device_type_from_name_driver(name: &str, driver: &str) -> Option<DeviceType> {
-    let name_upper = name.to_uppercase();
-    let driver_upper = driver.to_uppercase();
-
-    if name_upper.contains("CCD")
-        || name_upper.contains("CAMERA")
-        || driver_upper.contains("CCD")
-        || driver_upper.contains("CAMERA")
-    {
-        return Some(DeviceType::Camera);
-    }
-    if name_upper.contains("TELESCOPE")
-        || name_upper.contains("MOUNT")
-        || driver_upper.contains("TELESCOPE")
-        || driver_upper.contains("MOUNT")
-    {
-        return Some(DeviceType::Mount);
-    }
-    if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
-        return Some(DeviceType::Focuser);
-    }
-    if name_upper.contains("WHEEL") || driver_upper.contains("WHEEL") {
-        return Some(DeviceType::FilterWheel);
-    }
-    if name_upper.contains("ROTATOR") || driver_upper.contains("ROTATOR") {
-        return Some(DeviceType::Rotator);
-    }
-    if name_upper.contains("DOME") || driver_upper.contains("DOME") {
-        return Some(DeviceType::Dome);
-    }
-    if name_upper.contains("WEATHER") || driver_upper.contains("WEATHER") {
-        return Some(DeviceType::Weather);
-    }
-    if name_upper.contains("SAFETY") || driver_upper.contains("SAFETY") {
-        return Some(DeviceType::SafetyMonitor);
-    }
-
-    None
-}
+// INDI device-type inference helpers were moved to `crate::dispatch::indi`.
 
 /// State of a managed device
 #[derive(Debug, Clone)]
@@ -365,59 +261,65 @@ pub struct DeviceManager {
     stop_reconnect: Arc<RwLock<bool>>,
 
     /// Active native device instances
-    native_devices: RwLock<HashMap<String, Box<dyn NativeDevice>>>,
+    // Visibility bumped to pub(crate) so dispatch/native.rs can insert connected
+    // generic NativeDevice handles without an extra accessor layer.
+    pub(crate) native_devices: RwLock<HashMap<String, Box<dyn NativeDevice>>>,
 
     /// Active ASCOM camera wrappers (for typed access, wrapped in RwLock for interior mutability)
     #[cfg(windows)]
     /// Active ASCOM camera wrappers (for typed access, wrapped in RwLock for interior mutability)
+    // Visibility bumped to pub(crate) so dispatch/ascom.rs can manage the typed
+    // wrappers directly during connect / query / health-check paths.
     #[cfg(windows)]
-    ascom_cameras: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::AscomCameraWrapper>>>>,
+    pub(crate) ascom_cameras:
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::AscomCameraWrapper>>>>,
 
     /// Active ASCOM mount wrappers
     #[cfg(windows)]
-    ascom_mounts:
+    pub(crate) ascom_mounts:
         RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_mount::AscomMountWrapper>>>>,
 
     /// Active ASCOM focuser wrappers
     #[cfg(windows)]
-    ascom_focusers:
+    pub(crate) ascom_focusers:
         RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_focuser::AscomFocuserWrapper>>>>,
 
     /// Active ASCOM filter wheel wrappers
     #[cfg(windows)]
-    ascom_filter_wheels: RwLock<
+    pub(crate) ascom_filter_wheels: RwLock<
         HashMap<String, Arc<RwLock<crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper>>>,
     >,
 
     /// Active ASCOM rotator wrappers
     #[cfg(windows)]
-    ascom_rotators:
+    pub(crate) ascom_rotators:
         RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_rotator::AscomRotatorWrapper>>>>,
 
     /// Active ASCOM dome wrappers
     #[cfg(windows)]
-    ascom_domes: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_dome::AscomDomeWrapper>>>>,
+    pub(crate) ascom_domes:
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_dome::AscomDomeWrapper>>>>,
 
     /// Active ASCOM weather wrappers
     #[cfg(windows)]
-    ascom_weather: RwLock<
+    pub(crate) ascom_weather: RwLock<
         HashMap<String, Arc<RwLock<crate::ascom_wrapper_weather::AscomObservingConditionsWrapper>>>,
     >,
 
     /// Active ASCOM safety monitor wrappers
     #[cfg(windows)]
-    ascom_safety_monitors: RwLock<
+    pub(crate) ascom_safety_monitors: RwLock<
         HashMap<String, Arc<RwLock<crate::ascom_wrapper_safetymonitor::AscomSafetyMonitorWrapper>>>,
     >,
 
     /// Active ASCOM switch wrappers
     #[cfg(windows)]
-    ascom_switches:
+    pub(crate) ascom_switches:
         RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_switch::AscomSwitchWrapper>>>>,
 
     /// Active ASCOM cover calibrator wrappers
     #[cfg(windows)]
-    ascom_cover_calibrators: RwLock<
+    pub(crate) ascom_cover_calibrators: RwLock<
         HashMap<
             String,
             Arc<RwLock<crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper>>,
@@ -425,37 +327,44 @@ pub struct DeviceManager {
     >,
 
     /// Active INDI clients (key: "host:port")
-    indi_clients: RwLock<HashMap<String, Arc<RwLock<nightshade_indi::IndiClient>>>>,
+    // Visibility bumped to pub(crate) so dispatch/indi.rs can manage the client
+    // pool directly during connect / discover / health-check paths.
+    pub(crate) indi_clients: RwLock<HashMap<String, Arc<RwLock<nightshade_indi::IndiClient>>>>,
 
     /// Active Alpaca camera clients
-    alpaca_cameras: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaCamera>>>,
+    // Visibility bumped to pub(crate) so dispatch/alpaca.rs can manage the typed
+    // wrappers directly during connect / query / health-check paths.
+    pub(crate) alpaca_cameras: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaCamera>>>,
 
     /// Active Alpaca mount clients
-    alpaca_mounts: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaTelescope>>>,
+    pub(crate) alpaca_mounts: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaTelescope>>>,
 
     /// Active Alpaca focuser clients
-    alpaca_focusers: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaFocuser>>>,
+    pub(crate) alpaca_focusers: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaFocuser>>>,
 
     /// Active Alpaca filter wheel clients
-    alpaca_filter_wheels: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaFilterWheel>>>,
+    pub(crate) alpaca_filter_wheels:
+        RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaFilterWheel>>>,
 
     /// Active Alpaca rotator clients
-    alpaca_rotators: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaRotator>>>,
+    pub(crate) alpaca_rotators: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaRotator>>>,
 
     /// Active Alpaca dome clients
-    alpaca_domes: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaDome>>>,
+    pub(crate) alpaca_domes: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaDome>>>,
 
     /// Active Alpaca observing conditions (weather) clients
-    alpaca_weather: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaObservingConditions>>>,
+    pub(crate) alpaca_weather:
+        RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaObservingConditions>>>,
 
     /// Active Alpaca safety monitor clients
-    alpaca_safety_monitors: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaSafetyMonitor>>>,
+    pub(crate) alpaca_safety_monitors:
+        RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaSafetyMonitor>>>,
 
     /// Active Alpaca switch clients
-    alpaca_switches: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaSwitch>>>,
+    pub(crate) alpaca_switches: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaSwitch>>>,
 
     /// Active Alpaca cover calibrator clients
-    alpaca_cover_calibrators:
+    pub(crate) alpaca_cover_calibrators:
         RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaCoverCalibrator>>>,
 
     /// Active Native SDK cameras (stored separately for typed access)
@@ -621,62 +530,9 @@ impl DeviceManager {
         manager
     }
 
-    fn parse_indi_device_id(device_id: &str) -> Result<(String, u16, String), String> {
-        let parsed = crate::device_id::parse_device_id_cached(device_id)
-            .map_err(|e| format!("Invalid INDI device ID format: {}", e))?;
-        match parsed.connection_info {
-            crate::device_id::ConnectionInfo::Indi {
-                host,
-                port,
-                device_name,
-            } => Ok((host, port, device_name)),
-            _ => Err(format!("Invalid INDI device ID format: {}", device_id)),
-        }
-    }
-
-    async fn indi_mount_tracking_rate(
-        client: &nightshade_indi::IndiClient,
-        device_name: &str,
-    ) -> (TrackingRate, bool) {
-        let Some(prop) = client
-            .get_property(device_name, "TELESCOPE_TRACK_RATE")
-            .await
-        else {
-            return (TrackingRate::Sidereal, false);
-        };
-
-        let can_set_tracking_rate = prop.perm != nightshade_indi::IndiPermission::ReadOnly;
-        for element in prop.elements {
-            if !client
-                .get_switch(device_name, "TELESCOPE_TRACK_RATE", &element)
-                .await
-                .unwrap_or(false)
-            {
-                continue;
-            }
-
-            let upper = element.to_ascii_uppercase();
-            let rate = if upper.contains("SIDEREAL") {
-                Some(TrackingRate::Sidereal)
-            } else if upper.contains("LUNAR") {
-                Some(TrackingRate::Lunar)
-            } else if upper.contains("SOLAR") {
-                Some(TrackingRate::Solar)
-            } else if upper.contains("KING") {
-                Some(TrackingRate::King)
-            } else if upper.contains("CUSTOM") {
-                Some(TrackingRate::Custom)
-            } else {
-                None
-            };
-
-            if let Some(rate) = rate {
-                return (rate, can_set_tracking_rate);
-            }
-        }
-
-        (TrackingRate::Sidereal, can_set_tracking_rate)
-    }
+    // `parse_indi_device_id` and `indi_mount_tracking_rate` moved to
+    // `crate::dispatch::indi` (split-impl-block); call sites use `Self::...`
+    // unchanged.
 
     /// Background task for automatic reconnection
     async fn reconnection_loop(&self) {
@@ -907,584 +763,9 @@ impl DeviceManager {
         Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
     }
 
-    /// Connect to an ASCOM device
-    #[cfg(windows)]
-    async fn connect_ascom(&self, info: &DeviceInfo) -> Result<(), String> {
-        let prog_id = info
-            .id
-            .strip_prefix("ascom:")
-            .ok_or_else(|| "Invalid ASCOM device ID".to_string())?;
-
-        match info.device_type {
-            DeviceType::Camera => {
-                use crate::ascom_wrapper::AscomCameraWrapper;
-                let mut camera = AscomCameraWrapper::new(prog_id.to_string())?;
-                // Let user select the specific camera/config via ASCOM SetupDialog before connecting
-                camera.setup_dialog().await.map_err(|e| e.to_string())?;
-                camera.connect().await.map_err(|e| e.to_string())?;
-
-                // Store in typed map for camera-specific operations, wrapped in Arc<RwLock>
-                let mut ascom_cameras = self.ascom_cameras.write().await;
-                ascom_cameras.insert(info.id.clone(), Arc::new(RwLock::new(camera)));
-            }
-            DeviceType::Mount => {
-                use crate::ascom_wrapper_mount::AscomMountWrapper;
-                let mut mount = AscomMountWrapper::new(prog_id.to_string())?;
-                mount.connect().await.map_err(|e| e.to_string())?;
-
-                let mut ascom_mounts = self.ascom_mounts.write().await;
-                ascom_mounts.insert(info.id.clone(), Arc::new(RwLock::new(mount)));
-            }
-            DeviceType::Focuser => {
-                use crate::ascom_wrapper_focuser::AscomFocuserWrapper;
-                let mut focuser = AscomFocuserWrapper::new(prog_id.to_string())?;
-                focuser.connect().await.map_err(|e| e.to_string())?;
-
-                let mut ascom_focusers = self.ascom_focusers.write().await;
-                ascom_focusers.insert(info.id.clone(), Arc::new(RwLock::new(focuser)));
-            }
-            DeviceType::FilterWheel => {
-                use crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper;
-
-                // Disconnect and remove old wrapper BEFORE creating new one.
-                // If we don't, the old wrapper's Drop will disconnect the COM device
-                // after the new wrapper has already connected to it, killing the connection.
-                {
-                    let mut ascom_filter_wheels = self.ascom_filter_wheels.write().await;
-                    if let Some(old_fw) = ascom_filter_wheels.remove(&info.id) {
-                        let mut old = old_fw.write().await;
-                        let _ = old.disconnect().await;
-                        drop(old);
-                        drop(old_fw);
-                        tracing::info!(
-                            "Disconnected old ASCOM filter wheel wrapper for {}",
-                            info.id
-                        );
-                    }
-                }
-
-                let mut fw = AscomFilterWheelWrapper::new(prog_id.to_string())?;
-                fw.connect().await.map_err(|e| e.to_string())?;
-
-                let mut ascom_filter_wheels = self.ascom_filter_wheels.write().await;
-                ascom_filter_wheels.insert(info.id.clone(), Arc::new(RwLock::new(fw)));
-            }
-            DeviceType::Rotator => {
-                use crate::ascom_wrapper_rotator::AscomRotatorWrapper;
-
-                {
-                    let mut ascom_rotators = self.ascom_rotators.write().await;
-                    if let Some(old_rotator) = ascom_rotators.remove(&info.id) {
-                        let mut old = old_rotator.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
-
-                let mut rotator = AscomRotatorWrapper::new(prog_id.to_string())?;
-                rotator.connect().await?;
-
-                let mut ascom_rotators = self.ascom_rotators.write().await;
-                ascom_rotators.insert(info.id.clone(), Arc::new(RwLock::new(rotator)));
-            }
-            DeviceType::Dome => {
-                use crate::ascom_wrapper_dome::AscomDomeWrapper;
-                let mut dome = AscomDomeWrapper::new(prog_id.to_string())?;
-                dome.connect().await?;
-
-                let mut ascom_domes = self.ascom_domes.write().await;
-                ascom_domes.insert(info.id.clone(), Arc::new(RwLock::new(dome)));
-            }
-            DeviceType::Switch => {
-                use crate::ascom_wrapper_switch::AscomSwitchWrapper;
-                let mut sw = AscomSwitchWrapper::new(prog_id.to_string())?;
-                sw.connect().await.map_err(|e| e.to_string())?;
-
-                let mut ascom_switches = self.ascom_switches.write().await;
-                ascom_switches.insert(info.id.clone(), Arc::new(RwLock::new(sw)));
-            }
-            DeviceType::Weather => {
-                use crate::ascom_wrapper_weather::AscomObservingConditionsWrapper;
-
-                {
-                    let mut ascom_weather = self.ascom_weather.write().await;
-                    if let Some(old_weather) = ascom_weather.remove(&info.id) {
-                        let mut old = old_weather.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
-
-                let mut weather = AscomObservingConditionsWrapper::new(prog_id.to_string())?;
-                weather.connect().await?;
-
-                let mut ascom_weather = self.ascom_weather.write().await;
-                ascom_weather.insert(info.id.clone(), Arc::new(RwLock::new(weather)));
-            }
-            DeviceType::SafetyMonitor => {
-                use crate::ascom_wrapper_safetymonitor::AscomSafetyMonitorWrapper;
-
-                {
-                    let mut ascom_safety_monitors = self.ascom_safety_monitors.write().await;
-                    if let Some(old_monitor) = ascom_safety_monitors.remove(&info.id) {
-                        let mut old = old_monitor.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
-
-                let mut safety = AscomSafetyMonitorWrapper::new(prog_id.to_string())?;
-                safety.connect().await?;
-
-                let mut ascom_safety_monitors = self.ascom_safety_monitors.write().await;
-                ascom_safety_monitors.insert(info.id.clone(), Arc::new(RwLock::new(safety)));
-            }
-            DeviceType::CoverCalibrator => {
-                use crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper;
-                let mut cover_cal = AscomCoverCalibratorWrapper::new(prog_id.to_string())?;
-                cover_cal.connect().await?;
-
-                let mut ascom_cover_cals = self.ascom_cover_calibrators.write().await;
-                ascom_cover_cals.insert(info.id.clone(), Arc::new(RwLock::new(cover_cal)));
-            }
-            _ => {
-                return Err(format!(
-                    "ASCOM {} is not supported in this DeviceManager path",
-                    info.device_type.as_str()
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    #[cfg(not(windows))]
-    async fn connect_ascom(&self, _info: &DeviceInfo) -> Result<(), String> {
-        Err("ASCOM is only available on Windows".to_string())
-    }
-
-    /// Connect to an Alpaca device
-    async fn connect_alpaca(&self, info: &DeviceInfo) -> Result<(), String> {
-        use nightshade_alpaca::*;
-
-        // Parse alpaca:url:type:number format
-        let parts: Vec<&str> = info
-            .id
-            .strip_prefix("alpaca:")
-            .ok_or_else(|| "Invalid Alpaca device ID".to_string())?
-            .splitn(3, ':')
-            .collect();
-
-        if parts.len() < 3 {
-            return Err("Invalid Alpaca device ID format".to_string());
-        }
-
-        let base_url = parts[0];
-        let device_number: u32 = parts[2]
-            .parse()
-            .map_err(|_| "Invalid device number".to_string())?;
-
-        match info.device_type {
-            DeviceType::Camera => {
-                let camera = AlpacaCamera::from_server(base_url, device_number);
-                camera.connect().await?;
-                // Store for later use
-                let mut alpaca_cameras = self.alpaca_cameras.write().await;
-                alpaca_cameras.insert(info.id.clone(), Arc::new(camera));
-            }
-            DeviceType::Mount => {
-                let telescope = AlpacaTelescope::from_server(base_url, device_number);
-                telescope.connect().await?;
-                // Store for later use
-                let mut alpaca_mounts = self.alpaca_mounts.write().await;
-                alpaca_mounts.insert(info.id.clone(), Arc::new(telescope));
-            }
-            DeviceType::Focuser => {
-                let focuser = AlpacaFocuser::from_server(base_url, device_number);
-                focuser.connect().await?;
-                // Store for later use
-                let mut alpaca_focusers = self.alpaca_focusers.write().await;
-                alpaca_focusers.insert(info.id.clone(), Arc::new(focuser));
-            }
-            DeviceType::FilterWheel => {
-                let fw = AlpacaFilterWheel::from_server(base_url, device_number);
-                fw.connect().await?;
-                // Store for later use
-                let mut alpaca_filter_wheels = self.alpaca_filter_wheels.write().await;
-                alpaca_filter_wheels.insert(info.id.clone(), Arc::new(fw));
-            }
-            DeviceType::Rotator => {
-                let rotator = AlpacaRotator::from_server(base_url, device_number);
-                rotator.connect().await?;
-                // Store for later use
-                let mut alpaca_rotators = self.alpaca_rotators.write().await;
-                alpaca_rotators.insert(info.id.clone(), Arc::new(rotator));
-            }
-            DeviceType::Dome => {
-                let dome = AlpacaDome::from_server(base_url, device_number);
-                dome.connect().await?;
-                // Store for later use
-                let mut alpaca_domes = self.alpaca_domes.write().await;
-                alpaca_domes.insert(info.id.clone(), Arc::new(dome));
-            }
-            DeviceType::Weather => {
-                let weather = AlpacaObservingConditions::from_server(base_url, device_number);
-                weather.connect().await?;
-                // Store for later use
-                let mut alpaca_weather = self.alpaca_weather.write().await;
-                alpaca_weather.insert(info.id.clone(), Arc::new(weather));
-            }
-            DeviceType::SafetyMonitor => {
-                let safety = AlpacaSafetyMonitor::from_server(base_url, device_number);
-                safety.connect().await?;
-                // Store for later use
-                let mut alpaca_safety = self.alpaca_safety_monitors.write().await;
-                alpaca_safety.insert(info.id.clone(), Arc::new(safety));
-            }
-            DeviceType::Switch => {
-                let switch = AlpacaSwitch::from_server(base_url, device_number);
-                switch.connect().await?;
-                // Store for later use
-                let mut alpaca_switches = self.alpaca_switches.write().await;
-                alpaca_switches.insert(info.id.clone(), Arc::new(switch));
-            }
-            DeviceType::CoverCalibrator => {
-                let cover_cal = AlpacaCoverCalibrator::from_server(base_url, device_number);
-                cover_cal.connect().await?;
-                // Store for later use
-                let mut alpaca_cover_cals = self.alpaca_cover_calibrators.write().await;
-                alpaca_cover_cals.insert(info.id.clone(), Arc::new(cover_cal));
-            }
-            _ => {
-                return Err(format!(
-                    "Alpaca {} is not supported in this DeviceManager path",
-                    info.device_type.as_str()
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Connect to an INDI device
-    async fn connect_indi(&self, info: &DeviceInfo) -> Result<(), String> {
-        use nightshade_indi::IndiClient;
-        use std::sync::Arc;
-        use tokio::sync::RwLock;
-
-        // Parse INDI device ID: indi:host:port:device_name
-        let parts: Vec<&str> = info.id.split(':').collect();
-        if parts.len() < 4 {
-            return Err(
-                "Invalid INDI device ID format. Expected: indi:host:port:device_name".to_string(),
-            );
-        }
-
-        let host = parts[1];
-        let port: u16 = parts[2].parse().map_err(|_| "Invalid port number")?;
-        let device_name = parts[3..].join(":");
-        let server_key = format!("{}:{}", host, port);
-
-        // Check if client exists
-        let client = {
-            let mut clients = self.indi_clients.write().await;
-            if let Some(client) = clients.get(&server_key) {
-                client.clone()
-            } else {
-                // Create new client
-                let mut new_client = IndiClient::new(host, Some(port));
-                new_client.connect().await?;
-                let client_arc = Arc::new(RwLock::new(new_client));
-                clients.insert(server_key.clone(), client_arc.clone());
-                client_arc
-            }
-        };
-
-        // Use the client to connect the device
-        let mut locked_client = client.write().await;
-
-        // Enable BLOB for cameras
-        if info.device_type == DeviceType::Camera {
-            if let Err(e) = locked_client.enable_blob(&device_name).await {
-                tracing::warn!("Failed to enable BLOB for {}: {}", device_name, e);
-            }
-        }
-
-        // Connect to the specific device
-        locked_client.connect_device(&device_name).await?;
-
-        tracing::info!(
-            "Connected to INDI device: {} at {}",
-            device_name,
-            server_key
-        );
-        Ok(())
-    }
-
-    /// Connect to a Native device
-    async fn connect_native(&self, info: &DeviceInfo) -> Result<(), String> {
-        // Parse device ID: native:vendor:id
-        let parts: Vec<&str> = info.id.split(':').collect();
-        if parts.len() < 3 {
-            return Err("Invalid native device ID format".to_string());
-        }
-
-        let vendor = parts[1];
-        let id_str = parts[2];
-
-        if info.device_type == DeviceType::Guider && vendor == "builtin_guider" {
-            crate::builtin_guider::connect()
-                .await
-                .map_err(|e| format!("Failed to connect built-in guider: {}", e))?;
-            tracing::info!("Connected to built-in multi-star guider");
-            return Ok(());
-        }
-
-        // Handle cameras
-        if info.device_type == DeviceType::Camera {
-            let mut camera: Box<dyn NativeCamera + Send + Sync> = match vendor {
-                "zwo" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO camera ID")?;
-                    Box::new(ZwoCamera::new(id))
-                }
-                "qhy" => Box::new(QhyCamera::new(id_str.to_string())),
-                "player_one" => {
-                    let id = id_str
-                        .parse::<i32>()
-                        .map_err(|_| "Invalid Player One camera ID")?;
-                    Box::new(PlayerOneCamera::new(id))
-                }
-                "svbony" => {
-                    let id = id_str
-                        .parse::<i32>()
-                        .map_err(|_| "Invalid SVBony camera ID")?;
-                    Box::new(SvbonyCamera::new(id))
-                }
-                "atik" => {
-                    let id = id_str
-                        .parse::<i32>()
-                        .map_err(|_| "Invalid Atik camera ID")?;
-                    Box::new(AtikCamera::new(id))
-                }
-                "fli" => {
-                    // FLI uses device path as ID
-                    Box::new(FliCamera::new(id_str.to_string()))
-                }
-                "touptek" => {
-                    // ID format: native:touptek:{brand}:{index}
-                    // parts[2] = brand, parts[3] = index
-                    let brand = id_str; // parts[2] is the brand
-                    let idx_str = parts
-                        .get(3)
-                        .ok_or("Invalid Touptek camera ID: missing index")?;
-                    let idx = idx_str
-                        .parse::<usize>()
-                        .map_err(|_| "Invalid Touptek camera index")?;
-                    Box::new(TouptekCamera::new(idx, brand))
-                }
-                "moravian" => {
-                    let camera_id = id_str
-                        .parse::<u32>()
-                        .map_err(|_| "Invalid Moravian camera ID")?;
-                    Box::new(MoravianCamera::new(camera_id))
-                }
-                "gphoto2" => {
-                    // ID format: native:gphoto2:{index}:{port_hex}:{sanitized_model}
-                    // Legacy IDs without a port component are still accepted.
-                    let index = id_str
-                        .parse::<usize>()
-                        .map_err(|_| "Invalid gPhoto2 camera index")?;
-                    let port = if let Some(encoded_port) = parts.get(3) {
-                        nightshade_native::vendor::gphoto2::decode_port_component(encoded_port)
-                            .unwrap_or_default()
-                    } else {
-                        String::new()
-                    };
-                    Box::new(GPhoto2Camera::new(index, &info.name, &port))
-                }
-                _ => return Err(format!("Unknown native camera vendor: {}", vendor)),
-            };
-
-            // Connect
-            camera.connect().await.map_err(|e| e.to_string())?;
-
-            // Store in native_cameras for typed camera access
-            let mut native_cameras = self.native_cameras.write().await;
-            native_cameras.insert(info.id.clone(), camera);
-
-            tracing::info!("Connected to native camera: {}", info.name);
-            return Ok(());
-        }
-
-        // Handle focusers
-        if info.device_type == DeviceType::Focuser {
-            let mut focuser: Box<dyn NativeFocuser + Send + Sync> = match vendor {
-                "zwo" | "zwo_eaf" => {
-                    let id = id_str
-                        .parse::<i32>()
-                        .map_err(|_| "Invalid ZWO focuser ID")?;
-                    Box::new(ZwoFocuser::new(id))
-                }
-                "fli_focuser" => {
-                    // FLI uses device path as ID
-                    Box::new(FliFocuser::new(id_str.to_string()))
-                }
-                _ => return Err(format!("Unknown native focuser vendor: {}", vendor)),
-            };
-
-            // Connect
-            focuser.connect().await.map_err(|e| e.to_string())?;
-
-            // Store in native_focusers for typed focuser access
-            let mut native_focusers = self.native_focusers.write().await;
-            native_focusers.insert(info.id.clone(), focuser);
-
-            tracing::info!("Connected to native focuser: {}", info.name);
-            return Ok(());
-        }
-
-        // Handle filter wheels
-        if info.device_type == DeviceType::FilterWheel {
-            // Disconnect and remove old native filter wheel before creating new one
-            // to avoid leaving stale SDK handles open
-            {
-                let mut native_filter_wheels = self.native_filter_wheels.write().await;
-                if let Some(mut old_fw) = native_filter_wheels.remove(&info.id) {
-                    let _ = old_fw.disconnect().await;
-                    tracing::info!("Disconnected old native filter wheel for {}", info.id);
-                }
-            }
-
-            let mut filterwheel: Box<dyn NativeFilterWheel + Send + Sync> = match vendor {
-                "zwo" | "zwo_efw" => {
-                    let id = id_str
-                        .parse::<i32>()
-                        .map_err(|_| "Invalid ZWO filter wheel ID")?;
-                    Box::new(ZwoFilterWheel::new(id))
-                }
-                "qhy_cfw" => {
-                    // QHY CFW uses camera ID string directly
-                    Box::new(QhyFilterWheel::new(id_str.to_string()))
-                }
-                "fli_fw" => {
-                    // FLI uses device path as ID
-                    Box::new(FliFilterWheel::new(id_str.to_string()))
-                }
-                _ => return Err(format!("Unknown native filter wheel vendor: {}", vendor)),
-            };
-
-            // Connect
-            filterwheel.connect().await.map_err(|e| e.to_string())?;
-
-            // Store in native_filter_wheels for typed filter wheel access
-            let mut native_filter_wheels = self.native_filter_wheels.write().await;
-            native_filter_wheels.insert(info.id.clone(), filterwheel);
-
-            tracing::info!("Connected to native filter wheel: {}", info.name);
-            return Ok(());
-        }
-
-        // Handle mounts
-        if info.device_type == DeviceType::Mount {
-            let mut mount: Box<dyn NativeMount + Send + Sync> = match vendor {
-                "skywatcher" => {
-                    // id_str is the serial port
-                    Box::new(SkyWatcherMount::new_serial(id_str.to_string(), None))
-                }
-                "ioptron" => {
-                    // id_str is the serial port
-                    Box::new(IOptronMount::new(id_str.to_string(), None))
-                }
-                "onstep" | "pegasus" => {
-                    // OnStep-based mounts (Pegasus NYX, DIY OnStep)
-                    Box::new(Lx200Mount::new_onstep(id_str.to_string()))
-                }
-                "meade" | "lx200" => Box::new(Lx200Mount::new_meade(id_str.to_string())),
-                "losmandy" => Box::new(Lx200Mount::new(
-                    id_str.to_string(),
-                    Lx200MountType::Losmandy,
-                    None,
-                )),
-                "10micron" => Box::new(Lx200Mount::new(
-                    id_str.to_string(),
-                    Lx200MountType::TenMicron,
-                    None,
-                )),
-                _ => return Err(format!("Unknown native mount vendor: {}", vendor)),
-            };
-
-            // Connect
-            mount.connect().await.map_err(|e| e.to_string())?;
-
-            // Store in native_mounts for typed mount access
-            let mut native_mounts = self.native_mounts.write().await;
-            native_mounts.insert(info.id.clone(), mount);
-
-            tracing::info!("Connected to native mount: {}", info.name);
-            return Ok(());
-        }
-
-        // For other device types, use the generic storage
-        let mut device: Box<dyn NativeDevice> = match vendor {
-            "zwo" => {
-                let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO camera ID")?;
-                Box::new(ZwoCamera::new(id))
-            }
-            "qhy" => Box::new(QhyCamera::new(id_str.to_string())),
-            "player_one" => {
-                let id = id_str
-                    .parse::<i32>()
-                    .map_err(|_| "Invalid Player One camera ID")?;
-                Box::new(PlayerOneCamera::new(id))
-            }
-            "svbony" => {
-                let id = id_str
-                    .parse::<i32>()
-                    .map_err(|_| "Invalid SVBony camera ID")?;
-                Box::new(SvbonyCamera::new(id))
-            }
-            "atik" => {
-                let id = id_str
-                    .parse::<i32>()
-                    .map_err(|_| "Invalid Atik camera ID")?;
-                Box::new(AtikCamera::new(id))
-            }
-            "fli" => Box::new(FliCamera::new(id_str.to_string())),
-            "touptek" => {
-                // ID format: native:touptek:{brand}:{index}
-                let brand = id_str; // parts[2] is the brand
-                let idx_str = parts
-                    .get(3)
-                    .ok_or("Invalid Touptek device ID: missing index")?;
-                let idx = idx_str
-                    .parse::<usize>()
-                    .map_err(|_| "Invalid Touptek device index")?;
-                Box::new(TouptekCamera::new(idx, brand))
-            }
-            "moravian" => {
-                let camera_id = id_str
-                    .parse::<u32>()
-                    .map_err(|_| "Invalid Moravian camera ID")?;
-                Box::new(MoravianCamera::new(camera_id))
-            }
-            "gphoto2" => {
-                let index = id_str
-                    .parse::<usize>()
-                    .map_err(|_| "Invalid gPhoto2 camera index")?;
-                let model = parts.get(3).unwrap_or(&"Unknown Camera");
-                let port = parts.get(4).unwrap_or(&"");
-                Box::new(GPhoto2Camera::new(index, model, port))
-            }
-            _ => return Err(format!("Unknown native vendor: {}", vendor)),
-        };
-
-        // Connect
-        device.connect().await.map_err(|e| e.to_string())?;
-
-        // Store the connected device instance
-        let mut native_devices = self.native_devices.write().await;
-        native_devices.insert(info.id.clone(), device);
-
-        tracing::info!("Connected to native device: {}", info.name);
-        Ok(())
-    }
+    // connect_ascom / connect_alpaca / connect_indi / connect_native were
+    // moved to `crate::dispatch::{ascom,alpaca,indi,native}` (split-impl-block).
+    // The dispatcher above continues to call `self.connect_*` unchanged.
 
     /// Disconnect a device
     pub async fn disconnect_device(&self, device_id: &str) -> Result<(), String> {
@@ -1792,282 +1073,7 @@ impl DeviceManager {
         }
     }
 
-    /// Query and cache API version for an Alpaca device
-    pub async fn query_alpaca_api_version(
-        &self,
-        device_id: &str,
-    ) -> Result<DeviceApiVersion, String> {
-        // Get the device info
-        let device_info = {
-            let devices = self.devices.read().await;
-            devices.get(device_id).map(|d| d.info.clone())
-        };
 
-        let info = device_info.ok_or_else(|| format!("Device not found: {}", device_id))?;
-
-        if info.driver_type != DriverType::Alpaca {
-            return Err(format!("Device {} is not an Alpaca device", device_id));
-        }
-
-        // Query version info based on device type
-        let version = match info.device_type {
-            DeviceType::Camera => {
-                let cameras = self.alpaca_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    let interface_version = camera.interface_version().await.ok();
-                    let driver_version = camera.driver_version().await.ok();
-                    let driver_info = camera.driver_info().await.ok();
-                    let supported_actions = camera.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca camera {} not connected", device_id));
-                }
-            }
-            DeviceType::Mount => {
-                let mounts = self.alpaca_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    let interface_version = mount.interface_version().await.ok();
-                    let driver_version = mount.driver_version().await.ok();
-                    let driver_info = mount.driver_info().await.ok();
-                    let supported_actions = mount.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca mount {} not connected", device_id));
-                }
-            }
-            DeviceType::Focuser => {
-                let focusers = self.alpaca_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    let interface_version = focuser.interface_version().await.ok();
-                    let driver_version = focuser.driver_version().await.ok();
-                    let driver_info = focuser.driver_info().await.ok();
-                    let supported_actions = focuser.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca focuser {} not connected", device_id));
-                }
-            }
-            DeviceType::FilterWheel => {
-                let filter_wheels = self.alpaca_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    let interface_version = fw.interface_version().await.ok();
-                    let driver_version = fw.driver_version().await.ok();
-                    let driver_info = fw.driver_info().await.ok();
-                    let supported_actions = fw.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca filter wheel {} not connected", device_id));
-                }
-            }
-            DeviceType::Rotator => {
-                let rotators = self.alpaca_rotators.read().await;
-                if let Some(rotator) = rotators.get(device_id) {
-                    let interface_version = rotator.interface_version().await.ok();
-                    let driver_version = rotator.driver_version().await.ok();
-                    let driver_info = rotator.driver_info().await.ok();
-                    let supported_actions = rotator.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca rotator {} not connected", device_id));
-                }
-            }
-            DeviceType::Dome => {
-                let domes = self.alpaca_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    let interface_version = dome.interface_version().await.ok();
-                    let driver_version = dome.driver_version().await.ok();
-                    let driver_info = dome.driver_info().await.ok();
-                    let supported_actions = dome.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca dome {} not connected", device_id));
-                }
-            }
-            DeviceType::SafetyMonitor => {
-                let monitors = self.alpaca_safety_monitors.read().await;
-                if let Some(monitor) = monitors.get(device_id) {
-                    let interface_version = monitor.interface_version().await.ok();
-                    let driver_version = monitor.driver_version().await.ok();
-                    let driver_info = monitor.driver_info().await.ok();
-                    let supported_actions = monitor.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca safety monitor {} not connected", device_id));
-                }
-            }
-            DeviceType::Switch => {
-                let switches = self.alpaca_switches.read().await;
-                if let Some(switch) = switches.get(device_id) {
-                    let interface_version = switch.interface_version().await.ok();
-                    let driver_version = switch.driver_version().await.ok();
-                    let driver_info = switch.driver_info().await.ok();
-                    let supported_actions = switch.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca switch {} not connected", device_id));
-                }
-            }
-            DeviceType::CoverCalibrator => {
-                let covers = self.alpaca_cover_calibrators.read().await;
-                if let Some(cover) = covers.get(device_id) {
-                    let interface_version = cover.interface_version().await.ok();
-                    let driver_version = cover.driver_version().await.ok();
-                    let driver_info = cover.driver_info().await.ok();
-                    let supported_actions = cover.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "Alpaca cover calibrator {} not connected",
-                        device_id
-                    ));
-                }
-            }
-            DeviceType::Weather => {
-                let weather = self.alpaca_weather.read().await;
-                if let Some(obs) = weather.get(device_id) {
-                    let interface_version = obs.interface_version().await.ok();
-                    let driver_version = obs.driver_version().await.ok();
-                    let driver_info = obs.driver_info().await.ok();
-                    let supported_actions = obs.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "Alpaca observing conditions {} not connected",
-                        device_id
-                    ));
-                }
-            }
-            _ => {
-                return Err(format!(
-                    "Unsupported Alpaca device type: {:?}",
-                    info.device_type
-                ));
-            }
-        };
-
-        // Cache the version
-        self.set_device_api_version(device_id, version.clone())
-            .await;
-        tracing::info!(
-            "Queried API version for {}: interface_version={:?}, driver_version={:?}",
-            device_id,
-            version.interface_version,
-            version.driver_version
-        );
-
-        Ok(version)
-    }
-
-    /// Query and cache API version for an INDI device
-    pub async fn query_indi_api_version(
-        &self,
-        device_id: &str,
-    ) -> Result<DeviceApiVersion, String> {
-        // Get the device info
-        let device_info = {
-            let devices = self.devices.read().await;
-            devices.get(device_id).map(|d| d.info.clone())
-        };
-
-        let info = device_info.ok_or_else(|| format!("Device not found: {}", device_id))?;
-
-        if info.driver_type != DriverType::Indi {
-            return Err(format!("Device {} is not an INDI device", device_id));
-        }
-
-        // Parse INDI connection info from device ID
-        let parsed = crate::device_id::parse_device_id_cached(device_id)
-            .map_err(|e| format!("Failed to parse device ID: {}", e))?;
-
-        let (host, port) = match &parsed.connection_info {
-            crate::device_id::ConnectionInfo::Indi { host, port, .. } => (host.clone(), *port),
-            _ => return Err("Invalid INDI device ID".to_string()),
-        };
-
-        let client_key = format!("{}:{}", host, port);
-
-        // Get protocol version from INDI client
-        let indi_clients = self.indi_clients.read().await;
-        let protocol_version = if let Some(client) = indi_clients.get(&client_key) {
-            let client_guard = client.read().await;
-            client_guard.get_server_version().await.ok()
-        } else {
-            None
-        };
-
-        let version = DeviceApiVersion::from_indi(device_id.to_string(), protocol_version);
-
-        // Cache the version
-        self.set_device_api_version(device_id, version.clone())
-            .await;
-        tracing::info!(
-            "Queried API version for {}: protocol_version={:?}",
-            device_id,
-            version.protocol_version
-        );
-
-        Ok(version)
-    }
 
     /// Query API version for a device (dispatches based on driver type)
     pub async fn query_device_api_version(
@@ -2105,188 +1111,6 @@ impl DeviceManager {
         }
     }
 
-    /// Query API version for an ASCOM device (Windows only)
-    #[cfg(windows)]
-    pub async fn query_ascom_api_version(
-        &self,
-        device_id: &str,
-    ) -> Result<DeviceApiVersion, String> {
-        // Get the device info
-        let device_info = {
-            let devices = self.devices.read().await;
-            devices.get(device_id).map(|d| d.info.clone())
-        };
-
-        let info = device_info.ok_or_else(|| format!("Device not found: {}", device_id))?;
-
-        if info.driver_type != DriverType::Ascom {
-            return Err(format!("Device {} is not an ASCOM device", device_id));
-        }
-
-        // Query version info based on device type
-        let version = match info.device_type {
-            DeviceType::Camera => {
-                let cameras = self.ascom_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    let camera_guard = camera.read().await;
-                    let interface_version = camera_guard.interface_version().await.ok();
-                    let driver_version = camera_guard.driver_version().await.ok();
-                    let driver_info = camera_guard.driver_info().await.ok();
-                    let supported_actions =
-                        camera_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM camera {} not connected", device_id));
-                }
-            }
-            DeviceType::Mount => {
-                let mounts = self.ascom_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    let mount_guard = mount.read().await;
-                    let interface_version = mount_guard.interface_version().await.ok();
-                    let driver_version = mount_guard.driver_version().await.ok();
-                    let driver_info = mount_guard.driver_info().await.ok();
-                    let supported_actions =
-                        mount_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM mount {} not connected", device_id));
-                }
-            }
-            DeviceType::Focuser => {
-                let focusers = self.ascom_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    let focuser_guard = focuser.read().await;
-                    let interface_version = focuser_guard.interface_version().await.ok();
-                    let driver_version = focuser_guard.driver_version().await.ok();
-                    let driver_info = focuser_guard.driver_info().await.ok();
-                    let supported_actions =
-                        focuser_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM focuser {} not connected", device_id));
-                }
-            }
-            DeviceType::FilterWheel => {
-                let filter_wheels = self.ascom_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    let fw_guard = fw.read().await;
-                    let interface_version = fw_guard.interface_version().await.ok();
-                    let driver_version = fw_guard.driver_version().await.ok();
-                    let driver_info = fw_guard.driver_info().await.ok();
-                    let supported_actions = fw_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM filter wheel {} not connected", device_id));
-                }
-            }
-            DeviceType::Dome => {
-                let domes = self.ascom_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    let dome_guard = dome.read().await;
-                    let interface_version = dome_guard.interface_version().await.ok();
-                    let driver_version = dome_guard.driver_version().await.ok();
-                    let driver_info = dome_guard.driver_info().await.ok();
-                    let supported_actions =
-                        dome_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM dome {} not connected", device_id));
-                }
-            }
-            DeviceType::Switch => {
-                let switches = self.ascom_switches.read().await;
-                if let Some(switch) = switches.get(device_id) {
-                    let switch_guard = switch.read().await;
-                    let interface_version = switch_guard.interface_version().await.ok();
-                    let driver_version = switch_guard.driver_version().await.ok();
-                    let driver_info = switch_guard.driver_info().await.ok();
-                    let supported_actions =
-                        switch_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM switch {} not connected", device_id));
-                }
-            }
-            DeviceType::CoverCalibrator => {
-                let covers = self.ascom_cover_calibrators.read().await;
-                if let Some(cover) = covers.get(device_id) {
-                    let cover_guard = cover.read().await;
-                    let interface_version = cover_guard.interface_version().await.ok();
-                    let driver_version = cover_guard.driver_version().await.ok();
-                    let driver_info = cover_guard.driver_info().await.ok();
-                    let supported_actions =
-                        cover_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "ASCOM cover calibrator {} not connected",
-                        device_id
-                    ));
-                }
-            }
-            _ => {
-                return Err(format!(
-                    "Unsupported ASCOM device type: {:?}",
-                    info.device_type
-                ));
-            }
-        };
-
-        // Cache the version
-        self.set_device_api_version(device_id, version.clone())
-            .await;
-        tracing::info!(
-            "Queried API version for {}: interface_version={:?}, driver_version={:?}",
-            device_id,
-            version.interface_version,
-            version.driver_version
-        );
-
-        Ok(version)
-    }
 
     /// Check if a device supports a specific interface version
     pub async fn device_supports_version(&self, device_id: &str, required_version: u32) -> bool {
@@ -2359,148 +1183,8 @@ impl DeviceManager {
         devices.remove(device_id);
     }
 
-    /// Get an INDI client for a device ID
-    pub async fn get_indi_client(
-        &self,
-        device_id: &str,
-    ) -> Option<Arc<RwLock<nightshade_indi::IndiClient>>> {
-        // Parse INDI device ID: indi:host:port:device_name
-        if !device_id.starts_with("indi:") {
-            return None;
-        }
 
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return None;
-        }
 
-        let host = parts[1];
-        let port = parts[2];
-        let server_key = format!("{}:{}", host, port);
-
-        let clients = self.indi_clients.read().await;
-        clients.get(&server_key).cloned()
-    }
-
-    /// Discover INDI devices at a specific address
-    pub async fn discover_indi_devices(
-        &self,
-        host: &str,
-        port: u16,
-    ) -> Result<Vec<DeviceInfo>, String> {
-        use nightshade_indi::IndiClient;
-
-        let server_key = format!("{}:{}", host, port);
-
-        // Get or create client
-        let client = {
-            let mut clients = self.indi_clients.write().await;
-            if let Some(client) = clients.get(&server_key) {
-                client.clone()
-            } else {
-                // Create new client
-                let mut new_client = IndiClient::new(host, Some(port));
-                new_client.connect().await.map_err(|e| e.to_string())?;
-                let client_arc = Arc::new(RwLock::new(new_client));
-                clients.insert(server_key.clone(), client_arc.clone());
-                client_arc
-            }
-        };
-
-        // Wait a moment for devices to be populated
-        // In a real scenario, we might want to wait for a specific event or have a timeout
-        // Wait up to 2 seconds for devices to appear.
-        let start = std::time::Instant::now();
-        loop {
-            {
-                let locked_client = client.read().await;
-                let devices = locked_client.get_devices().await;
-                if !devices.is_empty() {
-                    break;
-                }
-            }
-
-            if start.elapsed().as_secs() >= 2 {
-                break;
-            }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        // Get devices and convert to DeviceInfo
-        let locked_client = client.read().await;
-        let indi_devices = locked_client.get_devices().await;
-
-        let mut devices = Vec::new();
-        for dev in indi_devices {
-            let properties = locked_client.get_properties(&dev.name).await;
-            let device_type = infer_indi_device_type_from_properties(&properties)
-                .or_else(|| infer_indi_device_type_from_name_driver(&dev.name, &dev.driver));
-            let Some(device_type) = device_type else {
-                tracing::warn!(
-                    "Skipping INDI device '{}' with unrecognized type (driver='{}')",
-                    dev.name,
-                    dev.driver
-                );
-                continue;
-            };
-
-            // Serial number is not consistently exposed by INDI discovery; leave unset.
-            devices.push(DeviceInfo {
-                id: format!("indi:{}:{}:{}", host, port, dev.name),
-                name: dev.name.clone(),
-                device_type,
-                driver_type: DriverType::Indi,
-                description: format!("INDI device on {}:{}", host, port),
-                driver_version: "INDI".to_string(),
-                serial_number: None,
-                unique_id: None,
-                display_name: dev.name.clone(),
-            });
-        }
-
-        Ok(devices)
-    }
-
-    /// Get all discovered INDI devices from all connected clients
-    pub async fn get_all_indi_devices(&self) -> Vec<DeviceInfo> {
-        let clients = self.indi_clients.read().await;
-        let mut all_devices = Vec::new();
-
-        for (server_key, client_arc) in clients.iter() {
-            let client = client_arc.read().await;
-            let indi_devices = client.get_devices().await;
-
-            for dev in indi_devices {
-                let properties = client.get_properties(&dev.name).await;
-                let device_type = infer_indi_device_type_from_properties(&properties)
-                    .or_else(|| infer_indi_device_type_from_name_driver(&dev.name, &dev.driver));
-                let Some(device_type) = device_type else {
-                    tracing::warn!(
-                        "Skipping INDI device '{}' with unrecognized type (driver='{}')",
-                        dev.name,
-                        dev.driver
-                    );
-                    continue;
-                };
-
-                // Serial number is not consistently exposed by INDI discovery; leave unset.
-                all_devices.push(DeviceInfo {
-                    id: format!("indi:{}:{}", server_key, dev.name),
-                    name: dev.name.clone(),
-                    device_type,
-                    driver_type: DriverType::Indi,
-                    description: format!("INDI device on {}", server_key),
-                    driver_version: "INDI".to_string(),
-                    serial_number: None,
-                    unique_id: None,
-                    display_name: dev.name.clone(),
-                });
-            }
-        }
-
-        all_devices
-    }
 
     // =========================================================================
     // Camera Control
@@ -7398,375 +6082,9 @@ impl DeviceManager {
         }
     }
 
-    /// Perform health check for Alpaca devices
-    async fn perform_alpaca_health_check(
-        &self,
-        device_id: &str,
-        device_type: &DeviceType,
-    ) -> Result<bool, String> {
-        match device_type {
-            DeviceType::Camera => {
-                let cameras = self.alpaca_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    match camera.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca camera {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca camera {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca camera {} not found", device_id))
-                }
-            }
-            DeviceType::Mount => {
-                let mounts = self.alpaca_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    match mount.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca mount {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca mount {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca mount {} not found", device_id))
-                }
-            }
-            DeviceType::Focuser => {
-                let focusers = self.alpaca_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    match focuser.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca focuser {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca focuser {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca focuser {} not found", device_id))
-                }
-            }
-            DeviceType::FilterWheel => {
-                let filter_wheels = self.alpaca_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    match fw.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca filter wheel {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!(
-                                "Alpaca filter wheel {} heartbeat failed: {}",
-                                device_id,
-                                e
-                            );
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca filter wheel {} not found", device_id))
-                }
-            }
-            DeviceType::Rotator => {
-                let rotators = self.alpaca_rotators.read().await;
-                if let Some(rotator) = rotators.get(device_id) {
-                    match rotator.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca rotator {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca rotator {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca rotator {} not found", device_id))
-                }
-            }
-            DeviceType::SafetyMonitor => {
-                let safety_monitors = self.alpaca_safety_monitors.read().await;
-                if let Some(sm) = safety_monitors.get(device_id) {
-                    match sm.heartbeat().await {
-                        Ok(rtt_ms) => {
-                            tracing::trace!(
-                                "Alpaca safety monitor {} heartbeat: {}ms RTT",
-                                device_id,
-                                rtt_ms
-                            );
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!(
-                                "Alpaca safety monitor {} heartbeat failed: {}",
-                                device_id,
-                                e
-                            );
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca safety monitor {} not found", device_id))
-                }
-            }
-            DeviceType::Dome => {
-                let domes = self.alpaca_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    match dome.is_connected().await {
-                        Ok(connected) => {
-                            tracing::trace!(
-                                "Alpaca dome {} heartbeat: connected={}",
-                                device_id,
-                                connected
-                            );
-                            Ok(connected)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca dome {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca dome {} not found", device_id))
-                }
-            }
-            DeviceType::Weather => {
-                let weather = self.alpaca_weather.read().await;
-                if let Some(dev) = weather.get(device_id) {
-                    match dev.is_connected().await {
-                        Ok(connected) => {
-                            tracing::trace!(
-                                "Alpaca weather {} heartbeat: connected={}",
-                                device_id,
-                                connected
-                            );
-                            Ok(connected)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca weather {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca weather {} not found", device_id))
-                }
-            }
-            DeviceType::Switch => {
-                let switches = self.alpaca_switches.read().await;
-                if let Some(sw) = switches.get(device_id) {
-                    match sw.is_connected().await {
-                        Ok(connected) => {
-                            tracing::trace!(
-                                "Alpaca switch {} heartbeat: connected={}",
-                                device_id,
-                                connected
-                            );
-                            Ok(connected)
-                        }
-                        Err(e) => {
-                            tracing::debug!("Alpaca switch {} heartbeat failed: {}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca switch {} not found", device_id))
-                }
-            }
-            DeviceType::CoverCalibrator => {
-                let cover_cals = self.alpaca_cover_calibrators.read().await;
-                if let Some(cc) = cover_cals.get(device_id) {
-                    match cc.is_connected().await {
-                        Ok(connected) => {
-                            tracing::trace!(
-                                "Alpaca cover calibrator {} heartbeat: connected={}",
-                                device_id,
-                                connected
-                            );
-                            Ok(connected)
-                        }
-                        Err(e) => {
-                            tracing::debug!(
-                                "Alpaca cover calibrator {} heartbeat failed: {}",
-                                device_id,
-                                e
-                            );
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("Alpaca cover calibrator {} not found", device_id))
-                }
-            }
-            _ => Err(format!(
-                "No Alpaca heartbeat implementation for device {} ({:?})",
-                device_id, device_type
-            )),
-        }
-    }
+    // perform_alpaca_health_check / perform_ascom_health_check /
+    // perform_indi_health_check moved to crate::dispatch::{alpaca,ascom,indi}.
 
-    /// Perform health check for ASCOM devices (Windows only)
-    #[cfg(windows)]
-    async fn perform_ascom_health_check(
-        &self,
-        device_id: &str,
-        device_type: &DeviceType,
-    ) -> Result<bool, String> {
-        match device_type {
-            DeviceType::Camera => {
-                let cameras = self.ascom_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    match camera.read().await.heartbeat().await {
-                        Ok(health) => {
-                            let is_healthy = matches!(
-                                health,
-                                crate::ascom_wrapper::CameraConnectionHealth::Healthy
-                                    | crate::ascom_wrapper::CameraConnectionHealth::Unknown
-                            );
-                            tracing::trace!("ASCOM camera {} heartbeat: {:?}", device_id, health);
-                            Ok(is_healthy)
-                        }
-                        Err(e) => {
-                            tracing::debug!("ASCOM camera {} heartbeat failed: {:?}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("ASCOM camera {} not found", device_id))
-                }
-            }
-            DeviceType::Mount => {
-                let mounts = self.ascom_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    // Send a lightweight COM command through the worker thread to verify
-                    // the mount is actually responding, not just reading an AtomicBool flag
-                    let mount_guard = mount.read().await;
-                    match mount_guard.get_tracking().await {
-                        Ok(_) => {
-                            tracing::trace!("ASCOM mount {} heartbeat: healthy", device_id,);
-                            Ok(true)
-                        }
-                        Err(e) => {
-                            tracing::debug!("ASCOM mount {} heartbeat failed: {:?}", device_id, e);
-                            Ok(false)
-                        }
-                    }
-                } else {
-                    Err(format!("ASCOM mount {} not found", device_id))
-                }
-            }
-            DeviceType::Focuser => {
-                let focusers = self.ascom_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    let connected = focuser.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM focuser {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
-                } else {
-                    Err(format!("ASCOM focuser {} not found", device_id))
-                }
-            }
-            DeviceType::FilterWheel => {
-                let filter_wheels = self.ascom_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    let connected = fw.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM filter wheel {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
-                } else {
-                    Err(format!("ASCOM filter wheel {} not found", device_id))
-                }
-            }
-            DeviceType::Dome => {
-                let domes = self.ascom_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    let connected = dome.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM dome {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
-                } else {
-                    Err(format!("ASCOM dome {} not found", device_id))
-                }
-            }
-            _ => Err(format!(
-                "No ASCOM heartbeat implementation for device {} ({:?})",
-                device_id, device_type
-            )),
-        }
-    }
-
-    /// Perform health check for INDI devices
-    async fn perform_indi_health_check(&self, device_id: &str) -> Result<bool, String> {
-        // Parse INDI device ID format: indi:host:port:device_name
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return Err("Invalid INDI device ID format".to_string());
-        }
-
-        let server_key = format!("{}:{}", parts[1], parts[2]);
-        let device_name = parts[3..].join(":");
-
-        let clients = self.indi_clients.read().await;
-        if let Some(client) = clients.get(&server_key) {
-            let client_guard = client.read().await;
-            let is_connected = client_guard.is_connected().await;
-
-            if is_connected {
-                // Check if the device is still responding by verifying it exists
-                let is_device_connected = client_guard.is_device_connected(&device_name).await;
-                tracing::trace!(
-                    "INDI {} heartbeat: server_connected={}, device_connected={}",
-                    device_id,
-                    is_connected,
-                    is_device_connected
-                );
-                Ok(is_device_connected)
-            } else {
-                tracing::debug!("INDI {} heartbeat: server not connected", device_id);
-                Ok(false)
-            }
-        } else {
-            Err(format!("INDI client for {} not found", server_key))
-        }
-    }
 
     /// Start heartbeat monitoring for a device with default configuration
     ///
@@ -8251,47 +6569,8 @@ impl DeviceManager {
     // INDI Switch Helpers
     // =========================================================================
 
-    /// Get all INDI switch elements as a flat ordered list for indexed access.
-    /// Each entry is (property_name, element_name, label, state, writable).
-    async fn indi_get_all_switches(
-        &self,
-        device_id: &str,
-    ) -> Result<Vec<nightshade_indi::IndiSwitchInfo>, String> {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return Err("Invalid INDI device ID".to_string());
-        }
-        let server_key = format!("{}:{}", parts[1], parts[2]);
-        let device_name = parts[3..].join(":");
-
-        let clients = self.indi_clients.read().await;
-        if let Some(client) = clients.get(&server_key) {
-            let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
-            return Ok(switch_dev.get_all_switches().await);
-        }
-        Err("INDI switch device not connected".to_string())
-    }
-
-    /// Get the Nth INDI switch element (0-indexed).
-    async fn indi_get_switch_at(
-        &self,
-        device_id: &str,
-        index: i32,
-    ) -> Result<nightshade_indi::IndiSwitchInfo, String> {
-        let switches = self.indi_get_all_switches(device_id).await?;
-        let idx = index as usize;
-        if idx >= switches.len() {
-            return Err(format!(
-                "Switch index {} out of range (device has {} switches)",
-                index,
-                switches.len()
-            ));
-        }
-        Ok(switches
-            .into_iter()
-            .nth(idx)
-            .ok_or_else(|| format!("Switch index {} out of range", index))?)
-    }
+    // indi_get_all_switches / indi_get_switch_at moved to
+    // `crate::dispatch::indi`; call sites use `self.indi_*` unchanged.
 
     // =========================================================================
     // Switch Control

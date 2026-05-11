@@ -64,6 +64,7 @@ mod device_capabilities;
 mod device_guard;
 mod device_id;
 mod devices;
+mod dispatch;
 mod error;
 mod event;
 mod filter_matching;
