@@ -422,7 +422,6 @@ impl DeviceOps for NullDeviceOps {
         tracing::info!("[NULL] Starting {:.1}s exposure", duration_secs);
         tokio::time::sleep(std::time::Duration::from_secs_f64(duration_secs)).await;
 
-        // Return simulated image
         Ok(ImageData {
             width: 4144,
             height: 2822,
@@ -687,14 +686,16 @@ impl DeviceOps for NullDeviceOps {
     }
 
     async fn safety_is_safe(&self, _safety_id: Option<&str>) -> DeviceResult<bool> {
-        // For testing, always return safe
+        // Tests using NullDeviceOps need WeatherUnsafe to never fire; returning
+        // true unconditionally is the simplest contract for that.
         tracing::info!("[NULL] Safety check: safe");
         Ok(true)
     }
 
     async fn calculate_image_hfr(&self, _image_data: &ImageData) -> DeviceResult<Option<f64>> {
-        // Simulate HFR calculation for testing
-        // Return a value between 1.5 and 3.0 pixels
+        // Stub returns a plausible random HFR (1.5–3.0 px) so autofocus tests
+        // get a varying curve to fit, exercising the V-curve solver without
+        // requiring a real star detector.
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let hfr = rng.gen_range(1.5..3.0);
@@ -706,7 +707,8 @@ impl DeviceOps for NullDeviceOps {
         &self,
         _image_data: &ImageData,
     ) -> DeviceResult<Vec<(f64, f64, f64)>> {
-        // Simulate star detection for testing
+        // Synthesize a randomized star field so MIN_STAR_COUNT-style validation
+        // in tests sees a non-trivial detector output.
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let num_stars = rng.gen_range(10..50);
@@ -755,12 +757,14 @@ impl DeviceOps for NullDeviceOps {
     }
 
     async fn cover_calibrator_get_cover_state(&self, _device_id: &str) -> DeviceResult<i32> {
-        // Return "Open" state (3)
+        // ASCOM CoverState::Open == 3; the pre-flip cover check (§1.19) treats
+        // anything ≠ Closed as "ok to slew", so Open is the safe stub default.
         Ok(3)
     }
 
     async fn cover_calibrator_get_calibrator_state(&self, _device_id: &str) -> DeviceResult<i32> {
-        // Return "Ready" state (3)
+        // ASCOM CalibratorState::Ready == 3 — the "no-wait" state, so the flat
+        // wizard does not loop waiting for the panel to warm up in tests.
         Ok(3)
     }
 

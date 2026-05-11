@@ -209,7 +209,9 @@ const SLEW_POSITION_TOLERANCE_DEG: f64 = 1.0 / 60.0;
 /// Normalize RA difference to account for wraparound at 24 hours
 /// Returns the shortest angular distance between two RA values in hours
 fn normalize_ra_diff_hours(diff: f64) -> f64 {
-    // Wrap to -12 to +12 hours range (equivalent to -180 to +180 degrees)
+    // Normalize to [-12, +12] h so the sign of the result is the shortest
+    // signed angular distance — necessary because a raw 23 h difference is
+    // physically a -1 h move, not a 23 h move.
     let mut wrapped = diff % 24.0;
     if wrapped > 12.0 {
         wrapped -= 24.0;
@@ -229,14 +231,13 @@ fn validate_slew_position(
     dec_actual: f64,
     tolerance_deg: f64,
 ) -> Result<(), String> {
-    // Calculate RA difference (accounting for wraparound) and convert to degrees
     let ra_diff_hours = normalize_ra_diff_hours(ra_actual - ra_target);
-    let ra_diff_deg = ra_diff_hours * 15.0; // 1 hour = 15 degrees
+    let ra_diff_deg = ra_diff_hours * 15.0;
 
-    // Dec difference (no wraparound needed)
+    // Dec is bounded to [-90, +90] so there is no wraparound to handle; a
+    // raw subtraction is the signed angular distance directly.
     let dec_diff_deg = dec_actual - dec_target;
 
-    // Check if within tolerance
     if ra_diff_deg.abs() > tolerance_deg || dec_diff_deg.abs() > tolerance_deg {
         return Err(format!(
             "Mount slew did not reach target position. Expected RA={:.4}h, Dec={:.4}deg, \
@@ -264,7 +265,10 @@ pub async fn execute_slew(
         Err(e) => return e,
     };
 
-    // Check if mount is parked - cannot slew while parked
+    // Slewing a parked mount on most drivers either silently no-ops or
+    // errors deep in the slew loop; surfacing the precondition here gives
+    // the user a clean error with a recovery hint (unpark) before any
+    // long-running motion is attempted.
     match ctx.device_ops.mount_is_parked(mount_id).await {
         Ok(true) => {
             tracing::warn!("Mount is parked, cannot slew. Please unpark the mount first.");
@@ -277,12 +281,13 @@ pub async fn execute_slew(
             tracing::debug!("Mount is not parked, proceeding with slew");
         }
         Err(e) => {
-            // Log but continue - some mounts may not support park status query
+            // Old INDI drivers and some serial mounts lack park-status reporting.
+            // Treat the query failure as "unknown" rather than "parked" so we do
+            // not block slewing on mounts that genuinely cannot tell us.
             tracing::debug!("Could not check mount park status: {}", e);
         }
     }
 
-    // Get coordinates
     let (ra, dec) = if config.use_target_coords {
         match (ctx.target_ra, ctx.target_dec) {
             (Some(ra), Some(dec)) => (ra, dec),
@@ -297,7 +302,6 @@ pub async fn execute_slew(
 
     tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}Ã‚Â°", ra, dec);
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(
             0.0,
@@ -309,15 +313,20 @@ pub async fn execute_slew(
         return result;
     }
 
-    // Start the slew
     tokio::select! {
         result = ctx.device_ops.mount_slew_to_coordinates(mount_id, ra, dec) => {
             match result {
                 Ok(_) => {
-                    // Wait for mount to actually stop slewing
+                    // 1800 s = 30 min handles the longest realistic slew on
+                    // weight-belt direct-drives doing a full-sky move; tighter
+                    // would false-alarm on heavily loaded mounts.
                     match wait_for_mount_idle_with_progress(mount_id, ctx, Duration::from_secs(1800), progress_callback).await {
                         Ok(_) => {
-                            // Validate that mount reached the target position
+                            // The mount reports "not slewing" before its
+                            // axes have fully settled on some drivers, so we
+                            // re-read coordinates and validate against the
+                            // target before declaring success — silent
+                            // mis-pointing would feed bad data downstream.
                             match ctx.device_ops.mount_get_coordinates(mount_id).await {
                                 Ok((actual_ra, actual_dec)) => {
                                     tracing::debug!(
@@ -325,7 +334,6 @@ pub async fn execute_slew(
                                         ra, dec, actual_ra, actual_dec
                                     );
 
-                                    // Validate position within tolerance (1 arcminute)
                                     if let Err(e) = validate_slew_position(
                                         ra, dec, actual_ra, actual_dec,
                                         SLEW_POSITION_TOLERANCE_DEG,
@@ -411,13 +419,11 @@ async fn wait_for_mount_idle_with_progress(
     let mut poll_count = 0u32;
 
     loop {
-        // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
             let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
             return Err("Operation cancelled".to_string());
         }
 
-        // Check if mount is still slewing
         match ctx.device_ops.mount_is_slewing(mount_id).await {
             Ok(is_slewing) => {
                 if !is_slewing {
@@ -426,23 +432,26 @@ async fn wait_for_mount_idle_with_progress(
                 }
             }
             Err(e) => {
+                // Transient query failures are common during slews on serial
+                // mounts; we keep polling so a one-off error does not abort
+                // an otherwise healthy slew.
                 tracing::warn!("Error checking slew status: {}", e);
-                // Continue polling - transient error
             }
         }
 
-        // Emit progress every 2 seconds (4 polls at 500ms)
+        // Slew progress lacks a real percentage from drivers, so we synthesize
+        // a 0–95% estimate from elapsed time using the typical 30–60 s slew
+        // duration. Capped at 95% so the user does not see "100%" before the
+        // mount actually reports idle.
         poll_count += 1;
         if poll_count.is_multiple_of(4) {
             let elapsed_secs = start.elapsed().as_secs();
-            // Use time-based progress as approximation (typical slew is 30-60s)
             let progress = ((elapsed_secs as f64 / 60.0) * 100.0).min(95.0);
             if let Some(cb) = progress_callback {
                 cb(progress, format!("Slewing... ({:.0}s)", elapsed_secs));
             }
         }
 
-        // Check timeout
         if start.elapsed() > timeout {
             return Err(format!(
                 "Mount slew timed out after {} seconds",
@@ -450,7 +459,8 @@ async fn wait_for_mount_idle_with_progress(
             ));
         }
 
-        // Poll every 500ms
+        // 500 ms balances responsiveness against driver query cost on serial
+        // mounts (where each poll round-trips through USB-to-serial).
         sleep(Duration::from_millis(500)).await;
     }
 }
@@ -463,9 +473,10 @@ async fn wait_for_focuser_idle(
 ) -> Result<(), String> {
     let start = std::time::Instant::now();
     loop {
-        // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
-            // Halt the focuser and wait for it to stop before returning
+            // A bare cancel without halting can leave the focuser to overshoot
+            // the original target; halt + wait-for-stop guarantees the user's
+            // next instruction (e.g. autofocus restart) sees a stationary motor.
             tracing::info!("Cancellation detected during focuser move, halting focuser");
             if let Err(e) = ctx.device_ops.focuser_halt(focuser_id).await {
                 tracing::warn!("Failed to halt focuser during cancellation: {}", e);
@@ -475,11 +486,13 @@ async fn wait_for_focuser_idle(
             return Err("Operation cancelled".to_string());
         }
 
-        // Check if focuser is still moving
         match ctx.device_ops.focuser_is_moving(focuser_id).await {
             Ok(is_moving) => {
                 if !is_moving {
-                    // Add small settling delay
+                    // 100 ms settle absorbs motor backlash on stepper focusers
+                    // — the driver reports "stopped" before the gear train
+                    // physically settles, and a subsequent exposure would catch
+                    // the tail-end vibration.
                     sleep(Duration::from_millis(100)).await;
                     tracing::debug!("Focuser reached target position");
                     return Ok(());
@@ -487,11 +500,9 @@ async fn wait_for_focuser_idle(
             }
             Err(e) => {
                 tracing::warn!("Error checking focuser status: {}", e);
-                // Continue polling - transient error
             }
         }
 
-        // Check timeout
         if start.elapsed() > timeout {
             return Err(format!(
                 "Focuser move timed out after {} seconds",
@@ -499,7 +510,8 @@ async fn wait_for_focuser_idle(
             ));
         }
 
-        // Poll every 100ms for focuser (faster than mount)
+        // 100 ms (vs 500 ms for mount) — focusers complete moves in seconds,
+        // not minutes, so a coarser cadence would lose alignment precision.
         sleep(Duration::from_millis(100)).await;
     }
 }
@@ -514,7 +526,6 @@ pub async fn wait_for_focuser_stop_after_halt(
 ) {
     let start = std::time::Instant::now();
     loop {
-        // Check if focuser is still moving
         match device_ops.focuser_is_moving(focuser_id).await {
             Ok(is_moving) => {
                 if !is_moving {
@@ -524,11 +535,9 @@ pub async fn wait_for_focuser_stop_after_halt(
             }
             Err(e) => {
                 tracing::warn!("Error checking focuser status after halt: {}", e);
-                // Continue polling - transient error
             }
         }
 
-        // Check timeout
         if start.elapsed() > timeout {
             tracing::warn!(
                 "Focuser did not stop within {} seconds after halt",
@@ -537,7 +546,6 @@ pub async fn wait_for_focuser_stop_after_halt(
             return;
         }
 
-        // Poll every 100ms
         sleep(Duration::from_millis(100)).await;
     }
 }
@@ -551,16 +559,17 @@ async fn wait_for_filterwheel_idle(
 ) -> Result<(), String> {
     let start = std::time::Instant::now();
 
-    // Small initial delay to allow filter wheel to start moving
+    // Some filter wheels (notably ZWO EFW) still report the old position for
+    // ~50 ms after issuing a move command; polling immediately would treat
+    // the "already at target" reading as success and return before the wheel
+    // has even started turning.
     sleep(Duration::from_millis(100)).await;
 
     loop {
-        // Check cancellation
         if ctx.cancellation_token.load(Ordering::Relaxed) {
             return Err("Operation cancelled".to_string());
         }
 
-        // Check if filter wheel reached target position
         match ctx.device_ops.filterwheel_get_position(fw_id).await {
             Ok(current_pos) => {
                 if current_pos == target_position {
@@ -575,11 +584,9 @@ async fn wait_for_filterwheel_idle(
             }
             Err(e) => {
                 tracing::warn!("Error checking filter wheel position: {}", e);
-                // Continue polling - transient error
             }
         }
 
-        // Check timeout
         if start.elapsed() > timeout {
             return Err(format!(
                 "Filter wheel move timed out after {} seconds (target: {})",
@@ -588,7 +595,6 @@ async fn wait_for_filterwheel_idle(
             ));
         }
 
-        // Poll every 200ms
         sleep(Duration::from_millis(200)).await;
     }
 }
@@ -698,7 +704,6 @@ pub async fn execute_center(
         config.accuracy_arcsec
     );
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(
             0.0,
@@ -714,7 +719,6 @@ pub async fn execute_center(
         let attempt_progress = ((attempt - 1) as f64 / config.max_attempts as f64) * 100.0;
         tracing::info!("Center attempt {}/{}", attempt, config.max_attempts);
 
-        // Emit progress for this attempt
         if let Some(cb) = progress_callback {
             cb(
                 attempt_progress,
@@ -722,14 +726,16 @@ pub async fn execute_center(
             );
         }
 
-        // Take a plate solve exposure
         let image_data = tokio::select! {
+            // Full resolution + 1x1 binning gives the plate solver the highest
+            // possible star count; binning would reduce SNR enough to fail on
+            // sparse fields.
             result = ctx.device_ops.camera_start_exposure(
                 &camera_id,
                 config.exposure_duration,
                 None,
                 None,
-                1, 1, // Full resolution for best solve
+                1, 1,
             ) => {
                 match result {
                     Ok(data) => {
@@ -746,7 +752,6 @@ pub async fn execute_center(
             }
         };
 
-        // Plate solve the image
         let solve_result = tokio::select! {
             result = ctx.device_ops.plate_solve(
                 &image_data,
@@ -772,7 +777,9 @@ pub async fn execute_center(
             }
         };
 
-        // Update trigger state with plate solve result for drift detection
+        // Feeding the solve back into trigger state is what enables the
+        // DriftLimit trigger (§1.11) to detect cumulative drift across
+        // exposures without re-solving on every frame.
         if let Some(trigger_state_lock) = &ctx.trigger_state {
             let mut trigger_state = trigger_state_lock.write().await;
             trigger_state.update_plate_solve(
@@ -786,7 +793,6 @@ pub async fn execute_center(
             );
         }
 
-        // Calculate separation from target
         let separation_arcsec = calculate_separation_arcsec(
             target_ra_deg,
             target_dec,
@@ -795,7 +801,6 @@ pub async fn execute_center(
         );
         tracing::info!("Current separation: {:.1}\" from target", separation_arcsec);
 
-        // Emit progress with separation info
         if let Some(cb) = progress_callback {
             cb(
                 attempt_progress + 50.0 / config.max_attempts as f64,
@@ -806,7 +811,6 @@ pub async fn execute_center(
             );
         }
 
-        // Check if within tolerance
         if separation_arcsec <= config.accuracy_arcsec {
             if let Some(cb) = progress_callback {
                 cb(100.0, format!("Centered: {:.1}\"", separation_arcsec));
@@ -817,7 +821,9 @@ pub async fn execute_center(
             ));
         }
 
-        // Sync mount to solved position
+        // Sync corrects the mount's internal model to the plate-solved truth
+        // before re-slewing; without it, the next slew would land at the same
+        // wrong spot (the mount thinks it's already at target).
         if let Err(e) = ctx
             .device_ops
             .mount_sync(
@@ -833,7 +839,6 @@ pub async fn execute_center(
             ));
         }
 
-        // Slew to target
         tracing::info!("Slewing to correct position...");
         if let Some(cb) = progress_callback {
             cb(
@@ -855,7 +860,9 @@ pub async fn execute_center(
             }
         }
 
-        // Wait for settling
+        // 2 s post-slew settle absorbs mount oscillation before the next
+        // plate-solve exposure; without it, the solve sees motion-blurred
+        // stars and the iteration produces a noisy correction vector.
         sleep(Duration::from_secs(2)).await;
     }
 
@@ -872,12 +879,14 @@ fn calculate_separation_arcsec(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_d
     let delta_ra = (ra2_deg - ra1_deg).to_radians();
     let delta_dec = (dec2_deg - dec1_deg).to_radians();
 
-    // Haversine formula for angular separation
+    // Haversine (not law-of-cosines) — at sub-arcsecond centering tolerances
+    // the LoC formula loses precision near zero separation due to acos(~1.0)
+    // rounding to 1.0 exactly.
     let a = (delta_dec / 2.0).sin().powi(2)
         + dec1_rad.cos() * dec2_rad.cos() * (delta_ra / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().asin();
 
-    c.to_degrees() * 3600.0 // Convert to arcseconds
+    c.to_degrees() * 3600.0
 }
 
 // =============================================================================
@@ -908,10 +917,12 @@ pub async fn execute_exposure(
         config.duration_secs
     );
 
-    // Change filter if specified - prefer index over name for reliability
+    // Position-index is preferred over name because filter names are
+    // user-editable strings that can drift between profile and device
+    // (e.g. "Ha" vs "H-alpha"); the position is the wheel's stable
+    // hardware addressing.
     if config.filter.is_some() || config.filter_index.is_some() {
         if let Some(fw_id) = &ctx.filterwheel_id {
-            // If filter_index is specified, use it directly (most reliable)
             if let Some(index) = config.filter_index {
                 tracing::info!(
                     "Changing to filter position: {} (name: {:?})",
@@ -922,7 +933,6 @@ pub async fn execute_exposure(
                     return InstructionResult::failure(format!("Failed to change filter: {}", e));
                 }
             } else if let Some(filter) = &config.filter {
-                // Fall back to name-based lookup
                 tracing::info!("Changing to filter by name: {}", filter);
                 if let Err(e) = ctx
                     .device_ops
@@ -935,7 +945,6 @@ pub async fn execute_exposure(
         }
     }
 
-    // Determine binning
     let (bin_x, bin_y) = match config.binning {
         Binning::One => (1, 1),
         Binning::Two => (2, 2),
@@ -958,7 +967,10 @@ pub async fn execute_exposure(
             config.duration_secs
         );
 
-        // Start exposure with cancellation support
+        // tokio::select! is the only way to honour cancellation during a
+        // blocking exposure without driver support; the abort branch tells
+        // the camera to stop so it does not continue exposing in the
+        // background after we abandon the future.
         let image_data = tokio::select! {
             result = ctx.device_ops.camera_start_exposure(
                 &camera_id,
@@ -988,7 +1000,9 @@ pub async fn execute_exposure(
             }
         };
 
-        // Calculate HFR for trigger monitoring
+        // Per-frame HFR feeds the HfrDegraded / FocusDrift triggers; computing
+        // it here (rather than only on autofocus) gives the triggers real-time
+        // visibility into focus health between AF runs.
         match ctx.device_ops.calculate_image_hfr(&image_data).await {
             Ok(Some(hfr)) => {
                 tracing::info!("Frame {}/{} HFR: {:.2} pixels", frame, config.count, hfr);
@@ -1011,7 +1025,6 @@ pub async fn execute_exposure(
             }
         }
 
-        // Save the image
         let save_path = config
             .save_to
             .as_ref()
@@ -1072,10 +1085,11 @@ pub async fn execute_exposure(
 
         completed_exposures += 1;
 
-        // Notify about completed exposure with duration for integration time tracking
-        progress_callback(frame, config.count); // This will be captured by the node for integration tracking
+        progress_callback(frame, config.count);
 
-        // Dither if configured
+        // `frame < config.count` skips the dither after the final frame:
+        // dithering after the last exposure of a burst leaves the mount
+        // off-target for the next instruction (and wastes time).
         if let Some(dither_every) = config.dither_every {
             if dither_every > 0 && frame % dither_every == 0 && frame < config.count {
                 tracing::info!("Dithering...");
@@ -1137,12 +1151,13 @@ pub async fn execute_autofocus(
         return result;
     }
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(0.0, "Starting autofocus...".to_string());
     }
 
-    // Get current focuser position
+    // Sweep positions are calculated from the current position outward;
+    // failing the read here is fatal because the alternative is to sweep
+    // from a guessed origin and land somewhere unrelated to focus.
     tracing::debug!("Getting focuser position for focuser_id: {}", focuser_id);
     let current_position = match ctx.device_ops.focuser_get_position(&focuser_id).await {
         Ok(pos) => pos,
@@ -1154,7 +1169,6 @@ pub async fn execute_autofocus(
 
     tracing::info!("Current focuser position: {}", current_position);
 
-    // Initialize autofocus engine with backlash compensation
     let af_config: crate::autofocus::AutofocusConfig = config.into();
 
     let af_start_time = std::time::Instant::now();
@@ -1163,14 +1177,12 @@ pub async fn execute_autofocus(
     let af_engine = crate::autofocus::VCurveAutofocus::new(af_config.clone());
     let backlash = crate::autofocus::BacklashCompensation::new(af_config.backlash_compensation);
 
-    // Calculate sweep positions using the autofocus engine
     let positions = af_engine.calculate_positions(current_position);
     let total_points = positions.len();
     let start_position = positions[0];
 
     let mut focus_data: Vec<crate::autofocus::FocusDataPoint> = Vec::with_capacity(total_points);
 
-    // Move to starting position with backlash compensation
     if let Some(cb) = progress_callback {
         cb(5.0, format!("Moving to start position: {}", start_position));
     }
@@ -1213,12 +1225,10 @@ pub async fn execute_autofocus(
         }
     }
 
-    // Wait for focuser to reach starting position
     if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(300)).await {
         return InstructionResult::failure(e);
     }
 
-    // Take exposures at each focus point
     let (bin_x, bin_y) = match config.binning {
         Binning::One => (1, 1),
         Binning::Two => (2, 2),
@@ -1231,9 +1241,12 @@ pub async fn execute_autofocus(
     // local const. A user with a fast/dim setup can lower it without
     // patching the binary.
     let min_star_count: u32 = config.min_star_count.max(1);
-    // Minimum HFR variance required for a valid V-curve
+    // 1.0 px² is the noise floor: a V-curve with smaller HFR variance is
+    // indistinguishable from flat noise and the fit would extrapolate to
+    // nonsense.
     const MIN_HFR_VARIANCE: f64 = 1.0;
-    // Minimum RÃ‚Â² quality for curve fit
+    // R²<0.5 means the curve fit is worse than a horizontal line; accepting
+    // such a fit would produce a "best" focus that has no physical meaning.
     const MIN_R_SQUARED: f64 = 0.5;
 
     let mut low_star_count_warnings = 0;
@@ -1261,12 +1274,16 @@ pub async fn execute_autofocus(
         }
 
         if let Some(result) = ctx.check_cancelled() {
-            // Halt focuser and wait for it to stop before returning
+            // Halting + stop-wait guarantees the motor is stationary before
+            // we issue the return-to-original move; otherwise the second
+            // move command could race the in-flight sweep move.
             tracing::info!("Autofocus cancelled, halting focuser");
             let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
             wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
                 .await;
-            // Optionally return to original position (start the move but don't wait - user cancelled)
+            // Fire-and-forget the return move: the user cancelled, so we
+            // don't want to block them with a 30 s wait; if the move
+            // succeeds, great, if not, the next instruction will re-park.
             let _ = ctx
                 .device_ops
                 .focuser_move_to(&focuser_id, current_position)
@@ -1276,7 +1293,9 @@ pub async fn execute_autofocus(
 
         let position = positions[point];
 
-        // Calculate progress: 10-90% for the V-curve points, remaining for final move
+        // 10-90% covers the V-curve sample loop; the remaining 10% is the
+        // final move + settle + curve fit, which is the noticeable wait the
+        // user sees after the last sample is taken.
         let point_progress = 10.0 + (point as f64 / total_points as f64 * 80.0);
 
         tracing::info!(
@@ -1292,17 +1311,14 @@ pub async fn execute_autofocus(
             );
         }
 
-        // Move to position
         if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, position).await {
             return InstructionResult::failure(format!("Failed to move focuser: {}", e));
         }
 
-        // Wait for focuser to settle at new position
         if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
             return InstructionResult::failure(e);
         }
 
-        // Take exposure and measure HFR
         let image_data = match ctx
             .device_ops
             .camera_start_exposure(
@@ -1329,7 +1345,6 @@ pub async fn execute_autofocus(
             }
         };
 
-        // Calculate HFR, star count, and extract star crops from image
         let measurement = calculate_hfr_with_crops(&image_data);
 
         tracing::info!(
@@ -1339,7 +1354,6 @@ pub async fn execute_autofocus(
             measurement.star_count
         );
 
-        // Check for insufficient stars
         if measurement.star_count < min_star_count {
             low_star_count_warnings += 1;
             tracing::warn!(
@@ -1349,9 +1363,11 @@ pub async fn execute_autofocus(
                 min_star_count
             );
 
-            // If too many points have low star count, fail immediately
+            // >50% of sweep points failing star detection means seeing /
+            // clouds / pointing has degraded so badly that no fit will be
+            // meaningful; failing fast saves the user the rest of the sweep
+            // and a useless curve-fit error.
             if low_star_count_warnings > total_points / 2 {
-                // Halt focuser and wait for it to stop
                 let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
                 wait_for_focuser_stop_after_halt(
                     &focuser_id,
@@ -1359,7 +1375,6 @@ pub async fn execute_autofocus(
                     Duration::from_secs(10),
                 )
                 .await;
-                // Return focuser to original position
                 let _ = ctx
                     .device_ops
                     .focuser_move_to(&focuser_id, current_position)
@@ -1379,7 +1394,6 @@ pub async fn execute_autofocus(
             star_count: measurement.star_count,
         });
 
-        // Build structured progress data with V-curve points and star crops
         let progress_json = serde_json::json!({
             "type": "autofocus_progress",
             "point": point + 1,
@@ -1404,18 +1418,19 @@ pub async fn execute_autofocus(
             }).collect::<Vec<_>>()
         });
 
-        // Emit progress with structured JSON
         if let Some(cb) = progress_callback {
             cb(point_progress, progress_json.to_string());
         }
     }
 
-    // Validate collected data before curve fitting
     if let Some(cb) = progress_callback {
         cb(92.0, "Validating focus data...".to_string());
     }
 
-    // Check HFR variance - if it's too small, we don't have a real V-curve
+    // A flat HFR curve (variance < MIN_HFR_VARIANCE) is not a V-curve to fit
+    // — it usually means clouds rolled in, the focuser is far outside the
+    // critical zone, or the sensor is misreporting. Fitting anyway would
+    // produce a meaningless "best focus" position.
     let hfr_values: Vec<f64> = focus_data.iter().map(|point| point.hfr).collect();
     let min_hfr = hfr_values.iter().cloned().fold(f64::INFINITY, f64::min);
     let max_hfr = hfr_values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
@@ -1429,11 +1444,13 @@ pub async fn execute_autofocus(
     );
 
     if hfr_variance < MIN_HFR_VARIANCE {
-        // Halt focuser and wait for it to stop (focuser should already be idle here, but be safe)
+        // Defensive halt: the focuser *should* be idle here (we waited at
+        // each sweep point), but a transient driver error could leave it
+        // moving; halting before the return-to-original prevents a queued
+        // move from racing the recovery move.
         let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
         wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
             .await;
-        // Return focuser to original position
         let _ = ctx
             .device_ops
             .focuser_move_to(&focuser_id, current_position)
@@ -1449,7 +1466,6 @@ pub async fn execute_autofocus(
         ));
     }
 
-    // Use VCurveAutofocus engine for curve fitting with outlier rejection
     let af_result = match af_engine.find_best_focus(focus_data) {
         Ok(mut result) => {
             result.temperature_celsius = ctx
@@ -1469,7 +1485,9 @@ pub async fn execute_autofocus(
     let best_hfr = af_result.best_hfr;
     let r_squared = af_result.curve_fit_quality;
 
-    // Check curve fit quality
+    // We warn (not fail) on low R² because some legitimate setups produce
+    // marginal fits (very sparse star fields) and a "best guess" focus is
+    // still better than aborting; the user sees the warning in the log.
     if r_squared < MIN_R_SQUARED {
         tracing::warn!(
             "Low curve fit quality: R²={:.3} (minimum: {:.1}). Proceeding with caution.",
@@ -1485,7 +1503,6 @@ pub async fn execute_autofocus(
         r_squared
     );
 
-    // Move to best position with backlash compensation
     if let Some(cb) = progress_callback {
         cb(95.0, format!("Moving to best focus: {}", best_position));
     }
@@ -1524,12 +1541,10 @@ pub async fn execute_autofocus(
         return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
     }
 
-    // Wait for focuser to settle at best position
     if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
         return InstructionResult::failure(format!("Failed to settle at best focus: {}", e));
     }
 
-    // Emit final progress
     if let Some(cb) = progress_callback {
         cb(
             100.0,
@@ -1576,26 +1591,31 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
         detect_stars_with_stats, extract_top_star_crops, StarDetectionConfig,
     };
 
-    // Convert to imaging crate format
+    // 1 channel = monochrome; raw imager output is treated as mono for HFR
+    // regardless of Bayer pattern, because debayering before star detection
+    // would smear PSFs and inflate HFR.
     let imaging_data = nightshade_imaging::ImageData::from_u16(
         image.width,
         image.height,
-        1, // Mono
+        1,
         &image.data,
     );
 
-    // Use the improved star detection with all filtering
     let config = StarDetectionConfig::default();
     let result = detect_stars_with_stats(&imaging_data, &config);
 
-    // Return high HFR if no valid stars detected
+    // 20.0 px is the "no valid focus" sentinel: an HFR this high is far
+    // beyond any realistic well-focused setup, so the V-curve fit will
+    // treat the point as the extreme of the curve (or reject as outlier).
     let hfr = if result.median_hfr > 0.0 && result.star_count > 0 {
         result.median_hfr
     } else {
-        20.0 // Indicates bad/no stars
+        20.0
     };
 
-    // Extract star crops for the top 5 brightest stars
+    // 5 crops @ 80 px is the upper bound the autofocus UI displays; more
+    // would saturate the operator's view and inflate the JSON payload sent
+    // over the FRB bridge.
     let crops = extract_top_star_crops(&imaging_data, &result.stars, 5, 80);
 
     let star_crops: Vec<StarCropInfo> = crops
@@ -1626,7 +1646,6 @@ pub async fn execute_dither(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(0.0, "Starting dither".to_string());
     }
@@ -1635,14 +1654,15 @@ pub async fn execute_dither(
         return result;
     }
 
-    // Determine dither amount based on pattern
     let (dither_pixels, ra_only) = match config.pattern {
         crate::DitherPattern::Random => {
             tracing::info!("Dithering {} pixels (random)", config.pixels);
             (config.pixels, config.ra_only)
         }
         crate::DitherPattern::Grid => {
-            // Get the next grid position from trigger state
+            // Grid pattern requires trigger state because the next position
+            // must be sticky across calls — without it we cannot walk the
+            // NxN cells in order and would loop the same cell.
             if let Some(ref trigger_state) = ctx.trigger_state {
                 let (ra_offset, dec_offset) = {
                     let mut state = trigger_state.write().await;
@@ -1657,14 +1677,17 @@ pub async fn execute_dither(
                     offset
                 };
 
-                // For grid dithering, we compute the total offset magnitude.
-                // The guider_dither API takes a single "pixels" value, which is the
-                // magnitude of the random offset. For grid pattern, we pass the distance
-                // from the origin as the dither amount. The RA-only flag controls
-                // whether we move in both axes.
+                // guider_dither takes a single magnitude scalar, so we
+                // collapse the 2D grid offset into its Euclidean magnitude.
+                // The guider then performs a random-direction dither of that
+                // magnitude, which is acceptable because the grid algorithm
+                // already enforces spatial coverage at the planning layer.
                 let magnitude = (ra_offset * ra_offset + dec_offset * dec_offset).sqrt();
                 if magnitude < 0.01 {
-                    // At center position (0,0) - skip the dither entirely
+                    // The (0,0) cell is the original target position — a
+                    // dither of 0 px would still trigger a settle wait for no
+                    // benefit. Returning a synthetic Success keeps the grid
+                    // cadence intact (next call advances to the next cell).
                     tracing::info!("Grid dither at center position, skipping");
                     if let Some(cb) = progress_callback {
                         cb(100.0, "Grid dither at center - skipping".to_string());
@@ -1683,7 +1706,6 @@ pub async fn execute_dither(
                 // cell's RA *and* Dec offsets are honoured by the guider.
                 (magnitude, config.ra_only)
             } else {
-                // No trigger state available - fall back to random dither
                 tracing::warn!(
                     "Grid dither requested but no trigger state available, falling back to random"
                 );
@@ -1692,26 +1714,24 @@ pub async fn execute_dither(
         }
     };
 
-    // Emit progress for sending dither command
     if let Some(cb) = progress_callback {
         cb(30.0, "Sending dither command to guider".to_string());
     }
 
-    // The guider_dither call handles:
-    // - Sending the dither command
-    // - Waiting for the dither move to complete
-    // - Waiting for guiding to settle
-    // We report combined progress since these happen atomically in the device ops call
+    // guider_dither blocks until the move + settle completes. We can only
+    // emit synthetic progress points around it; the device-ops layer does
+    // not expose sub-step progress, so the UI shows discrete checkpoints
+    // rather than a smooth bar during this phase.
     if let Some(cb) = progress_callback {
         cb(50.0, "Waiting for dither to complete".to_string());
     }
 
-    // Check cancellation before the potentially long-running dither operation
+    // Last cancellation check before a potentially 60+ s blocking call —
+    // there is no way to interrupt guider_dither once it's running.
     if let Some(result) = ctx.check_cancelled() {
         return result;
     }
 
-    // Emit progress for settling phase (happens inside guider_dither)
     if let Some(cb) = progress_callback {
         cb(70.0, "Waiting for guiding to settle".to_string());
     }
@@ -1728,7 +1748,6 @@ pub async fn execute_dither(
         .await
     {
         Ok(_) => {
-            // Emit final progress
             if let Some(cb) = progress_callback {
                 cb(100.0, "Dither complete".to_string());
             }
@@ -1760,7 +1779,6 @@ pub async fn execute_start_guiding(
         config.settle_pixels
     );
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(0.0, "Starting guiding".to_string());
     }
@@ -1769,12 +1787,14 @@ pub async fn execute_start_guiding(
         return result;
     }
 
-    // Progress: Connecting to guider
     if let Some(cb) = progress_callback {
         cb(20.0, "Connecting to guider".to_string());
     }
 
-    // Check guider connection status
+    // Pre-flight status read serves two purposes: surface connection
+    // problems before issuing a guider_start (which has worse error
+    // diagnostics), and seed the log with the pre-state so post-start
+    // RMS readings can be compared to the baseline.
     match ctx.device_ops.guider_get_status().await {
         Ok(status) => {
             tracing::debug!(
@@ -1784,8 +1804,10 @@ pub async fn execute_start_guiding(
             );
         }
         Err(e) => {
+            // Some guiders (PHD2 in calibration) cannot answer status
+            // queries but still accept Start; treat the read failure as a
+            // soft warning rather than abort the sequence.
             tracing::warn!("Could not get guider status: {}", e);
-            // Continue anyway - guider_start may still work
         }
     }
 
@@ -1793,12 +1815,10 @@ pub async fn execute_start_guiding(
         return result;
     }
 
-    // Progress: Starting guide camera loop
     if let Some(cb) = progress_callback {
         cb(40.0, "Starting guide camera loop".to_string());
     }
 
-    // Start guiding - this will auto-select a star if needed and wait for settle
     if let Some(cb) = progress_callback {
         cb(60.0, "Waiting for guiding to stabilize".to_string());
     }
@@ -1877,7 +1897,6 @@ pub async fn execute_stop_guiding(
 ) -> InstructionResult {
     tracing::info!("Stopping guiding");
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(0.0, "Stopping guiding".to_string());
     }
@@ -1886,7 +1905,6 @@ pub async fn execute_stop_guiding(
         return result;
     }
 
-    // Progress: Sending stop command
     if let Some(cb) = progress_callback {
         cb(50.0, "Sending stop command".to_string());
     }
@@ -1920,7 +1938,9 @@ pub async fn execute_filter_change(
         Err(e) => return e,
     };
 
-    // Use configured timeout or default
+    // Per-filter timeout overrides the global default to accommodate slow
+    // wheels (motorized covers, many-position wheels) that legitimately
+    // need longer than 120 s; configuring None preserves the safe default.
     let timeout = Duration::from_secs(
         config
             .timeout_secs
@@ -1934,23 +1954,25 @@ pub async fn execute_filter_change(
         timeout
     );
 
-    // Emit initial progress
     if let Some(cb) = progress_callback {
         cb(0.0, format!("Changing to {}", config.filter_name));
     }
 
-    // If filter index is specified, use it directly
+    // Index path is preferred over name (see execute_exposure rationale).
     if let Some(index) = config.filter_index {
         match ctx.device_ops.filterwheel_set_position(&fw_id, index).await {
             Ok(_) => {
                 if let Some(cb) = progress_callback {
                     cb(30.0, format!("Moving to position {}", index));
                 }
-                // Wait for filter wheel to reach target position (the wait function also verifies)
                 if let Err(e) = wait_for_filterwheel_idle(&fw_id, index, ctx, timeout).await {
                     return InstructionResult::failure(e);
                 }
-                // Apply focus offset for this filter
+                // Filter-specific focus offsets compensate for the differing
+                // optical path length of each filter glass; applying them
+                // here keeps the focus point usable for the next exposure
+                // without forcing the user to run autofocus after every
+                // filter change.
                 apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
                 if let Some(cb) = progress_callback {
                     cb(100.0, format!("Filter {}", index));
@@ -1964,7 +1986,6 @@ pub async fn execute_filter_change(
         }
     }
 
-    // Otherwise use filter name
     match ctx
         .device_ops
         .filterwheel_set_filter_by_name(&fw_id, &config.filter_name)
@@ -1974,11 +1995,9 @@ pub async fn execute_filter_change(
             if let Some(cb) = progress_callback {
                 cb(30.0, format!("Moving to {}", config.filter_name));
             }
-            // Wait for filter wheel to reach target position
             if let Err(e) = wait_for_filterwheel_idle(&fw_id, pos, ctx, timeout).await {
                 return InstructionResult::failure(e);
             }
-            // Apply focus offset for this filter
             apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
             if let Some(cb) = progress_callback {
                 cb(100.0, format!("Filter: {}", config.filter_name));
@@ -2023,7 +2042,6 @@ async fn apply_filter_focus_offset(
         cb(60.0, format!("Applying focus offset: {} steps", offset));
     }
 
-    // Get current focuser position
     let current_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
@@ -2049,7 +2067,11 @@ async fn apply_filter_focus_offset(
         return;
     }
 
-    // Wait for focuser to finish moving
+    // 60 polls × 500 ms = 30 s — enough for typical filter-offset moves
+    // (which are tens of steps), but short enough that a stuck focuser does
+    // not block the next exposure. Real verification of `final_pos ==
+    // target_pos` happens after the wait so we catch slow-but-completing
+    // moves as well as outright failures.
     let mut reached_target = false;
     for _ in 0..60 {
         sleep(Duration::from_millis(500)).await;
@@ -2134,7 +2156,9 @@ pub async fn execute_cool_camera(
 
     tracing::info!("Cooling camera to {}Ã‚Â°C", config.target_temp);
 
-    // Get initial temperature for progress calculation
+    // Initial temperature anchors the progress percentage: the user sees
+    // "30% cooled" as halfway between start and target rather than a raw
+    // °C count that means nothing without context.
     let start_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
         Ok(value) => value,
         Err(e) => {
@@ -2144,10 +2168,12 @@ pub async fn execute_cool_camera(
     let target_temp = config.target_temp;
     let temp_range = (start_temp - target_temp).abs();
 
-    // Check if already at target temperature
+    // 0.5 °C tolerance covers typical cooler noise on TEC-equipped cameras
+    // (ZWO/QHY/PlayerOne all report jitter in the ±0.3 °C range when
+    // settled); tighter would force a fake "cooling" loop on a camera
+    // that is already where we want it.
     let already_at_target = (start_temp - target_temp).abs() < 0.5;
 
-    // Enable cooler and set target
     if let Err(e) = ctx
         .device_ops
         .camera_set_cooler(&camera_id, true, target_temp)
@@ -2156,7 +2182,6 @@ pub async fn execute_cool_camera(
         return InstructionResult::failure(format!("Failed to enable cooler: {}", e));
     }
 
-    // If already at target, get power and report success immediately
     if already_at_target {
         let cooler_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
             Ok(value) => value,
@@ -2191,14 +2216,16 @@ pub async fn execute_cool_camera(
 
     // If duration specified, wait for cooling
     if let Some(duration_mins) = config.duration_mins {
-        let steps = (duration_mins * 6.0) as u32; // Check every 10 seconds
+        // 6 polls per minute = 10 s cadence; fast enough that the UI feels
+        // responsive, slow enough that a 20-min cool-down does not flood
+        // logs with hundreds of poll lines.
+        let steps = (duration_mins * 6.0) as u32;
 
         for step in 0..steps {
             if let Some(result) = ctx.check_cancelled() {
                 return result;
             }
 
-            // Check current temperature and cooler power
             let current_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
                 Ok(value) => value,
                 Err(e) => {
@@ -2218,10 +2245,11 @@ pub async fn execute_cool_camera(
                 }
             };
 
-            // Calculate progress based on temperature change
-            // Formula: (current - start) / (target - start) * 100
-            // This correctly handles both cooling and warming, and allows negative progress
-            // if temperature moves away from target (e.g., sensor heating during exposure)
+            // Direction-agnostic progress: (current - start) / (target -
+            // start). Works for both cooling and warming because both
+            // numerator and denominator carry the same sign convention.
+            // Clamped to [0, 100] so transient temperature wobbles do not
+            // produce nonsensical progress jumps in the UI.
             let temp_progress = if temp_range > 0.1 {
                 let raw = (current_temp - start_temp) / (target_temp - start_temp) * 100.0;
                 raw.clamp(0.0, 100.0)
@@ -2229,10 +2257,11 @@ pub async fn execute_cool_camera(
                 100.0
             };
 
-            // Also consider time-based progress
+            // Time-based progress is the floor: even if the camera fails
+            // to cool, the bar advances toward 100% as the user-configured
+            // duration runs out, signalling that the wait is finite.
             let time_progress = step as f64 / steps as f64 * 100.0;
 
-            // Use the higher of the two progress metrics
             let progress = temp_progress.max(time_progress);
 
             tracing::debug!(
@@ -2242,7 +2271,6 @@ pub async fn execute_cool_camera(
                 cooler_power
             );
 
-            // Emit progress event with cooler power
             if let Some(cb) = progress_callback {
                 cb(
                     progress,
@@ -2253,7 +2281,6 @@ pub async fn execute_cool_camera(
                 );
             }
 
-            // Check if we've reached target
             if (current_temp - target_temp).abs() < 0.5 {
                 let final_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
                     Ok(value) => value,
@@ -2278,7 +2305,6 @@ pub async fn execute_cool_camera(
         }
     }
 
-    // Emit final progress
     if let Some(cb) = progress_callback {
         cb(100.0, format!("Cooling to {}Ã‚Â°C initiated", target_temp));
     }

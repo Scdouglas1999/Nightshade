@@ -162,11 +162,13 @@ impl Trigger {
                         None => return false,
                     };
 
-                    // Check absolute threshold (if configured > 0)
+                    // A threshold of 0.0 means "this branch is disabled" — both
+                    // modes share the trigger and either alone can fire. Users
+                    // typically pick one; the OR below makes the choice
+                    // declarative rather than requiring a separate "mode" enum.
                     let exceeds_absolute =
                         *absolute_threshold > 0.0 && current > *absolute_threshold;
 
-                    // Check relative threshold (percentage above baseline)
                     let exceeds_relative = if *threshold_percent > 0.0 {
                         if let Some(baseline) = state.baseline_hfr {
                             if baseline > 0.0 {
@@ -182,41 +184,45 @@ impl Trigger {
                         false
                     };
 
-                    // HFR is "bad" if either threshold is exceeded
                     let is_bad = exceeds_absolute || exceeds_relative;
 
-                    // Track consecutive bad frames
+                    // A single bad frame is usually a seeing spike, not a real
+                    // focus problem. consecutive_frames is the user's tolerance
+                    // for how many bad frames in a row count as a real
+                    // degradation worth interrupting the sequence over.
                     if is_bad {
                         self.hfr_bad_frame_count += 1;
                     } else {
                         self.hfr_bad_frame_count = 0;
                     }
 
-                    // Only trigger after required consecutive bad frames
                     let required = (*consecutive_frames).max(1);
                     self.hfr_bad_frame_count >= required
                 }
             }
             TriggerType::MeridianFlip { config } => {
-                // Don't trigger if we've already flipped for this target
+                // Audit §1.3 / §1.9: once flipped for a target, the same trigger
+                // must not fire again until the target changes. Without this
+                // guard, the post-flip pier-side reading could ping-pong and
+                // request a second flip in the opposite direction.
                 if state.has_flipped_this_target {
                     return false;
                 }
 
-                // Need to know the current hour angle for the primary trigger methods
                 match config.trigger_method {
                     crate::MeridianTriggerMethod::MinutesPastMeridian => {
-                        // Trigger when target is past meridian by specified minutes
-                        // Hour angle > 0 means west of meridian (past meridian for northern hemisphere)
                         if let Some(ha) = state.current_hour_angle {
-                            // Convert hour angle to minutes (1h = 60min)
                             let minutes_past = ha * 60.0;
-                            // Trigger when positive HA exceeds threshold (target past meridian)
-                            // and we're on the pre-flip pier side (typically West when target is East)
+                            // Pier-side guards a degenerate post-flip case: once
+                            // we are on the post-flip side, HA is still positive
+                            // but a second flip would be wrong. Unknown is
+                            // permissive (legacy mounts that don't report pier
+                            // side); a positive HA there still implies we are
+                            // past meridian and should flip.
                             let on_pre_flip_side = match state.pier_side {
-                                Some(PierSide::West) => ha > 0.0, // Target has crossed
-                                Some(PierSide::East) => false,    // Already flipped
-                                _ => ha > 0.0,                    // Unknown - use HA sign
+                                Some(PierSide::West) => ha > 0.0,
+                                Some(PierSide::East) => false,
+                                _ => ha > 0.0,
                             };
                             on_pre_flip_side && minutes_past >= config.minutes_past_meridian
                         } else {
@@ -224,13 +230,14 @@ impl Trigger {
                         }
                     }
                     crate::MeridianTriggerMethod::MinutesBeforeLimit => {
-                        // Trigger based on time until mount hits its tracking limit
-                        // This requires the mount to report its limit time.
-                        // Do not estimate from hour-angle heuristics.
+                        // Requires the mount to advertise a real tracking-limit
+                        // time. We deliberately do NOT fall back to estimating
+                        // from HA: that estimate would be the user's previous
+                        // mode (HourAngleThreshold), and silently switching
+                        // modes hides misconfiguration.
                         if let Some(limit_time) = state.mount_tracking_limit_time {
                             let now = chrono::Utc::now().timestamp();
                             let minutes_to_limit = (limit_time - now) as f64 / 60.0;
-                            // Trigger when we're within the threshold of hitting the limit
                             minutes_to_limit > 0.0
                                 && minutes_to_limit <= config.minutes_before_limit
                         } else {
@@ -238,9 +245,7 @@ impl Trigger {
                         }
                     }
                     crate::MeridianTriggerMethod::HourAngleThreshold => {
-                        // Trigger when absolute hour angle exceeds threshold
                         if let Some(ha) = state.current_hour_angle {
-                            // Use the threshold directly (configured in hours)
                             let on_pre_flip_side = match state.pier_side {
                                 Some(PierSide::West) => ha > 0.0,
                                 Some(PierSide::East) => false,
@@ -256,8 +261,9 @@ impl Trigger {
                             return false;
                         }
 
-                        // Heuristic passed: this looks like a tracking limit hit.
-                        // Check if a wait period is configured.
+                        // The wait period lets users absorb a brief tracking
+                        // glitch (e.g. EQ8 self-recovering from a brief stall)
+                        // without forcing a flip; zero means "flip immediately".
                         if config.tracking_limit_wait_minutes > 0.0 {
                             if let Some(detected_at) = state.tracking_limit_detected_at {
                                 let elapsed_secs = chrono::Utc::now().timestamp() - detected_at;
@@ -320,7 +326,10 @@ impl Trigger {
                 // history has already been trimmed by `update_guiding_rms`
                 // using the propagated retention.
                 if let Some(rms_history) = &state.guiding_rms_history {
-                    // Check if RMS has been above threshold for duration
+                    // "All samples within `duration_secs` above threshold"
+                    // means a sustained guiding failure, not a transient spike
+                    // (which `consecutive_frames` handles for HFR). One good
+                    // sample inside the window resets the trigger.
                     let recent: Vec<_> = rms_history
                         .iter()
                         .filter(|(time, _)| time.elapsed().as_secs_f64() < *duration_secs)
@@ -354,11 +363,15 @@ impl Trigger {
             }
             TriggerType::FilterChange => state.filter_changed,
             TriggerType::DawnApproaching { minutes_before } => {
-                // Dawn time should be pre-calculated when observer location is set
+                // `dawn_time` is seeded by the executor when observer location
+                // becomes available; absent it we cannot evaluate without
+                // forcing a recompute on every poll.
                 if let Some(dawn_time) = state.dawn_time {
                     let now = chrono::Utc::now().timestamp();
                     let time_to_dawn = (dawn_time - now) as f64 / 60.0;
-                    // Trigger if dawn is within minutes_before (positive means dawn hasn't happened)
+                    // Positive `time_to_dawn` excludes the case where dawn has
+                    // already passed (negative value); without it the trigger
+                    // would fire continuously through the daylight hours.
                     time_to_dawn > 0.0 && time_to_dawn <= *minutes_before
                 } else {
                     false
@@ -389,9 +402,10 @@ impl Trigger {
                     return false;
                 }
 
-                // If OnTrackingLimitHit is the active meridian trigger method, check whether
-                // this tracking loss looks like a limit hit. If so, defer to the MeridianFlip
-                // trigger instead of pausing the sequence.
+                // Tracking-limit hits also raise mount_tracking_lost, but the
+                // user wants those to drive a meridian flip, not a Pause. We
+                // suppress MountTrackingLost when the limit-hit heuristic
+                // matches so MeridianFlip(OnTrackingLimitHit) wins the dispatch.
                 if matches!(
                     state.meridian_trigger_method,
                     Some(crate::MeridianTriggerMethod::OnTrackingLimitHit)
@@ -406,7 +420,6 @@ impl Trigger {
                     }
                 }
 
-                // Genuine tracking loss (error condition)
                 true
             }
             TriggerType::DomeShutterNotOpen => {
@@ -418,7 +431,9 @@ impl Trigger {
                     }
             }
             TriggerType::GuideStarLost => {
-                // Fire when guiding is enabled/expected but the guider reports no star
+                // `guiding_enabled` gate prevents the trigger from firing while
+                // the guider is idle between sequences (e.g. during slews or
+                // before a StartGuiding node has run).
                 state.guiding_enabled && state.guide_star_lost
             }
             TriggerType::FocusDrift {
@@ -431,23 +446,24 @@ impl Trigger {
                     None => return false,
                 };
 
-                // Add new sample to the rolling window
                 self.focus_drift_hfr_window.push(current);
 
-                // Trim window to configured size
+                // `.max(2)` guards against a misconfigured window of 0 or 1 —
+                // a single sample cannot show a trend, so the math below would
+                // panic on the run-start subtraction.
                 let max_size = (*window_size).max(2);
                 while self.focus_drift_hfr_window.len() > max_size {
                     self.focus_drift_hfr_window.remove(0);
                 }
 
-                // Need at least min_increasing_count samples to detect a trend
                 let min_count = (*min_increasing_count).max(2);
                 if self.focus_drift_hfr_window.len() < min_count {
                     return false;
                 }
 
-                // Check for monotonically increasing run at the end of the window.
-                // Walk backwards from the end to find the longest increasing suffix.
+                // Walking from the tail forward captures the *current* trend
+                // (focus drift is by definition ongoing, not historical) and
+                // ignores earlier wobbles that might otherwise dilute the run.
                 let window = &self.focus_drift_hfr_window;
                 let mut increasing_run = 1usize;
                 for i in (1..window.len()).rev() {
@@ -462,7 +478,9 @@ impl Trigger {
                     return false;
                 }
 
-                // Check that the total increase is above the threshold
+                // The total-rise threshold defends against creeping near-zero
+                // increases that satisfy "monotonic" but are within noise:
+                // 0.01 px/frame over 5 frames is not a drift, it is jitter.
                 let run_start = window.len() - increasing_run;
                 let total_increase = window.last().unwrap() - window[run_start];
                 total_increase >= *min_total_increase
@@ -843,17 +861,17 @@ impl TriggerState {
         let target_dec = self.target_dec?;
         let pixel_scale = self.last_plate_solve_pixel_scale?;
 
-        // Calculate angular separation in arcseconds
         let ra_diff_deg = solve_ra - target_ra;
         let dec_diff_deg = solve_dec - target_dec;
 
-        // Convert to arcseconds
-        // For RA, account for declination (RA coordinates get closer at poles)
+        // RA must be scaled by cos(dec) — RA "circles" shrink as you approach
+        // the poles, so a 1° RA difference at Dec=89° is a tiny on-sky distance
+        // compared to a 1° RA difference at the equator. Omitting cos(dec) is
+        // the classic high-declination drift bug.
         let dec_rad = target_dec.to_radians();
         let ra_arcsec = ra_diff_deg * 3600.0 * dec_rad.cos();
         let dec_arcsec = dec_diff_deg * 3600.0;
 
-        // Convert arcseconds to pixels
         let ra_pixels = ra_arcsec / pixel_scale;
         let dec_pixels = dec_arcsec / pixel_scale;
 
@@ -905,8 +923,10 @@ impl TriggerState {
         let row = idx / n;
         let col = idx % n;
 
-        // Center the grid around (0,0): offset = (position - center) * step_size
-        // Step size = pixels / (n-1) if n>1, otherwise 0
+        // Grid is centred on the target by translating each index to a
+        // signed offset from the grid centre. step = pixels*2/(n-1) so the
+        // outermost positions land exactly at ±pixels (matching the user's
+        // intended dither radius); n=1 degenerates to a single (0,0) position.
         let (ra_offset, dec_offset) = if n > 1 {
             let step = pixels * 2.0 / (n - 1) as f64;
             let center = (n - 1) as f64 / 2.0;
@@ -917,7 +937,6 @@ impl TriggerState {
             (0.0, 0.0)
         };
 
-        // Advance to next position
         self.grid_dither_index = (idx + 1) % total_positions;
 
         (ra_offset, dec_offset)
@@ -1198,12 +1217,15 @@ impl TriggerManager {
                 "HFR Degradation",
                 TriggerType::HfrDegraded {
                     threshold_percent: 20.0,
-                    absolute_threshold: 0.0, // disabled by default; users set from UI
-                    consecutive_frames: 3,   // require 3 bad frames to avoid seeing spikes
+                    absolute_threshold: 0.0,
+                    consecutive_frames: 3,
                 },
                 RecoveryAction::Autofocus,
             )
-            .with_cooldown(300), // 5 minute cooldown
+            // 5 min cooldown: an autofocus run takes 2-4 min on typical rigs,
+            // so a shorter cooldown would re-fire before the previous AF could
+            // settle the HFR baseline and would loop AF indefinitely.
+            .with_cooldown(300),
         );
 
         // Meridian flip trigger - uses MeridianFlip recovery action
@@ -1216,7 +1238,10 @@ impl TriggerManager {
                 },
                 RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
             )
-            .with_cooldown(600), // 10 minute cooldown to prevent double-flip
+            // A meridian flip + re-center + refocus takes 5-8 min; 10 min
+            // cooldown is the structural guarantee against the double-flip
+            // bug audit §1.3 fixed at the state-machine level.
+            .with_cooldown(600),
         );
 
         // Guiding failure trigger
@@ -1255,7 +1280,11 @@ impl TriggerManager {
                 TriggerType::WeatherUnsafe,
                 RecoveryAction::ParkAndAbort,
             )
-            .with_cooldown(0), // No cooldown for safety
+            // Weather safety must re-fire every poll while conditions are
+            // unsafe — a cooldown could mask a brief moment of clearance
+            // followed by re-degradation, letting the sequence resume into
+            // worsening conditions.
+            .with_cooldown(0),
         );
 
         // Temperature shift trigger

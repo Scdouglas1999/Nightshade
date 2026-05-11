@@ -142,26 +142,26 @@ impl ExecutionContext {
     /// Request pause and wait for resume
     /// Returns false if cancelled while waiting
     pub async fn pause_and_wait_for_resume(&self) -> bool {
-        // Set paused flag
         self.is_paused.store(true, Ordering::Relaxed);
         tracing::info!("Execution paused, waiting for resume...");
 
-        // Wait for either resume or cancellation
         loop {
             tokio::select! {
                 _ = self.resume_notify.notified() => {
                     if !self.is_paused.load(Ordering::Relaxed) {
                         tracing::info!("Execution resumed");
-                        return true; // Successfully resumed
+                        return true;
                     }
                 }
+                // Belt-and-suspenders: notify_waiters() and is_paused are not
+                // atomically coupled, so a stale notify could fire just before
+                // is_paused flips. The 100 ms tick lets us re-check both
+                // is_cancelled and is_paused even if no wake-up arrives.
                 _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                    // Check if cancelled while paused
                     if self.is_cancelled.load(Ordering::Relaxed) {
                         tracing::info!("Cancelled while paused");
                         return false;
                     }
-                    // Check if externally resumed (e.g., by executor)
                     if !self.is_paused.load(Ordering::Relaxed) {
                         tracing::info!("Execution resumed");
                         return true;
@@ -220,22 +220,16 @@ impl ExecutionContext {
         let lat = self.latitude?;
         let lon = self.longitude?;
 
-        // Get current time
         let now = chrono::Utc::now();
-
-        // Calculate Julian Day
         let jd = julian_day(&now);
-
-        // Calculate Local Sidereal Time
         let lst = local_sidereal_time(jd, lon);
 
-        // Calculate Hour Angle
         let ha = lst - ra_hours;
-        let ha_rad = (ha * 15.0).to_radians(); // Convert hours to degrees, then to radians
+        let ha_rad = (ha * 15.0).to_radians(); // RA is stored in hours; 1 h = 15°
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
 
-        // Calculate altitude
+        // Standard astronomy formula: sin(alt) = sin(lat)·sin(dec) + cos(lat)·cos(dec)·cos(HA)
         let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
         Some(sin_alt.asin().to_degrees())
     }
@@ -245,22 +239,24 @@ impl ExecutionContext {
         let target_ra = self.target_ra?;
         let target_dec = self.target_dec?;
 
-        // Calculate approximate moon position
+        // Low-precision lunar ephemeris adequate for moon-avoidance: the
+        // ConditionalCheck::MoonSeparationAbove threshold is typically tens of
+        // degrees, so the ~0.1° error this approximation incurs is irrelevant
+        // and avoids pulling in a full ephemeris dependency.
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
         let days = jd - 2451545.0;
 
-        // Simplified lunar position calculation
+        // Mean longitude, mean anomaly, ascending-node longitude (Meeus low-precision).
         let moon_longitude = (218.32 + 13.176396 * days) % 360.0;
         let moon_anomaly = (134.9 + 13.064993 * days) % 360.0;
         let moon_node = (93.3 + 13.229350 * days) % 360.0;
 
-        // Approximate ecliptic latitude and longitude
+        // Two largest periodic terms only (evection + variation analogues).
         let ecl_lon = moon_longitude + 6.29 * moon_anomaly.to_radians().sin()
             - 1.27 * (2.0 * moon_node.to_radians() - moon_anomaly.to_radians()).sin();
         let ecl_lat = 5.13 * moon_node.to_radians().sin();
 
-        // Convert to equatorial coordinates
         let obliquity = 23.439f64;
         let ecl_lon_rad = ecl_lon.to_radians();
         let ecl_lat_rad = ecl_lat.to_radians();
@@ -275,8 +271,10 @@ impl ExecutionContext {
         .asin()
         .to_degrees();
 
-        // Calculate angular separation using spherical law of cosines
-        let target_ra_rad = (target_ra * 15.0).to_radians(); // Hours to degrees to radians
+        // Spherical law of cosines: cos(sep) = sin(d1)sin(d2) + cos(d1)cos(d2)cos(Δra).
+        // Adequate for moon avoidance — haversine's small-angle precision is
+        // unnecessary at the tens-of-degrees thresholds users configure.
+        let target_ra_rad = (target_ra * 15.0).to_radians();
         let target_dec_rad = target_dec.to_radians();
         let moon_ra_rad = (moon_ra * 15.0).to_radians();
         let moon_dec_rad = moon_dec.to_radians();
@@ -289,7 +287,6 @@ impl ExecutionContext {
 
     /// Check if it's currently dark (astronomical twilight has ended)
     pub fn is_dark(&self) -> Option<bool> {
-        // Calculate sun altitude
         let lat = self.latitude?;
         let lon = self.longitude?;
 
@@ -299,7 +296,6 @@ impl ExecutionContext {
         let days_since_j2000 = jd - 2451545.0;
         let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000);
 
-        // Calculate sun altitude
         let lst = local_sidereal_time(jd, lon);
         let ha = lst - sun_ra;
         let ha_rad = (ha * 15.0).to_radians();
@@ -311,7 +307,9 @@ impl ExecutionContext {
         .asin()
         .to_degrees();
 
-        // Astronomical twilight is when sun is below -18 degrees
+        // Astronomical twilight ends when the sun is more than 18° below the
+        // horizon — the IAU-adopted definition; deep-sky imaging targets this
+        // boundary because any brighter sky elevates the background floor.
         Some(sun_alt < -18.0)
     }
 
@@ -500,10 +498,11 @@ impl RuntimeNode {
             return;
         }
 
-        // Get current HFR if available
+        // HFR triggers compare against the most recent frame's HFR; older
+        // frames in `hfr_values` belong to earlier exposures in the burst and
+        // have already been considered.
         let current_hfr = result.hfr_values.last().copied();
 
-        // Get guiding RMS from trigger state
         let trigger_state_lock = match &context.trigger_state {
             Some(lock) => lock,
             None => return,
@@ -516,9 +515,11 @@ impl RuntimeNode {
             .and_then(|history| history.last())
             .map(|(_, rms)| *rms);
 
-        drop(trigger_state); // Release read lock
+        // Release the read lock before the trigger loop because DriftAbove
+        // re-acquires it inside the match arm, and tokio's RwLock is not
+        // re-entrant — holding it across an .await would deadlock.
+        drop(trigger_state);
 
-        // Check each trigger
         for trigger in &config.triggers {
             let should_fire = match &trigger.condition {
                 TriggerCondition::HfrAbove(threshold) => {
@@ -536,7 +537,6 @@ impl RuntimeNode {
                     }
                 }
                 TriggerCondition::DriftAbove { ra_px, dec_px } => {
-                    // Get drift from trigger state
                     let trigger_state = trigger_state_lock.read().await;
 
                     match trigger_state.calculate_drift_pixels() {
@@ -568,10 +568,8 @@ impl RuntimeNode {
                     trigger.action
                 );
 
-                // Execute trigger action
                 match &trigger.action {
                     TriggerAction::PauseAndRecalibrate => {
-                        // Pause and wait for manual intervention
                         tracing::info!("Pausing sequence due to exposure trigger");
                         context.send_progress(ProgressUpdate {
                             node_id: self.id().clone(),
@@ -587,7 +585,6 @@ impl RuntimeNode {
                             completed_exposure_secs: None,
                         });
 
-                        // Request pause and wait
                         let resumed = context.pause_and_wait_for_resume().await;
                         if !resumed {
                             tracing::info!("Cancelled while paused for trigger");
@@ -595,7 +592,6 @@ impl RuntimeNode {
                         }
                     }
                     TriggerAction::Autofocus => {
-                        // Run autofocus immediately
                         tracing::info!("Running autofocus due to exposure trigger");
                         context.send_progress(ProgressUpdate {
                             node_id: self.id().clone(),
@@ -611,7 +607,6 @@ impl RuntimeNode {
                             completed_exposure_secs: None,
                         });
 
-                        // Create autofocus config
                         // Why: spread `..AutofocusConfig::default()` so the engine-tuning
                         // fields added by audit §1.7 (backlash_compensation, outlier_rejection_sigma,
                         // use_temperature_prediction, max_star_count_change) take their defaults.
@@ -627,11 +622,13 @@ impl RuntimeNode {
                         };
 
                         let ctx = context.to_instruction_context().await;
-                        // Pass None for progress callback in trigger-based autofocus
+                        // Trigger-driven autofocus does not report its sub-step
+                        // progress to the parent node — the exposure that armed
+                        // the trigger has already finished, so there is no UI
+                        // progress bar to update.
                         let af_result = execute_autofocus(&af_config, &ctx, None).await;
 
                         if af_result.status == NodeStatus::Success {
-                            // Update trigger state with new HFR baseline
                             if let Some(best_hfr) = af_result.hfr_values.first() {
                                 let mut trigger_state = trigger_state_lock.write().await;
                                 trigger_state.update_hfr(*best_hfr);
@@ -665,7 +662,6 @@ impl RuntimeNode {
                             completed_exposure_secs: None,
                         });
 
-                        // Set cancelled flag
                         context.is_cancelled.store(true, Ordering::Relaxed);
                         return;
                     }
@@ -812,7 +808,10 @@ impl Node for RuntimeNode {
                 })
                 .await;
 
-                // Track total integration time after exposure sequence completes
+                // Canonical integration accounting (see audit §1.1 / send_progress
+                // rustdoc): the entire burst's exposure time is added here in one
+                // shot. Per-frame updates would race with the synchronous
+                // progress callbacks and double-count under contention.
                 if result.status == NodeStatus::Success {
                     let total_exposure_time = duration_secs * total_count as f64;
                     {
@@ -820,7 +819,6 @@ impl Node for RuntimeNode {
                         *counter += total_exposure_time;
                     }
 
-                    // Update trigger state with HFR values and exposure counts
                     if let Some(trigger_state_lock) = &context.trigger_state {
                         let mut trigger_state = trigger_state_lock.write().await;
                         if let Some(median_hfr) = compute_hfr_median(&result.hfr_values) {
@@ -828,7 +826,10 @@ impl Node for RuntimeNode {
                             tracing::debug!("Updated trigger state HFR: {:.2}", median_hfr);
                         }
 
-                        // Increment exposure count for periodic triggers
+                        // AutofocusInterval / DitherInterval triggers fire every
+                        // N frames; we must bump the counter once per actual
+                        // frame, not once per burst, or the cadence drifts when
+                        // counts > 1.
                         for _ in 0..total_count {
                             trigger_state.increment_exposure_count();
                         }
@@ -838,10 +839,11 @@ impl Node for RuntimeNode {
                         );
                     }
 
-                    // Check exposure triggers defined in config
                     self.check_exposure_triggers(config, &result, context).await;
 
-                    // Also send a progress update with the completed exposure time
+                    // Final progress event carries `completed_exposure_secs` so the
+                    // executor's progress callback adds it to the global counter
+                    // exactly once — per-frame events deliberately leave it None.
                     context.send_progress(ProgressUpdate {
                         node_id: self.id().clone(),
                         status: NodeStatus::Success,
@@ -856,7 +858,9 @@ impl Node for RuntimeNode {
                         completed_exposure_secs: Some(total_exposure_time),
                     });
                 } else if result.status == NodeStatus::Failure {
-                    // Log failure message so it's not silently discarded
+                    // Surface failure detail on its own log line — the
+                    // InstructionResult is consumed by the match arm and the
+                    // message would otherwise vanish into the void.
                     if let Some(msg) = &result.message {
                         tracing::error!("Exposure failed: {}", msg);
                     }
@@ -886,11 +890,13 @@ impl Node for RuntimeNode {
 
                 let result = execute_autofocus(config, &ctx, Some(&progress_fn)).await;
 
-                // Update trigger state after autofocus completes
                 if result.status == NodeStatus::Success {
                     if let Some(trigger_state_lock) = &context.trigger_state {
                         let mut trigger_state = trigger_state_lock.write().await;
-                        // Update HFR baseline after successful autofocus
+                        // After a successful autofocus, the HFR baseline must reset
+                        // to the new best-focus value — otherwise HfrDegraded would
+                        // immediately re-fire comparing the new HFR against the
+                        // stale (pre-AF) baseline that triggered this run.
                         if let Some(best_hfr) = result.hfr_values.first() {
                             trigger_state.update_hfr(*best_hfr);
                             trigger_state.reset_baseline_hfr();
@@ -900,7 +906,8 @@ impl Node for RuntimeNode {
                             );
                         }
 
-                        // Mark that autofocus was performed
+                        // AutofocusInterval uses this marker to know when its
+                        // every-N-frames clock should restart.
                         trigger_state.mark_autofocus_performed();
                         tracing::debug!(
                             "Marked autofocus performed at exposure {}",
@@ -965,11 +972,12 @@ impl Node for RuntimeNode {
 
                 let result = execute_dither(config, &ctx, Some(&progress_fn)).await;
 
-                // Update trigger state after dither completes
                 if result.status == NodeStatus::Success {
                     if let Some(trigger_state_lock) = &context.trigger_state {
                         let mut trigger_state = trigger_state_lock.write().await;
-                        // Mark that dither was performed
+                        // DitherInterval (every-N-frames cadence) resets here so
+                        // the next firing window starts from the just-completed
+                        // dither, not from the previous one.
                         trigger_state.mark_dither_performed();
                         tracing::debug!(
                             "Marked dither performed at exposure {}",
@@ -1522,7 +1530,6 @@ impl Node for RuntimeNode {
         if self.id() == node_id {
             self.status = NodeStatus::Success;
         } else {
-            // Propagate to children
             for child in &mut self.children {
                 child.mark_completed(node_id);
             }
@@ -1546,7 +1553,9 @@ impl RuntimeNode {
             return NodeStatus::Skipped;
         }
 
-        // Set target context for child nodes
+        // Stamping the target onto the context propagates these values down
+        // the tree so child instructions (Slew, Center, Autofocus) all share
+        // a single source of truth instead of carrying duplicate copies.
         context.target_name = Some(config.target_name.clone());
         context.target_ra = Some(config.ra_hours);
         context.target_dec = Some(config.dec_degrees);
@@ -1560,10 +1569,8 @@ impl RuntimeNode {
             config.dec_degrees
         );
 
-        // Check time constraints
         let now = chrono::Utc::now().timestamp();
 
-        // Check start_after constraint
         if let Some(start_after) = config.start_after {
             if now < start_after {
                 let wait_secs = start_after - now;
@@ -1579,7 +1586,6 @@ impl RuntimeNode {
             }
         }
 
-        // Check end_before constraint
         if let Some(end_before) = config.end_before {
             if now >= end_before {
                 tracing::warn!(
@@ -1590,10 +1596,13 @@ impl RuntimeNode {
             }
         }
 
-        // Update trigger state with target coordinates for drift detection
+        // DriftLimit and MeridianFlip both need the target's RA/Dec stamped
+        // into the trigger state. The state stores RA in degrees (so it can
+        // match plate-solve outputs directly) while the executor uses hours;
+        // hence the *15 conversion at this boundary.
         if let Some(trigger_state_lock) = &context.trigger_state {
             let mut trigger_state = trigger_state_lock.write().await;
-            let target_ra_degrees = config.ra_hours * 15.0; // Convert hours to degrees
+            let target_ra_degrees = config.ra_hours * 15.0;
             trigger_state.set_target(target_ra_degrees, config.dec_degrees);
             trigger_state.set_meridian_target(display_name.clone());
             tracing::debug!(
@@ -1603,7 +1612,9 @@ impl RuntimeNode {
             );
         }
 
-        // Calculate and update meridian flip time for trigger system
+        // The MeridianFlip trigger compares now() against the next crossing
+        // timestamp; pre-computing it here (once per target) avoids each
+        // trigger evaluation recomputing the same sidereal-time math.
         if let (Some(_lat), Some(lon)) = (context.latitude, context.longitude) {
             let now = chrono::Utc::now();
             let meridian_crossing =
@@ -1615,13 +1626,11 @@ impl RuntimeNode {
                 meridian_crossing
             );
 
-            // Store as Unix timestamp for trigger comparison
             context
                 .set_next_meridian_flip_time(Some(meridian_crossing.timestamp()))
                 .await;
         }
 
-        // Check altitude if configured
         if let Some(min_alt) = config.min_altitude {
             let Some(current_alt) = context.calculate_altitude() else {
                 tracing::error!(
@@ -1660,7 +1669,6 @@ impl RuntimeNode {
             }
         }
 
-        // Execute children in sequence
         let result = self.execute_children_sequential(context).await;
         if result == NodeStatus::Skipped && context.is_skip_to_next_target_requested() {
             context.clear_skip_to_next_target_request();
@@ -1682,10 +1690,12 @@ impl RuntimeNode {
     ) -> NodeStatus {
         self.current_iteration = 0;
 
-        // Determine max iterations based on condition
+        // Count-based loops have an explicit upper bound; condition-based loops
+        // (UntilTime, AltitudeBelow, WhileDark, etc.) terminate via runtime
+        // checks inside the loop body, so the bound stays effectively infinite.
         let max_iterations = match config.condition {
             LoopCondition::Count => config.iterations.unwrap_or(1),
-            _ => u32::MAX, // Other conditions are checked dynamically
+            _ => u32::MAX,
         };
 
         loop {
@@ -1696,7 +1706,6 @@ impl RuntimeNode {
                 return NodeStatus::Skipped;
             }
 
-            // Check loop condition
             let should_continue = match config.condition {
                 LoopCondition::Count => self.current_iteration < max_iterations,
                 LoopCondition::UntilTime => {
@@ -1734,7 +1743,6 @@ impl RuntimeNode {
                 }
                 LoopCondition::IntegrationTime => {
                     if let Some(target_secs) = config.condition_value {
-                        // Get actual completed integration time from context
                         let integrated_secs = context.get_completed_integration_secs().await;
                         integrated_secs < target_secs
                     } else {
@@ -1780,7 +1788,10 @@ impl RuntimeNode {
                 completed_exposure_secs: None,
             });
 
-            // Reset children for this iteration
+            // Children retain Success/Failure from the previous iteration and
+            // would short-circuit on the next pass; resetting them per-iter is
+            // what makes a Loop actually re-execute its body rather than just
+            // re-walking the same completed nodes.
             tracing::info!(
                 "Resetting {} children for iteration {}",
                 self.children.len(),
@@ -1791,7 +1802,6 @@ impl RuntimeNode {
             }
             tracing::info!("Children reset complete");
 
-            // Execute children
             tracing::info!(
                 "Starting execute_children_sequential for iteration {}",
                 self.current_iteration
@@ -1829,7 +1839,6 @@ impl RuntimeNode {
         let required = config.required_successes.unwrap_or(total_children);
         let node_id = self.id().clone();
 
-        // Send initial progress
         context.send_progress(ProgressUpdate {
             node_id: node_id.clone(),
             status: NodeStatus::Running,
@@ -1841,18 +1850,19 @@ impl RuntimeNode {
             completed_exposure_secs: None,
         });
 
-        // Create shared state for tracking results
         let success_count = Arc::new(AtomicUsize::new(0));
         let cancelled = Arc::new(AtomicBool::new(false));
 
-        // Take ownership of children and wrap in Mutex for concurrent access
+        // Children are owned by &mut self but the spawned tasks need 'static
+        // lifetimes; wrapping each in Arc<Mutex<_>> lets them survive a
+        // join_all without cloning the underlying Node. They are unwrapped
+        // back into the children Vec below after every task completes.
         let children = std::mem::take(&mut self.children);
         let children: Vec<Arc<TokioMutex<Box<dyn Node>>>> = children
             .into_iter()
             .map(|c| Arc::new(TokioMutex::new(c)))
             .collect();
 
-        // Create shared context values
         let is_cancelled = context.is_cancelled.clone();
         let is_paused = context.is_paused.clone();
         let resume_notify = context.resume_notify.clone();
@@ -1879,7 +1889,6 @@ impl RuntimeNode {
         let trigger_state = context.trigger_state.clone();
         let filter_focus_offsets = context.filter_focus_offsets.clone();
 
-        // Spawn tasks for each child
         let handles: Vec<_> = children
             .iter()
             .enumerate()
@@ -1908,12 +1917,14 @@ impl RuntimeNode {
                 let filter_focus_offsets = filter_focus_offsets.clone();
 
                 tokio::spawn(async move {
-                    // Check for cancellation before starting
                     if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
                         return (i, NodeStatus::Cancelled);
                     }
 
-                    // Create branch-specific context
+                    // Each branch gets a fresh ExecutionContext clone with the
+                    // branch index in node_id; this isolates per-branch state
+                    // (e.g. instruction-level node_id strings) while still
+                    // sharing the parent's atomic flags and trigger state.
                     let mut branch_context = ExecutionContext {
                         node_id: format!("{}_branch_{}", node_id, i),
                         target_ra,
@@ -1945,7 +1956,6 @@ impl RuntimeNode {
                         filter_focus_offsets,
                     };
 
-                    // Execute the child with mutex guard
                     let mut child_guard = child.lock().await;
                     let result = child_guard.execute(&mut branch_context).await;
 
@@ -1964,7 +1974,6 @@ impl RuntimeNode {
             })
             .collect();
 
-        // Wait for all tasks to complete
         let _results: Vec<_> = futures::future::join_all(handles)
             .await
             .into_iter()
@@ -2022,12 +2031,10 @@ impl RuntimeNode {
             return NodeStatus::Failure;
         }
 
-        // Check for cancellation
         if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
             return NodeStatus::Cancelled;
         }
 
-        // Check results
         let successes = success_count.load(Ordering::Relaxed);
 
         context.send_progress(ProgressUpdate {
@@ -2080,7 +2087,6 @@ impl RuntimeNode {
             }
             ConditionalCheck::TimeAfter(after) => chrono::Utc::now().timestamp() > *after,
             ConditionalCheck::GuidingRmsBelow(threshold) => {
-                // Get guiding RMS from PHD2
                 match context.device_ops.guider_get_status().await {
                     Ok(status) => status.rms_total < *threshold,
                     Err(e) => {
@@ -2112,8 +2118,6 @@ impl RuntimeNode {
                 }
             }
             ConditionalCheck::WeatherSafe => {
-                // Check weather/safety monitor for safe conditions
-                // Uses the device_ops interface to query connected weather/safety devices
                 match context.device_ops.safety_is_safe(None).await {
                     Ok(is_safe) => {
                         if !is_safe {
@@ -2122,7 +2126,11 @@ impl RuntimeNode {
                         is_safe
                     }
                     Err(e) => {
-                        // Strict production behavior: safety read errors are always unsafe.
+                        // All three SafetyFailMode variants resolve to "unsafe"
+                        // for a Conditional check — fail-closed is the only
+                        // production-supported policy. We still match exhaustively
+                        // so the failure mode is recorded in the log message and
+                        // a future legacy mode change cannot drop a branch silently.
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
                                 tracing::warn!(
@@ -2150,7 +2158,6 @@ impl RuntimeNode {
                 }
             }
             ConditionalCheck::MoonSeparationAbove(degrees) => {
-                // Calculate moon separation from target
                 let Some(separation) = context.calculate_moon_separation() else {
                     tracing::error!("Conditional MoonSeparationAbove requires target coordinates");
                     return NodeStatus::Failure;
@@ -2158,8 +2165,9 @@ impl RuntimeNode {
                 separation > *degrees
             }
             ConditionalCheck::SafetyMonitorSafe => {
-                // Check dedicated safety monitor device
-                // Pass None to check the default/profile safety monitor
+                // Passing None routes the check to the profile-configured
+                // safety monitor; individual safety_id targeting is reserved
+                // for future multi-monitor configurations.
                 match context.device_ops.safety_is_safe(None).await {
                     Ok(is_safe) => {
                         if !is_safe {
@@ -2168,7 +2176,10 @@ impl RuntimeNode {
                         is_safe
                     }
                     Err(e) => {
-                        // Strict production behavior: safety read errors are always unsafe.
+                        // Same fail-closed reasoning as WeatherSafe above: a
+                        // legacy SafetyFailMode value still resolves to "unsafe"
+                        // here so a misconfigured profile cannot bypass the
+                        // safety check by setting FailOpen.
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
                                 tracing::warn!(
@@ -2222,7 +2233,10 @@ impl RuntimeNode {
             attempts += 1;
             tracing::info!("Execution attempt {}/{}", attempts, max_attempts);
 
-            // Reset children
+            // Like Loop, each retry needs a fresh slate — keeping stale
+            // Success/Failure on children would let a flaky middle child
+            // short-circuit on the second attempt before its real cause was
+            // actually retried.
             for child in &mut self.children {
                 child.reset();
             }
@@ -2256,10 +2270,12 @@ impl RuntimeNode {
                 };
             }
 
-            // Exponential backoff before retry: 1s, 2s, 4s, 8s, ...
-            // (attempts is 1-based and we've already completed attempt N, so
-            //  the delay before the next attempt uses exponent = attempts - 1)
-            let backoff_secs = 1u64 << (attempts - 1).min(6); // Cap at 64s
+            // Exponential backoff (1, 2, 4, 8, …, 64 s) gives transient device
+            // faults — driver reconnects, USB hiccups — a chance to clear while
+            // capping the wait so the user does not stare at a frozen sequence.
+            // `attempts - 1` because attempts is 1-based and the first retry
+            // should wait the minimum 1 s, not 2 s.
+            let backoff_secs = 1u64 << (attempts - 1).min(6);
             tracing::info!(
                 "Waiting {}s before retry attempt {}/{}",
                 backoff_secs,
@@ -2267,7 +2283,8 @@ impl RuntimeNode {
                 max_attempts
             );
 
-            // Check for cancellation during backoff
+            // The backoff sleep must remain cancellable — a 64 s wait that
+            // ignores Stop would leave the user staring at a "stopping…" UI.
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)) => {}
                 _ = async {
@@ -2283,7 +2300,6 @@ impl RuntimeNode {
                 }
             }
 
-            // Execute recovery action
             match &config.recovery_action {
                 RecoveryAction::Retry { .. } => {
                     tracing::info!("Retrying...");
@@ -2309,12 +2325,9 @@ impl RuntimeNode {
                 }
                 RecoveryAction::Pause => {
                     tracing::info!("Pausing for manual intervention...");
-                    // Wait for user to resume execution
                     if !context.pause_and_wait_for_resume().await {
-                        // Cancelled while paused
                         return NodeStatus::Cancelled;
                     }
-                    // Resumed - continue with retry
                     tracing::info!("Resumed after pause, retrying...");
                 }
                 _ => {}

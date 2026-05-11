@@ -111,7 +111,11 @@ impl VCurveAutofocus {
             return Err("Not enough data points for curve fitting".to_string());
         }
 
-        // Apply outlier rejection if configured
+        // Outlier rejection on the raw HFR samples before fitting protects
+        // the curve fit from single bad frames (seeing spike, satellite
+        // streak, cosmic ray) that would otherwise distort the V's minimum.
+        // sigma=0 means "trust every point" — used by tests with synthetic
+        // perfect curves.
         let filtered_points = if self.config.outlier_rejection_sigma > 0.0 {
             self.reject_outliers(&data_points)?
         } else {
@@ -122,14 +126,15 @@ impl VCurveAutofocus {
             return Err("Not enough valid data points after outlier rejection".to_string());
         }
 
-        // Fit curve based on method
         let (best_position, curve_quality) = match self.config.method {
             AutofocusMethod::VCurve => self.fit_vcurve(&filtered_points)?,
             AutofocusMethod::Quadratic => self.fit_parabola(&filtered_points)?,
             AutofocusMethod::Hyperbolic => self.fit_hyperbola(&filtered_points)?,
         };
 
-        // Find actual best HFR from data
+        // The reported best_hfr is the minimum sampled HFR, not the
+        // curve's analytic minimum: the user sees a number that actually
+        // came from a real exposure, which they can verify visually.
         let best_hfr = filtered_points
             .iter()
             .map(|p| p.hfr)
@@ -153,7 +158,9 @@ impl VCurveAutofocus {
             return Ok(points.to_vec());
         }
 
-        // Calculate median and MAD
+        // MAD (median absolute deviation) is the robust estimator of choice
+        // for outlier rejection — unlike mean+stdev, it does not get
+        // inflated by the very outliers we are trying to detect.
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
         hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -163,11 +170,12 @@ impl VCurveAutofocus {
         deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let mad = deviations[deviations.len() / 2];
 
-        // Convert MAD to standard deviation estimate
+        // 1.4826 is the consistency constant that scales MAD to match the
+        // standard deviation of a Gaussian distribution — so a "3-sigma"
+        // threshold here behaves like a 3-sigma threshold on stdev.
         let sigma = mad * 1.4826;
         let threshold = self.config.outlier_rejection_sigma * sigma;
 
-        // Filter points
         let filtered: Vec<FocusDataPoint> = points
             .iter()
             .filter(|p| (p.hfr - median).abs() <= threshold)
@@ -272,8 +280,10 @@ impl VCurveAutofocus {
             return Err("Need at least 3 points for parabolic fit".to_string());
         }
 
-        // Fit y = ax^2 + bx + c where y=HFR, x=position
-        // Using least squares: solve normal equations
+        // Least-squares parabolic fit via the normal equations
+        // (Σx⁰, Σx¹, …, Σx⁴ accumulated below). Closed-form is preferred
+        // over iterative LSQ for this small problem: it is single-pass,
+        // deterministic, and bounded in cost regardless of point count.
         let n = points.len() as f64;
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
@@ -295,7 +305,9 @@ impl VCurveAutofocus {
             sum_x2y += x * x * y;
         }
 
-        // Solve 3x3 system using Cramer's rule
+        // Cramer's rule rather than a generic 3x3 inverse: for a fixed
+        // 3-coefficient system it is the cleanest closed-form expression
+        // and avoids pulling in a linear-algebra dependency.
         let det = n * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
             - sum_x * (sum_x * sum_x4 - sum_x2 * sum_x3)
             + sum_x2 * (sum_x * sum_x3 - sum_x2 * sum_x2);
@@ -304,7 +316,6 @@ impl VCurveAutofocus {
             return Err("Singular matrix in parabolic fit".to_string());
         }
 
-        // Calculate coefficients using Cramer's rule
         let det_a = sum_y * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
             - sum_x * (sum_xy * sum_x4 - sum_x2y * sum_x3)
             + sum_x2 * (sum_xy * sum_x3 - sum_x2y * sum_x2);
@@ -321,15 +332,17 @@ impl VCurveAutofocus {
         let b = det_b / det; // Coefficient of x
         let c = det_a / det; // Constant
 
-        // Check if parabola opens upward (minimum exists)
+        // A negative or zero `a` means the parabola opens downward or is
+        // degenerate — no minimum exists. Treating the resulting vertex
+        // as "best focus" would send the focuser to a maximum HFR
+        // position, which is the worst possible outcome.
         if a <= 0.0 {
             return Err("Parabola does not have a minimum (a <= 0)".to_string());
         }
 
-        // Find vertex (minimum): x = -b / (2a)
+        // Standard vertex formula for ax² + bx + c: x = -b / (2a).
         let best_position = (-b / (2.0 * a)).round() as i32;
 
-        // Calculate R-squared
         let mean_y = sum_y / n;
         let mut ss_tot = 0.0;
         let mut ss_res = 0.0;
@@ -358,11 +371,14 @@ impl VCurveAutofocus {
             return Err("Need at least 3 points for hyperbolic fit".to_string());
         }
 
-        // Use iterative approach: start with parabola as initial guess
+        // Hyperbolic fit has no closed-form least-squares solution, so we
+        // bootstrap from the parabolic fit (which is in the right
+        // neighbourhood for any plausible focus curve) and refine
+        // iteratively. Iteration count is bounded (10) so a non-converging
+        // case cannot stall the sequence.
         let (initial_x0, _) = self.fit_parabola(points)?;
         let mut x0 = initial_x0 as f64;
 
-        // Find minimum HFR as initial b
         let min_hfr = points
             .iter()
             .map(|p| p.hfr)
@@ -371,7 +387,6 @@ impl VCurveAutofocus {
         let b = min_hfr;
         let mut prev_mean_residual: Option<f64> = None;
 
-        // Iterative refinement (Levenberg-Marquardt-like approach, simplified)
         for _iteration in 0..10 {
             let mut sum_num = 0.0;
             let mut sum_den = 0.0;
@@ -418,7 +433,9 @@ impl VCurveAutofocus {
 
                 if count > 0.0 {
                     let new_x0 = new_x0_sum / count;
-                    // Gradually update x0 to avoid oscillation
+                    // Under-relaxation (0.3 step) prevents the iteration
+                    // from oscillating between two near-equal candidates;
+                    // we trade slower convergence for stability.
                     x0 = 0.7 * x0 + 0.3 * new_x0;
 
                     // Stop iterating when residual improvement is negligible.
@@ -524,12 +541,15 @@ impl BacklashCompensation {
         }
 
         if target < current {
-            // Moving inward - apply backlash compensation
-            // First move past target, then approach from outside
+            // Inward moves on most stepper focusers leave mechanical slack
+            // in the gear train; approaching from a deliberate overshoot
+            // ensures the final position is always reached from the same
+            // side, eliminating direction-dependent focus error.
             let overshoot = target - self.backlash_steps;
             (Some(overshoot), target)
         } else {
-            // Moving outward - no backlash compensation needed
+            // Outward moves already approach from the slack side, so the
+            // gear train is engaged and no compensation is needed.
             (None, target)
         }
     }

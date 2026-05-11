@@ -367,7 +367,11 @@ impl SequenceExecutor {
     pub fn new() -> Self {
         let (event_tx, _) = broadcast::channel(256);
         let mut trigger_manager = TriggerManager::new();
-        trigger_manager.create_standard_triggers(); // Add default triggers
+        // Seed the standard safety triggers (HFR, weather, altitude limit, meridian
+        // flip, etc.) at construction so a sequence loaded without an explicit
+        // trigger config — e.g. headless API runs or first-launch users — still has
+        // a baseline of unattended-imaging protections.
+        trigger_manager.create_standard_triggers();
 
         Self {
             sequence: None,
@@ -484,10 +488,8 @@ impl SequenceExecutor {
 
     /// Load a sequence definition and build the node tree
     pub fn load_sequence(&mut self, sequence: SequenceDefinition) -> Result<(), String> {
-        // Build node tree from definition
         let root_node = self.build_node_tree(&sequence)?;
 
-        // Calculate totals
         let (total_exposures, total_integration, totals_indeterminate) =
             self.calculate_totals(&sequence);
 
@@ -512,11 +514,9 @@ impl SequenceExecutor {
 
     /// Build the node tree from the sequence definition
     fn build_node_tree(&self, sequence: &SequenceDefinition) -> Result<Box<dyn Node>, String> {
-        // Create a map of nodes by ID
         let node_map: HashMap<&str, &NodeDefinition> =
             sequence.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
-        // Find root node
         let root_id = sequence
             .root_node_id
             .as_ref()
@@ -526,7 +526,6 @@ impl SequenceExecutor {
             .get(root_id.as_str())
             .ok_or_else(|| format!("Root node {} not found", root_id))?;
 
-        // Recursively build the tree
         fn build_node(
             def: &NodeDefinition,
             node_map: &HashMap<&str, &NodeDefinition>,
@@ -541,7 +540,6 @@ impl SequenceExecutor {
                 def.children
             );
 
-            // Add children recursively
             for child_id in &def.children {
                 if let Some(child_def) = node_map.get(child_id.as_str()) {
                     tracing::debug!(
@@ -779,25 +777,22 @@ impl SequenceExecutor {
             return Err("No sequence loaded".to_string());
         }
 
-        // Check that device operations have been configured
-        // This is a critical check - without device ops, all operations will silently do nothing
+        // Reject start when device_ops is unset: every instruction (slew, expose, autofocus)
+        // routes through it, so a missing handle would let a sequence "run" while doing
+        // absolutely nothing — a silent failure mode the user could not diagnose.
         let device_ops = self.device_ops.clone().ok_or_else(|| {
             "No device operations configured. Call set_device_ops() before starting a sequence. \
              This ensures all device operations use real hardware instead of silently doing nothing."
                 .to_string()
         })?;
 
-        // Reset cancellation flag
         self.is_cancelled.store(false, Ordering::Relaxed);
 
-        // Create command channel
         let (tx, mut rx) = mpsc::channel::<ExecutorCommand>(32);
         self.command_tx = Some(tx);
 
-        // Update state
         self.set_state(ExecutorState::Running).await;
 
-        // Get references for the async task
         let state = self.state.clone();
         let progress = self.progress.clone();
         let event_tx = self.event_tx.clone();
@@ -807,7 +802,6 @@ impl SequenceExecutor {
             .take()
             .ok_or("No root node available - sequence may not be properly loaded".to_string())?;
 
-        // device_ops already cloned and validated above
         let camera_id = self.camera_id.clone();
         let mount_id = self.mount_id.clone();
         let focuser_id = self.focuser_id.clone();
@@ -849,7 +843,6 @@ impl SequenceExecutor {
             })
             .unwrap_or_default();
 
-        // Clone trigger manager for the async task
         let trigger_manager = self.trigger_manager.clone();
         let triggers_enabled = self.triggers_enabled;
         let safety_fail_mode = self.safety_fail_mode;
@@ -882,12 +875,10 @@ impl SequenceExecutor {
         let streaming_latitude = self.latitude;
         let streaming_longitude = self.longitude;
 
-        // Create shared pause state for context
         let is_paused = Arc::new(AtomicBool::new(false));
         let skip_to_next_target = Arc::new(AtomicBool::new(false));
         let resume_notify = Arc::new(tokio::sync::Notify::new());
 
-        // Spawn execution task
         let is_paused_clone = is_paused.clone();
         let skip_to_next_target_clone = skip_to_next_target.clone();
         let resume_notify_clone = resume_notify.clone();
@@ -896,10 +887,10 @@ impl SequenceExecutor {
         tokio::spawn(async move {
             let start_time = std::time::Instant::now();
 
-            // Clone device_ops for trigger monitoring before passing to context
+            // The trigger monitor needs its own handle because `with_device_ops` moves
+            // the original into the ExecutionContext used by the instruction tree.
             let device_ops_for_triggers = device_ops.clone();
 
-            // Set up execution context with device ops and IDs
             let mut context = ExecutionContext::new("root".to_string()).with_device_ops(device_ops);
             context.is_cancelled = is_cancelled.clone();
             context.is_paused = is_paused_clone;
@@ -917,16 +908,21 @@ impl SequenceExecutor {
             context.longitude = longitude;
             context.safety_fail_mode = safety_fail_mode;
             context.filter_focus_offsets = filter_focus_offsets;
-            // Set trigger state for HFR tracking and exposure counts
+            // The trigger state owns HFR baseline and exposure counts; instructions
+            // (autofocus, exposures) feed it through the context so triggers can fire.
             context.trigger_state = Some(trigger_manager.read().await.state());
 
-            // Set up progress callback
             let progress_clone = progress.clone();
             let event_tx_clone = event_tx.clone();
-            // Track nodes that have already had NodeStarted emitted (thread-safe)
+            // NodeStarted must emit exactly once per "entry" into a node; this set
+            // guards against the progress callback firing multiple Running updates
+            // for the same node within a single visit. Cleared on terminal status
+            // so loop bodies emit a fresh NodeStarted each iteration.
             let started_nodes =
                 Arc::new(StdRwLock::new(std::collections::HashSet::<NodeId>::new()));
-            // Track per-node exposure frame counters so completed_exposures is monotonic and global.
+            // completed_exposures must be monotonic per node so the global counter
+            // never decreases — e.g. when a loop body restarts, its frame count
+            // must not reset back to zero from the UI's perspective.
             let node_frame_progress = Arc::new(StdRwLock::new(std::collections::HashMap::<
                 NodeId,
                 u32,
@@ -944,12 +940,14 @@ impl SequenceExecutor {
                     .insert(update.node_id.clone(), update.status);
                 prog.elapsed_secs = start_time.elapsed().as_secs_f64();
 
-                // Emit NodeStarted event when a node transitions to Running
                 if update.status == NodeStatus::Running {
                     let mut started = started_nodes.write();
                     if !started.contains(&update.node_id) {
                         started.insert(update.node_id.clone());
-                        // Extract node name from message (format: "Executing: <name>" or "Step X/Y: <name>")
+                        // Node nodes do not publish their own display name through the
+                        // progress channel — only a free-form message. Match the two
+                        // legacy formats the runtime emits so the UI shows something
+                        // meaningful rather than "Unknown".
                         let node_name = update
                             .message
                             .as_ref()
@@ -981,8 +979,9 @@ impl SequenceExecutor {
                         | NodeStatus::Cancelled
                         | NodeStatus::Skipped
                 ) {
-                    // Clear node from started set when it completes, so it can emit NodeStarted again
-                    // on the next loop iteration (fixes UI not updating when loop cycles back)
+                    // Clearing the entry on terminal status lets a loop body emit
+                    // a fresh NodeStarted on its next iteration; otherwise the UI
+                    // would never re-flash the node as active when the loop cycles.
                     let mut started = started_nodes.write();
                     started.remove(&update.node_id);
                     let mut frame_progress = node_frame_progress.write();
@@ -1044,7 +1043,6 @@ impl SequenceExecutor {
                     }
                 }
 
-                // Track completed integration time
                 if let Some(exposure_secs) = update.completed_exposure_secs {
                     prog.completed_integration_secs += exposure_secs;
                 }
@@ -1063,8 +1061,10 @@ impl SequenceExecutor {
                     prog.estimated_remaining_secs = None;
                 }
 
-                // Emit NodeProgress event for instruction-specific progress
-                // Parse messages like "Autofocus: Moving to start position: 25000 (5%)"
+                // Instructions report sub-step progress through free-form messages
+                // of the form "Autofocus: Moving to start position: 25000 (5%)".
+                // Parsing them out into a structured NodeProgress event lets the UI
+                // render a progress bar without coupling the runtime to message shape.
                 if let Some(ref message) = update.message {
                     tracing::debug!("[PROGRESS_CB] Received message: {}", message);
                     if let Some((instruction, rest)) = message.split_once(':') {
@@ -1073,7 +1073,6 @@ impl SequenceExecutor {
                             instruction,
                             rest
                         );
-                        // Look for percentage in parentheses at the end
                         if let Some(pct_start) = rest.rfind('(') {
                             if let Some(pct_end) = rest[pct_start..].find(')') {
                                 let pct_str = &rest[pct_start + 1..pct_start + pct_end];
@@ -1117,7 +1116,6 @@ impl SequenceExecutor {
                 let _ = event_tx_clone.send(ExecutorEvent::ProgressUpdated(prog.clone()));
             }));
 
-            // Handle commands during execution
             let is_paused_cmd = is_paused.clone();
             let skip_to_next_target_cmd = skip_to_next_target.clone();
             let resume_notify_cmd = resume_notify.clone();
@@ -1131,7 +1129,9 @@ impl SequenceExecutor {
                                 event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
                         }
                         ExecutorCommand::Resume => {
-                            // Signal context to resume if it's waiting
+                            // A node may be parked on `resume_notify.notified()`; we have
+                            // to wake all waiters *before* flipping is_paused so the
+                            // resumed branch sees the new state without racing.
                             is_paused_cmd.store(false, Ordering::Relaxed);
                             resume_notify_cmd.notify_waiters();
                             *state.write().await = ExecutorState::Running;
@@ -1240,10 +1240,8 @@ impl SequenceExecutor {
             let streaming_filter_focus_offsets = context.filter_focus_offsets.clone();
             let streaming_safety_fail_mode = context.safety_fail_mode;
 
-            // Execute the sequence
             let execution = async { root_node.execute(&mut context).await };
 
-            // Trigger monitoring loop
             let state_clone = state.clone();
             let event_tx_clone2 = event_tx.clone();
             let is_cancelled_clone = is_cancelled.clone();
@@ -1326,7 +1324,8 @@ impl SequenceExecutor {
             };
             let trigger_monitor = async {
                 if !triggers_enabled {
-                    // If triggers disabled, just wait forever (let other tasks complete)
+                    // Hold this task open so the `try_join!` below still waits on the
+                    // other branches; an immediate return would short-circuit them.
                     std::future::pending::<()>().await;
                     return Vec::new();
                 }
@@ -1349,9 +1348,10 @@ impl SequenceExecutor {
                 // Keeping the monitor focused on trigger evaluation avoids dropping
                 // checkpoint saves when triggers_enabled = false.
 
-                // Mark that mount tracking is expected while the trigger monitor is active.
-                // This enables the MountTrackingLost and OnTrackingLimitHit triggers to detect
-                // when tracking stops unexpectedly during sequence execution.
+                // The MountTrackingLost / OnTrackingLimitHit triggers need a baseline
+                // expectation; without setting this flag the "tracking dropped" detector
+                // would assume tracking is unwanted and never fire. Only matters while a
+                // mount is configured for the sequence.
                 if trigger_action_context.mount_id.is_some() {
                     let manager = trigger_manager.read().await;
                     let trigger_state = manager.state();
@@ -1362,13 +1362,14 @@ impl SequenceExecutor {
                 loop {
                     check_interval.tick().await;
 
-                    // Only check triggers while running (not paused or stopping)
+                    // Pause/Stop must not fire triggers — paused sequences are explicitly
+                    // "user is intervening" and Stopping is racing to terminate, so any
+                    // recovery action here would conflict with the operator's intent.
                     let current_state = *state_clone.read().await;
                     if current_state != ExecutorState::Running {
                         continue;
                     }
 
-                    // Check if cancelled
                     if is_cancelled_clone.load(Ordering::Relaxed) {
                         break;
                     }
@@ -1442,7 +1443,6 @@ impl SequenceExecutor {
                         },
                     };
 
-                    // Poll guiding status if guiding is enabled
                     let guiding_rms = device_ops_for_triggers
                         .guider_get_status()
                         .await
@@ -1459,20 +1459,23 @@ impl SequenceExecutor {
                             state.weather_safe = safe;
                         }
 
-                        // Update guiding RMS if available
                         if let Some(rms) = guiding_rms {
                             state.update_guiding_rms(rms);
                             tracing::trace!("Updated guiding RMS: {:.2}", rms);
                         }
 
-                        // Update observer location for dawn calculation (and calculate dawn time)
+                        // Dawn calculation needs lat/lon; if the executor was started
+                        // before the location was set (mobile rigs configure it after
+                        // mount connect), seed from the device_ops the first time it
+                        // becomes available so DawnApproaching can fire.
                         if state.observer_latitude.is_none() {
                             if let Some((lat, lon)) =
                                 device_ops_for_triggers.get_observer_location()
                             {
                                 state.observer_latitude = Some(lat);
                                 state.observer_longitude = Some(lon);
-                                // Pre-calculate dawn time when location is set
+                                // Cache dawn_time once on first set; recomputing every
+                                // poll would burn CPU on a slowly-changing value.
                                 state.dawn_time =
                                     Some(crate::triggers::calculate_dawn_time(lat, lon));
                                 tracing::debug!(
@@ -1484,9 +1487,7 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Poll full mount status for trigger evaluation
                     if let Some(mount_id) = &trigger_action_context.mount_id {
-                        // Query individual mount properties through the DeviceOps trait
                         let tracking_result =
                             device_ops_for_triggers.mount_is_tracking(mount_id).await;
                         let slewing_result =
@@ -1502,12 +1503,14 @@ impl SequenceExecutor {
                         let trigger_state = manager.state();
                         let mut state = trigger_state.write().await;
 
-                        // If tracking query fails, mark status query as failed (connection issue)
+                        // A failed tracking query is treated as a connection problem
+                        // rather than "tracking dropped" so we don't park-and-abort
+                        // on a transient driver glitch — actual loss is reported as
+                        // Ok(false), which the branch below handles distinctly.
                         match &tracking_result {
                             Ok(is_tracking) => {
                                 state.mount_status_query_failed = false;
 
-                                // Check for unexpected tracking loss
                                 if state.mount_tracking_expected
                                     && !is_tracking
                                     && !state.mount_tracking_lost
@@ -1515,9 +1518,11 @@ impl SequenceExecutor {
                                     tracing::warn!("Mount tracking lost during sequence!");
                                     state.mount_tracking_lost = true;
 
-                                    // Record when tracking was first lost for OnTrackingLimitHit wait timer.
-                                    // The heuristic check happens in trigger evaluation, but we record
-                                    // the timestamp here so the wait period starts from detection time.
+                                    // OnTrackingLimitHit waits `tracking_limit_wait_minutes`
+                                    // before flipping; we stamp the detection time here so
+                                    // the wait period is measured from when the loss was
+                                    // first observed, not from when the trigger eventually
+                                    // evaluates (which happens on its own cadence).
                                     if state.tracking_limit_detected_at.is_none() {
                                         state.tracking_limit_detected_at =
                                             Some(chrono::Utc::now().timestamp());
@@ -1526,7 +1531,9 @@ impl SequenceExecutor {
                                         );
                                     }
                                 }
-                                // If tracking resumed during a wait period, reset limit detection
+                                // Tracking resumed before the wait elapsed — clear the
+                                // detection timestamp so a future loss starts the wait
+                                // window fresh instead of inheriting stale state.
                                 if *is_tracking && state.tracking_limit_detected_at.is_some() {
                                     tracing::info!(
                                         "Mount tracking resumed, cancelling tracking limit wait"
@@ -1545,7 +1552,6 @@ impl SequenceExecutor {
                             }
                         }
 
-                        // Update slewing/parked state
                         if let Ok(slewing) = slewing_result {
                             state.mount_slewing = Some(slewing);
                         }
@@ -1553,7 +1559,11 @@ impl SequenceExecutor {
                             state.mount_parked = Some(parked);
                         }
 
-                        // Update pier side (convert from meridian::PierSide to meridian_events::PierSide)
+                        // Two PierSide enums exist: meridian::PierSide is the
+                        // internal calculation type, crate::PierSide is the
+                        // event-stream wire format. They mirror each other but
+                        // are distinct types so the geometry code cannot leak
+                        // into FRB-exposed events.
                         if let Ok(pier_side) = pier_side_result {
                             let ps = match pier_side {
                                 crate::meridian::PierSide::East => crate::PierSide::East,
@@ -1563,7 +1573,10 @@ impl SequenceExecutor {
                             state.update_pier_side(ps);
                         }
 
-                        // Calculate and update hour angle from mount RA and observer longitude
+                        // Hour angle is required for the MeridianFlip trigger's
+                        // hour-angle-threshold mode; the mount only gives us RA,
+                        // so we recompute HA = LST - RA here using the observer
+                        // longitude (already validated above before this branch).
                         if let Ok((ra_hours, _dec)) = coords_result {
                             if let Some(lon) = state.observer_longitude {
                                 let now = chrono::Utc::now();
@@ -1575,7 +1588,6 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Poll camera temperature
                     if let Some(camera_id) = &trigger_action_context.camera_id {
                         if let Ok(temp) = device_ops_for_triggers
                             .camera_get_temperature(camera_id)
@@ -1589,7 +1601,6 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Poll dome shutter status
                     if let Some(dome_id) = &trigger_action_context.dome_id {
                         if let Ok(status) = device_ops_for_triggers
                             .dome_get_shutter_status(dome_id)
@@ -1605,7 +1616,10 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Poll guiding star status for GuideStarLost trigger
+                    // GuideStarLost cannot be derived from RMS alone (a settled guider
+                    // can report low RMS for one cycle before noticing the star is gone).
+                    // Polling guider status here gives the trigger a definitive signal
+                    // independent of the RMS path above.
                     {
                         let guide_status = device_ops_for_triggers.guider_get_status().await;
                         let manager = trigger_manager.read().await;
@@ -1613,7 +1627,9 @@ impl SequenceExecutor {
                         let mut tstate = trigger_state.write().await;
                         match guide_status {
                             Ok(status) => {
-                                // Guide star is "lost" when guiding is expected but not active
+                                // Only count it as "lost" when the sequence has explicitly
+                                // started guiding. Otherwise an idle guider would constantly
+                                // trip the trigger before a Guide instruction even runs.
                                 if tstate.guiding_enabled && !status.is_guiding {
                                     tstate.set_guide_star_lost(true);
                                 } else {
@@ -1629,9 +1645,10 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Check all triggers and capture names while holding the manager lock.
-                    // Drop the lock before running recovery actions so actions can safely
-                    // read/write trigger state without deadlocking on trigger_manager.
+                    // Recovery actions below take their own write locks on trigger_state;
+                    // holding the trigger_manager lock during them would deadlock the
+                    // trigger evaluators that share the same Arc. Snapshot the fired
+                    // triggers into an owned Vec and drop the lock before dispatching.
                     let fired_with_names: Vec<(String, String, RecoveryAction)> = {
                         let mut manager = trigger_manager.write().await;
                         let fired = manager.check_all().await;
@@ -1662,14 +1679,12 @@ impl SequenceExecutor {
                             action
                         );
 
-                        // Emit TriggerFired event
                         let _ = event_tx_clone2.send(ExecutorEvent::TriggerFired {
                             trigger_id: trigger_id.clone(),
                             trigger_name: trigger_name.clone(),
                             action: action_str.clone(),
                         });
 
-                        // Handle recovery actions
                         match &action {
                             RecoveryAction::Pause => {
                                 is_paused_for_triggers.store(true, Ordering::Relaxed);
@@ -1683,7 +1698,9 @@ impl SequenceExecutor {
                                 // in `terminate_with` so this code path cannot
                                 // forget it on a future refactor.
 
-                                // Actually park the mount before aborting
+                                // Park BEFORE aborting: a bare abort leaves the mount tracking
+                                // toward the limit. The whole point of ParkAndAbort is to put
+                                // the rig into a safe state — so we park first, then exit.
                                 if let Some(mount_id) = &trigger_action_context.mount_id {
                                     tracing::warn!("ParkAndAbort: parking mount '{}'", mount_id);
                                     match device_ops_for_triggers.mount_park(mount_id).await {
@@ -1698,7 +1715,9 @@ impl SequenceExecutor {
                                                  Mount may be in an unsafe position!",
                                                 e
                                             );
-                                            // Retry once
+                                            // One retry covers a transient driver hiccup;
+                                            // beyond that the operator must intervene anyway
+                                            // (we still proceed with abort to halt exposures).
                                             tokio::time::sleep(std::time::Duration::from_secs(2))
                                                 .await;
                                             if let Err(retry_err) =
@@ -1846,12 +1865,10 @@ impl SequenceExecutor {
                                 }
                             }
                             RecoveryAction::MeridianFlip(config) => {
-                                // Execute meridian flip
                                 tracing::info!(
                                     "[MERIDIAN] Trigger fired - executing meridian flip"
                                 );
 
-                                // Get target info from trigger state
                                 let (target_name, target_ra, target_dec) = {
                                     let ts = trigger_state_for_actions.read().await;
                                     (
@@ -1887,7 +1904,6 @@ impl SequenceExecutor {
                                                 new_pier_side, duration_secs
                                             );
 
-                                            // Mark flip as performed in trigger state
                                             let mut ts = trigger_state_for_actions.write().await;
                                             ts.mark_flip_performed();
                                         }
@@ -1901,7 +1917,6 @@ impl SequenceExecutor {
                                                 action_taken
                                             );
 
-                                            // Handle based on configured failure action
                                             match action_taken {
                                                 crate::FlipFailureAction::PauseAndAlert => {
                                                     is_paused_for_triggers
@@ -1921,7 +1936,10 @@ impl SequenceExecutor {
                                                     // out of sync with the
                                                     // ParkAndAbort path.
 
-                                                    // Park the mount after failed flip
+                                                    // The flip itself failed, so the mount may be
+                                                    // anywhere between sides. Park before we exit
+                                                    // to avoid leaving it tracking into a limit
+                                                    // — matches the ParkAndAbort policy above.
                                                     if let Some(mount_id) =
                                                         &trigger_action_context.mount_id
                                                     {
@@ -2169,10 +2187,10 @@ impl SequenceExecutor {
                 fired_triggers
             };
 
-            // Run all concurrently.
-            // SAFETY: If the trigger monitor exits unexpectedly while triggers are
-            // enabled and the sequence hasn't been cancelled, that means safety
-            // monitoring has failed. We must not continue execution unmonitored.
+            // Fail-closed safety: an unattended sequence depends on the trigger
+            // monitor to enforce weather / altitude / drift limits. If it exits
+            // for any reason other than normal cancellation, continuing to
+            // expose would leave the rig unmonitored — so we cancel everything.
             let result = tokio::select! {
                 _ = command_handler => NodeStatus::Cancelled,
                 result = execution => result,
@@ -2183,7 +2201,6 @@ impl SequenceExecutor {
                             "Safety monitoring (trigger monitor) exited unexpectedly! \
                              Cancelling sequence to prevent unmonitored execution."
                         );
-                        // Signal cancellation so the execution task stops
                         is_cancelled.store(true, Ordering::Relaxed);
                         let _ = event_tx.send(ExecutorEvent::Error {
                             message: "Safety monitoring failed — sequence aborted. \
@@ -2197,7 +2214,6 @@ impl SequenceExecutor {
                 },
             };
 
-            // Update final state
             let final_state = executor_state_for_result(result);
 
             *state.write().await = final_state;
@@ -2393,21 +2409,17 @@ impl SequenceExecutor {
             .load()?;
 
         if let Some(ref cp) = checkpoint {
-            // Store checkpoint for resume
             self.current_checkpoint = Some(cp.clone());
 
-            // Restore device IDs
             self.camera_id = cp.camera_id.clone();
             self.mount_id = cp.mount_id.clone();
             self.focuser_id = cp.focuser_id.clone();
             self.filterwheel_id = cp.filterwheel_id.clone();
             self.rotator_id = cp.rotator_id.clone();
 
-            // Restore location
             self.latitude = cp.latitude;
             self.longitude = cp.longitude;
 
-            // Restore save path
             self.save_path = cp.save_path.clone();
 
             tracing::info!("Loaded checkpoint for sequence: {}", cp.sequence.name);
@@ -2436,7 +2448,9 @@ impl SequenceExecutor {
         checkpoint.completed_integration_secs = progress.completed_integration_secs;
         checkpoint.is_active = matches!(state, ExecutorState::Running | ExecutorState::Paused);
 
-        // Find last completed node by execution order (not lexical node ID ordering)
+        // Track "last completed" by the tree-walk order, not lexical NodeId
+        // ordering — the latter would falsely pick an earlier node whose id
+        // happens to sort after a later one (NodeIds are user-set strings).
         let execution_order = self.build_execution_order(sequence);
         checkpoint.last_completed_node = progress
             .node_statuses
@@ -2446,7 +2460,6 @@ impl SequenceExecutor {
             .max_by_key(|(_, order)| *order)
             .map(|(id, _)| (*id).clone());
 
-        // Set device info
         checkpoint.set_devices(
             self.camera_id.clone(),
             self.mount_id.clone(),
@@ -2502,10 +2515,8 @@ impl SequenceExecutor {
             return Err("Checkpoint cannot be resumed".to_string());
         }
 
-        // Load the sequence
         self.load_sequence(checkpoint.sequence.clone())?;
 
-        // Restore progress
         {
             let mut progress = self.progress.write();
             progress.node_statuses = checkpoint.node_statuses.clone();
@@ -2513,7 +2524,9 @@ impl SequenceExecutor {
             progress.completed_integration_secs = checkpoint.completed_integration_secs;
         }
 
-        // Mark completed nodes to be skipped
+        // Marking completed nodes on the freshly built tree is what makes
+        // resume idempotent — the executor still walks the full tree but
+        // short-circuits already-Success nodes.
         if let Some(ref mut root) = self.root_node {
             for node_id in checkpoint.get_completed_nodes() {
                 root.mark_completed(&node_id);
@@ -2574,7 +2587,6 @@ mod tests {
         let mut executor = SequenceExecutor::new();
         let mut sequence = SequenceDefinition::new("Test Sequence".to_string());
 
-        // Add a simple delay node as root
         let node = crate::NodeDefinition {
             id: "root".to_string(),
             name: "Root".to_string(),
@@ -2605,7 +2617,6 @@ mod tests {
             .unwrap();
 
         rt.block_on(async {
-            // Initial state should be Idle
             assert_eq!(executor.get_state().await, ExecutorState::Idle);
         });
     }

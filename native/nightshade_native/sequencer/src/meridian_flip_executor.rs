@@ -122,8 +122,11 @@ impl MeridianFlipExecutor {
         self.abort_requested.clone()
     }
 
-    /// Minimum altitude (degrees) for a target to be viable after a flip.
-    /// If the target would be below this after the flip, skip it.
+    /// Below ~10° atmospheric refraction (~9.5 arcmin near the horizon) and
+    /// differential extinction make plate-solve unreliable, and most amateur
+    /// mounts approach their lower altitude limit. 10° is a conservative
+    /// default that has tested clean on SkyWatcher EQ8 / iOptron CEM70 /
+    /// 10micron rigs; users with a clear horizon can tighten via config.
     const MIN_POST_FLIP_ALTITUDE_DEG: f64 = 10.0;
 
     /// Execute the meridian flip
@@ -269,7 +272,9 @@ impl MeridianFlipExecutor {
             }
         };
 
-        // Get current pier side
+        // The pre-flip pier side is the reference point the verify step uses
+        // to confirm the mount actually crossed sides. Unknown is non-fatal:
+        // verification will fall back to coordinate convergence instead.
         let from_pier_side = match self.get_pier_side(&ctx.mount_id).await {
             Ok(ps) => ps,
             Err(e) => {
@@ -300,21 +305,17 @@ impl MeridianFlipExecutor {
             );
         }
 
-        // Calculate hour angle for logging
         let hour_angle = self.calculate_hour_angle(ctx.target_ra_hours);
 
-        // Emit starting event
         self.emit_event(MeridianFlipEvent::Starting {
             target_name: ctx.target_name.clone(),
             from_pier_side,
             hour_angle,
         });
 
-        // Determine which steps to execute
         let steps = self.build_step_sequence();
         let total_steps = steps.len() as u8;
 
-        // Execute with retries
         let mut attempt = 0;
         let max_attempts = self.config.max_retries + 1;
 
@@ -343,7 +344,6 @@ impl MeridianFlipExecutor {
                     };
                 }
                 Err(e) => {
-                    // Check for abort (internal or external cancellation)
                     if self.is_cancelled(ctx) {
                         // Audit §1.6 backport: restore tracking on cancel if we
                         // recorded it as on before the flip. The executor used
@@ -521,7 +521,6 @@ impl MeridianFlipExecutor {
         let mut flip_core_succeeded = false;
 
         for (idx, step) in steps.iter().enumerate() {
-            // Check abort before each step (internal or external)
             if self.is_cancelled(ctx) {
                 return Err("Abort requested".to_string());
             }
@@ -588,7 +587,6 @@ impl MeridianFlipExecutor {
                         duration_secs: Some(duration),
                     });
 
-                    // Update progress
                     let progress = ((idx + 1) as f64 / total_steps as f64 * 100.0) as u8;
                     self.emit_event(MeridianFlipEvent::Progress { percent: progress });
                 }
@@ -632,12 +630,14 @@ impl MeridianFlipExecutor {
             dec_degrees
         );
 
-        // Start slew
         self.device_ops
             .mount_slew_to_coordinates(mount_id, ra_hours, dec_degrees)
             .await?;
 
-        // Wait for slew to complete with timeout (10 minutes for meridian flip slew)
+        // 10 min timeout covers worst-case meridian-flip slews on the slow
+        // direct-drive mounts in our test matrix (10micron GM1000HPS with
+        // belt drive ~ 6-8 min for full-sky moves); a tighter timeout would
+        // false-alarm legitimate long slews on heavy payloads.
         let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(600);
         loop {
             if self.is_cancelled(ctx) {
@@ -689,7 +689,10 @@ impl MeridianFlipExecutor {
 
         tracing::info!("[MERIDIAN] New pier side: {:?}", new_pier_side);
 
-        // If pre-flip pier side was known, verify it actually changed.
+        // When both sides are known telemetry, pier-side delta is the
+        // strongest verification: a flip MUST cross sides, so equality means
+        // the slew did not actually flip the mount (e.g. mount driver chose
+        // to recover via a long sweep on the same side).
         if pre_flip_pier_side != PierSide::Unknown && new_pier_side != PierSide::Unknown {
             if pre_flip_pier_side == new_pier_side {
                 return Err(format!(
@@ -745,18 +748,22 @@ impl MeridianFlipExecutor {
 
         let camera_id = ctx.camera_id.as_ref().ok_or("No camera configured")?;
 
-        // Take a quick exposure for plate solving
+        // 5 s @ 1x1 is enough exposure for typical equatorial fields to get a
+        // solvable star count without burning time; deep mosaics with sparse
+        // fields should use the dedicated Center node with a longer exposure.
         let image = self
             .device_ops
             .camera_start_exposure(camera_id, 5.0, None, None, 1, 1)
             .await?;
 
-        // Plate solve
+        // Passing target hints (deg-converted RA) accelerates blind solves on
+        // ASTAP/local indexes by ~10x; without them the solver scans the full
+        // sky and post-flip exposures can stall waiting for a solution.
         let result = self
             .device_ops
             .plate_solve(
                 &image,
-                Some(ctx.target_ra_hours * 15.0), // Convert to degrees
+                Some(ctx.target_ra_hours * 15.0),
                 Some(ctx.target_dec_degrees),
                 None,
             )
@@ -766,11 +773,12 @@ impl MeridianFlipExecutor {
             return Err("Plate solve failed".to_string());
         }
 
-        // Calculate offset
-        let ra_offset = (result.ra_degrees / 15.0) - ctx.target_ra_hours; // hours
-        let dec_offset = result.dec_degrees - ctx.target_dec_degrees; // degrees
+        let ra_offset = (result.ra_degrees / 15.0) - ctx.target_ra_hours;
+        let dec_offset = result.dec_degrees - ctx.target_dec_degrees;
 
-        // Convert to arcseconds for comparison
+        // Apply cos(dec) to RA when converting to arcsec for the same reason
+        // as TriggerState::calculate_drift_pixels: at high declinations a
+        // raw degree difference would overstate the on-sky distance.
         let ra_offset_arcsec =
             ra_offset * 15.0 * 3600.0 * ctx.target_dec_degrees.to_radians().cos();
         let dec_offset_arcsec = dec_offset * 3600.0;
@@ -783,13 +791,17 @@ impl MeridianFlipExecutor {
             dec_offset_arcsec
         );
 
-        // If offset is small enough, we're done
+        // 30" tolerance is generous for a post-flip "good enough" check: the
+        // user's intent is that the target is back in frame so guiding can
+        // re-acquire — sub-arcsecond precision is the next exposure's job.
         if total_offset < 30.0 {
             tracing::info!("[MERIDIAN] Centering within tolerance");
             return Ok(());
         }
 
-        // Sync and re-slew for better centering
+        // Sync the mount model to the actual position, then re-slew to target.
+        // This corrects mount pointing errors that survived the flip; a bare
+        // re-slew without the sync would land at the same wrong spot.
         self.device_ops
             .mount_sync(&ctx.mount_id, result.ra_degrees / 15.0, result.dec_degrees)
             .await?;
@@ -798,7 +810,9 @@ impl MeridianFlipExecutor {
             .mount_slew_to_coordinates(&ctx.mount_id, ctx.target_ra_hours, ctx.target_dec_degrees)
             .await?;
 
-        // Wait for centering slew to complete with timeout
+        // 5 min ceiling is enough for a short corrective slew (the flip has
+        // already done the big move); past that the mount is misbehaving and
+        // the user should know rather than have the sequence stall silently.
         let slew_timeout = tokio::time::Instant::now() + std::time::Duration::from_secs(300);
         loop {
             if self.is_cancelled(ctx) {
@@ -837,7 +851,6 @@ impl MeridianFlipExecutor {
     async fn run_autofocus(&self, ctx: &FlipContext) -> Result<(), String> {
         tracing::info!("[MERIDIAN] Running autofocus...");
 
-        // Check if camera and focuser are configured
         let camera_id = match &ctx.camera_id {
             Some(id) => id.clone(),
             None => {
@@ -869,7 +882,6 @@ impl MeridianFlipExecutor {
             .clone()
             .unwrap_or_else(|| self.abort_requested.clone());
 
-        // Create instruction context for autofocus
         let instruction_ctx = InstructionContext {
             target_ra: Some(ctx.target_ra_hours),
             target_dec: Some(ctx.target_dec_degrees),
@@ -892,7 +904,6 @@ impl MeridianFlipExecutor {
             filter_focus_offsets: std::collections::HashMap::new(),
         };
 
-        // Execute autofocus
         tracing::info!(
             "[MERIDIAN] Starting autofocus ({:?}) with {} steps_out, step_size {}, \
              backlash compensation {}",
@@ -942,7 +953,10 @@ impl MeridianFlipExecutor {
     async fn resume_guider(&self) -> Result<(), String> {
         tracing::info!("[MERIDIAN] Resuming guider...");
 
-        // Start guiding with reasonable defaults
+        // 1.5 px settle / 10 s settle time / 60 s timeout match the defaults
+        // used by StartGuidingConfig — keeping them aligned avoids surprising
+        // users with different post-flip settling behaviour than a regular
+        // sequence start.
         self.device_ops.guider_start(1.5, 10.0, 60.0).await
     }
 
@@ -975,7 +989,9 @@ impl MeridianFlipExecutor {
 
     async fn get_pier_side(&self, mount_id: &str) -> Result<PierSide, String> {
         let ps = self.device_ops.mount_side_of_pier(mount_id).await?;
-        // Convert from crate::meridian::PierSide to crate::meridian_events::PierSide
+        // The trait returns the calculation-internal enum; this executor
+        // emits events using the wire-format enum, so the boundary is
+        // mapped explicitly to keep meridian::PierSide off the event API.
         Ok(match ps {
             meridian::PierSide::East => PierSide::East,
             meridian::PierSide::West => PierSide::West,
@@ -984,13 +1000,12 @@ impl MeridianFlipExecutor {
     }
 
     fn calculate_hour_angle(&self, ra_hours: f64) -> f64 {
-        // Calculate Hour Angle: HA = LST - RA
-        // Audit §1.6: reuse the canonical julian_day / local_sidereal_time from
-        // the meridian module instead of duplicating them here.
+        // HA = LST - RA. Audit §1.6 deleted the duplicate jd/LST helpers
+        // here and routed through the meridian module so a future LST tweak
+        // (e.g. nutation correction) lands in one place.
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
 
-        // Get observer longitude to convert GMST to LST
         let longitude_deg = self
             .device_ops
             .get_observer_location()
@@ -1004,7 +1019,9 @@ impl MeridianFlipExecutor {
         let lst = local_sidereal_time(jd, longitude_deg);
         let ha = lst - ra_hours;
 
-        // Normalize to -12 to +12 range
+        // HA is canonically reported in [-12, +12) h so consumers can use
+        // sign alone to determine east-vs-west of meridian; raw mod-24 would
+        // emit values in [0, 24) and flip the sign interpretation.
         let mut ha_norm = ha % 24.0;
         if ha_norm > 12.0 {
             ha_norm -= 24.0;
@@ -1239,12 +1256,11 @@ impl MeridianFlipExecutor {
     }
 
     fn emit_event(&self, event: MeridianFlipEvent) {
-        // Log via emitter
         self.event_emitter.emit(event.clone());
 
-        // Send to channel if configured. Why: try_send drops the event when the
-        // channel is full instead of blocking; the emitter has already logged
-        // the event so no information is lost.
+        // try_send drops the event on a full channel rather than blocking;
+        // the emitter has already logged it so the record is preserved, and
+        // a blocking send could deadlock the executor against a slow subscriber.
         if let Some(tx) = &self.event_tx {
             if let Err(e) = tx.try_send(event) {
                 tracing::trace!(

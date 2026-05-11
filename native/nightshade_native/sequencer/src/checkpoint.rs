@@ -302,7 +302,10 @@ impl SessionCheckpoint {
 
     /// Check if this checkpoint can be resumed
     pub fn can_resume(&self) -> bool {
-        // Can resume if we have a sequence and it was an active session
+        // Resumability requires three things: (1) the session was alive at
+        // checkpoint time (idle/completed sessions don't make sense to
+        // "resume"), (2) the executor was in an interruptible state, and
+        // (3) the sequence has a root — without it `build_node_tree` fails.
         self.is_active
             && matches!(
                 self.executor_state,
@@ -361,19 +364,22 @@ impl CheckpointManager {
 
     /// Save a checkpoint to disk
     pub fn save(&self, checkpoint: &SessionCheckpoint) -> Result<(), String> {
-        // Ensure directory exists
         std::fs::create_dir_all(&self.checkpoint_dir)
             .map_err(|e| format!("Failed to create checkpoint directory: {}", e))?;
 
         let path = self.checkpoint_path();
         let backup = self.backup_path();
 
-        // Backup existing checkpoint
+        // Backup-before-overwrite so a crash mid-write does not lose the
+        // previous good checkpoint; the load() path falls back to .bak
+        // when the primary fails to parse.
         if path.exists() {
             let _ = std::fs::copy(&path, &backup);
         }
 
-        // Write checkpoint atomically
+        // Atomic write via temp-file + rename: a partial write would
+        // leave a malformed JSON that crashes the next load(); rename is
+        // atomic on POSIX and good-enough on Windows for our needs.
         let json = serde_json::to_string_pretty(checkpoint)
             .map_err(|e| format!("Failed to serialize checkpoint: {}", e))?;
 
