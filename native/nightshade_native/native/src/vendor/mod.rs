@@ -1,6 +1,15 @@
 //! Vendor-specific SDK implementations
 //!
 //! Each vendor module wraps their SDK and implements the native driver traits.
+//!
+//! ## SDK loading
+//!
+//! Path search + library open + symbol resolution + `OnceLock` storage is shared
+//! across all vendors via [`sdk_loader`]. New vendors should use the
+//! `load_vendor_sdk!` macro instead of duplicating the boilerplate.
+
+// Shared SDK loading infrastructure (trait + macro + path-search helper).
+pub mod sdk_loader;
 
 // Camera SDKs
 pub mod atik;

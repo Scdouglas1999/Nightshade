@@ -31,7 +31,7 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::ffi::{c_char, c_int, c_long, c_uchar, CStr};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 
 // =============================================================================
 // ASI SDK TYPE DEFINITIONS
@@ -192,206 +192,121 @@ enum ASIBayerPattern {
 // =============================================================================
 // SDK LIBRARY LOADING
 // =============================================================================
+//
+// Path search + library open + per-symbol resolution + OnceLock storage is
+// delegated to the shared `vendor::sdk_loader` infrastructure via the
+// `load_vendor_sdk!` macro. Adding a new ZWO SDK function pointer is now a
+// single-line change in the `symbols: { ... }` block below.
 
-/// ASI SDK library wrapper
-struct AsiSdk {
-    #[allow(dead_code)]
-    lib: libloading::Library,
+use crate::load_vendor_sdk;
+use std::path::PathBuf;
 
-    // Function pointers
-    get_num_cameras: unsafe extern "C" fn() -> c_int,
-    // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
-    get_camera_property: unsafe extern "C" fn(*mut ASICameraInfo, c_int) -> c_int,
-    open_camera: unsafe extern "C" fn(c_int) -> c_int,
-    init_camera: unsafe extern "C" fn(c_int) -> c_int,
-    close_camera: unsafe extern "C" fn(c_int) -> c_int,
-    get_control_value: unsafe extern "C" fn(c_int, c_int, *mut c_long, *mut ASIBool) -> c_int,
-    set_control_value: unsafe extern "C" fn(c_int, c_int, c_long, ASIBool) -> c_int,
-    set_roi_format: unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int) -> c_int,
-    set_start_pos: unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
-    get_roi_format:
-        unsafe extern "C" fn(c_int, *mut c_int, *mut c_int, *mut c_int, *mut c_int) -> c_int,
-    start_exposure: unsafe extern "C" fn(c_int, ASIBool) -> c_int,
-    stop_exposure: unsafe extern "C" fn(c_int) -> c_int,
-    get_exp_status: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_data_after_exp: unsafe extern "C" fn(c_int, *mut c_uchar, c_long) -> c_int,
-    get_num_controls: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_control_caps: unsafe extern "C" fn(c_int, c_int, *mut ASIControlCaps) -> c_int,
+/// Build the ordered list of candidate paths for ASICamera2 (the ZWO camera SDK).
+///
+/// Windows has a richer search list because the SDK ships as a loose DLL that
+/// users typically drop next to the executable or leave in the SDK installer's
+/// default path. macOS/Linux rely on system library paths or the binary's
+/// install prefix.
+fn asi_candidate_paths() -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = Vec::new();
+
+    if cfg!(target_os = "windows") {
+        paths.push(PathBuf::from("ASICamera2.dll"));
+        paths.push(PathBuf::from(
+            "C:\\Program Files\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll",
+        ));
+        paths.push(PathBuf::from(
+            "C:\\Program Files (x86)\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll",
+        ));
+
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                paths.push(exe_dir.join("ASICamera2.dll"));
+
+                if let Some(parent) = exe_dir.parent() {
+                    paths.push(parent.join("ASICamera2.dll"));
+                    paths.push(
+                        parent
+                            .join("SDKs")
+                            .join("ZWO")
+                            .join("ASI_Camera_SDK")
+                            .join("ASI_Windows_SDK_V1.40")
+                            .join("ASI SDK")
+                            .join("lib")
+                            .join("x64")
+                            .join("ASICamera2.dll"),
+                    );
+                }
+
+                if let Some(grandparent) = exe_dir.parent().and_then(|p| p.parent()) {
+                    paths.push(grandparent.join("ASICamera2.dll"));
+                    paths.push(
+                        grandparent
+                            .join("SDKs")
+                            .join("ZWO")
+                            .join("ASI_Camera_SDK")
+                            .join("ASI_Windows_SDK_V1.40")
+                            .join("ASI SDK")
+                            .join("lib")
+                            .join("x64")
+                            .join("ASICamera2.dll"),
+                    );
+                }
+            }
+        }
+    } else if cfg!(target_os = "macos") {
+        paths.push(PathBuf::from("libASICamera2.dylib"));
+        paths.push(PathBuf::from("/usr/local/lib/libASICamera2.dylib"));
+    } else {
+        paths.push(PathBuf::from("libASICamera2.so"));
+        paths.push(PathBuf::from("libASICamera2.so.1"));
+        paths.push(PathBuf::from("/usr/lib/libASICamera2.so"));
+        paths.push(PathBuf::from("/usr/local/lib/libASICamera2.so"));
+    }
+
+    paths
 }
 
-static ASI_SDK: OnceLock<Option<AsiSdk>> = OnceLock::new();
-
-impl AsiSdk {
-    fn load_symbol<T: Copy>(lib: &libloading::Library, name: &[u8], name_str: &str) -> Option<T> {
-        match unsafe { lib.get::<T>(name) } {
-            Ok(sym) => Some(*sym),
-            Err(e) => {
-                tracing::error!("Failed to load ASI function '{}': {}", name_str, e);
-                None
-            }
-        }
-    }
-
-    unsafe fn load_from_library(lib: libloading::Library, source: &str) -> Option<Self> {
-        let get_num_cameras = Self::load_symbol(
-            &lib,
-            b"ASIGetNumOfConnectedCameras\0",
-            "ASIGetNumOfConnectedCameras",
-        )?;
-        let get_camera_property =
-            Self::load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
-        let open_camera = Self::load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
-        let init_camera = Self::load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
-        let close_camera = Self::load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
-        let get_control_value =
-            Self::load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
-        let set_control_value =
-            Self::load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
-        let set_roi_format = Self::load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
-        let set_start_pos = Self::load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
-        let get_roi_format = Self::load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
-        let start_exposure = Self::load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
-        let stop_exposure = Self::load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
-        let get_exp_status = Self::load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
-        let get_data_after_exp =
-            Self::load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
-        let get_num_controls =
-            Self::load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
-        let get_control_caps =
-            Self::load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
-
-        tracing::info!("Successfully loaded all ASI SDK functions from: {}", source);
-        Some(Self {
-            get_num_cameras,
-            get_camera_property,
-            open_camera,
-            init_camera,
-            close_camera,
-            get_control_value,
-            set_control_value,
-            set_roi_format,
-            set_start_pos,
-            get_roi_format,
-            start_exposure,
-            stop_exposure,
-            get_exp_status,
-            get_data_after_exp,
-            get_num_controls,
-            get_control_caps,
-            lib,
-        })
-    }
-
-    /// Load the ASI SDK library
-    fn load() -> Option<Self> {
-        // Build list of paths to search, starting with most likely locations
-        let mut lib_paths: Vec<String> = Vec::new();
-
-        if cfg!(target_os = "windows") {
-            // Try current directory first (works if DLL is in same folder as executable)
-            lib_paths.push("ASICamera2.dll".to_string());
-
-            // Standard installation paths
-            lib_paths.push("C:\\Program Files\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string());
-            lib_paths.push(
-                "C:\\Program Files (x86)\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string(),
-            );
-            // Get executable directory and try paths relative to it
-            if let Ok(exe_path) = std::env::current_exe() {
-                if let Some(exe_dir) = exe_path.parent() {
-                    // Check next to executable
-                    lib_paths.push(exe_dir.join("ASICamera2.dll").to_string_lossy().to_string());
-
-                    // Check parent directories (for release builds in subdirectories)
-                    if let Some(parent) = exe_dir.parent() {
-                        lib_paths.push(parent.join("ASICamera2.dll").to_string_lossy().to_string());
-
-                        // Try SDKs directory if project structure exists
-                        let sdk_path = parent
-                            .join("SDKs")
-                            .join("ZWO")
-                            .join("ASI_Camera_SDK")
-                            .join("ASI_Windows_SDK_V1.40")
-                            .join("ASI SDK")
-                            .join("lib")
-                            .join("x64")
-                            .join("ASICamera2.dll");
-                        lib_paths.push(sdk_path.to_string_lossy().to_string());
-                    }
-
-                    // Check 2 levels up
-                    if let Some(grandparent) = exe_dir.parent().and_then(|p| p.parent()) {
-                        lib_paths.push(
-                            grandparent
-                                .join("ASICamera2.dll")
-                                .to_string_lossy()
-                                .to_string(),
-                        );
-
-                        let sdk_path = grandparent
-                            .join("SDKs")
-                            .join("ZWO")
-                            .join("ASI_Camera_SDK")
-                            .join("ASI_Windows_SDK_V1.40")
-                            .join("ASI SDK")
-                            .join("lib")
-                            .join("x64")
-                            .join("ASICamera2.dll");
-                        lib_paths.push(sdk_path.to_string_lossy().to_string());
-                    }
-                }
-            }
-        } else if cfg!(target_os = "macos") {
-            lib_paths.push("libASICamera2.dylib".to_string());
-            lib_paths.push("/usr/local/lib/libASICamera2.dylib".to_string());
-        } else {
-            lib_paths.push("libASICamera2.so".to_string());
-            lib_paths.push("libASICamera2.so.1".to_string());
-            lib_paths.push("/usr/lib/libASICamera2.so".to_string());
-            lib_paths.push("/usr/local/lib/libASICamera2.so".to_string());
-        };
-
-        for path in &lib_paths {
-            tracing::debug!("Trying to load ASI SDK from: {}", path);
-            unsafe {
-                match libloading::Library::new(path) {
-                    Ok(lib) => {
-                        tracing::info!("Found ASI SDK at: {}", path);
-                        return Self::load_from_library(lib, path);
-                    }
-                    Err(e) => {
-                        // Always log DLL load failures so users can diagnose issues
-                        tracing::debug!("ASI SDK not found at {}: {}", path, e);
-                    }
-                }
-            }
-        }
-
-        // Try to find via PATH environment variable as last resort
-        #[cfg(windows)]
-        {
-            tracing::debug!("Trying to load ASI SDK from system PATH");
-            unsafe {
-                match libloading::Library::new("ASICamera2.dll") {
-                    Ok(lib) => {
-                        tracing::info!("Found ASI SDK via system PATH");
-                        return Self::load_from_library(lib, "system PATH");
-                    }
-                    Err(e) => {
-                        tracing::debug!("ASI SDK not found in system PATH: {}", e);
-                    }
-                }
-            }
-        }
-
-        tracing::debug!("ZWO ASI SDK (ASICamera2.dll) not found after checking {} locations. Native ZWO camera support will be unavailable.", lib_paths.len());
-        tracing::debug!("To use native ZWO drivers, install the ASI SDK from https://astronomy-imaging-camera.com/software-drivers or place ASICamera2.dll in the application directory.");
-        None
-    }
-
-    /// Get the global SDK instance
-    fn get() -> Option<&'static AsiSdk> {
-        ASI_SDK.get_or_init(Self::load).as_ref()
+load_vendor_sdk! {
+    /// ZWO ASI Camera SDK function-pointer table (ASICamera2.dll / libASICamera2.{so,dylib}).
+    vendor_name: "ZWO ASI Camera",
+    sdk_struct: AsiSdk,
+    sdk_static: ASI_SDK,
+    candidate_paths_fn: asi_candidate_paths,
+    symbols: {
+        get_num_cameras: b"ASIGetNumOfConnectedCameras\0"
+            => unsafe extern "C" fn() -> c_int,
+        // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
+        get_camera_property: b"ASIGetCameraProperty\0"
+            => unsafe extern "C" fn(*mut ASICameraInfo, c_int) -> c_int,
+        open_camera: b"ASIOpenCamera\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        init_camera: b"ASIInitCamera\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        close_camera: b"ASICloseCamera\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        get_control_value: b"ASIGetControlValue\0"
+            => unsafe extern "C" fn(c_int, c_int, *mut c_long, *mut ASIBool) -> c_int,
+        set_control_value: b"ASISetControlValue\0"
+            => unsafe extern "C" fn(c_int, c_int, c_long, ASIBool) -> c_int,
+        set_roi_format: b"ASISetROIFormat\0"
+            => unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int) -> c_int,
+        set_start_pos: b"ASISetStartPos\0"
+            => unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
+        get_roi_format: b"ASIGetROIFormat\0"
+            => unsafe extern "C" fn(c_int, *mut c_int, *mut c_int, *mut c_int, *mut c_int) -> c_int,
+        start_exposure: b"ASIStartExposure\0"
+            => unsafe extern "C" fn(c_int, ASIBool) -> c_int,
+        stop_exposure: b"ASIStopExposure\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        get_exp_status: b"ASIGetExpStatus\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        get_data_after_exp: b"ASIGetDataAfterExp\0"
+            => unsafe extern "C" fn(c_int, *mut c_uchar, c_long) -> c_int,
+        get_num_controls: b"ASIGetNumOfControls\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        get_control_caps: b"ASIGetControlCaps\0"
+            => unsafe extern "C" fn(c_int, c_int, *mut ASIControlCaps) -> c_int,
     }
 }
 
@@ -1554,80 +1469,74 @@ struct EAFSerialNumber {
     id: [c_uchar; 8],
 }
 
-/// EAF SDK function pointers
-struct EafSdk {
-    get_num: unsafe extern "C" fn() -> c_int,
-    get_id: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    open: unsafe extern "C" fn(c_int) -> c_int,
-    close: unsafe extern "C" fn(c_int) -> c_int,
-    get_property: unsafe extern "C" fn(c_int, *mut EAFInfo) -> c_int,
-    move_to: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    stop: unsafe extern "C" fn(c_int) -> c_int,
-    is_moving: unsafe extern "C" fn(c_int, *mut bool, *mut bool) -> c_int,
-    get_position: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_temp: unsafe extern "C" fn(c_int, *mut f32) -> c_int,
-    set_max_step: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    get_max_step: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    set_backlash: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    get_backlash: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    set_reverse: unsafe extern "C" fn(c_int, bool) -> c_int,
-    get_reverse: unsafe extern "C" fn(c_int, *mut bool) -> c_int,
-    set_beep: unsafe extern "C" fn(c_int, bool) -> c_int,
-    get_beep: unsafe extern "C" fn(c_int, *mut bool) -> c_int,
-    get_sdk_version: unsafe extern "C" fn() -> *const c_char,
-    get_firmware_version:
-        unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
-    get_serial_number: unsafe extern "C" fn(c_int, *mut EAFSerialNumber) -> c_int,
-    reset_position: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    _library: libloading::Library,
+/// Candidate library paths for the ZWO EAF (focuser) SDK. ZWO only ships the
+/// EAF focuser SDK as a single platform-specific filename — no install-tree
+/// search is needed beyond the system loader path.
+fn eaf_candidate_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if cfg!(target_os = "windows") {
+        paths.push(PathBuf::from("EAF_focuser.dll"));
+    } else if cfg!(target_os = "macos") {
+        paths.push(PathBuf::from("libEAF_focuser.dylib"));
+    } else {
+        paths.push(PathBuf::from("libEAF_focuser.so"));
+    }
+    paths
 }
 
-static EAF_SDK: OnceLock<Option<EafSdk>> = OnceLock::new();
-
-impl EafSdk {
-    /// Try to load the EAF SDK library
-    fn load() -> Option<Self> {
-        #[cfg(target_os = "windows")]
-        let lib_name = "EAF_focuser.dll";
-        #[cfg(target_os = "macos")]
-        let lib_name = "libEAF_focuser.dylib";
-        #[cfg(target_os = "linux")]
-        let lib_name = "libEAF_focuser.so";
-
-        let library = unsafe { libloading::Library::new(lib_name).ok()? };
-
-        unsafe {
-            Some(EafSdk {
-                get_num: *library.get(b"EAFGetNum\0").ok()?,
-                get_id: *library.get(b"EAFGetID\0").ok()?,
-                open: *library.get(b"EAFOpen\0").ok()?,
-                close: *library.get(b"EAFClose\0").ok()?,
-                get_property: *library.get(b"EAFGetProperty\0").ok()?,
-                move_to: *library.get(b"EAFMove\0").ok()?,
-                stop: *library.get(b"EAFStop\0").ok()?,
-                is_moving: *library.get(b"EAFIsMoving\0").ok()?,
-                get_position: *library.get(b"EAFGetPosition\0").ok()?,
-                get_temp: *library.get(b"EAFGetTemp\0").ok()?,
-                set_max_step: *library.get(b"EAFSetMaxStep\0").ok()?,
-                get_max_step: *library.get(b"EAFGetMaxStep\0").ok()?,
-                set_backlash: *library.get(b"EAFSetBacklash\0").ok()?,
-                get_backlash: *library.get(b"EAFGetBacklash\0").ok()?,
-                set_reverse: *library.get(b"EAFSetReverse\0").ok()?,
-                get_reverse: *library.get(b"EAFGetReverse\0").ok()?,
-                set_beep: *library.get(b"EAFSetBeep\0").ok()?,
-                get_beep: *library.get(b"EAFGetBeep\0").ok()?,
-                get_sdk_version: *library.get(b"EAFGetSDKVersion\0").ok()?,
-                get_firmware_version: *library.get(b"EAFGetFirmwareVersion\0").ok()?,
-                get_serial_number: *library.get(b"EAFGetSerialNumber\0").ok()?,
-                reset_position: *library.get(b"EAFResetPostion\0").ok()?, // Note: typo in SDK
-                _library: library,
-            })
-        }
-    }
-
-    /// Get the singleton SDK instance
-    fn get() -> Option<&'static EafSdk> {
-        EAF_SDK.get_or_init(Self::load).as_ref()
+load_vendor_sdk! {
+    /// ZWO EAF Focuser SDK function-pointer table.
+    vendor_name: "ZWO EAF Focuser",
+    sdk_struct: EafSdk,
+    sdk_static: EAF_SDK,
+    candidate_paths_fn: eaf_candidate_paths,
+    symbols: {
+        get_num: b"EAFGetNum\0"
+            => unsafe extern "C" fn() -> c_int,
+        get_id: b"EAFGetID\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        open: b"EAFOpen\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        close: b"EAFClose\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        get_property: b"EAFGetProperty\0"
+            => unsafe extern "C" fn(c_int, *mut EAFInfo) -> c_int,
+        move_to: b"EAFMove\0"
+            => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        stop: b"EAFStop\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        is_moving: b"EAFIsMoving\0"
+            => unsafe extern "C" fn(c_int, *mut bool, *mut bool) -> c_int,
+        get_position: b"EAFGetPosition\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        get_temp: b"EAFGetTemp\0"
+            => unsafe extern "C" fn(c_int, *mut f32) -> c_int,
+        set_max_step: b"EAFSetMaxStep\0"
+            => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        get_max_step: b"EAFGetMaxStep\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        set_backlash: b"EAFSetBacklash\0"
+            => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        get_backlash: b"EAFGetBacklash\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        set_reverse: b"EAFSetReverse\0"
+            => unsafe extern "C" fn(c_int, bool) -> c_int,
+        get_reverse: b"EAFGetReverse\0"
+            => unsafe extern "C" fn(c_int, *mut bool) -> c_int,
+        set_beep: b"EAFSetBeep\0"
+            => unsafe extern "C" fn(c_int, bool) -> c_int,
+        get_beep: b"EAFGetBeep\0"
+            => unsafe extern "C" fn(c_int, *mut bool) -> c_int,
+        get_sdk_version: b"EAFGetSDKVersion\0"
+            => unsafe extern "C" fn() -> *const c_char,
+        get_firmware_version: b"EAFGetFirmwareVersion\0"
+            => unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
+        get_serial_number: b"EAFGetSerialNumber\0"
+            => unsafe extern "C" fn(c_int, *mut EAFSerialNumber) -> c_int,
+        // SDK header ships with the typo "EAFResetPostion" (sic) — we must keep
+        // it because that's the only symbol the .dll actually exports.
+        reset_position: b"EAFResetPostion\0"
+            => unsafe extern "C" fn(c_int, c_int) -> c_int,
     }
 }
 
@@ -2089,64 +1998,54 @@ struct EFWSerialNumber {
     id: [c_uchar; 8],
 }
 
-/// EFW SDK function pointers
-struct EfwSdk {
-    get_num: unsafe extern "C" fn() -> c_int,
-    get_id: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    open: unsafe extern "C" fn(c_int) -> c_int,
-    close: unsafe extern "C" fn(c_int) -> c_int,
-    get_property: unsafe extern "C" fn(c_int, *mut EFWInfo) -> c_int,
-    get_position: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    set_position: unsafe extern "C" fn(c_int, c_int) -> c_int,
-    set_direction: unsafe extern "C" fn(c_int, bool) -> c_int,
-    get_direction: unsafe extern "C" fn(c_int, *mut bool) -> c_int,
-    calibrate: unsafe extern "C" fn(c_int) -> c_int,
-    get_sdk_version: unsafe extern "C" fn() -> *const c_char,
-    get_hw_error_code: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_firmware_version:
-        unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
-    get_serial_number: unsafe extern "C" fn(c_int, *mut EFWSerialNumber) -> c_int,
-    _library: libloading::Library,
+/// Candidate library paths for the ZWO EFW (electronic filter wheel) SDK.
+fn efw_candidate_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if cfg!(target_os = "windows") {
+        paths.push(PathBuf::from("EFW_filter.dll"));
+    } else if cfg!(target_os = "macos") {
+        paths.push(PathBuf::from("libEFW_filter.dylib"));
+    } else {
+        paths.push(PathBuf::from("libEFW_filter.so"));
+    }
+    paths
 }
 
-static EFW_SDK: OnceLock<Option<EfwSdk>> = OnceLock::new();
-
-impl EfwSdk {
-    /// Try to load the EFW SDK library
-    fn load() -> Option<Self> {
-        #[cfg(target_os = "windows")]
-        let lib_name = "EFW_filter.dll";
-        #[cfg(target_os = "macos")]
-        let lib_name = "libEFW_filter.dylib";
-        #[cfg(target_os = "linux")]
-        let lib_name = "libEFW_filter.so";
-
-        let library = unsafe { libloading::Library::new(lib_name).ok()? };
-
-        unsafe {
-            Some(EfwSdk {
-                get_num: *library.get(b"EFWGetNum\0").ok()?,
-                get_id: *library.get(b"EFWGetID\0").ok()?,
-                open: *library.get(b"EFWOpen\0").ok()?,
-                close: *library.get(b"EFWClose\0").ok()?,
-                get_property: *library.get(b"EFWGetProperty\0").ok()?,
-                get_position: *library.get(b"EFWGetPosition\0").ok()?,
-                set_position: *library.get(b"EFWSetPosition\0").ok()?,
-                set_direction: *library.get(b"EFWSetDirection\0").ok()?,
-                get_direction: *library.get(b"EFWGetDirection\0").ok()?,
-                calibrate: *library.get(b"EFWCalibrate\0").ok()?,
-                get_sdk_version: *library.get(b"EFWGetSDKVersion\0").ok()?,
-                get_hw_error_code: *library.get(b"EFWGetHWErrorCode\0").ok()?,
-                get_firmware_version: *library.get(b"EFWGetFirmwareVersion\0").ok()?,
-                get_serial_number: *library.get(b"EFWGetSerialNumber\0").ok()?,
-                _library: library,
-            })
-        }
-    }
-
-    /// Get the singleton SDK instance
-    fn get() -> Option<&'static EfwSdk> {
-        EFW_SDK.get_or_init(Self::load).as_ref()
+load_vendor_sdk! {
+    /// ZWO EFW Filter Wheel SDK function-pointer table.
+    vendor_name: "ZWO EFW Filter Wheel",
+    sdk_struct: EfwSdk,
+    sdk_static: EFW_SDK,
+    candidate_paths_fn: efw_candidate_paths,
+    symbols: {
+        get_num: b"EFWGetNum\0"
+            => unsafe extern "C" fn() -> c_int,
+        get_id: b"EFWGetID\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        open: b"EFWOpen\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        close: b"EFWClose\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        get_property: b"EFWGetProperty\0"
+            => unsafe extern "C" fn(c_int, *mut EFWInfo) -> c_int,
+        get_position: b"EFWGetPosition\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        set_position: b"EFWSetPosition\0"
+            => unsafe extern "C" fn(c_int, c_int) -> c_int,
+        set_direction: b"EFWSetDirection\0"
+            => unsafe extern "C" fn(c_int, bool) -> c_int,
+        get_direction: b"EFWGetDirection\0"
+            => unsafe extern "C" fn(c_int, *mut bool) -> c_int,
+        calibrate: b"EFWCalibrate\0"
+            => unsafe extern "C" fn(c_int) -> c_int,
+        get_sdk_version: b"EFWGetSDKVersion\0"
+            => unsafe extern "C" fn() -> *const c_char,
+        get_hw_error_code: b"EFWGetHWErrorCode\0"
+            => unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+        get_firmware_version: b"EFWGetFirmwareVersion\0"
+            => unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
+        get_serial_number: b"EFWGetSerialNumber\0"
+            => unsafe extern "C" fn(c_int, *mut EFWSerialNumber) -> c_int,
     }
 }
 
