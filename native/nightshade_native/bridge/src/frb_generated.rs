@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 689433636;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 544656026;
 
 // Section: executor
 
@@ -6187,6 +6187,54 @@ fn wire__crate__api__api_stacking_stop_impl(
                     let output_ok = crate::api::api_stacking_stop()?;
                     Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__api_start_all_sky_polar_alignment_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    exposure_time: impl CstDecode<f64>,
+    solve_timeout: impl CstDecode<f64>,
+    binning: impl CstDecode<i32>,
+    is_north: impl CstDecode<bool>,
+    acceptance_threshold_arcsec: impl CstDecode<f64>,
+    iteration_cadence_secs: impl CstDecode<f64>,
+    gain: impl CstDecode<Option<i32>>,
+    offset: impl CstDecode<Option<i32>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_start_all_sky_polar_alignment",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_exposure_time = exposure_time.cst_decode();
+            let api_solve_timeout = solve_timeout.cst_decode();
+            let api_binning = binning.cst_decode();
+            let api_is_north = is_north.cst_decode();
+            let api_acceptance_threshold_arcsec = acceptance_threshold_arcsec.cst_decode();
+            let api_iteration_cadence_secs = iteration_cadence_secs.cst_decode();
+            let api_gain = gain.cst_decode();
+            let api_offset = offset.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_start_all_sky_polar_alignment(
+                            api_exposure_time,
+                            api_solve_timeout,
+                            api_binning,
+                            api_is_north,
+                            api_acceptance_threshold_arcsec,
+                            api_iteration_cadence_secs,
+                            api_gain,
+                            api_offset,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -24005,6 +24053,31 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_stacking_stop(port_: i64) {
         wire__crate__api__api_stacking_stop_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_start_all_sky_polar_alignment(
+        port_: i64,
+        exposure_time: f64,
+        solve_timeout: f64,
+        binning: i32,
+        is_north: bool,
+        acceptance_threshold_arcsec: f64,
+        iteration_cadence_secs: f64,
+        gain: *mut i32,
+        offset: *mut i32,
+    ) {
+        wire__crate__api__api_start_all_sky_polar_alignment_impl(
+            port_,
+            exposure_time,
+            solve_timeout,
+            binning,
+            is_north,
+            acceptance_threshold_arcsec,
+            iteration_cadence_secs,
+            gain,
+            offset,
+        )
     }
 
     #[unsafe(no_mangle)]

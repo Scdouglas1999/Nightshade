@@ -2540,6 +2540,16 @@ void frbgen_nightshade_bridge_wire__crate__api__api_stacking_start_from_data(int
 
 void frbgen_nightshade_bridge_wire__crate__api__api_stacking_stop(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_start_all_sky_polar_alignment(int64_t port_,
+                                                                                  double exposure_time,
+                                                                                  double solve_timeout,
+                                                                                  int32_t binning,
+                                                                                  bool is_north,
+                                                                                  double acceptance_threshold_arcsec,
+                                                                                  double iteration_cadence_secs,
+                                                                                  int32_t *gain,
+                                                                                  int32_t *offset);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_start_device_heartbeat(int64_t port_,
                                                                            int32_t device_type,
                                                                            struct wire_cst_list_prim_u_8_strict *device_id,
@@ -3236,6 +3246,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stacking_start);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stacking_start_from_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stacking_stop);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_start_all_sky_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_start_device_heartbeat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_start_device_heartbeat_with_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_start_polar_alignment);

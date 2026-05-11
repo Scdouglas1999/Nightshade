@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 689433636;
+  int get rustContentHash => 544656026;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -889,6 +889,16 @@ abstract class RustLibApi extends BaseApi {
       required ApiLiveStackingConfig config});
 
   Future<void> crateApiApiStackingStop();
+
+  Future<void> crateApiApiStartAllSkyPolarAlignment(
+      {required double exposureTime,
+      required double solveTimeout,
+      required int binning,
+      required bool isNorth,
+      required double acceptanceThresholdArcsec,
+      required double iterationCadenceSecs,
+      int? gain,
+      int? offset});
 
   Future<void> crateApiApiStartDeviceHeartbeat(
       {required DeviceType deviceType,
@@ -7365,6 +7375,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiStackingStopConstMeta => const TaskConstMeta(
         debugName: "api_stacking_stop",
         argNames: [],
+      );
+
+  @override
+  Future<void> crateApiApiStartAllSkyPolarAlignment(
+      {required double exposureTime,
+      required double solveTimeout,
+      required int binning,
+      required bool isNorth,
+      required double acceptanceThresholdArcsec,
+      required double iterationCadenceSecs,
+      int? gain,
+      int? offset}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_f_64(exposureTime);
+        var arg1 = cst_encode_f_64(solveTimeout);
+        var arg2 = cst_encode_i_32(binning);
+        var arg3 = cst_encode_bool(isNorth);
+        var arg4 = cst_encode_f_64(acceptanceThresholdArcsec);
+        var arg5 = cst_encode_f_64(iterationCadenceSecs);
+        var arg6 = cst_encode_opt_box_autoadd_i_32(gain);
+        var arg7 = cst_encode_opt_box_autoadd_i_32(offset);
+        return wire.wire__crate__api__api_start_all_sky_polar_alignment(
+            port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiStartAllSkyPolarAlignmentConstMeta,
+      argValues: [
+        exposureTime,
+        solveTimeout,
+        binning,
+        isNorth,
+        acceptanceThresholdArcsec,
+        iterationCadenceSecs,
+        gain,
+        offset
+      ],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiStartAllSkyPolarAlignmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_start_all_sky_polar_alignment",
+        argNames: [
+          "exposureTime",
+          "solveTimeout",
+          "binning",
+          "isNorth",
+          "acceptanceThresholdArcsec",
+          "iterationCadenceSecs",
+          "gain",
+          "offset"
+        ],
       );
 
   @override

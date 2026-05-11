@@ -10630,6 +10630,59 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__api_stacking_stop =
       _wire__crate__api__api_stacking_stopPtr.asFunction<void Function(int)>();
 
+  void wire__crate__api__api_start_all_sky_polar_alignment(
+    int port_,
+    double exposure_time,
+    double solve_timeout,
+    int binning,
+    bool is_north,
+    double acceptance_threshold_arcsec,
+    double iteration_cadence_secs,
+    ffi.Pointer<ffi.Int32> gain,
+    ffi.Pointer<ffi.Int32> offset,
+  ) {
+    return _wire__crate__api__api_start_all_sky_polar_alignment(
+      port_,
+      exposure_time,
+      solve_timeout,
+      binning,
+      is_north,
+      acceptance_threshold_arcsec,
+      iteration_cadence_secs,
+      gain,
+      offset,
+    );
+  }
+
+  late final _wire__crate__api__api_start_all_sky_polar_alignmentPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Double,
+            ffi.Double,
+            ffi.Int32,
+            ffi.Bool,
+            ffi.Double,
+            ffi.Double,
+            ffi.Pointer<ffi.Int32>,
+            ffi.Pointer<ffi.Int32>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_start_all_sky_polar_alignment',
+  );
+  late final _wire__crate__api__api_start_all_sky_polar_alignment =
+      _wire__crate__api__api_start_all_sky_polar_alignmentPtr.asFunction<
+          void Function(
+            int,
+            double,
+            double,
+            int,
+            bool,
+            double,
+            double,
+            ffi.Pointer<ffi.Int32>,
+            ffi.Pointer<ffi.Int32>,
+          )>();
+
   void wire__crate__api__api_start_device_heartbeat(
     int port_,
     int device_type,

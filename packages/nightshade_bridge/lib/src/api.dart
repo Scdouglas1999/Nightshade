@@ -13,8 +13,8 @@ import 'state.dart';
 import 'storage.dart';
 
 // These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `create_unique_temp_fits_path`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `is_phd2_device_id`, `mad`, `median_from_sorted_f64`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `serialize_node_definition`, `serialize_sequence_definition`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `PolarAlignmentMode`, `RawImageInfo`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_active_guider_id_for_ops`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
 /// Invalidate the unified discovery cache, forcing fresh discovery on next call.
@@ -1713,6 +1713,49 @@ Future<void> apiStartPolarAlignment(
 /// Stop the polar alignment process
 Future<void> apiStopPolarAlignment() =>
     RustLib.instance.api.crateApiApiStopPolarAlignment();
+
+/// Start all-sky polar alignment.
+///
+/// Unlike TPPA this routine does not require the celestial pole region to
+/// be visible. It takes a single exposure anywhere in the sky, plate-solves
+/// it to anchor a baseline, then re-solves every `iteration_cadence_secs`
+/// to measure drift relative to that baseline. From the drift signature
+/// and the observer's geographic location it recovers the polar-axis
+/// azimuth and altitude error.
+///
+/// # Arguments
+/// * `exposure_time` — exposure duration per frame, seconds.
+/// * `solve_timeout` — plate-solve timeout per frame, seconds.
+/// * `binning` — camera binning factor (1, 2, or 4 typical).
+/// * `is_north` — northern hemisphere observer flag.
+/// * `acceptance_threshold_arcsec` — alignment auto-completes when the
+///   total error stays below this for 3 seconds (default 30″ = good for
+///   ~3-minute unguided subs).
+/// * `iteration_cadence_secs` — re-solve cadence (default 3s).
+/// * `gain`, `offset` — optional camera parameters.
+///
+/// # Errors
+/// Returns `NightshadeError::OperationFailed` if a plate solver is not
+/// available (the user must install ASTAP), if no camera/mount is
+/// connected, or if the observer location is not configured.
+Future<void> apiStartAllSkyPolarAlignment(
+        {required double exposureTime,
+        required double solveTimeout,
+        required int binning,
+        required bool isNorth,
+        required double acceptanceThresholdArcsec,
+        required double iterationCadenceSecs,
+        int? gain,
+        int? offset}) =>
+    RustLib.instance.api.crateApiApiStartAllSkyPolarAlignment(
+        exposureTime: exposureTime,
+        solveTimeout: solveTimeout,
+        binning: binning,
+        isNorth: isNorth,
+        acceptanceThresholdArcsec: acceptanceThresholdArcsec,
+        iterationCadenceSecs: iterationCadenceSecs,
+        gain: gain,
+        offset: offset);
 
 /// Initialize profile storage
 void apiInitProfileStorage({required String storagePath}) =>
