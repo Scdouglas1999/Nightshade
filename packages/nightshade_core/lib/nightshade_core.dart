@@ -136,6 +136,7 @@ export 'src/services/device_service.dart';
 export 'src/services/device_matching_service.dart';
 export 'src/services/imaging_service.dart';
 export 'src/services/plate_solve_service.dart' hide PlateSolveResult;
+export 'src/services/polar_alignment_service.dart';
 export 'src/services/centering_service.dart';
 export 'src/services/profile_service.dart';
 export 'src/services/sequence_repository.dart';

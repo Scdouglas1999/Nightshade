@@ -187,6 +187,32 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     }
   }
 
+  /// Start all-sky (Sharpcap-style) polar alignment.
+  ///
+  /// Unlike `startAlignment` (TPPA), this routine streams drift-based error
+  /// updates directly into the adjusting phase — there is no measurement
+  /// phase. We transition straight from `idle` to `adjusting` and the
+  /// backend handles the rest. Errors arrive through the same
+  /// `PolarAlignment` event stream.
+  Future<void> startAllSkyAlignment(PolarAlignmentConfig config) async {
+    final validationErrors = config.validate();
+    if (validationErrors.isNotEmpty) {
+      state = state.copyWith(
+        phase: PolarAlignPhase.error,
+        errorMessage: validationErrors.join(', '),
+      );
+      return;
+    }
+
+    _capturedInitialError = null;
+    state = PolarAlignmentState(
+      phase: PolarAlignPhase.adjusting,
+      statusMessage: 'Starting all-sky polar alignment...',
+      config: config,
+      startedAt: DateTime.now(),
+    );
+  }
+
   /// Stop the polar alignment process
   Future<void> stopAlignment() async {
     if (!state.isRunning) return;

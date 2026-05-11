@@ -2150,6 +2150,29 @@ class NetworkBackend implements NightshadeBackend {
     await _post('polar-alignment/stop', {});
   }
 
+  @override
+  Future<void> startAllSkyPolarAlignment({
+    required double exposureTime,
+    required double solveTimeout,
+    required int binning,
+    required bool isNorth,
+    required double acceptanceThresholdArcsec,
+    required double iterationCadenceSecs,
+    int? gain,
+    int? offset,
+  }) async {
+    await _post('polar-alignment/all-sky/start', {
+      'exposure_time': exposureTime,
+      'solve_timeout': solveTimeout,
+      'binning': binning,
+      'is_north': isNorth,
+      'acceptance_threshold_arcsec': acceptanceThresholdArcsec,
+      'iteration_cadence_secs': iterationCadenceSecs,
+      if (gain != null) 'gain': gain,
+      if (offset != null) 'offset': offset,
+    });
+  }
+
   // =========================================================================
   // Image Download (for Mobile)
   // =========================================================================

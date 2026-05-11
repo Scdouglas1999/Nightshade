@@ -2,6 +2,7 @@
 //!
 //! Implements a behavior tree-based sequencer for automated imaging.
 
+pub mod all_sky_polar;
 pub mod autofocus;
 pub mod checkpoint;
 mod device_ops;
@@ -26,6 +27,7 @@ pub use meridian_events::*;
 pub use meridian_flip_executor::*;
 pub use mosaic::*;
 pub use node::*;
+pub use all_sky_polar::*;
 pub use polar_align::*;
 pub use triggers::*;
 

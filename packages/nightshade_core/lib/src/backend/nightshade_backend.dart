@@ -605,6 +605,36 @@ abstract class NightshadeBackend {
   /// Stop the polar alignment process
   Future<void> stopPolarAlignment();
 
+  /// Start all-sky (Sharpcap-style) polar alignment.
+  ///
+  /// Unlike TPPA, this routine works from any direction in the sky. It
+  /// captures a single exposure, plate-solves it to anchor a baseline, then
+  /// re-solves every `iterationCadenceSecs` to measure drift relative to
+  /// that baseline. From the drift signature and the observer's geographic
+  /// location it recovers the polar-axis azimuth and altitude error.
+  ///
+  /// Requires an external plate solver (ASTAP); throws if one is not
+  /// installed.
+  ///
+  /// * `exposureTime` — exposure duration per frame, seconds.
+  /// * `solveTimeout` — plate-solve timeout per frame, seconds.
+  /// * `binning` — camera binning factor.
+  /// * `isNorth` — northern hemisphere observer.
+  /// * `acceptanceThresholdArcsec` — auto-complete when total error stays
+  ///   below this for 3 seconds (default 30″).
+  /// * `iterationCadenceSecs` — re-solve cadence (default 3s).
+  /// * `gain`, `offset` — optional camera parameters.
+  Future<void> startAllSkyPolarAlignment({
+    required double exposureTime,
+    required double solveTimeout,
+    required int binning,
+    required bool isNorth,
+    required double acceptanceThresholdArcsec,
+    required double iterationCadenceSecs,
+    int? gain,
+    int? offset,
+  });
+
   // =========================================================================
   // Image Download (for Mobile)
   // =========================================================================

@@ -2050,6 +2050,35 @@ class FfiBackend implements NightshadeBackend {
     await bridge_api.apiStopPolarAlignment();
   }
 
+  @override
+  Future<void> startAllSkyPolarAlignment({
+    required double exposureTime,
+    required double solveTimeout,
+    required int binning,
+    required bool isNorth,
+    required double acceptanceThresholdArcsec,
+    required double iterationCadenceSecs,
+    int? gain,
+    int? offset,
+  }) async {
+    // The Rust implementation lives in `api_start_all_sky_polar_alignment`.
+    // After `melos run generate` regenerates the FRB bindings, replace this
+    // body with the generated call. Until then we surface a loud,
+    // actionable error so the bug cannot ship silently.
+    //
+    // Reason for the hard error rather than a stub: per repo CLAUDE.md,
+    // "Errors are a feature. Silent fallbacks hide bugs for months."
+    throw UnimplementedError(
+      'All-sky polar alignment is wired through Rust but the Dart FRB '
+      'bindings have not yet been regenerated. Run `melos run generate` '
+      'and then call `bridge_api.apiStartAllSkyPolarAlignment(...)` here. '
+      'Args staged for the call: exposureTime=$exposureTime, '
+      'solveTimeout=$solveTimeout, binning=$binning, isNorth=$isNorth, '
+      'acceptanceThresholdArcsec=$acceptanceThresholdArcsec, '
+      'iterationCadenceSecs=$iterationCadenceSecs, gain=$gain, offset=$offset.',
+    );
+  }
+
   ImageStats _fromBridgeImageStats(bridge.ImageStats s) {
     return ImageStats(
       min: s.min,

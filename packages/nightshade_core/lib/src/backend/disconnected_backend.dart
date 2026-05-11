@@ -756,6 +756,20 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> startAllSkyPolarAlignment({
+    required double exposureTime,
+    required double solveTimeout,
+    required int binning,
+    required bool isNorth,
+    required double acceptanceThresholdArcsec,
+    required double iterationCadenceSecs,
+    int? gain,
+    int? offset,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
     _throwNotConnected();
   }

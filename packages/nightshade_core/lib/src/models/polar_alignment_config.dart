@@ -22,6 +22,46 @@ enum PolarAlignPhase {
   error,
 }
 
+/// Selects which polar-alignment algorithm to run.
+enum PolarAlignmentMode {
+  /// Three-Point Polar Alignment — requires a clear view of the celestial
+  /// pole region (≈30° around Polaris in the northern hemisphere, or
+  /// Sigma Octantis in the southern). Captures three plate-solved frames
+  /// across a mount rotation arc, fits the rotation axis, and reports the
+  /// offset from the true pole.
+  threePoint,
+
+  /// All-Sky Polar Alignment (Sharpcap-style). Works from any direction in
+  /// the sky — no view of the pole region required. Captures one solved
+  /// baseline frame, then re-solves every few seconds to measure drift
+  /// caused by polar misalignment. Recovers the azimuth and altitude error
+  /// vector in real time as the user adjusts the mount bolts.
+  allSky,
+}
+
+extension PolarAlignmentModeExtension on PolarAlignmentMode {
+  String get displayName {
+    switch (this) {
+      case PolarAlignmentMode.threePoint:
+        return 'Three-Point (TPPA)';
+      case PolarAlignmentMode.allSky:
+        return 'All-Sky';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PolarAlignmentMode.threePoint:
+        return 'Slew across a 30° arc near the celestial pole and fit '
+            'the mount rotation axis. Requires the pole region to be clear.';
+      case PolarAlignmentMode.allSky:
+        return 'Plate-solve one frame anywhere in the sky, then track drift '
+            'every few seconds. Works from any direction — no view of the '
+            'pole required. Requires a plate solver (ASTAP).';
+    }
+  }
+}
+
 /// Extension for PolarAlignPhase display
 extension PolarAlignPhaseExtension on PolarAlignPhase {
   String get displayName {

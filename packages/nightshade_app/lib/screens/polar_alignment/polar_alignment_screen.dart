@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
+import 'widgets/all_sky_target_reticle.dart';
 
 class PolarAlignmentScreen extends ConsumerStatefulWidget {
   const PolarAlignmentScreen({super.key});
@@ -24,6 +25,11 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   bool _showCommonSettings = false;
   bool _showAdvancedSettings = false;
   bool _showHistoryPanel = false;
+
+  /// Selected polar alignment algorithm. Defaults to TPPA for backward
+  /// compatibility; the All-Sky tab switches to the Sharpcap-style routine
+  /// that works from any direction in the sky.
+  PolarAlignmentMode _mode = PolarAlignmentMode.threePoint;
 
   late AnimationController _pulseController;
 
@@ -60,6 +66,28 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       context.showErrorSnackBar(
         'Mount not connected. Please connect a mount before starting polar alignment.',
       );
+      return;
+    }
+
+    if (_mode == PolarAlignmentMode.allSky) {
+      // All-sky routine: route through the polar alignment service which
+      // calls the bridge `apiStartAllSkyPolarAlignment` entry point. The
+      // backend raises a structured "Plate solver required — install
+      // ASTAP" error when no solver is configured; surface it directly.
+      final service = ref.read(polarAlignmentServiceProvider);
+      final config = ref.read(polarAlignmentConfigProvider);
+      try {
+        // Eagerly transition the state into the adjusting phase so the
+        // reticle widget begins rendering before the first solve lands.
+        ref
+            .read(polarAlignmentStateProvider.notifier)
+            .startAllSkyAlignment(config);
+        await service.allSky(config: config);
+      } catch (e) {
+        if (!mounted) return;
+        context.showErrorSnackBar('All-sky polar alignment failed: $e');
+        ref.read(polarAlignmentStateProvider.notifier).reset();
+      }
       return;
     }
 
@@ -196,13 +224,37 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                 ),
               ),
               Text(
-                'Three-point method',
+                _mode.displayName,
                 style: TextStyle(
                   fontSize: 11,
                   color: colors.textMuted,
                 ),
               ),
             ],
+          ),
+          const SizedBox(width: 20),
+
+          // Mode selector — TPPA vs All-Sky.
+          SegmentedButton<PolarAlignmentMode>(
+            segments: const [
+              ButtonSegment(
+                value: PolarAlignmentMode.threePoint,
+                label: Text('TPPA'),
+                icon: Icon(LucideIcons.target, size: 14),
+              ),
+              ButtonSegment(
+                value: PolarAlignmentMode.allSky,
+                label: Text('All-Sky'),
+                icon: Icon(LucideIcons.globe, size: 14),
+              ),
+            ],
+            selected: {_mode},
+            showSelectedIcon: false,
+            onSelectionChanged: isRunning
+                ? null
+                : (selection) {
+                    setState(() => _mode = selection.first);
+                  },
           ),
 
           const Spacer(),
@@ -1877,13 +1929,33 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       child: Column(
         children: [
           // Error visualization
+          //
+          // All-Sky mode shows the Sharpcap-style target reticle with a live
+          // moving marker; TPPA mode keeps the legacy bar/dial visualization.
           Expanded(
-            child: _PolarErrorVisualization(
-              colors: colors,
-              error: state.currentError,
-              phase: state.phase,
-              pulseAnimation: _pulseController,
-            ),
+            child: _mode == PolarAlignmentMode.allSky
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: AllSkyTargetReticle(
+                        azimuthErrorArcsec:
+                            state.currentError?.azimuthError ?? 0.0,
+                        altitudeErrorArcsec:
+                            state.currentError?.altitudeError ?? 0.0,
+                        acceptanceThresholdArcsec:
+                            config.autoCompleteThreshold,
+                        waitingForFirstFrame: state.phase ==
+                                PolarAlignPhase.adjusting &&
+                            state.currentError == null,
+                      ),
+                    ),
+                  )
+                : _PolarErrorVisualization(
+                    colors: colors,
+                    error: state.currentError,
+                    phase: state.phase,
+                    pulseAnimation: _pulseController,
+                  ),
           ),
 
           // Task 4.5: Error trend sparkline chart (only in adjustment phase)

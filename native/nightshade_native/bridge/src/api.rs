@@ -9045,6 +9045,241 @@ pub async fn api_stop_polar_alignment() -> Result<(), NightshadeError> {
 }
 
 // =============================================================================
+// All-Sky Polar Alignment (Sharpcap-style)
+// =============================================================================
+
+/// Polar alignment mode selector.
+///
+/// The traditional `ThreePoint` mode (TPPA) requires a clear view of the
+/// celestial pole region. `AllSky` mode performs Sharpcap-style polar
+/// alignment from any point in the sky using a single solved frame plus
+/// live drift feedback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PolarAlignmentMode {
+    /// Three-Point Polar Alignment — requires pole region visible.
+    ThreePoint,
+    /// Sharpcap-style all-sky polar alignment — works from any sky direction.
+    AllSky,
+}
+
+/// Start all-sky polar alignment.
+///
+/// Unlike TPPA this routine does not require the celestial pole region to
+/// be visible. It takes a single exposure anywhere in the sky, plate-solves
+/// it to anchor a baseline, then re-solves every `iteration_cadence_secs`
+/// to measure drift relative to that baseline. From the drift signature
+/// and the observer's geographic location it recovers the polar-axis
+/// azimuth and altitude error.
+///
+/// # Arguments
+/// * `exposure_time` — exposure duration per frame, seconds.
+/// * `solve_timeout` — plate-solve timeout per frame, seconds.
+/// * `binning` — camera binning factor (1, 2, or 4 typical).
+/// * `is_north` — northern hemisphere observer flag.
+/// * `acceptance_threshold_arcsec` — alignment auto-completes when the
+///   total error stays below this for 3 seconds (default 30″ = good for
+///   ~3-minute unguided subs).
+/// * `iteration_cadence_secs` — re-solve cadence (default 3s).
+/// * `gain`, `offset` — optional camera parameters.
+///
+/// # Errors
+/// Returns `NightshadeError::OperationFailed` if a plate solver is not
+/// available (the user must install ASTAP), if no camera/mount is
+/// connected, or if the observer location is not configured.
+pub async fn api_start_all_sky_polar_alignment(
+    exposure_time: f64,
+    solve_timeout: f64,
+    binning: i32,
+    is_north: bool,
+    acceptance_threshold_arcsec: f64,
+    iteration_cadence_secs: f64,
+    gain: Option<i32>,
+    offset: Option<i32>,
+) -> Result<(), NightshadeError> {
+    use nightshade_sequencer::all_sky_polar::{
+        perform_all_sky_polar_alignment, AllSkyPolarAlignConfig, PolarAlignError,
+    };
+    use nightshade_sequencer::{Binning, InstructionContext};
+
+    // Reject re-entrant starts.
+    if get_polar_align_flag().load(PolarOrdering::Relaxed) {
+        return Err(NightshadeError::OperationFailed(
+            "Polar alignment already running".to_string(),
+        ));
+    }
+
+    // Fail loudly if the plate solver isn't installed — the all-sky
+    // algorithm is plate-solve-only by design.
+    if !nightshade_imaging::is_solver_available() {
+        return Err(NightshadeError::OperationFailed(
+            "Plate solver required — install ASTAP and re-run all-sky polar alignment"
+                .to_string(),
+        ));
+    }
+
+    get_polar_align_flag().store(true, PolarOrdering::Relaxed);
+    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+
+    tracing::info!(
+        "Starting all-sky polar alignment: exposure={}s, threshold={}\", cadence={}s, north={}",
+        exposure_time,
+        acceptance_threshold_arcsec,
+        iteration_cadence_secs,
+        is_north
+    );
+
+    // Resolve connected devices.
+    let connected = api_get_connected_devices().await;
+    let camera_id = connected
+        .iter()
+        .find(|d| d.device_type == DeviceType::Camera)
+        .map(|d| d.id.clone())
+        .ok_or_else(|| {
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            NightshadeError::DeviceNotFound("No camera connected".to_string())
+        })?;
+    let mount_id = connected
+        .iter()
+        .find(|d| d.device_type == DeviceType::Mount)
+        .map(|d| d.id.clone())
+        .ok_or_else(|| {
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            NightshadeError::DeviceNotFound("No mount connected".to_string())
+        })?;
+
+    // Observer location is mandatory for the horizontal-frame projection.
+    let location = get_state()
+        .get_observer_location()
+        .map_err(|e| {
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            NightshadeError::OperationFailed(format!("Failed to read observer location: {}", e))
+        })?
+        .ok_or_else(|| {
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            NightshadeError::OperationFailed(
+                "Observer latitude/longitude is required for all-sky polar alignment".to_string(),
+            )
+        })?;
+
+    let config = AllSkyPolarAlignConfig {
+        exposure_time,
+        solve_timeout,
+        gain,
+        offset,
+        binning: Some(binning),
+        is_north,
+        acceptance_threshold_arcsec,
+        iteration_cadence_secs,
+    };
+
+    // Spawn the alignment task. Errors are emitted on the polar alignment
+    // event stream so the UI can present them clearly.
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    let cancel_flag_outer = cancel_flag.clone();
+
+    // Bridge between the global cancel flag (set by `api_stop_polar_alignment`)
+    // and the per-task cancellation token used by InstructionContext.
+    tokio::spawn(async move {
+        loop {
+            if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
+                cancel_flag_outer.store(true, Ordering::Relaxed);
+                break;
+            }
+            if !get_polar_align_flag().load(PolarOrdering::Relaxed) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    });
+
+    let device_ops = create_unified_device_ops();
+
+    tokio::spawn(async move {
+        let ctx = InstructionContext {
+            target_ra: None,
+            target_dec: None,
+            target_name: None,
+            current_filter: None,
+            current_binning: Binning::One,
+            cancellation_token: cancel_flag,
+            camera_id: Some(camera_id.clone()),
+            mount_id: Some(mount_id.clone()),
+            focuser_id: None,
+            filterwheel_id: None,
+            rotator_id: None,
+            dome_id: None,
+            cover_calibrator_id: None,
+            save_path: None,
+            latitude: Some(location.latitude),
+            longitude: Some(location.longitude),
+            device_ops,
+            trigger_state: None,
+            filter_focus_offsets: std::collections::HashMap::new(),
+        };
+
+        let status_cb = |status: String, _progress: Option<f64>| {
+            emit_polar_status(&status, "adjusting", 0);
+        };
+        let image_cb = |image_data: nightshade_sequencer::PolarAlignmentImageData| {
+            get_state().publish_event(create_event_auto_id(
+                EventSeverity::Info,
+                EventCategory::PolarAlignment,
+                EventPayload::PolarAlignmentImage(PolarAlignmentImageEvent {
+                    image_data: image_data.image_data,
+                    width: image_data.width,
+                    height: image_data.height,
+                    solved_ra: image_data.solved_ra,
+                    solved_dec: image_data.solved_dec,
+                    point: image_data.point,
+                    phase: image_data.phase,
+                }),
+            ));
+        };
+        let error_cb = |result: &nightshade_sequencer::PolarAlignResult| {
+            emit_polar_error(
+                result.azimuth_error,
+                result.altitude_error,
+                result.total_error,
+                result.current_ra,
+                result.current_dec,
+                result.target_ra,
+                result.target_dec,
+            );
+        };
+
+        let result =
+            perform_all_sky_polar_alignment(&config, &ctx, status_cb, image_cb, error_cb).await;
+
+        match result {
+            Ok(()) => {
+                emit_polar_status("All-sky polar alignment complete", "complete", 0);
+            }
+            Err(PolarAlignError::Cancelled) => {
+                emit_polar_status("Stopped", "idle", 0);
+            }
+            Err(PolarAlignError::SolverUnavailable) => {
+                emit_polar_status(
+                    "Plate solver required — install ASTAP and re-run all-sky polar alignment",
+                    "error",
+                    0,
+                );
+                tracing::error!(
+                    "All-sky polar alignment aborted: plate solver not available"
+                );
+            }
+            Err(e) => {
+                emit_polar_status(&format!("Error: {}", e), "error", 0);
+                tracing::error!("All-sky polar alignment failed: {}", e);
+            }
+        }
+
+        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+    });
+
+    Ok(())
+}
+
+// =============================================================================
 // Equipment Profiles
 // =============================================================================
 
