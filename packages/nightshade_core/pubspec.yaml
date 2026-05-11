@@ -51,6 +51,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # Bundled sample sequences shown in the Sequencer > Library tab.
+  # Loaded at runtime via [SampleSequenceService] from rootBundle.
+  assets:
+    - assets/sample_sequences/
+
 # Workaround for build_runner "Cannot recurse at later or equal phase" bug
 # See: https://github.com/dart-lang/build/issues/3822
 dependency_overrides:

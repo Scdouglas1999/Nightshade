@@ -179,6 +179,22 @@ class SequenceFileService {
   /// and add a migration case in [_migrateSchema].
   static const int currentSchemaVersion = 1;
 
+  /// Parse a pre-decoded sequence JSON map (no file I/O, no migration).
+  /// Used by [SampleSequenceService] to decode bundled assets through the
+  /// same node-type switch the file-picker importer uses, so the on-disk
+  /// schema stays the single source of truth.
+  ///
+  /// Callers are expected to supply a map that already conforms to the
+  /// current schema version. Validation is identical to the file importer
+  /// (missing `nodes` / bad `nodeType` throws [FormatException]) but the
+  /// import-validator callback is NOT invoked — that hook is reserved for
+  /// user-imported files and shouldn't run on bundled templates.
+  Sequence parseFromMap(Map<String, dynamic> json) {
+    _validateSequenceJson(json);
+    final migrated = _migrateSchema(json);
+    return _jsonToSequence(migrated);
+  }
+
   Map<String, dynamic> _sequenceToJson(Sequence sequence) {
     return {
       'schemaVersion': currentSchemaVersion,

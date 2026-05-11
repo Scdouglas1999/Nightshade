@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "version": "2.0",
+  "name": "Lunar Terminator - High Frame Rate",
+  "description": "Beginner lunar imaging sequence for capturing high-resolution detail along the Moon's terminator. Takes 200 x 5ms exposures at high gain in single-frame (no dithering/guiding) mode. Point the scope at the terminator manually before starting. Expected total time ~3 minutes; the resulting frames are intended for lucky-imaging stacking.",
+  "rootNodeId": "lunar-root",
+  "isTemplate": true,
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "modifiedAt": "2026-01-01T00:00:00.000Z",
+  "nodes": {
+    "lunar-root": {
+      "id": "lunar-root",
+      "nodeType": "InstructionSet",
+      "name": "Lunar Terminator",
+      "parentId": null,
+      "childIds": ["lunar-notify", "lunar-loop"],
+      "orderIndex": 0,
+      "isEnabled": true
+    },
+    "lunar-notify": {
+      "id": "lunar-notify",
+      "nodeType": "Notification",
+      "name": "Aim Reminder",
+      "parentId": "lunar-root",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "title": "Aim Telescope at Moon",
+      "message": "Manually point the telescope at the lunar terminator and confirm focus before starting. Lunar tracking rate is recommended on the mount.",
+      "level": "info"
+    },
+    "lunar-loop": {
+      "id": "lunar-loop",
+      "nodeType": "Loop",
+      "name": "High-Speed Capture",
+      "parentId": "lunar-root",
+      "childIds": ["lunar-exp"],
+      "orderIndex": 1,
+      "isEnabled": true,
+      "conditionType": "count",
+      "repeatCount": 1,
+      "repeatUntil": null,
+      "repeatUntilAltitude": null,
+      "integrationTimeTarget": null,
+      "maxSafetyIterations": null
+    },
+    "lunar-exp": {
+      "id": "lunar-exp",
+      "nodeType": "TakeExposure",
+      "name": "Lunar Frames",
+      "parentId": "lunar-loop",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "durationSecs": 0.005,
+      "count": 200,
+      "frameType": "light",
+      "filter": null,
+      "filterIndex": null,
+      "gain": 300,
+      "offset": 30,
+      "binning": "one",
+      "ditherEvery": null
+    }
+  }
+}

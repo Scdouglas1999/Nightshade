@@ -20,6 +20,7 @@ import 'widgets/sequence_progress_bar.dart';
 import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'tabs/history_tab.dart';
+import 'tabs/library_tab.dart';
 import 'tabs/targets_tab.dart';
 import 'tabs/templates_tab.dart';
 
@@ -62,7 +63,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
 
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -199,6 +200,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             const SingleActivator(LogicalKeyboardKey.digit4, alt: true): () {
               _tabController.animateTo(3);
             },
+            const SingleActivator(LogicalKeyboardKey.digit5, alt: true): () {
+              _tabController.animateTo(4);
+            },
             // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
             const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
               if (currentTab == 0) {
@@ -235,6 +239,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                       const TargetsTab(),
                       // Templates tab
                       const TemplatesTab(),
+                      // Library tab (bundled sample sequences, per audit §8.3.5)
+                      const LibraryTab(),
                       // History tab
                       const HistoryTab(),
                     ],
@@ -329,6 +335,16 @@ class _SequencerTabBar extends StatelessWidget {
                         Icon(LucideIcons.fileStack, size: isMobile ? 14 : 16),
                         SizedBox(width: isMobile ? 4 : 8),
                         const Text('Templates'),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.library, size: isMobile ? 14 : 16),
+                        SizedBox(width: isMobile ? 4 : 8),
+                        const Text('Library'),
                       ],
                     ),
                   ),

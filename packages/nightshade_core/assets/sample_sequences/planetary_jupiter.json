@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "version": "2.0",
+  "name": "Planetary Jupiter - Lucky Imaging Burst",
+  "description": "Intermediate planetary imaging sequence for Jupiter. Captures 1000 x 5ms frames at high gain with no calibration frames, designed for lucky-imaging registration in AutoStakkert or similar. Set a small camera ROI (typically 640x480) around Jupiter manually before starting to maximize frame rate. Expected total time ~10 minutes capture; works best when Jupiter is near opposition and high in the sky.",
+  "rootNodeId": "jupiter-root",
+  "isTemplate": true,
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "modifiedAt": "2026-01-01T00:00:00.000Z",
+  "nodes": {
+    "jupiter-root": {
+      "id": "jupiter-root",
+      "nodeType": "InstructionSet",
+      "name": "Planetary Jupiter",
+      "parentId": null,
+      "childIds": ["jupiter-roi-notify", "jupiter-focus", "jupiter-burst-loop"],
+      "orderIndex": 0,
+      "isEnabled": true
+    },
+    "jupiter-roi-notify": {
+      "id": "jupiter-roi-notify",
+      "nodeType": "Notification",
+      "name": "ROI Setup Reminder",
+      "parentId": "jupiter-root",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "title": "Set Camera ROI on Jupiter",
+      "message": "Center Jupiter in the camera frame and set a small ROI (e.g. 640x480) around the planet in the camera settings to maximize frame rate. Use planetary tracking on the mount if available.",
+      "level": "info"
+    },
+    "jupiter-focus": {
+      "id": "jupiter-focus",
+      "nodeType": "Autofocus",
+      "name": "Pre-Burst Focus",
+      "parentId": "jupiter-root",
+      "childIds": [],
+      "orderIndex": 1,
+      "isEnabled": true,
+      "method": "quadratic",
+      "stepSize": 50,
+      "stepsOut": 5,
+      "exposuresPerPoint": 1,
+      "exposureDuration": 0.5,
+      "useSettingsDefaults": false,
+      "maxDurationSecs": 300.0
+    },
+    "jupiter-burst-loop": {
+      "id": "jupiter-burst-loop",
+      "nodeType": "Loop",
+      "name": "1000-Frame Burst",
+      "parentId": "jupiter-root",
+      "childIds": ["jupiter-exp"],
+      "orderIndex": 2,
+      "isEnabled": true,
+      "conditionType": "count",
+      "repeatCount": 1,
+      "repeatUntil": null,
+      "repeatUntilAltitude": null,
+      "integrationTimeTarget": null,
+      "maxSafetyIterations": null
+    },
+    "jupiter-exp": {
+      "id": "jupiter-exp",
+      "nodeType": "TakeExposure",
+      "name": "Jupiter Frames",
+      "parentId": "jupiter-burst-loop",
+      "childIds": [],
+      "orderIndex": 0,
+      "isEnabled": true,
+      "durationSecs": 0.005,
+      "count": 1000,
+      "frameType": "light",
+      "filter": null,
+      "filterIndex": null,
+      "gain": 350,
+      "offset": 30,
+      "binning": "one",
+      "ditherEvery": null
+    }
+  }
+}

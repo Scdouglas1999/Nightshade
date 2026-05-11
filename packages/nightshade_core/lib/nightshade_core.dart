@@ -140,6 +140,7 @@ export 'src/services/centering_service.dart';
 export 'src/services/profile_service.dart';
 export 'src/services/sequence_repository.dart';
 export 'src/services/sequence_file_service.dart';
+export 'src/services/sample_sequence_service.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/annotation_service.dart';
 export 'src/services/scheduler_service.dart';

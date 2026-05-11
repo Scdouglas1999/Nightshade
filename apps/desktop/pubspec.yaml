@@ -88,6 +88,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # NOTE: bundled sample sequences for the Sequencer > Library tab live in
+  # the nightshade_core package's own pubspec asset declaration. Flutter
+  # automatically picks them up as `packages/nightshade_core/assets/...`
+  # at runtime via rootBundle — they do NOT need to be re-declared here.
+
   assets:
     - web_dashboard/
     - web_dashboard/css/
