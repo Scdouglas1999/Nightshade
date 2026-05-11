@@ -85,9 +85,12 @@
       if (label) label.classList.remove('sr-only');
     }
 
-    // Read saved settings. Tokens live in sessionStorage by default (§2.5);
-    // localStorage is only used when the user opts in to "Remember on this
-    // device" — and even then we leave a TODO to migrate to HttpOnly cookies.
+    // Tokens never live in localStorage anymore (§2.5 long-form). The
+    // "remember" path now goes through an HttpOnly `nightshade_session`
+    // cookie that JS cannot read; the unchecked path keeps the bearer in
+    // sessionStorage so it dies when the tab closes. The remember-checkbox
+    // flag itself is benign metadata and stays in localStorage so the UI
+    // state persists across reloads.
     const servedFromServer =
       window.location.protocol === 'http:' || window.location.protocol === 'https:';
     // §2.4 — initial server URL comes from window.location.origin only.
@@ -99,9 +102,13 @@
     }
     const shouldAutoConnect = servedFromServer || (state.debugMode && !!savedUrl);
     const rememberToken = localStorage.getItem('nightshade_remember_token') === 'true';
-    const savedToken = readStoredToken(rememberToken);
+    const savedToken = readStoredToken();
     const savedDeviceName = localStorage.getItem('nightshade_device_name') || defaultDeviceName();
     const savedDeviceId = localStorage.getItem('nightshade_device_id') || generateDeviceId();
+    // One-shot scrub of any pre-§2.5-long-form token bytes that may still
+    // sit in localStorage from an older install. We never write here
+    // anymore; leaving the stale bytes would defeat the whole point.
+    localStorage.removeItem('nightshade_token');
 
     document.getElementById('server-url').value = savedUrl;
     document.getElementById('auth-token').value = savedToken;
@@ -194,7 +201,8 @@
 
     document.getElementById('server-url').value = url;
 
-    // Persist connection preferences; token storage depends on Remember.
+    // Persist connection preferences; the bearer goes to sessionStorage
+    // only — long-form persistence is the HttpOnly cookie path below.
     // Production mode (no debug flag) refuses to remember anything that
     // would override the same-origin URL (§2.4).
     if (state.debugMode) {
@@ -207,6 +215,25 @@
 
     api.configure(url, token, deviceId);
     api.setConnectionState(false);
+
+    // §2.5 long-form: if a session cookie is still alive from a previous
+    // visit, asking the server for the CSRF token is what tells JS "you
+    // are already authenticated, no bearer needed." We do this BEFORE the
+    // /api/status round-trip below so the same fetch can ride the cookie.
+    // Only meaningful when no bearer was pasted (a fresh paste of a
+    // token means the user explicitly wants the bearer path right now).
+    if (!token) {
+      try {
+        const resumed = await api.tryResumeCookieSession();
+        if (resumed) {
+          addLogEntry('system', 'Resumed previous remembered session via HttpOnly cookie.');
+        }
+      } catch (_) {
+        // tryResumeCookieSession swallows known no-session errors; any
+        // unexpected exception is logged through the normal connect path
+        // below when the first authenticated request fails.
+      }
+    }
 
     stopPolling();
     api.disconnectWebSocket();
@@ -233,7 +260,10 @@
           document.getElementById('auth-bar').classList.add('hidden');
         }
 
-        if (info.authRequired && !token) {
+        // A cookie session counts as authentication: tryResumeCookieSession
+        // above may have populated api.hasSessionCookie even with no
+        // typed-in bearer.
+        if (info.authRequired && !token && !api.hasSessionCookie) {
           setConnectionStatus('disconnected');
           updateConnectProgress(0, 0);
           showToast(
@@ -251,6 +281,29 @@
         setConnectionStatus('connected');
         updateConnectProgress(0, 0);
         api.setConnectionState(true);
+
+        // §2.5 long-form: if the user wants to be remembered AND we have a
+        // bearer in hand AND we are not already on the cookie path, exchange
+        // the bearer for an HttpOnly cookie so the next page load doesn't
+        // need the bearer at all. Why after /api/status: we only commit to
+        // a cookie once we've verified the bearer actually works against the
+        // server's auth middleware.
+        if (rememberToken && token && !api.hasSessionCookie) {
+          try {
+            await api.beginCookieSession();
+            // Scrub the visible token input so a casual screen-share or
+            // browser-back doesn't expose it after upgrade.
+            document.getElementById('auth-token').value = '';
+            sessionStorage.removeItem('nightshade_token');
+            addLogEntry('system', 'Upgraded session to HttpOnly cookie (remember-me).');
+          } catch (e) {
+            // Surface the failure: silent fallback to the bearer path
+            // would let the user think they were "remembered" when they
+            // weren't — and CLAUDE.md prohibits silent fallbacks.
+            addLogEntry('error', 'Cookie upgrade failed: ' + (e && e.message ? e.message : String(e)));
+            showToast('Remember-me upgrade failed: ' + (e && e.message ? e.message : 'unknown'), 'error');
+          }
+        }
 
         addLogEntry('system', 'Connected to ' + info.name + ' v' + info.version);
 
@@ -404,32 +457,40 @@
     return 'browser-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
 
-  function readStoredToken(rememberToken) {
-    if (rememberToken) {
-      return localStorage.getItem('nightshade_token') || '';
-    }
+  function readStoredToken() {
+    // sessionStorage only (§2.5 long-form). The "remember" path no longer
+    // stashes the bearer in JS-readable storage; it lives in an HttpOnly
+    // cookie on the server side and is never legible to JS again.
     return sessionStorage.getItem('nightshade_token') || '';
   }
 
   function writeStoredToken(token, rememberToken) {
+    // Remember the user's UI choice only. The actual "stay logged in
+    // across tabs/restart" semantics now come from the HttpOnly cookie
+    // set by POST /api/auth/cookie — see beginCookieSession() in api.js.
     localStorage.setItem('nightshade_remember_token', rememberToken ? 'true' : 'false');
-    if (rememberToken) {
-      // TODO(§2.5 follow-up): migrate "remember" to an HttpOnly Secure
-      // SameSite=Strict cookie issued by POST /api/auth/cookie, with a
-      // matching CSRF token. Until then we keep localStorage parity with the
-      // existing flow but warn the user it's opt-in.
-      localStorage.setItem('nightshade_token', token);
-      sessionStorage.removeItem('nightshade_token');
-    } else {
+    if (token) {
       sessionStorage.setItem('nightshade_token', token);
-      localStorage.removeItem('nightshade_token');
+    } else {
+      sessionStorage.removeItem('nightshade_token');
     }
+    // Guard against any older code path that may have left a bearer in
+    // localStorage. Clearing on every write makes the migration idempotent.
+    localStorage.removeItem('nightshade_token');
   }
 
   function handleRememberTokenChanged() {
     const token = document.getElementById('auth-token').value.trim();
     const rememberToken = document.getElementById('remember-token').checked;
     writeStoredToken(token, rememberToken);
+    // If the user just unticked Remember while a cookie session is live,
+    // immediately revoke it so we don't keep an HttpOnly cookie around
+    // that contradicts their stated preference. The fire-and-forget
+    // promise is fine — failures only mean the cookie persists until its
+    // natural expiry, which is no worse than the prior session.
+    if (!rememberToken && api.hasSessionCookie) {
+      api.endCookieSession().catch(() => {});
+    }
   }
 
   function defaultDeviceName() {

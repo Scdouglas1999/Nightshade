@@ -23,6 +23,17 @@ class NightshadeApi {
     this._eventListeners = new Map();
     this._connected = false;
     this._wsConnected = false;
+    // CSRF token bound to the HttpOnly session cookie (§2.5 long-form).
+    // In-memory only — never persisted to storage. The cookie itself is
+    // HttpOnly so JS can't read it; the CSRF token is what proves a
+    // request originated from the SPA rather than from an attacker who
+    // tricked the browser into sending the cookie ambient-style.
+    this._csrfToken = '';
+    // When true, fetches include the session cookie via
+    // `credentials: 'include'` AND echo `X-Nightshade-CSRF` on writes.
+    // Toggled on after a successful POST /api/auth/cookie OR when the
+    // server confirms a pre-existing session via GET /api/auth/csrf.
+    this._useSessionCookie = false;
   }
 
   /**
@@ -36,25 +47,44 @@ class NightshadeApi {
     this._authToken = authToken || '';
     this._deviceId = deviceId || '';
     this._connected = false;
+    // Reconfiguring (e.g. user pasted a new token) invalidates any prior
+    // cookie session — the caller will re-establish it via beginCookieSession.
+    this._csrfToken = '';
+    this._useSessionCookie = false;
   }
 
   get baseUrl() { return this._baseUrl; }
   get isConnected() { return this._connected; }
   get isWsConnected() { return this._wsConnected; }
+  get hasSessionCookie() { return this._useSessionCookie; }
 
   // =========================================================================
   // HTTP helpers
   // =========================================================================
 
-  _headers(extraHeaders) {
+  _headers(extraHeaders, method) {
     const h = {
       'Content-Type': 'application/json',
       'X-Nightshade-API-Version': this._apiVersion,
       'X-Request-ID': this._nextRequestId(),
       ...extraHeaders,
     };
-    if (this._authToken) {
+    // Cookie path: rely on the HttpOnly session cookie attached by the
+    // browser; do NOT echo the bearer in the Authorization header (the
+    // server's middleware accepts either, and avoiding the duplicate
+    // ensures a single audit trail per session).
+    //
+    // Bearer path: continue to send Authorization as before. Mobile and
+    // legacy clients keep working unchanged.
+    if (!this._useSessionCookie && this._authToken) {
       h['Authorization'] = 'Bearer ' + this._authToken;
+    }
+    // Echo the CSRF token on every state-changing fetch when we're on the
+    // cookie path. GET/HEAD do not need it (the server skips CSRF for
+    // read-only methods because cross-site GET can't mutate state).
+    if (this._useSessionCookie && this._csrfToken &&
+        method && method !== 'GET' && method !== 'HEAD') {
+      h['X-Nightshade-CSRF'] = this._csrfToken;
     }
     if (this._deviceId) {
       h['X-Nightshade-Device-Id'] = this._deviceId;
@@ -94,7 +124,14 @@ class NightshadeApi {
     try {
       resp = await fetch(this._baseUrl + path, {
         method,
-        headers: this._headers(),
+        headers: this._headers(undefined, method),
+        // Always attach cookies on same-origin requests. Why unconditional:
+        // §2.5 long-form ships HttpOnly cookies for the "remember" path;
+        // omitting credentials would prevent the cookie from round-
+        // tripping even when present. Cross-origin allowance is gated by
+        // Access-Control-Allow-Credentials server-side, so this stays
+        // safe on disallowed origins.
+        credentials: 'include',
         body: body != null
           ? JSON.stringify(body)
           : (method === 'POST' || method === 'PUT' ? '{}' : undefined),
@@ -412,6 +449,82 @@ class NightshadeApi {
    */
   async issueWebSocketTicket() {
     return this._post('/api/ws/ticket', {});
+  }
+
+  /**
+   * Exchange the current bearer token for an HttpOnly session cookie + CSRF
+   * token (§2.5 long-form). The server sets `Set-Cookie` with HttpOnly,
+   * Secure, SameSite=Strict; the cookie value never enters JS. The returned
+   * CSRF token is stashed in memory and echoed via `X-Nightshade-CSRF` on
+   * every subsequent write.
+   *
+   * After this call the API client switches to the cookie path: the bearer
+   * is no longer sent in the Authorization header, and the in-memory bearer
+   * is cleared so a stray console.log cannot exfiltrate it.
+   */
+  async beginCookieSession() {
+    if (!this._authToken) {
+      throw new Error('No bearer token to upgrade — pair first.');
+    }
+    // Why we still send Authorization on THIS call: the server requires the
+    // raw bearer to mint a cookie (no cookie-to-cookie escalation). After
+    // it returns we flip _useSessionCookie on so future requests omit it.
+    const result = await this._request('POST', '/api/auth/cookie', {});
+    const csrf = result && result.csrfToken ? String(result.csrfToken) : '';
+    if (!csrf) {
+      throw new Error('Server did not return a CSRF token.');
+    }
+    this._csrfToken = csrf;
+    this._useSessionCookie = true;
+    // Drop the in-memory bearer so an XSS leak cannot scrape window.api
+    // for the raw token. The HttpOnly cookie still carries it server-
+    // side; we never need it back in JS.
+    this._authToken = '';
+    return { csrfToken: csrf, expiresInSeconds: result.expiresInSeconds };
+  }
+
+  /**
+   * Fetch the CSRF token for an existing session cookie. Called on page
+   * load when the dashboard suspects a cookie is present (since cookies are
+   * HttpOnly the only way to know is to ask the server). Returns null when
+   * the server reports no active session (e.g. cookie expired).
+   */
+  async tryResumeCookieSession() {
+    try {
+      const result = await this._request('GET', '/api/auth/csrf');
+      const csrf = result && result.csrfToken ? String(result.csrfToken) : '';
+      if (!csrf) {
+        return null;
+      }
+      this._csrfToken = csrf;
+      this._useSessionCookie = true;
+      this._authToken = '';
+      return { csrfToken: csrf, expiresInSeconds: result.expiresInSeconds };
+    } catch (e) {
+      // 401 from /api/auth/csrf simply means "no active session" — return
+      // null so the caller falls back to the bearer/pairing path instead
+      // of treating it as a hard error.
+      return null;
+    }
+  }
+
+  /**
+   * Revoke the HttpOnly session cookie (logout). The browser clears the
+   * cookie via the response Set-Cookie; the server drops the bound bearer
+   * token so a copied cookie value cannot be reused.
+   */
+  async endCookieSession() {
+    if (!this._useSessionCookie) {
+      return;
+    }
+    try {
+      await this._request('POST', '/api/auth/logout', {});
+    } catch (_) {
+      // Best-effort: even if the network round-trip fails we still want to
+      // forget the CSRF token client-side so the SPA stops sending it.
+    }
+    this._csrfToken = '';
+    this._useSessionCookie = false;
   }
 
   // =========================================================================
