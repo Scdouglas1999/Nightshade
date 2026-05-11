@@ -77,6 +77,57 @@
       currentTargetId: null,
       sequenceStartedAt: 0,
     },
+
+    // §2.17 W5-WIZARDS — wizard state
+    // Each wizard tracks its current step index. The HTML carries `data-step`
+    // attributes on .wizard-step + .wizard-dot so step changes are reflected
+    // in CSS without rebuilding the DOM.
+    wizardStep: {
+      'polar-align-modal': 0,
+      'flat-wizard-modal': 0,
+      'mosaic-modal': 0,
+      'framing-modal': 0,
+    },
+    // Step counts per wizard (matches the .wizard-dot dots in index.html).
+    wizardStepCount: {
+      'polar-align-modal': 3,
+      'flat-wizard-modal': 3,
+      'mosaic-modal': 4,
+      'framing-modal': 3,
+    },
+    // Polar alignment live state mirrored from polarAlignment-category WS
+    // events. Drives the Mount panel readout + the modal step-3 progress.
+    polarAlignment: {
+      phase: 'idle',
+      totalErrorArcmin: null,
+      statusMessage: '',
+    },
+    // Flat wizard state across the modal session.
+    flatWizard: {
+      // {name -> bool} from the filter wheel; toggled by chip clicks.
+      selectedFilters: {},
+      // Calibration results from /api/flat-wizard/calibrate-multi.
+      calibrations: [],
+      running: false,
+    },
+    // Framing assistant: chosen target + rotation, plus the FOV (degrees)
+    // pulled from /api/planetarium/fov-config so the preview rectangle has
+    // the right aspect.
+    framing: {
+      target: null,  // {id?, name, ra, dec}
+      rotation: 0,
+      fovWidthDegrees: null,
+      fovHeightDegrees: null,
+      searchDebounce: null,
+    },
+    // Mosaic planner: last generated panel layout for the preview step.
+    mosaic: {
+      panels: null,
+      cols: 2,
+      rows: 2,
+    },
+    // Last plate-solve result so the Mount panel can show RA/Dec/scale/PA.
+    lastPlateSolve: null,
   };
 
   // Why a panel registry: §2.10 (stale indicators), §2.12 (per-panel enable),
@@ -265,6 +316,42 @@
     // wireup stays grouped and easy to merge against the parallel
     // W5-WEB-WIZARDS-PLATESOLVE-PA branch.
     setupOpsPanels();
+
+    // ===== §2.17 W5-WIZARDS — Wizard launchers + modals =====
+    setupWizardModals();
+    document.getElementById('btn-plate-solve').addEventListener('click', () => handlePlateSolve(false));
+    document.getElementById('btn-plate-solve-sync').addEventListener('click', () => handlePlateSolve(true));
+    document.getElementById('btn-open-polar-align').addEventListener('click', () => openWizardModal('polar-align-modal'));
+    document.getElementById('btn-stop-polar-align').addEventListener('click', handleStopPolarAlignment);
+    document.getElementById('btn-polar-align-start').addEventListener('click', handleStartPolarAlignment);
+    document.getElementById('btn-polar-align-close').addEventListener('click', () => closeWizardModal('polar-align-modal'));
+    document.getElementById('pa-mode').addEventListener('change', updatePolarAlignmentFieldsForMode);
+
+    document.getElementById('btn-open-flat-wizard').addEventListener('click', openFlatWizard);
+    document.getElementById('btn-flat-wizard-close').addEventListener('click', () => closeWizardModal('flat-wizard-modal'));
+    document.getElementById('btn-flat-wizard-calibrate').addEventListener('click', handleFlatWizardCalibrate);
+    document.getElementById('btn-flat-wizard-build').addEventListener('click', handleFlatWizardBuild);
+
+    document.getElementById('btn-open-mosaic').addEventListener('click', openMosaicWizard);
+    document.getElementById('btn-mosaic-close').addEventListener('click', () => closeWizardModal('mosaic-modal'));
+    document.getElementById('btn-mosaic-use-mount').addEventListener('click', handleMosaicUseMountPosition);
+    document.getElementById('btn-mosaic-preview').addEventListener('click', handleMosaicPreview);
+    document.getElementById('btn-mosaic-build').addEventListener('click', handleMosaicBuild);
+
+    document.getElementById('btn-open-framing').addEventListener('click', openFramingWizard);
+    document.getElementById('btn-framing-close').addEventListener('click', () => closeWizardModal('framing-modal'));
+    document.getElementById('btn-framing-slew').addEventListener('click', handleFramingSlew);
+    document.getElementById('btn-framing-center').addEventListener('click', handleFramingCenter);
+    document.getElementById('btn-framing-rotate').addEventListener('click', handleFramingRotate);
+    document.getElementById('btn-framing-save').addEventListener('click', handleFramingSave);
+    document.getElementById('framing-search').addEventListener('input', handleFramingSearchInput);
+    document.getElementById('framing-search').addEventListener('blur', () => {
+      // Same race-condition guard as the mount-goto autocomplete — click on a
+      // suggestion fires after blur, so delay the hide.
+      setTimeout(hideFramingSuggestions, 150);
+    });
+    document.getElementById('framing-rotation').addEventListener('input', handleFramingRotationChange);
+
 
     // Guide graph canvas
     setupGuideCanvas();
@@ -1105,6 +1192,14 @@
     } else if (category === 'equipment') {
       // Equipment connect/disconnect changes the per-panel availability set.
       fetchDevices();
+    } else if (category === 'polarAlignment' || category === 'polar_alignment') {
+      // §2.17 W5-WIZARDS — polar alignment progress feed. Three event types
+      // come through the polarAlignment category:
+      //   PolarAlignment          — drift/error update (azArcmin, altArcmin, totalArcmin)
+      //   PolarAlignmentStatus    — phase + statusMessage
+      //   PolarAlignmentImage     — solver image preview (ignored here; the
+      //                             dashboard renders the regular last image)
+      handlePolarAlignmentEvent(data);
     }
   }
 
@@ -3809,6 +3904,1043 @@
     const ageMs = Date.now() - when.getTime();
     if (ageMs < 0 || !isFinite(ageMs)) return when.toISOString();
     return formatDurationSeconds(ageMs / 1000) + ' ago';
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Shared wizard modal infrastructure
+  // ===========================================================================
+
+  function setupWizardModals() {
+    for (const btn of document.querySelectorAll('.wizard-next')) {
+      btn.addEventListener('click', () => advanceWizard(btn.dataset.modal, +1));
+    }
+    for (const btn of document.querySelectorAll('.wizard-back')) {
+      btn.addEventListener('click', () => advanceWizard(btn.dataset.modal, -1));
+    }
+    // Escape closes any open wizard. Why per-modal listener: each modal
+    // already has its own close button; this gives keyboard parity with the
+    // existing pairing modal (§2.15 a11y).
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      for (const id of Object.keys(state.wizardStep)) {
+        const m = document.getElementById(id);
+        if (m && m.classList.contains('visible')) {
+          closeWizardModal(id);
+        }
+      }
+    });
+  }
+
+  function openWizardModal(modalId) {
+    const m = document.getElementById(modalId);
+    if (!m) return;
+    state.wizardStep[modalId] = 0;
+    applyWizardStep(modalId);
+    setWizardError(modalId, '');
+    m.removeAttribute('hidden');
+    m.classList.add('visible');
+    // Focus the first focusable element so screen readers announce the
+    // current step body instead of the backdrop.
+    setTimeout(() => {
+      const first = m.querySelector('.wizard-step.active input, .wizard-step.active select, .wizard-step.active button');
+      if (first) first.focus();
+    }, 50);
+  }
+
+  function closeWizardModal(modalId) {
+    const m = document.getElementById(modalId);
+    if (!m) return;
+    m.classList.remove('visible');
+    m.setAttribute('hidden', '');
+  }
+
+  function advanceWizard(modalId, delta) {
+    const total = state.wizardStepCount[modalId];
+    if (!total) return;
+    const next = Math.max(0, Math.min(total - 1, state.wizardStep[modalId] + delta));
+    if (next === state.wizardStep[modalId]) return;
+    state.wizardStep[modalId] = next;
+    applyWizardStep(modalId);
+    // Step-specific hooks: when entering certain steps we lazy-load data or
+    // refresh derived UI (e.g. flat filter list, framing FOV preview).
+    onWizardStepEntered(modalId, next);
+  }
+
+  function applyWizardStep(modalId) {
+    const m = document.getElementById(modalId);
+    if (!m) return;
+    const idx = state.wizardStep[modalId];
+    const total = state.wizardStepCount[modalId];
+
+    const steps = m.querySelectorAll('.wizard-step');
+    for (const s of steps) {
+      const stepIdx = parseInt(s.dataset.step, 10);
+      s.classList.toggle('active', stepIdx === idx);
+    }
+    const dots = m.querySelectorAll('.wizard-dot');
+    for (const d of dots) {
+      const stepIdx = parseInt(d.dataset.step, 10);
+      d.classList.toggle('active', stepIdx === idx);
+      d.classList.toggle('completed', stepIdx < idx);
+    }
+    // Back disabled at step 0; Next disabled at last step.
+    const back = m.querySelector('.wizard-back');
+    const next = m.querySelector('.wizard-next');
+    if (back) back.disabled = idx === 0;
+    if (next) next.disabled = idx >= total - 1;
+
+    // Modal-specific final-step CTA visibility.
+    if (modalId === 'polar-align-modal') {
+      const startBtn = document.getElementById('btn-polar-align-start');
+      if (startBtn) startBtn.hidden = idx !== total - 1;
+    }
+  }
+
+  function setWizardError(modalId, message) {
+    const map = {
+      'polar-align-modal': 'polar-align-modal-error',
+      'flat-wizard-modal': 'flat-wizard-modal-error',
+      'mosaic-modal': 'mosaic-modal-error',
+      'framing-modal': 'framing-modal-error',
+    };
+    const id = map[modalId];
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = message || '';
+      el.className = 'modal-status' + (message ? ' error' : '');
+    }
+  }
+
+  function onWizardStepEntered(modalId, stepIdx) {
+    if (modalId === 'flat-wizard-modal' && stepIdx === 0) {
+      renderFlatWizardFilterList();
+    } else if (modalId === 'mosaic-modal' && stepIdx === 3) {
+      // Auto-preview when reaching the preview step.
+      handleMosaicPreview().catch(() => {});
+    } else if (modalId === 'framing-modal' && stepIdx === 1) {
+      // Load FOV config when entering the preview step.
+      loadFovConfigForFraming().then(renderFramingPreview).catch(() => {
+        renderFramingPreview();
+      });
+    } else if (modalId === 'polar-align-modal' && stepIdx === 0) {
+      updatePolarAlignmentFieldsForMode();
+    }
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Plate solve
+  // ===========================================================================
+
+  async function handlePlateSolve(syncMount) {
+    if (!api.isConnected) {
+      showToast('Not connected', 'error');
+      return;
+    }
+    const resultEl = document.getElementById('plate-solve-result');
+    if (resultEl) resultEl.textContent = 'Solving...';
+    try {
+      // Find a path for the solver. Why /api/images/recent over the in-memory
+      // last image: the bridge plate-solver reads a file from disk (FITS or
+      // XISF), and the AutoSaveService persists each capture before it lands
+      // in the images table. If no row exists yet (mid-exposure or no auto-
+      // save target) we surface a clear error rather than silently solving
+      // a stale path.
+      const recent = await api.imagesGetRecent(1);
+      const images = (recent && recent.images) || [];
+      if (!images.length) {
+        throw new Error(
+          'No captured image is available on disk yet — take an exposure first',
+        );
+      }
+      // The CapturedImages table column is `filePath`, but the json_serializable
+      // output may snake_case it depending on schema. Accept both.
+      const filePath = images[0].filePath || images[0].file_path;
+      if (!filePath) {
+        throw new Error('Last image row has no file path (auto-save may be disabled)');
+      }
+      // Hint with current mount position if we have one — speeds up the solve
+      // substantially compared to a blind solve, especially on phones over
+      // a slow link where every retry counts.
+      const hint = state.mountStatus
+        ? {
+            ra: state.mountStatus.rightAscension,
+            dec: state.mountStatus.declination,
+          }
+        : {};
+      const result = await api.plateSolve(filePath, hint);
+      state.lastPlateSolve = result;
+
+      if (!result || !result.success) {
+        const msg = result && result.error ? result.error : 'Plate solve failed';
+        throw new Error(msg);
+      }
+
+      // Make the position-angle available to the rotator panel exactly the
+      // same way an `imaging` WS event would, so "Sync to image PA" works
+      // after a manual solve.
+      if (typeof result.rotation === 'number' && isFinite(result.rotation)) {
+        state.lastImagePositionAngle = Number(result.rotation);
+        renderRotatorPanel();
+      }
+
+      renderPlateSolveResult(result, filePath);
+      addLogEntry('imaging',
+        'Plate-solve: RA ' + formatRA(result.ra) +
+        ' Dec ' + formatDec(result.dec) +
+        (result.rotation != null ? ' PA ' + Number(result.rotation).toFixed(2) + '°' : ''));
+
+      if (syncMount) {
+        if (!state.mountDeviceId) {
+          showToast('No mount connected — solved but cannot sync', 'error');
+          return;
+        }
+        await api.mountSync(state.mountDeviceId, result.ra, result.dec);
+        addLogEntry('mount', 'Mount synced to plate-solved RA/Dec');
+        showToast('Plate-solved and synced mount');
+      } else {
+        showToast('Plate solve complete');
+      }
+    } catch (e) {
+      if (resultEl) resultEl.textContent = 'Solve failed: ' + e.message;
+      addLogEntry('error', 'Plate-solve failed: ' + e.message);
+      showToast('Plate-solve failed: ' + e.message, 'error');
+    }
+  }
+
+  function renderPlateSolveResult(result, filePath) {
+    const el = document.getElementById('plate-solve-result');
+    if (!el) return;
+    const lines = [];
+    lines.push('RA  ' + formatRA(result.ra));
+    lines.push('Dec ' + formatDec(result.dec));
+    if (result.pixelScale != null) {
+      lines.push('Scale ' + Number(result.pixelScale).toFixed(3) + '"/px');
+    }
+    if (result.rotation != null) {
+      lines.push('PA ' + Number(result.rotation).toFixed(2) + '°');
+    }
+    if (result.fieldWidth != null && result.fieldHeight != null) {
+      lines.push('FOV ' + Number(result.fieldWidth).toFixed(2) + '° × ' +
+        Number(result.fieldHeight).toFixed(2) + '°');
+    }
+    if (result.solveTimeSecs != null) {
+      lines.push('Solved in ' + Number(result.solveTimeSecs).toFixed(2) + 's');
+    }
+    if (filePath) {
+      // Truncate long paths so the tile doesn't grow unbounded.
+      const tail = String(filePath).split(/[\\/]/).slice(-2).join('/');
+      lines.push('File ' + tail);
+    }
+    el.textContent = lines.join('\n');
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Polar alignment
+  // ===========================================================================
+
+  function updatePolarAlignmentFieldsForMode() {
+    const mode = document.getElementById('pa-mode').value;
+    const stepRow = document.getElementById('pa-step-row');
+    const rotRow = document.getElementById('pa-rotation-row');
+    // All-sky doesn't rotate the mount, so step + direction are irrelevant.
+    if (stepRow) stepRow.style.display = (mode === 'all_sky') ? 'none' : 'flex';
+    if (rotRow) rotRow.style.display = (mode === 'all_sky') ? 'none' : 'flex';
+  }
+
+  async function handleStartPolarAlignment() {
+    if (!state.mountDeviceId) {
+      setWizardError('polar-align-modal', 'No mount connected');
+      return;
+    }
+    if (!state.cameraDeviceId) {
+      setWizardError('polar-align-modal', 'No camera connected');
+      return;
+    }
+    const mode = document.getElementById('pa-mode').value;
+    const hemi = document.getElementById('pa-hemisphere').value;
+    const exposure = parseFloat(document.getElementById('pa-exposure').value);
+    const binning = parseInt(document.getElementById('pa-binning').value, 10);
+    const step = parseFloat(document.getElementById('pa-step').value);
+    const rotateDir = document.getElementById('pa-rotate-dir').value;
+
+    if (!isFinite(exposure) || exposure <= 0) {
+      setWizardError('polar-align-modal', 'Exposure must be positive');
+      return;
+    }
+    if (mode === 'tppa' && (!isFinite(step) || step <= 0)) {
+      setWizardError('polar-align-modal', 'Step size must be positive');
+      return;
+    }
+
+    setWizardError('polar-align-modal', '');
+    try {
+      const opts = {
+        exposureTime: exposure,
+        binning: binning || 2,
+        stepSize: step,
+        isNorth: hemi === 'north',
+        manualRotation: false,
+        rotateEast: rotateDir === 'east',
+      };
+      if (mode === 'all_sky') {
+        // TODO[W5-BACKEND-EXTEND]: /api/polar-alignment/start-all-sky doesn't
+        // exist yet; api.polarAlignmentStartAllSky currently routes to the
+        // TPPA path. When the backend gains a dedicated endpoint this call
+        // will start using it transparently.
+        await api.polarAlignmentStartAllSky(opts);
+      } else {
+        await api.polarAlignmentStart(opts);
+      }
+      state.polarAlignment.phase = 'measuring';
+      state.polarAlignment.statusMessage = 'Started ' + (mode === 'all_sky' ? 'all-sky' : 'TPPA') + ' polar alignment';
+      renderPolarAlignmentPanel();
+      addLogEntry('polarAlignment', state.polarAlignment.statusMessage);
+      showToast('Polar alignment started');
+    } catch (e) {
+      setWizardError('polar-align-modal', e.message);
+      addLogEntry('error', 'Polar alignment start failed: ' + e.message);
+    }
+  }
+
+  async function handleStopPolarAlignment() {
+    if (!api.isConnected) return;
+    try {
+      await api.polarAlignmentStop();
+      state.polarAlignment.phase = 'idle';
+      state.polarAlignment.statusMessage = 'Stopped';
+      state.polarAlignment.totalErrorArcmin = null;
+      renderPolarAlignmentPanel();
+      addLogEntry('polarAlignment', 'Polar alignment stopped');
+      showToast('Polar alignment stopped');
+    } catch (e) {
+      showToast('Stop failed: ' + e.message, 'error');
+    }
+  }
+
+  function handlePolarAlignmentEvent(data) {
+    const eventType = data.eventType || data.event || '';
+    const payload = data.data || data;
+    if (eventType === 'PolarAlignmentStatus') {
+      state.polarAlignment.phase = String(payload.phase || payload.status || 'unknown');
+      state.polarAlignment.statusMessage = String(payload.statusMessage || payload.status || '');
+    } else if (eventType === 'PolarAlignment') {
+      // The error event carries azArcmin/altArcmin and (optionally) total.
+      const az = Number(payload.azArcmin != null ? payload.azArcmin : (payload.az_arcmin || 0));
+      const alt = Number(payload.altArcmin != null ? payload.altArcmin : (payload.alt_arcmin || 0));
+      const total = payload.totalArcmin != null
+        ? Number(payload.totalArcmin)
+        : Math.sqrt(az * az + alt * alt);
+      state.polarAlignment.totalErrorArcmin = total;
+    }
+    renderPolarAlignmentPanel();
+  }
+
+  function renderPolarAlignmentPanel() {
+    const phaseEl = document.getElementById('pa-phase');
+    const errEl = document.getElementById('pa-total-error');
+    if (phaseEl) phaseEl.textContent = state.polarAlignment.phase || 'idle';
+    if (errEl) {
+      const v = state.polarAlignment.totalErrorArcmin;
+      errEl.textContent = v != null && isFinite(v) ? v.toFixed(2) + "'" : '--';
+      errEl.className = 'status-value' + (v != null
+        ? (v < 1.0 ? ' good' : (v < 5.0 ? ' warn' : ' error'))
+        : '');
+    }
+    // Mirror into the modal step-3 readout.
+    const mPhase = document.getElementById('pa-modal-phase');
+    const mErr = document.getElementById('pa-modal-error');
+    const mStat = document.getElementById('pa-modal-status');
+    if (mPhase) mPhase.textContent = state.polarAlignment.phase || 'idle';
+    if (mErr) {
+      const v = state.polarAlignment.totalErrorArcmin;
+      mErr.textContent = v != null && isFinite(v) ? v.toFixed(2) + "'" : '--';
+    }
+    if (mStat) mStat.textContent = state.polarAlignment.statusMessage || '--';
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Flat wizard
+  // ===========================================================================
+
+  function openFlatWizard() {
+    if (!state.cameraDeviceId) {
+      showToast('No camera connected', 'error');
+      return;
+    }
+    state.flatWizard.calibrations = [];
+    state.flatWizard.running = false;
+    state.flatWizard.selectedFilters = {};
+    document.getElementById('flat-wizard-progress').textContent = '--';
+    const resultsList = document.getElementById('flat-wizard-results-list');
+    if (resultsList) clearElement(resultsList);
+    document.getElementById('btn-flat-wizard-build').disabled = true;
+    document.getElementById('flat-wizard-manual-filters').value = '';
+    openWizardModal('flat-wizard-modal');
+  }
+
+  function renderFlatWizardFilterList() {
+    const container = document.getElementById('flat-wizard-filter-list');
+    if (!container) return;
+    clearElement(container);
+    const positions = state.filterWheelPositions
+      ? state.filterWheelPositions.positions
+      : [];
+    if (!positions || positions.length === 0) {
+      container.appendChild(createEmptyState('No filter wheel — use manual entry below'));
+      return;
+    }
+    for (const slot of positions) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'flat-wizard-filter-chip';
+      chip.textContent = slot.name;
+      const selected = !!state.flatWizard.selectedFilters[slot.name];
+      chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      chip.addEventListener('click', () => {
+        const cur = chip.getAttribute('aria-pressed') === 'true';
+        chip.setAttribute('aria-pressed', cur ? 'false' : 'true');
+        state.flatWizard.selectedFilters[slot.name] = !cur;
+      });
+      container.appendChild(chip);
+    }
+  }
+
+  function collectFlatWizardFilters() {
+    // Prefer chips when the filter wheel is connected.
+    const chosen = Object.entries(state.flatWizard.selectedFilters)
+      .filter(([, v]) => !!v)
+      .map(([k]) => k);
+    if (chosen.length > 0) return chosen;
+    // Fall back to manual entry.
+    const raw = document.getElementById('flat-wizard-manual-filters').value;
+    return String(raw || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
+  async function handleFlatWizardCalibrate() {
+    if (!state.cameraDeviceId) {
+      setWizardError('flat-wizard-modal', 'No camera connected');
+      return;
+    }
+    const filters = collectFlatWizardFilters();
+    if (filters.length === 0) {
+      setWizardError('flat-wizard-modal', 'Select at least one filter');
+      return;
+    }
+    const targetAdu = parseFloat(document.getElementById('flat-wizard-adu').value);
+    const tolerance = parseFloat(document.getElementById('flat-wizard-tolerance').value);
+    const binning = parseInt(document.getElementById('flat-wizard-binning').value, 10);
+
+    if (!isFinite(targetAdu) || targetAdu <= 0) {
+      setWizardError('flat-wizard-modal', 'Target ADU must be positive');
+      return;
+    }
+
+    setWizardError('flat-wizard-modal', '');
+    state.flatWizard.running = true;
+    document.getElementById('btn-flat-wizard-calibrate').disabled = true;
+    document.getElementById('btn-flat-wizard-build').disabled = true;
+    document.getElementById('flat-wizard-progress').textContent =
+      'Calibrating ' + filters.length + ' filter(s)... this can take minutes';
+
+    try {
+      const result = await api.flatWizardCalibrateMulti(state.cameraDeviceId, filters, {
+        targetAdu,
+        tolerance: tolerance / 100 * targetAdu,  // tolerance is absolute ADU on the server
+        binX: binning || 1,
+        binY: binning || 1,
+      });
+      state.flatWizard.calibrations = (result && result.results) || [];
+      renderFlatWizardResults();
+      const ok = state.flatWizard.calibrations.filter((c) => c.success).length;
+      document.getElementById('flat-wizard-progress').textContent =
+        'Calibration complete: ' + ok + '/' + state.flatWizard.calibrations.length + ' filters converged';
+      document.getElementById('btn-flat-wizard-build').disabled = ok === 0;
+    } catch (e) {
+      setWizardError('flat-wizard-modal', e.message);
+      addLogEntry('error', 'Flat calibration failed: ' + e.message);
+    } finally {
+      state.flatWizard.running = false;
+      document.getElementById('btn-flat-wizard-calibrate').disabled = false;
+    }
+  }
+
+  function renderFlatWizardResults() {
+    const list = document.getElementById('flat-wizard-results-list');
+    if (!list) return;
+    clearElement(list);
+    for (const c of state.flatWizard.calibrations) {
+      const row = document.createElement('div');
+      row.className = 'wizard-list-entry';
+      const name = document.createElement('span');
+      name.textContent = c.filter;
+      const value = document.createElement('span');
+      value.className = c.success
+        ? 'wizard-list-entry__ok'
+        : 'wizard-list-entry__bad';
+      value.textContent = c.success
+        ? (Number(c.exposure).toFixed(3) + 's @ ' + Math.round(Number(c.adu)) + ' ADU')
+        : ('FAILED: ' + (c.errorMessage || 'no convergence'));
+      row.appendChild(name);
+      row.appendChild(value);
+      list.appendChild(row);
+    }
+  }
+
+  async function handleFlatWizardBuild() {
+    if (!state.flatWizard.calibrations.length) {
+      setWizardError('flat-wizard-modal', 'Run calibration first');
+      return;
+    }
+    const framesPerFilter = parseInt(document.getElementById('flat-wizard-frames').value, 10);
+    if (!isFinite(framesPerFilter) || framesPerFilter < 1) {
+      setWizardError('flat-wizard-modal', 'Frames per filter must be ≥1');
+      return;
+    }
+    try {
+      const seq = await api.flatWizardGenerateSequence(state.flatWizard.calibrations, {
+        framesPerFilter,
+        onlySuccessful: true,
+      });
+      // Load the sequence into the sequencer so the operator can press Start.
+      if (seq && seq.sequence) {
+        await api.sequencerLoad(seq.sequence);
+        document.getElementById('flat-wizard-result').textContent =
+          'Loaded flat sequence (' + framesPerFilter + '× per filter)';
+        addLogEntry('sequencer', 'Loaded flat sequence');
+        showToast('Flat sequence loaded — open Sequencer to start');
+        closeWizardModal('flat-wizard-modal');
+      } else {
+        throw new Error('Server returned no sequence');
+      }
+    } catch (e) {
+      setWizardError('flat-wizard-modal', e.message);
+      addLogEntry('error', 'Flat sequence build failed: ' + e.message);
+    }
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Mosaic planner
+  // ===========================================================================
+
+  async function openMosaicWizard() {
+    if (!api.isConnected) {
+      showToast('Not connected', 'error');
+      return;
+    }
+    state.mosaic.panels = null;
+    const previewEl = document.getElementById('mosaic-preview');
+    if (previewEl) {
+      clearElement(previewEl);
+      previewEl.appendChild(createEmptyState('Press Preview to compute panel layout'));
+    }
+    document.getElementById('mosaic-total-panels').textContent = '--';
+    document.getElementById('mosaic-est-time').textContent = '--';
+    document.getElementById('btn-mosaic-build').disabled = true;
+
+    // Try to seed center coords from current mount position.
+    if (state.mountStatus) {
+      const raInput = document.getElementById('mosaic-center-ra');
+      const decInput = document.getElementById('mosaic-center-dec');
+      if (raInput && !raInput.value) raInput.value = formatRA(state.mountStatus.rightAscension);
+      if (decInput && !decInput.value) decInput.value = formatDec(state.mountStatus.declination);
+    }
+
+    openWizardModal('mosaic-modal');
+  }
+
+  function handleMosaicUseMountPosition() {
+    if (!state.mountStatus) {
+      setWizardError('mosaic-modal', 'No mount position available');
+      return;
+    }
+    document.getElementById('mosaic-center-ra').value = formatRA(state.mountStatus.rightAscension);
+    document.getElementById('mosaic-center-dec').value = formatDec(state.mountStatus.declination);
+    setWizardError('mosaic-modal', '');
+  }
+
+  function readMosaicConfig() {
+    const ra = parseRaHours(document.getElementById('mosaic-center-ra').value);
+    const dec = parseDecDegrees(document.getElementById('mosaic-center-dec').value);
+    const cols = parseInt(document.getElementById('mosaic-cols').value, 10);
+    const rows = parseInt(document.getElementById('mosaic-rows').value, 10);
+    const overlap = parseFloat(document.getElementById('mosaic-overlap').value);
+    const rotation = parseFloat(document.getElementById('mosaic-rotation').value);
+
+    if (!isFinite(ra) || ra < 0 || ra >= 24) throw new Error('Invalid center RA');
+    if (!isFinite(dec) || dec < -90 || dec > 90) throw new Error('Invalid center Dec');
+    if (!isFinite(cols) || cols < 1) throw new Error('Columns must be ≥1');
+    if (!isFinite(rows) || rows < 1) throw new Error('Rows must be ≥1');
+    if (!isFinite(overlap) || overlap < 0 || overlap >= 100) throw new Error('Overlap must be 0..100');
+
+    // Panel width/height come from the active FOV config — we cannot compute
+    // a meaningful mosaic without them.
+    const fov = state.framing.fovWidthDegrees != null
+      ? { w: state.framing.fovWidthDegrees, h: state.framing.fovHeightDegrees }
+      : null;
+    if (!fov || !isFinite(fov.w) || fov.w <= 0 || !isFinite(fov.h) || fov.h <= 0) {
+      throw new Error('Panel FOV unknown — set focal length / camera in the active profile first');
+    }
+
+    return {
+      centerRa: ra,
+      centerDec: dec,
+      panelWidthArcmin: fov.w * 60.0,
+      panelHeightArcmin: fov.h * 60.0,
+      overlapPercent: overlap,
+      rotation: rotation || 0,
+      panelsHorizontal: cols,
+      panelsVertical: rows,
+    };
+  }
+
+  async function handleMosaicPreview() {
+    setWizardError('mosaic-modal', '');
+    // The mosaic FOV depends on the planetarium fov-config; load it lazily.
+    try {
+      await loadFovConfigForFraming();
+    } catch (e) {
+      setWizardError('mosaic-modal', 'Could not load FOV config: ' + e.message);
+      return;
+    }
+    let config;
+    try {
+      config = readMosaicConfig();
+    } catch (e) {
+      setWizardError('mosaic-modal', e.message);
+      return;
+    }
+    state.mosaic.cols = config.panelsHorizontal;
+    state.mosaic.rows = config.panelsVertical;
+    try {
+      const [panelsResp, timeResp] = await Promise.all([
+        api.mosaicGeneratePanels(config),
+        api.mosaicEstimateTime(config, {
+          exposureSeconds: parseFloat(document.getElementById('mosaic-exp-sec').value) || 1,
+          exposuresPerPanel: parseInt(document.getElementById('mosaic-exp-count').value, 10) || 1,
+          filterName: document.getElementById('mosaic-exp-filter').value || null,
+          binning: parseInt(document.getElementById('mosaic-exp-bin').value, 10) || 1,
+        }),
+      ]);
+      state.mosaic.panels = (panelsResp && panelsResp.panels) || [];
+      renderMosaicPreview();
+      document.getElementById('mosaic-total-panels').textContent =
+        state.mosaic.panels.length + ' panels';
+      const secs = timeResp && timeResp.estimatedTimeSecs ? Number(timeResp.estimatedTimeSecs) : 0;
+      document.getElementById('mosaic-est-time').textContent = formatDurationSecs(secs);
+      document.getElementById('btn-mosaic-build').disabled = state.mosaic.panels.length === 0;
+    } catch (e) {
+      setWizardError('mosaic-modal', 'Preview failed: ' + e.message);
+    }
+  }
+
+  function renderMosaicPreview() {
+    const container = document.getElementById('mosaic-preview');
+    if (!container) return;
+    clearElement(container);
+    const cols = state.mosaic.cols;
+    const rows = state.mosaic.rows;
+    container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+    container.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
+    // Render panel cells in raster order. The server returns them in
+    // panelIndex order; we map (row,col) directly so the visual layout
+    // mirrors the sky orientation (top = north).
+    const grid = new Array(cols * rows).fill(null);
+    for (const p of state.mosaic.panels) {
+      // Map (row,col) — panel.row is 0-based from top, panel.col 0-based from left.
+      const idx = p.row * cols + p.col;
+      grid[idx] = p;
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'mosaic-tile';
+        const p = grid[r * cols + c];
+        cell.textContent = p
+          ? ('#' + (p.panelIndex + 1) + '\n' + formatRA(p.raHours).slice(0, 7))
+          : '·';
+        container.appendChild(cell);
+      }
+    }
+  }
+
+  async function handleMosaicBuild() {
+    setWizardError('mosaic-modal', '');
+    let config;
+    try {
+      config = readMosaicConfig();
+    } catch (e) {
+      setWizardError('mosaic-modal', e.message);
+      return;
+    }
+    const exposure = {
+      exposureSeconds: parseFloat(document.getElementById('mosaic-exp-sec').value) || 1,
+      exposuresPerPanel: parseInt(document.getElementById('mosaic-exp-count').value, 10) || 1,
+      filterName: document.getElementById('mosaic-exp-filter').value || null,
+      binning: parseInt(document.getElementById('mosaic-exp-bin').value, 10) || 1,
+    };
+    try {
+      const resp = await api.mosaicGenerateSequence({
+        mosaicName: 'Mosaic ' + state.mosaic.cols + 'x' + state.mosaic.rows,
+        config,
+        exposure,
+        options: {
+          serpentineOrdering: true,
+          centerAfterSlew: true,
+        },
+      });
+      const seq = resp && resp.sequence;
+      if (!seq) throw new Error('Server returned no sequence');
+      await api.sequencerLoad(seq);
+      document.getElementById('mosaic-wizard-result').textContent =
+        'Loaded ' + seq.totalPanels + '-panel mosaic (~' +
+        formatDurationSecs(seq.estimatedTimeSecs || 0) + ')';
+      addLogEntry('sequencer', 'Mosaic sequence loaded (' + seq.totalPanels + ' panels)');
+      showToast('Mosaic loaded — open Sequencer to start');
+      closeWizardModal('mosaic-modal');
+    } catch (e) {
+      setWizardError('mosaic-modal', 'Build failed: ' + e.message);
+      addLogEntry('error', 'Mosaic build failed: ' + e.message);
+    }
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Framing assistant
+  // ===========================================================================
+
+  async function openFramingWizard() {
+    if (!api.isConnected) {
+      showToast('Not connected', 'error');
+      return;
+    }
+    state.framing.target = null;
+    state.framing.rotation = 0;
+    document.getElementById('framing-search').value = '';
+    document.getElementById('framing-target-ra').value = '';
+    document.getElementById('framing-target-dec').value = '';
+    document.getElementById('framing-rotation').value = '0';
+    document.getElementById('framing-rotation-readout').textContent = '0°';
+    document.getElementById('framing-action-status').textContent = '--';
+    openWizardModal('framing-modal');
+  }
+
+  async function loadFovConfigForFraming() {
+    if (state.framing.fovWidthDegrees != null && state.framing.fovHeightDegrees != null) {
+      return;
+    }
+    const fov = await api.getFovConfig();
+    state.framing.fovWidthDegrees = fov && fov.fovWidthDegrees != null
+      ? Number(fov.fovWidthDegrees)
+      : null;
+    state.framing.fovHeightDegrees = fov && fov.fovHeightDegrees != null
+      ? Number(fov.fovHeightDegrees)
+      : null;
+  }
+
+  function handleFramingSearchInput() {
+    if (state.framing.searchDebounce) {
+      clearTimeout(state.framing.searchDebounce);
+    }
+    state.framing.searchDebounce = setTimeout(runFramingSearch, 220);
+  }
+
+  async function runFramingSearch() {
+    const input = document.getElementById('framing-search');
+    if (!input) return;
+    const query = input.value.trim();
+    if (query.length < 1) {
+      hideFramingSuggestions();
+      return;
+    }
+    try {
+      const result = await api.targetsSearch(query);
+      renderFramingSuggestions((result && result.targets) || []);
+    } catch (e) {
+      addLogEntry('error', 'Framing target search failed: ' + e.message);
+      hideFramingSuggestions();
+    }
+  }
+
+  function renderFramingSuggestions(targets) {
+    const list = document.getElementById('framing-search-suggestions');
+    if (!list) return;
+    clearElement(list);
+    if (!targets || targets.length === 0) {
+      hideFramingSuggestions();
+      return;
+    }
+    const cap = Math.min(8, targets.length);
+    for (let i = 0; i < cap; i++) {
+      const t = targets[i];
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'autocomplete-item';
+      item.setAttribute('role', 'option');
+      const nameEl = document.createElement('span');
+      nameEl.className = 'autocomplete-item__name';
+      nameEl.textContent = t.name + (t.catalogId ? '  ' + t.catalogId : '');
+      const metaEl = document.createElement('span');
+      metaEl.className = 'autocomplete-item__meta';
+      const meta = [];
+      if (t.objectType) meta.push(t.objectType);
+      if (t.constellation) meta.push(t.constellation);
+      metaEl.textContent = meta.join(' · ');
+      item.appendChild(nameEl);
+      item.appendChild(metaEl);
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectFramingTarget(t);
+      });
+      list.appendChild(item);
+    }
+    list.hidden = false;
+  }
+
+  function hideFramingSuggestions() {
+    const list = document.getElementById('framing-search-suggestions');
+    if (list) {
+      list.hidden = true;
+      clearElement(list);
+    }
+  }
+
+  function selectFramingTarget(target) {
+    state.framing.target = {
+      id: target.id,
+      name: target.name,
+      ra: Number(target.ra),
+      dec: Number(target.dec),
+    };
+    document.getElementById('framing-search').value = target.name || '';
+    document.getElementById('framing-target-ra').value = formatRA(Number(target.ra));
+    document.getElementById('framing-target-dec').value = formatDec(Number(target.dec));
+    hideFramingSuggestions();
+  }
+
+  function handleFramingRotationChange() {
+    const v = parseFloat(document.getElementById('framing-rotation').value);
+    if (!isFinite(v)) return;
+    state.framing.rotation = v;
+    document.getElementById('framing-rotation-readout').textContent =
+      v.toFixed(0) + '°';
+    renderFramingPreview();
+  }
+
+  function readFramingCoordinates() {
+    // The search step may have populated state.framing.target; the user can
+    // also override coordinates directly. Read both and reconcile.
+    const rawRa = document.getElementById('framing-target-ra').value;
+    const rawDec = document.getElementById('framing-target-dec').value;
+    const ra = parseRaHours(rawRa);
+    const dec = parseDecDegrees(rawDec);
+    if (!isFinite(ra) || ra < 0 || ra >= 24) throw new Error('Invalid RA');
+    if (!isFinite(dec) || dec < -90 || dec > 90) throw new Error('Invalid Dec');
+    const name = (state.framing.target && state.framing.target.name)
+      || document.getElementById('framing-search').value || '';
+    return { ra, dec, name };
+  }
+
+  function renderFramingPreview() {
+    const container = document.getElementById('framing-preview');
+    if (!container) return;
+    clearElement(container);
+
+    const target = state.framing.target;
+    if (!target) {
+      container.appendChild(createEmptyState('Pick a target on step 1'));
+      return;
+    }
+
+    // SVG layout: 100x100 viewBox centered on the target. The FOV rectangle
+    // is drawn proportional to the sky chart's nominal extent. Why a fixed
+    // 100x100: the preview is purely indicative (the user is choosing PA,
+    // not pixel-perfect framing), so a simple square sky window is enough.
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    // Sky background gradient hint (corners darker).
+    const bg = document.createElementNS(svgNS, 'rect');
+    bg.setAttribute('x', '0');
+    bg.setAttribute('y', '0');
+    bg.setAttribute('width', '100');
+    bg.setAttribute('height', '100');
+    bg.setAttribute('fill', '#050810');
+    svg.appendChild(bg);
+
+    // Target marker (cross).
+    const cx = 50, cy = 50;
+    for (const off of [{ x1: cx - 4, y1: cy, x2: cx + 4, y2: cy },
+                       { x1: cx, y1: cy - 4, x2: cx, y2: cy + 4 }]) {
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', off.x1);
+      line.setAttribute('y1', off.y1);
+      line.setAttribute('x2', off.x2);
+      line.setAttribute('y2', off.y2);
+      line.setAttribute('stroke', '#d29922');
+      line.setAttribute('stroke-width', '0.6');
+      svg.appendChild(line);
+    }
+
+    // FOV rectangle — sized by the camera's aspect ratio, rotated by PA.
+    // If FOV is unknown we draw a default square so the user still has a
+    // rotation handle to play with; the actual slew will use raw RA/Dec.
+    const aspect = (state.framing.fovWidthDegrees && state.framing.fovHeightDegrees)
+      ? state.framing.fovWidthDegrees / state.framing.fovHeightDegrees
+      : 1.5;
+    const boxH = 40; // half the viewBox so it sits comfortably inside
+    const boxW = boxH * aspect;
+    const rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('x', String(cx - boxW / 2));
+    rect.setAttribute('y', String(cy - boxH / 2));
+    rect.setAttribute('width', String(boxW));
+    rect.setAttribute('height', String(boxH));
+    rect.setAttribute('fill', 'none');
+    rect.setAttribute('stroke', '#58a6ff');
+    rect.setAttribute('stroke-width', '0.8');
+    rect.setAttribute('transform', 'rotate(' + (-state.framing.rotation) + ' ' + cx + ' ' + cy + ')');
+    svg.appendChild(rect);
+
+    // Up indicator at FOV top (north when PA=0).
+    const upLine = document.createElementNS(svgNS, 'line');
+    upLine.setAttribute('x1', String(cx));
+    upLine.setAttribute('y1', String(cy));
+    upLine.setAttribute('x2', String(cx));
+    upLine.setAttribute('y2', String(cy - boxH / 2));
+    upLine.setAttribute('stroke', '#3fb950');
+    upLine.setAttribute('stroke-width', '0.5');
+    upLine.setAttribute('transform', 'rotate(' + (-state.framing.rotation) + ' ' + cx + ' ' + cy + ')');
+    svg.appendChild(upLine);
+
+    // Target label.
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', '4');
+    label.setAttribute('y', '8');
+    label.setAttribute('fill', '#e6edf3');
+    label.setAttribute('font-size', '4');
+    label.setAttribute('font-family', 'monospace');
+    label.textContent = target.name || '(target)';
+    svg.appendChild(label);
+
+    container.appendChild(svg);
+  }
+
+  async function handleFramingSlew() {
+    setWizardError('framing-modal', '');
+    try {
+      const { ra, dec } = readFramingCoordinates();
+      await api.framingSlewToTarget(ra, dec);
+      document.getElementById('framing-action-status').textContent =
+        'Slewing to RA ' + formatRA(ra) + ' Dec ' + formatDec(dec);
+      addLogEntry('mount', 'Framing: slew started');
+      showToast('Slew started');
+    } catch (e) {
+      setWizardError('framing-modal', e.message);
+    }
+  }
+
+  async function handleFramingCenter() {
+    setWizardError('framing-modal', '');
+    try {
+      const { ra, dec } = readFramingCoordinates();
+      document.getElementById('framing-action-status').textContent =
+        'Centering on target (plate-solve iteration)...';
+      const result = await api.framingCenterOnTarget(ra, dec, {
+        maxIterations: 5,
+        toleranceArcsec: 30.0,
+        exposureTime: 3.0,
+        binning: 2,
+      });
+      const iters = result && result.iterations != null ? Number(result.iterations) : 0;
+      const off = result && result.finalOffsetArcsec != null
+        ? Number(result.finalOffsetArcsec).toFixed(1) + '"'
+        : '--';
+      if (result && result.success) {
+        document.getElementById('framing-action-status').textContent =
+          'Centered (' + iters + ' iter, residual ' + off + ')';
+        addLogEntry('mount', 'Framing: centered (' + iters + ' iter)');
+        showToast('Centered on target');
+      } else {
+        const err = result && result.errorMessage ? result.errorMessage : 'unknown failure';
+        throw new Error('Centering failed: ' + err);
+      }
+    } catch (e) {
+      setWizardError('framing-modal', e.message);
+      addLogEntry('error', 'Centering failed: ' + e.message);
+    }
+  }
+
+  async function handleFramingRotate() {
+    setWizardError('framing-modal', '');
+    try {
+      const angle = ((state.framing.rotation % 360) + 360) % 360;
+      await api.framingRotateTo(angle);
+      document.getElementById('framing-action-status').textContent =
+        'Rotator slewing to ' + angle.toFixed(2) + '°';
+      addLogEntry('rotator', 'Framing: rotator -> ' + angle.toFixed(2) + '°');
+      showToast('Rotator slewing');
+    } catch (e) {
+      setWizardError('framing-modal', e.message);
+    }
+  }
+
+  async function handleFramingSave() {
+    // Persist the chosen framing on the selected target so future sequences
+    // inherit it. Falls back to saving on a brand-new target row if none was
+    // selected (the API surface is the same — PUT or POST /api/targets).
+    setWizardError('framing-modal', '');
+    try {
+      const { ra, dec, name } = readFramingCoordinates();
+      const positionAngle = state.framing.rotation;
+      const payload = {
+        name: name || ('Framing ' + new Date().toISOString()),
+        ra,
+        dec,
+        positionAngle,
+      };
+      // TODO[W5-BACKEND-EXTEND]: there's no dedicated /api/framing/save
+      // endpoint on the headless server today. Per the audit brief, the
+      // intent is "send the chosen framing back". The closest existing
+      // surface is the targets CRUD: if we have a target.id from the search
+      // we PUT the framing onto that row; otherwise we POST a new target
+      // carrying the chosen ra/dec/positionAngle. A dedicated save endpoint
+      // would let us update just the framing fields without re-validating
+      // the entire target record.
+      let resp;
+      if (state.framing.target && state.framing.target.id) {
+        resp = await api.targetsUpdate(state.framing.target.id, payload);
+      } else {
+        resp = await api.targetsCreate(payload);
+      }
+      document.getElementById('framing-action-status').textContent =
+        'Saved framing (PA ' + positionAngle.toFixed(2) + '°)';
+      document.getElementById('framing-wizard-result').textContent =
+        'Last framing: ' + payload.name + ' @ PA ' + positionAngle.toFixed(2) + '°';
+      addLogEntry('system', 'Framing saved for target ' + (resp && (resp.id || payload.name)));
+      showToast('Framing saved');
+    } catch (e) {
+      setWizardError('framing-modal', e.message);
+      addLogEntry('error', 'Save framing failed: ' + e.message);
+    }
+  }
+
+  // ===========================================================================
+  // §2.17 W5-WIZARDS — Misc helpers
+  // ===========================================================================
+
+  function formatDurationSecs(secs) {
+    if (!isFinite(secs) || secs <= 0) return '--';
+    const total = Math.round(secs);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
   }
 
 })();

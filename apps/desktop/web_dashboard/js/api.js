@@ -800,6 +800,241 @@ class NightshadeApi {
     }
     return { session, transparency };
   }
+  // =========================================================================
+  // Plate Solve (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // /api/plate-solve takes a file system path. The web dashboard finds the
+  // path by querying /api/images/recent?limit=1 for the most recently
+  // captured image (the desktop's AutoSaveService writes it to disk before
+  // the row lands in the images table) and feeds the resulting filePath in.
+  async plateSolve(imagePath, hint) {
+    return this._post('/api/plate-solve', {
+      imagePath,
+      ra: hint && hint.ra,
+      dec: hint && hint.dec,
+      fov: hint && hint.fov,
+    });
+  }
+
+  // Most-recent captured image — used so the plate-solve panel can solve
+  // "the current frame" without the operator typing a filesystem path.
+  async imagesGetRecent(limit) {
+    return this._get('/api/images/recent?limit=' + encodeURIComponent(limit || 1));
+  }
+
+  // Save the camera's last in-memory capture to disk as FITS so the plate
+  // solver can read it. The server already exposes this endpoint for the
+  // desktop's auto-save fallback; the web client reuses it for "plate-solve
+  // current frame" when no DB-tracked image exists yet.
+  async imagingSaveFitsFromCapture(deviceId, filePath, headerData) {
+    return this._post('/api/imaging/save-fits-from-capture', {
+      deviceId,
+      filePath,
+      headerData: headerData || {},
+    });
+  }
+
+  // =========================================================================
+  // Polar Alignment (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // The desktop backend uses snake_case for the polar alignment payload (see
+  // SessionHandlers.handleStartPolarAlignment). Keep the wire shape identical
+  // here rather than auto-camelCasing — the validator on the server side
+  // rejects unknown fields.
+  async polarAlignmentStart(opts) {
+    const o = opts || {};
+    return this._post('/api/polar-alignment/start', {
+      exposure_time: o.exposureTime != null ? o.exposureTime : 3.0,
+      step_size: o.stepSize != null ? o.stepSize : 5.0,
+      binning: o.binning != null ? o.binning : 2,
+      is_north: o.isNorth != null ? o.isNorth : true,
+      manual_rotation: o.manualRotation != null ? o.manualRotation : false,
+      rotate_east: o.rotateEast != null ? o.rotateEast : true,
+      gain: o.gain,
+      offset: o.offset,
+      solve_timeout: o.solveTimeout,
+      start_from_current: o.startFromCurrent,
+    });
+  }
+
+  async polarAlignmentStop() {
+    return this._post('/api/polar-alignment/stop', {});
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: there is no dedicated all-sky polar alignment
+  // start endpoint on the headless server yet. W5-ALL-SKY-PA landed the
+  // desktop-side notifier (PolarAlignmentStateNotifier.startAllSkyAlignment)
+  // but the REST surface only exposes the TPPA path through
+  // /api/polar-alignment/start. The dashboard surfaces both modes in its UI
+  // and routes both to /api/polar-alignment/start until the backend gains a
+  // dedicated /api/polar-alignment/start-all-sky route; until then both
+  // modes drive the same TPPA flow on the server.
+  async polarAlignmentStartAllSky(opts) {
+    return this.polarAlignmentStart(opts);
+  }
+
+  // =========================================================================
+  // Flat Wizard (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // Multi-filter ADU calibration. Returns an array of FlatResult JSON objects
+  // — one per filter — each carrying the converged exposure for the chosen
+  // ADU target. Streams progress via `imaging` / `sequencer` WebSocket events
+  // while running (the backend's FlatWizardService emits them through the
+  // shared event bus).
+  async flatWizardCalibrateMulti(deviceId, filters, opts) {
+    const o = opts || {};
+    return this._request('POST', '/api/flat-wizard/calibrate-multi', {
+      deviceId,
+      filters,
+      targetAdu: o.targetAdu != null ? o.targetAdu : 30000,
+      tolerance: o.tolerance != null ? o.tolerance : 10.0,
+      minExposure: o.minExposure != null ? o.minExposure : 0.001,
+      maxExposure: o.maxExposure != null ? o.maxExposure : 30.0,
+      maxIterations: o.maxIterations != null ? o.maxIterations : 10,
+      binX: o.binX != null ? o.binX : 1,
+      binY: o.binY != null ? o.binY : 1,
+    // ADU calibration can run many iterations per filter; the default 8s
+    // _requestTimeoutMs would abort before any real wheel can settle.
+    }, /* timeoutMs */ 300000);
+  }
+
+  // Quick single-filter calibration — useful as the simplest panel-flat path.
+  async flatWizardQuickCalibrate(deviceId, filter, opts) {
+    const o = opts || {};
+    return this._request('POST', '/api/flat-wizard/quick-calibrate', {
+      deviceId,
+      filter,
+      targetAdu: o.targetAdu != null ? o.targetAdu : 30000,
+      tolerancePercent: o.tolerancePercent != null ? o.tolerancePercent : 10.0,
+      binX: o.binX != null ? o.binX : 1,
+      binY: o.binY != null ? o.binY : 1,
+    }, 120000);
+  }
+
+  // Turn a set of calibrations into a full flat-frame sequence the operator
+  // can hand to the sequencer.
+  async flatWizardGenerateSequence(calibrations, opts) {
+    const o = opts || {};
+    return this._post('/api/flat-wizard/generate-sequence', {
+      calibrations,
+      framesPerFilter: o.framesPerFilter != null ? o.framesPerFilter : 20,
+      sequenceName: o.sequenceName || 'Flat Frame Sequence',
+      description: o.description,
+      binX: o.binX != null ? o.binX : 1,
+      binY: o.binY != null ? o.binY : 1,
+      gain: o.gain,
+      offset: o.offset,
+      onlySuccessful: o.onlySuccessful != null ? o.onlySuccessful : true,
+    });
+  }
+
+  // =========================================================================
+  // Mosaic Planner (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // Compute the panel centers for a mosaic — useful for the preview step
+  // before committing to a sequence.
+  async mosaicGeneratePanels(config) {
+    return this._post('/api/mosaic/generate-panels', { config });
+  }
+
+  // Time estimate for the mosaic. Surfaced in the wizard preview step so
+  // operators see "this will take 4h12m" before pressing Build.
+  async mosaicEstimateTime(config, exposure, overheadPerPanelSecs) {
+    const body = { config, exposure };
+    if (overheadPerPanelSecs != null) {
+      body.overheadPerPanelSecs = overheadPerPanelSecs;
+    }
+    return this._post('/api/mosaic/estimate-time', body);
+  }
+
+  async mosaicValidate(config) {
+    return this._post('/api/mosaic/validate', { config });
+  }
+
+  // Generate the full mosaic sequence (panel slews + per-panel exposures).
+  // The dashboard's mosaic wizard hands the result off to the sequencer load
+  // endpoint so the operator can press Start immediately.
+  async mosaicGenerateSequence(opts) {
+    const o = opts || {};
+    return this._post('/api/mosaic/generate-sequence', {
+      mosaicName: o.mosaicName || 'Mosaic',
+      config: o.config,
+      exposure: o.exposure,
+      options: o.options || {},
+    });
+  }
+
+  // =========================================================================
+  // Framing Assistant (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // Slew without solve-and-correct — the cheap "go close to" path.
+  async framingSlewToTarget(ra, dec) {
+    return this._post('/api/framing/slew-to-target', { ra, dec });
+  }
+
+  // Iterative plate-solve-and-correct centering. The server uses the
+  // configured plate-solver settings to drive the mount onto the target.
+  async framingCenterOnTarget(ra, dec, opts) {
+    const o = opts || {};
+    return this._request('POST', '/api/framing/center-on-target', {
+      ra,
+      dec,
+      maxIterations: o.maxIterations != null ? o.maxIterations : 5,
+      toleranceArcsec: o.toleranceArcsec != null ? o.toleranceArcsec : 30.0,
+      exposureTime: o.exposureTime != null ? o.exposureTime : 3.0,
+      binning: o.binning != null ? o.binning : 2,
+      gain: o.gain != null ? o.gain : 100,
+      syncMount: o.syncMount != null ? o.syncMount : false,
+    // Centering can iterate up to maxIterations plate-solves; allow a long
+    // window so a 5-iteration run with 3s exposures + a slow solver completes.
+    }, 600000);
+  }
+
+  // Rotate to a chosen sky PA — used by the framing wizard's rotation step
+  // when a rotator is connected.
+  async framingRotateTo(angle) {
+    return this._post('/api/framing/rotate-to', { angle });
+  }
+
+  // Mount sync to the framing-chosen coordinates (i.e. "the scope is HERE
+  // now"). Optional — the wizard offers it as a sanity step after centering.
+  async framingSyncMount(ra, dec) {
+    return this._post('/api/framing/sync', { ra, dec });
+  }
+
+  // =========================================================================
+  // Planetarium / FOV (§2.17 W5-WEB-WIZARDS)
+  // =========================================================================
+
+  // Returns the effective FOV (width/height in degrees) for the active
+  // profile + camera. The framing wizard renders the FOV box on a sky chart
+  // and the mosaic wizard auto-fills panelWidth/panelHeight from this.
+  async getFovConfig() {
+    return this._get('/api/planetarium/fov-config');
+  }
+
+  // =========================================================================
+  // Targets (CRUD subset — used by the framing wizard to persist framing)
+  // =========================================================================
+
+  // Update an existing target (the framing wizard PUTs ra/dec/positionAngle
+  // onto a previously-saved target row).
+  async targetsUpdate(targetId, payload) {
+    return this._put('/api/targets/' + encodeURIComponent(targetId), payload);
+  }
+
+  // Create a new target row. Used as the fallback path when the framing
+  // wizard saves an ad-hoc framing for coordinates the operator typed in
+  // without first selecting a target from the catalog.
+  async targetsCreate(payload) {
+    return this._post('/api/targets', payload);
+  }
+
 
   /**
    * Start a pairing session. The server prints a 6-digit code to its console;

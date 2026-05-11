@@ -1459,3 +1459,242 @@ input[type="range"] {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ====== Wizard launcher tiles (§2.17 W5-WIZARDS) ======
+   Why a dedicated tile style: the launcher sits inside an already-busy
+   panel (Mount / Camera / Sequencer) and needs to feel separable from
+   the surrounding controls so the operator perceives "this opens a new
+   flow" rather than "this is another button". */
+.wizard-launcher {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+}
+
+.wizard-launcher-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.wizard-result {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  /* Why pre-wrap: plate-solve / flat-calibration results print as multiline
+     blocks (one line per metric) and we want to preserve those newlines. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* Min-height keeps the tile from "jumping" when the result text changes
+     length, which was visually noisy on phones. */
+  min-height: 24px;
+}
+
+.wizard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.wizard-list-entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 6px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.wizard-list-entry__ok { color: var(--accent-green); }
+.wizard-list-entry__bad { color: var(--accent-red); }
+
+/* ====== Wizard modals ======
+   These are stacked-step modals reusing the .modal-backdrop layout. The
+   .modal-wide modifier widens the dialog to fit the multi-control wizard
+   steps while still capping at 92vw on phones. */
+.modal-wide {
+  width: min(560px, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.wizard-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.wizard-dot.active {
+  background: #1f6feb40;
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.wizard-dot.completed {
+  background: #23883e40;
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.wizard-step {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-step.active {
+  display: flex;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-actions .wizard-back {
+  margin-right: auto;
+}
+
+/* ====== Flat wizard filter list ======
+   Each filter is a toggle (button-styled) so the user can pick multiple
+   without a multi-select UI element (which behaves poorly on phones). */
+.flat-wizard-filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.flat-wizard-filter-chip {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.flat-wizard-filter-chip[aria-pressed="true"] {
+  background: #1f6feb40;
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.flat-wizard-filter-chip:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+/* ====== Mosaic preview ======
+   Why an HTML grid instead of SVG/canvas: the panel layout the server
+   returns is just rows × cols with overlap percentages; rendering as a
+   CSS grid lets the operator see the topology at a glance without us
+   having to compute pixel positions from sky coordinates. */
+.mosaic-preview {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  min-height: 120px;
+}
+
+.mosaic-tile {
+  background: #1f6feb30;
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius-sm);
+  color: var(--accent-blue);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px;
+  text-align: center;
+}
+
+/* ====== Framing preview ======
+   Renders the target's catalog position with a FOV rectangle that the
+   operator can rotate. Why SVG: rotation around the center is one transform,
+   and the FOV rectangle's aspect ratio comes straight from /api/planetarium/
+   fov-config. */
+.framing-preview {
+  position: relative;
+  background: #050810;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  /* Square aspect keeps the rotated FOV box visible at all angles. */
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.framing-preview svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.framing-preview .empty-state {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Layout--phone: wizard modals need extra room for the stacked-step body. */
+.layout--phone .modal-wide {
+  width: 96vw;
+  max-height: 92vh;
+  padding: 14px;
+}
+
+.layout--phone .wizard-dot {
+  width: 32px;
+  height: 32px;
+}
+
+.layout--phone .wizard-actions .btn {
+  min-height: 44px;
+}

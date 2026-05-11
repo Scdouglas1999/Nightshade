@@ -151,6 +151,21 @@
           </div>
 
           <div id="camera-status-info"></div>
+
+          <hr class="section-divider">
+
+          <!-- Flat wizard launcher (§2.17 W5-WIZARDS).
+               Opens a 3-step modal: filter selection → ADU target → run.
+               Calibration progress arrives via WS `imaging` events; results
+               are displayed inline so the user knows the converged exposure
+               per filter without keeping the modal open. -->
+          <div class="wizard-launcher" id="wizard-flat">
+            <div class="wizard-launcher-title">Flat wizard</div>
+            <div class="btn-group centered-actions">
+              <button id="btn-open-flat-wizard" class="btn btn-sm btn-primary" aria-label="Open the flat wizard">Start flat wizard</button>
+            </div>
+            <div id="flat-wizard-result" class="wizard-result" aria-live="polite">No calibration run yet</div>
+          </div>
         </div>
       </div>
 
@@ -252,6 +267,47 @@
           <div class="btn-group centered-actions">
             <button id="btn-mount-goto" class="btn btn-sm btn-primary" aria-label="Slew mount to entered coordinates">Slew</button>
             <button id="btn-mount-goto-abort" class="btn btn-sm btn-danger" aria-label="Abort current slew">Abort Slew</button>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Plate-solve + sync (§2.17 W5-WIZARDS).
+               Why two buttons: the operator sometimes wants a read-out (RA/Dec/
+               scale/PA/RMS) without disturbing the mount, and sometimes wants
+               the combined "solve and tell the mount where it really is" flow.
+               Both buttons resolve the path to the most recent captured image
+               via /api/images/recent?limit=1 — phones don't have a filesystem
+               picker. -->
+          <div class="wizard-launcher" id="wizard-plate-solve">
+            <div class="wizard-launcher-title">Plate-solve</div>
+            <div class="btn-group centered-actions">
+              <button id="btn-plate-solve" class="btn btn-sm btn-primary" aria-label="Plate-solve the most recent captured frame">Solve current frame</button>
+              <button id="btn-plate-solve-sync" class="btn btn-sm" aria-label="Plate-solve the most recent frame and sync the mount">Solve &amp; sync mount</button>
+            </div>
+            <div id="plate-solve-result" class="wizard-result" aria-live="polite">No solve run yet</div>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Polar alignment launcher (§2.17 W5-WIZARDS).
+               The full PA wizard lives in the modal; this panel just opens it
+               and shows live phase + error magnitude from the
+               polarAlignment-category WS events so the operator can monitor
+               it without keeping the modal open the whole time. -->
+          <div class="wizard-launcher" id="wizard-polar-align">
+            <div class="wizard-launcher-title">Polar alignment</div>
+            <div class="btn-group centered-actions">
+              <button id="btn-open-polar-align" class="btn btn-sm btn-primary" aria-label="Open the polar alignment wizard">Start polar align</button>
+              <button id="btn-stop-polar-align" class="btn btn-sm btn-danger" aria-label="Stop polar alignment">Stop</button>
+            </div>
+            <div class="status-row">
+              <span class="status-label">Phase</span>
+              <span id="pa-phase" class="status-value">idle</span>
+            </div>
+            <div class="status-row">
+              <span class="status-label">Total error</span>
+              <span id="pa-total-error" class="status-value">--</span>
+            </div>
           </div>
         </div>
       </div>
@@ -412,6 +468,36 @@
           <div class="status-row">
             <span class="status-label">Message</span>
             <span class="status-value status-message" id="seq-message"></span>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Mosaic planner launcher (§2.17 W5-WIZARDS).
+               3-step modal: tile count → overlap → preview/time-estimate →
+               build. The build step calls /api/mosaic/generate-sequence then
+               hands the generated nodes off to /api/sequencer/load so the
+               operator can immediately press Start. -->
+          <div class="wizard-launcher" id="wizard-mosaic">
+            <div class="wizard-launcher-title">Mosaic planner</div>
+            <div class="btn-group centered-actions">
+              <button id="btn-open-mosaic" class="btn btn-sm btn-primary" aria-label="Open the mosaic planner wizard">Plan a mosaic</button>
+            </div>
+            <div id="mosaic-wizard-result" class="wizard-result" aria-live="polite">No mosaic planned yet</div>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Framing assistant launcher (§2.17 W5-WIZARDS).
+               2-step modal: pick target (search) → FOV preview + rotation
+               slider → save framing. "Save framing" stores the chosen sky-PA
+               on the target row so future sequences inherit the framing,
+               then optionally slews + rotates the mount/rotator. -->
+          <div class="wizard-launcher" id="wizard-framing">
+            <div class="wizard-launcher-title">Framing assistant</div>
+            <div class="btn-group centered-actions">
+              <button id="btn-open-framing" class="btn btn-sm btn-primary" aria-label="Open the framing assistant wizard">Frame a target</button>
+            </div>
+            <div id="framing-wizard-result" class="wizard-result" aria-live="polite">No framing chosen yet</div>
           </div>
         </div>
       </div>
@@ -754,6 +840,360 @@
       <div class="modal-actions">
         <button id="btn-pair-cancel" class="btn btn-sm" aria-label="Cancel pairing">Cancel</button>
         <button id="btn-pair-submit" class="btn btn-primary btn-sm" aria-label="Submit pairing code">Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       Wizard Modals (§2.17 W5-WIZARDS)
+       Each modal uses a stacked-step pattern: the .wizard-step containers
+       are hidden by default and .wizard-step.active is shown one at a time.
+       The header progress dots are driven by app.js so the operator can
+       see where they are in a multi-step flow without scrolling.
+       ===================================================================== -->
+
+  <!-- Polar alignment wizard modal -->
+  <div class="modal-backdrop wizard-modal" id="polar-align-modal" role="dialog" aria-modal="true" aria-labelledby="polar-align-modal-title" hidden>
+    <div class="modal modal-wide">
+      <h2 class="modal-title" id="polar-align-modal-title">Polar alignment</h2>
+      <div class="wizard-progress" role="tablist" aria-label="Polar alignment steps">
+        <span class="wizard-dot active" data-step="0">1</span>
+        <span class="wizard-dot" data-step="1">2</span>
+        <span class="wizard-dot" data-step="2">3</span>
+      </div>
+
+      <!-- Step 1: choose alignment mode -->
+      <div class="wizard-step active" data-step="0">
+        <p class="modal-body">
+          Choose the alignment method. TPPA rotates the mount in RA between
+          two plate-solves to compute the polar axis offset. All-sky (Sharpcap
+          style) takes one solve from the current pointing and computes the
+          offset directly — useful when the polar region is obstructed.
+        </p>
+        <div class="control-row">
+          <label for="pa-mode">Mode</label>
+          <select id="pa-mode" aria-label="Polar alignment mode">
+            <option value="tppa">TPPA (3-point rotation)</option>
+            <option value="all_sky">All-sky (single solve)</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="pa-hemisphere">Hemisphere</label>
+          <select id="pa-hemisphere" aria-label="Hemisphere">
+            <option value="north">Northern</option>
+            <option value="south">Southern</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 2: imaging parameters -->
+      <div class="wizard-step" data-step="1">
+        <p class="modal-body">Imaging settings used between solves.</p>
+        <div class="control-row">
+          <label for="pa-exposure">Exposure (s)</label>
+          <input id="pa-exposure" type="number" min="0.1" max="60" step="0.1" value="3" aria-label="Exposure time in seconds">
+        </div>
+        <div class="control-row">
+          <label for="pa-binning">Binning</label>
+          <select id="pa-binning" aria-label="Binning">
+            <option value="1">1x1</option>
+            <option value="2" selected>2x2</option>
+            <option value="3">3x3</option>
+            <option value="4">4x4</option>
+          </select>
+        </div>
+        <div class="control-row" id="pa-step-row">
+          <label for="pa-step">Step (°)</label>
+          <input id="pa-step" type="number" min="1" max="30" step="0.5" value="5" aria-label="RA step size between TPPA points in degrees">
+        </div>
+        <div class="control-row" id="pa-rotation-row">
+          <label for="pa-rotate-dir">Rotate</label>
+          <select id="pa-rotate-dir" aria-label="Rotation direction">
+            <option value="east" selected>East</option>
+            <option value="west">West</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 3: confirm / live progress -->
+      <div class="wizard-step" data-step="2">
+        <p class="modal-body">
+          Press Start to begin. Progress updates appear in the Mount panel
+          below this dialog; closing the modal does not stop the alignment.
+        </p>
+        <div class="status-row">
+          <span class="status-label">Phase</span>
+          <span id="pa-modal-phase" class="status-value">idle</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Total error</span>
+          <span id="pa-modal-error" class="status-value">--</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Status</span>
+          <span id="pa-modal-status" class="status-value status-message">--</span>
+        </div>
+      </div>
+
+      <div class="modal-status" id="polar-align-modal-error" role="status" aria-live="polite"></div>
+      <div class="modal-actions wizard-actions">
+        <button class="btn btn-sm wizard-back" data-modal="polar-align-modal" aria-label="Go to previous wizard step">Back</button>
+        <button class="btn btn-sm wizard-next" data-modal="polar-align-modal" aria-label="Go to next wizard step">Next</button>
+        <button id="btn-polar-align-start" class="btn btn-sm btn-primary" hidden aria-label="Start polar alignment">Start</button>
+        <button class="btn btn-sm" id="btn-polar-align-close" aria-label="Close wizard">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flat wizard modal -->
+  <div class="modal-backdrop wizard-modal" id="flat-wizard-modal" role="dialog" aria-modal="true" aria-labelledby="flat-wizard-modal-title" hidden>
+    <div class="modal modal-wide">
+      <h2 class="modal-title" id="flat-wizard-modal-title">Flat wizard</h2>
+      <div class="wizard-progress" role="tablist" aria-label="Flat wizard steps">
+        <span class="wizard-dot active" data-step="0">1</span>
+        <span class="wizard-dot" data-step="1">2</span>
+        <span class="wizard-dot" data-step="2">3</span>
+      </div>
+
+      <!-- Step 1: filter selection -->
+      <div class="wizard-step active" data-step="0">
+        <p class="modal-body">
+          Select the filters to calibrate. The list is read from the
+          connected filter wheel; if none is connected use the manual entry
+          to type filter names (one per line).
+        </p>
+        <div id="flat-wizard-filter-list" class="flat-wizard-filter-list" role="group" aria-label="Available filters">
+          <div class="empty-state">Connect a filter wheel to list filters</div>
+        </div>
+        <div class="control-row">
+          <label for="flat-wizard-manual-filters">Manual</label>
+          <input id="flat-wizard-manual-filters" type="text" placeholder="L,R,G,B" aria-label="Comma-separated filter names">
+        </div>
+      </div>
+
+      <!-- Step 2: target ADU + binning + mode -->
+      <div class="wizard-step" data-step="1">
+        <p class="modal-body">Calibration parameters.</p>
+        <div class="control-row">
+          <label for="flat-wizard-adu">Target ADU</label>
+          <input id="flat-wizard-adu" type="number" min="1000" max="65000" step="500" value="30000" aria-label="Target ADU">
+        </div>
+        <div class="control-row">
+          <label for="flat-wizard-tolerance">Tolerance %</label>
+          <input id="flat-wizard-tolerance" type="number" min="1" max="50" step="1" value="10" aria-label="Tolerance percentage">
+        </div>
+        <div class="control-row">
+          <label for="flat-wizard-binning">Binning</label>
+          <select id="flat-wizard-binning" aria-label="Binning">
+            <option value="1" selected>1x1</option>
+            <option value="2">2x2</option>
+            <option value="3">3x3</option>
+            <option value="4">4x4</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="flat-wizard-source">Source</label>
+          <select id="flat-wizard-source" aria-label="Flat source">
+            <option value="panel">Panel / EL panel</option>
+            <option value="sky">Twilight sky</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="flat-wizard-frames">Frames / filter</label>
+          <input id="flat-wizard-frames" type="number" min="1" max="200" step="1" value="20" aria-label="Frames per filter">
+        </div>
+      </div>
+
+      <!-- Step 3: run + results -->
+      <div class="wizard-step" data-step="2">
+        <p class="modal-body">
+          Press Run calibration to find the converged exposure per filter,
+          then press Build sequence to add the flat block to the sequencer.
+        </p>
+        <div class="btn-group centered-actions">
+          <button id="btn-flat-wizard-calibrate" class="btn btn-sm btn-primary" aria-label="Run flat calibration">Run calibration</button>
+          <button id="btn-flat-wizard-build" class="btn btn-sm" aria-label="Build flat sequence from calibration" disabled>Build sequence</button>
+        </div>
+        <div id="flat-wizard-progress" class="wizard-result" aria-live="polite">--</div>
+        <div id="flat-wizard-results-list" class="wizard-list" aria-live="polite"></div>
+      </div>
+
+      <div class="modal-status" id="flat-wizard-modal-error" role="status" aria-live="polite"></div>
+      <div class="modal-actions wizard-actions">
+        <button class="btn btn-sm wizard-back" data-modal="flat-wizard-modal" aria-label="Go to previous wizard step">Back</button>
+        <button class="btn btn-sm wizard-next" data-modal="flat-wizard-modal" aria-label="Go to next wizard step">Next</button>
+        <button class="btn btn-sm" id="btn-flat-wizard-close" aria-label="Close wizard">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mosaic planner modal -->
+  <div class="modal-backdrop wizard-modal" id="mosaic-modal" role="dialog" aria-modal="true" aria-labelledby="mosaic-modal-title" hidden>
+    <div class="modal modal-wide">
+      <h2 class="modal-title" id="mosaic-modal-title">Mosaic planner</h2>
+      <div class="wizard-progress" role="tablist" aria-label="Mosaic planner steps">
+        <span class="wizard-dot active" data-step="0">1</span>
+        <span class="wizard-dot" data-step="1">2</span>
+        <span class="wizard-dot" data-step="2">3</span>
+        <span class="wizard-dot" data-step="3">4</span>
+      </div>
+
+      <!-- Step 1: target / center -->
+      <div class="wizard-step active" data-step="0">
+        <p class="modal-body">
+          The mosaic is centered on these coordinates. Either type them or
+          start with the mount's current position.
+        </p>
+        <div class="control-row">
+          <label for="mosaic-center-ra">Center RA</label>
+          <input id="mosaic-center-ra" type="text" placeholder="HH:MM:SS or hours" aria-label="Center right ascension">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-center-dec">Center Dec</label>
+          <input id="mosaic-center-dec" type="text" placeholder="+DD:MM:SS or degrees" aria-label="Center declination">
+        </div>
+        <div class="btn-group centered-actions">
+          <button id="btn-mosaic-use-mount" class="btn btn-sm" aria-label="Use current mount position as mosaic center">Use mount position</button>
+        </div>
+      </div>
+
+      <!-- Step 2: grid -->
+      <div class="wizard-step" data-step="1">
+        <p class="modal-body">Choose tile counts and overlap.</p>
+        <div class="control-row">
+          <label for="mosaic-cols">Columns</label>
+          <input id="mosaic-cols" type="number" min="1" max="20" step="1" value="2" aria-label="Mosaic columns">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-rows">Rows</label>
+          <input id="mosaic-rows" type="number" min="1" max="20" step="1" value="2" aria-label="Mosaic rows">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-overlap">Overlap %</label>
+          <input id="mosaic-overlap" type="number" min="0" max="50" step="1" value="10" aria-label="Panel overlap percent">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-rotation">Rotation</label>
+          <input id="mosaic-rotation" type="number" min="-180" max="180" step="0.5" value="0" aria-label="Mosaic rotation in degrees">
+        </div>
+      </div>
+
+      <!-- Step 3: exposure -->
+      <div class="wizard-step" data-step="2">
+        <p class="modal-body">Per-panel exposure parameters.</p>
+        <div class="control-row">
+          <label for="mosaic-exp-sec">Exposure (s)</label>
+          <input id="mosaic-exp-sec" type="number" min="0.1" max="3600" step="0.1" value="120" aria-label="Per-frame exposure seconds">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-exp-count">Frames / panel</label>
+          <input id="mosaic-exp-count" type="number" min="1" max="500" step="1" value="10" aria-label="Frames per panel">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-exp-filter">Filter</label>
+          <input id="mosaic-exp-filter" type="text" placeholder="L or leave blank" aria-label="Filter name">
+        </div>
+        <div class="control-row">
+          <label for="mosaic-exp-bin">Binning</label>
+          <select id="mosaic-exp-bin" aria-label="Binning">
+            <option value="1" selected>1x1</option>
+            <option value="2">2x2</option>
+            <option value="3">3x3</option>
+            <option value="4">4x4</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 4: preview + build -->
+      <div class="wizard-step" data-step="3">
+        <p class="modal-body">Review the mosaic plan before building the sequence.</p>
+        <div id="mosaic-preview" class="mosaic-preview" role="img" aria-label="Mosaic tile preview">
+          <div class="empty-state">Press Preview to compute panel layout</div>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Total panels</span>
+          <span id="mosaic-total-panels" class="status-value">--</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Estimated time</span>
+          <span id="mosaic-est-time" class="status-value">--</span>
+        </div>
+        <div class="btn-group centered-actions">
+          <button id="btn-mosaic-preview" class="btn btn-sm" aria-label="Compute mosaic preview">Preview</button>
+          <button id="btn-mosaic-build" class="btn btn-sm btn-primary" aria-label="Build mosaic sequence and load into sequencer" disabled>Build &amp; load</button>
+        </div>
+      </div>
+
+      <div class="modal-status" id="mosaic-modal-error" role="status" aria-live="polite"></div>
+      <div class="modal-actions wizard-actions">
+        <button class="btn btn-sm wizard-back" data-modal="mosaic-modal" aria-label="Go to previous wizard step">Back</button>
+        <button class="btn btn-sm wizard-next" data-modal="mosaic-modal" aria-label="Go to next wizard step">Next</button>
+        <button class="btn btn-sm" id="btn-mosaic-close" aria-label="Close wizard">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Framing assistant modal -->
+  <div class="modal-backdrop wizard-modal" id="framing-modal" role="dialog" aria-modal="true" aria-labelledby="framing-modal-title" hidden>
+    <div class="modal modal-wide">
+      <h2 class="modal-title" id="framing-modal-title">Framing assistant</h2>
+      <div class="wizard-progress" role="tablist" aria-label="Framing assistant steps">
+        <span class="wizard-dot active" data-step="0">1</span>
+        <span class="wizard-dot" data-step="1">2</span>
+        <span class="wizard-dot" data-step="2">3</span>
+      </div>
+
+      <!-- Step 1: target search -->
+      <div class="wizard-step active" data-step="0">
+        <p class="modal-body">Pick a target by name, catalog ID, or coordinates.</p>
+        <div class="control-row">
+          <label for="framing-search">Target</label>
+          <input id="framing-search" type="text" placeholder="M31, NGC 7000..." autocomplete="off" aria-label="Target search">
+        </div>
+        <div class="autocomplete-list" id="framing-search-suggestions" role="listbox" aria-label="Target suggestions" hidden></div>
+        <div class="control-row">
+          <label for="framing-target-ra">RA</label>
+          <input id="framing-target-ra" type="text" placeholder="HH:MM:SS or hours" aria-label="Right ascension">
+        </div>
+        <div class="control-row">
+          <label for="framing-target-dec">Dec</label>
+          <input id="framing-target-dec" type="text" placeholder="+DD:MM:SS or degrees" aria-label="Declination">
+        </div>
+      </div>
+
+      <!-- Step 2: framing preview + rotation -->
+      <div class="wizard-step" data-step="1">
+        <p class="modal-body">Adjust the rotation so the FOV box covers the desired part of the target.</p>
+        <div id="framing-preview" class="framing-preview" role="img" aria-label="Framing preview with FOV box on target">
+          <div class="empty-state">FOV preview will render here</div>
+        </div>
+        <div class="control-row">
+          <label for="framing-rotation">Rotation</label>
+          <input id="framing-rotation" type="range" min="0" max="359" step="1" value="0" aria-label="Sky position angle in degrees">
+          <span id="framing-rotation-readout" class="status-value info" aria-live="polite">0°</span>
+        </div>
+      </div>
+
+      <!-- Step 3: action -->
+      <div class="wizard-step" data-step="2">
+        <p class="modal-body">
+          Slew/center the mount to the framed target. Centering uses the
+          plate-solver to iteratively correct the pointing.
+        </p>
+        <div class="btn-group centered-actions">
+          <button id="btn-framing-slew" class="btn btn-sm" aria-label="Slew mount to chosen target">Slew</button>
+          <button id="btn-framing-center" class="btn btn-sm btn-primary" aria-label="Center mount on chosen target via plate-solve">Center on target</button>
+          <button id="btn-framing-rotate" class="btn btn-sm" aria-label="Rotate the rotator to chosen sky PA">Rotate</button>
+          <button id="btn-framing-save" class="btn btn-sm btn-success" aria-label="Save framing to target">Save framing</button>
+        </div>
+        <div id="framing-action-status" class="wizard-result" aria-live="polite">--</div>
+      </div>
+
+      <div class="modal-status" id="framing-modal-error" role="status" aria-live="polite"></div>
+      <div class="modal-actions wizard-actions">
+        <button class="btn btn-sm wizard-back" data-modal="framing-modal" aria-label="Go to previous wizard step">Back</button>
+        <button class="btn btn-sm wizard-next" data-modal="framing-modal" aria-label="Go to next wizard step">Next</button>
+        <button class="btn btn-sm" id="btn-framing-close" aria-label="Close wizard">Close</button>
       </div>
     </div>
   </div>
