@@ -1288,6 +1288,14 @@ class NetworkBackend implements NightshadeBackend {
     });
   }
 
+  @override
+  Future<void> rotatorSyncToPa(String deviceId, double pa) async {
+    await _post('rotator/sync', {
+      'deviceId': deviceId,
+      'positionAngle': pa,
+    });
+  }
+
   // =========================================================================
   // PHD2 Guiding
   // =========================================================================

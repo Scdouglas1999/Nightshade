@@ -1845,9 +1845,8 @@
         'Rotator synced to image PA ' + state.lastImagePositionAngle.toFixed(2) + '°');
       showToast('Rotator synced');
     } catch (e) {
-      // TODO[W5-BACKEND-EXTEND]: /api/rotator/sync isn't wired up yet. Surface
-      // the failure honestly per CLAUDE.md "errors are a feature".
-      showToast('Rotator sync failed (backend may not implement /api/rotator/sync yet): ' + e.message, 'error');
+      // Surface the failure honestly per CLAUDE.md "errors are a feature".
+      showToast('Rotator sync failed: ' + e.message, 'error');
     }
   }
 

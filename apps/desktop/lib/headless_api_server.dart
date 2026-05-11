@@ -284,6 +284,9 @@ class HeadlessApiServer {
     router.get(
         '/api/camera/last-image', _deviceHandlers.handleCameraGetLastImage);
     router.post('/api/camera/cooling', _deviceHandlers.handleCameraSetCooling);
+    router.get('/api/camera/cooling', _deviceHandlers.handleCameraGetCooling);
+    router.get('/api/camera/readout-modes',
+        _deviceHandlers.handleCameraGetReadoutModes);
     router.post(
         '/api/camera/readoutMode', _deviceHandlers.handleCameraSetReadoutMode);
     router.post('/api/camera/gain', _deviceHandlers.handleCameraSetGain);
@@ -329,6 +332,7 @@ class HeadlessApiServer {
         _deviceHandlers.handleRotatorMoveRelative);
     router.get('/api/rotator/status', _deviceHandlers.handleRotatorGetStatus);
     router.post('/api/rotator/halt', _deviceHandlers.handleRotatorHalt);
+    router.post('/api/rotator/sync', _deviceHandlers.handleRotatorSync);
 
     // PHD2 Guiding
     router.post('/api/phd2/connect', _guidingHandlers.handlePhd2Connect);
@@ -1108,6 +1112,8 @@ class HeadlessApiServer {
       'POST /api/camera/abort',
       'GET /api/camera/last-image',
       'POST /api/camera/cooling',
+      'GET /api/camera/cooling',
+      'GET /api/camera/readout-modes',
       'POST /api/camera/readoutMode',
       'POST /api/camera/gain',
       'POST /api/camera/offset',
@@ -1139,6 +1145,7 @@ class HeadlessApiServer {
       'POST /api/rotator/move-relative',
       'GET /api/rotator/status',
       'POST /api/rotator/halt',
+      'POST /api/rotator/sync',
       // PHD2
       'POST /api/phd2/connect',
       'POST /api/phd2/disconnect',

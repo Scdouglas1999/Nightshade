@@ -2875,6 +2875,15 @@ impl AscomRotator {
         self.device.call_method("Halt")
     }
 
+    /// Sync the reported position to the supplied angle without rotating the
+    /// hardware. Why a thin wrapper: ASCOM IRotatorV3 exposes `Sync(Position)`
+    /// which adjusts the offset between the mechanical encoder and the
+    /// reported sky angle — the same primitive plate-solve "sync to image PA"
+    /// needs.
+    pub fn sync(&mut self, position: f64) -> Result<(), String> {
+        self.device.call_method_1_double("Sync", position)
+    }
+
     // ========================================================================
     // Batch Property Queries
     // ========================================================================

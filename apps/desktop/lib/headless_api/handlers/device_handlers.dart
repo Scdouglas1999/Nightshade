@@ -105,6 +105,59 @@ class DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
+  /// GET /api/camera/cooling — dedicated cooling-state snapshot.
+  ///
+  /// Why a focused endpoint vs. polling /api/equipment/camera/status: the
+  /// cooling panel only needs four fields and we don't want to round-trip the
+  /// full sensor/binning/gain payload at the cooling poll cadence. Source of
+  /// truth is the same CameraStatus model — we just project the cooling
+  /// fields out of it.
+  Future<Response> handleCameraGetCooling(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+    final backend = container.read(backendProvider);
+    final status = await backend.getCameraStatus(deviceId);
+    return jsonOk({
+      'coolerOn': status.coolerOn,
+      'targetTemp': status.targetTemp,
+      'sensorTemp': status.sensorTemp,
+      'coolerPower': status.coolerPower,
+      'canCool': status.canCool,
+    });
+  }
+
+  /// GET /api/camera/readout-modes — list available readout modes.
+  ///
+  /// Why a focused endpoint vs. /api/equipment/camera/capabilities: the
+  /// readout-mode dropdown only needs the string list, not the full
+  /// capabilities payload (bayer pattern, sensor geometry, supported binning,
+  /// etc.). Source of truth remains CameraCapabilities — we project the
+  /// `readoutModes` field out of it.
+  Future<Response> handleCameraGetReadoutModes(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+    final backend = container.read(backendProvider);
+    final caps = await backend.getCameraCapabilities(deviceId);
+    if (caps == null) {
+      return jsonNotFound({
+        'error': 'Device not found or capabilities unavailable',
+      });
+    }
+    return jsonOk({'readoutModes': caps.readoutModes});
+  }
+
   Future<Response> handleCameraSetReadoutMode(Request request) async {
     _logInfo('[API] POST /api/camera/readoutMode');
     final payload = await readJsonObject(request);
@@ -446,6 +499,41 @@ class DeviceHandlers {
     await backend.rotatorHalt(deviceId);
 
     return jsonOk({'status': 'halted'});
+  }
+
+  /// POST /api/rotator/sync — sync rotator reported sky angle to the supplied
+  /// position angle (degrees) without moving the hardware. Used by the "Sync
+  /// to image PA" workflow after a plate solve.
+  ///
+  /// Why this isn't a synonym for /api/rotator/move-to: ASCOM IRotatorV3
+  /// separates Sync (mechanical-vs-sky offset adjustment) from MoveAbsolute
+  /// (motion). Conflating them would slew the rotator every time the operator
+  /// hit "Sync to image", which is the opposite of the intended effect.
+  ///
+  /// Body: `{deviceId, positionAngle}` — `positionAngle` is the canonical
+  /// field; `angle` is accepted as an alias for compatibility with older
+  /// clients that mirrored the move-to body shape.
+  Future<Response> handleRotatorSync(Request request) async {
+    _logInfo('[API] POST /api/rotator/sync');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    // Why accept both `positionAngle` and `angle`: the canonical field name
+    // is `positionAngle` (matches plate-solve terminology), but the move-to
+    // endpoint uses `angle` and earlier dashboard builds reused that key.
+    final pa = optionalDouble(payload, 'positionAngle') ??
+        optionalDouble(payload, 'angle');
+    if (pa == null) {
+      throw BadRequestError(
+        field: 'positionAngle',
+        expected: 'number',
+        message: "Body must include 'positionAngle' (degrees)",
+      );
+    }
+
+    final backend = container.read(backendProvider);
+    await backend.rotatorSyncToPa(deviceId, pa);
+
+    return jsonOk({'status': 'synced'});
   }
 
   // ===========================================================================

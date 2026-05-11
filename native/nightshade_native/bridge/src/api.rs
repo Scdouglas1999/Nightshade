@@ -3178,6 +3178,29 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
     }
 }
 
+/// Sync rotator's reported sky angle to the supplied position angle without
+/// moving the hardware. Used by the "Sync to image PA" workflow after a plate
+/// solve: the solver returns the astrometric PA of the captured frame and
+/// this call aligns the rotator's reported PA so subsequent absolute moves
+/// land at the correct sky angle.
+pub async fn api_rotator_sync_to_pa(
+    device_id: String,
+    pa: f64,
+) -> Result<(), NightshadeError> {
+    if device_id.starts_with("sim_") {
+        // Simulator has no mechanical offset — just snap the reported angle.
+        let mut rotator = get_sim_rotator().write().await;
+        rotator.status.position = pa;
+        rotator.status.mechanical_position = pa;
+        Ok(())
+    } else {
+        let mgr = get_device_manager();
+        mgr.rotator_sync(&device_id, pa)
+            .await
+            .map_err(NightshadeError::OperationFailed)
+    }
+}
+
 // =============================================================================
 // Camera Exposure & Image Capture
 // =============================================================================

@@ -655,6 +655,11 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> rotatorSyncToPa(String deviceId, double pa) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<List<EquipmentProfile>> getProfiles() async {
     _throwNotConnected();
   }

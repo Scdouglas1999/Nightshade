@@ -13,6 +13,7 @@ enum AscomRotatorCommand {
     MoveAbsolute(f64, oneshot::Sender<Result<(), String>>),
     Halt(oneshot::Sender<Result<(), String>>),
     IsMoving(oneshot::Sender<Result<bool, String>>),
+    Sync(f64, oneshot::Sender<Result<(), String>>),
 }
 
 pub struct AscomRotatorWrapper {
@@ -63,6 +64,9 @@ impl AscomRotatorWrapper {
                     }
                     AscomRotatorCommand::IsMoving(reply) => {
                         let _ = reply.send(rotator.is_moving());
+                    }
+                    AscomRotatorCommand::Sync(position, reply) => {
+                        let _ = reply.send(rotator.sync(position));
                     }
                 }
             }
@@ -156,5 +160,18 @@ impl AscomRotatorWrapper {
             .await
             .map_err(|error| format!("Send error: {}", error))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "is_moving").await
+    }
+
+    /// Sync the reported sky angle to `position` without moving the hardware.
+    /// Why a write timeout (not rotator_move): ASCOM Sync only mutates the
+    /// driver's mechanical-vs-sky offset and returns promptly — no physical
+    /// motion is initiated.
+    pub async fn sync(&self, position: f64) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomRotatorCommand::Sync(position, tx))
+            .await
+            .map_err(|error| format!("Send error: {}", error))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "sync").await
     }
 }

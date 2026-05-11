@@ -240,34 +240,22 @@ class NightshadeApi {
     return this._post('/api/camera/readoutMode', { deviceId, modeIndex });
   }
 
-  // TODO[W5-BACKEND-EXTEND]: no /api/camera/readout-modes (list) endpoint
-  // exists in the current handlers — the desktop UI reads modes from the
-  // bridge via the camera capabilities path. The web client therefore reads
-  // them from /api/equipment/camera/capabilities, which already exposes a
-  // `readoutModes` list. If a dedicated list endpoint is added later this
-  // can swap to /api/camera/readout-modes for a smaller payload.
+  // Dedicated readout-mode list endpoint. Backed by the camera abstraction's
+  // capabilities, but returns only the {readoutModes: [...]} subset so the
+  // dropdown doesn't have to round-trip the full capabilities payload.
   async cameraGetReadoutModes(deviceId) {
-    const caps = await this._get(
-      '/api/equipment/camera/capabilities?deviceId=' + encodeURIComponent(deviceId || ''),
+    return this._get(
+      '/api/camera/readout-modes?deviceId=' + encodeURIComponent(deviceId || ''),
     );
-    const list = caps && (caps.readoutModes || caps.readout_modes);
-    return { readoutModes: Array.isArray(list) ? list : [] };
   }
 
-  // TODO[W5-BACKEND-EXTEND]: there is no dedicated /api/camera/cooling GET
-  // endpoint. Cooling state is folded into the camera status snapshot, so
-  // we route the read through /api/equipment/camera/status instead. Adding
-  // a separate /api/camera/cooling GET would let the web dashboard poll
-  // it independently of the full status payload.
+  // Dedicated cooling-state endpoint. Source of truth is the camera status
+  // model; this endpoint just projects the four cooling fields so the cooling
+  // panel can poll at its own cadence without pulling the full status blob.
   async cameraGetCooling(deviceId) {
-    const s = await this.getCameraStatus(deviceId);
-    return {
-      coolerOn: !!(s && s.coolerOn),
-      sensorTemp: s && s.sensorTemp,
-      targetTemp: s && s.targetTemp,
-      coolerPower: s && s.coolerPower,
-      canCool: !!(s && s.canCool),
-    };
+    return this._get(
+      '/api/camera/cooling?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
   }
 
   // Binning and subframe are committed by cameraExpose's binX/binY/x/y/
@@ -471,15 +459,12 @@ class NightshadeApi {
     );
   }
 
-  // TODO[W5-BACKEND-EXTEND]: there is no /api/rotator/sync endpoint on the
-  // current server. Per audit §2.17, "Sync to image PA" requires the backend
-  // to compute the latest plate-solve PA and call Rotator.Sync(angle). For
-  // now we surface the gap to the operator via a toast in app.js so it
-  // isn't silently no-op'd. When the endpoint lands it will live at
-  // POST /api/rotator/sync { deviceId, angle? } (omit angle to use last
-  // plate-solve PA).
-  async rotatorSync(deviceId, angle) {
-    return this._post('/api/rotator/sync', { deviceId, angle });
+  // POST /api/rotator/sync — Sync rotator's reported sky angle to the
+  // supplied position-angle without moving the hardware. Canonical field is
+  // `positionAngle` (matches plate-solve terminology); the handler also
+  // accepts `angle` as an alias for older clients.
+  async rotatorSync(deviceId, positionAngle) {
+    return this._post('/api/rotator/sync', { deviceId, positionAngle });
   }
 
   // =========================================================================

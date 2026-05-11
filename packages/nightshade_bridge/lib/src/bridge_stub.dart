@@ -3549,6 +3549,19 @@ class NativeBridge {
     await gen_api.apiRotatorHalt(deviceId: deviceId);
   }
 
+  /// Sync rotator reported sky angle to the supplied position-angle (degrees)
+  /// without moving the hardware. Used by the "Sync to image PA" plate-solve
+  /// workflow — see api_rotator_sync_to_pa in bridge/src/api.rs.
+  static Future<void> apiRotatorSyncToPa({
+    required String deviceId,
+    required double pa,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiRotatorSyncToPa');
+    }
+    await gen_api.apiRotatorSyncToPa(deviceId: deviceId, pa: pa);
+  }
+
   // =========================================================================
   // Equipment Profiles (API methods)
   // =========================================================================

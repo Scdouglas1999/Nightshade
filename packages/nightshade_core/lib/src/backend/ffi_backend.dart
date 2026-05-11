@@ -1036,6 +1036,11 @@ class FfiBackend implements NightshadeBackend {
     await bridge.NativeBridge.apiRotatorHalt(deviceId: deviceId);
   }
 
+  @override
+  Future<void> rotatorSyncToPa(String deviceId, double pa) async {
+    await bridge.NativeBridge.apiRotatorSyncToPa(deviceId: deviceId, pa: pa);
+  }
+
   // =========================================================================
   // PHD2 Guiding
   // =========================================================================

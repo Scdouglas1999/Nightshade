@@ -596,6 +596,12 @@ pub trait NativeRotator: NativeDevice {
     /// Halt movement
     async fn halt(&mut self) -> Result<(), NativeError>;
 
+    /// Sync the reported sky position to the given angle without moving the
+    /// rotator. Mirrors ASCOM IRotatorV3::Sync and INDI SYNC_ROTATOR_ANGLE —
+    /// used after a plate solve to align the rotator's reported PA with the
+    /// astrometric PA of the last captured frame.
+    async fn sync(&mut self, position: f64) -> Result<(), NativeError>;
+
     /// Check if reverse is supported
     fn can_reverse(&self) -> bool;
 

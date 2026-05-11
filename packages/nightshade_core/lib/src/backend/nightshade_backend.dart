@@ -242,6 +242,12 @@ abstract class NightshadeBackend {
   /// Halt rotator
   Future<void> rotatorHalt(String deviceId);
 
+  /// Sync the rotator's reported sky position-angle (degrees) to [pa] without
+  /// moving the hardware. Why a separate method from [rotatorMoveTo]: ASCOM
+  /// IRotatorV3 distinguishes Sync (offset-only) from MoveAbsolute (motion);
+  /// the "Sync to image PA" plate-solve workflow needs the Sync semantic.
+  Future<void> rotatorSyncToPa(String deviceId, double pa);
+
   // =========================================================================
   // PHD2 Guiding
   // =========================================================================
