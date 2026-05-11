@@ -2371,6 +2371,10 @@ void frbgen_nightshade_bridge_wire__crate__api__api_rotator_move_to(int64_t port
                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
                                                                     double angle);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_rotator_sync_to_pa(int64_t port_,
+                                                                       struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                       double pa);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_run_autofocus(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *device_id,
                                                                   struct wire_cst_list_prim_u_8_strict *camera_id,
@@ -3198,6 +3202,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_rotator_halt);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_rotator_move_relative);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_rotator_move_to);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_rotator_sync_to_pa);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_run_autofocus);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_run_indi_autofocus);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_save_fits_file);

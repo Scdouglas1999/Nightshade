@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 544656026;
+  int get rustContentHash => 1421752965;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -734,6 +734,9 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiApiRotatorMoveTo(
       {required String deviceId, required double angle});
+
+  Future<void> crateApiApiRotatorSyncToPa(
+      {required String deviceId, required double pa});
 
   Future<AutofocusResultApi> crateApiApiRunAutofocus(
       {required String deviceId,
@@ -6163,6 +6166,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiRotatorMoveToConstMeta => const TaskConstMeta(
         debugName: "api_rotator_move_to",
         argNames: ["deviceId", "angle"],
+      );
+
+  @override
+  Future<void> crateApiApiRotatorSyncToPa(
+      {required String deviceId, required double pa}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_f_64(pa);
+        return wire.wire__crate__api__api_rotator_sync_to_pa(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiRotatorSyncToPaConstMeta,
+      argValues: [deviceId, pa],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiRotatorSyncToPaConstMeta => const TaskConstMeta(
+        debugName: "api_rotator_sync_to_pa",
+        argNames: ["deviceId", "pa"],
       );
 
   @override

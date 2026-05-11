@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 544656026;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1421752965;
 
 // Section: executor
 
@@ -4952,6 +4952,33 @@ fn wire__crate__api__api_rotator_move_to_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::api_rotator_move_to(api_device_id, api_angle).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_rotator_sync_to_pa_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    pa: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_rotator_sync_to_pa",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_pa = pa.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_rotator_sync_to_pa(api_device_id, api_pa).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -23634,6 +23661,15 @@ mod io {
         angle: f64,
     ) {
         wire__crate__api__api_rotator_move_to_impl(port_, device_id, angle)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_rotator_sync_to_pa(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        pa: f64,
+    ) {
+        wire__crate__api__api_rotator_sync_to_pa_impl(port_, device_id, pa)
     }
 
     #[unsafe(no_mangle)]

@@ -736,6 +736,15 @@ Future<void> apiRotatorMoveRelative(
 Future<void> apiRotatorHalt({required String deviceId}) =>
     RustLib.instance.api.crateApiApiRotatorHalt(deviceId: deviceId);
 
+/// Sync rotator's reported sky angle to the supplied position angle without
+/// moving the hardware. Used by the "Sync to image PA" workflow after a plate
+/// solve: the solver returns the astrometric PA of the captured frame and
+/// this call aligns the rotator's reported PA so subsequent absolute moves
+/// land at the correct sky angle.
+Future<void> apiRotatorSyncToPa(
+        {required String deviceId, required double pa}) =>
+    RustLib.instance.api.crateApiApiRotatorSyncToPa(deviceId: deviceId, pa: pa);
+
 /// Run autofocus
 Future<AutofocusResultApi> apiRunAutofocus(
         {required String deviceId,

@@ -9617,6 +9617,30 @@ class RustLibWire implements BaseWire {
             double,
           )>();
 
+  void wire__crate__api__api_rotator_sync_to_pa(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    double pa,
+  ) {
+    return _wire__crate__api__api_rotator_sync_to_pa(port_, device_id, pa);
+  }
+
+  late final _wire__crate__api__api_rotator_sync_to_paPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Double,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_rotator_sync_to_pa');
+  late final _wire__crate__api__api_rotator_sync_to_pa =
+      _wire__crate__api__api_rotator_sync_to_paPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            double,
+          )>();
+
   void wire__crate__api__api_run_autofocus(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
