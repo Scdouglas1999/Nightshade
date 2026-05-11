@@ -119,122 +119,77 @@ class _TriggerConfigurationDialogState
     final theme = Theme.of(context);
     final colors = theme.extension<NightshadeColors>()!;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 600,
-        height: 500,
-        decoration: BoxDecoration(
-          color: colors.background.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.border, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
+    // Footer needs custom alignment (Add Trigger left, Cancel/Save right), so
+    // we pass a single Row as the action slot and let NightshadeDialog's
+    // Footer rely on its existing mainAxisAlignment.end (no-op with one child).
+    return NightshadeDialog(
+      title: 'Exposure Triggers',
+      icon: Icons.notifications_active,
+      width: 600,
+      height: 500,
+      scrollableBody: false,
+      bodyPadding: EdgeInsets.zero,
+      actions: [
+        Expanded(
+          child: Row(
+            children: [
+              NightshadeButton(
+                onPressed: _addTrigger,
+                icon: Icons.add,
+                label: 'Add Trigger',
+                variant: ButtonVariant.outline,
               ),
-              child: Row(
+              const Spacer(),
+              NightshadeButton(
+                onPressed: () => Navigator.of(context).pop(),
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+              ),
+              const SizedBox(width: 12),
+              NightshadeButton(
+                onPressed: () => Navigator.of(context).pop(_triggers),
+                label: 'Save',
+                variant: ButtonVariant.primary,
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: _triggers.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.notifications_active,
-                      color: colors.primary, size: 28),
-                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.notifications_off,
+                    size: 64,
+                    color: colors.textSecondary.withValues(alpha: 0.3),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
-                    'Exposure Triggers',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    'No triggers configured',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: colors.textSecondary,
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add a trigger to automatically respond to conditions',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
-            ),
-
-            // Triggers List
-            Expanded(
-              child: _triggers.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.notifications_off,
-                            size: 64,
-                            color: colors.textSecondary.withValues(alpha: 0.3),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No triggers configured',
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Add a trigger to automatically respond to conditions',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(24),
-                      itemCount: _triggers.length,
-                      itemBuilder: (context, index) {
-                        final trigger = _triggers[index];
-                        return _buildTriggerCard(trigger, index, colors, theme);
-                      },
-                    ),
-            ),
-
-            // Footer
-            Container(
+            )
+          : ListView.builder(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  NightshadeButton(
-                    onPressed: _addTrigger,
-                    icon: Icons.add,
-                    label: 'Add Trigger',
-                    variant: ButtonVariant.outline,
-                  ),
-                  const Spacer(),
-                  NightshadeButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    label: 'Cancel',
-                    variant: ButtonVariant.ghost,
-                  ),
-                  const SizedBox(width: 12),
-                  NightshadeButton(
-                    onPressed: () => Navigator.of(context).pop(_triggers),
-                    label: 'Save',
-                    variant: ButtonVariant.primary,
-                  ),
-                ],
-              ),
+              itemCount: _triggers.length,
+              itemBuilder: (context, index) {
+                final trigger = _triggers[index];
+                return _buildTriggerCard(trigger, index, colors, theme);
+              },
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -319,69 +274,10 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit Trigger'),
-      content: SizedBox(
-        width: 400,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<TriggerConditionType>(
-              initialValue: _condition,
-              decoration: const InputDecoration(labelText: 'Condition'),
-              items: TriggerConditionType.values.map((c) {
-                return DropdownMenuItem(
-                  value: c,
-                  child: Text(_conditionName(c)),
-                );
-              }).toList(),
-              onChanged: (v) => setState(() => _condition = v!),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: TextEditingController(text: _threshold.toString()),
-              decoration: InputDecoration(
-                labelText: 'Threshold',
-                suffix: Text(_getThresholdUnit()),
-              ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (v) {
-                final parsed = double.tryParse(v);
-                if (parsed != null) _threshold = parsed;
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<TriggerActionType>(
-              initialValue: _action,
-              decoration: const InputDecoration(labelText: 'Action'),
-              items: TriggerActionType.values.map((a) {
-                return DropdownMenuItem(
-                  value: a,
-                  child: Text(_actionName(a)),
-                );
-              }).toList(),
-              onChanged: (v) => setState(() => _action = v!),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: TextEditingController(text: _debounce.toString()),
-              decoration: const InputDecoration(
-                labelText: 'Debounce Time',
-                suffix: Text('seconds'),
-                helperText: 'Wait time before triggering again',
-              ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (v) {
-                final parsed = double.tryParse(v);
-                if (parsed != null) _debounce = parsed;
-              },
-            ),
-          ],
-        ),
-      ),
+    return NightshadeDialog(
+      title: 'Edit Trigger',
+      icon: Icons.edit,
+      width: 440,
       actions: [
         NightshadeButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -401,6 +297,62 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
           variant: ButtonVariant.primary,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<TriggerConditionType>(
+            initialValue: _condition,
+            decoration: const InputDecoration(labelText: 'Condition'),
+            items: TriggerConditionType.values.map((c) {
+              return DropdownMenuItem(
+                value: c,
+                child: Text(_conditionName(c)),
+              );
+            }).toList(),
+            onChanged: (v) => setState(() => _condition = v!),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: TextEditingController(text: _threshold.toString()),
+            decoration: InputDecoration(
+              labelText: 'Threshold',
+              suffix: Text(_getThresholdUnit()),
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (v) {
+              final parsed = double.tryParse(v);
+              if (parsed != null) _threshold = parsed;
+            },
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<TriggerActionType>(
+            initialValue: _action,
+            decoration: const InputDecoration(labelText: 'Action'),
+            items: TriggerActionType.values.map((a) {
+              return DropdownMenuItem(
+                value: a,
+                child: Text(_actionName(a)),
+              );
+            }).toList(),
+            onChanged: (v) => setState(() => _action = v!),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: TextEditingController(text: _debounce.toString()),
+            decoration: const InputDecoration(
+              labelText: 'Debounce Time',
+              suffix: Text('seconds'),
+              helperText: 'Wait time before triggering again',
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (v) {
+              final parsed = double.tryParse(v);
+              if (parsed != null) _debounce = parsed;
+            },
+          ),
+        ],
+      ),
     );
   }
 

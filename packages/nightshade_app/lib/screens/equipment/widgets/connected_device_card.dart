@@ -1423,11 +1423,28 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       context: context,
       builder: (ctx) {
         final colors = Theme.of(ctx).extension<NightshadeColors>()!;
-        return AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text('Set Cooling Target',
-              style: TextStyle(color: colors.textPrimary)),
-          content: TextField(
+        return NightshadeDialog(
+          title: 'Set Cooling Target',
+          icon: LucideIcons.thermometer,
+          width: 400,
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              onPressed: () {
+                final temp = double.tryParse(controller.text);
+                if (temp != null) Navigator.of(ctx).pop(temp);
+              },
+              label: 'Set',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
+          ],
+          child: TextField(
             controller: controller,
             keyboardType: const TextInputType.numberWithOptions(
                 decimal: true, signed: true),
@@ -1444,19 +1461,6 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             ),
             style: TextStyle(color: colors.textPrimary),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
-            ),
-            TextButton(
-              onPressed: () {
-                final temp = double.tryParse(controller.text);
-                if (temp != null) Navigator.of(ctx).pop(temp);
-              },
-              child: Text('Set', style: TextStyle(color: colors.primary)),
-            ),
-          ],
         );
       },
     );
@@ -1658,13 +1662,30 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
     final result = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(
-          'Move Focuser',
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: Column(
+      builder: (context) => NightshadeDialog(
+        title: 'Move Focuser',
+        icon: LucideIcons.focus,
+        width: 400,
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(context),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () {
+              final position = int.tryParse(controller.text);
+              if (position != null) {
+                Navigator.pop(context, position);
+              }
+            },
+            label: 'Move',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1691,25 +1712,6 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             ),
           ],
         ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.pop(context),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () {
-              final position = int.tryParse(controller.text);
-              if (position != null) {
-                Navigator.pop(context, position);
-              }
-            },
-            label: 'Move',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-          ),
-        ],
       ),
     );
 
@@ -1735,13 +1737,30 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
     final result = await showDialog<double>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(
-          'Rotate To Angle',
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: Column(
+      builder: (context) => NightshadeDialog(
+        title: 'Rotate To Angle',
+        icon: LucideIcons.rotateCcw,
+        width: 400,
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(context),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () {
+              final angle = double.tryParse(controller.text);
+              if (angle != null && angle >= 0 && angle <= 360) {
+                Navigator.pop(context, angle);
+              }
+            },
+            label: 'Rotate',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1771,25 +1790,6 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             ),
           ],
         ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.pop(context),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () {
-              final angle = double.tryParse(controller.text);
-              if (angle != null && angle >= 0 && angle <= 360) {
-                Navigator.pop(context, angle);
-              }
-            },
-            label: 'Rotate',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-          ),
-        ],
       ),
     );
 
@@ -1817,27 +1817,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text(
-          'Edit Device Name',
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: colors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Enter device name',
-            hintStyle: TextStyle(color: colors.textMuted),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: colors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: colors.primary),
-            ),
-          ),
-        ),
+      builder: (context) => NightshadeDialog(
+        title: 'Edit Device Name',
+        icon: LucideIcons.edit3,
+        width: 400,
         actions: [
           NightshadeButton(
             onPressed: () => Navigator.pop(context),
@@ -1857,6 +1840,21 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             size: ButtonSize.small,
           ),
         ],
+        child: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: colors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Enter device name',
+            hintStyle: TextStyle(color: colors.textMuted),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: colors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: colors.primary),
+            ),
+          ),
+        ),
       ),
     );
 

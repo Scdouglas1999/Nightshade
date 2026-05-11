@@ -157,59 +157,16 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     final theme = Theme.of(context);
     final colors = theme.extension<NightshadeColors>()!;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 700,
-          preferredHeight: 600,
-          minWidth: 500,
-          minHeight: 450,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.background.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.border, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.wb_sunny, color: colors.primary, size: 28),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Flat Frame Wizard',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Stepper
-              Expanded(
-                child: Stepper(
+    // Stepper renders its own controls row, so the dialog scaffold's footer
+    // slot is intentionally empty.
+    return NightshadeDialog(
+      title: 'Flat Frame Wizard',
+      icon: Icons.wb_sunny,
+      width: 700,
+      height: 600,
+      scrollableBody: false,
+      bodyPadding: EdgeInsets.zero,
+      child: Stepper(
                   currentStep: _currentStep,
                   onStepContinue: () {
                     if (_currentStep < 2) {
@@ -396,11 +353,6 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 

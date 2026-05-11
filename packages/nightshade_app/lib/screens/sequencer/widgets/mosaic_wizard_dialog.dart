@@ -254,9 +254,28 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       builder: (context) {
         final colors = Theme.of(context).extension<NightshadeColors>()!;
 
-        return AlertDialog(
-          title: const Text('Mosaic Warnings'),
-          content: Column(
+        return NightshadeDialog(
+          title: 'Mosaic Warnings',
+          icon: Icons.warning_amber,
+          width: 480,
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(context).pop(),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                onProceed();
+              },
+              label: 'Proceed',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
+          ],
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -277,23 +296,6 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               const Text('Do you want to proceed anyway?'),
             ],
           ),
-          actions: [
-            NightshadeButton(
-              onPressed: () => Navigator.of(context).pop(),
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-            ),
-            NightshadeButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onProceed();
-              },
-              label: 'Proceed',
-              variant: ButtonVariant.primary,
-              size: ButtonSize.small,
-            ),
-          ],
         );
       },
     );
@@ -309,243 +311,178 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         _panelHeightArcmin *
         _panelsVertical;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 900,
-          preferredHeight: 700,
-          minWidth: 600,
-          minHeight: 500,
+    // Body provides its own split-pane scroll (Row with SingleChildScrollView
+    // in the config column), so suppress NightshadeDialog's outer scroll to
+    // keep the CustomPaint preview pane locked at the dialog height.
+    return NightshadeDialog(
+      title: 'Mosaic Wizard',
+      icon: Icons.grid_on,
+      width: 900,
+      height: 700,
+      scrollableBody: false,
+      bodyPadding: EdgeInsets.zero,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.of(context).pop(),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.background.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.border, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.grid_on, color: colors.primary, size: 28),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Mosaic Wizard',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content
-              Expanded(
-                child: Row(
-                  children: [
-                    // Configuration Panel
-                    Expanded(
-                      flex: 2,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildSection(
-                              'Center Coordinates',
-                              [
-                                _buildNumberField(
-                                  'Right Ascension (hours)',
-                                  _centerRa,
-                                  (v) => setState(() => _centerRa = v),
-                                  min: 0,
-                                  max: 24,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildNumberField(
-                                  'Declination (degrees)',
-                                  _centerDec,
-                                  (v) => setState(() => _centerDec = v),
-                                  min: -90,
-                                  max: 90,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            _buildSection(
-                              'Panel Size',
-                              [
-                                _buildNumberField(
-                                  'Width (arcmin)',
-                                  _panelWidthArcmin,
-                                  (v) => setState(() => _panelWidthArcmin = v),
-                                  min: 1,
-                                  max: 360,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildNumberField(
-                                  'Height (arcmin)',
-                                  _panelHeightArcmin,
-                                  (v) => setState(() => _panelHeightArcmin = v),
-                                  min: 1,
-                                  max: 360,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            _buildSection(
-                              'Grid Configuration',
-                              [
-                                _buildIntField(
-                                  'Panels Horizontal',
-                                  _panelsHorizontal,
-                                  (v) => setState(() => _panelsHorizontal = v),
-                                  min: 1,
-                                  max: 10,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildIntField(
-                                  'Panels Vertical',
-                                  _panelsVertical,
-                                  (v) => setState(() => _panelsVertical = v),
-                                  min: 1,
-                                  max: 10,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSlider(
-                                  'Overlap (%)',
-                                  _overlapPercent,
-                                  (v) => setState(() => _overlapPercent = v),
-                                  min: 0,
-                                  max: 50,
-                                ),
-                                const SizedBox(height: 12),
-                                _buildSlider(
-                                  'Rotation (°)',
-                                  _rotation,
-                                  (v) => setState(() => _rotation = v),
-                                  min: -180,
-                                  max: 180,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Statistics
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: colors.surface,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: colors.border),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Statistics',
-                                      style: theme.textTheme.titleSmall),
-                                  const SizedBox(height: 12),
-                                  _buildStatRow(
-                                      'Total Panels:', '${panels.length}'),
-                                  _buildStatRow('Grid Size:',
-                                      '$_panelsHorizontal×$_panelsVertical'),
-                                  _buildStatRow('Coverage Area:',
-                                      '${(totalArea / 3600).toStringAsFixed(2)} sq°'),
-                                  _buildStatRow('Panel Size:',
-                                      '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°'),
-                                  _buildStatRow('Effective Overlap:',
-                                      '${(_overlapPercent * _panelWidthArcmin / 100).toStringAsFixed(1)}\' × ${(_overlapPercent * _panelHeightArcmin / 100).toStringAsFixed(1)}\''),
-                                  const Divider(height: 24),
-                                  _buildStatRow('Est. Time (60s×10):',
-                                      '${(_calculateTotalTime(60, 10) / 3600).toStringAsFixed(1)}h',
-                                      highlight: true),
-                                  _buildStatRow('Total Exposures:',
-                                      '${panels.length * 10}'),
-                                  _buildStatRow('Total Integration:',
-                                      '${(panels.length * 10 * 60 / 3600).toStringAsFixed(1)}h'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Preview Panel
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        margin: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: CustomPaint(
-                          painter: _MosaicPreviewPainter(
-                            panels: panels,
-                            panelWidthArcmin: _panelWidthArcmin,
-                            panelHeightArcmin: _panelHeightArcmin,
-                            colors: colors,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Footer
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    NightshadeButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      label: 'Cancel',
-                      variant: ButtonVariant.ghost,
-                      size: ButtonSize.small,
-                    ),
-                    const SizedBox(width: 12),
-                    NightshadeButton(
-                      onPressed: _generateMosaic,
-                      icon: Icons.add,
-                      label: 'Generate Mosaic',
-                      variant: ButtonVariant.primary,
-                      size: ButtonSize.small,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        NightshadeButton(
+          onPressed: _generateMosaic,
+          icon: Icons.add,
+          label: 'Generate Mosaic',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
         ),
+      ],
+      child: Row(
+        children: [
+          // Configuration Panel
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSection(
+                    'Center Coordinates',
+                    [
+                      _buildNumberField(
+                        'Right Ascension (hours)',
+                        _centerRa,
+                        (v) => setState(() => _centerRa = v),
+                        min: 0,
+                        max: 24,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildNumberField(
+                        'Declination (degrees)',
+                        _centerDec,
+                        (v) => setState(() => _centerDec = v),
+                        min: -90,
+                        max: 90,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSection(
+                    'Panel Size',
+                    [
+                      _buildNumberField(
+                        'Width (arcmin)',
+                        _panelWidthArcmin,
+                        (v) => setState(() => _panelWidthArcmin = v),
+                        min: 1,
+                        max: 360,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildNumberField(
+                        'Height (arcmin)',
+                        _panelHeightArcmin,
+                        (v) => setState(() => _panelHeightArcmin = v),
+                        min: 1,
+                        max: 360,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSection(
+                    'Grid Configuration',
+                    [
+                      _buildIntField(
+                        'Panels Horizontal',
+                        _panelsHorizontal,
+                        (v) => setState(() => _panelsHorizontal = v),
+                        min: 1,
+                        max: 10,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildIntField(
+                        'Panels Vertical',
+                        _panelsVertical,
+                        (v) => setState(() => _panelsVertical = v),
+                        min: 1,
+                        max: 10,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSlider(
+                        'Overlap (%)',
+                        _overlapPercent,
+                        (v) => setState(() => _overlapPercent = v),
+                        min: 0,
+                        max: 50,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSlider(
+                        'Rotation (°)',
+                        _rotation,
+                        (v) => setState(() => _rotation = v),
+                        min: -180,
+                        max: 180,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  // Statistics
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Statistics', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 12),
+                        _buildStatRow('Total Panels:', '${panels.length}'),
+                        _buildStatRow('Grid Size:',
+                            '$_panelsHorizontal×$_panelsVertical'),
+                        _buildStatRow('Coverage Area:',
+                            '${(totalArea / 3600).toStringAsFixed(2)} sq°'),
+                        _buildStatRow('Panel Size:',
+                            '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°'),
+                        _buildStatRow('Effective Overlap:',
+                            '${(_overlapPercent * _panelWidthArcmin / 100).toStringAsFixed(1)}\' × ${(_overlapPercent * _panelHeightArcmin / 100).toStringAsFixed(1)}\''),
+                        const Divider(height: 24),
+                        _buildStatRow('Est. Time (60s×10):',
+                            '${(_calculateTotalTime(60, 10) / 3600).toStringAsFixed(1)}h',
+                            highlight: true),
+                        _buildStatRow(
+                            'Total Exposures:', '${panels.length * 10}'),
+                        _buildStatRow('Total Integration:',
+                            '${(panels.length * 10 * 60 / 3600).toStringAsFixed(1)}h'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Preview Panel
+          Expanded(
+            flex: 3,
+            child: Container(
+              margin: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: CustomPaint(
+                painter: _MosaicPreviewPainter(
+                  panels: panels,
+                  panelWidthArcmin: _panelWidthArcmin,
+                  panelHeightArcmin: _panelHeightArcmin,
+                  colors: colors,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

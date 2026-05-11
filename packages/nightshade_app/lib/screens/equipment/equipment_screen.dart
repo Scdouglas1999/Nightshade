@@ -439,56 +439,18 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   // ============================================================================
 
   void _showSettings(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 700,
-          height: 500,
-          decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: colors.border)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.settings,
-                        color: colors.textPrimary, size: 20),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Equipment Settings',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(LucideIcons.x, color: colors.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-              // Content
-              const Expanded(
-                child: EquipmentSettingsTab(),
-              ),
-            ],
-          ),
-        ),
+      builder: (context) => const NightshadeDialog(
+        title: 'Equipment Settings',
+        icon: LucideIcons.settings,
+        width: 700,
+        height: 500,
+        // EquipmentSettingsTab manages its own scrolling per-section, so the
+        // dialog scaffold must not double-wrap it in a SingleChildScrollView.
+        scrollableBody: false,
+        bodyPadding: EdgeInsets.zero,
+        child: EquipmentSettingsTab(),
       ),
     );
   }
