@@ -20,8 +20,9 @@ use crate::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use quick_xml::events::Event;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -36,7 +37,73 @@ pub const DEFAULT_PROTOCOL_VERSION: &str = "1.7";
 
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
 
-static RAND_STATE: std::sync::OnceLock<AtomicU64> = std::sync::OnceLock::new();
+/// Shared, per-`IndiClient` PRNG handle.
+///
+/// Why: jitter must be uncorrelated between clients. A process-global PRNG
+/// seeded from system time on first use (the previous design) collapsed to a
+/// shared sequence the moment two clients raced through `get_or_init`, which
+/// defeats jitter when many clients reconnect simultaneously against the same
+/// INDI server. Wrapping `fastrand::Rng` in `Arc<StdMutex<...>>` lets us clone
+/// the handle into the supervised-reader task while keeping per-instance state.
+type JitterRng = Arc<StdMutex<fastrand::Rng>>;
+
+/// Build a unique-per-instance jitter PRNG.
+///
+/// Why: seeding from `host:port` + creation-time nanoseconds + a process-local
+/// monotonic counter guarantees two clients constructed in the same wall-clock
+/// nanosecond (e.g. two reconnect supervisors spawned from the same future)
+/// still receive distinct streams. Without the counter, identical hostnames
+/// constructed back-to-back could collide on coarse clocks.
+fn make_jitter_rng(host: &str, port: u16) -> JitterRng {
+    use std::time::SystemTime;
+
+    static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    host.hash(&mut hasher);
+    port.hash(&mut hasher);
+    let host_hash = hasher.finish();
+
+    let now_nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+
+    let counter = INSTANCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+
+    // Why: rotate before XOR so identical hosts in the same nanosecond still
+    // diverge via the per-process counter — otherwise XOR of equal halves
+    // cancels and the seed collapses to the counter alone.
+    let seed = host_hash
+        ^ now_nanos.rotate_left(17)
+        ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+
+    Arc::new(StdMutex::new(fastrand::Rng::with_seed(seed)))
+}
+
+/// Pull a uniform `[0.0, 1.0)` value from a `JitterRng`, falling back to a
+/// fresh local PRNG if the mutex is poisoned.
+///
+/// Why: poisoning means a previous holder panicked while holding the lock; we
+/// must not silently return a constant (the previous static-state design
+/// effectively did that on race losers), but we also must not panic and drop
+/// the reconnect loop. A fresh `fastrand::Rng::new()` is process-seeded and
+/// still yields an uncorrelated value for the current call.
+fn jitter_sample(rng: &JitterRng) -> f64 {
+    match rng.lock() {
+        Ok(mut guard) => guard.f64(),
+        Err(poisoned) => {
+            tracing::warn!(
+                "INDI jitter RNG mutex poisoned; using fresh PRNG for this sample"
+            );
+            // Recover the inner Rng so subsequent calls continue using the
+            // per-instance stream instead of permanently degrading.
+            let mut guard = poisoned.into_inner();
+            *guard = fastrand::Rng::new();
+            guard.f64()
+        }
+    }
+}
 
 /// INDI client event
 #[derive(Debug, Clone)]
@@ -146,8 +213,14 @@ impl Default for ReaderTaskConfig {
 }
 
 impl ReaderTaskConfig {
-    /// Calculate restart delay for a given attempt number with optional jitter
-    pub fn calculate_restart_delay(&self, attempt: u32) -> Duration {
+    /// Calculate restart delay for a given attempt number with optional jitter.
+    ///
+    /// Why the `rng` parameter is required: jitter for reconnect/restart must
+    /// be uncorrelated across `IndiClient` instances. Pulling randomness from
+    /// the per-client PRNG (rather than a process-global one) guarantees two
+    /// clients running the same backoff schedule do not synchronise their
+    /// retries into a thundering herd against the INDI server.
+    pub fn calculate_restart_delay(&self, attempt: u32, rng: &JitterRng) -> Duration {
         let base = Duration::from_secs(self.restart_base_delay_secs);
         let max = Duration::from_secs(self.restart_max_delay_secs);
 
@@ -159,7 +232,7 @@ impl ReaderTaskConfig {
 
         if self.use_jitter && self.jitter_factor > 0.0 {
             let jitter_range = exponential_delay.as_secs_f64() * self.jitter_factor;
-            let random_factor = rand_simple() * jitter_range - (jitter_range / 2.0);
+            let random_factor = jitter_sample(rng) * jitter_range - (jitter_range / 2.0);
             let jittered_secs = (exponential_delay.as_secs_f64() + random_factor).max(0.1);
             Duration::from_secs_f64(jittered_secs.min(max.as_secs_f64()))
         } else {
@@ -217,8 +290,12 @@ impl Default for ReconnectionConfig {
 }
 
 impl ReconnectionConfig {
-    /// Calculate delay for a given attempt number with optional jitter
-    pub fn calculate_delay(&self, attempt: u32) -> Duration {
+    /// Calculate delay for a given attempt number with optional jitter.
+    ///
+    /// Why the `rng` parameter is required: see [`ReaderTaskConfig::calculate_restart_delay`].
+    /// Reconnect backoff jitter must be sampled from the owning client's PRNG
+    /// so concurrent clients do not collapse onto identical retry schedules.
+    pub fn calculate_delay(&self, attempt: u32, rng: &JitterRng) -> Duration {
         // Calculate base exponential delay: base * 2^(attempt-1)
         let base = Duration::from_secs(self.base_delay_secs);
         let max = Duration::from_secs(self.max_delay_secs);
@@ -232,39 +309,12 @@ impl ReconnectionConfig {
             // Add jitter: delay * (1 - jitter_factor/2 + random * jitter_factor)
             // This gives a range of [delay * (1 - jitter_factor/2), delay * (1 + jitter_factor/2)]
             let jitter_range = exponential_delay.as_secs_f64() * self.jitter_factor;
-            let random_factor = rand_simple() * jitter_range - (jitter_range / 2.0);
+            let random_factor = jitter_sample(rng) * jitter_range - (jitter_range / 2.0);
             let jittered_secs = (exponential_delay.as_secs_f64() + random_factor).max(0.1);
             Duration::from_secs_f64(jittered_secs.min(max.as_secs_f64()))
         } else {
             exponential_delay
         }
-    }
-}
-
-/// Simple pseudo-random number generator for jitter (0.0 to 1.0)
-/// Uses a simple approach based on system time nanoseconds
-fn rand_simple() -> f64 {
-    use std::time::SystemTime;
-
-    let seed = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0x9e37_79b9_7f4a_7c15);
-    let state = RAND_STATE.get_or_init(|| AtomicU64::new(seed | 1));
-
-    let mut current = state.load(Ordering::Relaxed);
-    loop {
-        let mut next = current ^ seed.rotate_left(13);
-        next ^= next << 13;
-        next ^= next >> 7;
-        next ^= next << 17;
-        if state
-            .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
-            .is_ok()
-        {
-            return (next as f64) / (u64::MAX as f64);
-        }
-        current = state.load(Ordering::Relaxed);
     }
 }
 
@@ -410,6 +460,9 @@ pub struct IndiClient {
     reconnection_config: ReconnectionConfig,
     /// Reader task supervision configuration
     reader_task_config: ReaderTaskConfig,
+    /// Per-instance jitter PRNG used for reconnect/restart backoff. See
+    /// [`make_jitter_rng`] for the seeding rationale.
+    jitter_rng: JitterRng,
 }
 
 impl IndiClient {
@@ -426,9 +479,11 @@ impl IndiClient {
     ) -> Self {
         let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
+        let resolved_port = port.unwrap_or(INDI_DEFAULT_PORT);
+        let jitter_rng = make_jitter_rng(host, resolved_port);
         Self {
             host: host.to_string(),
-            port: port.unwrap_or(INDI_DEFAULT_PORT),
+            port: resolved_port,
             connected: Arc::new(AtomicBool::new(false)),
             devices: Arc::new(RwLock::new(HashMap::new())),
             properties: Arc::new(RwLock::new(HashMap::new())),
@@ -450,6 +505,7 @@ impl IndiClient {
             server_version: Arc::new(RwLock::new(None)),
             reconnection_config: ReconnectionConfig::default(),
             reader_task_config: ReaderTaskConfig::default(),
+            jitter_rng,
         }
     }
 
@@ -482,9 +538,11 @@ impl IndiClient {
     ) -> Self {
         let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
         let now = current_time_ms();
+        let resolved_port = port.unwrap_or(INDI_DEFAULT_PORT);
+        let jitter_rng = make_jitter_rng(host, resolved_port);
         Self {
             host: host.to_string(),
-            port: port.unwrap_or(INDI_DEFAULT_PORT),
+            port: resolved_port,
             connected: Arc::new(AtomicBool::new(false)),
             devices: Arc::new(RwLock::new(HashMap::new())),
             properties: Arc::new(RwLock::new(HashMap::new())),
@@ -506,6 +564,7 @@ impl IndiClient {
             server_version: Arc::new(RwLock::new(None)),
             reconnection_config,
             reader_task_config,
+            jitter_rng,
         }
     }
 
@@ -642,6 +701,10 @@ impl IndiClient {
         let last_keepalive_response_ms = self.last_keepalive_response_ms.clone();
         let timeout_config = self.timeout_config.clone();
         let reader_task_config = self.reader_task_config.clone();
+        // Clone the per-instance jitter PRNG handle so the supervised reader
+        // task can compute its own restart-delay jitter without falling back
+        // to a shared global PRNG.
+        let jitter_rng = self.jitter_rng.clone();
 
         // Reset consecutive failures on successful connect
         self.reader_consecutive_failures.store(0, Ordering::SeqCst);
@@ -672,6 +735,7 @@ impl IndiClient {
                 last_keepalive_response_ms,
                 timeout_config,
                 reader_task_config,
+                jitter_rng,
                 shutdown_rx,
             )
             .await;
@@ -730,6 +794,7 @@ impl IndiClient {
         last_keepalive_response_ms: Arc<AtomicU64>,
         timeout_config: IndiTimeoutConfig,
         reader_task_config: ReaderTaskConfig,
+        jitter_rng: JitterRng,
         mut shutdown_rx: oneshot::Receiver<()>,
     ) {
         // Run the reader task with panic catching via AssertUnwindSafe
@@ -806,7 +871,7 @@ impl IndiClient {
                     });
                 } else if reader_task_config.auto_restart {
                     // Calculate restart delay and emit restart event
-                    let delay = reader_task_config.calculate_restart_delay(failures);
+                    let delay = reader_task_config.calculate_restart_delay(failures, &jitter_rng);
                     tracing::info!(
                         "INDI reader task will suggest restart in {:?} (attempt {}/{})",
                         delay,
@@ -2061,7 +2126,9 @@ impl IndiClient {
                         tracing::warn!("Reconnection attempt {} failed: {}", attempt, last_error);
 
                         if attempt < max_attempts {
-                            let delay = self.reconnection_config.calculate_delay(attempt);
+                            let delay = self
+                                .reconnection_config
+                                .calculate_delay(attempt, &self.jitter_rng);
                             tracing::info!("Waiting {:?} before next reconnection attempt", delay);
                             sleep(delay).await;
                         }
@@ -2125,7 +2192,9 @@ impl IndiClient {
 
         // Calculate and wait for delay
         if failures > 0 {
-            let delay = self.reader_task_config.calculate_restart_delay(failures);
+            let delay = self
+                .reader_task_config
+                .calculate_restart_delay(failures, &self.jitter_rng);
             tracing::info!(
                 "Waiting {:?} before reader recovery attempt {}",
                 delay,
@@ -2445,25 +2514,26 @@ mod tests {
             use_jitter: false, // Disable jitter for predictable testing
             jitter_factor: 0.0,
         };
+        let rng = make_jitter_rng("test", 7624);
 
         // Test exponential growth without jitter
-        let delay1 = config.calculate_delay(1);
+        let delay1 = config.calculate_delay(1, &rng);
         assert_eq!(delay1, Duration::from_secs(1));
 
-        let delay2 = config.calculate_delay(2);
+        let delay2 = config.calculate_delay(2, &rng);
         assert_eq!(delay2, Duration::from_secs(2));
 
-        let delay3 = config.calculate_delay(3);
+        let delay3 = config.calculate_delay(3, &rng);
         assert_eq!(delay3, Duration::from_secs(4));
 
-        let delay4 = config.calculate_delay(4);
+        let delay4 = config.calculate_delay(4, &rng);
         assert_eq!(delay4, Duration::from_secs(8));
 
-        let delay5 = config.calculate_delay(5);
+        let delay5 = config.calculate_delay(5, &rng);
         assert_eq!(delay5, Duration::from_secs(16));
 
         // Test capping at max
-        let delay6 = config.calculate_delay(6);
+        let delay6 = config.calculate_delay(6, &rng);
         assert_eq!(delay6, Duration::from_secs(30)); // Capped at max
     }
 
@@ -2476,14 +2546,54 @@ mod tests {
             use_jitter: true,
             jitter_factor: 0.3,
         };
+        let rng = make_jitter_rng("test", 7624);
 
         // With jitter, delays should vary somewhat
-        let delay1 = config.calculate_delay(1);
-        let delay2 = config.calculate_delay(1);
+        let delay1 = config.calculate_delay(1, &rng);
+        let delay2 = config.calculate_delay(1, &rng);
 
         // Both should be close to 10 seconds (within 30% jitter)
         assert!(delay1.as_secs_f64() >= 8.5 && delay1.as_secs_f64() <= 11.5);
         assert!(delay2.as_secs_f64() >= 8.5 && delay2.as_secs_f64() <= 11.5);
+    }
+
+    /// Regression test for §5.23: ensure two clients constructed back-to-back
+    /// produce uncorrelated jitter streams. With the previous process-global
+    /// PRNG (seeded from system time on first use), two clients created in
+    /// the same nanosecond would observe identical reconnect schedules and
+    /// thunder-herd the INDI server. Per-instance seeding must prevent that.
+    #[tokio::test]
+    async fn test_per_instance_jitter_uncorrelated_across_clients() {
+        let client_a = IndiClient::new("localhost", Some(7624));
+        let client_b = IndiClient::new("localhost", Some(7624));
+
+        // Draw 8 jitter samples from each client and require at least one
+        // disagreement. We pull the unit samples directly from the per-
+        // instance PRNG so the assertion does not depend on backoff scaling
+        // or rounding; the property under test is "the underlying RNG
+        // streams differ", which is what fixes the thundering-herd bug.
+        let mut samples_a = [0.0_f64; 8];
+        let mut samples_b = [0.0_f64; 8];
+        for i in 0..8 {
+            samples_a[i] = jitter_sample(&client_a.jitter_rng);
+            samples_b[i] = jitter_sample(&client_b.jitter_rng);
+        }
+
+        assert_ne!(
+            samples_a, samples_b,
+            "Two IndiClients constructed back-to-back produced identical \
+             jitter sequences ({:?} == {:?}); per-instance seeding regressed.",
+            samples_a, samples_b
+        );
+
+        // Sanity: samples must be in [0, 1) per fastrand::Rng::f64 contract.
+        for s in samples_a.iter().chain(samples_b.iter()) {
+            assert!(
+                (0.0..1.0).contains(s),
+                "jitter sample {} outside [0, 1)",
+                s
+            );
+        }
     }
 
     #[tokio::test]
@@ -2633,17 +2743,18 @@ mod tests {
             use_jitter: false, // Disable jitter for predictable testing
             jitter_factor: 0.0,
         };
+        let rng = make_jitter_rng("test", 7624);
 
         // Test exponential growth
-        assert_eq!(config.calculate_restart_delay(1), Duration::from_secs(1));
-        assert_eq!(config.calculate_restart_delay(2), Duration::from_secs(2));
-        assert_eq!(config.calculate_restart_delay(3), Duration::from_secs(4));
-        assert_eq!(config.calculate_restart_delay(4), Duration::from_secs(8));
-        assert_eq!(config.calculate_restart_delay(5), Duration::from_secs(16));
-        assert_eq!(config.calculate_restart_delay(6), Duration::from_secs(32));
+        assert_eq!(config.calculate_restart_delay(1, &rng), Duration::from_secs(1));
+        assert_eq!(config.calculate_restart_delay(2, &rng), Duration::from_secs(2));
+        assert_eq!(config.calculate_restart_delay(3, &rng), Duration::from_secs(4));
+        assert_eq!(config.calculate_restart_delay(4, &rng), Duration::from_secs(8));
+        assert_eq!(config.calculate_restart_delay(5, &rng), Duration::from_secs(16));
+        assert_eq!(config.calculate_restart_delay(6, &rng), Duration::from_secs(32));
         // Should cap at max
-        assert_eq!(config.calculate_restart_delay(7), Duration::from_secs(60));
-        assert_eq!(config.calculate_restart_delay(10), Duration::from_secs(60));
+        assert_eq!(config.calculate_restart_delay(7, &rng), Duration::from_secs(60));
+        assert_eq!(config.calculate_restart_delay(10, &rng), Duration::from_secs(60));
     }
 
     #[tokio::test]
@@ -2656,9 +2767,10 @@ mod tests {
             use_jitter: true,
             jitter_factor: 0.3,
         };
+        let rng = make_jitter_rng("test", 7624);
 
         // With 30% jitter, delay should be within +/- 15% of base
-        let delay = config.calculate_restart_delay(1);
+        let delay = config.calculate_restart_delay(1, &rng);
         let expected = 10.0;
         let tolerance = expected * 0.15;
         assert!(

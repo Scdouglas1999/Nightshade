@@ -18,3 +18,10 @@ base64 = "0.21"
 # mDNS discovery
 mdns-sd = "0.11"
 if-addrs = "0.13"
+
+# Per-instance PRNG for reconnect/restart jitter. fastrand 2.x is small,
+# dependency-free, and lets us seed each IndiClient with a unique value so two
+# clients started in the same wall-clock instant cannot produce correlated
+# backoff schedules (would otherwise cause a thundering herd against the INDI
+# server on simultaneous reconnect).
+fastrand = "2"
