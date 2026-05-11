@@ -17,6 +17,7 @@ import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
 import '../screens/planner/planner_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
+import '../screens/tutorial/first_night_wizard_route.dart';
 import 'page_transitions.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -175,6 +176,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               child: DiagnosticsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          // First-night wizard entry. The route renders the dashboard
+          // underneath and opens the wizard as a modal dialog on top —
+          // this is how Settings → Help → "First Night Walkthrough" and
+          // the auto-launch flow both reach the wizard. Dismissing the
+          // dialog returns the user to /dashboard.
+          GoRoute(
+            path: '/tutorial/first-night',
+            name: 'tutorial-first-night',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: FirstNightWizardRoute(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 200),
             ),
           ),
         ],

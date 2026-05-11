@@ -17,6 +17,7 @@ export 'src/database/daos/settings_dao.dart';
 export 'src/database/daos/weather_settings_dao.dart';
 export 'src/database/daos/flat_history_dao.dart';
 export 'src/database/daos/tutorial_progress_dao.dart';
+export 'src/database/daos/tutorial_dao.dart';
 export 'src/database/daos/polar_alignment_history_dao.dart';
 export 'src/database/daos/science_dao.dart';
 export 'src/database/daos/dark_library_dao.dart';
@@ -40,6 +41,12 @@ export 'src/models/target/target_models.dart';
 export 'src/models/annotation_data.dart';
 export 'src/models/annotation_settings.dart';
 export 'src/models/tutorial/tutorial_models.dart';
+// The model-layer FirstNightWizard class collides with the widget class of
+// the same name in nightshade_app. We hide it from the barrel so callers
+// either import tutorial_step.dart directly (the widget does) or just use
+// FirstNightWizardStep. This is the same pattern used elsewhere in this
+// barrel for MosaicConfig / MosaicPanel.
+export 'src/models/tutorial/tutorial_step.dart' hide FirstNightWizard;
 export 'src/models/phd2_models.dart';
 export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';

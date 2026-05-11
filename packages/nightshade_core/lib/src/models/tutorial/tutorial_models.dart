@@ -78,6 +78,12 @@ enum TutorialCategory {
   // WORKFLOW TOURS (existing)
   // ============================================================
 
+  /// New-user "First Night Wizard" — 7-step modal walkthrough covering the
+  /// minimum-viable path from cold app launch to a running imaging sequence.
+  /// This is the wizard that auto-opens on first launch when no tutorial
+  /// progress exists; existing users can replay it from Settings → Help.
+  firstNight,
+
   /// Connect -> Expose -> View (5 steps max)
   firstLight,
 
@@ -185,6 +191,193 @@ class TutorialProgress {
 
 /// Built-in tutorial definitions
 class TutorialDefinitions {
+  // ============================================================
+  // FIRST NIGHT WIZARD (7 steps)
+  //
+  // The full new-user walkthrough — fires on first launch when no tutorial
+  // progress exists. Unlike the existing in-app overlay tours, each step is
+  // a modal NightshadeDialog with WHY-style guidance (why polar alignment
+  // matters, why guiding helps, etc.) and a "Show me" deep-link button that
+  // navigates to the relevant screen so the user can perform the action and
+  // come back. Persisted to `tutorial_progress` so users can resume mid-way.
+  //
+  // Step descriptions are intentionally 80–150 words each — they teach
+  // WHY each phase exists, not just where to click. A new astrophotographer
+  // launching Nightshade should be able to finish the wizard and have a
+  // sequence running without consulting external docs.
+  // ============================================================
+  static const List<TutorialStep> firstNight = [
+    TutorialStep(
+      id: 'fn_welcome',
+      title: 'Welcome to your first night',
+      // WHY: First-time astrophotographers usually have a "minimum gear list"
+      // they assembled from a forum thread but no idea what order to use it
+      // in. This step sets that order in stone before they get lost clicking.
+      description:
+          'A clean imaging night runs roughly the same way every time: connect '
+          'your equipment, polar-align the mount, cool the camera and focus, '
+          'frame the target, start the autoguider, then launch a sequence. '
+          'This wizard walks you through each phase with a short explanation '
+          'of why it matters and a button that jumps you straight to the '
+          'right screen. Before we start, make sure you have at least a '
+          'camera, a mount, a focuser, and a filter wheel ready (a filter '
+          'wheel is optional for one-shot color cameras). You can skip any '
+          'step or close the wizard at any time — your progress is saved, so '
+          'you can pick up where you left off on the next launch.',
+      position: TooltipPosition.center,
+      order: 0,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_connect_equipment',
+      title: '1. Connect your equipment',
+      // WHY: Connection failures are the #1 source of "Nightshade is broken"
+      // posts on Cloudy Nights. The user needs to understand that profiles
+      // exist, that driver choice (ASCOM vs INDI vs native) matters, and
+      // that nothing else will work until devices are green.
+      description:
+          'Open the Equipment screen and pick or create a profile — a profile '
+          'is just a saved bundle of "which camera, which mount, which '
+          'focuser" that you can reuse every night. For each device, pick a '
+          'driver: native vendor SDKs (ZWO, QHY, PlayerOne, Touptek, …) are '
+          'fastest, ASCOM works on Windows, INDI works on Linux/macOS, and '
+          'Alpaca works over a network. Click Connect on every device until '
+          'the status dots are all green. If a device fails to connect, the '
+          'error message in the side panel will tell you why — usually it\'s '
+          'a USB cable, a driver not installed, or the device powered off. '
+          'Nothing else in this wizard works until everything here is green.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 1,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_polar_align',
+      title: '2. Polar-align the mount',
+      // WHY: Beginners skip polar alignment because it looks fiddly, then
+      // wonder why their 5-minute exposures have field rotation. Explain the
+      // two methods, when each applies, and acceptable error so they know
+      // when "good enough" really is good enough.
+      description:
+          'Polar alignment lines up the mount\'s rotation axis with the '
+          'celestial pole. Without it, stars trail in long exposures and the '
+          'frame slowly rotates around the guide star — guiding can\'t fix '
+          'either. Nightshade ships two methods. Drift alignment is the most '
+          'accurate but slow: it watches a star drift over minutes and tells '
+          'you which knob to turn. Plate-solve alignment is fast: it takes '
+          'three exposures at different mount angles, solves them, and '
+          'computes the polar error directly. Use plate-solve for nightly '
+          'setups, drift for permanent piers. Visual observing tolerates 5–10 '
+          'arcminutes of error; for imaging aim for under 1 arcminute. The '
+          'wizard on the Polar Alignment screen walks you through whichever '
+          'method you pick.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 2,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_cool_and_focus',
+      title: '3. Cool the camera, then focus',
+      // WHY: The order matters — focusing on a warm sensor gives you a HFR
+      // that drifts as the sensor cools and contracts. Beginners do this in
+      // the wrong order constantly.
+      description:
+          'A cooled camera has dramatically lower thermal noise, which is the '
+          'difference between a clean star field and a grainy mess. Set your '
+          'target sensor temperature in the Imaging screen — most cooled '
+          'astro cameras hit -10 °C year-round; in summer aim for whatever '
+          'is reliably 30 °C below ambient. Wait for the cooler to settle '
+          '(power should drop below ~80 %) before you focus, because the '
+          'sensor physically shrinks as it cools and your focus point '
+          'shifts. Then run autofocus: Nightshade samples the half-flux '
+          'radius (HFR) of stars at several focuser positions, fits a V-curve '
+          'or hyperbola, and parks the focuser at the minimum. Good focus is '
+          'the single biggest visual improvement you can make to your images.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 3,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_frame_target',
+      title: '4. Frame your target',
+      // WHY: New imagers point at the wrong DSO, or get the rotation wrong,
+      // and waste hours of data. Pre-framing on the planetarium catches this.
+      description:
+          'The Framing screen overlays your camera\'s field of view on a '
+          'survey image of the sky so you can preview exactly what each '
+          'exposure will look like before you slew. Pick a beginner-friendly '
+          'target — the Orion Nebula (M42), the Andromeda Galaxy (M31), or '
+          'the Pleiades (M45) are bright, large, and forgiving of imperfect '
+          'tracking. Drag the FOV rectangle to centre your target, rotate it '
+          'to a pleasing composition, and click "Slew & Center". Nightshade '
+          'will slew the mount, take a plate-solve exposure, compute the '
+          'pointing error, and nudge the mount until the target lands inside '
+          'a few arcseconds of where you placed it. This pre-flight step is '
+          'what separates a wasted slew from a usable sequence.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 4,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_start_guiding',
+      title: '5. Start the autoguider',
+      // WHY: Beginners often try to image without guiding "to keep things
+      // simple" and then can\'t figure out why their 3-minute subs are all
+      // egg-shaped. PHD2 is the de-facto standard so we say so.
+      description:
+          'Even a well-aligned mount drifts a few arcseconds per minute from '
+          'periodic gear error, atmospheric refraction, and small alignment '
+          'residuals. The autoguider locks onto a second star, measures that '
+          'drift in real time, and sends correction pulses to the mount. '
+          'Nightshade controls PHD2 — the standard open-source guider — '
+          'over its event/server protocol. Connect to PHD2 on the Guiding '
+          'screen (it must already be running and connected to your guide '
+          'camera and mount), pick a guide star, and start guiding. Watch '
+          'the RMS graph: under 1 arcsecond total is excellent, 1–2 is fine '
+          'for most cameras, and over 3 arcseconds means your alignment, '
+          'balance, or guide calibration needs another pass before you '
+          'commit to long exposures.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 5,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+    TutorialStep(
+      id: 'fn_start_sequence',
+      title: '6. Launch the sequence',
+      // WHY: This is the payoff step — once a sequence is running, the
+      // user goes inside and sleeps. The sample sequence concept is the
+      // hand-hold that keeps them from staring at the empty sequencer.
+      description:
+          'A sequence is the script that tells Nightshade what to capture, '
+          'when to dither, when to refocus, and when to flip across the '
+          'meridian. The Sequencer screen builds these as a tree of '
+          'instruction, trigger, and logic nodes — but for tonight, load one '
+          'of the bundled sample sequences (e.g. "LRGB 30×120s with '
+          'autofocus and dither every 10 frames"), set the target, and '
+          'click Start. While it runs, the trigger nodes watch HFR, guiding, '
+          'and time on their own — they\'ll pause, refocus, or recover if '
+          'something drifts out of tolerance. That\'s the whole point: you '
+          'set this up at the start of the night, walk away, and come back '
+          'to a stack of calibrated frames at dawn. Welcome to '
+          'astrophotography.',
+      action: 'Show me',
+      position: TooltipPosition.center,
+      order: 6,
+      category: TutorialCategory.firstNight,
+      spotlightShape: SpotlightShape.roundedRect,
+    ),
+  ];
+
   // ============================================================
   // FIRST LIGHT TOUR (5 steps)
   // Connect -> Expose -> View
@@ -1962,6 +2155,8 @@ class TutorialDefinitions {
 
   static List<TutorialStep> getStepsForCategory(TutorialCategory category) {
     switch (category) {
+      case TutorialCategory.firstNight:
+        return firstNight;
       case TutorialCategory.firstLight:
         return firstLight;
       case TutorialCategory.equipmentSetup:

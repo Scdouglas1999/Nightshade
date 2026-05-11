@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../database/daos/tutorial_dao.dart';
 import '../database/daos/tutorial_progress_dao.dart';
 import '../models/tutorial/tutorial_models.dart';
 import 'database_provider.dart';
@@ -8,6 +9,155 @@ import 'database_provider.dart';
 /// Provider for tutorial progress DAO
 final tutorialProgressDaoProvider = Provider<TutorialProgressDao>((ref) {
   return TutorialProgressDao(ref.watch(databaseProvider));
+});
+
+/// Provider for the first-night wizard DAO wrapper.
+///
+/// Built on top of [tutorialProgressDaoProvider] so it shares the same
+/// underlying Drift database connection — no risk of the wizard reading
+/// stale state because it has its own DAO instance.
+final tutorialDaoProvider = Provider<TutorialDao>((ref) {
+  return TutorialDao(ref.watch(tutorialProgressDaoProvider));
+});
+
+/// State of the first-night wizard UI.
+///
+/// `currentStepIndex` is 0-based into [FirstNightWizard.steps]. `isLoaded`
+/// flips to true once the saved progress has been read from the database;
+/// the wizard widget waits on this so a freshly-launched app doesn't flash
+/// step 0 before jumping to the resumed step.
+class FirstNightWizardState {
+  final int currentStepIndex;
+  final bool isLoaded;
+
+  const FirstNightWizardState({
+    this.currentStepIndex = 0,
+    this.isLoaded = false,
+  });
+
+  FirstNightWizardState copyWith({int? currentStepIndex, bool? isLoaded}) {
+    return FirstNightWizardState(
+      currentStepIndex: currentStepIndex ?? this.currentStepIndex,
+      isLoaded: isLoaded ?? this.isLoaded,
+    );
+  }
+}
+
+/// First-night wizard state notifier.
+///
+/// Lifecycle: created when the wizard opens, loads saved progress from the
+/// DAO on construction, persists progress on every advance/back/dismiss.
+/// The notifier intentionally does NOT auto-launch — the bootstrap flow
+/// in `app.dart` decides when to open the wizard, this notifier just runs
+/// it. Why: auto-launching from inside a provider creates surprise
+/// rebuilds in tests and headless mode.
+class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
+  final TutorialDao _dao;
+
+  FirstNightWizardNotifier(this._dao) : super(const FirstNightWizardState()) {
+    _loadResumeIndex();
+  }
+
+  Future<void> _loadResumeIndex() async {
+    final stepIndex = await _dao.getLastStepIndex();
+    // Clamp into the valid range — defends against a future where the
+    // wizard is shortened and a user has a saved step beyond the new end.
+    final clamped = stepIndex.clamp(0, _maxStepIndex);
+    state = state.copyWith(currentStepIndex: clamped, isLoaded: true);
+  }
+
+  /// Total step count is owned by the model layer; we mirror it here as a
+  /// constant so the clamp/advance math doesn't reach across packages
+  /// every call.
+  static const int _maxStepIndex = 6;
+
+  /// True if the wizard is on the last (Launch sequence) step.
+  bool get isLastStep => state.currentStepIndex >= _maxStepIndex;
+
+  /// True if the wizard is on the first (Welcome) step. The Back button
+  /// hides itself when this is true.
+  bool get isFirstStep => state.currentStepIndex == 0;
+
+  /// Advance one step. Persists progress. Calling next() on the last step
+  /// completes the wizard; the caller uses [isLastStep] to swap the Next
+  /// button to "Done".
+  Future<void> next() async {
+    if (state.currentStepIndex >= _maxStepIndex) {
+      await complete();
+      return;
+    }
+    final newIndex = state.currentStepIndex + 1;
+    state = state.copyWith(currentStepIndex: newIndex);
+    await _dao.saveFirstNightProgress(newIndex);
+  }
+
+  /// Go back one step. Persists. Does nothing on step 0.
+  Future<void> back() async {
+    if (state.currentStepIndex == 0) return;
+    final newIndex = state.currentStepIndex - 1;
+    state = state.copyWith(currentStepIndex: newIndex);
+    await _dao.saveFirstNightProgress(newIndex);
+  }
+
+  /// Jump directly to a step (used by Settings → Help "Resume" deep-link).
+  Future<void> goToStep(int index) async {
+    if (index < 0 || index > _maxStepIndex) {
+      // Errors are a feature: out-of-range index is a programmer bug, not
+      // user input.
+      throw ArgumentError(
+        'FirstNightWizardNotifier.goToStep: index $index outside '
+        '[0..$_maxStepIndex]',
+      );
+    }
+    state = state.copyWith(currentStepIndex: index);
+    await _dao.saveFirstNightProgress(index);
+  }
+
+  /// Mark the wizard finished. The user reached the final step and clicked
+  /// Done. The wizard will not auto-open again on launch but can be
+  /// replayed from Settings → Help.
+  Future<void> complete() async {
+    await _dao.markFirstNightCompleted();
+  }
+
+  /// "Skip forever" — the user explicitly opted out. Same launch-time
+  /// effect as [complete] but distinguishes intent for analytics and the
+  /// Settings → Help row label.
+  Future<void> dismissForever() async {
+    await _dao.dismissFirstNightForever();
+  }
+
+  /// "Show on next launch" — the wizard closes for this session but
+  /// reopens next time. Implemented by deleting the saved progress row;
+  /// [TutorialDao.shouldShowFirstNightOnLaunch] keys off row absence.
+  Future<void> showOnNextLaunch() async {
+    await _dao.resetFirstNight();
+  }
+
+  /// Restart from the welcome step. Used by Settings → Help "Restart".
+  /// Doesn't dismiss or complete — just rewinds the saved index and the
+  /// in-memory state.
+  Future<void> restart() async {
+    state = state.copyWith(currentStepIndex: 0);
+    await _dao.saveFirstNightProgress(0);
+  }
+}
+
+/// Provider for the first-night wizard state notifier. Standalone from
+/// [tutorialProvider] (which is shared by all the screen tours) because the
+/// wizard has different lifecycle semantics — it's modal, single-shot, and
+/// auto-launched.
+final firstNightWizardProvider = StateNotifierProvider<
+    FirstNightWizardNotifier, FirstNightWizardState>((ref) {
+  return FirstNightWizardNotifier(ref.watch(tutorialDaoProvider));
+});
+
+/// True if the first-night wizard should be auto-opened on this launch.
+/// Resolves asynchronously because it has to read the `tutorial_progress`
+/// table. Bootstrap code in `app.dart` watches this and triggers the
+/// wizard once the result is `true`.
+final shouldShowFirstNightProvider = FutureProvider<bool>((ref) {
+  return ref.watch(tutorialDaoProvider).shouldShowFirstNightOnLaunch();
 });
 
 /// Provider for tutorial state with database persistence

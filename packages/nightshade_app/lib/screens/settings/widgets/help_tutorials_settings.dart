@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -25,6 +26,40 @@ class HelpTutorialsSettings extends ConsumerWidget {
       description: 'Guided tours and learning resources',
       colors: colors,
       children: [
+        SettingsSection(
+          title: 'First-Night Walkthrough',
+          colors: colors,
+          children: [
+            SettingRow(
+              icon: LucideIcons.sparkles,
+              iconColor: colors.primary,
+              title: 'First Night Walkthrough',
+              subtitle:
+                  '7-step guided wizard for your first imaging session — '
+                  'connect, polar align, focus, frame, guide, sequence.',
+              trailing: NightshadeButton(
+                label: 'Start',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                icon: LucideIcons.play,
+                // Re-open the wizard via its dedicated route. We restart
+                // the in-memory step index first so a user who clicks
+                // "Start" gets the welcome step, not their resumed
+                // mid-tutorial position — the explicit Start action means
+                // "show me from the beginning". (Resume is the auto-open
+                // behavior, not what they asked for here.)
+                onPressed: () {
+                  ref
+                      .read(firstNightWizardProvider.notifier)
+                      .restart();
+                  context.go('/tutorial/first-night');
+                },
+              ),
+              isLast: true,
+              colors: colors,
+            ),
+          ],
+        ),
         SettingsSection(
           title: 'Tutorial Tours',
           colors: colors,
