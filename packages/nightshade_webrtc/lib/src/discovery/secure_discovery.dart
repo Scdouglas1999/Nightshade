@@ -136,7 +136,23 @@ class SecureDiscovery {
   }
 
   void _handleDiscoveryRequest(Datagram datagram, int signalingPort) async {
-    final message = utf8.decode(datagram.data);
+    final String message;
+    try {
+      message = utf8.decode(datagram.data);
+    } on FormatException catch (e) {
+      // Why: non-UTF8 datagram on a shared discovery port (a bystander
+      // process, port-scanner, mDNS chatter, etc.). Without this guard the
+      // throw escapes the socket listener into the zone error handler and
+      // gets swallowed — exactly the silent failure CLAUDE.md warns against.
+      // Log at warn level and drop the packet; we mirror the same handling
+      // on the client in `_consumeResponse`.
+      developer.log(
+        'Non-UTF8 secure-discovery datagram dropped: $e',
+        name: 'SecureDiscovery',
+        level: 900,
+      );
+      return;
+    }
 
     // Reject anything that isn't a Nightshade secure-discovery request before
     // we attempt JSON parsing. UDP on a shared LAN is noisy — we want to drop
