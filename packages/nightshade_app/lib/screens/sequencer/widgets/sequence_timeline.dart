@@ -314,7 +314,8 @@ class _FullTimeline extends ConsumerStatefulWidget {
   ConsumerState<_FullTimeline> createState() => _FullTimelineState();
 }
 
-class _FullTimelineState extends ConsumerState<_FullTimeline> {
+class _FullTimelineState extends ConsumerState<_FullTimeline>
+    with WidgetsBindingObserver {
   Timer? _nowTimer;
   DateTime _now = DateTime.now();
 
@@ -327,6 +328,12 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startNowTimer();
+  }
+
+  void _startNowTimer() {
+    _nowTimer?.cancel();
     // Update the "now" indicator every minute
     _nowTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) {
@@ -338,7 +345,24 @@ class _FullTimelineState extends ConsumerState<_FullTimeline> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Suspend the now-indicator timer when the app is backgrounded so a
+    // hidden timeline doesn't repaint every minute (§4.33).
+    if (state == AppLifecycleState.resumed) {
+      if (_nowTimer == null || !_nowTimer!.isActive) {
+        setState(() => _now = DateTime.now());
+        _startNowTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _nowTimer?.cancel();
+      _nowTimer = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nowTimer?.cancel();
     super.dispose();
   }

@@ -347,7 +347,11 @@ class _ActionButtonState extends State<_ActionButton> {
           setState(() => _isHovered = false);
         }
       },
-      child: GestureDetector(
+      // FocusRing surfaces keyboard focus on these GestureDetector-based
+      // action buttons; without it keyboard nav silently skipped them.
+      child: FocusRing(
+        borderRadius: BorderRadius.circular(8),
+        child: GestureDetector(
         onTap: isEnabled ? widget.onTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -394,6 +398,7 @@ class _ActionButtonState extends State<_ActionButton> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

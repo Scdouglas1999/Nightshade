@@ -48,21 +48,46 @@ class StatusBar extends ConsumerStatefulWidget {
   ConsumerState<StatusBar> createState() => _StatusBarState();
 }
 
-class _StatusBarState extends ConsumerState<StatusBar> {
-  late Timer _timer;
+class _StatusBarState extends ConsumerState<StatusBar>
+    with WidgetsBindingObserver {
+  // Per-second tick driving the clock chip. Suspended when the app is
+  // backgrounded — a hidden status bar doesn't need to rebuild 60 times/min.
+  Timer? _timer;
   DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() => _now = DateTime.now());
+      if (mounted) setState(() => _now = DateTime.now());
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_timer == null || !_timer!.isActive) {
+        // Resync immediately so the clock doesn't show a stale time.
+        _now = DateTime.now();
+        _startTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
+  @override
   void dispose() {
-    _timer.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
     super.dispose();
   }
 

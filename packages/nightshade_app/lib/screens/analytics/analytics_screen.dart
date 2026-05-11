@@ -588,7 +588,9 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              // Skeleton list mirrors the real history card geometry so the
+              // page doesn't reflow when sessions resolve.
+              loading: () => const _SessionHistorySkeletonList(),
               error: (err, stack) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1326,6 +1328,49 @@ class _EquipmentStatCard extends StatelessWidget {
                   ),
                 )),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Skeleton placeholder used while session history loads. Rendering a list of
+/// card-sized shimmer rows (rather than a centred spinner) preserves the
+/// final layout so the page doesn't pop when the real data arrives.
+class _SessionHistorySkeletonList extends StatelessWidget {
+  const _SessionHistorySkeletonList();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: 6,
+      itemBuilder: (context, _) => const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: ShimmerLoading(
+          child: NightshadeCard(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                height: 56,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SkeletonBox(width: 180, height: 14),
+                          SizedBox(height: 8),
+                          SkeletonBox(width: 120, height: 12),
+                        ],
+                      ),
+                    ),
+                    SkeletonBox(width: 220, height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

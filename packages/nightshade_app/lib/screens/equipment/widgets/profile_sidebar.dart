@@ -791,7 +791,11 @@ class _ProfileCardState extends State<_ProfileCard>
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
+      // FocusRing makes profile rows keyboard-discoverable; without it the
+      // raw GestureDetector silently swallowed focus traversal.
+      child: FocusRing(
+        borderRadius: BorderRadius.circular(10),
+        child: GestureDetector(
         onTap: widget.onTap,
         onDoubleTap: widget.onDoubleTap,
         onSecondaryTapUp: (details) {
@@ -910,6 +914,7 @@ class _ProfileCardState extends State<_ProfileCard>
               ],
             ),
           ),
+        ),
         ),
       ),
     );

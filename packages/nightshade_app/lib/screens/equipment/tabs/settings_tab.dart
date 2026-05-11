@@ -12,7 +12,23 @@ class EquipmentSettingsTab extends ConsumerWidget {
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Skeleton grid mirrors the 4-card layout so the page doesn't reflow.
+      loading: () => Padding(
+        padding: const EdgeInsets.all(24),
+        child: ResponsiveCardGrid(
+          children: List.generate(4, (_) {
+            return ShimmerLoading(
+              child: Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
       error: (e, _) => Center(child: Text('Error loading settings: $e')),
       data: (settings) => SingleChildScrollView(
         padding: const EdgeInsets.all(24),

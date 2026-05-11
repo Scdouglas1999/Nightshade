@@ -720,6 +720,7 @@ class _PreFlightValidationDialogState
           ),
           IconButton(
             icon: Icon(LucideIcons.x, color: colors.textMuted, size: 18),
+            tooltip: 'Close',
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

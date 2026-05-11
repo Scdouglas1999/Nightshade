@@ -37,16 +37,22 @@ class DiscoveryPanel extends ConsumerStatefulWidget {
 }
 
 class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
-    with SingleTickerProviderStateMixin, DeviceConnectionMixin {
+    with
+        SingleTickerProviderStateMixin,
+        DeviceConnectionMixin,
+        WidgetsBindingObserver {
   bool _isExpanded = false;
   bool _isScanning = false;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
+  // 30s tick refreshes the "Last scan: N seconds ago" label. Suspended when
+  // the app is backgrounded so a hidden equipment tab doesn't tick (§4.33).
   Timer? _lastScanTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _expandController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
@@ -55,14 +61,33 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
       parent: _expandController,
       curve: Curves.easeOut,
     );
-    // Start timer to update "time ago" display
+    _startLastScanTimer();
+  }
+
+  void _startLastScanTimer() {
+    _lastScanTimer?.cancel();
     _lastScanTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_lastScanTimer == null || !_lastScanTimer!.isActive) {
+        if (mounted) setState(() {});
+        _startLastScanTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _lastScanTimer?.cancel();
+      _lastScanTimer = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _expandController.dispose();
     _lastScanTimer?.cancel();
     super.dispose();

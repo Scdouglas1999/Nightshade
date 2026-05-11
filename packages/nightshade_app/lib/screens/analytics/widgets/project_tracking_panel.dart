@@ -181,7 +181,8 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
           ],
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Shimmer card placeholders so the panel keeps its real geometry.
+      loading: () => _ProjectsLoadingSkeleton(colors: colors),
       error: (error, stackTrace) => Center(
         child: Text(
           'Error loading projects: $error',
@@ -774,6 +775,44 @@ class _FilterBreakdownRow extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+/// Skeleton placeholder for the project list while progress data loads.
+/// Renders card-shaped shimmer rows that match the production tile height
+/// so the layout doesn't shift when the data resolves.
+class _ProjectsLoadingSkeleton extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _ProjectsLoadingSkeleton({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: List.generate(4, (_) {
+        return const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: ShimmerLoading(
+            child: NightshadeCard(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 220, height: 16),
+                    SizedBox(height: 10),
+                    SkeletonBox(height: 8, borderRadius: 4),
+                    SizedBox(height: 12),
+                    SkeletonBox(width: 160, height: 12),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

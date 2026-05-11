@@ -1164,7 +1164,30 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
         onApply: () {}, // Already applied when param changes
         onReset: () => ref.read(brainParamsProvider.notifier).fetch(),
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Shimmer placeholders match the brain-params field rows so the dialog
+      // doesn't visibly resize when PHD2 returns its parameter dump.
+      loading: () => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(
+            6,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ShimmerLoading(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
       error: (e, _) => Center(
         child: Text('Failed to load brain params',
             style: TextStyle(color: colors.error)),

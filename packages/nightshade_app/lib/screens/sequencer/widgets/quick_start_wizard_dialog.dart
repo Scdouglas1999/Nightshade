@@ -785,6 +785,7 @@ class _QuickStartWizardDialogState
           ),
           IconButton(
             icon: Icon(LucideIcons.x, color: colors.textSecondary, size: 20),
+            tooltip: 'Close',
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

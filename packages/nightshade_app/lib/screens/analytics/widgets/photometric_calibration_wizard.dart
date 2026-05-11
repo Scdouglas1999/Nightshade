@@ -253,7 +253,28 @@ class _PhotometricCalibrationWizardState
     final images = ref.watch(sessionImagesProvider(sessionId));
 
     return images.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Shimmer thumbnail strip matches the frame selector height so the
+      // wizard doesn't reflow when the image list resolves.
+      loading: () => SizedBox(
+        height: 180,
+        child: ShimmerLoading(
+          child: Row(
+            children: List.generate(
+              5,
+              (i) => Padding(
+                padding: EdgeInsets.only(right: i == 4 ? 0 : 8),
+                child: Container(
+                  width: 140,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
       error: (error, _) => Text('Error loading images: $error',
           style: TextStyle(color: colors.error)),
       data: (imageList) {

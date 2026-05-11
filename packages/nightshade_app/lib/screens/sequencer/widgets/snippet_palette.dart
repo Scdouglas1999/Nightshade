@@ -1157,6 +1157,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                     size: 16,
                     color: widget.colors.textMuted,
                   ),
+                  tooltip: 'Delete snippet',
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),
                 )

@@ -611,7 +611,11 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
   }
 
   Widget _buildMobileItem() {
-    return Material(
+    // FocusRing wraps the InkWell so keyboard nav lands here with a visible
+    // accent ring; the InkWell only paints a ripple on pointer events.
+    return FocusRing(
+      borderRadius: BorderRadius.circular(10),
+      child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _addNode,
@@ -674,6 +678,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -728,7 +733,12 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
             ),
           ),
         ),
-        child: MouseRegion(
+        // FocusRing surfaces keyboard focus on the otherwise mouse-only
+        // GestureDetector (double-tap activator), keeping the node palette
+        // navigable for keyboard-only users.
+        child: FocusRing(
+          borderRadius: BorderRadius.circular(8),
+          child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
           child: GestureDetector(
@@ -800,6 +810,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
               ),
             ),
           ),
+        ),
         ),
       );
     });

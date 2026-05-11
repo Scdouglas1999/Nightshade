@@ -35,7 +35,24 @@ class CatalogTab extends ConsumerWidget {
           );
         },
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Skeleton rows match TargetCard height so the catalog doesn't
+      // collapse to a centred spinner while the DSO list streams in.
+      loading: () => ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 8,
+        itemBuilder: (context, _) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ShimmerLoading(
+            child: Container(
+              height: 64,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ),
       error: (e, _) => Center(
         child: Text('Error: $e', style: TextStyle(color: colors.error)),
       ),

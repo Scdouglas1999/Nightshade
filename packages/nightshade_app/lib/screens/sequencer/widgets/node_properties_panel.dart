@@ -77,6 +77,7 @@ class NodePropertiesPanel extends ConsumerWidget {
                 IconButton(
                   onPressed: onClose,
                   icon: Icon(LucideIcons.x, color: colors.textMuted),
+                  tooltip: 'Close',
                   visualDensity: VisualDensity.compact,
                 ),
             ],

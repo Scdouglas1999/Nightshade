@@ -71,6 +71,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: Icon(LucideIcons.x, color: colors.textMuted),
+                    tooltip: 'Close',
                   ),
                 ],
               ),

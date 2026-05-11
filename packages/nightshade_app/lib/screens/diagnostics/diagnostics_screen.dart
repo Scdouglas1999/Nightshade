@@ -58,10 +58,10 @@ class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
                   onChanged: (id) => setState(() => _selectedSessionId = id),
                   colors: colors,
                 ),
-                loading: () => const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                // Small skeleton chip rather than a spinner so the header
+                // doesn't visibly jitter when sessions resolve.
+                loading: () => const ShimmerLoading(
+                  child: SkeletonBox(width: 200, height: 28),
                 ),
                 error: (e, _) => Text(
                   l10n.text('diagnosticsLoadSessionsFailed'),
@@ -275,7 +275,9 @@ class _DiagnosticsContent extends ConsumerWidget {
           colors: colors,
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      // Shimmer grid placeholder keeps the diagnostics card layout in place
+      // while the analysis stream loads, instead of collapsing to a spinner.
+      loading: () => const _DiagnosticsLoadingSkeleton(),
       error: (error, stack) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -424,9 +426,12 @@ class _HealthGradeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overallScore = _computeOverallScore(diagnostics);
-    final grade = _gradeForScore(overallScore);
-    final gradeColor = _colorForScore(overallScore, colors);
+    // §4.25: a duplicate inline A..F mapping used to live here. The
+    // shared `OpticalHealthScore` model owns the bands now so any other
+    // surface (analytics, exports) renders the same letter for the same
+    // raw scores.
+    final health = diagnostics.healthScore;
+    final gradeColor = _gradeColor(health.grade, colors);
 
     return _DiagCard(
       colors: colors,
@@ -452,7 +457,7 @@ class _HealthGradeCard extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                grade,
+                health.letterGrade,
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w800,
@@ -463,7 +468,7 @@ class _HealthGradeCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            _labelForScore(overallScore),
+            health.qualityLabel,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -498,34 +503,20 @@ class _HealthGradeCard extends StatelessWidget {
     );
   }
 
-  double _computeOverallScore(OpticalTrainDiagnostics d) {
-    // Invert: lower tilt/collimation = better health.
-    // Score 0-100 where 100 is perfect.
-    final tiltPenalty = d.tiltScore.clamp(0, 100);
-    final collPenalty = d.collimationScore.clamp(0, 100);
-    return (100.0 - (tiltPenalty * 0.5 + collPenalty * 0.5)).clamp(0.0, 100.0);
-  }
-
-  String _gradeForScore(double score) {
-    if (score >= 90) return 'A';
-    if (score >= 75) return 'B';
-    if (score >= 55) return 'C';
-    if (score >= 35) return 'D';
-    return 'F';
-  }
-
-  String _labelForScore(double score) {
-    if (score >= 90) return 'Excellent';
-    if (score >= 75) return 'Good';
-    if (score >= 55) return 'Fair';
-    if (score >= 35) return 'Poor';
-    return 'Critical';
-  }
-
-  Color _colorForScore(double score, NightshadeColors colors) {
-    if (score >= 75) return colors.success;
-    if (score >= 55) return colors.warning;
-    return colors.error;
+  // Maps the shared `OpticalHealthGrade` enum to the theme palette. The
+  // model deliberately stays UI-agnostic; only the diagnostics widgets need
+  // to know which colour ramp matches the letter.
+  Color _gradeColor(OpticalHealthGrade grade, NightshadeColors colors) {
+    switch (grade) {
+      case OpticalHealthGrade.a:
+      case OpticalHealthGrade.b:
+        return colors.success;
+      case OpticalHealthGrade.c:
+        return colors.warning;
+      case OpticalHealthGrade.d:
+      case OpticalHealthGrade.f:
+        return colors.error;
+    }
   }
 }
 
@@ -1023,15 +1014,14 @@ class _PsfFieldMapCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (psfTiles.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: Text(
-                  'No PSF field tile data for this session.\nCapture plate-solved frames to generate PSF maps.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
-                ),
-              ),
+            // Shared EmptyState keeps diagnostics placeholders visually aligned
+            // with the science analytics tabs that already use icon+title+body.
+            const EmptyState(
+              icon: LucideIcons.grid,
+              title: 'No PSF field tile data for this session.',
+              body:
+                  'Capture plate-solved frames to generate PSF maps.',
+              padding: EdgeInsets.symmetric(vertical: 32),
             )
           else
             AspectRatio(
@@ -1272,15 +1262,14 @@ class _ResidualVectorCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (residuals.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: Text(
-                  'No astrometric residual data for this session.\nCapture plate-solved frames to generate residual vectors.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
-                ),
-              ),
+            // Match the PSF card's empty state so two adjacent diagnostics
+            // cards never disagree on icon+title+body styling.
+            const EmptyState(
+              icon: LucideIcons.wind,
+              title: 'No astrometric residual data for this session.',
+              body:
+                  'Capture plate-solved frames to generate residual vectors.',
+              padding: EdgeInsets.symmetric(vertical: 32),
             )
           else
             AspectRatio(
@@ -1591,6 +1580,52 @@ class _DiagCard extends StatelessWidget {
         border: Border.all(color: colors.border),
       ),
       child: child,
+    );
+  }
+}
+
+/// Skeleton placeholder for the diagnostics grid. Mirrors the rough card
+/// dimensions so the layout doesn't reflow when the analysis stream resolves.
+class _DiagnosticsLoadingSkeleton extends StatelessWidget {
+  const _DiagnosticsLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    Widget card(double height) => ShimmerLoading(
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: card(220)),
+            const SizedBox(width: 12),
+            Expanded(child: card(220)),
+            const SizedBox(width: 12),
+            Expanded(child: card(220)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: card(280)),
+            const SizedBox(width: 12),
+            Expanded(child: card(280)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        card(140),
+      ],
     );
   }
 }

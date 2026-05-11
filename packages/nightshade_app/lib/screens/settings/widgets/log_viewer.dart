@@ -20,11 +20,14 @@ class LogViewer extends ConsumerStatefulWidget {
   ConsumerState<LogViewer> createState() => _LogViewerState();
 }
 
-class _LogViewerState extends ConsumerState<LogViewer> {
+class _LogViewerState extends ConsumerState<LogViewer>
+    with WidgetsBindingObserver {
   LogLevel _minLevel = LogLevel.debug;
   String? _sourceFilter;
   String _searchQuery = '';
   bool _autoScroll = true;
+  // 1 Hz live-tail timer. Suspended when the app is backgrounded so a
+  // hidden settings tab doesn't keep polling the log buffer (§4.33).
   Timer? _refreshTimer;
 
   final ScrollController _scrollController = ScrollController();
@@ -37,7 +40,13 @@ class _LogViewerState extends ConsumerState<LogViewer> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refreshLogs();
+    _startRefreshTimer();
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
     // Refresh every second for live tailing
     _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshLogs();
@@ -45,7 +54,22 @@ class _LogViewerState extends ConsumerState<LogViewer> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_refreshTimer == null || !_refreshTimer!.isActive) {
+        _refreshLogs();
+        _startRefreshTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();

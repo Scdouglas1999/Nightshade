@@ -2462,7 +2462,35 @@ class _TelescopeCard extends ConsumerWidget {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        // Shimmer placeholder keeps the connections layout in place while
+        // the active profile loads instead of collapsing to a spinner.
+        loading: () => Row(
+          children: [
+            Expanded(
+              child: ShimmerLoading(
+                child: Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: ShimmerLoading(
+                child: Container(
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
         error: (error, stack) => Center(
           child: Text(
             'Could not load the active profile.',

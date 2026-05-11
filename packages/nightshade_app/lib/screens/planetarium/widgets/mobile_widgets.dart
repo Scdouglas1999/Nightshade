@@ -1240,7 +1240,25 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
               }).toList(),
             );
           },
-          loading: () => const Center(child: CircularProgressIndicator()),
+          // Shimmer tile column instead of a spinner so the search panel
+          // doesn't visibly shrink while suggestions stream in.
+          loading: () => Column(
+            children: List.generate(
+              5,
+              (_) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: ShimmerLoading(
+                  child: Container(
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: widget.colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           error: (e, _) => Center(
             child:
                 Text('Error: $e', style: TextStyle(color: widget.colors.error)),

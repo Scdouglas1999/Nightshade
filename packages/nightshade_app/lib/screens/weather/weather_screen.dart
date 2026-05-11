@@ -28,7 +28,7 @@ class WeatherScreen extends ConsumerStatefulWidget {
 }
 
 class _WeatherScreenState extends ConsumerState<WeatherScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -40,12 +40,14 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   double _radarContrast = 1.5; // Default to moderate contrast enhancement
   bool _statusCardExpanded = true;
 
-  // Refresh timer
+  // Refresh timer. Suspended when the app is backgrounded so a hidden window
+  // doesn't keep hammering the radar API every five minutes (§4.33).
   Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -56,10 +58,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     );
     _fadeController.forward();
 
-    // Start auto-refresh timer (every 5 minutes)
-    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      _refreshWeatherData();
-    });
+    _startRefreshTimer();
 
     // Initial fetch
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -67,8 +66,31 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     });
   }
 
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      _refreshWeatherData();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_refreshTimer == null || !_refreshTimer!.isActive) {
+        _startRefreshTimer();
+        // Catch up immediately after resume so radar isn't stale.
+        _refreshWeatherData();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fadeController.dispose();
     _refreshTimer?.cancel();
     super.dispose();
