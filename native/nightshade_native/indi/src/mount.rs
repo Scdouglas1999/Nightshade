@@ -252,36 +252,6 @@ impl IndiMount {
         }
     }
 
-    /// Deprecated: use [`Self::try_is_parked`].
-    ///
-    /// This shim exists so the bridge keeps compiling until W2-DRV-INDI
-    /// migrates the call sites in `bridge/src/devices.rs` and
-    /// `bridge/src/device_capabilities.rs`. It silently downgrades a missing
-    /// property to `false`, which is the very bug §5.15 is fixing — the
-    /// shim only exists so this Wave-1 commit lands without breaking the
-    /// build.
-    // TODO(W2-DRV-INDI): remove this shim and migrate callers to
-    // try_is_parked.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_is_parked() — surfaces unknown via Err"
-    )]
-    pub async fn is_parked(&self) -> bool {
-        match self.try_is_parked().await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(
-                    device = %self.device_name,
-                    error = %e,
-                    "is_parked() shim called and TELESCOPE_PARK is undefined; \
-                     reporting `false`. Migrate caller to try_is_parked() so \
-                     the UI can show 'unknown' instead of 'not parked'."
-                );
-                false
-            }
-        }
-    }
-
     /// Set tracking state
     pub async fn set_tracking(&self, enabled: bool) -> IndiResult<()> {
         let mut client = self.client.write().await;
@@ -317,28 +287,6 @@ impl IndiMount {
         }
     }
 
-    /// Deprecated: use [`Self::try_is_tracking`].
-    // TODO(W2-DRV-INDI): remove this shim and migrate callers.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_is_tracking() — surfaces unknown via Err"
-    )]
-    pub async fn is_tracking(&self) -> bool {
-        match self.try_is_tracking().await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(
-                    device = %self.device_name,
-                    error = %e,
-                    "is_tracking() shim called and TELESCOPE_TRACK_STATE is \
-                     undefined; reporting `false`. Migrate caller to \
-                     try_is_tracking() for an honest 'unknown'."
-                );
-                false
-            }
-        }
-    }
-
     /// Check if slewing.
     ///
     /// Returns:
@@ -358,28 +306,6 @@ impl IndiMount {
                 device: self.device_name.clone(),
                 property: EQUATORIAL_EOD_COORD.to_string(),
             }),
-        }
-    }
-
-    /// Deprecated: use [`Self::try_is_slewing`].
-    // TODO(W2-DRV-INDI): remove this shim and migrate callers.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_is_slewing() — surfaces unknown via Err"
-    )]
-    pub async fn is_slewing(&self) -> bool {
-        match self.try_is_slewing().await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!(
-                    device = %self.device_name,
-                    error = %e,
-                    "is_slewing() shim called and EQUATORIAL_EOD_COORD is \
-                     undefined; reporting `false`. Migrate caller to \
-                     try_is_slewing() for an honest 'unknown'."
-                );
-                false
-            }
         }
     }
 
@@ -574,16 +500,4 @@ mod tests {
         assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
     }
 
-    /// §5.15 (shim): the deprecated bool-returning methods must remain
-    /// no-op-compatible (returning `false`) so the bridge keeps compiling.
-    /// W2-DRV-INDI removes them after migrating call sites.
-    #[tokio::test]
-    #[allow(deprecated)]
-    async fn deprecated_bool_shims_return_false_when_undefined() {
-        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
-        let mount = IndiMount::new(client, "TestMount");
-        assert!(!mount.is_parked().await);
-        assert!(!mount.is_tracking().await);
-        assert!(!mount.is_slewing().await);
-    }
 }

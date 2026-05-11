@@ -127,24 +127,6 @@ impl IndiCamera {
         Ok((1, 1))
     }
 
-    /// Deprecated: use [`Self::try_get_binning`] (strict, `Ok(None)` when not
-    /// yet defined) or [`Self::get_binning_or_default`] (waits + warns).
-    ///
-    /// This shim exists so the bridge keeps compiling until W2-DRV-INDI
-    /// migrates the call sites. It uses a 0-duration "wait" — i.e. just
-    /// reads whatever is currently cached and warns if missing.
-    // TODO(W2-DRV-INDI): remove this shim and call try_get_binning /
-    // get_binning_or_default directly from bridge dispatch.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_get_binning() (strict) or get_binning_or_default(timeout) (logged fallback)"
-    )]
-    pub async fn get_binning(&self) -> Result<(i32, i32), String> {
-        self.get_binning_or_default(Duration::from_millis(0))
-            .await
-            .map_err(|e| e.to_string())
-    }
-
     /// Set frame (ROI)
     pub async fn set_frame(&self, x: i32, y: i32, width: i32, height: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
@@ -223,19 +205,6 @@ impl IndiCamera {
                 property: CCD_FRAME.to_string(),
             }),
         }
-    }
-
-    /// Deprecated shim. See [`Self::try_get_frame`] /
-    /// [`Self::get_frame_or_default`].
-    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_get_frame() (strict) or get_frame_or_default(timeout) (logged fallback)"
-    )]
-    pub async fn get_frame(&self) -> Result<(i32, i32, i32, i32), String> {
-        self.get_frame_or_default(Duration::from_millis(0))
-            .await
-            .map_err(|e| e.to_string())
     }
 
     /// Set cooler target temperature
@@ -439,32 +408,6 @@ impl IndiCamera {
             "INDI camera CCD_INFO/CCD_MAX_BIN_Y not defined within timeout; falling back to default."
         );
         Ok(Self::DEFAULT_MAX_BIN)
-    }
-
-    /// Deprecated shim. See [`Self::try_get_max_bin_x`] /
-    /// [`Self::get_max_bin_x_or_default`].
-    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_get_max_bin_x() or get_max_bin_x_or_default(timeout)"
-    )]
-    pub async fn get_max_bin_x(&self) -> Option<i32> {
-        self.get_max_bin_x_or_default(Duration::from_millis(0))
-            .await
-            .ok()
-    }
-
-    /// Deprecated shim. See [`Self::try_get_max_bin_y`] /
-    /// [`Self::get_max_bin_y_or_default`].
-    // TODO(W2-DRV-INDI): remove this shim and migrate bridge call sites.
-    #[deprecated(
-        since = "2.5.0",
-        note = "Use try_get_max_bin_y() or get_max_bin_y_or_default(timeout)"
-    )]
-    pub async fn get_max_bin_y(&self) -> Option<i32> {
-        self.get_max_bin_y_or_default(Duration::from_millis(0))
-            .await
-            .ok()
     }
 
     // =========================================================================
@@ -697,8 +640,7 @@ impl IndiCamera {
 /// bridge wants a single `await` that gives a deterministic answer within a
 /// bound. We use a short polling interval rather than a one-shot read so a
 /// late-arriving `defNumberVector` is picked up. A 0-duration timeout is
-/// honored as "single-shot read" (used by the deprecated bool-returning
-/// shims).
+/// honored as "single-shot read".
 async fn wait_for_optional<T, F, Fut>(timeout: Duration, mut op: F) -> Result<Option<T>, IndiError>
 where
     F: FnMut() -> Fut,
@@ -801,15 +743,4 @@ mod tests {
         assert_eq!(by, IndiCamera::DEFAULT_MAX_BIN);
     }
 
-    /// §5.10 (shim): the deprecated `get_binning` keeps the previous
-    /// `Result<(i32, i32), String>` contract so the bridge keeps compiling
-    /// until W2-DRV-INDI migrates the call sites.
-    #[tokio::test]
-    #[allow(deprecated)]
-    async fn deprecated_get_binning_shim_is_no_op_compatible() {
-        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
-        let camera = IndiCamera::new(client, "TestCamera");
-        let result = camera.get_binning().await;
-        assert_eq!(result, Ok((1, 1)));
-    }
 }
