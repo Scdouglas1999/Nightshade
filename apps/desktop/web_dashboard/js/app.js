@@ -20,11 +20,20 @@
     mountDeviceId: '',
     focuserDeviceId: '',
     filterWheelDeviceId: '',
+    rotatorDeviceId: '',
     lastImage: null,
     mountStatus: null,
     cameraStatus: null,
     sequencerStatus: null,
     guidingStatus: null,
+    focuserStatus: null,
+    filterWheelStatus: null,
+    filterWheelPositions: null,
+    rotatorStatus: null,
+    readoutModes: [],
+    selectedReadoutMode: null,
+    lastAutofocusResult: null,
+    lastImagePositionAngle: null,
     guideHistory: { ra: [], dec: [] },
     maxGuidePoints: 100,
     logEntries: [],
@@ -33,7 +42,10 @@
     pingInterval: null,
     wsFallbackPollInterval: null,
     lastWsMessageAt: 0,
-    panelLastUpdate: { devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0 },
+    panelLastUpdate: {
+      devices: 0, mount: 0, camera: 0, sequencer: 0, guiding: 0,
+      focuser: 0, 'filter-wheel': 0, rotator: 0,
+    },
     staleCheckInterval: null,
     debugMode: false,
     pendingImageFetchTimer: null,
@@ -43,6 +55,8 @@
     dpadActiveAxis: null,
     pressedKeys: new Set(),
     connectRetryCount: 0,
+    targetSearchDebounce: null,
+    targetSearchAbort: null,
   };
 
   // Why a panel registry: §2.10 (stale indicators), §2.12 (per-panel enable),
@@ -51,11 +65,22 @@
   const PANEL_DEVICE_TYPES = {
     'panel-camera': 'camera',
     'panel-mount': 'mount',
+    'panel-focuser': 'focuser',
+    'panel-filter-wheel': 'filterWheel',
+    'panel-rotator': 'rotator',
   };
 
   // Phone tabs: which panels are accessible via the bottom tab bar on phones.
   const PHONE_PANELS = ['panel-devices', 'panel-mount', 'panel-camera',
                         'panel-sequencer', 'panel-log'];
+
+  // §2.17 — phone-tab grouping: the new device control panels piggy-back
+  // on existing tabs so the bottom nav stays at five slots. Filter wheel,
+  // focuser, and rotator live in the Devices tab (next to discovery);
+  // camera, mount, and sequencer keep their own dedicated tabs.
+  const PHONE_TAB_EXTRA_PANELS = {
+    'panel-devices': ['panel-filter-wheel', 'panel-focuser', 'panel-rotator'],
+  };
 
   // §2.10 — if the WS has been silent for this long, fall back to REST polling.
   const WS_FALLBACK_THRESHOLD_MS = 10000;
@@ -135,6 +160,17 @@
     // Camera controls
     document.getElementById('btn-expose').addEventListener('click', handleExpose);
     document.getElementById('btn-abort-expose').addEventListener('click', handleAbortExpose);
+    document.getElementById('btn-camera-apply-gain').addEventListener('click', handleCameraApplyGain);
+    document.getElementById('btn-camera-apply-offset').addEventListener('click', handleCameraApplyOffset);
+    document.getElementById('btn-camera-apply-readout').addEventListener('click', handleCameraApplyReadout);
+    document.getElementById('btn-camera-cooler-on').addEventListener('click', () => handleCameraCooler(true));
+    document.getElementById('btn-camera-cooler-off').addEventListener('click', () => handleCameraCooler(false));
+    document.getElementById('btn-camera-apply-cooling').addEventListener('click', handleCameraApplyCooling);
+    document.getElementById('btn-camera-subframe-full').addEventListener('click', handleCameraSubframeFull);
+    document.getElementById('camera-binning').addEventListener('change', handleCameraBinningChange);
+    // Live readout of the temperature slider so the operator sees the
+    // setpoint before pressing Set.
+    document.getElementById('camera-target-temp').addEventListener('input', updateCoolerSliderReadout);
 
     // Mount controls — press-and-hold d-pad (§2.7).
     setupDpad();
@@ -142,6 +178,37 @@
     document.getElementById('btn-mount-park').addEventListener('click', handleMountPark);
     document.getElementById('btn-mount-unpark').addEventListener('click', handleMountUnpark);
     document.getElementById('btn-mount-tracking').addEventListener('click', handleMountToggleTracking);
+
+    // Mount goto / object slew (§2.17)
+    document.getElementById('btn-mount-goto').addEventListener('click', handleMountGoto);
+    document.getElementById('btn-mount-goto-abort').addEventListener('click', handleMountGotoAbort);
+    document.getElementById('mount-goto-name').addEventListener('input', handleTargetSearchInput);
+    document.getElementById('mount-goto-name').addEventListener('focus', handleTargetSearchInput);
+    document.getElementById('mount-goto-name').addEventListener('blur', () => {
+      // Why a small delay before hiding: click on a suggestion fires after
+      // the input's blur; hiding immediately would cancel the click.
+      setTimeout(hideTargetSuggestions, 150);
+    });
+    document.getElementById('mount-goto-name').addEventListener('keydown', handleTargetSearchKeyDown);
+
+    // Filter wheel — wired up in setupFilterWheelPanel after device discovery.
+
+    // Focuser controls
+    document.getElementById('btn-focuser-move').addEventListener('click', handleFocuserMoveTo);
+    document.getElementById('btn-focuser-halt').addEventListener('click', handleFocuserHalt);
+    document.getElementById('btn-focuser-autofocus').addEventListener('click', handleFocuserRunAutofocus);
+    document.getElementById('btn-focuser-autofocus-cancel').addEventListener('click', handleFocuserCancelAutofocus);
+    for (const btn of document.querySelectorAll('.focuser-jog-grid button')) {
+      btn.addEventListener('click', () => {
+        const delta = parseInt(btn.dataset.delta, 10);
+        if (!isNaN(delta)) handleFocuserMoveRelative(delta);
+      });
+    }
+
+    // Rotator controls
+    document.getElementById('btn-rotator-move').addEventListener('click', handleRotatorMoveTo);
+    document.getElementById('btn-rotator-halt').addEventListener('click', handleRotatorHalt);
+    document.getElementById('btn-rotator-sync-image').addEventListener('click', handleRotatorSyncImage);
 
     // Sequencer controls
     document.getElementById('btn-seq-start').addEventListener('click', handleSeqStart);
@@ -163,6 +230,9 @@
 
     // Guide graph canvas
     setupGuideCanvas();
+    // Render initial slider readout so the user doesn't see an empty span
+    // before any input event fires.
+    updateCoolerSliderReadout();
     setConnectionStatus('disconnected');
 
     // Phone layout — apply on load and on resize.
@@ -687,6 +757,9 @@
     updateStaleIndicator('camera');
     updateStaleIndicator('sequencer');
     updateStaleIndicator('guiding');
+    updateStaleIndicator('focuser');
+    updateStaleIndicator('filter-wheel');
+    updateStaleIndicator('rotator');
   }
 
   function updateStaleIndicator(panelKey) {
@@ -723,6 +796,9 @@
       fetchGuidingStatus(),
       fetchMountStatusIfConnected(),
       fetchCameraStatusIfConnected(),
+      fetchFocuserStatusIfConnected(),
+      fetchFilterWheelStatusIfConnected(),
+      fetchRotatorStatusIfConnected(),
     ]);
   }
 
@@ -749,9 +825,16 @@
           case 'mount': state.mountDeviceId = dev.id; break;
           case 'focuser': state.focuserDeviceId = dev.id; break;
           case 'filterWheel': state.filterWheelDeviceId = dev.id; break;
+          case 'rotator': state.rotatorDeviceId = dev.id; break;
         }
       }
       refreshPanelEnablement();
+      // Load auxiliary data that we only know how to fetch once a device is
+      // connected: camera readout modes, filter wheel positions+offsets.
+      // These are best-effort — handlers log on failure rather than blocking
+      // the panel render.
+      maybeLoadCameraReadoutModes();
+      maybeLoadFilterWheelPositions();
     } catch (e) {
       // §2.10 — surface fetch errors via the panel stale indicator instead of
       // swallowing them silently. Stale check will pick this up by virtue of
@@ -800,9 +883,76 @@
       const status = await api.getCameraStatus(state.cameraDeviceId);
       state.cameraStatus = status;
       renderCameraStatusInfo();
+      // Mirror the live gain/offset from the camera into the inputs so the
+      // operator sees what the device currently reports (don't overwrite
+      // while the input is focused, otherwise typing fights the poll).
+      syncCameraInputsFromStatus(status);
       markPanelFresh('camera');
     } catch (e) {
       addLogEntry('error', 'Camera status fetch failed: ' + e.message);
+    }
+  }
+
+  async function fetchFocuserStatusIfConnected() {
+    if (!state.focuserDeviceId) return;
+    try {
+      const status = await api.focuserGetStatus(state.focuserDeviceId);
+      state.focuserStatus = status;
+      renderFocuserPanel();
+      markPanelFresh('focuser');
+    } catch (e) {
+      addLogEntry('error', 'Focuser status fetch failed: ' + e.message);
+    }
+  }
+
+  async function fetchFilterWheelStatusIfConnected() {
+    if (!state.filterWheelDeviceId) return;
+    try {
+      // Why both calls: the status payload (/api/equipment/filter-wheel/status)
+      // gives current-position + moving; the positions payload gives the slot
+      // list w/ offsets. The latter only needs refreshing on connect/rename
+      // events, but reusing it here keeps WS-driven refresh predictable.
+      const status = await api.getFilterWheelStatus(state.filterWheelDeviceId);
+      state.filterWheelStatus = status;
+      renderFilterWheelPanel();
+      markPanelFresh('filter-wheel');
+    } catch (e) {
+      addLogEntry('error', 'Filter wheel status fetch failed: ' + e.message);
+    }
+  }
+
+  async function fetchRotatorStatusIfConnected() {
+    if (!state.rotatorDeviceId) return;
+    try {
+      const status = await api.rotatorGetStatus(state.rotatorDeviceId);
+      state.rotatorStatus = status;
+      renderRotatorPanel();
+      markPanelFresh('rotator');
+    } catch (e) {
+      addLogEntry('error', 'Rotator status fetch failed: ' + e.message);
+    }
+  }
+
+  async function maybeLoadCameraReadoutModes() {
+    if (!state.cameraDeviceId) return;
+    if (state.readoutModes && state.readoutModes.length > 0) return;
+    try {
+      const result = await api.cameraGetReadoutModes(state.cameraDeviceId);
+      state.readoutModes = (result && result.readoutModes) || [];
+      renderReadoutModeOptions();
+    } catch (e) {
+      addLogEntry('error', 'Readout modes load failed: ' + e.message);
+    }
+  }
+
+  async function maybeLoadFilterWheelPositions() {
+    if (!state.filterWheelDeviceId) return;
+    try {
+      const result = await api.filterWheelGetPositions(state.filterWheelDeviceId);
+      state.filterWheelPositions = result;
+      renderFilterWheelPanel();
+    } catch (e) {
+      addLogEntry('error', 'Filter wheel positions load failed: ' + e.message);
     }
   }
 
@@ -832,9 +982,32 @@
         cancelPendingImageFetch();
         fetchLastImage();
       }
+      // Capture plate-solve PA from imaging events so the rotator panel can
+      // sync to the image. Many plate-solve events publish 'positionAngle'
+      // (or 'pa') in their payload; we accept both.
+      const imgPayload = data.data || data;
+      const pa = imgPayload && (imgPayload.positionAngle ?? imgPayload.pa
+        ?? imgPayload.position_angle);
+      if (typeof pa === 'number' && isFinite(pa)) {
+        state.lastImagePositionAngle = Number(pa);
+        renderRotatorPanel();
+      }
       markPanelFresh('camera');
     } else if (category === 'mount') {
       fetchMountStatusIfConnected();
+    } else if (category === 'focuser') {
+      const eventType = data.eventType || data.event || '';
+      fetchFocuserStatusIfConnected();
+      if (eventType === 'AutofocusComplete' || eventType === 'autofocus_complete') {
+        // Capture the result payload so the panel can show "last autofocus"
+        // even after the device returns to idle.
+        state.lastAutofocusResult = data.data || data.result || data;
+        renderFocuserPanel();
+      }
+    } else if (category === 'filterWheel' || category === 'filter_wheel') {
+      fetchFilterWheelStatusIfConnected();
+    } else if (category === 'rotator') {
+      fetchRotatorStatusIfConnected();
     } else if (category === 'sequencer') {
       fetchSequencerStatus();
     } else if (category === 'guiding' || category === 'phd2') {
@@ -921,13 +1094,28 @@
       return;
     }
 
+    // Pull the offset from the camera-offset input so each expose carries
+    // the latest dashboard intent rather than relying on a separate
+    // /api/camera/offset call (which still works, but a single round-trip
+    // is friendlier on slow links).
+    const offsetRaw = document.getElementById('camera-offset');
+    const offset = offsetRaw ? parseInt(offsetRaw.value, 10) : NaN;
+    const subframe = readSubframeFromInputs();
+
     try {
       await api.cameraExpose(state.cameraDeviceId, exposureTime, {
         gain: isNaN(gain) ? undefined : gain,
+        offset: isNaN(offset) ? undefined : offset,
         binX: binning || 1,
         binY: binning || 1,
+        x: subframe ? subframe.x : undefined,
+        y: subframe ? subframe.y : undefined,
+        width: subframe ? subframe.width : undefined,
+        height: subframe ? subframe.height : undefined,
       });
-      addLogEntry('camera', 'Exposure started: ' + exposureTime + 's');
+      addLogEntry('camera', 'Exposure started: ' + exposureTime + 's' +
+        (subframe ? ' (subframe ' + subframe.width + 'x' + subframe.height +
+          ' @ ' + subframe.x + ',' + subframe.y + ')' : ''));
       showToast('Exposure started');
 
       // §2.8 — replace the unconditional setTimeout((exposureTime+2)*1000)
@@ -1222,6 +1410,670 @@
       addLogEntry('guiding', 'Guiding stopped');
     } catch (e) {
       showToast('Guide stop failed: ' + e.message, 'error');
+    }
+  }
+
+  // =========================================================================
+  // Camera Extended Controls (§2.17)
+  // =========================================================================
+
+  // Mirror the live camera status into the gain/offset inputs so the user
+  // sees what the device currently reports — but only when the input is
+  // not focused (otherwise we'd fight the operator's typing).
+  function syncCameraInputsFromStatus(status) {
+    if (!status) return;
+    const gainInput = document.getElementById('camera-gain');
+    const offsetInput = document.getElementById('camera-offset');
+    if (gainInput && document.activeElement !== gainInput && status.gain != null) {
+      gainInput.value = String(status.gain);
+    }
+    if (offsetInput && document.activeElement !== offsetInput && status.offset != null) {
+      offsetInput.value = String(status.offset);
+    }
+    // Cooling slider readout: show the live setpoint, not the stale UI
+    // value, when the operator isn't actively dragging the slider.
+    const slider = document.getElementById('camera-target-temp');
+    if (slider && document.activeElement !== slider && status.targetTemp != null) {
+      slider.value = String(status.targetTemp);
+      updateCoolerSliderReadout();
+    }
+  }
+
+  function updateCoolerSliderReadout() {
+    const slider = document.getElementById('camera-target-temp');
+    const readout = document.getElementById('camera-target-temp-readout');
+    if (slider && readout) {
+      readout.textContent = slider.value + ' °C';
+    }
+  }
+
+  async function handleCameraApplyGain() {
+    if (!state.cameraDeviceId) return;
+    const v = parseInt(document.getElementById('camera-gain').value, 10);
+    if (isNaN(v)) { showToast('Gain must be an integer', 'error'); return; }
+    try {
+      await api.cameraSetGain(state.cameraDeviceId, v);
+      addLogEntry('camera', 'Gain set to ' + v);
+      showToast('Gain applied');
+    } catch (e) {
+      showToast('Set gain failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleCameraApplyOffset() {
+    if (!state.cameraDeviceId) return;
+    const v = parseInt(document.getElementById('camera-offset').value, 10);
+    if (isNaN(v)) { showToast('Offset must be an integer', 'error'); return; }
+    try {
+      await api.cameraSetOffset(state.cameraDeviceId, v);
+      addLogEntry('camera', 'Offset set to ' + v);
+      showToast('Offset applied');
+    } catch (e) {
+      showToast('Set offset failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleCameraApplyReadout() {
+    if (!state.cameraDeviceId) return;
+    const sel = document.getElementById('camera-readout-mode');
+    if (!sel || sel.value === '') {
+      showToast('Pick a readout mode first', 'error');
+      return;
+    }
+    const idx = parseInt(sel.value, 10);
+    if (isNaN(idx)) { showToast('Invalid readout mode', 'error'); return; }
+    try {
+      await api.cameraSetReadoutMode(state.cameraDeviceId, idx);
+      state.selectedReadoutMode = idx;
+      addLogEntry('camera', 'Readout mode set to ' + sel.options[sel.selectedIndex].textContent);
+      showToast('Readout mode applied');
+    } catch (e) {
+      showToast('Set readout failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleCameraCooler(enable) {
+    if (!state.cameraDeviceId) return;
+    // When turning on we use the current slider setpoint; when turning off
+    // we pass null so the backend just disables the cooler without
+    // adjusting target temperature.
+    const slider = document.getElementById('camera-target-temp');
+    const target = enable ? parseFloat(slider.value) : null;
+    try {
+      await api.cameraSetCooling(state.cameraDeviceId, enable, target);
+      addLogEntry('camera',
+        'Cooler ' + (enable ? 'on (target ' + target + ' °C)' : 'off'));
+      showToast('Cooler ' + (enable ? 'on' : 'off'));
+    } catch (e) {
+      showToast('Cooler toggle failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleCameraApplyCooling() {
+    if (!state.cameraDeviceId) return;
+    const target = parseFloat(document.getElementById('camera-target-temp').value);
+    if (isNaN(target)) { showToast('Invalid target temperature', 'error'); return; }
+    try {
+      // Why pass enabled=true: the operator is explicitly setting a target
+      // by pressing Set, which is meaningless if cooling is off. The
+      // "Cooler OFF" button handles the disable path.
+      await api.cameraSetCooling(state.cameraDeviceId, true, target);
+      addLogEntry('camera', 'Cooling target set to ' + target + ' °C');
+      showToast('Cooling target ' + target + ' °C');
+    } catch (e) {
+      showToast('Cooling failed: ' + e.message, 'error');
+    }
+  }
+
+  function handleCameraBinningChange() {
+    if (!state.cameraDeviceId) return;
+    const v = parseInt(document.getElementById('camera-binning').value, 10) || 1;
+    // Queue the binning for the next expose; ASCOM commits binning at
+    // StartExposure time so applying it standalone wouldn't survive.
+    api.cameraSetBinning(state.cameraDeviceId, v, v);
+    addLogEntry('camera', 'Binning queued: ' + v + 'x' + v);
+  }
+
+  function handleCameraSubframeFull() {
+    if (!state.cameraDeviceId) return;
+    const s = state.cameraStatus;
+    if (s && s.sensorWidth > 0 && s.sensorHeight > 0) {
+      document.getElementById('camera-subframe-x').value = '0';
+      document.getElementById('camera-subframe-y').value = '0';
+      document.getElementById('camera-subframe-w').value = String(s.sensorWidth);
+      document.getElementById('camera-subframe-h').value = String(s.sensorHeight);
+    } else {
+      // Clear all four fields if we don't know the sensor size — the
+      // backend defaults to full-frame on missing x/y/w/h.
+      for (const id of ['camera-subframe-x', 'camera-subframe-y',
+                        'camera-subframe-w', 'camera-subframe-h']) {
+        document.getElementById(id).value = '';
+      }
+    }
+    // Drop any queued subframe so cameraExpose ships full-frame defaults.
+    api.clearPendingSubframe();
+    addLogEntry('camera', 'Subframe reset to full sensor');
+  }
+
+  function readSubframeFromInputs() {
+    const x = parseInt(document.getElementById('camera-subframe-x').value, 10);
+    const y = parseInt(document.getElementById('camera-subframe-y').value, 10);
+    const w = parseInt(document.getElementById('camera-subframe-w').value, 10);
+    const h = parseInt(document.getElementById('camera-subframe-h').value, 10);
+    // Only return a subframe when all four fields are present and positive.
+    if ([x, y, w, h].every((v) => Number.isFinite(v)) && w > 0 && h > 0) {
+      return { x, y, width: w, height: h };
+    }
+    return null;
+  }
+
+  function renderReadoutModeOptions() {
+    const sel = document.getElementById('camera-readout-mode');
+    if (!sel) return;
+    // Preserve the previously selected mode if it still exists.
+    const prev = sel.value;
+    clearElement(sel);
+    if (!state.readoutModes || state.readoutModes.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '-- none reported --';
+      sel.appendChild(opt);
+      return;
+    }
+    state.readoutModes.forEach((mode, idx) => {
+      const opt = document.createElement('option');
+      opt.value = String(idx);
+      // Readout modes can arrive as strings or objects depending on driver.
+      opt.textContent = typeof mode === 'string'
+        ? mode
+        : (mode && (mode.name || mode.label)) || ('Mode ' + idx);
+      sel.appendChild(opt);
+    });
+    if (prev !== '' && parseInt(prev, 10) < state.readoutModes.length) {
+      sel.value = prev;
+    }
+  }
+
+  // =========================================================================
+  // Filter Wheel Controls (§2.17)
+  // =========================================================================
+
+  async function handleFilterWheelRotateTo(position) {
+    if (!state.filterWheelDeviceId) return;
+    try {
+      await api.filterWheelSetPosition(state.filterWheelDeviceId, position);
+      addLogEntry('focuser', 'Filter wheel rotating to slot ' + position);
+      showToast('Rotating filter wheel');
+    } catch (e) {
+      showToast('Filter wheel rotate failed: ' + e.message, 'error');
+    }
+  }
+
+  function renderFilterWheelPanel() {
+    const positions = state.filterWheelPositions;
+    const status = state.filterWheelStatus;
+    const currentPos = status && status.position != null
+      ? Number(status.position)
+      : (positions && positions.currentPosition);
+    const currentName = positions && positions.positions && currentPos >= 0
+      && currentPos < positions.positions.length
+      ? positions.positions[currentPos].name
+      : (status && status.filterNames && currentPos >= 0
+          ? status.filterNames[currentPos]
+          : null);
+
+    const badge = document.getElementById('fw-current-badge');
+    if (badge) {
+      badge.textContent = currentName || (currentPos >= 0 ? 'Slot ' + currentPos : '--');
+      badge.className = 'badge ' + (currentName ? 'badge-completed' : 'badge-idle');
+    }
+    const posEl = document.getElementById('fw-current-position');
+    if (posEl) posEl.textContent = currentPos >= 0 ? String(currentPos) : '--';
+    const nameEl = document.getElementById('fw-current-name');
+    if (nameEl) nameEl.textContent = currentName || '--';
+
+    const listEl = document.getElementById('fw-list');
+    if (!listEl) return;
+    clearElement(listEl);
+
+    const slots = (positions && positions.positions) || [];
+    if (slots.length === 0) {
+      // Fall back to the slot count from filter wheel status if positions
+      // didn't load yet (e.g. focus-model offsets endpoint 404'd on a fresh
+      // install).
+      if (status && status.filterCount > 0 && status.filterNames) {
+        for (let i = 0; i < status.filterCount; i++) {
+          slots.push({
+            position: i,
+            name: status.filterNames[i] || ('Slot ' + i),
+            offset: null,
+          });
+        }
+      }
+    }
+
+    if (slots.length === 0) {
+      listEl.appendChild(createEmptyState('No filters reported'));
+      return;
+    }
+
+    const moving = status && status.moving;
+    for (const slot of slots) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'filter-wheel-row';
+      if (slot.position === currentPos) {
+        row.classList.add('filter-wheel-row--current');
+      }
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', slot.position === currentPos ? 'true' : 'false');
+      row.setAttribute('aria-label',
+        'Rotate filter wheel to slot ' + slot.position + ', ' + slot.name +
+        (slot.offset != null ? ', focuser offset ' + slot.offset : ''));
+      row.disabled = !!moving;
+      // Why click and not pointerdown: a filter wheel rotation is a discrete
+      // one-shot command, not a press-and-hold motion. The press-and-hold
+      // pattern from §2.7 applies only to streaming motion APIs.
+      row.addEventListener('click', () => handleFilterWheelRotateTo(slot.position));
+
+      const idxSpan = document.createElement('span');
+      idxSpan.className = 'filter-wheel-row__index';
+      idxSpan.textContent = String(slot.position);
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'filter-wheel-row__name';
+      nameSpan.textContent = slot.name;
+      const offsetSpan = document.createElement('span');
+      offsetSpan.className = 'filter-wheel-row__offset';
+      offsetSpan.textContent = slot.offset != null
+        ? (slot.offset > 0 ? '+' + slot.offset : String(slot.offset))
+        : '';
+      offsetSpan.title = slot.offset != null
+        ? 'Focuser offset for this filter (steps)'
+        : '';
+
+      row.appendChild(idxSpan);
+      row.appendChild(nameSpan);
+      row.appendChild(offsetSpan);
+      listEl.appendChild(row);
+    }
+  }
+
+  // =========================================================================
+  // Focuser Controls (§2.17)
+  // =========================================================================
+
+  async function handleFocuserMoveTo() {
+    if (!state.focuserDeviceId) return;
+    const v = parseInt(document.getElementById('focuser-target').value, 10);
+    if (isNaN(v) || v < 0) {
+      showToast('Enter a target focuser position', 'error');
+      return;
+    }
+    try {
+      await api.focuserMoveTo(state.focuserDeviceId, v);
+      addLogEntry('focuser', 'Focuser moving to ' + v);
+      showToast('Focuser moving');
+    } catch (e) {
+      showToast('Focuser move failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleFocuserMoveRelative(delta) {
+    if (!state.focuserDeviceId) return;
+    try {
+      await api.focuserMoveRelative(state.focuserDeviceId, delta);
+      addLogEntry('focuser', 'Focuser jog ' + (delta > 0 ? '+' : '') + delta);
+    } catch (e) {
+      showToast('Focuser jog failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleFocuserHalt() {
+    if (!state.focuserDeviceId) return;
+    try {
+      await api.focuserHalt(state.focuserDeviceId);
+      addLogEntry('focuser', 'Focuser halted');
+    } catch (e) {
+      showToast('Focuser halt failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleFocuserRunAutofocus() {
+    if (!state.focuserDeviceId) {
+      showToast('No focuser connected', 'error');
+      return;
+    }
+    if (!state.cameraDeviceId) {
+      showToast('Autofocus requires a connected camera', 'error');
+      return;
+    }
+    try {
+      const result = await api.autofocusStart(state.focuserDeviceId, state.cameraDeviceId);
+      state.lastAutofocusResult = result;
+      addLogEntry('focuser', 'Autofocus started');
+      showToast('Autofocus started');
+      renderFocuserPanel();
+    } catch (e) {
+      showToast('Autofocus failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleFocuserCancelAutofocus() {
+    if (!state.focuserDeviceId) return;
+    try {
+      await api.autofocusCancel(state.focuserDeviceId);
+      addLogEntry('focuser', 'Autofocus cancel requested');
+    } catch (e) {
+      showToast('Autofocus cancel failed: ' + e.message, 'error');
+    }
+  }
+
+  function renderFocuserPanel() {
+    const s = state.focuserStatus;
+    const posEl = document.getElementById('focuser-position');
+    const tempEl = document.getElementById('focuser-temp');
+    const movingEl = document.getElementById('focuser-moving');
+    const afEl = document.getElementById('focuser-last-af');
+
+    if (posEl) posEl.textContent = s && s.position != null ? String(s.position) : '--';
+    if (tempEl) {
+      tempEl.textContent = s && s.temperature != null
+        ? s.temperature.toFixed(1) + ' °C'
+        : '--';
+    }
+    if (movingEl) movingEl.classList.toggle('hidden-inline', !(s && s.moving));
+
+    if (afEl) {
+      const r = state.lastAutofocusResult;
+      if (!r) {
+        afEl.textContent = '--';
+      } else {
+        // Autofocus result fields can vary: bestFocus / bestPosition / hfr.
+        const best = r.bestFocus ?? r.bestPosition ?? r.position;
+        const hfr = r.hfr ?? r.bestHfr ?? r.minHfr;
+        const success = r.success !== false; // default to true unless explicitly false
+        const parts = [];
+        if (best != null) parts.push('pos=' + Math.round(best));
+        if (hfr != null) parts.push('HFR=' + Number(hfr).toFixed(2));
+        if (!success) parts.unshift('FAILED');
+        afEl.textContent = parts.length ? parts.join(', ') : 'done';
+      }
+    }
+  }
+
+  // =========================================================================
+  // Rotator Controls (§2.17)
+  // =========================================================================
+
+  async function handleRotatorMoveTo() {
+    if (!state.rotatorDeviceId) return;
+    const v = parseFloat(document.getElementById('rotator-target').value);
+    if (isNaN(v)) {
+      showToast('Enter a target sky PA in degrees', 'error');
+      return;
+    }
+    // Normalise to [0, 360).
+    const normalised = ((v % 360) + 360) % 360;
+    try {
+      await api.rotatorMoveTo(state.rotatorDeviceId, normalised);
+      addLogEntry('system', 'Rotator slewing to ' + normalised.toFixed(2) + '°');
+      showToast('Rotator slewing');
+    } catch (e) {
+      showToast('Rotator move failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleRotatorHalt() {
+    if (!state.rotatorDeviceId) return;
+    try {
+      await api.rotatorHalt(state.rotatorDeviceId);
+      addLogEntry('system', 'Rotator halted');
+    } catch (e) {
+      showToast('Rotator halt failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleRotatorSyncImage() {
+    if (!state.rotatorDeviceId) return;
+    if (state.lastImagePositionAngle == null) {
+      showToast('No plate-solve PA available yet — take a frame first', 'error');
+      return;
+    }
+    try {
+      await api.rotatorSync(state.rotatorDeviceId, state.lastImagePositionAngle);
+      addLogEntry('system',
+        'Rotator synced to image PA ' + state.lastImagePositionAngle.toFixed(2) + '°');
+      showToast('Rotator synced');
+    } catch (e) {
+      // TODO[W5-BACKEND-EXTEND]: /api/rotator/sync isn't wired up yet. Surface
+      // the failure honestly per CLAUDE.md "errors are a feature".
+      showToast('Rotator sync failed (backend may not implement /api/rotator/sync yet): ' + e.message, 'error');
+    }
+  }
+
+  function renderRotatorPanel() {
+    const s = state.rotatorStatus;
+    const skyEl = document.getElementById('rotator-sky-pa');
+    const mechEl = document.getElementById('rotator-mech-pa');
+    const movingEl = document.getElementById('rotator-moving');
+    if (skyEl) {
+      skyEl.textContent = s && s.position != null ? s.position.toFixed(2) + '°' : '--°';
+    }
+    if (mechEl) {
+      mechEl.textContent = s && s.mechanicalPosition != null
+        ? s.mechanicalPosition.toFixed(2) + '°'
+        : '--°';
+    }
+    if (movingEl) {
+      movingEl.classList.toggle('hidden-inline', !(s && (s.moving || s.isMoving)));
+    }
+
+    // Highlight Sync-to-image when we have a fresh plate-solve PA.
+    const syncBtn = document.getElementById('btn-rotator-sync-image');
+    if (syncBtn) {
+      if (state.lastImagePositionAngle != null) {
+        syncBtn.title = 'Sync to last plate-solve PA: ' +
+          state.lastImagePositionAngle.toFixed(2) + '°';
+      } else {
+        syncBtn.title = 'No plate-solve PA available yet';
+      }
+    }
+  }
+
+  // =========================================================================
+  // Mount Goto / Object Slew (§2.17)
+  // =========================================================================
+
+  // Parse HH:MM:SS or HH.hhh to decimal hours. Accepts negative values for
+  // wrap-around inputs even though canonical RA is 0..24.
+  function parseRaHours(value) {
+    if (value == null) return NaN;
+    const raw = String(value).trim();
+    if (raw === '') return NaN;
+    // Accept colon, space, or 'h'/'m'/'s' as separators.
+    const parts = raw.split(/[:\s hms]+/).filter(Boolean);
+    if (parts.length === 1) {
+      const v = Number(parts[0]);
+      return isFinite(v) ? v : NaN;
+    }
+    if (parts.length === 2 || parts.length === 3) {
+      const h = Number(parts[0]);
+      const m = Number(parts[1]);
+      const s = parts.length === 3 ? Number(parts[2]) : 0;
+      if (![h, m, s].every(isFinite)) return NaN;
+      const sign = h < 0 ? -1 : 1;
+      return sign * (Math.abs(h) + m / 60 + s / 3600);
+    }
+    return NaN;
+  }
+
+  // Parse +DD:MM:SS, -DD:MM:SS, or decimal degrees.
+  function parseDecDegrees(value) {
+    if (value == null) return NaN;
+    const raw = String(value).trim();
+    if (raw === '') return NaN;
+    let sign = 1;
+    let rest = raw;
+    if (rest.startsWith('+')) { rest = rest.slice(1); }
+    else if (rest.startsWith('-')) { sign = -1; rest = rest.slice(1); }
+    const parts = rest.split(/[:\s d'°′″"]+/).filter(Boolean);
+    if (parts.length === 1) {
+      const v = Number(parts[0]);
+      return isFinite(v) ? sign * v : NaN;
+    }
+    if (parts.length === 2 || parts.length === 3) {
+      const d = Number(parts[0]);
+      const m = Number(parts[1]);
+      const s = parts.length === 3 ? Number(parts[2]) : 0;
+      if (![d, m, s].every(isFinite)) return NaN;
+      return sign * (d + m / 60 + s / 3600);
+    }
+    return NaN;
+  }
+
+  async function handleMountGoto() {
+    if (!state.mountDeviceId) {
+      showToast('No mount connected', 'error');
+      return;
+    }
+    const ra = parseRaHours(document.getElementById('mount-goto-ra').value);
+    const dec = parseDecDegrees(document.getElementById('mount-goto-dec').value);
+    if (!isFinite(ra) || ra < 0 || ra >= 24) {
+      showToast('RA must be 0..24h (HH:MM:SS or decimal hours)', 'error');
+      return;
+    }
+    if (!isFinite(dec) || dec < -90 || dec > 90) {
+      showToast('Dec must be -90..+90 degrees', 'error');
+      return;
+    }
+    try {
+      await api.mountSlewToRaDec(state.mountDeviceId, ra, dec);
+      addLogEntry('mount', 'Slewing to RA ' + formatRA(ra) + ', Dec ' + formatDec(dec));
+      showToast('Slewing');
+    } catch (e) {
+      showToast('Slew failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleMountGotoAbort() {
+    if (!state.mountDeviceId) return;
+    try {
+      await api.mountAbortSlew(state.mountDeviceId);
+      addLogEntry('mount', 'Slew aborted');
+    } catch (e) {
+      showToast('Abort slew failed: ' + e.message, 'error');
+    }
+  }
+
+  // Debounced autocomplete against /api/targets/search. Why debounce: each
+  // keystroke would otherwise hit the database; the search executes a LIKE
+  // across multiple columns and is cheap but not free.
+  function handleTargetSearchInput() {
+    if (state.targetSearchDebounce) {
+      clearTimeout(state.targetSearchDebounce);
+    }
+    state.targetSearchDebounce = setTimeout(runTargetSearch, 220);
+  }
+
+  async function runTargetSearch() {
+    const input = document.getElementById('mount-goto-name');
+    if (!input) return;
+    const query = input.value.trim();
+    if (query.length < 1) {
+      hideTargetSuggestions();
+      return;
+    }
+    try {
+      const result = await api.targetsSearch(query);
+      const targets = (result && result.targets) || [];
+      renderTargetSuggestions(targets);
+    } catch (e) {
+      // Surface but don't toast — autocomplete failures should not nag the
+      // user mid-type. Log so debugging is possible.
+      addLogEntry('error', 'Target search failed: ' + e.message);
+      hideTargetSuggestions();
+    }
+  }
+
+  function renderTargetSuggestions(targets) {
+    const list = document.getElementById('mount-goto-suggestions');
+    const input = document.getElementById('mount-goto-name');
+    if (!list) return;
+    clearElement(list);
+    if (!targets || targets.length === 0) {
+      hideTargetSuggestions();
+      return;
+    }
+    // Cap at 8 results — phones don't have room for more.
+    const cap = Math.min(8, targets.length);
+    for (let i = 0; i < cap; i++) {
+      const t = targets[i];
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'autocomplete-item';
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-label',
+        t.name + (t.catalogId ? ' (' + t.catalogId + ')' : '') +
+        (t.objectType ? ' ' + t.objectType : ''));
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'autocomplete-item__name';
+      nameEl.textContent = t.name + (t.catalogId ? '  ' + t.catalogId : '');
+      const metaEl = document.createElement('span');
+      metaEl.className = 'autocomplete-item__meta';
+      const meta = [];
+      if (t.objectType) meta.push(t.objectType);
+      if (t.constellation) meta.push(t.constellation);
+      if (t.magnitude != null) meta.push('mag ' + Number(t.magnitude).toFixed(1));
+      metaEl.textContent = meta.join(' · ');
+      item.appendChild(nameEl);
+      item.appendChild(metaEl);
+      // mousedown not click: click fires after the input's blur which would
+      // already have hidden the dropdown; mousedown wins the race.
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectTargetSuggestion(t);
+      });
+      list.appendChild(item);
+    }
+    list.hidden = false;
+    if (input) input.setAttribute('aria-expanded', 'true');
+  }
+
+  function selectTargetSuggestion(target) {
+    document.getElementById('mount-goto-name').value = target.name || '';
+    if (target.ra != null) {
+      document.getElementById('mount-goto-ra').value = formatRA(Number(target.ra));
+    }
+    if (target.dec != null) {
+      document.getElementById('mount-goto-dec').value = formatDec(Number(target.dec));
+    }
+    hideTargetSuggestions();
+  }
+
+  function hideTargetSuggestions() {
+    const list = document.getElementById('mount-goto-suggestions');
+    const input = document.getElementById('mount-goto-name');
+    if (list) {
+      list.hidden = true;
+      clearElement(list);
+    }
+    if (input) input.setAttribute('aria-expanded', 'false');
+  }
+
+  function handleTargetSearchKeyDown(e) {
+    if (e.key === 'Escape') {
+      hideTargetSuggestions();
+    } else if (e.key === 'Enter') {
+      // Enter on the name field commits the slew if RA/Dec are populated,
+      // otherwise dismisses the dropdown.
+      const ra = document.getElementById('mount-goto-ra').value.trim();
+      const dec = document.getElementById('mount-goto-dec').value.trim();
+      if (ra && dec) {
+        e.preventDefault();
+        hideTargetSuggestions();
+        handleMountGoto();
+      }
     }
   }
 
@@ -1745,7 +2597,7 @@
       activatePhoneTab(state.activePhoneTab);
     } else {
       // Make every panel visible again on tablet/desktop.
-      for (const id of PHONE_PANELS) {
+      for (const id of allPhonePanelIds()) {
         const p = document.getElementById(id);
         if (p) p.classList.remove('phone-active');
       }
@@ -1756,12 +2608,24 @@
     }
   }
 
+  // All panels that participate in the phone-tab visibility toggle: the
+  // primary tab panels plus their grouped "extra" panels (§2.17).
+  function allPhonePanelIds() {
+    const ids = [...PHONE_PANELS];
+    for (const extras of Object.values(PHONE_TAB_EXTRA_PANELS)) {
+      for (const e of extras) ids.push(e);
+    }
+    return ids;
+  }
+
   function activatePhoneTab(panelId) {
     if (!PHONE_PANELS.includes(panelId)) return;
     state.activePhoneTab = panelId;
-    for (const id of PHONE_PANELS) {
+    const extras = PHONE_TAB_EXTRA_PANELS[panelId] || [];
+    const visibleSet = new Set([panelId, ...extras]);
+    for (const id of allPhonePanelIds()) {
       const p = document.getElementById(id);
-      if (p) p.classList.toggle('phone-active', id === panelId);
+      if (p) p.classList.toggle('phone-active', visibleSet.has(id));
     }
     // Hide the guiding panel on phone (it's accessible via the desktop layout
     // when rotating). Keeping it out of the tab strip avoids overcrowding the

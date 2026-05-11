@@ -197,13 +197,17 @@ body {
 
 .dashboard-grid {
   display: grid;
+  /* Why 3 cols * 3 rows: we now host 9 panels (devices, camera, mount,
+     sequencer, guiding, log, filter-wheel, focuser, rotator). Three rows
+     keeps the panels at a comfortable height on a 1080p screen and lets
+     the auxiliary device controls live next to the discovery panel. */
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
   gap: 8px;
   padding: 8px;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ====== Panels ====== */
@@ -1117,6 +1121,172 @@ body {
   font-size: 11px;
   color: var(--text-muted);
   margin-left: 6px;
+}
+
+/* ====== Camera cooling row (§2.17) ======
+   Why a dedicated row class: the cooling controls mix a label-like title
+   with two compact buttons, which doesn't fit the standard control-row
+   "label + input" layout. */
+.cooling-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.cooling-row-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+#camera-target-temp-readout {
+  min-width: 56px;
+  text-align: right;
+}
+
+/* Range input visual tweak — match the dark theme. */
+input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent-blue);
+  background: transparent;
+  /* Why min-height 24px: WCAG 2.5.5 minimum click target combined with
+     phone touch — the default 16px height is fiddly on mobile. */
+  min-height: 24px;
+}
+
+/* ====== Filter wheel rows (§2.17) ======
+   Click-to-rotate. Why a button element: keyboard nav + screen-reader
+   support come for free, and the disabled state during a rotation is
+   automatically reflected by the browser. */
+.filter-wheel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-wheel-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  /* Min height matches §2.15 touch target. */
+  min-height: 36px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.filter-wheel-row:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--text-muted);
+}
+
+.filter-wheel-row:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+.filter-wheel-row:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.filter-wheel-row--current {
+  border-color: var(--accent-blue);
+  background: #1f6feb20;
+}
+
+.filter-wheel-row__index {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.filter-wheel-row__name {
+  font-weight: 500;
+}
+
+.filter-wheel-row__offset {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* ====== Focuser jog grid (§2.17) ====== */
+.focuser-jog-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.focuser-jog-grid .btn {
+  min-height: 36px;
+  font-family: var(--font-mono);
+}
+
+/* ====== Target autocomplete (§2.17) ======
+   The dropdown is positioned underneath the mount-goto-name input via
+   document-flow rather than absolutely so it pushes the rest of the panel
+   down — on phone this is exactly what we want; absolute positioning would
+   collide with the bottom-tab nav. */
+.autocomplete-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -2px 0 6px 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.autocomplete-list[hidden] {
+  display: none;
+}
+
+.autocomplete-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 38px;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item:focus-visible {
+  background: var(--bg-tertiary);
+  outline: none;
+}
+
+.autocomplete-item__name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.autocomplete-item__meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: lowercase;
 }
 
 /* ====== Loading Spinner ====== */

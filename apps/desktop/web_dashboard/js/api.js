@@ -203,6 +203,13 @@ class NightshadeApi {
       offset: opts && opts.offset,
       binX: (opts && opts.binX) || 1,
       binY: (opts && opts.binY) || 1,
+      // Subframe x/y/width/height pass through whenever the dashboard panel
+      // has explicit values entered — undefined falls back to full-frame on
+      // the backend, which is the same default as the desktop UI.
+      x: opts && opts.x,
+      y: opts && opts.y,
+      width: opts && opts.width,
+      height: opts && opts.height,
     });
   }
 
@@ -225,6 +232,62 @@ class NightshadeApi {
   async cameraSetOffset(deviceId, offset) {
     return this._post('/api/camera/offset', { deviceId, offset });
   }
+
+  // The backend uses camelCase /api/camera/readoutMode (see device_handlers
+  // and the route table in headless_api_server.dart). Match that exactly —
+  // hyphenated variants 404 on the current server.
+  async cameraSetReadoutMode(deviceId, modeIndex) {
+    return this._post('/api/camera/readoutMode', { deviceId, modeIndex });
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: no /api/camera/readout-modes (list) endpoint
+  // exists in the current handlers — the desktop UI reads modes from the
+  // bridge via the camera capabilities path. The web client therefore reads
+  // them from /api/equipment/camera/capabilities, which already exposes a
+  // `readoutModes` list. If a dedicated list endpoint is added later this
+  // can swap to /api/camera/readout-modes for a smaller payload.
+  async cameraGetReadoutModes(deviceId) {
+    const caps = await this._get(
+      '/api/equipment/camera/capabilities?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
+    const list = caps && (caps.readoutModes || caps.readout_modes);
+    return { readoutModes: Array.isArray(list) ? list : [] };
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: there is no dedicated /api/camera/cooling GET
+  // endpoint. Cooling state is folded into the camera status snapshot, so
+  // we route the read through /api/equipment/camera/status instead. Adding
+  // a separate /api/camera/cooling GET would let the web dashboard poll
+  // it independently of the full status payload.
+  async cameraGetCooling(deviceId) {
+    const s = await this.getCameraStatus(deviceId);
+    return {
+      coolerOn: !!(s && s.coolerOn),
+      sensorTemp: s && s.sensorTemp,
+      targetTemp: s && s.targetTemp,
+      coolerPower: s && s.coolerPower,
+      canCool: !!(s && s.canCool),
+    };
+  }
+
+  // Binning and subframe are committed by cameraExpose's binX/binY/x/y/
+  // width/height body fields. Why no separate /api/camera/binning or
+  // /api/camera/subframe endpoint: ASCOM cameras only commit these at
+  // StartExposure time, so a standalone setter would either no-op or
+  // fight the next expose body. The dashboard sends them per-expose.
+  // These no-op shims keep the audit §2.17 endpoint names alive in the
+  // client surface so future code can call them uniformly.
+  async cameraSetBinning(_deviceId, _binX, _binY) {
+    return { status: 'queued', message: 'Binning applies on next Expose' };
+  }
+
+  async cameraSetSubframe(_deviceId, _x, _y, _width, _height) {
+    return { status: 'queued', message: 'Subframe applies on next Expose' };
+  }
+
+  // Reset any pending subframe state — currently a no-op (subframe lives in
+  // the input fields), kept so callers can express intent uniformly.
+  clearPendingSubframe() { /* nothing to clear today */ }
 
   // =========================================================================
   // Equipment Status
@@ -294,12 +357,37 @@ class NightshadeApi {
     return this._post('/api/focuser/move-to', { deviceId, position });
   }
 
+  async focuserMoveRelative(deviceId, delta) {
+    return this._post('/api/focuser/move-relative', { deviceId, delta });
+  }
+
   async focuserHalt(deviceId) {
     return this._post('/api/focuser/halt', { deviceId });
   }
 
-  async autofocusStart(deviceId) {
-    return this._post('/api/focuser/autofocus/start', { deviceId });
+  // Returns FocuserStatus (position, moving, temperature). Why a wrapper:
+  // the dashboard reads from /api/equipment/focuser/status and renders
+  // position/temp from the same payload — keeping the call here matches the
+  // mountGetStatus/cameraGetStatus pattern.
+  async focuserGetStatus(deviceId) {
+    return this._get(
+      '/api/equipment/focuser/status?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
+  }
+
+  // Autofocus requires a camera + exposure parameters; the dashboard sends
+  // sensible defaults from the connected camera's last gain and a 3s sub.
+  // Step sizes mirror the desktop AutofocusDialog defaults.
+  async autofocusStart(deviceId, cameraId, opts) {
+    return this._post('/api/focuser/autofocus/start', {
+      deviceId,
+      cameraId,
+      exposureTime: (opts && opts.exposureTime) || 3.0,
+      stepSize: (opts && opts.stepSize) || 50,
+      stepsOut: (opts && opts.stepsOut) || 5,
+      method: (opts && opts.method) || 'VCurve',
+      binning: (opts && opts.binning) || 2,
+    });
   }
 
   async autofocusCancel(deviceId) {
@@ -319,7 +407,98 @@ class NightshadeApi {
   }
 
   async filterWheelSetByName(deviceId, filterName) {
-    return this._post('/api/filter-wheel/set-by-name', { deviceId, filterName });
+    // The backend payload key is `name` (see handleFilterWheelSetByName); the
+    // dashboard previously sent `filterName`, which the validator rejected
+    // with "field 'name' required".
+    return this._post('/api/filter-wheel/set-by-name', { deviceId, name: filterName });
+  }
+
+  // Combined "list of positions with names + offsets" for the click-to-rotate
+  // panel. Filter offsets come from /api/focus-model/filter-offsets (the
+  // single source of truth shared with the autofocus model). Why two GETs:
+  // there is no combined endpoint and we want offsets to survive even when
+  // a wheel reports placeholder names like "Filter 1" .. "Filter 8".
+  async filterWheelGetPositions(deviceId) {
+    const [namesResp, status, offsetsResp] = await Promise.all([
+      this.filterWheelGetNames(deviceId),
+      this._get('/api/equipment/filter-wheel/status?deviceId=' +
+        encodeURIComponent(deviceId || '')),
+      // Why catch: the focus model offsets endpoint requires an active
+      // profile; on a fresh install it can 404. Treat that as "no offsets"
+      // rather than failing the whole panel render.
+      this._get('/api/focus-model/filter-offsets').catch(() => ({})),
+    ]);
+    const names = (namesResp && namesResp.names) || [];
+    const offsets = (offsetsResp && (offsetsResp.offsets || offsetsResp)) || {};
+    const positions = names.map((name, idx) => ({
+      position: idx,
+      name: name || ('Slot ' + idx),
+      // offsets is keyed by filter name in the focus model service
+      offset: offsets && offsets[name] != null ? Number(offsets[name]) : null,
+    }));
+    return {
+      positions,
+      currentPosition: status && status.position != null ? Number(status.position) : -1,
+      filterCount: positions.length,
+    };
+  }
+
+  // =========================================================================
+  // Rotator
+  // =========================================================================
+
+  async rotatorMoveTo(deviceId, angle) {
+    return this._post('/api/rotator/move-to', { deviceId, angle });
+  }
+
+  async rotatorMoveRelative(deviceId, delta) {
+    return this._post('/api/rotator/move-relative', { deviceId, delta });
+  }
+
+  async rotatorHalt(deviceId) {
+    return this._post('/api/rotator/halt', { deviceId });
+  }
+
+  async rotatorGetAngle(deviceId) {
+    return this._get(
+      '/api/rotator/status?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
+  }
+
+  async rotatorGetStatus(deviceId) {
+    return this._get(
+      '/api/equipment/rotator/status?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: there is no /api/rotator/sync endpoint on the
+  // current server. Per audit §2.17, "Sync to image PA" requires the backend
+  // to compute the latest plate-solve PA and call Rotator.Sync(angle). For
+  // now we surface the gap to the operator via a toast in app.js so it
+  // isn't silently no-op'd. When the endpoint lands it will live at
+  // POST /api/rotator/sync { deviceId, angle? } (omit angle to use last
+  // plate-solve PA).
+  async rotatorSync(deviceId, angle) {
+    return this._post('/api/rotator/sync', { deviceId, angle });
+  }
+
+  // =========================================================================
+  // Targets (autocomplete)
+  // =========================================================================
+
+  async targetsSearch(query) {
+    return this._get('/api/targets/search?query=' + encodeURIComponent(query || ''));
+  }
+
+  // Mount Slew helpers — names match the audit §2.17 brief. mountSlewToRaDec
+  // and mountAbortSlew are aliases over the existing mountSlew / mountAbort
+  // to keep app.js handlers readable.
+  async mountSlewToRaDec(deviceId, raHours, decDeg) {
+    return this.mountSlew(deviceId, raHours, decDeg);
+  }
+
+  async mountAbortSlew(deviceId) {
+    return this.mountAbort(deviceId);
   }
 
   // =========================================================================

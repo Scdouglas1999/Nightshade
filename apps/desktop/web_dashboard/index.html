@@ -93,6 +93,12 @@
           <div class="control-row">
             <label for="camera-gain">Gain</label>
             <input id="camera-gain" type="number" value="100" min="0" max="600" step="1" aria-label="Camera gain">
+            <button id="btn-camera-apply-gain" class="btn btn-sm" aria-label="Apply gain to camera">Apply</button>
+          </div>
+          <div class="control-row">
+            <label for="camera-offset">Offset</label>
+            <input id="camera-offset" type="number" value="10" min="0" max="600" step="1" aria-label="Camera offset">
+            <button id="btn-camera-apply-offset" class="btn btn-sm" aria-label="Apply offset to camera">Apply</button>
           </div>
           <div class="control-row">
             <label for="camera-binning">Binning</label>
@@ -103,6 +109,47 @@
               <option value="4">4x4</option>
             </select>
           </div>
+          <div class="control-row">
+            <label for="camera-readout-mode">Readout</label>
+            <select id="camera-readout-mode" aria-label="Camera readout mode">
+              <option value="">-- not loaded --</option>
+            </select>
+            <button id="btn-camera-apply-readout" class="btn btn-sm" aria-label="Apply readout mode to camera">Apply</button>
+          </div>
+          <hr class="section-divider">
+
+          <!-- Cooling controls (§2.17). Why a single 'Set' button rather than
+               live slider streaming: ASCOM cooler APIs are not idempotent at
+               high rates, and a fat-finger on a phone could spam temperature
+               setpoints. -->
+          <div class="cooling-row">
+            <span class="cooling-row-title">Cooling</span>
+            <button id="btn-camera-cooler-on" class="btn btn-sm btn-success" aria-label="Turn camera cooler on">Cooler ON</button>
+            <button id="btn-camera-cooler-off" class="btn btn-sm" aria-label="Turn camera cooler off">Cooler OFF</button>
+          </div>
+          <div class="control-row">
+            <label for="camera-target-temp">Target (&deg;C)</label>
+            <input id="camera-target-temp" type="range" min="-40" max="20" step="1" value="-10" aria-label="Target sensor temperature in Celsius">
+            <span id="camera-target-temp-readout" class="status-value info" aria-live="polite">-10 &deg;C</span>
+            <button id="btn-camera-apply-cooling" class="btn btn-sm" aria-label="Apply target temperature">Set</button>
+          </div>
+          <hr class="section-divider">
+
+          <!-- Sub-frame controls (§2.17). The four inputs map to the
+               cameraExpose body's x/y/width/height; the Full Frame button
+               resets to the sensor's full size from cameraStatus. -->
+          <div class="control-row">
+            <label for="camera-subframe-x">Subframe</label>
+            <input id="camera-subframe-x" type="number" min="0" step="1" placeholder="X" aria-label="Subframe X offset (pixels)">
+            <input id="camera-subframe-y" type="number" min="0" step="1" placeholder="Y" aria-label="Subframe Y offset (pixels)">
+          </div>
+          <div class="control-row">
+            <label for="camera-subframe-w">Size</label>
+            <input id="camera-subframe-w" type="number" min="1" step="1" placeholder="W" aria-label="Subframe width (pixels)">
+            <input id="camera-subframe-h" type="number" min="1" step="1" placeholder="H" aria-label="Subframe height (pixels)">
+            <button id="btn-camera-subframe-full" class="btn btn-sm" aria-label="Reset subframe to full sensor">Full</button>
+          </div>
+
           <div id="camera-status-info"></div>
         </div>
       </div>
@@ -180,6 +227,151 @@
             <button id="btn-mount-park" class="btn btn-sm" aria-label="Park mount">Park</button>
             <button id="btn-mount-unpark" class="btn btn-sm" aria-label="Unpark mount">Unpark</button>
             <button id="btn-mount-tracking" class="btn btn-sm" aria-label="Toggle mount tracking">Tracking OFF</button>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Goto / object slew (§2.17). Why typed RA/Dec instead of a sky-
+               picker: phones are bad at sky-pickers; an operator pairing for
+               a session already knows the coordinates or the catalog name.
+               The autocomplete dropdown pulls from /api/targets/search so
+               saved targets are reachable by name. -->
+          <div class="control-row">
+            <label for="mount-goto-name">Object</label>
+            <input id="mount-goto-name" type="text" placeholder="M31, NGC 7000..." autocomplete="off" spellcheck="false" aria-label="Object name or catalog ID" aria-haspopup="listbox" aria-autocomplete="list" aria-expanded="false" aria-controls="mount-goto-suggestions">
+          </div>
+          <div class="autocomplete-list" id="mount-goto-suggestions" role="listbox" aria-label="Target suggestions" hidden></div>
+          <div class="control-row">
+            <label for="mount-goto-ra">RA</label>
+            <input id="mount-goto-ra" type="text" placeholder="HH:MM:SS or HH.hhh" inputmode="numeric" aria-label="Right ascension (sexagesimal or decimal hours)">
+          </div>
+          <div class="control-row">
+            <label for="mount-goto-dec">Dec</label>
+            <input id="mount-goto-dec" type="text" placeholder="+DD:MM:SS or DD.ddd" aria-label="Declination (sexagesimal or decimal degrees)">
+          </div>
+          <div class="btn-group centered-actions">
+            <button id="btn-mount-goto" class="btn btn-sm btn-primary" aria-label="Slew mount to entered coordinates">Slew</button>
+            <button id="btn-mount-goto-abort" class="btn btn-sm btn-danger" aria-label="Abort current slew">Abort Slew</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Filter Wheel Panel ===== -->
+      <div class="panel" id="panel-filter-wheel" data-panel="filter-wheel" data-device-type="filterWheel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9678;</span>
+            Filter Wheel
+          </span>
+          <div class="panel-actions">
+            <span id="fw-current-badge" class="badge badge-idle" role="status">--</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-filter-wheel" role="status" aria-live="polite"></div>
+          <div class="status-row">
+            <span class="status-label">Current position</span>
+            <span class="status-value" id="fw-current-position">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Current filter</span>
+            <span class="status-value info" id="fw-current-name">--</span>
+          </div>
+          <hr class="section-divider">
+          <!-- §2.17 — click-to-rotate: each filter row triggers
+               filterWheelSetPosition(deviceId, slotIndex). Offsets are loaded
+               from /api/focus-model/filter-offsets so the operator can decide
+               whether the autofocus offset is currently applied per filter. -->
+          <div id="fw-list" class="filter-wheel-list" role="listbox" aria-label="Available filter slots">
+            <div class="empty-state">Filter list will appear after connect</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Focuser Panel ===== -->
+      <div class="panel" id="panel-focuser" data-panel="focuser" data-device-type="focuser">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9711;</span>
+            Focuser
+          </span>
+          <div class="panel-actions">
+            <span id="focuser-moving" class="badge badge-running hidden-inline" role="status">MOVING</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-focuser" role="status" aria-live="polite"></div>
+          <div class="two-column-compact">
+            <div class="coord-display">
+              <div class="coord-label">Position</div>
+              <div class="coord-value" id="focuser-position">--</div>
+            </div>
+            <div class="coord-display">
+              <div class="coord-label">Temp</div>
+              <div class="coord-value" id="focuser-temp">--</div>
+            </div>
+          </div>
+          <div class="control-row">
+            <label for="focuser-target">Move to</label>
+            <input id="focuser-target" type="number" min="0" step="1" placeholder="position" aria-label="Target focuser position">
+            <button id="btn-focuser-move" class="btn btn-sm btn-primary" aria-label="Move focuser to target position">Move</button>
+          </div>
+          <!-- Step jog buttons. Why pointerdown(click) and not press-and-hold:
+               focusers do not stream rates the way mounts do; each click is a
+               discrete relative move. -->
+          <div class="focuser-jog-grid" role="group" aria-label="Focuser relative move buttons">
+            <button id="btn-focuser--1000" class="btn btn-sm" data-delta="-1000" aria-label="Move focuser out by 1000 steps">-1000</button>
+            <button id="btn-focuser--100" class="btn btn-sm" data-delta="-100" aria-label="Move focuser out by 100 steps">-100</button>
+            <button id="btn-focuser--10" class="btn btn-sm" data-delta="-10" aria-label="Move focuser out by 10 steps">-10</button>
+            <button id="btn-focuser--1" class="btn btn-sm" data-delta="-1" aria-label="Move focuser out by 1 step">-1</button>
+            <button id="btn-focuser-+1" class="btn btn-sm" data-delta="1" aria-label="Move focuser in by 1 step">+1</button>
+            <button id="btn-focuser-+10" class="btn btn-sm" data-delta="10" aria-label="Move focuser in by 10 steps">+10</button>
+            <button id="btn-focuser-+100" class="btn btn-sm" data-delta="100" aria-label="Move focuser in by 100 steps">+100</button>
+            <button id="btn-focuser-+1000" class="btn btn-sm" data-delta="1000" aria-label="Move focuser in by 1000 steps">+1000</button>
+          </div>
+          <div class="btn-group centered-actions">
+            <button id="btn-focuser-halt" class="btn btn-sm btn-danger" aria-label="Halt focuser motion">Halt</button>
+            <button id="btn-focuser-autofocus" class="btn btn-sm btn-primary" aria-label="Run autofocus now">Run Autofocus</button>
+            <button id="btn-focuser-autofocus-cancel" class="btn btn-sm" aria-label="Cancel autofocus">Cancel AF</button>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Last autofocus</span>
+            <span class="status-value" id="focuser-last-af">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Rotator Panel ===== -->
+      <div class="panel" id="panel-rotator" data-panel="rotator" data-device-type="rotator">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#8635;</span>
+            Rotator
+          </span>
+          <div class="panel-actions">
+            <span id="rotator-moving" class="badge badge-running hidden-inline" role="status">MOVING</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="panel-stale-indicator" id="stale-rotator" role="status" aria-live="polite"></div>
+          <div class="two-column-compact">
+            <div class="coord-display">
+              <div class="coord-label">Sky PA</div>
+              <div class="coord-value" id="rotator-sky-pa">--&deg;</div>
+            </div>
+            <div class="coord-display">
+              <div class="coord-label">Mech</div>
+              <div class="coord-value" id="rotator-mech-pa">--&deg;</div>
+            </div>
+          </div>
+          <div class="control-row">
+            <label for="rotator-target">Target PA</label>
+            <input id="rotator-target" type="number" min="0" max="360" step="0.1" placeholder="degrees" aria-label="Target sky position angle in degrees">
+            <button id="btn-rotator-move" class="btn btn-sm btn-primary" aria-label="Slew rotator to target position angle">Slew</button>
+          </div>
+          <div class="btn-group centered-actions">
+            <button id="btn-rotator-halt" class="btn btn-sm btn-danger" aria-label="Halt rotator motion">Halt</button>
+            <button id="btn-rotator-sync-image" class="btn btn-sm" aria-label="Sync rotator to image position angle">Sync to image PA</button>
           </div>
         </div>
       </div>
