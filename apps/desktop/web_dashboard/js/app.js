@@ -57,6 +57,26 @@
     connectRetryCount: 0,
     targetSearchDebounce: null,
     targetSearchAbort: null,
+    // §2.17 ops-panel state (W5-WEB-OPS-PANELS). Kept under an `ops` namespace
+    // so the parallel W5-WEB-WIZARDS-PLATESOLVE-PA branch (which will likely
+    // add a `wiz` namespace) merges cleanly.
+    ops: {
+      sequences: [],
+      selectedSequenceId: '',
+      checkpoints: [],
+      weather: null,
+      safety: null,
+      domeDeviceId: '',
+      domeStatus: null,
+      profiles: [],
+      activeProfile: null,
+      sessionSummary: null,
+      catalogResults: [],
+      catalogSearchDebounce: null,
+      currentTargetName: '',
+      currentTargetId: null,
+      sequenceStartedAt: 0,
+    },
   };
 
   // Why a panel registry: §2.10 (stale indicators), §2.12 (per-panel enable),
@@ -68,6 +88,8 @@
     'panel-focuser': 'focuser',
     'panel-filter-wheel': 'filterWheel',
     'panel-rotator': 'rotator',
+    // §2.17 ops — dome panel needs a connected dome device to be useful.
+    'ops-dome-panel': 'dome',
   };
 
   // Phone tabs: which panels are accessible via the bottom tab bar on phones.
@@ -78,8 +100,19 @@
   // on existing tabs so the bottom nav stays at five slots. Filter wheel,
   // focuser, and rotator live in the Devices tab (next to discovery);
   // camera, mount, and sequencer keep their own dedicated tabs.
+  //
+  // W5-WEB-OPS-PANELS additions (§2.17): the new ops panels join existing
+  // tabs per the brief — Sequencer tab gets sequence-load + checkpoint;
+  // Devices tab gets weather/safety + dome + profile/analytics (a compact
+  // area underneath the device list). Mount/Camera/Log tabs unchanged.
   const PHONE_TAB_EXTRA_PANELS = {
-    'panel-devices': ['panel-filter-wheel', 'panel-focuser', 'panel-rotator'],
+    'panel-devices': [
+      'panel-filter-wheel', 'panel-focuser', 'panel-rotator',
+      'ops-weather-panel', 'ops-dome-panel', 'ops-profile-panel',
+    ],
+    'panel-sequencer': [
+      'ops-seq-load-panel', 'ops-checkpoint-panel', 'ops-target-panel',
+    ],
   };
 
   // §2.10 — if the WS has been silent for this long, fall back to REST polling.
@@ -227,6 +260,11 @@
     for (const tab of document.querySelectorAll('.phone-tab')) {
       tab.addEventListener('click', () => activatePhoneTab(tab.dataset.target));
     }
+
+    // §2.17 ops panels (W5-WEB-OPS-PANELS). Setup is broken out so the
+    // wireup stays grouped and easy to merge against the parallel
+    // W5-WEB-WIZARDS-PLATESOLVE-PA branch.
+    setupOpsPanels();
 
     // Guide graph canvas
     setupGuideCanvas();
@@ -627,7 +665,14 @@
 
     // Sequencer/guiding/devices panels: enable iff connected. They don't
     // require a specific device of their own.
-    for (const id of ['panel-sequencer', 'panel-guiding']) {
+    // §2.17 ops — same treatment for the ops panels that don't bind to a
+    // specific device type (everything except the dome panel).
+    const connectOnlyPanels = [
+      'panel-sequencer', 'panel-guiding',
+      'ops-seq-load-panel', 'ops-target-panel', 'ops-weather-panel',
+      'ops-checkpoint-panel', 'ops-profile-panel',
+    ];
+    for (const id of connectOnlyPanels) {
       const panel = document.getElementById(id);
       if (panel) setPanelEnabled(panel, null, connected);
     }
@@ -669,6 +714,8 @@
       case 'mount': return 'Mount';
       case 'focuser': return 'Focuser';
       case 'filterWheel': return 'Filter wheel';
+      // §2.17 ops — keep tooltip wording in sync with the panel title.
+      case 'dome': return 'Dome';
       default: return t;
     }
   }
@@ -677,6 +724,10 @@
     api.on('ws:connected', () => {
       state.lastWsMessageAt = Date.now();
       addLogEntry('system', 'WebSocket connected');
+      // §2.17 ops — the sequence list is fetched once per connect rather
+      // than every status poll; it changes infrequently and we don't want
+      // to hammer the DB on every WS heartbeat.
+      fetchOpsSequences();
     });
 
     api.on('ws:disconnected', () => {
@@ -799,6 +850,13 @@
       fetchFocuserStatusIfConnected(),
       fetchFilterWheelStatusIfConnected(),
       fetchRotatorStatusIfConnected(),
+      // §2.17 ops panels — each fetch swallows its own errors via addLogEntry
+      // so a failed ops panel doesn't drag the whole dashboard offline.
+      fetchOpsWeatherAndSafety(),
+      fetchOpsDomeStatusIfConnected(),
+      fetchOpsCheckpoints(),
+      fetchOpsProfiles(),
+      fetchOpsAnalyticsSummary(),
     ]);
   }
 
@@ -826,6 +884,8 @@
           case 'focuser': state.focuserDeviceId = dev.id; break;
           case 'filterWheel': state.filterWheelDeviceId = dev.id; break;
           case 'rotator': state.rotatorDeviceId = dev.id; break;
+          // §2.17 ops — dome is owned by W5-WEB-OPS-PANELS.
+          case 'dome': state.ops.domeDeviceId = dev.id; break;
         }
       }
       refreshPanelEnablement();
@@ -1010,6 +1070,18 @@
       fetchRotatorStatusIfConnected();
     } else if (category === 'sequencer') {
       fetchSequencerStatus();
+      // §2.17 ops — checkpoint state and analytics surface change in lock
+      // step with sequencer events. Cheap GETs so refreshing on every event
+      // is fine.
+      fetchOpsCheckpoints();
+      fetchOpsAnalyticsSummary();
+    } else if (category === 'dome') {
+      fetchOpsDomeStatusIfConnected();
+    } else if (category === 'safety' || category === 'safetyMonitor'
+        || category === 'weather') {
+      fetchOpsWeatherAndSafety();
+    } else if (category === 'profile' || category === 'profiles') {
+      fetchOpsProfiles();
     } else if (category === 'guiding' || category === 'phd2') {
       const eventType = data.eventType || data.event || '';
       // §2.14 — canonical field names for guide-step coordinates are raPx
@@ -2375,6 +2447,10 @@
       progressBarContainer.setAttribute('aria-valuenow', String(Math.round(progress)));
     }
     if (progressText) progressText.textContent = progress.toFixed(0) + '%';
+    // §2.17 ops — keep the ops sequencer load/run panel in lock step with
+    // the legacy sequencer panel. They read the same state but render
+    // different field sets.
+    renderOpsSequencerLoadPanel();
   }
 
   function getSequencerBadgeClass(stateStr) {
@@ -2732,6 +2808,1007 @@
       toast.classList.add('fading-out');
       setTimeout(() => toast.remove(), 300);
     }, 4000);
+  }
+
+  // ===========================================================================
+  // §2.17 ops panels (W5-WEB-OPS-PANELS)
+  // ===========================================================================
+  //
+  // All handlers/renderers below own the seven ops panels: sequence load,
+  // target catalog, weather + safety, dome, checkpoint resume, profile +
+  // analytics. The setup() entry point wires DOM listeners; the fetchOps*
+  // functions are called from fetchAllStatus and from the WS event handler.
+  //
+  // Coordination with W5-WEB-WIZARDS-PLATESOLVE-PA: all ids/classes here use
+  // the `ops-` prefix; that branch will use `wiz-` so the merge is mechanical.
+
+  function setupOpsPanels() {
+    // --- Sequence load + start --------------------------------------------
+    const seqRefreshBtn = document.getElementById('ops-btn-seq-refresh');
+    if (seqRefreshBtn) {
+      seqRefreshBtn.addEventListener('click', fetchOpsSequences);
+    }
+    const seqLoadStartBtn = document.getElementById('ops-btn-seq-load-start');
+    if (seqLoadStartBtn) {
+      seqLoadStartBtn.addEventListener('click', handleOpsSeqLoadStart);
+    }
+    const seqAbortBtn = document.getElementById('ops-btn-seq-abort');
+    if (seqAbortBtn) {
+      seqAbortBtn.addEventListener('click', handleOpsSeqAbort);
+    }
+    const seqSelect = document.getElementById('ops-seq-select');
+    if (seqSelect) {
+      seqSelect.addEventListener('change', () => {
+        state.ops.selectedSequenceId = seqSelect.value || '';
+      });
+    }
+
+    // --- Target catalog ---------------------------------------------------
+    const targetSearch = document.getElementById('ops-target-search');
+    if (targetSearch) {
+      targetSearch.addEventListener('input', handleOpsTargetSearchInput);
+    }
+
+    // --- Dome controls ----------------------------------------------------
+    const domeOpenBtn = document.getElementById('ops-btn-dome-open');
+    if (domeOpenBtn) {
+      domeOpenBtn.addEventListener('click', handleOpsDomeOpen);
+    }
+    const domeCloseBtn = document.getElementById('ops-btn-dome-close');
+    if (domeCloseBtn) {
+      domeCloseBtn.addEventListener('click', handleOpsDomeClose);
+    }
+    const domeParkBtn = document.getElementById('ops-btn-dome-park');
+    if (domeParkBtn) {
+      domeParkBtn.addEventListener('click', handleOpsDomePark);
+    }
+    const domeSlewBtn = document.getElementById('ops-btn-dome-slew');
+    if (domeSlewBtn) {
+      domeSlewBtn.addEventListener('click', handleOpsDomeSlew);
+    }
+    const domeSyncOnBtn = document.getElementById('ops-btn-dome-sync-on');
+    if (domeSyncOnBtn) {
+      domeSyncOnBtn.addEventListener('click', () => handleOpsDomeSync(true));
+    }
+    const domeSyncOffBtn = document.getElementById('ops-btn-dome-sync-off');
+    if (domeSyncOffBtn) {
+      domeSyncOffBtn.addEventListener('click', () => handleOpsDomeSync(false));
+    }
+
+    // --- Checkpoint resume ------------------------------------------------
+    const checkpointRefreshBtn = document.getElementById(
+      'ops-btn-checkpoint-refresh');
+    if (checkpointRefreshBtn) {
+      checkpointRefreshBtn.addEventListener('click', fetchOpsCheckpoints);
+    }
+
+    // --- Profile switching ------------------------------------------------
+    const profileActivateBtn = document.getElementById(
+      'ops-btn-profile-activate');
+    if (profileActivateBtn) {
+      profileActivateBtn.addEventListener('click', handleOpsProfileActivate);
+    }
+    const profileReloadBtn = document.getElementById('ops-btn-profile-reload');
+    if (profileReloadBtn) {
+      profileReloadBtn.addEventListener('click', handleOpsProfileReload);
+    }
+
+    // First-paint placeholders so the UI doesn't show blank rows before any
+    // network calls return.
+    renderOpsSequencerLoadPanel();
+    renderOpsWeatherPanel();
+    renderOpsDomePanel();
+    renderOpsCheckpointPanel();
+    renderOpsProfilePanel();
+    renderOpsAnalyticsPanel();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sequence load + run
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsSequences() {
+    try {
+      const result = await api.sequencerList();
+      state.ops.sequences = (result && result.sequences) || [];
+      renderOpsSequencesDropdown();
+    } catch (e) {
+      addLogEntry('error', 'Sequence list fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsSequencesDropdown() {
+    const sel = document.getElementById('ops-seq-select');
+    if (!sel) return;
+    const previous = state.ops.selectedSequenceId;
+    clearElement(sel);
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = state.ops.sequences.length === 0
+      ? '-- no saved sequences --'
+      : '-- select a sequence --';
+    sel.appendChild(placeholder);
+    for (const seq of state.ops.sequences) {
+      // Templates are listed via a separate endpoint and intentionally
+      // excluded here — the ops panel runs concrete sequences only.
+      if (seq.isTemplate) continue;
+      const opt = document.createElement('option');
+      opt.value = String(seq.id);
+      opt.textContent = seq.name || ('Sequence #' + seq.id);
+      if (String(seq.id) === String(previous)) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  async function handleOpsSeqLoadStart() {
+    const sel = document.getElementById('ops-seq-select');
+    const id = sel ? sel.value : '';
+    if (!id) {
+      showToast('Pick a sequence to load', 'error');
+      return;
+    }
+    try {
+      await api.sequencerLoadAndStart(id);
+      addLogEntry('sequencer', 'Loaded and started sequence id=' + id);
+      showToast('Sequence started');
+      state.ops.sequenceStartedAt = Date.now();
+      // Refresh dependent panels immediately so the operator sees the new
+      // running state without waiting for the next poll tick.
+      fetchSequencerStatus();
+      fetchOpsCheckpoints();
+      fetchOpsAnalyticsSummary();
+    } catch (e) {
+      addLogEntry('error', 'Sequence load+start failed: ' + e.message);
+      showToast('Load failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleOpsSeqAbort() {
+    try {
+      await api.sequencerAbort();
+      addLogEntry('sequencer', 'Sequence aborted from ops panel');
+      showToast('Sequence aborted');
+    } catch (e) {
+      addLogEntry('error', 'Sequence abort failed: ' + e.message);
+      showToast('Abort failed: ' + e.message, 'error');
+    }
+  }
+
+  // Render the "current target / ETA / progress" block. Why a separate render
+  // from the main sequencer panel: this panel also shows the load-time
+  // dropdown + buttons, and reading from the same `state.sequencerStatus`
+  // lets WS-driven updates flow into both places.
+  function renderOpsSequencerLoadPanel() {
+    const targetEl = document.getElementById('ops-seq-current-target');
+    const nodeEl = document.getElementById('ops-seq-current-node');
+    const progressTextEl = document.getElementById('ops-seq-progress-text');
+    const progressBar = document.getElementById('ops-seq-progress-bar');
+    const progressBarContainer = document.getElementById(
+      'ops-seq-progress-bar-container');
+    const etaEl = document.getElementById('ops-seq-eta');
+
+    if (!state.sequencerStatus) {
+      if (targetEl) targetEl.textContent = '--';
+      if (nodeEl) nodeEl.textContent = '--';
+      if (progressTextEl) progressTextEl.textContent = '--';
+      if (etaEl) etaEl.textContent = '--';
+      if (progressBar) progressBar.style.width = '0%';
+      if (progressBarContainer) {
+        progressBarContainer.setAttribute('aria-valuenow', '0');
+      }
+      return;
+    }
+    const s = state.sequencerStatus;
+    // Current target name comes from the analytics session if available, then
+    // falls back to the running node's name. The sequencer status payload
+    // itself does not carry a target name field.
+    const sessionTargetName = state.ops.currentTargetName
+      || (state.ops.sessionSummary && state.ops.sessionSummary.session
+          ? state.ops.sessionSummary.session.name || ''
+          : '');
+    if (targetEl) {
+      targetEl.textContent = sessionTargetName || s.currentNodeName || '--';
+    }
+    if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
+
+    const progress = s.progress != null ? Number(s.progress) : 0;
+    if (progressBar) {
+      progressBar.style.width = progress + '%';
+    }
+    if (progressBarContainer) {
+      progressBarContainer.setAttribute('aria-valuenow',
+        String(Math.round(progress)));
+    }
+    if (progressTextEl) progressTextEl.textContent = progress.toFixed(0) + '%';
+
+    // ETA estimate: extrapolate from elapsed time + progress fraction. Why
+    // client-side: the sequencer status doesn't carry an ETA field; the
+    // estimate is only valid when progress is monotonically increasing,
+    // so we show "--" during the first second of execution.
+    if (etaEl) {
+      const startedAt = state.ops.sequenceStartedAt;
+      if (!startedAt || progress <= 0 || progress >= 100) {
+        etaEl.textContent = progress >= 100 ? 'complete' : '--';
+      } else {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        if (elapsed < 1) {
+          etaEl.textContent = '...';
+        } else {
+          const total = elapsed * (100 / progress);
+          const remaining = Math.max(0, total - elapsed);
+          etaEl.textContent = formatDurationSeconds(remaining);
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Target catalog
+  // ---------------------------------------------------------------------------
+
+  function handleOpsTargetSearchInput() {
+    if (state.ops.catalogSearchDebounce) {
+      clearTimeout(state.ops.catalogSearchDebounce);
+    }
+    // 220ms matches the existing mount-goto search debounce so feel is uniform.
+    state.ops.catalogSearchDebounce = setTimeout(runOpsCatalogSearch, 220);
+  }
+
+  async function runOpsCatalogSearch() {
+    const input = document.getElementById('ops-target-search');
+    const list = document.getElementById('ops-target-results');
+    if (!input || !list) return;
+    const query = input.value.trim();
+    if (query.length === 0) {
+      clearElement(list);
+      list.appendChild(createEmptyState('Type to search the catalog'));
+      state.ops.catalogResults = [];
+      return;
+    }
+    try {
+      const result = await api.targetsSearch(query);
+      state.ops.catalogResults = (result && result.targets) || [];
+      renderOpsTargetResults();
+    } catch (e) {
+      addLogEntry('error', 'Catalog search failed: ' + e.message);
+      clearElement(list);
+      list.appendChild(createEmptyState('Search failed: ' + e.message));
+    }
+  }
+
+  function renderOpsTargetResults() {
+    const list = document.getElementById('ops-target-results');
+    if (!list) return;
+    clearElement(list);
+    if (state.ops.catalogResults.length === 0) {
+      list.appendChild(createEmptyState('No matches'));
+      return;
+    }
+    // Cap at 25 so the list stays scrollable on a phone without the bottom
+    // tab bar overlapping useful rows.
+    const cap = Math.min(25, state.ops.catalogResults.length);
+    for (let i = 0; i < cap; i++) {
+      const t = state.ops.catalogResults[i];
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ops-target-row';
+      row.setAttribute('role', 'option');
+      const label = (t.name || 'Target #' + t.id)
+        + (t.catalogId ? '  ' + t.catalogId : '');
+      row.setAttribute('aria-label', label
+        + (t.objectType ? ' ' + t.objectType : ''));
+
+      const main = document.createElement('div');
+      main.className = 'ops-target-row__main';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'ops-target-row__name';
+      nameEl.textContent = label;
+      main.appendChild(nameEl);
+      const metaParts = [];
+      if (t.objectType) metaParts.push(t.objectType);
+      if (t.constellation) metaParts.push(t.constellation);
+      if (t.magnitude != null) {
+        metaParts.push('mag ' + Number(t.magnitude).toFixed(1));
+      }
+      const metaEl = document.createElement('span');
+      metaEl.className = 'ops-target-row__meta';
+      metaEl.textContent = metaParts.join(' · ');
+      main.appendChild(metaEl);
+      row.appendChild(main);
+
+      // RA/Dec coords on the right so the operator can sanity-check before
+      // committing the slew.
+      const coordsEl = document.createElement('span');
+      coordsEl.className = 'ops-target-row__coords';
+      if (t.ra != null && t.dec != null) {
+        coordsEl.textContent = formatRA(Number(t.ra)) + '  '
+          + formatDec(Number(t.dec));
+      } else {
+        coordsEl.textContent = '--';
+      }
+      row.appendChild(coordsEl);
+
+      row.addEventListener('click', () => handleOpsTargetSelect(t));
+      list.appendChild(row);
+    }
+  }
+
+  async function handleOpsTargetSelect(target) {
+    // The audit brief allows "send target to current sequence OR slew to
+    // this". The simplest, no-stub behaviour is to commit the slew, which
+    // is what the operator most often wants from a phone in the field. The
+    // mount panel's goto inputs are also populated so a manual abort/retry
+    // is one tap away.
+    if (target.ra == null || target.dec == null) {
+      showToast('Target ' + (target.name || target.id)
+        + ' has no coordinates', 'error');
+      return;
+    }
+    if (!state.mountDeviceId) {
+      showToast('No mount connected — cannot slew to '
+        + (target.name || target.id), 'error');
+      return;
+    }
+    // Mirror the selection in the mount goto inputs so the operator sees the
+    // resolved values and can abort from the existing mount controls.
+    const goName = document.getElementById('mount-goto-name');
+    const goRa = document.getElementById('mount-goto-ra');
+    const goDec = document.getElementById('mount-goto-dec');
+    if (goName) goName.value = target.name || '';
+    if (goRa) goRa.value = formatRA(Number(target.ra));
+    if (goDec) goDec.value = formatDec(Number(target.dec));
+
+    state.ops.currentTargetId = target.id;
+    state.ops.currentTargetName = target.name || ('Target #' + target.id);
+
+    try {
+      await api.mountSlewToRaDec(state.mountDeviceId,
+        Number(target.ra), Number(target.dec));
+      addLogEntry('mount', 'Slewing to ' + (target.name || target.id)
+        + ' (RA ' + Number(target.ra).toFixed(3)
+        + 'h, Dec ' + Number(target.dec).toFixed(3) + '°)');
+      showToast('Slewing to ' + (target.name || target.id));
+      renderOpsSequencerLoadPanel();
+    } catch (e) {
+      addLogEntry('error', 'Slew failed: ' + e.message);
+      showToast('Slew failed: ' + e.message, 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Weather + safety
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsWeatherAndSafety() {
+    try {
+      const [weather, safety] = await Promise.all([
+        api.weatherGetCurrent(),
+        api.safetyGetStatus(),
+      ]);
+      state.ops.weather = weather;
+      state.ops.safety = safety;
+      renderOpsWeatherPanel();
+    } catch (e) {
+      addLogEntry('error', 'Weather/safety fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsWeatherPanel() {
+    const w = state.ops.weather;
+    const s = state.ops.safety;
+
+    const safeEl = document.getElementById('ops-weather-safe');
+    const alertEl = document.getElementById('ops-weather-alert-level');
+    const msgEl = document.getElementById('ops-weather-message');
+    const tempEl = document.getElementById('ops-weather-temp');
+    const humEl = document.getElementById('ops-weather-humidity');
+    const cloudEl = document.getElementById('ops-weather-clouds');
+    const windEl = document.getElementById('ops-weather-wind');
+    const dewEl = document.getElementById('ops-weather-dew');
+    const badgeEl = document.getElementById('ops-safety-badge');
+    const monCountEl = document.getElementById('ops-safety-monitor-count');
+    const monListEl = document.getElementById('ops-safety-monitor-list');
+
+    if (safeEl) {
+      if (w == null) {
+        safeEl.textContent = '--';
+        safeEl.className = 'status-value';
+      } else {
+        safeEl.textContent = w.safeToImage ? 'yes' : 'no';
+        safeEl.className = 'status-value '
+          + (w.safeToImage ? 'good' : 'error');
+      }
+    }
+    if (alertEl) alertEl.textContent = w ? (w.alertLevel || 'none') : '--';
+    if (msgEl) msgEl.textContent = w && w.message ? w.message : '--';
+
+    // Telemetry rows — these are explicitly null until a /api/weather/current
+    // endpoint is added (see TODO in api.js). Render '--' rather than 0.
+    setOpsTelemetry(tempEl, w && w.temperature, (v) => v.toFixed(1) + ' °C');
+    setOpsTelemetry(humEl, w && w.humidity, (v) => v.toFixed(0) + ' %');
+    setOpsTelemetry(cloudEl, w && w.cloudCover, (v) => v.toFixed(0) + ' %');
+    setOpsTelemetry(windEl, w && w.windSpeed, (v) => v.toFixed(1) + ' kph');
+    setOpsTelemetry(dewEl, w && w.dewPoint, (v) => v.toFixed(1) + ' °C');
+
+    if (badgeEl) {
+      if (s == null) {
+        badgeEl.textContent = '--';
+        badgeEl.className = 'badge badge-idle';
+      } else if (s.isSafe) {
+        badgeEl.textContent = 'safe';
+        badgeEl.className = 'badge badge-running';
+      } else {
+        badgeEl.textContent = 'unsafe';
+        badgeEl.className = 'badge badge-error';
+      }
+    }
+    if (monCountEl) {
+      monCountEl.textContent = s && typeof s.monitorsConnected === 'number'
+        ? String(s.monitorsConnected) : '--';
+    }
+    if (monListEl) {
+      clearElement(monListEl);
+      const monitors = (s && Array.isArray(s.monitors)) ? s.monitors : [];
+      for (const m of monitors) {
+        const item = document.createElement('div');
+        item.className = 'ops-monitor-item';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'ops-monitor-item__name';
+        nameEl.textContent = m.deviceName || m.deviceId || 'monitor';
+        item.appendChild(nameEl);
+        const badge = document.createElement('span');
+        if (!m.connected) {
+          badge.className = 'badge badge-idle';
+          badge.textContent = 'offline';
+        } else if (m.isSafe) {
+          badge.className = 'badge badge-running';
+          badge.textContent = 'safe';
+        } else {
+          badge.className = 'badge badge-error';
+          badge.textContent = 'unsafe';
+        }
+        item.appendChild(badge);
+        monListEl.appendChild(item);
+      }
+      if (s && s.failModeWarning) {
+        const warn = document.createElement('div');
+        warn.className = 'ops-monitor-item';
+        const t = document.createElement('span');
+        t.className = 'ops-monitor-item__name';
+        t.textContent = 'Fail mode: ' + s.failModeWarning;
+        warn.appendChild(t);
+        const b = document.createElement('span');
+        b.className = 'badge badge-paused';
+        b.textContent = '!';
+        warn.appendChild(b);
+        monListEl.appendChild(warn);
+      }
+    }
+  }
+
+  function setOpsTelemetry(el, value, formatter) {
+    if (!el) return;
+    if (value == null || isNaN(Number(value))) {
+      el.textContent = '--';
+    } else {
+      el.textContent = formatter(Number(value));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dome
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsDomeStatusIfConnected() {
+    if (!state.ops.domeDeviceId) {
+      state.ops.domeStatus = null;
+      renderOpsDomePanel();
+      return;
+    }
+    try {
+      state.ops.domeStatus = await api.domeGetStatus(state.ops.domeDeviceId);
+      renderOpsDomePanel();
+    } catch (e) {
+      addLogEntry('error', 'Dome status fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsDomePanel() {
+    const d = state.ops.domeStatus;
+    const shutterEl = document.getElementById('ops-dome-shutter');
+    const azEl = document.getElementById('ops-dome-az');
+    const slewEl = document.getElementById('ops-dome-slewing');
+    const syncEl = document.getElementById('ops-dome-sync');
+    const badgeEl = document.getElementById('ops-dome-state-badge');
+
+    if (!d) {
+      if (shutterEl) shutterEl.textContent = '--';
+      if (azEl) azEl.textContent = '--';
+      if (slewEl) slewEl.textContent = '--';
+      if (syncEl) syncEl.textContent = '--';
+      if (badgeEl) {
+        badgeEl.textContent = state.ops.domeDeviceId ? 'unknown' : 'no dome';
+        badgeEl.className = 'badge badge-idle';
+      }
+      return;
+    }
+
+    if (shutterEl) shutterEl.textContent = d.shutterState || '--';
+    if (azEl) {
+      azEl.textContent = d.azimuth != null
+        ? Number(d.azimuth).toFixed(1) + ' °' : '--';
+    }
+    if (slewEl) slewEl.textContent = d.slewing ? 'yes' : 'no';
+    if (syncEl) syncEl.textContent = d.syncEnabled ? 'enabled' : 'disabled';
+    if (badgeEl) {
+      const state2 = String(d.shutterState || '').toLowerCase();
+      badgeEl.textContent = state2 || 'unknown';
+      if (state2 === 'open') {
+        badgeEl.className = 'badge badge-running';
+      } else if (state2 === 'opening' || state2 === 'closing') {
+        badgeEl.className = 'badge badge-paused';
+      } else if (state2 === 'error') {
+        badgeEl.className = 'badge badge-error';
+      } else if (state2 === 'closed') {
+        badgeEl.className = 'badge badge-completed';
+      } else {
+        badgeEl.className = 'badge badge-idle';
+      }
+    }
+  }
+
+  async function handleOpsDomeOpen() {
+    if (!state.ops.domeDeviceId) {
+      showToast('No dome connected', 'error');
+      return;
+    }
+    try {
+      await api.domeOpen(state.ops.domeDeviceId);
+      addLogEntry('dome', 'Opening shutter');
+      showToast('Opening shutter');
+    } catch (e) {
+      showToast('Dome open failed: ' + e.message, 'error');
+      addLogEntry('error', 'Dome open failed: ' + e.message);
+    }
+  }
+
+  async function handleOpsDomeClose() {
+    if (!state.ops.domeDeviceId) {
+      showToast('No dome connected', 'error');
+      return;
+    }
+    try {
+      await api.domeClose(state.ops.domeDeviceId);
+      addLogEntry('dome', 'Closing shutter');
+      showToast('Closing shutter');
+    } catch (e) {
+      showToast('Dome close failed: ' + e.message, 'error');
+      addLogEntry('error', 'Dome close failed: ' + e.message);
+    }
+  }
+
+  async function handleOpsDomePark() {
+    if (!state.ops.domeDeviceId) {
+      showToast('No dome connected', 'error');
+      return;
+    }
+    try {
+      await api.domePark(state.ops.domeDeviceId);
+      addLogEntry('dome', 'Parking dome');
+      showToast('Parking dome');
+    } catch (e) {
+      showToast('Dome park failed: ' + e.message, 'error');
+      addLogEntry('error', 'Dome park failed: ' + e.message);
+    }
+  }
+
+  async function handleOpsDomeSlew() {
+    if (!state.ops.domeDeviceId) {
+      showToast('No dome connected', 'error');
+      return;
+    }
+    const input = document.getElementById('ops-dome-target-az');
+    const az = input ? parseFloat(input.value) : NaN;
+    if (isNaN(az) || az < 0 || az >= 360) {
+      showToast('Enter an azimuth in [0, 360)', 'error');
+      return;
+    }
+    try {
+      await api.domeSlew(state.ops.domeDeviceId, az);
+      addLogEntry('dome', 'Slewing dome to ' + az.toFixed(1) + '°');
+      showToast('Slewing dome to ' + az.toFixed(1) + '°');
+    } catch (e) {
+      showToast('Dome slew failed: ' + e.message, 'error');
+      addLogEntry('error', 'Dome slew failed: ' + e.message);
+    }
+  }
+
+  async function handleOpsDomeSync(enabled) {
+    if (!state.ops.domeDeviceId) {
+      showToast('No dome connected', 'error');
+      return;
+    }
+    try {
+      await api.domeSyncToMount(state.ops.domeDeviceId, enabled);
+      addLogEntry('dome', 'Dome slaving '
+        + (enabled ? 'enabled' : 'disabled'));
+      showToast('Dome slaving ' + (enabled ? 'enabled' : 'disabled'));
+    } catch (e) {
+      // The dome/sync handler currently returns 501 (not implemented). Surface
+      // that clearly rather than silently hiding it.
+      showToast('Dome sync not implemented yet: ' + e.message, 'error');
+      addLogEntry('error', 'Dome sync failed: ' + e.message);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checkpoint resume picker
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsCheckpoints() {
+    try {
+      const result = await api.sequencerListCheckpoints();
+      state.ops.checkpoints = (result && result.checkpoints) || [];
+      renderOpsCheckpointPanel();
+    } catch (e) {
+      addLogEntry('error', 'Checkpoint fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsCheckpointPanel() {
+    const list = document.getElementById('ops-checkpoint-list');
+    if (!list) return;
+    clearElement(list);
+    if (state.ops.checkpoints.length === 0) {
+      list.appendChild(createEmptyState('No checkpoints available'));
+      return;
+    }
+    for (let i = 0; i < state.ops.checkpoints.length; i++) {
+      const cp = state.ops.checkpoints[i];
+      const row = document.createElement('div');
+      row.className = 'ops-checkpoint-row';
+      row.setAttribute('role', 'listitem');
+
+      const title = document.createElement('div');
+      title.className = 'ops-checkpoint-row__title';
+      title.textContent = cp.target || cp.targetName
+        || cp.sequenceName || ('Checkpoint #' + i);
+      row.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'ops-checkpoint-row__meta';
+      const fieldsToShow = [
+        ['Frames done', cp.framesCompleted ?? cp.completedFrames
+          ?? cp.frames_completed],
+        ['Frames planned', cp.framesPlanned ?? cp.totalFrames],
+        ['Saved at', formatCheckpointAge(cp.savedAt ?? cp.timestamp
+          ?? cp.createdAt)],
+        ['Filter', cp.filter ?? cp.currentFilter],
+        ['Node', cp.nodeName ?? cp.currentNodeName],
+      ];
+      for (const [label, value] of fieldsToShow) {
+        if (value == null) continue;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        const valEl = document.createElement('span');
+        valEl.textContent = String(value);
+        meta.appendChild(labelEl);
+        meta.appendChild(valEl);
+      }
+      row.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'ops-checkpoint-row__actions';
+      const resumeBtn = document.createElement('button');
+      resumeBtn.type = 'button';
+      resumeBtn.className = 'btn btn-sm btn-success';
+      resumeBtn.textContent = 'Resume';
+      resumeBtn.setAttribute('aria-label',
+        'Resume sequencer from checkpoint');
+      resumeBtn.addEventListener('click', () => handleOpsCheckpointResume());
+      actions.appendChild(resumeBtn);
+      const discardBtn = document.createElement('button');
+      discardBtn.type = 'button';
+      discardBtn.className = 'btn btn-sm btn-danger';
+      discardBtn.textContent = 'Discard';
+      discardBtn.setAttribute('aria-label',
+        'Discard checkpoint without resuming');
+      discardBtn.addEventListener('click', () => handleOpsCheckpointDiscard());
+      actions.appendChild(discardBtn);
+      row.appendChild(actions);
+
+      list.appendChild(row);
+    }
+  }
+
+  async function handleOpsCheckpointResume() {
+    try {
+      await api.sequencerResumeCheckpoint();
+      addLogEntry('sequencer', 'Resumed from checkpoint');
+      showToast('Resumed from checkpoint');
+      state.ops.sequenceStartedAt = Date.now();
+      fetchOpsCheckpoints();
+      fetchSequencerStatus();
+    } catch (e) {
+      addLogEntry('error', 'Checkpoint resume failed: ' + e.message);
+      showToast('Resume failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleOpsCheckpointDiscard() {
+    try {
+      await api.sequencerDiscardCheckpoint();
+      addLogEntry('sequencer', 'Checkpoint discarded');
+      showToast('Checkpoint discarded');
+      fetchOpsCheckpoints();
+    } catch (e) {
+      addLogEntry('error', 'Checkpoint discard failed: ' + e.message);
+      showToast('Discard failed: ' + e.message, 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Profiles
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsProfiles() {
+    try {
+      const [list, active] = await Promise.all([
+        api.profilesGetList(),
+        api.profilesGetActive(),
+      ]);
+      state.ops.profiles = (list && list.profiles) || [];
+      state.ops.activeProfile = active && active.profile ? active.profile : null;
+      renderOpsProfilePanel();
+    } catch (e) {
+      addLogEntry('error', 'Profile fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsProfilePanel() {
+    const activeEl = document.getElementById('ops-profile-active');
+    if (activeEl) {
+      const ap = state.ops.activeProfile;
+      activeEl.textContent = ap
+        ? (ap.name || ('Profile #' + ap.id))
+        : 'none';
+    }
+    const sel = document.getElementById('ops-profile-select');
+    if (sel) {
+      const previous = sel.value;
+      clearElement(sel);
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = state.ops.profiles.length === 0
+        ? '-- no profiles --' : '-- select a profile --';
+      sel.appendChild(placeholder);
+      for (const p of state.ops.profiles) {
+        const opt = document.createElement('option');
+        opt.value = String(p.id);
+        opt.textContent = p.name || ('Profile #' + p.id);
+        if (state.ops.activeProfile
+            && String(p.id) === String(state.ops.activeProfile.id)) {
+          opt.textContent += ' (active)';
+        }
+        sel.appendChild(opt);
+      }
+      if (previous) sel.value = previous;
+    }
+  }
+
+  async function handleOpsProfileActivate() {
+    const sel = document.getElementById('ops-profile-select');
+    const id = sel ? sel.value : '';
+    if (!id) {
+      showToast('Pick a profile to activate', 'error');
+      return;
+    }
+    try {
+      await api.profilesActivate(id);
+      addLogEntry('profile', 'Activated profile id=' + id);
+      showToast('Profile activated');
+      // Re-fetch so the active marker updates and any cascading device
+      // changes (filter offsets, etc.) flow through the next status poll.
+      fetchOpsProfiles();
+      fetchDevices();
+    } catch (e) {
+      addLogEntry('error', 'Profile activate failed: ' + e.message);
+      showToast('Activate failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleOpsProfileReload() {
+    try {
+      await api.profilesReload();
+      addLogEntry('profile', 'Reloaded active profile');
+      showToast('Profile reloaded');
+      fetchOpsProfiles();
+    } catch (e) {
+      addLogEntry('error', 'Profile reload failed: ' + e.message);
+      showToast('Reload failed: ' + e.message, 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session analytics summary
+  // ---------------------------------------------------------------------------
+
+  async function fetchOpsAnalyticsSummary() {
+    try {
+      const summary = await api.analyticsGetSessionSummary();
+      state.ops.sessionSummary = summary;
+      // Capture the active session's target name so the sequencer load panel
+      // can display it even when the sequencer status payload doesn't carry
+      // a target field.
+      if (summary && summary.session && summary.session.name) {
+        state.ops.currentTargetName = summary.session.name;
+      }
+      renderOpsAnalyticsPanel();
+      renderOpsSequencerLoadPanel();
+    } catch (e) {
+      addLogEntry('error', 'Analytics fetch failed: ' + e.message);
+    }
+  }
+
+  function renderOpsAnalyticsPanel() {
+    const summary = state.ops.sessionSummary;
+    const session = summary && summary.session;
+    const transparency = (summary && summary.transparency) || [];
+
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    if (!session) {
+      setText('ops-analytics-session-name', 'no active session');
+      setText('ops-analytics-frames', '--');
+      setText('ops-analytics-integration', '--');
+      setText('ops-analytics-hfr', '--');
+      setText('ops-analytics-rms', '--');
+      setText('ops-analytics-transparency-summary', '--');
+      drawOpsTransparencySparkline([]);
+      return;
+    }
+
+    setText('ops-analytics-session-name', session.name
+      || ('Session #' + session.id));
+    const totalFrames = (session.successfulExposures != null
+      ? session.successfulExposures : session.totalExposures);
+    setText('ops-analytics-frames', totalFrames != null
+      ? String(totalFrames) : '--');
+    setText('ops-analytics-integration', session.totalIntegrationSecs != null
+      ? formatDurationSeconds(Number(session.totalIntegrationSecs))
+      : '--');
+    setText('ops-analytics-hfr', session.avgHfr != null
+      ? Number(session.avgHfr).toFixed(2) : '--');
+    setText('ops-analytics-rms', session.avgGuidingRms != null
+      ? Number(session.avgGuidingRms).toFixed(2) + '"' : '--');
+
+    // Transparency values: prefer the `mag_zero_point` field as the magnitude
+    // proxy for transparency trend. The science DAO stores per-sample rows,
+    // so we just feed the magnitude into the sparkline; a falling trend means
+    // worsening transparency, rising means improving.
+    const samples = [];
+    for (const row of transparency) {
+      const v = row.magZeroPoint != null ? Number(row.magZeroPoint)
+        : (row.zeroPoint != null ? Number(row.zeroPoint)
+        : (row.transparency != null ? Number(row.transparency) : null));
+      if (v != null && isFinite(v)) samples.push(v);
+    }
+    if (samples.length === 0) {
+      setText('ops-analytics-transparency-summary',
+        transparency.length === 0 ? 'no samples' : 'no usable samples');
+    } else {
+      const last = samples[samples.length - 1];
+      const first = samples[0];
+      const trend = last >= first ? '↗' : '↘'; // up/down arrow
+      setText('ops-analytics-transparency-summary',
+        last.toFixed(2) + ' ' + trend + ' (' + samples.length + ' samples)');
+    }
+    drawOpsTransparencySparkline(samples);
+  }
+
+  function drawOpsTransparencySparkline(values) {
+    const canvas = document.getElementById('ops-analytics-transparency-spark');
+    if (!canvas) return;
+    // Why DPR-aware sizing: a phone retina display would render at 0.5x
+    // resolution otherwise. The container's CSS height stays 48px; the
+    // backing store scales with devicePixelRatio.
+    const container = canvas.parentElement;
+    const cssW = container ? container.clientWidth : canvas.width;
+    const cssH = container ? container.clientHeight : canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(cssW * dpr));
+    canvas.height = Math.max(1, Math.floor(cssH * dpr));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (!values || values.length < 2) {
+      ctx.fillStyle = '#484f58';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(values && values.length === 1
+        ? '1 sample (need >= 2 for trend)' : 'no transparency samples',
+        6, Math.floor(cssH / 2) + 4);
+      return;
+    }
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of values) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    if (max - min < 0.01) {
+      // Constant series — draw a midline rather than collapsing on a divide-
+      // by-zero.
+      min -= 0.5;
+      max += 0.5;
+    }
+    const pad = 4;
+    const innerW = cssW - pad * 2;
+    const innerH = cssH - pad * 2;
+    const xStep = innerW / (values.length - 1);
+    ctx.strokeStyle = '#58a6ff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < values.length; i++) {
+      const x = pad + i * xStep;
+      const yFrac = (values[i] - min) / (max - min);
+      const y = pad + (1 - yFrac) * innerH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Endpoint dot so the operator can see where the latest sample landed
+    // even when the trend is flat.
+    const last = values[values.length - 1];
+    const lastX = pad + (values.length - 1) * xStep;
+    const lastY = pad + (1 - (last - min) / (max - min)) * innerH;
+    ctx.fillStyle = '#58a6ff';
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Misc ops helpers
+  // ---------------------------------------------------------------------------
+
+  function formatDurationSeconds(secs) {
+    if (secs == null || isNaN(secs)) return '--';
+    const s = Math.max(0, Math.floor(Number(secs)));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    if (h > 0) {
+      return h + 'h ' + pad2(m) + 'm ' + pad2(ss) + 's';
+    }
+    if (m > 0) {
+      return m + 'm ' + pad2(ss) + 's';
+    }
+    return ss + 's';
+  }
+
+  function formatCheckpointAge(raw) {
+    if (raw == null) return null;
+    // The checkpoint info payload's timestamp shape varies by backend
+    // version: it may be epoch ms (number) or an ISO-8601 string. Accept
+    // either; surface the parse failure inline rather than throwing so the
+    // panel still renders.
+    let when;
+    if (typeof raw === 'number') {
+      when = new Date(raw);
+    } else if (typeof raw === 'string') {
+      const parsed = Date.parse(raw);
+      if (!isFinite(parsed)) return raw;
+      when = new Date(parsed);
+    } else {
+      return String(raw);
+    }
+    const ageMs = Date.now() - when.getTime();
+    if (ageMs < 0 || !isFinite(ageMs)) return when.toISOString();
+    return formatDurationSeconds(ageMs / 1000) + ' ago';
   }
 
 })();

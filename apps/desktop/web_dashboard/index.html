@@ -472,6 +472,256 @@
         </div>
       </div>
 
+      <!-- =====================================================================
+           §2.17 ops panels (W5-WEB-OPS-PANELS)
+           All ids/classes in this section use the `ops-` prefix so the
+           parallel W5-WEB-WIZARDS-PLATESOLVE-PA branch can land its panels
+           with a distinct prefix and a cherry-pick merge stays mechanical.
+           ===================================================================== -->
+
+      <!-- ===== Sequence Load + Run Panel (ops) ===== -->
+      <div class="panel" id="ops-seq-load-panel" data-panel="ops-seq-load">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9776;</span>
+            Sequences
+          </span>
+          <div class="panel-actions">
+            <button id="ops-btn-seq-refresh" class="btn btn-sm" aria-label="Refresh sequence list">Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="control-row">
+            <label for="ops-seq-select">Saved</label>
+            <select id="ops-seq-select" aria-label="Select a saved sequence to load">
+              <option value="">-- select a sequence --</option>
+            </select>
+          </div>
+          <div class="btn-group centered-actions">
+            <button id="ops-btn-seq-load-start" class="btn btn-sm btn-success" aria-label="Load selected sequence and start the sequencer">Load &amp; Start</button>
+            <button id="ops-btn-seq-abort" class="btn btn-sm btn-danger" aria-label="Abort the running sequence">Abort</button>
+          </div>
+          <hr class="section-divider">
+          <div class="status-row">
+            <span class="status-label">Current target</span>
+            <span class="status-value info" id="ops-seq-current-target">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Current node</span>
+            <span class="status-value" id="ops-seq-current-node">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Progress</span>
+            <span class="status-value" id="ops-seq-progress-text">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">ETA</span>
+            <span class="status-value" id="ops-seq-eta">--</span>
+          </div>
+          <div class="sequence-progress">
+            <div class="progress-bar-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="ops-seq-progress-bar-container">
+              <div class="progress-bar" id="ops-seq-progress-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Target Catalog Panel (ops) ===== -->
+      <div class="panel" id="ops-target-panel" data-panel="ops-target">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#10022;</span>
+            Target Catalog
+          </span>
+        </div>
+        <div class="panel-body">
+          <div class="control-row">
+            <label for="ops-target-search">Search</label>
+            <input id="ops-target-search" type="text" placeholder="name, catalog, type..." autocomplete="off" spellcheck="false" aria-label="Search target catalog" aria-controls="ops-target-results">
+          </div>
+          <div id="ops-target-results" class="ops-target-results" role="listbox" aria-label="Target search results">
+            <div class="empty-state">Type to search the catalog</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Weather + Safety Panel (ops) ===== -->
+      <div class="panel" id="ops-weather-panel" data-panel="ops-weather">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9729;</span>
+            Weather &amp; Safety
+          </span>
+          <div class="panel-actions">
+            <span id="ops-safety-badge" class="badge badge-idle" role="status">--</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="status-row">
+            <span class="status-label">Safe to image</span>
+            <span class="status-value" id="ops-weather-safe">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Alert level</span>
+            <span class="status-value" id="ops-weather-alert-level">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Message</span>
+            <span class="status-value status-message" id="ops-weather-message">--</span>
+          </div>
+          <hr class="section-divider">
+          <!-- Telemetry rows — these will display "--" until the backend
+               exposes a /api/weather/current endpoint that reads from a
+               connected ObservingConditions / hardware weather device.
+               See TODO(W5-BACKEND-EXTEND) in api.js for the gap. -->
+          <div class="status-row">
+            <span class="status-label">Temperature</span>
+            <span class="status-value" id="ops-weather-temp">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Humidity</span>
+            <span class="status-value" id="ops-weather-humidity">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Cloud cover</span>
+            <span class="status-value" id="ops-weather-clouds">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Wind</span>
+            <span class="status-value" id="ops-weather-wind">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Dew point</span>
+            <span class="status-value" id="ops-weather-dew">--</span>
+          </div>
+          <hr class="section-divider">
+          <div class="status-row">
+            <span class="status-label">Monitors</span>
+            <span class="status-value" id="ops-safety-monitor-count">--</span>
+          </div>
+          <div id="ops-safety-monitor-list" class="ops-monitor-list"></div>
+        </div>
+      </div>
+
+      <!-- ===== Dome Panel (ops) ===== -->
+      <div class="panel" id="ops-dome-panel" data-panel="ops-dome" data-device-type="dome">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9962;</span>
+            Dome
+          </span>
+          <div class="panel-actions">
+            <span id="ops-dome-state-badge" class="badge badge-idle" role="status">--</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="status-row">
+            <span class="status-label">Shutter</span>
+            <span class="status-value" id="ops-dome-shutter">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Azimuth</span>
+            <span class="status-value" id="ops-dome-az">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Slewing</span>
+            <span class="status-value" id="ops-dome-slewing">--</span>
+          </div>
+          <hr class="section-divider">
+          <div class="btn-group centered-actions">
+            <button id="ops-btn-dome-open" class="btn btn-sm btn-success" aria-label="Open dome shutter">Open</button>
+            <button id="ops-btn-dome-close" class="btn btn-sm btn-danger" aria-label="Close dome shutter">Close</button>
+            <button id="ops-btn-dome-park" class="btn btn-sm" aria-label="Park dome">Park</button>
+          </div>
+          <div class="control-row">
+            <label for="ops-dome-target-az">Target Az</label>
+            <input id="ops-dome-target-az" type="number" min="0" max="359.99" step="0.1" placeholder="degrees" aria-label="Target dome azimuth in degrees">
+            <button id="ops-btn-dome-slew" class="btn btn-sm btn-primary" aria-label="Slew dome to target azimuth">Slew</button>
+          </div>
+          <div class="cooling-row">
+            <span class="cooling-row-title">Slave</span>
+            <button id="ops-btn-dome-sync-on" class="btn btn-sm btn-success" aria-label="Enable dome slaving to mount">Sync ON</button>
+            <button id="ops-btn-dome-sync-off" class="btn btn-sm" aria-label="Disable dome slaving to mount">Sync OFF</button>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Sync to mount</span>
+            <span class="status-value" id="ops-dome-sync">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Checkpoint Resume Panel (ops) ===== -->
+      <div class="panel" id="ops-checkpoint-panel" data-panel="ops-checkpoint">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9851;</span>
+            Resume Checkpoint
+          </span>
+          <div class="panel-actions">
+            <button id="ops-btn-checkpoint-refresh" class="btn btn-sm" aria-label="Refresh checkpoint list">Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="ops-checkpoint-list" class="ops-checkpoint-list" role="list" aria-label="Available checkpoints">
+            <div class="empty-state">No checkpoints available</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Profile + Analytics Panel (ops) ===== -->
+      <div class="panel" id="ops-profile-panel" data-panel="ops-profile">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9881;</span>
+            Profile &amp; Session
+          </span>
+          <div class="panel-actions">
+            <button id="ops-btn-profile-reload" class="btn btn-sm" aria-label="Reload the active profile from disk">Reload</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="status-row">
+            <span class="status-label">Active profile</span>
+            <span class="status-value info" id="ops-profile-active">--</span>
+          </div>
+          <div class="control-row">
+            <label for="ops-profile-select">Switch to</label>
+            <select id="ops-profile-select" aria-label="Equipment profile to activate">
+              <option value="">-- select a profile --</option>
+            </select>
+            <button id="ops-btn-profile-activate" class="btn btn-sm btn-primary" aria-label="Activate selected profile">Activate</button>
+          </div>
+          <hr class="section-divider">
+          <div class="status-row">
+            <span class="status-label">Active session</span>
+            <span class="status-value info" id="ops-analytics-session-name">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Frames</span>
+            <span class="status-value" id="ops-analytics-frames">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Integration</span>
+            <span class="status-value" id="ops-analytics-integration">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Mean HFR</span>
+            <span class="status-value" id="ops-analytics-hfr">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Mean guide RMS</span>
+            <span class="status-value" id="ops-analytics-rms">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Transparency</span>
+            <span class="status-value" id="ops-analytics-transparency-summary">--</span>
+          </div>
+          <div class="ops-sparkline-container">
+            <canvas id="ops-analytics-transparency-spark" aria-label="Transparency trend sparkline"></canvas>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /dashboard-grid -->
 
     <!-- Phone bottom-tab navigation (only visible when .layout--phone is on body) -->

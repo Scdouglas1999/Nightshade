@@ -578,6 +578,229 @@ class NightshadeApi {
 
   async getWeatherSafeImaging() { return this._get('/api/weather/safe-imaging'); }
 
+  // TODO[W5-BACKEND-EXTEND]: there is no /api/weather/current endpoint that
+  // returns live telemetry (temperature, humidity, dewpoint, wind, cloud
+  // cover) from a connected ObservingConditions / hardware weather device.
+  // The current weather routes only expose radar/forecast/alerts/safe-imaging.
+  // Until a dedicated handler is added, the dashboard's weather panel fans
+  // out across the alerts + safe-imaging endpoints so the operator still has
+  // some signal; we explicitly do NOT fabricate the missing fields.
+  async weatherGetCurrent() {
+    const [safeImaging, alertsResp] = await Promise.all([
+      this._get('/api/weather/safe-imaging'),
+      this._get('/api/weather/alerts'),
+    ]);
+    const alerts = (alertsResp && Array.isArray(alertsResp.alerts))
+      ? alertsResp.alerts : [];
+    return {
+      safeToImage: !!(safeImaging && safeImaging.safeToImage),
+      alertLevel: (safeImaging && safeImaging.alertLevel) || 'none',
+      message: (safeImaging && safeImaging.message) || '',
+      // Surface the most recent alert (the server emits at most one current
+      // alert today) so the panel can show its details without re-querying.
+      currentAlert: alerts.length > 0 ? alerts[0] : null,
+      // These fields are placeholders to match the §2.17 brief shape. They
+      // are explicitly null so the UI renders '--' rather than 0 — the
+      // panel must NOT pretend it knows the telemetry.
+      temperature: null,
+      humidity: null,
+      cloudCover: null,
+      windSpeed: null,
+      dewPoint: null,
+    };
+  }
+
+  // =========================================================================
+  // Safety (§2.17 — ops panels)
+  // =========================================================================
+
+  // Aggregate safety status across all connected safety monitors.
+  // Returns { isSafe, monitorsConnected, monitors[], failModeWarning, ... }
+  async safetyGetStatus() {
+    return this._get('/api/safety/status');
+  }
+
+  // =========================================================================
+  // Sequences — listing + load by id (§2.17 — ops panels)
+  // =========================================================================
+
+  // List sequences saved in the database. Excludes templates (handled by a
+  // separate endpoint). Each entry: { id, name, description, rootNodeId,
+  // isTemplate, createdAt, updatedAt }.
+  async sequencerList() {
+    return this._get('/api/sequence-management/list');
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: no /api/sequencer/load-by-id endpoint exists.
+  // /api/sequencer/load requires a serialized sequence JSON string. To
+  // "load" a saved sequence by id from the dashboard we currently fetch the
+  // sequence + nodes via /api/sequence-management and post a synthesised
+  // payload below. A dedicated server-side endpoint would let the dashboard
+  // submit only the sequence id (matching the desktop UI's behaviour).
+  async sequencerLoadById(sequenceId) {
+    const [seqResp, nodesResp] = await Promise.all([
+      this._get('/api/sequence-management/' + encodeURIComponent(sequenceId)),
+      this._get(
+        '/api/sequence-management/' + encodeURIComponent(sequenceId) + '/nodes',
+      ),
+    ]);
+    const sequence = seqResp && seqResp.sequence;
+    const nodes = (nodesResp && nodesResp.nodes) || [];
+    if (!sequence) {
+      throw new Error('Sequence ' + sequenceId + ' not found');
+    }
+    // The backend expects a `json` field — pass the full sequence body so the
+    // Rust sequencer can rehydrate it. The desktop client builds the same
+    // payload, so any future schema change applies uniformly.
+    const payload = JSON.stringify({ sequence, nodes });
+    return this._post('/api/sequencer/load', { json: payload });
+  }
+
+  // Convenience for the ops sequencer panel: load + immediately start.
+  async sequencerLoadAndStart(sequenceId) {
+    await this.sequencerLoadById(sequenceId);
+    return this.sequencerStart();
+  }
+
+  // Abort = stop. Why an alias: the §2.17 brief uses "Abort"; the server uses
+  // "stop". Keeping both names makes the dashboard code match the brief
+  // verbatim without a confusing rename.
+  async sequencerAbort() {
+    return this.sequencerStop();
+  }
+
+  // =========================================================================
+  // Checkpoint resume (§2.17 — ops panels)
+  // =========================================================================
+
+  // TODO[W5-BACKEND-EXTEND]: the current sequencer only supports a single
+  // active checkpoint, not a list. /api/sequencer/checkpoint/has +
+  // /api/sequencer/checkpoint/info return that single entry. The §2.17 brief
+  // describes a "picker" so we normalise the response to an array of length
+  // 0 or 1; if/when multi-checkpoint support lands the wire format will need
+  // to change, and the UI already iterates over an array.
+  async sequencerListCheckpoints() {
+    const hasResp = await this._get('/api/sequencer/checkpoint/has');
+    if (!hasResp || !hasResp.hasCheckpoint) {
+      return { checkpoints: [] };
+    }
+    const infoResp = await this._get('/api/sequencer/checkpoint/info');
+    const info = infoResp && infoResp.info;
+    if (!info) {
+      return { checkpoints: [] };
+    }
+    return { checkpoints: [info] };
+  }
+
+  async sequencerResumeCheckpoint() {
+    return this._post('/api/sequencer/checkpoint/resume', {});
+  }
+
+  async sequencerDiscardCheckpoint() {
+    return this._post('/api/sequencer/checkpoint/discard', {});
+  }
+
+  // =========================================================================
+  // Dome (§2.17 — ops panels)
+  // =========================================================================
+
+  async domeOpen(deviceId) {
+    return this._post('/api/dome/open', { deviceId });
+  }
+
+  async domeClose(deviceId) {
+    return this._post('/api/dome/close', { deviceId });
+  }
+
+  async domeSlew(deviceId, azimuth) {
+    return this._post('/api/dome/slew', { deviceId, azimuth });
+  }
+
+  async domePark(deviceId) {
+    return this._post('/api/dome/park', { deviceId });
+  }
+
+  async domeGetStatus(deviceId) {
+    return this._get(
+      '/api/dome/status?deviceId=' + encodeURIComponent(deviceId || ''),
+    );
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: handleDomeSync currently returns 501. The audit
+  // calls for a "sync-to-mount toggle"; once the bridge exposes
+  // apiDomeSetSlaved(), the handler can flip dome slaving and the UI control
+  // here will start working. We still POST so the failure surfaces clearly to
+  // the operator instead of being silently hidden.
+  async domeSyncToMount(deviceId, enabled) {
+    return this._post('/api/dome/sync', { deviceId, enabled });
+  }
+
+  // =========================================================================
+  // Profiles (§2.17 — ops panels)
+  // =========================================================================
+
+  async profilesGetList() {
+    return this._get('/api/profiles');
+  }
+
+  async profilesGetActive() {
+    return this._get('/api/profiles/active');
+  }
+
+  async profilesActivate(profileId) {
+    return this._post(
+      '/api/profiles/' + encodeURIComponent(profileId) + '/load',
+      {},
+    );
+  }
+
+  // TODO[W5-BACKEND-EXTEND]: no /api/profiles/reload endpoint exists. The
+  // desktop UI re-reads the active profile to pick up out-of-band edits;
+  // here we re-activate the active profile id, which has equivalent effect
+  // (it forces device caches + filter offsets to repopulate from disk).
+  async profilesReload() {
+    const active = await this.profilesGetActive();
+    const profile = active && active.profile;
+    if (!profile || !profile.id) {
+      throw new Error('No active profile to reload');
+    }
+    return this.profilesActivate(profile.id);
+  }
+
+  // =========================================================================
+  // Analytics — session summary (§2.17 — ops panels)
+  // =========================================================================
+
+  // TODO[W5-BACKEND-EXTEND]: there is no /api/analytics/session-summary
+  // endpoint. The closest is /api/sessions/active (which returns the row
+  // with totalExposures / totalIntegrationSecs / avgHfr) and the science
+  // bundle (which carries the transparency sample series we use for the
+  // sparkline). Compose them so the dashboard panel has both the headline
+  // stats and the transparency trend without waiting on a new server route.
+  async analyticsGetSessionSummary() {
+    const active = await this._get('/api/sessions/active');
+    const session = active && active.session;
+    if (!session) {
+      return {
+        session: null,
+        transparency: [],
+      };
+    }
+    let transparency = [];
+    try {
+      const bundle = await this._get(
+        '/api/science/session/' + encodeURIComponent(session.id) + '/bundle',
+      );
+      transparency = (bundle && bundle.transparency) || [];
+    } catch (e) {
+      // Why swallow: science telemetry is optional — many sessions are
+      // imaging-only and have no transparency samples recorded. A 404 or
+      // empty bundle is not an error condition for the analytics panel.
+      transparency = [];
+    }
+    return { session, transparency };
+  }
+
   /**
    * Start a pairing session. The server prints a 6-digit code to its console;
    * the operator then types it into the dashboard's pairing modal.

@@ -197,12 +197,14 @@ body {
 
 .dashboard-grid {
   display: grid;
-  /* Why 3 cols * 3 rows: we now host 9 panels (devices, camera, mount,
-     sequencer, guiding, log, filter-wheel, focuser, rotator). Three rows
-     keeps the panels at a comfortable height on a 1080p screen and lets
-     the auxiliary device controls live next to the discovery panel. */
+  /* Why 3 cols * auto rows: the §2.17 ops batch adds 6 more panels on top
+     of the original 9, so the explicit `1fr 1fr 1fr` row template no
+     longer fits. Using auto-flow lets the grid grow naturally while the
+     wrapping `overflow-y: auto` below preserves scrollability on small
+     screens. Each row keeps the same comfortable height because
+     grid-auto-rows is set below. */
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-auto-rows: minmax(280px, 1fr);
   gap: 8px;
   padding: 8px;
   flex: 1;
@@ -1288,6 +1290,160 @@ input[type="range"] {
   color: var(--text-muted);
   text-transform: lowercase;
 }
+
+/* =====================================================================
+   §2.17 ops-panel styles (W5-WEB-OPS-PANELS)
+   All class names in this block are `ops-` prefixed so the parallel
+   W5-WEB-WIZARDS-PLATESOLVE-PA branch (which uses a `wiz-` prefix) can
+   land alongside without collision and the cherry-pick merge is mechanical.
+   ===================================================================== */
+
+/* Target catalog result list — looks like filter-wheel-list but scrollable. */
+.ops-target-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.ops-target-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  /* Why min-height 36px: matches §2.15 touch target. */
+  min-height: 36px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ops-target-row:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--text-muted);
+}
+
+.ops-target-row:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+.ops-target-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ops-target-row__name {
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.ops-target-row__meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.ops-target-row__coords {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Safety monitor sub-list inside the weather panel. */
+.ops-monitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.ops-monitor-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  font-size: 11px;
+}
+
+.ops-monitor-item__name {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+/* Checkpoint card list. Two-action layout (Resume / Discard) per row. */
+.ops-checkpoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ops-checkpoint-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.ops-checkpoint-row__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ops-checkpoint-row__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.ops-checkpoint-row__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Compact session-analytics sparkline (transparency trend). The container
+   gives the canvas a deterministic box; the canvas itself fills it via JS-
+   driven resize so DPR scaling is honoured. */
+.ops-sparkline-container {
+  position: relative;
+  width: 100%;
+  height: 48px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.ops-sparkline-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Inline centered-action row reused from existing dashboard patterns; the
+   §2.17 ops panels keep the look consistent without redefining the helper. */
 
 /* ====== Loading Spinner ====== */
 .spinner {
