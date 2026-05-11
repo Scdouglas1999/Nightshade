@@ -1,5 +1,7 @@
 # Feature Parity Matrix
 
+_Last updated: 2026-05-11 (v2.5.0)._
+
 This matrix defines launch behavior by platform. Every row must be either:
 - Implemented with equivalent behavior, or
 - Explicitly capability-gated with a deterministic unsupported reason.
@@ -16,6 +18,18 @@ This matrix defines launch behavior by platform. Every row must be either:
 | FITS save/export | Implemented | Implemented | Implemented | Errors are explicit and surfaced to caller. |
 | Logging/diagnostics | Implemented | Implemented | Implemented | Correlation IDs required for command flows. |
 | Settings persistence | Implemented | Implemented | Implemented | Schema and defaults match across launch platforms. |
+| Plate solving | External only [^solver] | External only (via remote desktop solver) | External only (via host solver) | Requires ASTAP or astrometry.net to be installed and configured. No internal solver ships in v2.5.0. |
+
+[^solver]: The v2.5.0 pre-release audit (§6.1) found that the previously
+shipped "internal" plate solver returned the commanded RA/Dec or FITS-header
+coordinates verbatim — no astrometric matching against any catalog was being
+performed — while still reporting `success: true`. That code path has been
+removed from the public solve surface in v2.5.0. A real geometric matcher
+(quad hashing against a Gaia-DR3 / Tycho-2 subset) is queued for a future
+release; until then, plate solving requires ASTAP or astrometry.net to be
+installed on the host. The UI surfaces a guided install dialog when neither
+solver is detected. See `docs/plans/2026-05-09-v250-audit-fixes.md` §6.1 and
+§6.2 for the audit context.
 
 ## Driver Backend Platform Matrix
 
@@ -28,3 +42,8 @@ This matrix is mirrored in-app under Settings > Connection > Platform Capabiliti
 | INDI | Available | Available | Available | Requires a reachable INDI server. Missing or unreachable servers must report a deterministic connection error. |
 | Native SDK | Capability-gated | Capability-gated | Capability-gated | Availability depends on packaged vendor SDK libraries and installed OS drivers. Unsupported SDKs must disable controls with an explicit reason. |
 | Simulator | Capability-gated | Capability-gated | Capability-gated | Simulator support is workflow-specific; use ASCOM, Alpaca, or INDI simulator drivers for hardware-like smoke tests unless an in-app simulator path is explicitly enabled. |
+
+## Known limitations in v2.5.0
+
+See `docs/production-readiness/v2.5.0-known-limitations.md` for items
+deliberately deferred from the v2.5.0 release.
