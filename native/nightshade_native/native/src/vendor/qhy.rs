@@ -1012,11 +1012,16 @@ impl NativeCamera for QhyCamera {
         let actual_size = (width * height * (bpp / 8) * channels.max(1)) as usize;
         pooled_buffer.truncate(actual_size);
 
-        // Convert to u16
+        // Why: GetQHYCCDSingleFrame writes raw sensor bytes into the SDK-owned byte buffer
+        // we provided. QHY documents the on-wire framing as little-endian regardless of host
+        // architecture, and the pooled buffer is *not* guaranteed to be u16-aligned (we
+        // hand the SDK a u8 buffer from a pool). We decode each pixel via from_le_bytes so
+        // alignment and host endianness are both irrelevant — only SDK length matters,
+        // and we already truncated the buffer to actual_size = width*height*(bpp/8)*channels.
         let data: Vec<u16> = if bpp == 16 {
             pooled_buffer
                 .chunks_exact(2)
-                .map(|chunk| u16::from_ne_bytes([chunk[0], chunk[1]]))
+                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect()
         } else {
             // 8-bit to 16-bit scaling

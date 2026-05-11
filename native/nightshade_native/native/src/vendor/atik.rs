@@ -950,11 +950,23 @@ impl NativeCamera for AtikCamera {
             )));
         }
 
-        // Copy image data (16-bit)
+        // Copy image data (16-bit, little-endian on the wire).
         let pixel_count = (w as usize) * (h as usize);
-        let buffer_slice =
-            unsafe { std::slice::from_raw_parts(buffer_ptr as *const u16, pixel_count) };
-        let data: Vec<u16> = buffer_slice.to_vec();
+        let byte_count = pixel_count
+            .checked_mul(2)
+            .ok_or_else(|| NativeError::SdkError("Atik image dimensions overflow usize".into()))?;
+        // Why: ArtemisImageBuffer() returns *mut c_void with pixel_count * 2 valid bytes,
+        // but Artemis does not guarantee u16 alignment of that pointer. Reading through
+        // *const u16 would be UB on archs that trap unaligned loads (and is technically UB
+        // even on x86). We take the buffer as bytes and decode each pixel via from_le_bytes,
+        // which is well-defined regardless of source alignment and pins the SDK's documented
+        // little-endian framing.
+        let byte_slice =
+            unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, byte_count) };
+        let data: Vec<u16> = byte_slice
+            .chunks_exact(2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+            .collect();
 
         // Get temperature for metadata
         let temperature = {

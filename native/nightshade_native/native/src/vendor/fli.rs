@@ -894,13 +894,24 @@ impl NativeCamera for FliCamera {
             )
         };
 
-        // Allocate buffer (16-bit = 2 bytes per pixel)
-        let row_bytes = width * 2;
-        let mut data: Vec<u16> = vec![0u16; width * height];
+        // Allocate raw byte buffer (16-bit = 2 bytes per pixel).
+        // Why: FLIGrabRow() writes `width` bytes of little-endian pixel data into a *mut u8
+        // sink. Allocating Vec<u16> and casting through *mut u8 would force the caller to
+        // assume the host is little-endian for the resulting u16 values; allocating a Vec<u8>
+        // and decoding via from_le_bytes pins the SDK's documented LE framing and removes
+        // the alignment hazard entirely (Vec<u8> is u8-aligned, no transmute needed).
+        let row_bytes = width
+            .checked_mul(2)
+            .ok_or_else(|| NativeError::SdkError("FLI image width overflows usize".into()))?;
+        let total_bytes = row_bytes
+            .checked_mul(height)
+            .ok_or_else(|| NativeError::SdkError("FLI image height overflows usize".into()))?;
+        let mut byte_buffer: Vec<u8> = vec![0u8; total_bytes];
 
         // Read image row by row (FLI style)
         for row in 0..height {
-            let row_ptr = unsafe { data.as_mut_ptr().add(row * width) as *mut u8 };
+            let row_offset = row * row_bytes;
+            let row_ptr = unsafe { byte_buffer.as_mut_ptr().add(row_offset) };
             let result = unsafe { (sdk.grab_row)(self.handle, row_ptr, row_bytes) };
             if result != 0 {
                 tracing::error!(
@@ -914,6 +925,12 @@ impl NativeCamera for FliCamera {
                 )));
             }
         }
+
+        // Decode the byte buffer into u16 pixels with explicit little-endian framing.
+        let data: Vec<u16> = byte_buffer
+            .chunks_exact(2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+            .collect();
 
         // End exposure
         let _ = unsafe { (sdk.end_exposure)(self.handle) };
