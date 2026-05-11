@@ -14,6 +14,7 @@ import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/dashboard/mobile_dashboard_screen.dart';
 import 'screens/qr_scanner_screen.dart';
 import 'services/mobile_preferences.dart';
 import 'services/mobile_sequence_hooks.dart';
@@ -24,6 +25,13 @@ import 'widgets/checkpoint_resume_dialog.dart';
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Audit §3.5: hand the phone-tailored dashboard to the shared router
+  // before any consumer reads `appRouterProvider`. This must happen at
+  // boot because the router builder list is constructed eagerly inside
+  // the provider — late mutation of `mobileDashboardBuilder` after the
+  // router resolves the route would be ignored on first navigation.
+  mobileDashboardBuilder = (_) => const MobileDashboardScreen();
 
   // Audit §3.13: respect the user's immersive-mode preference. Default is
   // leanBack so the system clock and battery indicator remain visible
@@ -512,8 +520,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         );
       }
 
-      // Once connected, show the full desktop UI
-      // The backendProvider is already updated by _connect()
+      // Once connected, decide whether to show the phone-tailored
+      // dashboard (audit §3.5) or the shrink-to-fit desktop UI. Phones
+      // (< 600 px wide) get `MobileDashboardScreen` as the landing
+      // screen; tablets keep the existing `NightshadeApp(isMobile:
+      // true)` because the multi-pane layouts are still usable on a
+      // 768+ px viewport.
       return Consumer(
         builder: (context, ref, _) {
           // Activate location sync
@@ -533,6 +545,34 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           // Check for checkpoint on first connection
           _checkForCheckpoint(context, ref);
 
+          // Probe the *physical* screen size, not the widget constraints,
+          // because the connection screen does not yet provide a
+          // MediaQuery from a Scaffold. Using `MediaQuery.sizeOf(context)`
+          // gives us the actual device width from the WidgetsBinding view
+          // so a tablet booted in landscape still resolves to "not phone".
+          final width = MediaQuery.sizeOf(context).width;
+          final isPhone = BreakpointTokens.isPhone(width);
+
+          if (isPhone) {
+            // Phone path: wrap the dashboard in a MaterialApp so it has
+            // theme + localization + the same provider scope. We use a
+            // standalone MaterialApp instead of routing through GoRouter
+            // because the connection flow above already returned without
+            // entering the router, and trying to flip the initial route
+            // mid-build leads to "router has no current location" errors.
+            final themeMode = ref.watch(themeModeProvider);
+            return MaterialApp(
+              title: 'Nightshade',
+              debugShowCheckedModeBanner: false,
+              theme: NightshadeTheme.light,
+              darkTheme: NightshadeTheme.dark,
+              themeMode: themeMode,
+              localizationsDelegates:
+                  NightshadeLocalizations.localizationsDelegates,
+              supportedLocales: NightshadeLocalizations.supportedLocales,
+              home: const MobileDashboardScreen(),
+            );
+          }
           return const NightshadeApp(isMobile: true);
         },
       );

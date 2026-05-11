@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,10 +21,38 @@ import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
 import 'page_transitions.dart';
 
+/// Builder for the phone-tailored dashboard route (audit §3.5).
+///
+/// The mobile app injects this when it boots so the router can resolve
+/// `/mobile-dashboard` without `packages/nightshade_app` taking a hard
+/// dependency on `apps/mobile`. Defaults to a placeholder so the route
+/// always exists (helpful when the desktop GoRouter is exercised in
+/// tests), but the placeholder should never render in production.
+WidgetBuilder mobileDashboardBuilder = (context) {
+  return const Scaffold(
+    body: Center(
+      child: Text(
+        'Mobile dashboard is only available on phone builds.\n'
+        'apps/mobile.main wires the real builder.',
+        textAlign: TextAlign.center,
+      ),
+    ),
+  );
+};
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/dashboard',
     routes: [
+      // Phone-tailored dashboard lives outside the shell because it
+      // brings its own scaffold + bottom-nav and the desktop AppShell
+      // would double-up the chrome and steal the bottom 78 px from the
+      // sticky sequencer footer.
+      GoRoute(
+        path: '/mobile-dashboard',
+        name: 'mobile-dashboard',
+        builder: (context, state) => mobileDashboardBuilder(context),
+      ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
