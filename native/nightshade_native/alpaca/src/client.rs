@@ -63,6 +63,40 @@ pub enum AlpacaError {
         reason: String,
     },
 
+    // Why §5.13: the Alpaca v3 `application/imagebytes` payload begins with a
+    // 44-byte fixed header. Anything shorter than the field we're trying to
+    // read is wire truncation, never a recoverable condition — fail closed.
+    #[error(
+        "Alpaca ImageBytes header truncated: needed {needed} bytes at offset {offset}, payload is {got} bytes total"
+    )]
+    BinaryHeaderTruncated {
+        offset: usize,
+        needed: usize,
+        got: usize,
+    },
+
+    // Why §5.13: the wire-side `transmission element type` is constrained to
+    // the ASCOM `ImageArrayElementTypes` enum; an unknown value means we have
+    // no way to interpret payload bytes safely.
+    #[error("Alpaca ImageBytes unsupported transmission element type {code}")]
+    UnsupportedTransmissionType { code: i32 },
+
+    // Why §5.13: dimensions and rank must agree; a rank-2 frame with a non-zero
+    // `dimension 3`, or a dim that doesn't match the requested NumX/NumY, is
+    // either a server bug or wire corruption.
+    #[error(
+        "Alpaca ImageBytes malformed dimensions: rank={rank} dims=[{dim1},{dim2},{dim3}] (expected {expected_width}x{expected_height}): {reason}"
+    )]
+    MalformedDimensions {
+        rank: i32,
+        dim1: i32,
+        dim2: i32,
+        dim3: i32,
+        expected_width: u32,
+        expected_height: u32,
+        reason: String,
+    },
+
     #[error("Not connected")]
     NotConnected,
 
@@ -118,6 +152,9 @@ impl AlpacaError {
             AlpacaError::PixelParseError { .. } => false,
             AlpacaError::ColorImageUnsupported { .. } => false,
             AlpacaError::UnsupportedImageArray { .. } => false,
+            AlpacaError::BinaryHeaderTruncated { .. } => false,
+            AlpacaError::UnsupportedTransmissionType { .. } => false,
+            AlpacaError::MalformedDimensions { .. } => false,
             AlpacaError::NotConnected => false,
             AlpacaError::OperationFailed(_) => false,
             AlpacaError::UnsupportedApiVersion(_) => false,
