@@ -1,6 +1,6 @@
 # Fail-Closed Audit
 
-- Rules: `5`
+- Rules: `10`
 - Violations: `0`
 
 Fail-closed policy checks passed.

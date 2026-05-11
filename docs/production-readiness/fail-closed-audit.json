@@ -1,6 +1,8 @@
 {
-  "generatedAt": "2026-05-06T04:13:31.369071Z",
-  "ruleCount": 5,
+  "generatedAt": "2026-05-10T22:18:47.785980Z",
+  "rulesPath": "docs/production-readiness/fail_closed_rules.yaml",
+  "ruleCount": 10,
+  "filesScanned": 1428,
   "violationCount": 0,
   "passed": true,
   "violations": []

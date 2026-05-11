@@ -263,27 +263,43 @@ impl Trigger {
                                 let elapsed_secs = chrono::Utc::now().timestamp() - detected_at;
                                 let wait_secs = (config.tracking_limit_wait_minutes * 60.0) as i64;
                                 if elapsed_secs < wait_secs {
+                                    // Why §1.21: emit "n/a" when HA is unmeasured so the log
+                                    // never advertises the 0.0 sentinel as if it were real data.
                                     tracing::trace!(
-                                        "Tracking limit hit: waiting {}/{}s before flip (HA={:.2}h)",
+                                        "Tracking limit hit: waiting {}/{}s before flip (HA={}h)",
                                         elapsed_secs,
                                         wait_secs,
-                                        state.current_hour_angle.unwrap_or_default()
+                                        state
+                                            .current_hour_angle
+                                            .map(|v| format!("{:.2}", v))
+                                            .unwrap_or_else(|| "n/a".into())
                                     );
                                     return false;
                                 }
+                                // Why §1.21: see HA formatting note above — preserve "n/a"
+                                // distinction at info level too.
                                 tracing::info!(
-                                    "Tracking limit wait elapsed ({:.1} min), triggering meridian flip (HA={:.2}h)",
+                                    "Tracking limit wait elapsed ({:.1} min), triggering meridian flip (HA={}h)",
                                     config.tracking_limit_wait_minutes,
-                                    state.current_hour_angle.unwrap_or_default()
+                                    state
+                                        .current_hour_angle
+                                        .map(|v| format!("{:.2}", v))
+                                        .unwrap_or_else(|| "n/a".into())
                                 );
                             } else {
                                 // No timestamp yet - wait for executor to record it on next poll
                                 return false;
                             }
                         } else {
+                            // Why §1.21: HA may be `None` if the mount has not yet reported
+                            // coordinates this poll cycle — log "n/a" rather than masking
+                            // missing data as 0.0.
                             tracing::info!(
-                                "Tracking limit hit detected, triggering immediate meridian flip (HA={:.2}h, pier={:?})",
-                                state.current_hour_angle.unwrap_or_default(),
+                                "Tracking limit hit detected, triggering immediate meridian flip (HA={}h, pier={:?})",
+                                state
+                                    .current_hour_angle
+                                    .map(|v| format!("{:.2}", v))
+                                    .unwrap_or_else(|| "n/a".into()),
                                 state.pier_side
                             );
                         }
