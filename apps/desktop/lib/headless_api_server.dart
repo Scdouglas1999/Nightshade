@@ -67,6 +67,12 @@ class HeadlessApiServer {
   int _requestCounter = 0;
   StreamSubscription? _eventSubscription;
   StreamSubscription? _collaborationSubscription;
+  // Push-notification forwarder. Why optional: headless mode has no on-device
+  // notifications to forward (the operator is remote); GUI mode wires the
+  // PushNotificationService stream here so paired phones receive sequence
+  // failures, weather aborts, etc. as separate WebSocket messages distinct
+  // from regular event broadcasts.
+  StreamSubscription? _pushNotificationSubscription;
   final LiveCollaborationSessionManager _collaborationManager =
       LiveCollaborationSessionManager();
   final route_metadata.EndpointRateLimiter _rateLimiter =
@@ -486,6 +492,10 @@ class HeadlessApiServer {
     router.get('/api/sessions/<sessionId>/images',
         _sessionHandlers.handleGetSessionImages);
     router.get('/api/images', _sessionHandlers.handleGetAllImages);
+    // Legacy alias for mobile clients that pre-date /api/images. Why kept:
+    // §2.2 of the audit consolidates the two servers into HeadlessApiServer;
+    // dropping the legacy path would break pinned mobile builds in the field.
+    router.get('/api/images/recent', _sessionHandlers.handleGetRecentImages);
     router.get(
         '/api/images/standalone', _sessionHandlers.handleGetStandaloneImages);
     router.get('/api/images/<imageId>/thumbnail',
@@ -878,6 +888,8 @@ class HeadlessApiServer {
     _eventSubscription = null;
     await _collaborationSubscription?.cancel();
     _collaborationSubscription = null;
+    await _pushNotificationSubscription?.cancel();
+    _pushNotificationSubscription = null;
     _webSocketHeartbeatTimer?.cancel();
     _webSocketHeartbeatTimer = null;
     await _server?.close(force: true);
@@ -967,6 +979,42 @@ class HeadlessApiServer {
         _logWarning('Error broadcasting collaboration state: $e');
       }
     }
+  }
+
+  /// Forward push notifications from a [PushNotificationService] stream to all
+  /// connected WebSocket clients. Notifications are sent verbatim (the service
+  /// emits the `type: 'push_notification'` envelope) so the mobile client can
+  /// distinguish them from `type: 'event'` broadcasts and surface them as
+  /// system notifications instead of UI updates.
+  ///
+  /// Why on the server rather than the service: the WebSocket fan-out lives
+  /// here. Re-subscribing replaces any previous subscription so the GUI can
+  /// safely call this every time the backend changes.
+  void setPushNotificationStream(
+      Stream<Map<String, dynamic>> notificationStream) {
+    _pushNotificationSubscription?.cancel();
+    _pushNotificationSubscription = notificationStream.listen(
+      (notification) {
+        if (_sockets.isEmpty) return;
+        final String encoded;
+        try {
+          encoded = jsonEncode(notification);
+        } catch (e) {
+          _logWarning('Error encoding push notification: $e');
+          return;
+        }
+        for (final socket in List.of(_sockets)) {
+          try {
+            socket.sink.add(encoded);
+          } catch (e) {
+            _logWarning('Error broadcasting push notification: $e');
+          }
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        _logError('Push notification stream error: $error');
+      },
+    );
   }
 
   // ===========================================================================
@@ -3009,6 +3057,14 @@ class HeadlessApiServer {
 
   /// The bound HTTP port. Useful when the server was started with port 0.
   int get actualPort => _server?.port ?? port;
+
+  /// Expose the internal collaboration manager so GUI hosts can track
+  /// viewer-count changes (drives the desktop status-bar viewer badge).
+  /// Why expose rather than emit yet another callback: the manager already
+  /// publishes a `LiveCollaborationState` stream consumers can subscribe to,
+  /// and exposing it avoids duplicating that wiring for one more listener.
+  LiveCollaborationSessionManager get collaborationManager =>
+      _collaborationManager;
 }
 
 class _RequestBodyLimitResult {

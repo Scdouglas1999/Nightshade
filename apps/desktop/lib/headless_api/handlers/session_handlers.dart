@@ -96,6 +96,34 @@ class SessionHandlers {
     return jsonOk({'images': images.map((image) => image.toJson()).toList()});
   }
 
+  /// Legacy `/api/images/recent?limit=<n>` for mobile clients that pre-date
+  /// the unified `/api/images` route. Why kept: existing pinned mobile builds
+  /// hit this URL and we cannot push an update to all installed clients
+  /// before the v2.5 release. Returns the same shape the GUI web_server used
+  /// (`images` + `count`) so the mobile UI tile counters keep working.
+  Future<Response> handleGetRecentImages(Request request) async {
+    _logInfo('[API] GET /api/images/recent');
+    final limitParam = request.url.queryParameters['limit'];
+    final database = container.read(databaseProvider);
+    if (limitParam != null) {
+      final limit = int.tryParse(limitParam);
+      if (limit == null || limit <= 0) {
+        throw BadRequestError(
+          field: 'limit',
+          expected: 'positive integer',
+          message: 'limit query parameter must be a positive integer',
+        );
+      }
+      final images = await database.imagesDao
+          .getAllImagesPaginated(limit: limit, offset: 0);
+      final imagesJson = images.map((image) => image.toJson()).toList();
+      return jsonOk({'images': imagesJson, 'count': imagesJson.length});
+    }
+    final images = await database.imagesDao.getAllImages();
+    final imagesJson = images.map((image) => image.toJson()).toList();
+    return jsonOk({'images': imagesJson, 'count': imagesJson.length});
+  }
+
   Future<Response> handleGetStandaloneImages(Request request) async {
     _logInfo('[API] GET /api/images/standalone');
     final database = container.read(databaseProvider);
