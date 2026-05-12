@@ -20,6 +20,7 @@ import 'tables/dark_library.dart';
 import 'tables/observation_logs.dart';
 import 'tables/observing_lists.dart';
 import 'tables/sequence_runs.dart';
+import 'tables/defect_map_table.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -71,6 +72,7 @@ part 'database.g.dart';
     ObservingLists,
     ObservingListItems,
     SequenceRuns,
+    DefectMaps,
   ],
   daos: [
     ImagesDao,
@@ -98,7 +100,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration {
@@ -1273,6 +1275,15 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             'id INTEGER PRIMARY KEY AUTOINCREMENT,'
             'name TEXT NOT NULL,'
             'samples_json TEXT NOT NULL)',
+          );
+        }
+
+        // Version 28: Defect map table for bad-pixel cosmetic correction (W6-DEFECT).
+        if (from < 28) {
+          await m.createTable(defectMaps);
+          await customStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS idx_defect_maps_lookup '
+            'ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)',
           );
         }
 

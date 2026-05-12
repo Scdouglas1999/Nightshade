@@ -11031,3 +11031,235 @@ pub fn api_stacking_is_active() -> bool {
 pub fn api_stacking_frame_count() -> u32 {
     crate::stacking_api::stacking_frame_count()
 }
+
+// =============================================================================
+// Defect-Map / Bad-Pixel Cosmetic Correction API
+// =============================================================================
+
+/// Status of a stored defect map for a given camera / sensor / temperature.
+pub struct ApiDefectMapStatus {
+    pub camera_id: String,
+    pub width: u32,
+    pub height: u32,
+    pub temperature_bucket_decicelsius: i16,
+    pub defective_pixel_count: u32,
+    pub last_rebuilt_unix_seconds: i64,
+    pub apply_during_capture: bool,
+    pub stored_on_disk: bool,
+}
+
+fn defect_maps_root() -> std::path::PathBuf {
+    let base = std::env::var_os("NIGHTSHADE_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("nightshade"));
+    base.join("defect_maps")
+}
+
+fn sanitize_camera_id(camera_id: &str) -> String {
+    camera_id
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
+}
+
+fn defect_map_path(
+    camera_id: &str,
+    width: u32,
+    height: u32,
+    bucket_decicelsius: i16,
+) -> std::path::PathBuf {
+    defect_maps_root().join(format!(
+        "{}_{}x{}_{:+05}.ndm",
+        sanitize_camera_id(camera_id),
+        width,
+        height,
+        bucket_decicelsius
+    ))
+}
+
+/// Tracks whether the user has enabled per-capture defect correction for
+/// each camera_id. The bool is the toggle state; the runtime cache of the
+/// map itself is loaded on demand by the capture pipeline.
+static DEFECT_APPLY_FLAGS: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
+
+fn defect_apply_flags() -> &'static Mutex<HashMap<String, bool>> {
+    DEFECT_APPLY_FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Build a defect map for a camera from a set of dark frames provided as
+/// FITS/XISF file paths. Frames must all share dimensions and pixel type.
+///
+/// The resulting map is written to disk under
+/// `$NIGHTSHADE_DATA_DIR/defect_maps/` keyed by camera id, sensor size and
+/// temperature bucket, and the status is returned.
+pub async fn api_defect_map_build(
+    camera_id: String,
+    dark_frame_paths: Vec<String>,
+    sensor_temperature_celsius: f64,
+) -> Result<ApiDefectMapStatus, NightshadeError> {
+    if camera_id.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "camera_id is empty".to_string(),
+        ));
+    }
+    if dark_frame_paths.len() < nightshade_imaging::defect_map::MIN_CONSISTENCY_FRAMES {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "defect map build requires at least {} dark frames; got {}",
+            nightshade_imaging::defect_map::MIN_CONSISTENCY_FRAMES,
+            dark_frame_paths.len()
+        )));
+    }
+
+    let darks: Vec<ImageData> = tokio::task::spawn_blocking(move || {
+        let mut frames = Vec::with_capacity(dark_frame_paths.len());
+        for path in &dark_frame_paths {
+            let result = nightshade_imaging::read_image(std::path::Path::new(path))
+                .map_err(|e| format!("failed to read {}: {}", path, e))?;
+            frames.push(result.image);
+        }
+        Ok::<_, String>(frames)
+    })
+    .await
+    .map_err(|e| NightshadeError::ImageError(format!("join error reading darks: {}", e)))?
+    .map_err(NightshadeError::ImageError)?;
+
+    let bucket = nightshade_imaging::defect_map::bucket_temperature(sensor_temperature_celsius);
+    let dark_refs: Vec<&ImageData> = darks.iter().collect();
+    let map = nightshade_imaging::defect_map::build_defect_map(&dark_refs, bucket)
+        .map_err(|e| NightshadeError::ImageError(e.to_string()))?;
+
+    let path = defect_map_path(&camera_id, map.width, map.height, bucket);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            NightshadeError::ImageError(format!(
+                "failed to create defect map directory {}: {}",
+                parent.display(),
+                e
+            ))
+        })?;
+    }
+    map.write_to_file(&path)
+        .map_err(|e| NightshadeError::ImageError(e.to_string()))?;
+
+    let apply_during_capture = {
+        let flags = defect_apply_flags().lock().await;
+        flags.get(&camera_id).copied().unwrap_or(false)
+    };
+
+    Ok(ApiDefectMapStatus {
+        camera_id,
+        width: map.width,
+        height: map.height,
+        temperature_bucket_decicelsius: bucket,
+        defective_pixel_count: map.defective_count(),
+        last_rebuilt_unix_seconds: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0),
+        apply_during_capture,
+        stored_on_disk: true,
+    })
+}
+
+/// Toggle whether the defect map for this camera is applied to lights
+/// during capture. The map must already exist on disk for the toggle to
+/// take effect at the next capture; this call only updates the user's
+/// preference.
+pub async fn api_defect_map_apply(
+    camera_id: String,
+    apply_during_capture: bool,
+) -> Result<(), NightshadeError> {
+    if camera_id.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "camera_id is empty".to_string(),
+        ));
+    }
+    let mut flags = defect_apply_flags().lock().await;
+    flags.insert(camera_id, apply_during_capture);
+    Ok(())
+}
+
+/// Delete the defect map stored on disk for the given camera, sensor
+/// dimensions and temperature bucket. Also resets the apply-during-
+/// capture flag for that camera.
+pub async fn api_defect_map_clear(
+    camera_id: String,
+    width: u32,
+    height: u32,
+    sensor_temperature_celsius: f64,
+) -> Result<(), NightshadeError> {
+    if camera_id.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "camera_id is empty".to_string(),
+        ));
+    }
+    let bucket = nightshade_imaging::defect_map::bucket_temperature(sensor_temperature_celsius);
+    let path = defect_map_path(&camera_id, width, height, bucket);
+    if path.exists() {
+        std::fs::remove_file(&path).map_err(|e| {
+            NightshadeError::ImageError(format!(
+                "failed to delete defect map {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+    }
+    let mut flags = defect_apply_flags().lock().await;
+    flags.remove(&camera_id);
+    Ok(())
+}
+
+/// Look up the status of the stored defect map for a camera at the given
+/// sensor size and temperature. Returns `Ok(None)` if no map is stored
+/// for that combination.
+pub async fn api_defect_map_get_status(
+    camera_id: String,
+    width: u32,
+    height: u32,
+    sensor_temperature_celsius: f64,
+) -> Result<Option<ApiDefectMapStatus>, NightshadeError> {
+    if camera_id.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "camera_id is empty".to_string(),
+        ));
+    }
+    let bucket = nightshade_imaging::defect_map::bucket_temperature(sensor_temperature_celsius);
+    let path = defect_map_path(&camera_id, width, height, bucket);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let map = nightshade_imaging::defect_map::DefectMap::read_from_file(&path)
+        .map_err(|e| NightshadeError::ImageError(e.to_string()))?;
+    let metadata = std::fs::metadata(&path).map_err(|e| {
+        NightshadeError::ImageError(format!(
+            "failed to stat defect map {}: {}",
+            path.display(),
+            e
+        ))
+    })?;
+    let last_rebuilt = metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let apply_during_capture = {
+        let flags = defect_apply_flags().lock().await;
+        flags.get(&camera_id).copied().unwrap_or(false)
+    };
+
+    Ok(Some(ApiDefectMapStatus {
+        camera_id,
+        width: map.width,
+        height: map.height,
+        temperature_bucket_decicelsius: map.temperature_bucket_decicelsius,
+        defective_pixel_count: map.defective_count(),
+        last_rebuilt_unix_seconds: last_rebuilt,
+        apply_during_capture,
+        stored_on_disk: true,
+    }))
+}

@@ -59,6 +59,7 @@ export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/science/science_models.dart';
+export 'src/models/defect_map.dart';
 
 // Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
 export 'src/models/scheduler/integration_goal.dart';
@@ -126,6 +127,7 @@ export 'src/providers/imaging_history_provider.dart';
 export 'src/providers/live_validation_provider.dart';
 export 'src/providers/period_analysis_provider.dart';
 export 'src/providers/photometric_transform_provider.dart';
+export 'src/providers/defect_map_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -203,6 +205,7 @@ export 'src/services/science/period_analysis_service.dart';
 export 'src/services/dark_library_service.dart';
 export 'src/services/live_stacking_service.dart';
 export 'src/services/project_tracking_service.dart';
+export 'src/services/calibration/defect_map_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

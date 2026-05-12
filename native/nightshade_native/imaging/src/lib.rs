@@ -14,6 +14,7 @@
 
 pub mod buffer_pool;
 pub mod calibration;
+pub mod defect_map;
 
 mod camera;
 mod debayer;
