@@ -5710,6 +5710,10 @@ impl From<crate::storage::PlateSolverPreference> for PlateSolverConfigPayload {
 pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> {
     use std::path::Path;
 
+    // Why: first-run / no-saved-prefs is the dominant case — return defaults
+    // so detection still scans standard install paths. A storage IO error
+    // here is non-fatal because the only state read is overlay-on-defaults;
+    // the user can still set explicit paths in the Plate Solving settings.
     let pref = crate::state::get_platesolver_preference()
         .unwrap_or_else(|_| crate::storage::PlateSolverPreference::default());
 
@@ -11223,6 +11227,13 @@ pub struct ApiDefectMapStatus {
 }
 
 fn defect_maps_root() -> std::path::PathBuf {
+    // Why: NIGHTSHADE_DATA_DIR is the standard per-platform application
+    // data path set by the Flutter shell on launch (see main_headless.dart
+    // and the FFI bridge startup). The temp_dir fallback exists for unit
+    // tests and for headless invocations where the env var hasn't been
+    // populated yet — for those callers the defect maps are session-scoped
+    // and don't need to survive a reboot. Production hosts hit the env-var
+    // branch first.
     let base = std::env::var_os("NIGHTSHADE_DATA_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir().join("nightshade"));
@@ -11319,6 +11330,10 @@ pub async fn api_defect_map_build(
         .map_err(|e| NightshadeError::ImageError(e.to_string()))?;
 
     let apply_during_capture = {
+        // Why: absence of a flag for this camera id is the canonical "off"
+        // state — apply-during-capture is opt-in and the map is only written
+        // when the user toggles it on for a specific (camera, temperature)
+        // pair. No need to surface this as an error.
         let flags = defect_apply_flags().lock().await;
         flags.get(&camera_id).copied().unwrap_or(false)
     };
@@ -11422,6 +11437,10 @@ pub async fn api_defect_map_get_status(
         .unwrap_or(0);
 
     let apply_during_capture = {
+        // Why: absence of a flag for this camera id is the canonical "off"
+        // state — apply-during-capture is opt-in and the map is only written
+        // when the user toggles it on for a specific (camera, temperature)
+        // pair. No need to surface this as an error.
         let flags = defect_apply_flags().lock().await;
         flags.get(&camera_id).copied().unwrap_or(false)
     };

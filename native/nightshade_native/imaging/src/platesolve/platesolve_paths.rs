@@ -290,6 +290,11 @@ where
         return None;
     }
 
+    // Why: at this point `has_index_files` is true (otherwise we returned
+    // None above), so a catalog directory exists but its signature didn't
+    // match any known V17/D80/V50 variant. Surface it as an "unknown catalog"
+    // with an empty name so the UI can show "catalog present, version
+    // unrecognized" rather than pretending no catalog was found.
     let (name, mag) = detected.unwrap_or(("", None));
     Some(CatalogInfo {
         name: name.to_string(),
