@@ -61,6 +61,12 @@ build/
 **/*.rs.bk
 Cargo.lock
 
+# Negation: the Dart models/target/ directory holds source files (catalog
+# target types), not Rust build output. Without this, **/target/ above swallows
+# target_models.dart and the package fails to compile from a fresh clone.
+!packages/nightshade_core/lib/src/models/target/
+!packages/nightshade_core/lib/src/models/target/**
+
 # But keep Cargo.lock for apps (not libraries) - uncomment if needed:
 # !apps/**/Cargo.lock
 
