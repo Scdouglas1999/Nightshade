@@ -9,6 +9,7 @@ import '../settings/catalog_settings_screen.dart';
 import 'tabs/mount_tab.dart';
 import 'widgets/stretch_controls.dart';
 import 'widgets/annotation_widgets.dart';
+import 'widgets/calibration_section.dart';
 import 'widgets/capture_panel.dart';
 import 'widgets/camera_panel.dart';
 import 'widgets/focus_panel.dart';
@@ -437,7 +438,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       index: selectedPanel,
                       children: [
                         CapturePanel(colors: colors),
-                        CameraPanel(colors: colors),
+                        _CameraTabContent(colors: colors),
                         FocusPanel(
                             key: ImagingTutorialKeys.focusTab, colors: colors),
                         GuidingPanel(colors: colors),
@@ -542,7 +543,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       index: selectedPanel,
                       children: [
                         CapturePanel(colors: colors),
-                        CameraPanel(colors: colors),
+                        _CameraTabContent(colors: colors),
                         FocusPanel(
                             key: ImagingTutorialKeys.focusTab, colors: colors),
                         GuidingPanel(colors: colors),
@@ -832,6 +833,35 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
           ),
         );
       },
+    );
+  }
+}
+
+/// Composes the Camera tab from its existing controls and the new
+/// [CalibrationSection]. Kept in this file (rather than mutating
+/// [CameraPanel] directly) so the tab/panel layout stays the single
+/// integration point for the W6-DEFECT UI.
+///
+/// [CameraPanel] is itself a `SingleChildScrollView`, so we place it in
+/// an [Expanded] and pin the [CalibrationSection] below it — that keeps
+/// the calibration controls visible without nesting two scrolling
+/// regions (which Flutter refuses to lay out).
+class _CameraTabContent extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _CameraTabContent({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: CameraPanel(colors: colors)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: CalibrationSection(colors: colors),
+        ),
+      ],
     );
   }
 }
