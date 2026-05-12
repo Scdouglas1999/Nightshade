@@ -62,6 +62,11 @@ List<NavItem> sideNavigationTabs(BuildContext context) {
       label: l10n.text('navPlanner'),
       description: l10n.text('navPlannerDesc'),
     ),
+    const NavItem(
+      icon: LucideIcons.brain,
+      label: 'Scheduler',
+      description: 'Dynamic target queue',
+    ),
     NavItem(
       icon: LucideIcons.microscope,
       label: l10n.text('navDiagnostics'),

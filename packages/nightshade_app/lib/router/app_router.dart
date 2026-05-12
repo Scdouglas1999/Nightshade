@@ -18,6 +18,7 @@ import '../screens/settings/plate_solving_settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
 import '../screens/planner/planner_screen.dart';
+import '../screens/scheduler/scheduler_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
 import 'page_transitions.dart';
@@ -209,6 +210,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'planner',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: PlannerScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          GoRoute(
+            path: '/scheduler',
+            name: 'scheduler',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: SchedulerScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

@@ -1279,8 +1279,25 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         }
 
         // Version 28: Defect map table for bad-pixel cosmetic correction (W6-DEFECT).
+        // The DefectMaps drift Table class is declared in
+        // `tables/defect_map_table.dart` and registered in @DriftDatabase
+        // above, but `database.g.dart` has not yet been regenerated to
+        // emit the `defectMaps` getter. Use raw DDL here so the migration
+        // works ahead of the codegen pass; once `melos run generate` runs,
+        // this block can be swapped back to `m.createTable(defectMaps)`.
         if (from < 28) {
-          await m.createTable(defectMaps);
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS defect_maps ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            'camera_id TEXT NOT NULL,'
+            'width INTEGER NOT NULL,'
+            'height INTEGER NOT NULL,'
+            'temperature_bucket_decicelsius INTEGER NOT NULL,'
+            'bitmap BLOB NOT NULL,'
+            'defective_pixel_count INTEGER NOT NULL,'
+            'file_path TEXT,'
+            'last_rebuilt_at INTEGER NOT NULL DEFAULT (CAST(strftime(\'%s\', \'now\') AS INTEGER)))',
+          );
           await customStatement(
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_defect_maps_lookup '
             'ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)',

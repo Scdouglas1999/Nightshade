@@ -323,8 +323,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         return 9;
       case '/planner':
         return 10;
-      case '/diagnostics':
+      case '/scheduler':
         return 11;
+      case '/diagnostics':
+        return 12;
       case '/settings':
       case '/polar-alignment':
       case '/transients':
@@ -347,6 +349,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       '/flat-wizard',
       '/weather',
       '/planner',
+      '/scheduler',
       '/diagnostics',
     ];
     if (index < routes.length) {
@@ -452,6 +455,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navFlatWizard,
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
+                            // Scheduler tab has no tutorial key yet; pass
+                            // null so the diagnostics key stays aligned
+                            // with the diagnostics tab one index over.
+                            null,
                             TutorialKeys.navDiagnostics,
                           ],
                           currentIndex: currentIndex,

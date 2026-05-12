@@ -15,9 +15,14 @@ import 'database_provider.dart';
 import 'event_provider.dart';
 import 'profiles_provider.dart';
 import 'sequence_provider.dart';
-import 'settings_provider.dart';
-import 'package:nightshade_bridge/src/event.dart'
-    show NightshadeEvent, EventCategory, EventPayload;
+// Hide settings_provider's legacy 8-compass-point HorizonProfile so the
+// scheduler's samples-based HorizonProfile from services/scheduler/
+// horizon_profile.dart resolves unambiguously below.
+import 'settings_provider.dart' hide HorizonProfile;
+// Pull in NightshadeEvent + EventPayload tagged-union subtypes (freezed
+// generates EventPayload_Guiding / EventPayload_Equipment as part-of-library
+// classes, so a plain import surfaces them here).
+import 'package:nightshade_bridge/src/event.dart';
 
 /// Stream that pushes engine trigger events derived from the native bridge.
 /// Hooks weather / guiding / mount events into the engine without
@@ -235,8 +240,8 @@ final schedulerCandidateLoaderProvider =
 /// The single engine instance for the app.
 final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
-  final lat = settings?.effectiveLatitude ?? 0.0;
-  final lng = settings?.effectiveLongitude ?? 0.0;
+  final lat = settings?.latitude ?? 0.0;
+  final lng = settings?.longitude ?? 0.0;
   final localOffset = DateTime.now().timeZoneOffset;
 
   final engine = SchedulerEngine(

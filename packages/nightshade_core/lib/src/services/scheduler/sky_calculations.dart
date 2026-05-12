@@ -186,7 +186,6 @@ class SkyCalculations {
           t0: prevT,
           t1: t,
           alt0: prevAlt,
-          alt1: alt,
           targetAlt: targetAlt,
           latitudeDegrees: latitudeDegrees,
           longitudeDegrees: longitudeDegrees,
@@ -198,7 +197,6 @@ class SkyCalculations {
           t0: prevT,
           t1: t,
           alt0: prevAlt,
-          alt1: alt,
           targetAlt: targetAlt,
           latitudeDegrees: latitudeDegrees,
           longitudeDegrees: longitudeDegrees,
@@ -222,7 +220,6 @@ class SkyCalculations {
     required DateTime t0,
     required DateTime t1,
     required double alt0,
-    required double alt1,
     required double targetAlt,
     required double latitudeDegrees,
     required double longitudeDegrees,
@@ -230,7 +227,6 @@ class SkyCalculations {
     var lo = t0;
     var hi = t1;
     var loAlt = alt0;
-    var hiAlt = alt1;
     while (hi.difference(lo).inSeconds > 30) {
       final mid = lo.add(Duration(seconds: hi.difference(lo).inSeconds ~/ 2));
       final (midAlt, _) = sunAltAz(
@@ -245,7 +241,6 @@ class SkyCalculations {
         loAlt = midAlt;
       } else {
         hi = mid;
-        hiAlt = midAlt;
       }
     }
     return lo.add(Duration(seconds: hi.difference(lo).inSeconds ~/ 2));

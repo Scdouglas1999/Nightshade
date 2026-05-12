@@ -90,7 +90,10 @@ export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence_stats_provider.dart';
 export 'src/providers/import_provider.dart';
 export 'src/providers/session_provider.dart';
-export 'src/providers/settings_provider.dart';
+// Hide settings_provider's legacy HorizonProfile so the scheduler's
+// samples-based HorizonProfile (services/scheduler/horizon_profile.dart) wins
+// at the barrel. Direct importers of settings_provider.dart still see it.
+export 'src/providers/settings_provider.dart' hide HorizonProfile;
 export 'src/providers/profiles_provider.dart';
 export 'src/providers/guiding_provider.dart';
 export 'src/providers/backend_provider.dart';
@@ -172,6 +175,14 @@ export 'src/services/scheduler/integration_goal_service.dart'
         targetConstraintsSchemaSql,
         targetConstraintsTargetIndexSql,
         horizonProfilesSchemaSql;
+// Two HorizonProfile classes exist in the codebase:
+//   * settings_provider.dart::HorizonProfile  - legacy 8-point compass profile
+//     stored as JSON in app_settings.horizon_profile_json
+//   * services/scheduler/horizon_profile.dart::HorizonProfile  - newer
+//     samples-based profile persisted in the horizon_profiles drift table
+// The legacy one is still referenced by target_suggestion_service.dart via a
+// `show` import; we hide it from the barrel so the scheduler's profile is the
+// canonical public class.
 export 'src/services/scheduler/horizon_profile.dart';
 export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';

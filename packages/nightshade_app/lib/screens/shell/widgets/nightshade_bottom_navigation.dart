@@ -183,6 +183,11 @@ class _NightshadeBottomNavigationState
         label: l10n.text('navPlanner'),
         icon: LucideIcons.moonStar,
       ),
+      const _NavRouteItem(
+        route: '/scheduler',
+        label: 'Scheduler',
+        icon: LucideIcons.brain,
+      ),
       _NavRouteItem(
         route: '/diagnostics',
         label: l10n.text('navDiagnostics'),
