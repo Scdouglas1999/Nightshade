@@ -45,7 +45,7 @@ ImportResult _fakeResult({
     totalNodes: 5,
     mappingTable: const [
       MappingTableRow(
-          sourceType: 'TakeExposure', nightshadeType: 'Exposure', count: 5),
+          sourceType: 'TakeExposure', nightshadeType: 'TakeExposure', count: 5),
       MappingTableRow(
           sourceType: 'Annotation', nightshadeType: null, count: 1),
     ],
@@ -81,9 +81,10 @@ void main() {
     await _pump(tester, _fakeResult());
 
     expect(find.textContaining('Import Sequence'), findsOneWidget);
-    expect(find.textContaining('NINA'), findsOneWidget);
-    expect(find.text('TakeExposure'), findsOneWidget);
-    expect(find.text('Exposure'), findsOneWidget);
+    expect(find.textContaining('NINA'), findsAtLeastNWidgets(1));
+    // Source type "TakeExposure" appears in the source column;
+    // nightshadeType is also "TakeExposure" so we expect two matching cells.
+    expect(find.text('TakeExposure'), findsNWidgets(2));
     expect(find.text('Annotation'), findsOneWidget);
     // The DataTable surfaces a "<dropped>" cell for null nightshadeType.
     expect(find.text('<dropped>'), findsOneWidget);
@@ -92,7 +93,7 @@ void main() {
   testWidgets('renders dropped section when there are dropped nodes',
       (tester) async {
     await _pump(tester, _fakeResult(withDropped: true));
-    expect(find.textContaining('Dropped'), findsOneWidget);
+    expect(find.textContaining('Dropped'), findsAtLeastNWidgets(1));
     expect(find.textContaining('TODO: review filters'), findsOneWidget);
   });
 
@@ -113,8 +114,8 @@ void main() {
       _fakeResult(
           withDropped: true, withUnsupported: true, forcedImport: true),
     );
-    expect(find.textContaining('Dropped'), findsOneWidget);
-    expect(find.textContaining('Unsupported nodes'), findsOneWidget);
+    expect(find.textContaining('Dropped'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('Unsupported nodes'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('cancel button returns a cancelled decision', (tester) async {

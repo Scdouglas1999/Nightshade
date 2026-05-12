@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// Hide TwilightTimes from the core barrel (the scheduler's
+// sky_calculations.dart adds its own). This chart consumes planetarium's
+// TwilightTimes via AstronomyCalculations below.
+import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 

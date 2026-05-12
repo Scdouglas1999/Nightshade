@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// Hide HorizonProfile from the barrel — the barrel publishes the
+// scheduler's samples-based class. This file needs the legacy 8-point
+// compass class, which we pull in directly via the leaf path below.
+import 'package:nightshade_core/nightshade_core.dart' hide HorizonProfile;
+import 'package:nightshade_core/src/providers/settings_provider.dart'
+    show HorizonProfile;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
