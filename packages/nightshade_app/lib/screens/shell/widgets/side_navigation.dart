@@ -67,11 +67,8 @@ List<NavItem> sideNavigationTabs(BuildContext context) {
       label: 'Scheduler',
       description: 'Dynamic target queue',
     ),
-    NavItem(
-      icon: LucideIcons.microscope,
-      label: l10n.text('navDiagnostics'),
-      description: l10n.text('navDiagnosticsDesc'),
-    ),
+    // Diagnostics merged into Analytics as a tab (§UX consolidation).
+    // Reach it via Analytics → Diagnostics or `/analytics?tab=diagnostics`.
   ];
 }
 

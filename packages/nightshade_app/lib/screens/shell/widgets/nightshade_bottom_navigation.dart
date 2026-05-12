@@ -188,11 +188,8 @@ class _NightshadeBottomNavigationState
         label: 'Scheduler',
         icon: LucideIcons.brain,
       ),
-      _NavRouteItem(
-        route: '/diagnostics',
-        label: l10n.text('navDiagnostics'),
-        icon: LucideIcons.microscope,
-      ),
+      // Diagnostics merged into Analytics as a tab (§UX consolidation).
+      // Reach it via Analytics → Diagnostics or `/analytics?tab=diagnostics`.
       _NavRouteItem(
         route: '/settings',
         label: l10n.text('settingsTitle'),

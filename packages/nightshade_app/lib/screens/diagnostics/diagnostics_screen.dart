@@ -8,14 +8,33 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../localization/nightshade_localizations.dart';
 
-class DiagnosticsScreen extends ConsumerStatefulWidget {
+/// Thin shell that hosts [DiagnosticsTabContent].
+///
+/// Diagnostics merged into Analytics as a tab in §UX consolidation. The
+/// `/diagnostics` route now redirects to `/analytics?tab=diagnostics`, so
+/// this screen is unreachable through the router. It is kept so any direct
+/// embedding (tests, debug entry points) keeps working until the redirect
+/// is removed.
+class DiagnosticsScreen extends StatelessWidget {
   const DiagnosticsScreen({super.key});
 
   @override
-  ConsumerState<DiagnosticsScreen> createState() => _DiagnosticsScreenState();
+  Widget build(BuildContext context) {
+    return const DiagnosticsTabContent();
+  }
 }
 
-class _DiagnosticsScreenState extends ConsumerState<DiagnosticsScreen> {
+/// Optical-train diagnostics surface, embedded inside the Analytics screen.
+class DiagnosticsTabContent extends ConsumerStatefulWidget {
+  const DiagnosticsTabContent({super.key});
+
+  @override
+  ConsumerState<DiagnosticsTabContent> createState() =>
+      _DiagnosticsTabContentState();
+}
+
+class _DiagnosticsTabContentState
+    extends ConsumerState<DiagnosticsTabContent> {
   int? _selectedSessionId;
 
   @override

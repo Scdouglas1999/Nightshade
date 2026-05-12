@@ -325,8 +325,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         return 10;
       case '/scheduler':
         return 11;
+      // Diagnostics merged into Analytics as a tab (§UX consolidation); the
+      // legacy `/diagnostics` route redirects to `/analytics?tab=diagnostics`
+      // so we should never resolve to it here, but keep -1 as a safety fall
+      // through in case the redirect is bypassed.
       case '/diagnostics':
-        return 12;
       case '/settings':
       case '/polar-alignment':
       case '/transients':
@@ -350,7 +353,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       '/weather',
       '/planner',
       '/scheduler',
-      '/diagnostics',
     ];
     if (index < routes.length) {
       try {
@@ -455,11 +457,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navFlatWizard,
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
-                            // Scheduler tab has no tutorial key yet; pass
-                            // null so the diagnostics key stays aligned
-                            // with the diagnostics tab one index over.
+                            // Scheduler tab has no tutorial key yet.
+                            // Diagnostics moved into Analytics as a tab
+                            // (§UX consolidation), so its top-level nav slot
+                            // (and tutorial key) are no longer wired here.
                             null,
-                            TutorialKeys.navDiagnostics,
                           ],
                           currentIndex: currentIndex,
                           onTabSelected: (index) =>

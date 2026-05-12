@@ -19,21 +19,79 @@ import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
+import '../diagnostics/diagnostics_screen.dart';
 import 'widgets/science_export_hub.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
 import 'widgets/project_tracking_panel.dart';
 import 'widgets/science_analytics_tab.dart';
 
+/// Identifies an Analytics sub-tab for deep-linking via `?tab=` query param.
+/// Order here matches the rendered tab order — Diagnostics is right-most.
+enum AnalyticsTab {
+  session,
+  history,
+  projects,
+  equipment,
+  science,
+  diagnostics,
+}
+
+/// Maps the router `?tab=` query value to an [AnalyticsTab]. Returns null
+/// for an unrecognised value so the caller can decide on a fallback. Public
+/// so router code (and tests) can share the same canonical mapping.
+AnalyticsTab? analyticsTabFromQuery(String? value) {
+  if (value == null) return null;
+  switch (value.toLowerCase()) {
+    case 'session':
+      return AnalyticsTab.session;
+    case 'history':
+      return AnalyticsTab.history;
+    case 'projects':
+      return AnalyticsTab.projects;
+    case 'equipment':
+    case 'equipment-stats':
+    case 'equipmentstats':
+      return AnalyticsTab.equipment;
+    case 'science':
+      return AnalyticsTab.science;
+    case 'diagnostics':
+      return AnalyticsTab.diagnostics;
+  }
+  return null;
+}
+
 class AnalyticsScreen extends ConsumerStatefulWidget {
-  const AnalyticsScreen({super.key});
+  /// Optional initial tab selection. When null, falls back to
+  /// [initialTabQuery] parsing, then to [AnalyticsTab.session].
+  final AnalyticsTab? initialTab;
+
+  /// Raw `?tab=` value parsed from the router. Lets deep-links select a
+  /// specific Analytics tab (notably `?tab=diagnostics` from the legacy
+  /// `/diagnostics` redirect).
+  final String? initialTabQuery;
+
+  const AnalyticsScreen({
+    super.key,
+    this.initialTab,
+    this.initialTabQuery,
+  });
 
   @override
   ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
-  int _currentSubTab = 0;
+  late int _currentSubTab;
+
+  @override
+  void initState() {
+    super.initState();
+    final resolved = widget.initialTab ??
+        analyticsTabFromQuery(widget.initialTabQuery) ??
+        AnalyticsTab.session;
+    _currentSubTab = resolved.index;
+  }
 
   List<String> _tabs(BuildContext context) {
     final l10n = context.l10n;
@@ -43,6 +101,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       l10n.text('analyticsProjects'),
       l10n.text('analyticsEquipmentStats'),
       l10n.text('analyticsScience'),
+      l10n.text('analyticsDiagnostics'),
     ];
   }
 
@@ -91,7 +150,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     );
                   }),
                   const Spacer(),
-                  if (_currentSubTab == 4) ...[
+                  if (_currentSubTab == AnalyticsTab.science.index) ...[
                     Tooltip(
                       message: 'Export science data',
                       child: IconButton(
@@ -117,7 +176,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ),
             ),
 
-            // Content
+            // Content. Order must match the AnalyticsTab enum.
             Expanded(
               child: IndexedStack(
                 index: _currentSubTab,
@@ -127,6 +186,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   _ProjectsTab(),
                   _EquipmentStatsTab(),
                   ScienceAnalyticsTab(),
+                  DiagnosticsTabContent(),
                 ],
               ),
             ),

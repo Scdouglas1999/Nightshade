@@ -140,11 +140,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/analytics',
             name: 'analytics',
-            pageBuilder: (context, state) => const CustomTransitionPage(
-              child: AnalyticsScreen(),
-              transitionsBuilder: PageTransitions.slideFadeTransition,
-              transitionDuration: Duration(milliseconds: 300),
-            ),
+            pageBuilder: (context, state) {
+              final tabQuery = state.uri.queryParameters['tab'];
+              return CustomTransitionPage(
+                child: AnalyticsScreen(initialTabQuery: tabQuery),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
           ),
           GoRoute(
             path: '/flat-wizard',
@@ -223,9 +226,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
+          // DEPRECATED: use /analytics?tab=diagnostics. Kept for one release
+          // for deep-link compatibility.
           GoRoute(
             path: '/diagnostics',
             name: 'diagnostics',
+            redirect: (context, state) => '/analytics?tab=diagnostics',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: DiagnosticsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
