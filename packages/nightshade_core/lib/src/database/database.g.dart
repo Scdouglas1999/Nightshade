@@ -19942,6 +19942,514 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
   }
 }
 
+class $DefectMapsTable extends DefectMaps
+    with TableInfo<$DefectMapsTable, DefectMapEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DefectMapsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _cameraIdMeta =
+      const VerificationMeta('cameraId');
+  @override
+  late final GeneratedColumn<String> cameraId = GeneratedColumn<String>(
+      'camera_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _widthMeta = const VerificationMeta('width');
+  @override
+  late final GeneratedColumn<int> width = GeneratedColumn<int>(
+      'width', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<int> height = GeneratedColumn<int>(
+      'height', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _temperatureBucketDecicelsiusMeta =
+      const VerificationMeta('temperatureBucketDecicelsius');
+  @override
+  late final GeneratedColumn<int> temperatureBucketDecicelsius =
+      GeneratedColumn<int>('temperature_bucket_decicelsius', aliasedName, false,
+          type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _bitmapMeta = const VerificationMeta('bitmap');
+  @override
+  late final GeneratedColumn<Uint8List> bitmap = GeneratedColumn<Uint8List>(
+      'bitmap', aliasedName, false,
+      type: DriftSqlType.blob, requiredDuringInsert: true);
+  static const VerificationMeta _defectivePixelCountMeta =
+      const VerificationMeta('defectivePixelCount');
+  @override
+  late final GeneratedColumn<int> defectivePixelCount = GeneratedColumn<int>(
+      'defective_pixel_count', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _filePathMeta =
+      const VerificationMeta('filePath');
+  @override
+  late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
+      'file_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _lastRebuiltAtMeta =
+      const VerificationMeta('lastRebuiltAt');
+  @override
+  late final GeneratedColumn<DateTime> lastRebuiltAt =
+      GeneratedColumn<DateTime>('last_rebuilt_at', aliasedName, false,
+          type: DriftSqlType.dateTime,
+          requiredDuringInsert: false,
+          defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        cameraId,
+        width,
+        height,
+        temperatureBucketDecicelsius,
+        bitmap,
+        defectivePixelCount,
+        filePath,
+        lastRebuiltAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'defect_maps';
+  @override
+  VerificationContext validateIntegrity(Insertable<DefectMapEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('camera_id')) {
+      context.handle(_cameraIdMeta,
+          cameraId.isAcceptableOrUnknown(data['camera_id']!, _cameraIdMeta));
+    } else if (isInserting) {
+      context.missing(_cameraIdMeta);
+    }
+    if (data.containsKey('width')) {
+      context.handle(
+          _widthMeta, width.isAcceptableOrUnknown(data['width']!, _widthMeta));
+    } else if (isInserting) {
+      context.missing(_widthMeta);
+    }
+    if (data.containsKey('height')) {
+      context.handle(_heightMeta,
+          height.isAcceptableOrUnknown(data['height']!, _heightMeta));
+    } else if (isInserting) {
+      context.missing(_heightMeta);
+    }
+    if (data.containsKey('temperature_bucket_decicelsius')) {
+      context.handle(
+          _temperatureBucketDecicelsiusMeta,
+          temperatureBucketDecicelsius.isAcceptableOrUnknown(
+              data['temperature_bucket_decicelsius']!,
+              _temperatureBucketDecicelsiusMeta));
+    } else if (isInserting) {
+      context.missing(_temperatureBucketDecicelsiusMeta);
+    }
+    if (data.containsKey('bitmap')) {
+      context.handle(_bitmapMeta,
+          bitmap.isAcceptableOrUnknown(data['bitmap']!, _bitmapMeta));
+    } else if (isInserting) {
+      context.missing(_bitmapMeta);
+    }
+    if (data.containsKey('defective_pixel_count')) {
+      context.handle(
+          _defectivePixelCountMeta,
+          defectivePixelCount.isAcceptableOrUnknown(
+              data['defective_pixel_count']!, _defectivePixelCountMeta));
+    } else if (isInserting) {
+      context.missing(_defectivePixelCountMeta);
+    }
+    if (data.containsKey('file_path')) {
+      context.handle(_filePathMeta,
+          filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta));
+    }
+    if (data.containsKey('last_rebuilt_at')) {
+      context.handle(
+          _lastRebuiltAtMeta,
+          lastRebuiltAt.isAcceptableOrUnknown(
+              data['last_rebuilt_at']!, _lastRebuiltAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DefectMapEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DefectMapEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      cameraId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}camera_id'])!,
+      width: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}width'])!,
+      height: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}height'])!,
+      temperatureBucketDecicelsius: attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}temperature_bucket_decicelsius'])!,
+      bitmap: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}bitmap'])!,
+      defectivePixelCount: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}defective_pixel_count'])!,
+      filePath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}file_path']),
+      lastRebuiltAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}last_rebuilt_at'])!,
+    );
+  }
+
+  @override
+  $DefectMapsTable createAlias(String alias) {
+    return $DefectMapsTable(attachedDatabase, alias);
+  }
+}
+
+class DefectMapEntry extends DataClass implements Insertable<DefectMapEntry> {
+  final int id;
+
+  /// Camera identifier (e.g. `native:zwo:ASI2600MC` or `ascom:ZWO.ASICamera2`).
+  final String cameraId;
+
+  /// Sensor width in pixels.
+  final int width;
+
+  /// Sensor height in pixels.
+  final int height;
+
+  /// Temperature bucket in deci-degrees Celsius (so -200 means -20.0 C).
+  /// Bucketed to the nearest 5 C.
+  final int temperatureBucketDecicelsius;
+
+  /// Packed bitmap: bit i represents pixel i = y * width + x (row-major,
+  /// LSB-first). Length is ceil(width * height / 8) bytes.
+  final Uint8List bitmap;
+
+  /// Cached count of defective pixels, equal to the popcount of `bitmap`.
+  /// Stored so the UI can show a status without scanning the blob.
+  final int defectivePixelCount;
+
+  /// Path to the `.ndm` file on disk that is the authoritative copy of
+  /// this map. The blob in the database mirrors it for offline use.
+  final String? filePath;
+
+  /// When the map was last (re)built from a dark stack.
+  final DateTime lastRebuiltAt;
+  const DefectMapEntry(
+      {required this.id,
+      required this.cameraId,
+      required this.width,
+      required this.height,
+      required this.temperatureBucketDecicelsius,
+      required this.bitmap,
+      required this.defectivePixelCount,
+      this.filePath,
+      required this.lastRebuiltAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['camera_id'] = Variable<String>(cameraId);
+    map['width'] = Variable<int>(width);
+    map['height'] = Variable<int>(height);
+    map['temperature_bucket_decicelsius'] =
+        Variable<int>(temperatureBucketDecicelsius);
+    map['bitmap'] = Variable<Uint8List>(bitmap);
+    map['defective_pixel_count'] = Variable<int>(defectivePixelCount);
+    if (!nullToAbsent || filePath != null) {
+      map['file_path'] = Variable<String>(filePath);
+    }
+    map['last_rebuilt_at'] = Variable<DateTime>(lastRebuiltAt);
+    return map;
+  }
+
+  DefectMapsCompanion toCompanion(bool nullToAbsent) {
+    return DefectMapsCompanion(
+      id: Value(id),
+      cameraId: Value(cameraId),
+      width: Value(width),
+      height: Value(height),
+      temperatureBucketDecicelsius: Value(temperatureBucketDecicelsius),
+      bitmap: Value(bitmap),
+      defectivePixelCount: Value(defectivePixelCount),
+      filePath: filePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(filePath),
+      lastRebuiltAt: Value(lastRebuiltAt),
+    );
+  }
+
+  factory DefectMapEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DefectMapEntry(
+      id: serializer.fromJson<int>(json['id']),
+      cameraId: serializer.fromJson<String>(json['cameraId']),
+      width: serializer.fromJson<int>(json['width']),
+      height: serializer.fromJson<int>(json['height']),
+      temperatureBucketDecicelsius:
+          serializer.fromJson<int>(json['temperatureBucketDecicelsius']),
+      bitmap: serializer.fromJson<Uint8List>(json['bitmap']),
+      defectivePixelCount:
+          serializer.fromJson<int>(json['defectivePixelCount']),
+      filePath: serializer.fromJson<String?>(json['filePath']),
+      lastRebuiltAt: serializer.fromJson<DateTime>(json['lastRebuiltAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cameraId': serializer.toJson<String>(cameraId),
+      'width': serializer.toJson<int>(width),
+      'height': serializer.toJson<int>(height),
+      'temperatureBucketDecicelsius':
+          serializer.toJson<int>(temperatureBucketDecicelsius),
+      'bitmap': serializer.toJson<Uint8List>(bitmap),
+      'defectivePixelCount': serializer.toJson<int>(defectivePixelCount),
+      'filePath': serializer.toJson<String?>(filePath),
+      'lastRebuiltAt': serializer.toJson<DateTime>(lastRebuiltAt),
+    };
+  }
+
+  DefectMapEntry copyWith(
+          {int? id,
+          String? cameraId,
+          int? width,
+          int? height,
+          int? temperatureBucketDecicelsius,
+          Uint8List? bitmap,
+          int? defectivePixelCount,
+          Value<String?> filePath = const Value.absent(),
+          DateTime? lastRebuiltAt}) =>
+      DefectMapEntry(
+        id: id ?? this.id,
+        cameraId: cameraId ?? this.cameraId,
+        width: width ?? this.width,
+        height: height ?? this.height,
+        temperatureBucketDecicelsius:
+            temperatureBucketDecicelsius ?? this.temperatureBucketDecicelsius,
+        bitmap: bitmap ?? this.bitmap,
+        defectivePixelCount: defectivePixelCount ?? this.defectivePixelCount,
+        filePath: filePath.present ? filePath.value : this.filePath,
+        lastRebuiltAt: lastRebuiltAt ?? this.lastRebuiltAt,
+      );
+  DefectMapEntry copyWithCompanion(DefectMapsCompanion data) {
+    return DefectMapEntry(
+      id: data.id.present ? data.id.value : this.id,
+      cameraId: data.cameraId.present ? data.cameraId.value : this.cameraId,
+      width: data.width.present ? data.width.value : this.width,
+      height: data.height.present ? data.height.value : this.height,
+      temperatureBucketDecicelsius: data.temperatureBucketDecicelsius.present
+          ? data.temperatureBucketDecicelsius.value
+          : this.temperatureBucketDecicelsius,
+      bitmap: data.bitmap.present ? data.bitmap.value : this.bitmap,
+      defectivePixelCount: data.defectivePixelCount.present
+          ? data.defectivePixelCount.value
+          : this.defectivePixelCount,
+      filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      lastRebuiltAt: data.lastRebuiltAt.present
+          ? data.lastRebuiltAt.value
+          : this.lastRebuiltAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DefectMapEntry(')
+          ..write('id: $id, ')
+          ..write('cameraId: $cameraId, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write(
+              'temperatureBucketDecicelsius: $temperatureBucketDecicelsius, ')
+          ..write('bitmap: $bitmap, ')
+          ..write('defectivePixelCount: $defectivePixelCount, ')
+          ..write('filePath: $filePath, ')
+          ..write('lastRebuiltAt: $lastRebuiltAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      cameraId,
+      width,
+      height,
+      temperatureBucketDecicelsius,
+      $driftBlobEquality.hash(bitmap),
+      defectivePixelCount,
+      filePath,
+      lastRebuiltAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DefectMapEntry &&
+          other.id == this.id &&
+          other.cameraId == this.cameraId &&
+          other.width == this.width &&
+          other.height == this.height &&
+          other.temperatureBucketDecicelsius ==
+              this.temperatureBucketDecicelsius &&
+          $driftBlobEquality.equals(other.bitmap, this.bitmap) &&
+          other.defectivePixelCount == this.defectivePixelCount &&
+          other.filePath == this.filePath &&
+          other.lastRebuiltAt == this.lastRebuiltAt);
+}
+
+class DefectMapsCompanion extends UpdateCompanion<DefectMapEntry> {
+  final Value<int> id;
+  final Value<String> cameraId;
+  final Value<int> width;
+  final Value<int> height;
+  final Value<int> temperatureBucketDecicelsius;
+  final Value<Uint8List> bitmap;
+  final Value<int> defectivePixelCount;
+  final Value<String?> filePath;
+  final Value<DateTime> lastRebuiltAt;
+  const DefectMapsCompanion({
+    this.id = const Value.absent(),
+    this.cameraId = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.temperatureBucketDecicelsius = const Value.absent(),
+    this.bitmap = const Value.absent(),
+    this.defectivePixelCount = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.lastRebuiltAt = const Value.absent(),
+  });
+  DefectMapsCompanion.insert({
+    this.id = const Value.absent(),
+    required String cameraId,
+    required int width,
+    required int height,
+    required int temperatureBucketDecicelsius,
+    required Uint8List bitmap,
+    required int defectivePixelCount,
+    this.filePath = const Value.absent(),
+    this.lastRebuiltAt = const Value.absent(),
+  })  : cameraId = Value(cameraId),
+        width = Value(width),
+        height = Value(height),
+        temperatureBucketDecicelsius = Value(temperatureBucketDecicelsius),
+        bitmap = Value(bitmap),
+        defectivePixelCount = Value(defectivePixelCount);
+  static Insertable<DefectMapEntry> custom({
+    Expression<int>? id,
+    Expression<String>? cameraId,
+    Expression<int>? width,
+    Expression<int>? height,
+    Expression<int>? temperatureBucketDecicelsius,
+    Expression<Uint8List>? bitmap,
+    Expression<int>? defectivePixelCount,
+    Expression<String>? filePath,
+    Expression<DateTime>? lastRebuiltAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cameraId != null) 'camera_id': cameraId,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (temperatureBucketDecicelsius != null)
+        'temperature_bucket_decicelsius': temperatureBucketDecicelsius,
+      if (bitmap != null) 'bitmap': bitmap,
+      if (defectivePixelCount != null)
+        'defective_pixel_count': defectivePixelCount,
+      if (filePath != null) 'file_path': filePath,
+      if (lastRebuiltAt != null) 'last_rebuilt_at': lastRebuiltAt,
+    });
+  }
+
+  DefectMapsCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? cameraId,
+      Value<int>? width,
+      Value<int>? height,
+      Value<int>? temperatureBucketDecicelsius,
+      Value<Uint8List>? bitmap,
+      Value<int>? defectivePixelCount,
+      Value<String?>? filePath,
+      Value<DateTime>? lastRebuiltAt}) {
+    return DefectMapsCompanion(
+      id: id ?? this.id,
+      cameraId: cameraId ?? this.cameraId,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      temperatureBucketDecicelsius:
+          temperatureBucketDecicelsius ?? this.temperatureBucketDecicelsius,
+      bitmap: bitmap ?? this.bitmap,
+      defectivePixelCount: defectivePixelCount ?? this.defectivePixelCount,
+      filePath: filePath ?? this.filePath,
+      lastRebuiltAt: lastRebuiltAt ?? this.lastRebuiltAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cameraId.present) {
+      map['camera_id'] = Variable<String>(cameraId.value);
+    }
+    if (width.present) {
+      map['width'] = Variable<int>(width.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<int>(height.value);
+    }
+    if (temperatureBucketDecicelsius.present) {
+      map['temperature_bucket_decicelsius'] =
+          Variable<int>(temperatureBucketDecicelsius.value);
+    }
+    if (bitmap.present) {
+      map['bitmap'] = Variable<Uint8List>(bitmap.value);
+    }
+    if (defectivePixelCount.present) {
+      map['defective_pixel_count'] = Variable<int>(defectivePixelCount.value);
+    }
+    if (filePath.present) {
+      map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (lastRebuiltAt.present) {
+      map['last_rebuilt_at'] = Variable<DateTime>(lastRebuiltAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DefectMapsCompanion(')
+          ..write('id: $id, ')
+          ..write('cameraId: $cameraId, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write(
+              'temperatureBucketDecicelsius: $temperatureBucketDecicelsius, ')
+          ..write('bitmap: $bitmap, ')
+          ..write('defectivePixelCount: $defectivePixelCount, ')
+          ..write('filePath: $filePath, ')
+          ..write('lastRebuiltAt: $lastRebuiltAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -19992,6 +20500,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $ObservingListItemsTable observingListItems =
       $ObservingListItemsTable(this);
   late final $SequenceRunsTable sequenceRuns = $SequenceRunsTable(this);
+  late final $DefectMapsTable defectMaps = $DefectMapsTable(this);
   late final Index idxProfilesName = Index('idx_profiles_name',
       'CREATE INDEX idx_profiles_name ON equipment_profiles (name)');
   late final Index idxProfilesActive = Index('idx_profiles_active',
@@ -20206,6 +20715,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       'CREATE INDEX idx_sequence_runs_started ON sequence_runs (started_at)');
   late final Index idxSequenceRunsStatus = Index('idx_sequence_runs_status',
       'CREATE INDEX idx_sequence_runs_status ON sequence_runs (status)');
+  late final Index idxDefectMapsLookup = Index('idx_defect_maps_lookup',
+      'CREATE UNIQUE INDEX idx_defect_maps_lookup ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)');
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao =
       EquipmentProfilesDao(this as NightshadeDatabase);
@@ -20267,6 +20778,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         observingLists,
         observingListItems,
         sequenceRuns,
+        defectMaps,
         idxProfilesName,
         idxProfilesActive,
         idxSessionsTarget,
@@ -20353,7 +20865,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxObservingListItemsSort,
         idxSequenceRunsSequence,
         idxSequenceRunsStarted,
-        idxSequenceRunsStatus
+        idxSequenceRunsStatus,
+        idxDefectMapsLookup
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -35494,6 +36007,236 @@ typedef $$SequenceRunsTableProcessedTableManager = ProcessedTableManager<
     (SequenceRun, $$SequenceRunsTableReferences),
     SequenceRun,
     PrefetchHooks Function({bool sequenceId})>;
+typedef $$DefectMapsTableCreateCompanionBuilder = DefectMapsCompanion Function({
+  Value<int> id,
+  required String cameraId,
+  required int width,
+  required int height,
+  required int temperatureBucketDecicelsius,
+  required Uint8List bitmap,
+  required int defectivePixelCount,
+  Value<String?> filePath,
+  Value<DateTime> lastRebuiltAt,
+});
+typedef $$DefectMapsTableUpdateCompanionBuilder = DefectMapsCompanion Function({
+  Value<int> id,
+  Value<String> cameraId,
+  Value<int> width,
+  Value<int> height,
+  Value<int> temperatureBucketDecicelsius,
+  Value<Uint8List> bitmap,
+  Value<int> defectivePixelCount,
+  Value<String?> filePath,
+  Value<DateTime> lastRebuiltAt,
+});
+
+class $$DefectMapsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $DefectMapsTable> {
+  $$DefectMapsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cameraId => $composableBuilder(
+      column: $table.cameraId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get width => $composableBuilder(
+      column: $table.width, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get height => $composableBuilder(
+      column: $table.height, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get temperatureBucketDecicelsius => $composableBuilder(
+      column: $table.temperatureBucketDecicelsius,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get bitmap => $composableBuilder(
+      column: $table.bitmap, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get defectivePixelCount => $composableBuilder(
+      column: $table.defectivePixelCount,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get filePath => $composableBuilder(
+      column: $table.filePath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get lastRebuiltAt => $composableBuilder(
+      column: $table.lastRebuiltAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$DefectMapsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $DefectMapsTable> {
+  $$DefectMapsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get cameraId => $composableBuilder(
+      column: $table.cameraId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get width => $composableBuilder(
+      column: $table.width, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get height => $composableBuilder(
+      column: $table.height, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get temperatureBucketDecicelsius => $composableBuilder(
+      column: $table.temperatureBucketDecicelsius,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<Uint8List> get bitmap => $composableBuilder(
+      column: $table.bitmap, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get defectivePixelCount => $composableBuilder(
+      column: $table.defectivePixelCount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get filePath => $composableBuilder(
+      column: $table.filePath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get lastRebuiltAt => $composableBuilder(
+      column: $table.lastRebuiltAt,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$DefectMapsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $DefectMapsTable> {
+  $$DefectMapsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get cameraId =>
+      $composableBuilder(column: $table.cameraId, builder: (column) => column);
+
+  GeneratedColumn<int> get width =>
+      $composableBuilder(column: $table.width, builder: (column) => column);
+
+  GeneratedColumn<int> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<int> get temperatureBucketDecicelsius => $composableBuilder(
+      column: $table.temperatureBucketDecicelsius, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get bitmap =>
+      $composableBuilder(column: $table.bitmap, builder: (column) => column);
+
+  GeneratedColumn<int> get defectivePixelCount => $composableBuilder(
+      column: $table.defectivePixelCount, builder: (column) => column);
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastRebuiltAt => $composableBuilder(
+      column: $table.lastRebuiltAt, builder: (column) => column);
+}
+
+class $$DefectMapsTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $DefectMapsTable,
+    DefectMapEntry,
+    $$DefectMapsTableFilterComposer,
+    $$DefectMapsTableOrderingComposer,
+    $$DefectMapsTableAnnotationComposer,
+    $$DefectMapsTableCreateCompanionBuilder,
+    $$DefectMapsTableUpdateCompanionBuilder,
+    (
+      DefectMapEntry,
+      BaseReferences<_$NightshadeDatabase, $DefectMapsTable, DefectMapEntry>
+    ),
+    DefectMapEntry,
+    PrefetchHooks Function()> {
+  $$DefectMapsTableTableManager(_$NightshadeDatabase db, $DefectMapsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DefectMapsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DefectMapsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DefectMapsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> cameraId = const Value.absent(),
+            Value<int> width = const Value.absent(),
+            Value<int> height = const Value.absent(),
+            Value<int> temperatureBucketDecicelsius = const Value.absent(),
+            Value<Uint8List> bitmap = const Value.absent(),
+            Value<int> defectivePixelCount = const Value.absent(),
+            Value<String?> filePath = const Value.absent(),
+            Value<DateTime> lastRebuiltAt = const Value.absent(),
+          }) =>
+              DefectMapsCompanion(
+            id: id,
+            cameraId: cameraId,
+            width: width,
+            height: height,
+            temperatureBucketDecicelsius: temperatureBucketDecicelsius,
+            bitmap: bitmap,
+            defectivePixelCount: defectivePixelCount,
+            filePath: filePath,
+            lastRebuiltAt: lastRebuiltAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String cameraId,
+            required int width,
+            required int height,
+            required int temperatureBucketDecicelsius,
+            required Uint8List bitmap,
+            required int defectivePixelCount,
+            Value<String?> filePath = const Value.absent(),
+            Value<DateTime> lastRebuiltAt = const Value.absent(),
+          }) =>
+              DefectMapsCompanion.insert(
+            id: id,
+            cameraId: cameraId,
+            width: width,
+            height: height,
+            temperatureBucketDecicelsius: temperatureBucketDecicelsius,
+            bitmap: bitmap,
+            defectivePixelCount: defectivePixelCount,
+            filePath: filePath,
+            lastRebuiltAt: lastRebuiltAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$DefectMapsTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $DefectMapsTable,
+    DefectMapEntry,
+    $$DefectMapsTableFilterComposer,
+    $$DefectMapsTableOrderingComposer,
+    $$DefectMapsTableAnnotationComposer,
+    $$DefectMapsTableCreateCompanionBuilder,
+    $$DefectMapsTableUpdateCompanionBuilder,
+    (
+      DefectMapEntry,
+      BaseReferences<_$NightshadeDatabase, $DefectMapsTable, DefectMapEntry>
+    ),
+    DefectMapEntry,
+    PrefetchHooks Function()>;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -35563,4 +36306,6 @@ class $NightshadeDatabaseManager {
       $$ObservingListItemsTableTableManager(_db, _db.observingListItems);
   $$SequenceRunsTableTableManager get sequenceRuns =>
       $$SequenceRunsTableTableManager(_db, _db.sequenceRuns);
+  $$DefectMapsTableTableManager get defectMaps =>
+      $$DefectMapsTableTableManager(_db, _db.defectMaps);
 }
