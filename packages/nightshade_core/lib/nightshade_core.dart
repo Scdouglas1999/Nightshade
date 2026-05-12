@@ -67,6 +67,10 @@ export 'src/models/scheduler/target_constraint.dart';
 export 'src/models/scheduler/scheduler_decision.dart';
 export 'src/models/scheduler/scheduler_status.dart';
 
+// Sequence import (W6-NINA-IMPORT: NINA / SGP sequence import)
+export 'src/models/import/canonical_sequence_node.dart';
+export 'src/models/import/import_result.dart';
+
 // Providers
 export 'src/providers/app_version_provider.dart';
 export 'src/providers/database_provider.dart';
@@ -83,6 +87,7 @@ export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence_stats_provider.dart';
+export 'src/providers/import_provider.dart';
 export 'src/providers/session_provider.dart';
 export 'src/providers/settings_provider.dart';
 export 'src/providers/profiles_provider.dart';
@@ -150,6 +155,10 @@ export 'src/services/profile_service.dart';
 export 'src/services/sequence_repository.dart';
 export 'src/services/sequence_file_service.dart';
 export 'src/services/sample_sequence_service.dart';
+export 'src/services/import/sequence_importer.dart';
+export 'src/services/import/nina_sequence_parser.dart';
+export 'src/services/import/sgp_sequence_parser.dart';
+export 'src/services/import/canonical_node_mapper.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/annotation_service.dart';
 export 'src/services/scheduler_service.dart';

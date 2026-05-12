@@ -12,6 +12,7 @@ import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'trigger_configuration_dialog.dart';
+import '../import_sequence_dialog.dart';
 
 class SequenceToolbar extends ConsumerWidget {
   final NightshadeColors colors;
@@ -142,6 +143,11 @@ class SequenceToolbar extends ConsumerWidget {
               icon: LucideIcons.folderOpen,
               label: 'Open Sequence',
               onPressed: openSequenceFile,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.fileInput,
+              label: 'Import from NINA / SGP',
+              onPressed: () => ImportSequenceFlow.run(context, ref),
             ),
             _ToolbarAction(
               icon: LucideIcons.save,

@@ -1,0 +1,34 @@
+{
+  "$type": "NINA.Sequencer.Container.SequenceRootContainer, NINA.Sequencer",
+  "Name": "Sequence with unsupported node",
+  "Items": [
+    {
+      "$type": "NINA.Sequencer.Container.DeepSkyObjectContainer, NINA.Sequencer",
+      "Name": "NGC 7000",
+      "Target": {
+        "$type": "NINA.Astrometry.InputTarget, NINA.Astrometry",
+        "TargetName": "NGC 7000",
+        "InputCoordinates": {
+          "$type": "NINA.Astrometry.InputCoordinates, NINA.Astrometry",
+          "RAHours": 20.9722,
+          "Dec": 44.3333,
+          "NegativeDec": false
+        }
+      },
+      "Items": [
+        {
+          "$type": "NINA.Sequencer.SequenceItem.Imaging.TakeExposure, NINA.Sequencer",
+          "Name": "Quick Light",
+          "ExposureTime": 60.0,
+          "Gain": 100,
+          "Binning": { "X": 1, "Y": 1 },
+          "ImageType": "LIGHT"
+        },
+        {
+          "$type": "NINA.Sequencer.SequenceItem.Voodoo.CustomScriptNode, NINA.Sequencer.Vendor",
+          "Name": "Custom voodoo step"
+        }
+      ]
+    }
+  ]
+}

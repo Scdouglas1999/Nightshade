@@ -1,0 +1,90 @@
+{
+  "$type": "NINA.Sequencer.Container.SequenceRootContainer, NINA.Sequencer",
+  "Name": "Imaging Run — M31",
+  "Items": [
+    {
+      "$type": "NINA.Sequencer.Container.DeepSkyObjectContainer, NINA.Sequencer",
+      "Name": "M31",
+      "Target": {
+        "$type": "NINA.Astrometry.InputTarget, NINA.Astrometry",
+        "TargetName": "M31 Andromeda Galaxy",
+        "Rotation": 0.0,
+        "InputCoordinates": {
+          "$type": "NINA.Astrometry.InputCoordinates, NINA.Astrometry",
+          "RAHours": 0.7122222222222222,
+          "Dec": 41.26888888888889,
+          "NegativeDec": false
+        }
+      },
+      "Conditions": [
+        {
+          "$type": "NINA.Sequencer.Conditions.LoopCondition, NINA.Sequencer",
+          "Iterations": 10
+        }
+      ],
+      "Triggers": [
+        {
+          "$type": "NINA.Sequencer.Trigger.MeridianFlip.MeridianFlipTrigger, NINA.Sequencer",
+          "Name": "Meridian Flip",
+          "MinutesAfterMeridian": 5.0
+        }
+      ],
+      "Items": [
+        {
+          "$type": "NINA.Sequencer.SequenceItem.Platesolving.Center, NINA.Sequencer",
+          "Name": "Center Target",
+          "Coordinates": {
+            "$type": "NINA.Astrometry.InputCoordinates, NINA.Astrometry",
+            "RAHours": 0.7122222222222222,
+            "Dec": 41.26888888888889,
+            "NegativeDec": false
+          }
+        },
+        {
+          "$type": "NINA.Sequencer.SequenceItem.FilterWheel.SwitchFilter, NINA.Sequencer",
+          "Name": "Switch Filter",
+          "Filter": {
+            "$type": "NINA.Core.Model.Equipment.FilterInfo, NINA.Core",
+            "_name": "Lum",
+            "Position": 0
+          }
+        },
+        {
+          "$type": "NINA.Sequencer.Container.LoopContainer, NINA.Sequencer",
+          "Name": "Light Frames",
+          "Conditions": [
+            {
+              "$type": "NINA.Sequencer.Conditions.LoopCondition, NINA.Sequencer",
+              "Iterations": 20
+            }
+          ],
+          "Items": [
+            {
+              "$type": "NINA.Sequencer.SequenceItem.Imaging.TakeExposure, NINA.Sequencer",
+              "Name": "Take Exposure",
+              "ExposureTime": 120.0,
+              "Gain": 100,
+              "Offset": 10,
+              "Binning": {
+                "$type": "NINA.Core.Model.Equipment.BinningMode, NINA.Core",
+                "X": 1,
+                "Y": 1
+              },
+              "ImageType": "LIGHT",
+              "Filter": {
+                "$type": "NINA.Core.Model.Equipment.FilterInfo, NINA.Core",
+                "_name": "Lum",
+                "Position": 0
+              }
+            },
+            {
+              "$type": "NINA.Sequencer.SequenceItem.Guider.Dither, NINA.Sequencer",
+              "Name": "Dither",
+              "Pixels": 5.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
