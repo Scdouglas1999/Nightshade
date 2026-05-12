@@ -1,15 +1,24 @@
 // ignore_for_file: unused_local_variable
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../backend/nightshade_backend.dart' as backend_types;
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
-import '../utils/plate_solver_utils.dart';
 import 'logging_service.dart';
+
+/// Thrown by `PlateSolveService.solveWithFallback()` when no plate solver
+/// is reachable on disk. The settings UI catches this to render the
+/// `PlateSolverRequiredBanner` rather than treating it as a generic error.
+class SolverNotAvailableError implements Exception {
+  final String message;
+  const SolverNotAvailableError(this.message);
+
+  @override
+  String toString() => 'SolverNotAvailableError: $message';
+}
 
 /// Plate solve result
 class PlateSolveResult {
@@ -324,6 +333,178 @@ class PlateSolveService {
     }
 
     return PlateSolveResult.failed('Could not parse solution');
+  }
+
+  /// Probe disk for installed solvers + ASTAP catalog. Returns a snapshot
+  /// the UI can render directly without any extra FFI / IO. Calls the Rust
+  /// `api_platesolve_detect` so platform-specific path enumeration stays in
+  /// one place (`platesolve_paths.rs`).
+  Future<ps_model.PlateSolverDetection> detect() async {
+    final logging = _ref.read(loggingServiceProvider);
+    try {
+      final native = bridge_api.apiPlatesolveDetect();
+      return ps_model.PlateSolverDetection(
+        astapPath: native.astapPath,
+        astrometryPath: native.astrometryPath,
+        catalogName: native.catalogName,
+        catalogMagnitudeLimit: native.catalogMagnitudeLimit?.toDouble(),
+        catalogPath: native.catalogPath,
+      );
+    } catch (e) {
+      logging.error(
+        'plate-solver detection failed: $e',
+        source: 'PlateSolveService',
+      );
+      rethrow;
+    }
+  }
+
+  /// Run the given solver binary's `--help` to confirm the install is
+  /// healthy. Surfaces the version banner so the settings UI can display
+  /// "ASTAP 2024.05.10" alongside the path.
+  Future<ps_model.PlateSolverInfo> verify(String executablePath) async {
+    final logging = _ref.read(loggingServiceProvider);
+    try {
+      final info = bridge_api.apiPlatesolveVerify(
+        executablePath: executablePath,
+      );
+      return ps_model.PlateSolverInfo(
+        path: info.path,
+        flavour: info.flavour,
+        versionLine: info.versionLine,
+      );
+    } catch (e) {
+      logging.warning(
+        'plate-solver verify failed for $executablePath: $e',
+        source: 'PlateSolveService',
+      );
+      rethrow;
+    }
+  }
+
+  /// Load persisted plate-solver UX configuration. Falls back to defaults
+  /// when no `platesolver.json` exists yet.
+  Future<ps_model.PlateSolverPreference> getConfig() async {
+    final payload = bridge_api.apiPlatesolveGetConfig();
+    return ps_model.PlateSolverPreference(
+      astapPath: payload.astapPath,
+      astrometryPath: payload.astrometryPath,
+      catalogPath: payload.catalogPath,
+      choice: ps_model.PlateSolverChoice.fromSerialized(payload.solverChoice),
+    );
+  }
+
+  /// Persist plate-solver UX configuration. Invalidates the solver-
+  /// availability cache so the next `is_plate_solver_available` call
+  /// re-probes the filesystem with the new paths.
+  Future<void> setConfig(ps_model.PlateSolverPreference pref) async {
+    bridge_api.apiPlatesolveSetConfig(
+      config: bridge_api.PlateSolverConfigPayload(
+        astapPath: pref.astapPath,
+        astrometryPath: pref.astrometryPath,
+        catalogPath: pref.catalogPath,
+        solverChoice: pref.choice.serialized,
+      ),
+    );
+  }
+
+  /// Solve `imagePath` honouring the user's `PlateSolverChoice`.
+  ///
+  /// - `astap` runs ASTAP only. Failure surfaces verbatim.
+  /// - `astrometry` runs astrometry.net only.
+  /// - `auto` tries ASTAP first; on failure (and only if astrometry.net is
+  ///   reachable) retries with astrometry.net so a missing/broken ASTAP
+  ///   doesn't end the session.
+  ///
+  /// Throws `SolverNotAvailableError` when no solver matches the choice.
+  /// Callers (centering dialog, framing wizard, polar alignment) catch
+  /// this to render the "Set up plate solver" banner instead of treating
+  /// it as a generic solver failure.
+  Future<PlateSolveResult> solveWithFallback({
+    required String imagePath,
+    double? hintRaHours,
+    double? hintDecDegrees,
+    double? searchRadiusDegrees,
+    int timeoutSeconds = 60,
+  }) async {
+    final logging = _ref.read(loggingServiceProvider);
+    final detection = await detect();
+    final pref = await getConfig();
+
+    Future<PlateSolveResult> runAstap() async {
+      if (detection.astapPath == null) {
+        return PlateSolveResult.failed(
+          'ASTAP not installed at any known location.',
+        );
+      }
+      final config = PlateSolverConfig(
+        type: PlateSolverType.astap,
+        executablePath: detection.astapPath!,
+        catalogPath: detection.catalogPath,
+        timeoutSeconds: timeoutSeconds,
+        searchRadius: searchRadiusDegrees,
+        hintRa: hintRaHours,
+        hintDec: hintDecDegrees,
+      );
+      return solve(imagePath, config);
+    }
+
+    Future<PlateSolveResult> runAstrometry() async {
+      if (detection.astrometryPath == null) {
+        return PlateSolveResult.failed(
+          'Astrometry.net (solve-field) not installed.',
+        );
+      }
+      final config = PlateSolverConfig(
+        type: PlateSolverType.astrometryNet,
+        executablePath: detection.astrometryPath!,
+        timeoutSeconds: timeoutSeconds,
+        searchRadius: searchRadiusDegrees,
+        hintRa: hintRaHours,
+        hintDec: hintDecDegrees,
+      );
+      return solve(imagePath, config);
+    }
+
+    switch (pref.choice) {
+      case ps_model.PlateSolverChoice.astap:
+        if (detection.astapPath == null) {
+          throw const SolverNotAvailableError(
+            'ASTAP is selected but not installed. Configure it in '
+            'Settings → Plate Solving.',
+          );
+        }
+        return runAstap();
+      case ps_model.PlateSolverChoice.astrometry:
+        if (detection.astrometryPath == null) {
+          throw const SolverNotAvailableError(
+            'Astrometry.net is selected but not installed. Configure it '
+            'in Settings → Plate Solving.',
+          );
+        }
+        return runAstrometry();
+      case ps_model.PlateSolverChoice.auto:
+        if (!detection.hasAnySolver) {
+          throw const SolverNotAvailableError(
+            'No plate solver installed. Set one up in Settings → Plate '
+            'Solving.',
+          );
+        }
+        if (detection.astapPath != null) {
+          final astapResult = await runAstap();
+          if (astapResult.success) return astapResult;
+          if (detection.astrometryPath != null) {
+            logging.warning(
+              'ASTAP failed (${astapResult.errorMessage}); falling back '
+              'to astrometry.net',
+              source: 'PlateSolveService',
+            );
+            return runAstrometry();
+          }
+          return astapResult;
+        }
+        return runAstrometry();
+    }
   }
 
   Future<PlateSolveResult> _parsePlateSolve2Output(String outputPath) async {

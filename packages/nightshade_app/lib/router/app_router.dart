@@ -14,6 +14,7 @@ import '../screens/analytics/analytics_screen.dart';
 import '../screens/flat_wizard/flat_wizard_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/plate_solving_settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
 import '../screens/planner/planner_screen.dart';
@@ -170,6 +171,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionsBuilder: PageTransitions.scaleFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
+            routes: [
+              // W6-SOLVER-UX §6.1 — dedicated plate-solver setup page.
+              // Reachable from the centering / framing / polar alignment
+              // "Plate solver not configured" banners.
+              GoRoute(
+                path: 'plate-solving',
+                name: 'settings-plate-solving',
+                pageBuilder: (context, state) => const CustomTransitionPage(
+                  child: PlateSolvingSettingsScreen(),
+                  transitionsBuilder: PageTransitions.slideFadeTransition,
+                  transitionDuration: Duration(milliseconds: 300),
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/polar-alignment',

@@ -60,6 +60,7 @@ export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/science/science_models.dart';
 export 'src/models/defect_map.dart';
+export 'src/models/plate_solver.dart';
 
 // Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
 export 'src/models/scheduler/integration_goal.dart';
@@ -133,6 +134,7 @@ export 'src/providers/live_validation_provider.dart';
 export 'src/providers/period_analysis_provider.dart';
 export 'src/providers/photometric_transform_provider.dart';
 export 'src/providers/defect_map_provider.dart';
+export 'src/providers/plate_solver_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;

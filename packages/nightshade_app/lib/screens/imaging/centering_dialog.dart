@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/plate_solver_required_banner.dart';
 
 /// Dialog for automated target centering with live image preview
 class CenteringDialog extends ConsumerStatefulWidget {
@@ -32,6 +33,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   // double-click Abort and queue up two abortMountSlew calls.
   bool _abortInFlight = false;
   CenteringResult? _result;
+  // Set when `_startCentering` detects no plate solver is configured.
+  // Drives the inline `PlateSolverRequiredBanner` — the centering dialog
+  // catches `SolverNotAvailableError` from `PlateSolveService` rather than
+  // letting it surface as a generic snackbar.
+  String? _solverMissingMessage;
   late final TextEditingController _exposureController;
 
   @override
@@ -90,6 +96,19 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               // Header
               _buildHeader(theme, colors),
               const SizedBox(height: 16),
+
+              // Plate-solver missing banner (W6-SOLVER-UX §6.1). Surfaced
+              // when `_startCentering` catches `SolverNotAvailableError`
+              // before kicking off the centering loop. The banner exposes
+              // a "Set up plate solver" CTA that go_routes to
+              // /settings/plate-solving — clicking it pops this dialog and
+              // hands the user off to the dedicated setup page.
+              if (_solverMissingMessage != null) ...[
+                PlateSolverRequiredBanner(
+                  contextMessage: _solverMissingMessage,
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // Main content area
               if (_isCentering ||
@@ -749,17 +768,66 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     setState(() {
       _isCentering = true;
       _result = null;
+      _solverMissingMessage = null;
     });
 
     final centeringService = ref.read(centeringServiceProvider);
 
+    // Pre-flight: probe disk for ASTAP / Astrometry.net before spinning up
+    // the centering loop. If neither is reachable, surface the
+    // `PlateSolverRequiredBanner` and bail out — letting CenteringService
+    // discover this later wastes one full exposure and produces a generic
+    // "ASTAP not found" error that doesn't point users at the setup page.
+    final solveService = ref.read(plateSolveServiceProvider);
+    final PlateSolverDetection detection;
+    try {
+      detection = await solveService.detect();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCentering = false;
+          _solverMissingMessage = 'Plate-solver detection failed: $e';
+        });
+      }
+      return;
+    }
+
+    if (!detection.hasAnySolver) {
+      if (mounted) {
+        setState(() {
+          _isCentering = false;
+          _solverMissingMessage =
+              'Centering needs ASTAP (or Astrometry.net) installed to '
+              'compare the captured frame to the target coordinates. '
+              'Configure one to continue.';
+        });
+      }
+      return;
+    }
+
     final appSettings = ref.read(appSettingsProvider).value;
-    final executablePath =
+    // Prefer the freshly-detected ASTAP path (which honours the new
+    // platesolver.json override) over the legacy appSettings field. Fall
+    // back to legacy + auto-detect if the new layer says nothing.
+    final executablePath = detection.astapPath ??
         await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+
+    if (executablePath == null || executablePath.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isCentering = false;
+          _solverMissingMessage =
+              'ASTAP path is empty even though detection ran. Configure '
+              'the ASTAP executable in Settings → Plate Solving.';
+        });
+      }
+      return;
+    }
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: executablePath ?? '',
+      executablePath: executablePath,
+      catalogPath: detection.catalogPath,
       timeoutSeconds: 60,
       searchRadius: 30.0,
     );
@@ -782,6 +850,16 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         });
 
         ref.read(lastCenteringResultProvider.notifier).state = result;
+      }
+    } on SolverNotAvailableError catch (e) {
+      // Path the centering service can throw if a deeper layer surfaces
+      // the missing-solver case after we already passed our pre-flight.
+      // Render the same banner rather than a generic snackbar.
+      if (mounted) {
+        setState(() {
+          _isCentering = false;
+          _solverMissingMessage = e.message;
+        });
       }
     } catch (e) {
       if (mounted) {
