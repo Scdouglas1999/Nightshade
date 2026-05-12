@@ -6,11 +6,18 @@
 //!
 //! These are real implementations that call external solvers.
 
+mod platesolve_paths;
+
+pub use platesolve_paths::CatalogInfo;
+use platesolve_paths::{
+    astap_candidates, astrometry_candidates, catalog_dir_candidates, first_existing,
+    identify_catalog, AstapPathInputs, AstrometryPathInputs, CatalogSearchInputs, OsFamily, RealFs,
+};
+
 use std::fs;
 use std::num::ParseFloatError;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -98,56 +105,247 @@ impl Default for PlateSolverConfig {
     }
 }
 
-/// Find ASTAP installation
-fn find_astap() -> Option<PathBuf> {
-    // Common ASTAP installation locations
-    let candidates = [
-        r"C:\Program Files\astap\astap_cli.exe",
-        r"C:\Program Files (x86)\astap\astap_cli.exe",
-        r"C:\astap\astap_cli.exe",
-        "/usr/bin/astap_cli",
-        "/usr/local/bin/astap_cli",
-        "/opt/astap/astap_cli",
-    ];
+/// Find ASTAP installation by probing every well-known install path *plus*
+/// PATH. Returns the first hit. `configured` lets settings override the
+/// search order — when supplied and present, it always wins.
+///
+/// The candidate list lives in `platesolve_paths::astap_candidates` so the
+/// per-OS enumeration can be unit-tested without filesystem access.
+pub fn find_astap_with_override(configured: Option<&Path>) -> Option<PathBuf> {
+    let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let home = home_dir();
 
-    for path in &candidates {
-        let p = PathBuf::from(path);
-        if p.exists() {
-            return Some(p);
-        }
+    let inputs = AstapPathInputs {
+        os: OsFamily::host(),
+        configured,
+        local_app_data: local_app_data.as_deref(),
+        home: home.as_deref(),
+    };
+
+    let candidates = astap_candidates(&inputs);
+    if let Some(hit) = first_existing(&RealFs, &candidates) {
+        return Some(hit);
     }
 
-    // Try to find in PATH
-    if let Ok(output) = Command::new("where").arg("astap_cli.exe").output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    return Some(PathBuf::from(path.lines().next().unwrap_or(path)));
-                }
+    which_on_path("astap")
+        .or_else(|| which_on_path("astap_cli"))
+        .map(PathBuf::from)
+}
+
+/// Find ASTAP installation using only the platform default candidate list
+/// (no user override). Used by the legacy `PlateSolverConfig::default()`
+/// path that has no access to settings.
+fn find_astap() -> Option<PathBuf> {
+    find_astap_with_override(None)
+}
+
+/// Find local astrometry.net installation. See `find_astap_with_override`
+/// for the override semantics.
+pub fn find_astrometry_with_override(configured: Option<&Path>) -> Option<PathBuf> {
+    let inputs = AstrometryPathInputs {
+        os: OsFamily::host(),
+        configured,
+    };
+
+    let candidates = astrometry_candidates(&inputs);
+    if let Some(hit) = first_existing(&RealFs, &candidates) {
+        return Some(hit);
+    }
+
+    which_on_path("solve-field").map(PathBuf::from)
+}
+
+fn find_astrometry() -> Option<PathBuf> {
+    find_astrometry_with_override(None)
+}
+
+/// Resolve the user's home directory from the platform-appropriate env var.
+fn home_dir() -> Option<PathBuf> {
+    if cfg!(target_os = "windows") {
+        std::env::var_os("USERPROFILE").map(PathBuf::from)
+    } else {
+        std::env::var_os("HOME").map(PathBuf::from)
+    }
+}
+
+/// Cross-platform `which`/`where` lookup. Shells out so we get exactly the
+/// same resolution semantics as the user's interactive shell. Returns the
+/// first matching path or `None` if the command isn't on PATH.
+fn which_on_path(binary: &str) -> Option<String> {
+    let (cmd, query) = if cfg!(target_os = "windows") {
+        ("where", format!("{}.exe", binary))
+    } else {
+        ("which", binary.to_string())
+    };
+
+    let output = Command::new(cmd).arg(&query).output().ok()?;
+    if !output.status.success() {
+        // On Windows, also try without the .exe extension in case it's a
+        // CLI tool installed without the suffix.
+        if cfg!(target_os = "windows") {
+            let fallback = Command::new("where").arg(binary).output().ok()?;
+            if fallback.status.success() {
+                let path = String::from_utf8(fallback.stdout).ok()?;
+                return path.lines().next().map(|s| s.trim().to_string());
             }
         }
+        return None;
     }
+    let path = String::from_utf8(output.stdout).ok()?;
+    let first = path.lines().next()?.trim();
+    if first.is_empty() {
+        None
+    } else {
+        Some(first.to_string())
+    }
+}
 
+/// Detect an ASTAP star catalog around a known executable path. The catalog
+/// (.290/.h17 files) is required for ASTAP to actually solve; many users
+/// install it separately on a fast drive.
+///
+/// Returns the *first* recognised catalog, walking:
+///   1. user-configured catalog directory (if any),
+///   2. directory containing the ASTAP executable,
+///   3. `~/.astap/`,
+///   4. platform-specific install locations (`%LOCALAPPDATA%\astap`, etc.).
+///
+/// The actual filename → catalog-name mapping lives in
+/// `platesolve_paths::identify_catalog` so it can be exhaustively tested
+/// without staging real catalog files.
+pub fn detect_astap_catalog(
+    exe_path: Option<&Path>,
+    configured: Option<&Path>,
+) -> Option<CatalogInfo> {
+    let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let home = home_dir();
+
+    let inputs = CatalogSearchInputs {
+        os: OsFamily::host(),
+        exe_path,
+        configured,
+        local_app_data: local_app_data.as_deref(),
+        home: home.as_deref(),
+    };
+
+    for dir in catalog_dir_candidates(&inputs) {
+        if !dir.is_dir() {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        let names: Vec<String> = entries
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(|s| s.to_string()))
+            .collect();
+        if let Some(info) = identify_catalog(&dir, names) {
+            return Some(info);
+        }
+    }
     None
 }
 
-/// Find local astrometry.net installation
-fn find_astrometry() -> Option<PathBuf> {
-    let candidates = [
-        "/usr/bin/solve-field",
-        "/usr/local/bin/solve-field",
-        "/opt/astrometry/bin/solve-field",
-    ];
+/// Result of running an installed solver's `--help` (or equivalent) to
+/// confirm the binary is healthy. Returned by `verify_solver`.
+#[derive(Debug, Clone)]
+pub struct SolverInfo {
+    /// Absolute path the verifier ran against.
+    pub path: PathBuf,
+    /// Solver flavour (`"ASTAP"`, `"Astrometry.net"`, or `"Unknown"`).
+    pub flavour: String,
+    /// First non-empty line of the solver's `--help` / version output —
+    /// useful for surfacing in the settings UI so the user can confirm the
+    /// expected build.
+    pub version_line: String,
+}
 
-    for path in &candidates {
-        let p = PathBuf::from(path);
-        if p.exists() {
-            return Some(p);
-        }
+/// Structured errors emitted by `verify_solver`.
+#[derive(Debug, Error)]
+pub enum SolverVerifyError {
+    #[error("solver executable `{0}` does not exist")]
+    Missing(PathBuf),
+    #[error("failed to run solver `{path}`: {source}")]
+    Spawn {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "solver `{path}` exited with status {status} on `--help`. stderr: {stderr}"
+    )]
+    NonZeroExit {
+        path: PathBuf,
+        status: i32,
+        stderr: String,
+    },
+}
+
+/// Exec the solver with `--help` to confirm the binary actually works.
+///
+/// Why bother: a user can drop a stale or incompatible binary into the
+/// configured path. Running it once at settings-save time catches that
+/// instead of letting the failure surface inside a sequence.
+///
+/// Both ASTAP and `solve-field` print a usage / version banner on `--help`
+/// and exit zero. We capture the first non-empty stdout line as the
+/// version banner. A non-zero exit (or process spawn failure) is reported
+/// as a structured error so the UI can surface the underlying cause.
+pub fn verify_solver(path: &Path) -> Result<SolverInfo, SolverVerifyError> {
+    if !path.exists() {
+        return Err(SolverVerifyError::Missing(path.to_path_buf()));
     }
 
-    None
+    let output = Command::new(path)
+        .arg("--help")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|source| SolverVerifyError::Spawn {
+            path: path.to_path_buf(),
+            source,
+        })?;
+
+    // Why allow non-zero: some builds of ASTAP exit 1 on `--help` after
+    // writing the usage banner. Require *some* output before we treat the
+    // result as healthy.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let banner: Option<String> = stdout
+        .lines()
+        .chain(stderr.lines())
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_string);
+
+    let banner = match banner {
+        Some(b) => b,
+        None => {
+            // No output at all on either stream — that's almost certainly a
+            // broken binary, even if it exited zero. Surface as a non-zero
+            // exit so the UI shows the underlying status.
+            return Err(SolverVerifyError::NonZeroExit {
+                path: path.to_path_buf(),
+                status: output.status.code().unwrap_or(-1),
+                stderr: stderr.to_string(),
+            });
+        }
+    };
+
+    let lower = banner.to_ascii_lowercase();
+    let flavour = if lower.contains("astap") {
+        "ASTAP".to_string()
+    } else if lower.contains("astrometry") || lower.contains("solve-field") {
+        "Astrometry.net".to_string()
+    } else {
+        "Unknown".to_string()
+    };
+
+    Ok(SolverInfo {
+        path: path.to_path_buf(),
+        flavour,
+        version_line: banner,
+    })
 }
 
 /// Plate solver using ASTAP
@@ -1372,14 +1570,29 @@ fn external_solver_unavailable(start: std::time::Instant) -> PlateSolveResult {
 /// open is rare, and users always restart after configuring a new solver
 /// path. A future settings-change hook can call
 /// `invalidate_solver_availability_cache()` to force re-probing.
-static SOLVER_AVAILABLE_CACHE: OnceLock<bool> = OnceLock::new();
+static SOLVER_AVAILABLE_CACHE: std::sync::Mutex<Option<bool>> = std::sync::Mutex::new(None);
 
 /// Check if any plate solver (ASTAP or local astrometry.net) is reachable on
 /// disk. Returns `false` if neither is found at any well-known install path
 /// or via PATH lookup. Result is cached after first call; see
 /// `SOLVER_AVAILABLE_CACHE` doc for rationale.
 pub fn is_solver_available() -> bool {
-    *SOLVER_AVAILABLE_CACHE.get_or_init(|| find_astap().is_some() || find_astrometry().is_some())
+    let mut guard = SOLVER_AVAILABLE_CACHE.lock().expect("solver-cache mutex");
+    if let Some(cached) = *guard {
+        return cached;
+    }
+    let value = find_astap().is_some() || find_astrometry().is_some();
+    *guard = Some(value);
+    value
+}
+
+/// Drop the cached `is_solver_available()` answer so the next call re-probes
+/// the filesystem. Called whenever the user updates the solver path via the
+/// settings UI.
+pub fn invalidate_solver_availability_cache() {
+    *SOLVER_AVAILABLE_CACHE
+        .lock()
+        .expect("solver-cache mutex") = None;
 }
 
 /// Get path to installed solver
@@ -1755,6 +1968,77 @@ mod tests {
                 (dx * dx + dy * dy).sqrt() < 2.0
             });
             assert!(hit, "missed bright star at ({}, {})", sx, sy);
+        }
+    }
+
+    /// §6.1 follow-up: catalog detection must walk an exe-relative dir and
+    /// surface the catalog flavour + magnitude limit from filename markers.
+    #[test]
+    fn detect_astap_catalog_finds_v17_next_to_exe() {
+        let temp = std::env::temp_dir().join(format!(
+            "nightshade-platesolve-cat-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&temp).expect("create temp dir");
+        // Stage a fake catalog file with the V17 marker plus an ASTAP exe.
+        let exe = temp.join(if cfg!(target_os = "windows") {
+            "astap.exe"
+        } else {
+            "astap"
+        });
+        std::fs::write(&exe, b"#!fake").expect("write fake exe");
+        std::fs::write(temp.join("V17_0101.290"), b"fake catalog index")
+            .expect("write fake catalog");
+        std::fs::write(temp.join("V17_0102.290"), b"fake catalog index")
+            .expect("write fake catalog");
+
+        let info =
+            super::detect_astap_catalog(Some(&exe), None).expect("must find V17 catalog");
+        assert_eq!(info.name, "V17");
+        assert_eq!(info.magnitude_limit, Some(17.0));
+        assert_eq!(info.path, temp);
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    /// §6.1 follow-up: a configured catalog directory must take precedence.
+    #[test]
+    fn detect_astap_catalog_honours_configured_override() {
+        let temp = std::env::temp_dir().join(format!(
+            "nightshade-platesolve-cat-cfg-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&temp).expect("create temp dir");
+        std::fs::write(temp.join("D80_0001.1476"), b"fake").expect("write fake catalog");
+
+        let info = super::detect_astap_catalog(None, Some(&temp))
+            .expect("configured override must locate catalog");
+        assert_eq!(info.name, "D80");
+        assert_eq!(info.magnitude_limit, Some(12.0));
+
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    /// §6.1 follow-up: `verify_solver` on a missing path must produce a
+    /// structured `Missing` error rather than panicking or claiming success.
+    #[test]
+    fn verify_solver_reports_missing_path() {
+        let bogus = std::env::temp_dir().join(format!(
+            "nightshade-no-such-solver-{}.bin",
+            std::process::id()
+        ));
+        let err = super::verify_solver(&bogus).expect_err("missing path must error");
+        match err {
+            super::SolverVerifyError::Missing(p) => assert_eq!(p, bogus),
+            other => panic!("expected Missing, got {other:?}"),
         }
     }
 

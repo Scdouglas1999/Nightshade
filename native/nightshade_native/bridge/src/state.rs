@@ -7,6 +7,8 @@ use crate::device::*;
 use crate::event::*;
 use crate::storage::AppSettings;
 use crate::storage::ObserverLocation;
+use crate::storage::PlateSolverPreference;
+use crate::storage::PlateSolverStorage;
 use crate::storage::ProfileStorage;
 use crate::storage::SettingsStorage;
 use std::collections::HashMap;
@@ -65,6 +67,31 @@ fn get_settings_storage() -> Result<&'static SettingsStorage, String> {
     SETTINGS_STORAGE
         .get()
         .ok_or_else(|| "Settings storage not initialized".to_string())
+}
+
+/// Global plate-solver preference storage. Shares the settings directory so
+/// callers only need to initialise one storage root.
+static PLATESOLVER_STORAGE: OnceLock<PlateSolverStorage> = OnceLock::new();
+
+pub fn init_platesolver_storage(storage_dir: std::path::PathBuf) -> Result<(), String> {
+    let storage = PlateSolverStorage::new(storage_dir)?;
+    PLATESOLVER_STORAGE
+        .set(storage)
+        .map_err(|_| "Plate-solver storage already initialized".to_string())
+}
+
+fn get_platesolver_storage() -> Result<&'static PlateSolverStorage, String> {
+    PLATESOLVER_STORAGE
+        .get()
+        .ok_or_else(|| "Plate-solver storage not initialized".to_string())
+}
+
+pub fn get_platesolver_preference() -> Result<PlateSolverPreference, String> {
+    get_platesolver_storage()?.load()
+}
+
+pub fn save_platesolver_preference(pref: &PlateSolverPreference) -> Result<(), String> {
+    get_platesolver_storage()?.save(pref)
 }
 
 /// A connected device with its current status
