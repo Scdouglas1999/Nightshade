@@ -38,6 +38,178 @@ and headless API. Highlights:
   hold mount controls (the old single-click slewed indefinitely), an HttpOnly +
   CSRF "remember me" path, a phone layout, and a full accessibility pass.
 
+### Differentiator features (Batch 3)
+
+This batch covers four feature-parity items that the 7-agent audit flagged
+as user-visible gaps versus NINA / SGP / SkyGuard. They ship in v2.5.0
+alongside the hardening work above. Each is feature-complete on the
+end-user surface; known follow-ups are listed under "Limitations / known
+follow-ups" with the audit slot that will close them in v2.5.x.
+
+#### Dynamic scheduler (RoboTarget-class)
+
+A target-selection engine that runs an unattended imaging session over
+multiple objects in one slot — choosing what to expose right now from a
+queue of candidate targets, re-evaluating on a fixed cadence and on
+weather / guiding / mount events, and switching only when the new
+winner clearly beats the current one.
+
+- Where users find it: top-level **Scheduler** screen (side-nav and
+  mobile bottom-nav entry), routed at `/scheduler`. Per-target editors
+  open from the queue table.
+- Per-target **integration goals** by filter (e.g. `L: 4h`, `R/G/B: 2h
+  each`, `Ha: 6h`) and per-target **constraints**:
+  - Time window (UTC start/end or "after astronomical twilight").
+  - Moon illumination cap and minimum moon separation.
+  - Custom **horizon profile** (samples-based, separate from the legacy
+    8-point compass mask) so tree-lines and roof obstructions are
+    honoured.
+- **Hysteresis-stable target selection**: a challenger only displaces
+  the running target when its weighted score exceeds the current
+  target's by the configured `hysteresisRatio` (default 1.20×).
+  Eliminates the "ping-pong between two equally-good targets" pattern.
+- **Automatic re-evaluation** on the EventBus channels for weather,
+  guiding, and mount-state changes — not just on a wall-clock timer —
+  so a guiding excursion or an incoming cloud bank can flip targets
+  inside the next decision tick.
+- Decision panel surfaces the full scoring breakdown (per-factor value,
+  weight, weighted contribution) and the runner-up, so the user can see
+  why the scheduler chose what it chose. **Force re-evaluate**, scoring
+  weights expansion, and a countdown to the next eval are all on the
+  same panel.
+- 20 new tests cover engine selection / hysteresis / lifecycle, the
+  Meeus JD references and NOAA sun-alt-az path in `sky_calculations`,
+  and the two `SchedulerScreen` widget states.
+
+Limitations / known follow-ups:
+
+- The hysteresis ratio compares the final `totalScore` of both
+  candidates, which folds in the scoring-weight defaults
+  (`scheduler_engine.dart:348`). The audit flagged that the
+  `userPriority` weight may need tuning so user priority alone can flip
+  the hysteresis without help from other factors (W6-SCHED-FINISH
+  follow-up item 1). The default weights ship as a workable starting
+  point; tuning lands in v2.5.x.
+
+#### Defect-map cosmetic correction
+
+A bad-pixel / dust-spot repair pipeline that lets users image **without
+dark frames** while still hiding hot pixels, cold pixels, and small dust
+shadows in the final integration.
+
+- Where users find it: **Imaging screen → Image calibration** section
+  (`widgets/calibration_section.dart`). Build, toggle "apply during
+  capture", clear, and last-rebuild status all live here.
+- Builds a defect map from a small stack of dark frames (minimum 5 by
+  default; fewer is a structured error, not a silent fallback) and
+  stores it as a persistent `.ndm` file keyed by camera + sensor size +
+  temperature bucket.
+- **Multi-temperature buckets** so a -10 °C cooled run and a +5 °C
+  cooled run don't share the same hot-pixel list. The lookup uses
+  `temperatureBucketDecicelsius` (tenths of a degree) so a 1-degree
+  rebuild interval is meaningful.
+- **Neighborhood-median repair** at capture time: defective pixels are
+  replaced by the median of their valid neighbours before the frame is
+  written out, so lights are clean as they leave the camera and
+  downstream stacking sees no artefacts.
+- The imaging-screen panel disables every control with an explanatory
+  tooltip when the camera is disconnected, sensor dimensions are
+  unknown, or no cooler telemetry has arrived yet — so the user gets a
+  real reason, not a stuck UI.
+- 12 new Rust unit tests cover the defect-detection statistics
+  (`cargo test -p nightshade_imaging --lib defect_map`).
+
+Limitations / known follow-ups:
+
+- The `PlatformInt64 lastRebuiltUnixSeconds` field returned by the
+  bridge is assigned straight into a Dart `int` in
+  `DefectMapService._fromBridge`
+  (`packages/nightshade_core/lib/src/services/calibration/defect_map_service.dart:85`).
+  This is safe on desktop and mobile (Dart `int` is 64-bit there) but
+  would not compile under web (`int` is JavaScript number, `PlatformInt64`
+  becomes `BigInt`). Web is not a supported target in v2.5.0; tracked
+  as W6-DEFECT-FINISH item 2 follow-up.
+
+#### Plate-solver detection & setup UX
+
+A first-class plate-solver configuration surface designed to eliminate
+the "why doesn't plate solve work?" friction that dominated v2.4 support
+threads.
+
+- Where users find it: **Settings → Plate Solving** (`/settings/
+  plate-solving`). Reusable `PlateSolverRequiredBanner` also appears in
+  the centering, framing, and polar-alignment flows when no solver is
+  reachable, with a `go_router` CTA straight to the settings screen.
+- **Auto-detect ASTAP and Astrometry.net** across every standard install
+  path on Windows, macOS, and Linux — including ASTAP CLI / GUI builds,
+  Homebrew `astrometry.net`, and Cygwin-installed `solve-field`. Catalog
+  presence is detected separately so "binary OK, no catalog" is a
+  distinct state from "not installed".
+- **Verify-solve button** runs the configured binary to confirm it
+  actually works on this machine — catches stale binaries, missing
+  dependencies, and wrong-architecture downloads at settings-save time
+  rather than mid-sequence.
+- **Auto-fallback chain**: when both solvers are installed and the user
+  picks "Auto", a failure on one falls back to the other for that solve
+  attempt only (the next attempt restarts from the preferred solver).
+- The previous "ASTAP not found" snackbar in `CenteringDialog` has been
+  replaced with the required-banner + settings CTA so the user is never
+  stranded.
+- Widget + model tests cover the four detection states (no solver /
+  ready / catalog missing / verify error) and the `PlateSolverChoice`
+  / `PlateSolverDetection` round-trips.
+
+Limitations / known follow-ups:
+
+- The **Verify** button runs `astap --help` (or `solve-field --help`)
+  as a binary-health smoke check
+  (`native/nightshade_native/imaging/src/platesolve.rs:294-313`). It is
+  not a real plate-solve against a synthetic field. The orchestrator
+  sketched a 200×200 three-cluster fixture for an end-to-end verify
+  path; that approach was skipped because ASTAP needs a real star field
+  matched against its catalog to solve. A true end-to-end verify path
+  is on the v2.5.x list (W6-SOLVER-UX-FINISH note).
+
+#### NINA / SGP sequence import
+
+Drop-in migration from the two competitor sequencers users are most
+likely to be coming from.
+
+- Where users find it: **Sequencer screen → Import sequence** (toolbar).
+  Opens a file picker, runs format auto-detection, then a summary
+  dialog showing the node-mapping table before the user persists.
+- **Auto-format detection** by file extension and content sniffing
+  (`.json`/`$type:NINA…` → NINA; `.sgf` / SGP JSON shape → SGP). Wrong
+  extension still resolves to the right parser when the contents are
+  unambiguous.
+- **Node mapping table** in the summary dialog (source type → Nightshade
+  type → count) so the user sees exactly what's about to be imported
+  before they commit.
+- **Force-import on unsupported override**: the default behaviour is to
+  raise a structured `UnsupportedNodeError` (with the offending node
+  type) so the user can decide. Toggling "import anyway" preserves the
+  raw scalar fields of the unsupported node and continues — no silent
+  data loss, no silent drop.
+- **Two persistence destinations**: "Open in editor" (load into the
+  active sequencer for tweaking) and "Save to library" (persist via
+  `SequenceRepository` without disturbing the current edit). Both
+  paths persist; only "Open in editor" also calls
+  `currentSequenceProvider`.
+- New `docs/sequence-import-formats.md` documents the NINA `$type` table,
+  the SGP key table, drop / unsupported semantics, and two worked
+  examples for support troubleshooting.
+
+Limitations / known follow-ups:
+
+- The test fixtures
+  (`packages/nightshade_core/test/services/import/fixtures/nina_basic.json`,
+  `nina_unsupported.json`) were authored from the NINA public Advanced-
+  Sequencer documentation, not from a verbatim recent NINA export. The
+  finisher agent recommends a verification pass against a real Advanced
+  Sequencer JSON export from a current NINA release before we make any
+  marketing claim of "imports NINA sequences losslessly"
+  (W6-NINA-IMPORT-FINISH follow-up 1).
+
 ### Added
 
 #### Authentication, pairing and security
