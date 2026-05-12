@@ -58,6 +58,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  ApiDefectMapStatus dco_decode_api_defect_map_status(dynamic raw);
+
+  @protected
   ApiLiveStackingConfig dco_decode_api_live_stacking_config(dynamic raw);
 
   @protected
@@ -85,6 +88,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           dynamic raw);
+
+  @protected
+  ApiDefectMapStatus dco_decode_box_autoadd_api_defect_map_status(dynamic raw);
 
   @protected
   ApiLiveStackingConfig dco_decode_box_autoadd_api_live_stacking_config(
@@ -125,6 +131,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EquipmentProfile dco_decode_box_autoadd_equipment_profile(dynamic raw);
 
   @protected
+  double dco_decode_box_autoadd_f_32(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -161,6 +170,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PierSide dco_decode_box_autoadd_pier_side(dynamic raw);
+
+  @protected
+  PlateSolverConfigPayload dco_decode_box_autoadd_plate_solver_config_payload(
+      dynamic raw);
 
   @protected
   PolarAlignmentEvent dco_decode_box_autoadd_polar_alignment_event(dynamic raw);
@@ -346,6 +359,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HeartbeatStatus dco_decode_heartbeat_status(dynamic raw);
 
   @protected
+  int dco_decode_i_16(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -470,6 +486,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           dynamic raw);
 
   @protected
+  ApiDefectMapStatus? dco_decode_opt_box_autoadd_api_defect_map_status(
+      dynamic raw);
+
+  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -484,6 +504,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   EquipmentProfile? dco_decode_opt_box_autoadd_equipment_profile(dynamic raw);
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
@@ -542,6 +565,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlateSolveResult dco_decode_plate_solve_result(dynamic raw);
+
+  @protected
+  PlateSolverConfigPayload dco_decode_plate_solver_config_payload(dynamic raw);
+
+  @protected
+  PlateSolverDetection dco_decode_plate_solver_detection(dynamic raw);
+
+  @protected
+  PlateSolverInfo dco_decode_plate_solver_info(dynamic raw);
 
   @protected
   PolarAlignmentEvent dco_decode_polar_alignment_event(dynamic raw);
@@ -715,6 +747,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  ApiDefectMapStatus sse_decode_api_defect_map_status(
+      SseDeserializer deserializer);
+
+  @protected
   ApiLiveStackingConfig sse_decode_api_live_stacking_config(
       SseDeserializer deserializer);
 
@@ -747,6 +783,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           SseDeserializer deserializer);
+
+  @protected
+  ApiDefectMapStatus sse_decode_box_autoadd_api_defect_map_status(
+      SseDeserializer deserializer);
 
   @protected
   ApiLiveStackingConfig sse_decode_box_autoadd_api_live_stacking_config(
@@ -795,6 +835,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  double sse_decode_box_autoadd_f_32(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -837,6 +880,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PierSide sse_decode_box_autoadd_pier_side(SseDeserializer deserializer);
+
+  @protected
+  PlateSolverConfigPayload sse_decode_box_autoadd_plate_solver_config_payload(
+      SseDeserializer deserializer);
 
   @protected
   PolarAlignmentEvent sse_decode_box_autoadd_polar_alignment_event(
@@ -1043,6 +1090,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HeartbeatStatus sse_decode_heartbeat_status(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_i_16(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -1183,6 +1233,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           SseDeserializer deserializer);
 
   @protected
+  ApiDefectMapStatus? sse_decode_opt_box_autoadd_api_defect_map_status(
+      SseDeserializer deserializer);
+
+  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
@@ -1200,6 +1254,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   EquipmentProfile? sse_decode_opt_box_autoadd_equipment_profile(
       SseDeserializer deserializer);
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
@@ -1263,6 +1320,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlateSolveResult sse_decode_plate_solve_result(SseDeserializer deserializer);
+
+  @protected
+  PlateSolverConfigPayload sse_decode_plate_solver_config_payload(
+      SseDeserializer deserializer);
+
+  @protected
+  PlateSolverDetection sse_decode_plate_solver_detection(
+      SseDeserializer deserializer);
+
+  @protected
+  PlateSolverInfo sse_decode_plate_solver_info(SseDeserializer deserializer);
 
   @protected
   PolarAlignmentEvent sse_decode_polar_alignment_event(
@@ -1479,6 +1547,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_api_defect_map_status>
+      cst_encode_box_autoadd_api_defect_map_status(ApiDefectMapStatus raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_defect_map_status();
+    cst_api_fill_to_wire_api_defect_map_status(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_api_live_stacking_config>
       cst_encode_box_autoadd_api_live_stacking_config(
           ApiLiveStackingConfig raw) {
@@ -1582,6 +1659,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<ffi.Float> cst_encode_box_autoadd_f_32(double raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return wire.cst_new_box_autoadd_f_32(cst_encode_f_32(raw));
+  }
+
+  @protected
   ffi.Pointer<ffi.Double> cst_encode_box_autoadd_f_64(double raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return wire.cst_new_box_autoadd_f_64(cst_encode_f_64(raw));
@@ -1677,6 +1760,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ffi.Pointer<ffi.Int32> cst_encode_box_autoadd_pier_side(PierSide raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return wire.cst_new_box_autoadd_pier_side(cst_encode_pier_side(raw));
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_plate_solver_config_payload>
+      cst_encode_box_autoadd_plate_solver_config_payload(
+          PlateSolverConfigPayload raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_plate_solver_config_payload();
+    cst_api_fill_to_wire_plate_solver_config_payload(raw, ptr.ref);
+    return ptr;
   }
 
   @protected
@@ -2117,6 +2210,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_api_defect_map_status>
+      cst_encode_opt_box_autoadd_api_defect_map_status(
+          ApiDefectMapStatus? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_api_defect_map_status(raw);
+  }
+
+  @protected
   ffi.Pointer<ffi.Bool> cst_encode_opt_box_autoadd_bool(bool? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null ? ffi.nullptr : cst_encode_box_autoadd_bool(raw);
@@ -2154,6 +2257,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return raw == null
         ? ffi.nullptr
         : cst_encode_box_autoadd_equipment_profile(raw);
+  }
+
+  @protected
+  ffi.Pointer<ffi.Float> cst_encode_opt_box_autoadd_f_32(double? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null ? ffi.nullptr : cst_encode_box_autoadd_f_32(raw);
   }
 
   @protected
@@ -2262,6 +2371,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_api_defect_map_status(
+      ApiDefectMapStatus apiObj, wire_cst_api_defect_map_status wireObj) {
+    wireObj.camera_id = cst_encode_String(apiObj.cameraId);
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.temperature_bucket_decicelsius =
+        cst_encode_i_16(apiObj.temperatureBucketDecicelsius);
+    wireObj.defective_pixel_count = cst_encode_u_32(apiObj.defectivePixelCount);
+    wireObj.last_rebuilt_unix_seconds =
+        cst_encode_i_64(apiObj.lastRebuiltUnixSeconds);
+    wireObj.apply_during_capture = cst_encode_bool(apiObj.applyDuringCapture);
+    wireObj.stored_on_disk = cst_encode_bool(apiObj.storedOnDisk);
+  }
+
+  @protected
   void cst_api_fill_to_wire_api_live_stacking_config(
       ApiLiveStackingConfig apiObj, wire_cst_api_live_stacking_config wireObj) {
     wireObj.sigma_clip_enabled = cst_encode_bool(apiObj.sigmaClipEnabled);
@@ -2327,6 +2451,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.timestamp = cst_encode_i_64(apiObj.timestamp);
     wireObj.curve_fit_quality = cst_encode_f_64(apiObj.curveFitQuality);
     wireObj.backlash_applied = cst_encode_bool(apiObj.backlashApplied);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_defect_map_status(
+      ApiDefectMapStatus apiObj,
+      ffi.Pointer<wire_cst_api_defect_map_status> wireObj) {
+    cst_api_fill_to_wire_api_defect_map_status(apiObj, wireObj.ref);
   }
 
   @protected
@@ -2441,6 +2572,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ObserverLocation apiObj,
       ffi.Pointer<wire_cst_observer_location> wireObj) {
     cst_api_fill_to_wire_observer_location(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_plate_solver_config_payload(
+      PlateSolverConfigPayload apiObj,
+      ffi.Pointer<wire_cst_plate_solver_config_payload> wireObj) {
+    cst_api_fill_to_wire_plate_solver_config_payload(apiObj, wireObj.ref);
   }
 
   @protected
@@ -3963,6 +4101,35 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_plate_solver_config_payload(
+      PlateSolverConfigPayload apiObj,
+      wire_cst_plate_solver_config_payload wireObj) {
+    wireObj.astap_path = cst_encode_String(apiObj.astapPath);
+    wireObj.astrometry_path = cst_encode_String(apiObj.astrometryPath);
+    wireObj.catalog_path = cst_encode_String(apiObj.catalogPath);
+    wireObj.solver_choice = cst_encode_String(apiObj.solverChoice);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_plate_solver_detection(
+      PlateSolverDetection apiObj, wire_cst_plate_solver_detection wireObj) {
+    wireObj.astap_path = cst_encode_opt_String(apiObj.astapPath);
+    wireObj.astrometry_path = cst_encode_opt_String(apiObj.astrometryPath);
+    wireObj.catalog_name = cst_encode_opt_String(apiObj.catalogName);
+    wireObj.catalog_magnitude_limit =
+        cst_encode_opt_box_autoadd_f_32(apiObj.catalogMagnitudeLimit);
+    wireObj.catalog_path = cst_encode_opt_String(apiObj.catalogPath);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_plate_solver_info(
+      PlateSolverInfo apiObj, wire_cst_plate_solver_info wireObj) {
+    wireObj.path = cst_encode_String(apiObj.path);
+    wireObj.flavour = cst_encode_String(apiObj.flavour);
+    wireObj.version_line = cst_encode_String(apiObj.versionLine);
+  }
+
+  @protected
   void cst_api_fill_to_wire_polar_alignment_event(
       PolarAlignmentEvent apiObj, wire_cst_polar_alignment_event wireObj) {
     wireObj.azimuth_error = cst_encode_f_64(apiObj.azimuthError);
@@ -4569,6 +4736,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int cst_encode_heartbeat_status(HeartbeatStatus raw);
 
   @protected
+  int cst_encode_i_16(int raw);
+
+  @protected
   int cst_encode_i_32(int raw);
 
   @protected
@@ -4625,6 +4795,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_api_defect_map_status(
+      ApiDefectMapStatus self, SseSerializer serializer);
+
+  @protected
   void sse_encode_api_live_stacking_config(
       ApiLiveStackingConfig self, SseSerializer serializer);
 
@@ -4658,6 +4832,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
       sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           ArcAlpacaClient self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_api_defect_map_status(
+      ApiDefectMapStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_api_live_stacking_config(
@@ -4707,6 +4885,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       EquipmentProfile self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -4751,6 +4932,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_pier_side(
       PierSide self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_plate_solver_config_payload(
+      PlateSolverConfigPayload self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_polar_alignment_event(
@@ -4970,6 +5155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       HeartbeatStatus self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_16(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -5125,6 +5313,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           ArcAlpacaClient? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_api_defect_map_status(
+      ApiDefectMapStatus? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
@@ -5142,6 +5334,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_equipment_profile(
       EquipmentProfile? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
@@ -5210,6 +5405,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_plate_solve_result(
       PlateSolveResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plate_solver_config_payload(
+      PlateSolverConfigPayload self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plate_solver_detection(
+      PlateSolverDetection self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plate_solver_info(
+      PlateSolverInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_polar_alignment_event(
@@ -6992,6 +7199,135 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_16_loose>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>();
+
+  void wire__crate__api__api_defect_map_apply(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    bool apply_during_capture,
+  ) {
+    return _wire__crate__api__api_defect_map_apply(
+      port_,
+      camera_id,
+      apply_during_capture,
+    );
+  }
+
+  late final _wire__crate__api__api_defect_map_applyPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Bool,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_defect_map_apply');
+  late final _wire__crate__api__api_defect_map_apply =
+      _wire__crate__api__api_defect_map_applyPtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, bool)>();
+
+  void wire__crate__api__api_defect_map_build(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    ffi.Pointer<wire_cst_list_String> dark_frame_paths,
+    double sensor_temperature_celsius,
+  ) {
+    return _wire__crate__api__api_defect_map_build(
+      port_,
+      camera_id,
+      dark_frame_paths,
+      sensor_temperature_celsius,
+    );
+  }
+
+  late final _wire__crate__api__api_defect_map_buildPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Double,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_defect_map_build');
+  late final _wire__crate__api__api_defect_map_build =
+      _wire__crate__api__api_defect_map_buildPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_String>,
+            double,
+          )>();
+
+  void wire__crate__api__api_defect_map_clear(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    int width,
+    int height,
+    double sensor_temperature_celsius,
+  ) {
+    return _wire__crate__api__api_defect_map_clear(
+      port_,
+      camera_id,
+      width,
+      height,
+      sensor_temperature_celsius,
+    );
+  }
+
+  late final _wire__crate__api__api_defect_map_clearPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Double,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_defect_map_clear');
+  late final _wire__crate__api__api_defect_map_clear =
+      _wire__crate__api__api_defect_map_clearPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            double,
+          )>();
+
+  void wire__crate__api__api_defect_map_get_status(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    int width,
+    int height,
+    double sensor_temperature_celsius,
+  ) {
+    return _wire__crate__api__api_defect_map_get_status(
+      port_,
+      camera_id,
+      width,
+      height,
+      sensor_temperature_celsius,
+    );
+  }
+
+  late final _wire__crate__api__api_defect_map_get_statusPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Double,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_defect_map_get_status');
+  late final _wire__crate__api__api_defect_map_get_status =
+      _wire__crate__api__api_defect_map_get_statusPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            double,
           )>();
 
   WireSyncRust2DartDco wire__crate__api__api_delete_profile(
@@ -9478,6 +9814,66 @@ class RustLibWire implements BaseWire {
             double,
             double,
             double,
+          )>();
+
+  WireSyncRust2DartDco wire__crate__api__api_platesolve_detect() {
+    return _wire__crate__api__api_platesolve_detect();
+  }
+
+  late final _wire__crate__api__api_platesolve_detectPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_platesolve_detect',
+  );
+  late final _wire__crate__api__api_platesolve_detect =
+      _wire__crate__api__api_platesolve_detectPtr
+          .asFunction<WireSyncRust2DartDco Function()>();
+
+  WireSyncRust2DartDco wire__crate__api__api_platesolve_get_config() {
+    return _wire__crate__api__api_platesolve_get_config();
+  }
+
+  late final _wire__crate__api__api_platesolve_get_configPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_platesolve_get_config',
+  );
+  late final _wire__crate__api__api_platesolve_get_config =
+      _wire__crate__api__api_platesolve_get_configPtr
+          .asFunction<WireSyncRust2DartDco Function()>();
+
+  WireSyncRust2DartDco wire__crate__api__api_platesolve_set_config(
+    ffi.Pointer<wire_cst_plate_solver_config_payload> config,
+  ) {
+    return _wire__crate__api__api_platesolve_set_config(config);
+  }
+
+  late final _wire__crate__api__api_platesolve_set_configPtr = _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Pointer<wire_cst_plate_solver_config_payload>,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_platesolve_set_config');
+  late final _wire__crate__api__api_platesolve_set_config =
+      _wire__crate__api__api_platesolve_set_configPtr.asFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_plate_solver_config_payload>,
+          )>();
+
+  WireSyncRust2DartDco wire__crate__api__api_platesolve_verify(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> executable_path,
+  ) {
+    return _wire__crate__api__api_platesolve_verify(executable_path);
+  }
+
+  late final _wire__crate__api__api_platesolve_verifyPtr = _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_platesolve_verify');
+  late final _wire__crate__api__api_platesolve_verify =
+      _wire__crate__api__api_platesolve_verifyPtr.asFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
           )>();
 
   void wire__crate__api__api_read_fits_file(
@@ -12245,6 +12641,19 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClientPtr
           .asFunction<ffi.Pointer<ffi.UintPtr> Function(int)>();
 
+  ffi.Pointer<wire_cst_api_defect_map_status>
+      cst_new_box_autoadd_api_defect_map_status() {
+    return _cst_new_box_autoadd_api_defect_map_status();
+  }
+
+  late final _cst_new_box_autoadd_api_defect_map_statusPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_api_defect_map_status> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status');
+  late final _cst_new_box_autoadd_api_defect_map_status =
+      _cst_new_box_autoadd_api_defect_map_statusPtr
+          .asFunction<ffi.Pointer<wire_cst_api_defect_map_status> Function()>();
+
   ffi.Pointer<wire_cst_api_live_stacking_config>
       cst_new_box_autoadd_api_live_stacking_config() {
     return _cst_new_box_autoadd_api_live_stacking_config();
@@ -12395,6 +12804,17 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_equipment_profilePtr
           .asFunction<ffi.Pointer<wire_cst_equipment_profile> Function()>();
 
+  ffi.Pointer<ffi.Float> cst_new_box_autoadd_f_32(double value) {
+    return _cst_new_box_autoadd_f_32(value);
+  }
+
+  late final _cst_new_box_autoadd_f_32Ptr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Float> Function(ffi.Float)>>(
+    'frbgen_nightshade_bridge_cst_new_box_autoadd_f_32',
+  );
+  late final _cst_new_box_autoadd_f_32 = _cst_new_box_autoadd_f_32Ptr
+      .asFunction<ffi.Pointer<ffi.Float> Function(double)>();
+
   ffi.Pointer<ffi.Double> cst_new_box_autoadd_f_64(double value) {
     return _cst_new_box_autoadd_f_64(value);
   }
@@ -12540,6 +12960,20 @@ class RustLibWire implements BaseWire {
   );
   late final _cst_new_box_autoadd_pier_side = _cst_new_box_autoadd_pier_sidePtr
       .asFunction<ffi.Pointer<ffi.Int32> Function(int)>();
+
+  ffi.Pointer<wire_cst_plate_solver_config_payload>
+      cst_new_box_autoadd_plate_solver_config_payload() {
+    return _cst_new_box_autoadd_plate_solver_config_payload();
+  }
+
+  late final _cst_new_box_autoadd_plate_solver_config_payloadPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_plate_solver_config_payload> Function()>>(
+    'frbgen_nightshade_bridge_cst_new_box_autoadd_plate_solver_config_payload',
+  );
+  late final _cst_new_box_autoadd_plate_solver_config_payload =
+      _cst_new_box_autoadd_plate_solver_config_payloadPtr.asFunction<
+          ffi.Pointer<wire_cst_plate_solver_config_payload> Function()>();
 
   ffi.Pointer<wire_cst_polar_alignment_event>
       cst_new_box_autoadd_polar_alignment_event() {
@@ -13165,6 +13599,16 @@ final class wire_cst_star_detection_config_api extends ffi.Struct {
   external ffi.Pointer<ffi.Double> max_sharpness;
 }
 
+final class wire_cst_plate_solver_config_payload extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> astap_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> astrometry_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> catalog_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> solver_choice;
+}
+
 final class wire_cst_autofocus_config_api extends ffi.Struct {
   @ffi.Double()
   external double exposure_time;
@@ -13396,6 +13840,31 @@ final class wire_cst_app_settings extends ffi.Struct {
 
   @ffi.Bool()
   external bool auto_connect;
+}
+
+final class wire_cst_api_defect_map_status extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id;
+
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Int16()
+  external int temperature_bucket_decicelsius;
+
+  @ffi.Uint32()
+  external int defective_pixel_count;
+
+  @ffi.Int64()
+  external int last_rebuilt_unix_seconds;
+
+  @ffi.Bool()
+  external bool apply_during_capture;
+
+  @ffi.Bool()
+  external bool stored_on_disk;
 }
 
 final class wire_cst_camera_capabilities extends ffi.Struct {
@@ -15666,6 +16135,26 @@ final class wire_cst_plate_solve_result extends ffi.Struct {
   external double solve_time_secs;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> error;
+}
+
+final class wire_cst_plate_solver_detection extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> astap_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> astrometry_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> catalog_name;
+
+  external ffi.Pointer<ffi.Float> catalog_magnitude_limit;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> catalog_path;
+}
+
+final class wire_cst_plate_solver_info extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> flavour;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> version_line;
 }
 
 final class wire_cst_qhy_discovery_status extends ffi.Struct {

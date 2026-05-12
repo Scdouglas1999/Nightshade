@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1421752965;
+  int get rustContentHash => 1515018275;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -357,6 +357,26 @@ abstract class RustLibApi extends BaseApi {
       required List<int> data,
       required String patternStr,
       required String algoStr});
+
+  Future<void> crateApiApiDefectMapApply(
+      {required String cameraId, required bool applyDuringCapture});
+
+  Future<ApiDefectMapStatus> crateApiApiDefectMapBuild(
+      {required String cameraId,
+      required List<String> darkFramePaths,
+      required double sensorTemperatureCelsius});
+
+  Future<void> crateApiApiDefectMapClear(
+      {required String cameraId,
+      required int width,
+      required int height,
+      required double sensorTemperatureCelsius});
+
+  Future<ApiDefectMapStatus?> crateApiApiDefectMapGetStatus(
+      {required String cameraId,
+      required int width,
+      required int height,
+      required double sensorTemperatureCelsius});
 
   void crateApiApiDeleteProfile({required String profileId});
 
@@ -717,6 +737,15 @@ abstract class RustLibApi extends BaseApi {
       required double hintRa,
       required double hintDec,
       required double searchRadius});
+
+  PlateSolverDetection crateApiApiPlatesolveDetect();
+
+  PlateSolverConfigPayload crateApiApiPlatesolveGetConfig();
+
+  void crateApiApiPlatesolveSetConfig(
+      {required PlateSolverConfigPayload config});
+
+  PlateSolverInfo crateApiApiPlatesolveVerify({required String executablePath});
 
   Future<FitsReadResult> crateApiApiReadFitsFile({required String filePath});
 
@@ -2832,6 +2861,119 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiDebayerImageConstMeta => const TaskConstMeta(
         debugName: "api_debayer_image",
         argNames: ["width", "height", "data", "patternStr", "algoStr"],
+      );
+
+  @override
+  Future<void> crateApiApiDefectMapApply(
+      {required String cameraId, required bool applyDuringCapture}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(cameraId);
+        var arg1 = cst_encode_bool(applyDuringCapture);
+        return wire.wire__crate__api__api_defect_map_apply(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiDefectMapApplyConstMeta,
+      argValues: [cameraId, applyDuringCapture],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiDefectMapApplyConstMeta => const TaskConstMeta(
+        debugName: "api_defect_map_apply",
+        argNames: ["cameraId", "applyDuringCapture"],
+      );
+
+  @override
+  Future<ApiDefectMapStatus> crateApiApiDefectMapBuild(
+      {required String cameraId,
+      required List<String> darkFramePaths,
+      required double sensorTemperatureCelsius}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(cameraId);
+        var arg1 = cst_encode_list_String(darkFramePaths);
+        var arg2 = cst_encode_f_64(sensorTemperatureCelsius);
+        return wire.wire__crate__api__api_defect_map_build(
+            port_, arg0, arg1, arg2);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_api_defect_map_status,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiDefectMapBuildConstMeta,
+      argValues: [cameraId, darkFramePaths, sensorTemperatureCelsius],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiDefectMapBuildConstMeta => const TaskConstMeta(
+        debugName: "api_defect_map_build",
+        argNames: ["cameraId", "darkFramePaths", "sensorTemperatureCelsius"],
+      );
+
+  @override
+  Future<void> crateApiApiDefectMapClear(
+      {required String cameraId,
+      required int width,
+      required int height,
+      required double sensorTemperatureCelsius}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(cameraId);
+        var arg1 = cst_encode_u_32(width);
+        var arg2 = cst_encode_u_32(height);
+        var arg3 = cst_encode_f_64(sensorTemperatureCelsius);
+        return wire.wire__crate__api__api_defect_map_clear(
+            port_, arg0, arg1, arg2, arg3);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiDefectMapClearConstMeta,
+      argValues: [cameraId, width, height, sensorTemperatureCelsius],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiDefectMapClearConstMeta => const TaskConstMeta(
+        debugName: "api_defect_map_clear",
+        argNames: ["cameraId", "width", "height", "sensorTemperatureCelsius"],
+      );
+
+  @override
+  Future<ApiDefectMapStatus?> crateApiApiDefectMapGetStatus(
+      {required String cameraId,
+      required int width,
+      required int height,
+      required double sensorTemperatureCelsius}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(cameraId);
+        var arg1 = cst_encode_u_32(width);
+        var arg2 = cst_encode_u_32(height);
+        var arg3 = cst_encode_f_64(sensorTemperatureCelsius);
+        return wire.wire__crate__api__api_defect_map_get_status(
+            port_, arg0, arg1, arg2, arg3);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_opt_box_autoadd_api_defect_map_status,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiDefectMapGetStatusConstMeta,
+      argValues: [cameraId, width, height, sensorTemperatureCelsius],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiDefectMapGetStatusConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_defect_map_get_status",
+        argNames: ["cameraId", "width", "height", "sensorTemperatureCelsius"],
       );
 
   @override
@@ -6004,6 +6146,98 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiPlateSolveNearConstMeta => const TaskConstMeta(
         debugName: "api_plate_solve_near",
         argNames: ["filePath", "hintRa", "hintDec", "searchRadius"],
+      );
+
+  @override
+  PlateSolverDetection crateApiApiPlatesolveDetect() {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        return wire.wire__crate__api__api_platesolve_detect();
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_plate_solver_detection,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiPlatesolveDetectConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiPlatesolveDetectConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_platesolve_detect",
+        argNames: [],
+      );
+
+  @override
+  PlateSolverConfigPayload crateApiApiPlatesolveGetConfig() {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        return wire.wire__crate__api__api_platesolve_get_config();
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_plate_solver_config_payload,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiPlatesolveGetConfigConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiPlatesolveGetConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_platesolve_get_config",
+        argNames: [],
+      );
+
+  @override
+  void crateApiApiPlatesolveSetConfig(
+      {required PlateSolverConfigPayload config}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_box_autoadd_plate_solver_config_payload(config);
+        return wire.wire__crate__api__api_platesolve_set_config(arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiPlatesolveSetConfigConstMeta,
+      argValues: [config],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiPlatesolveSetConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_platesolve_set_config",
+        argNames: ["config"],
+      );
+
+  @override
+  PlateSolverInfo crateApiApiPlatesolveVerify(
+      {required String executablePath}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_String(executablePath);
+        return wire.wire__crate__api__api_platesolve_verify(arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_plate_solver_info,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiPlatesolveVerifyConstMeta,
+      argValues: [executablePath],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiPlatesolveVerifyConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_platesolve_verify",
+        argNames: ["executablePath"],
       );
 
   @override
@@ -9217,6 +9451,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus dco_decode_api_defect_map_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ApiDefectMapStatus(
+      cameraId: dco_decode_String(arr[0]),
+      width: dco_decode_u_32(arr[1]),
+      height: dco_decode_u_32(arr[2]),
+      temperatureBucketDecicelsius: dco_decode_i_16(arr[3]),
+      defectivePixelCount: dco_decode_u_32(arr[4]),
+      lastRebuiltUnixSeconds: dco_decode_i_64(arr[5]),
+      applyDuringCapture: dco_decode_bool(arr[6]),
+      storedOnDisk: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
   ApiLiveStackingConfig dco_decode_api_live_stacking_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -9331,6 +9583,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus dco_decode_box_autoadd_api_defect_map_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_defect_map_status(raw);
+  }
+
+  @protected
   ApiLiveStackingConfig dco_decode_box_autoadd_api_live_stacking_config(
       dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -9405,6 +9663,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double dco_decode_box_autoadd_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -9476,6 +9740,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PierSide dco_decode_box_autoadd_pier_side(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_pier_side(raw);
+  }
+
+  @protected
+  PlateSolverConfigPayload dco_decode_box_autoadd_plate_solver_config_payload(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_plate_solver_config_payload(raw);
   }
 
   @protected
@@ -10452,6 +10723,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int dco_decode_i_16(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -11062,6 +11339,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus? dco_decode_opt_box_autoadd_api_defect_map_status(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_api_defect_map_status(raw);
+  }
+
+  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_bool(raw);
@@ -11090,6 +11376,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   EquipmentProfile? dco_decode_opt_box_autoadd_equipment_profile(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_equipment_profile(raw);
+  }
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_f_32(raw);
   }
 
   @protected
@@ -11256,6 +11548,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       fieldHeight: dco_decode_f_64(arr[6]),
       solveTimeSecs: dco_decode_f_64(arr[7]),
       error: dco_decode_opt_String(arr[8]),
+    );
+  }
+
+  @protected
+  PlateSolverConfigPayload dco_decode_plate_solver_config_payload(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return PlateSolverConfigPayload(
+      astapPath: dco_decode_String(arr[0]),
+      astrometryPath: dco_decode_String(arr[1]),
+      catalogPath: dco_decode_String(arr[2]),
+      solverChoice: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  PlateSolverDetection dco_decode_plate_solver_detection(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return PlateSolverDetection(
+      astapPath: dco_decode_opt_String(arr[0]),
+      astrometryPath: dco_decode_opt_String(arr[1]),
+      catalogName: dco_decode_opt_String(arr[2]),
+      catalogMagnitudeLimit: dco_decode_opt_box_autoadd_f_32(arr[3]),
+      catalogPath: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  PlateSolverInfo dco_decode_plate_solver_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return PlateSolverInfo(
+      path: dco_decode_String(arr[0]),
+      flavour: dco_decode_String(arr[1]),
+      versionLine: dco_decode_String(arr[2]),
     );
   }
 
@@ -12035,6 +12369,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus sse_decode_api_defect_map_status(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_cameraId = sse_decode_String(deserializer);
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_temperatureBucketDecicelsius = sse_decode_i_16(deserializer);
+    var var_defectivePixelCount = sse_decode_u_32(deserializer);
+    var var_lastRebuiltUnixSeconds = sse_decode_i_64(deserializer);
+    var var_applyDuringCapture = sse_decode_bool(deserializer);
+    var var_storedOnDisk = sse_decode_bool(deserializer);
+    return ApiDefectMapStatus(
+        cameraId: var_cameraId,
+        width: var_width,
+        height: var_height,
+        temperatureBucketDecicelsius: var_temperatureBucketDecicelsius,
+        defectivePixelCount: var_defectivePixelCount,
+        lastRebuiltUnixSeconds: var_lastRebuiltUnixSeconds,
+        applyDuringCapture: var_applyDuringCapture,
+        storedOnDisk: var_storedOnDisk);
+  }
+
+  @protected
   ApiLiveStackingConfig sse_decode_api_live_stacking_config(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -12162,6 +12519,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus sse_decode_box_autoadd_api_defect_map_status(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_defect_map_status(deserializer));
+  }
+
+  @protected
   ApiLiveStackingConfig sse_decode_box_autoadd_api_live_stacking_config(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -12245,6 +12609,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double sse_decode_box_autoadd_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_f_32(deserializer));
+  }
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_f_64(deserializer));
@@ -12322,6 +12692,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PierSide sse_decode_box_autoadd_pier_side(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_pier_side(deserializer));
+  }
+
+  @protected
+  PlateSolverConfigPayload sse_decode_box_autoadd_plate_solver_config_payload(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_plate_solver_config_payload(deserializer));
   }
 
   @protected
@@ -13497,6 +13874,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int sse_decode_i_16(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt16();
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
@@ -14305,6 +14688,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApiDefectMapStatus? sse_decode_opt_box_autoadd_api_defect_map_status(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_defect_map_status(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -14358,6 +14753,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_equipment_profile(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_f_32(deserializer));
     } else {
       return null;
     }
@@ -14605,6 +15011,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         fieldHeight: var_fieldHeight,
         solveTimeSecs: var_solveTimeSecs,
         error: var_error);
+  }
+
+  @protected
+  PlateSolverConfigPayload sse_decode_plate_solver_config_payload(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_astapPath = sse_decode_String(deserializer);
+    var var_astrometryPath = sse_decode_String(deserializer);
+    var var_catalogPath = sse_decode_String(deserializer);
+    var var_solverChoice = sse_decode_String(deserializer);
+    return PlateSolverConfigPayload(
+        astapPath: var_astapPath,
+        astrometryPath: var_astrometryPath,
+        catalogPath: var_catalogPath,
+        solverChoice: var_solverChoice);
+  }
+
+  @protected
+  PlateSolverDetection sse_decode_plate_solver_detection(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_astapPath = sse_decode_opt_String(deserializer);
+    var var_astrometryPath = sse_decode_opt_String(deserializer);
+    var var_catalogName = sse_decode_opt_String(deserializer);
+    var var_catalogMagnitudeLimit =
+        sse_decode_opt_box_autoadd_f_32(deserializer);
+    var var_catalogPath = sse_decode_opt_String(deserializer);
+    return PlateSolverDetection(
+        astapPath: var_astapPath,
+        astrometryPath: var_astrometryPath,
+        catalogName: var_catalogName,
+        catalogMagnitudeLimit: var_catalogMagnitudeLimit,
+        catalogPath: var_catalogPath);
+  }
+
+  @protected
+  PlateSolverInfo sse_decode_plate_solver_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_path = sse_decode_String(deserializer);
+    var var_flavour = sse_decode_String(deserializer);
+    var var_versionLine = sse_decode_String(deserializer);
+    return PlateSolverInfo(
+        path: var_path, flavour: var_flavour, versionLine: var_versionLine);
   }
 
   @protected
@@ -15452,6 +15901,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int cst_encode_i_16(int raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw;
+  }
+
+  @protected
   int cst_encode_i_32(int raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw;
@@ -15568,6 +16023,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_api_defect_map_status(
+      ApiDefectMapStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.cameraId, serializer);
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_i_16(self.temperatureBucketDecicelsius, serializer);
+    sse_encode_u_32(self.defectivePixelCount, serializer);
+    sse_encode_i_64(self.lastRebuiltUnixSeconds, serializer);
+    sse_encode_bool(self.applyDuringCapture, serializer);
+    sse_encode_bool(self.storedOnDisk, serializer);
+  }
+
+  @protected
   void sse_encode_api_live_stacking_config(
       ApiLiveStackingConfig self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15658,6 +16127,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_api_defect_map_status(
+      ApiDefectMapStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_defect_map_status(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_api_live_stacking_config(
       ApiLiveStackingConfig self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15741,6 +16217,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_32(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self, serializer);
@@ -15820,6 +16302,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       PierSide self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_pier_side(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_plate_solver_config_payload(
+      PlateSolverConfigPayload self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_plate_solver_config_payload(self, serializer);
   }
 
   @protected
@@ -16715,6 +17204,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_i_16(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt16(self);
+  }
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
@@ -17416,6 +17911,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_api_defect_map_status(
+      ApiDefectMapStatus? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_defect_map_status(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -17466,6 +17972,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_equipment_profile(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_f_32(self, serializer);
     }
   }
 
@@ -17670,6 +18186,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.fieldHeight, serializer);
     sse_encode_f_64(self.solveTimeSecs, serializer);
     sse_encode_opt_String(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_plate_solver_config_payload(
+      PlateSolverConfigPayload self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.astapPath, serializer);
+    sse_encode_String(self.astrometryPath, serializer);
+    sse_encode_String(self.catalogPath, serializer);
+    sse_encode_String(self.solverChoice, serializer);
+  }
+
+  @protected
+  void sse_encode_plate_solver_detection(
+      PlateSolverDetection self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.astapPath, serializer);
+    sse_encode_opt_String(self.astrometryPath, serializer);
+    sse_encode_opt_String(self.catalogName, serializer);
+    sse_encode_opt_box_autoadd_f_32(self.catalogMagnitudeLimit, serializer);
+    sse_encode_opt_String(self.catalogPath, serializer);
+  }
+
+  @protected
+  void sse_encode_plate_solver_info(
+      PlateSolverInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.path, serializer);
+    sse_encode_String(self.flavour, serializer);
+    sse_encode_String(self.versionLine, serializer);
   }
 
   @protected

@@ -12,9 +12,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'state.dart';
 import 'storage.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `create_unique_temp_fits_path`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `is_phd2_device_id`, `mad`, `median_from_sorted_f64`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `serialize_node_definition`, `serialize_sequence_definition`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `create_unique_temp_fits_path`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `into_pref`, `is_phd2_device_id`, `mad`, `median_from_sorted_f64`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `sanitize_camera_id`, `serialize_node_definition`, `serialize_sequence_definition`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `PolarAlignmentMode`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_active_guider_id_for_ops`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
 /// Invalidate the unified discovery cache, forcing fresh discovery on next call.
@@ -1011,6 +1011,31 @@ Future<PlateSolveResult> apiPlateSolveNear(
         hintRa: hintRa,
         hintDec: hintDec,
         searchRadius: searchRadius);
+
+/// Detect installed plate solvers and catalogs. Honours the user-configured
+/// override paths from the persisted plate-solver preference, if any. Does
+/// not run the binaries — that's `api_platesolve_verify`.
+PlateSolverDetection apiPlatesolveDetect() =>
+    RustLib.instance.api.crateApiApiPlatesolveDetect();
+
+/// Run the supplied solver binary with `--help` to confirm it's healthy.
+/// Returns a `PlateSolverInfo` with the detected flavour and version banner,
+/// or a `NightshadeError` if the binary is missing / fails to spawn / exits
+/// with non-zero status and empty output.
+PlateSolverInfo apiPlatesolveVerify({required String executablePath}) =>
+    RustLib.instance.api
+        .crateApiApiPlatesolveVerify(executablePath: executablePath);
+
+/// Read the persisted plate-solver configuration. Falls back to defaults if
+/// the storage was never written.
+PlateSolverConfigPayload apiPlatesolveGetConfig() =>
+    RustLib.instance.api.crateApiApiPlatesolveGetConfig();
+
+/// Persist a new plate-solver configuration. Invalidates the solver
+/// availability cache so the next `api_is_plate_solver_available()` call
+/// re-probes the filesystem with the new paths.
+void apiPlatesolveSetConfig({required PlateSolverConfigPayload config}) =>
+    RustLib.instance.api.crateApiApiPlatesolveSetConfig(config: config);
 
 /// Check if PHD2 is running
 bool apiIsPhd2Running() => RustLib.instance.api.crateApiApiIsPhd2Running();
@@ -2185,6 +2210,106 @@ bool apiStackingIsActive() =>
 /// Get the current stacked frame count.
 int apiStackingFrameCount() =>
     RustLib.instance.api.crateApiApiStackingFrameCount();
+
+/// Build a defect map for a camera from a set of dark frames provided as
+/// FITS/XISF file paths. Frames must all share dimensions and pixel type.
+///
+/// The resulting map is written to disk under
+/// `$NIGHTSHADE_DATA_DIR/defect_maps/` keyed by camera id, sensor size and
+/// temperature bucket, and the status is returned.
+Future<ApiDefectMapStatus> apiDefectMapBuild(
+        {required String cameraId,
+        required List<String> darkFramePaths,
+        required double sensorTemperatureCelsius}) =>
+    RustLib.instance.api.crateApiApiDefectMapBuild(
+        cameraId: cameraId,
+        darkFramePaths: darkFramePaths,
+        sensorTemperatureCelsius: sensorTemperatureCelsius);
+
+/// Toggle whether the defect map for this camera is applied to lights
+/// during capture. The map must already exist on disk for the toggle to
+/// take effect at the next capture; this call only updates the user's
+/// preference.
+Future<void> apiDefectMapApply(
+        {required String cameraId, required bool applyDuringCapture}) =>
+    RustLib.instance.api.crateApiApiDefectMapApply(
+        cameraId: cameraId, applyDuringCapture: applyDuringCapture);
+
+/// Delete the defect map stored on disk for the given camera, sensor
+/// dimensions and temperature bucket. Also resets the apply-during-
+/// capture flag for that camera.
+Future<void> apiDefectMapClear(
+        {required String cameraId,
+        required int width,
+        required int height,
+        required double sensorTemperatureCelsius}) =>
+    RustLib.instance.api.crateApiApiDefectMapClear(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius);
+
+/// Look up the status of the stored defect map for a camera at the given
+/// sensor size and temperature. Returns `Ok(None)` if no map is stored
+/// for that combination.
+Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
+        {required String cameraId,
+        required int width,
+        required int height,
+        required double sensorTemperatureCelsius}) =>
+    RustLib.instance.api.crateApiApiDefectMapGetStatus(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius);
+
+/// Status of a stored defect map for a given camera / sensor / temperature.
+class ApiDefectMapStatus {
+  final String cameraId;
+  final int width;
+  final int height;
+  final int temperatureBucketDecicelsius;
+  final int defectivePixelCount;
+  final PlatformInt64 lastRebuiltUnixSeconds;
+  final bool applyDuringCapture;
+  final bool storedOnDisk;
+
+  const ApiDefectMapStatus({
+    required this.cameraId,
+    required this.width,
+    required this.height,
+    required this.temperatureBucketDecicelsius,
+    required this.defectivePixelCount,
+    required this.lastRebuiltUnixSeconds,
+    required this.applyDuringCapture,
+    required this.storedOnDisk,
+  });
+
+  @override
+  int get hashCode =>
+      cameraId.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      temperatureBucketDecicelsius.hashCode ^
+      defectivePixelCount.hashCode ^
+      lastRebuiltUnixSeconds.hashCode ^
+      applyDuringCapture.hashCode ^
+      storedOnDisk.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiDefectMapStatus &&
+          runtimeType == other.runtimeType &&
+          cameraId == other.cameraId &&
+          width == other.width &&
+          height == other.height &&
+          temperatureBucketDecicelsius == other.temperatureBucketDecicelsius &&
+          defectivePixelCount == other.defectivePixelCount &&
+          lastRebuiltUnixSeconds == other.lastRebuiltUnixSeconds &&
+          applyDuringCapture == other.applyDuringCapture &&
+          storedOnDisk == other.storedOnDisk;
+}
 
 /// Live stacking configuration exposed to Dart
 class ApiLiveStackingConfig {
@@ -3425,6 +3550,122 @@ class PlateSolveResult {
           fieldHeight == other.fieldHeight &&
           solveTimeSecs == other.solveTimeSecs &&
           error == other.error;
+}
+
+/// Persisted plate-solver UX configuration. Mirrors `storage::PlateSolverPreference`
+/// 1:1; lives in this module so flutter_rust_bridge can generate Dart
+/// bindings without exporting the storage internals.
+class PlateSolverConfigPayload {
+  final String astapPath;
+  final String astrometryPath;
+  final String catalogPath;
+  final String solverChoice;
+
+  const PlateSolverConfigPayload({
+    required this.astapPath,
+    required this.astrometryPath,
+    required this.catalogPath,
+    required this.solverChoice,
+  });
+
+  @override
+  int get hashCode =>
+      astapPath.hashCode ^
+      astrometryPath.hashCode ^
+      catalogPath.hashCode ^
+      solverChoice.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlateSolverConfigPayload &&
+          runtimeType == other.runtimeType &&
+          astapPath == other.astapPath &&
+          astrometryPath == other.astrometryPath &&
+          catalogPath == other.catalogPath &&
+          solverChoice == other.solverChoice;
+}
+
+/// Detection snapshot returned to the settings UI. Contains everything
+/// needed to render the "ASTAP detected at /path/to/astap.exe (catalog: V17
+/// to mag 17)" status banner without further FFI round-trips.
+class PlateSolverDetection {
+  /// Detected ASTAP executable path. `None` when ASTAP is not installed.
+  final String? astapPath;
+
+  /// Detected `solve-field` path. `None` when astrometry.net is not
+  /// installed.
+  final String? astrometryPath;
+
+  /// Detected ASTAP star catalog. `None` when ASTAP was detected but no
+  /// catalog could be located (the user must point us at one).
+  final String? catalogName;
+
+  /// Approximate magnitude limit the detected catalog covers (e.g. 17.0
+  /// for V17). `None` when the catalog flavour isn't recognised.
+  final double? catalogMagnitudeLimit;
+
+  /// Directory containing the detected catalog.
+  final String? catalogPath;
+
+  const PlateSolverDetection({
+    this.astapPath,
+    this.astrometryPath,
+    this.catalogName,
+    this.catalogMagnitudeLimit,
+    this.catalogPath,
+  });
+
+  @override
+  int get hashCode =>
+      astapPath.hashCode ^
+      astrometryPath.hashCode ^
+      catalogName.hashCode ^
+      catalogMagnitudeLimit.hashCode ^
+      catalogPath.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlateSolverDetection &&
+          runtimeType == other.runtimeType &&
+          astapPath == other.astapPath &&
+          astrometryPath == other.astrometryPath &&
+          catalogName == other.catalogName &&
+          catalogMagnitudeLimit == other.catalogMagnitudeLimit &&
+          catalogPath == other.catalogPath;
+}
+
+/// Detailed information about a verified solver binary. See
+/// `api_platesolve_verify`.
+class PlateSolverInfo {
+  /// Absolute path of the verified binary.
+  final String path;
+
+  /// `"ASTAP"`, `"Astrometry.net"`, or `"Unknown"`.
+  final String flavour;
+
+  /// First non-empty line of the binary's `--help` output, useful for
+  /// surfacing the build version in the settings UI.
+  final String versionLine;
+
+  const PlateSolverInfo({
+    required this.path,
+    required this.flavour,
+    required this.versionLine,
+  });
+
+  @override
+  int get hashCode => path.hashCode ^ flavour.hashCode ^ versionLine.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlateSolverInfo &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          flavour == other.flavour &&
+          versionLine == other.versionLine;
 }
 
 /// Status information about QHY discovery

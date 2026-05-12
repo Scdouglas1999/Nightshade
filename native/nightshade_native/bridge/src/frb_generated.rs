@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1421752965;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1515018275;
 
 // Section: executor
 
@@ -1604,6 +1604,141 @@ fn wire__crate__api__api_debayer_image_impl(
                 )?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__api_defect_map_apply_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    camera_id: impl CstDecode<String>,
+    apply_during_capture: impl CstDecode<bool>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_defect_map_apply",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_camera_id = camera_id.cst_decode();
+            let api_apply_during_capture = apply_during_capture.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_defect_map_apply(
+                            api_camera_id,
+                            api_apply_during_capture,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_defect_map_build_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    camera_id: impl CstDecode<String>,
+    dark_frame_paths: impl CstDecode<Vec<String>>,
+    sensor_temperature_celsius: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_defect_map_build",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_camera_id = camera_id.cst_decode();
+            let api_dark_frame_paths = dark_frame_paths.cst_decode();
+            let api_sensor_temperature_celsius = sensor_temperature_celsius.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_defect_map_build(
+                            api_camera_id,
+                            api_dark_frame_paths,
+                            api_sensor_temperature_celsius,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_defect_map_clear_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    camera_id: impl CstDecode<String>,
+    width: impl CstDecode<u32>,
+    height: impl CstDecode<u32>,
+    sensor_temperature_celsius: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_defect_map_clear",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_camera_id = camera_id.cst_decode();
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_sensor_temperature_celsius = sensor_temperature_celsius.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_defect_map_clear(
+                            api_camera_id,
+                            api_width,
+                            api_height,
+                            api_sensor_temperature_celsius,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_defect_map_get_status_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    camera_id: impl CstDecode<String>,
+    width: impl CstDecode<u32>,
+    height: impl CstDecode<u32>,
+    sensor_temperature_celsius: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_defect_map_get_status",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_camera_id = camera_id.cst_decode();
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_sensor_temperature_celsius = sensor_temperature_celsius.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_defect_map_get_status(
+                            api_camera_id,
+                            api_width,
+                            api_height,
+                            api_sensor_temperature_celsius,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -4785,6 +4920,74 @@ fn wire__crate__api__api_plate_solve_near_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__api_platesolve_detect_impl(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_platesolve_detect",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::api_platesolve_detect()?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__api_platesolve_get_config_impl(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_platesolve_get_config",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::api_platesolve_get_config()?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__api_platesolve_set_config_impl(
+    config: impl CstDecode<crate::api::PlateSolverConfigPayload>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_platesolve_set_config",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_config = config.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::api_platesolve_set_config(api_config)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__api_platesolve_verify_impl(
+    executable_path: impl CstDecode<String>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_platesolve_verify",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_executable_path = executable_path.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::api_platesolve_verify(api_executable_path)?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -8244,6 +8447,12 @@ impl CstDecode<crate::event::HeartbeatStatus> for i32 {
         }
     }
 }
+impl CstDecode<i16> for i16 {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    fn cst_decode(self) -> i16 {
+        self
+    }
+}
 impl CstDecode<i32> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
     fn cst_decode(self) -> i32 {
@@ -8396,6 +8605,30 @@ impl SseDecode for String {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u8>>::sse_decode(deserializer);
         return String::from_utf8(inner).unwrap();
+    }
+}
+
+impl SseDecode for crate::api::ApiDefectMapStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_cameraId = <String>::sse_decode(deserializer);
+        let mut var_width = <u32>::sse_decode(deserializer);
+        let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_temperatureBucketDecicelsius = <i16>::sse_decode(deserializer);
+        let mut var_defectivePixelCount = <u32>::sse_decode(deserializer);
+        let mut var_lastRebuiltUnixSeconds = <i64>::sse_decode(deserializer);
+        let mut var_applyDuringCapture = <bool>::sse_decode(deserializer);
+        let mut var_storedOnDisk = <bool>::sse_decode(deserializer);
+        return crate::api::ApiDefectMapStatus {
+            camera_id: var_cameraId,
+            width: var_width,
+            height: var_height,
+            temperature_bucket_decicelsius: var_temperatureBucketDecicelsius,
+            defective_pixel_count: var_defectivePixelCount,
+            last_rebuilt_unix_seconds: var_lastRebuiltUnixSeconds,
+            apply_during_capture: var_applyDuringCapture,
+            stored_on_disk: var_storedOnDisk,
+        };
     }
 }
 
@@ -9827,6 +10060,13 @@ impl SseDecode for crate::event::HeartbeatStatus {
     }
 }
 
+impl SseDecode for i16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i16::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10762,6 +11002,17 @@ impl SseDecode for Option<Arc<AlpacaClient>> {
     }
 }
 
+impl SseDecode for Option<crate::api::ApiDefectMapStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::ApiDefectMapStatus>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<bool> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10811,6 +11062,17 @@ impl SseDecode for Option<crate::state::EquipmentProfile> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::state::EquipmentProfile>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<f32>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -11073,6 +11335,54 @@ impl SseDecode for crate::api::PlateSolveResult {
             field_height: var_fieldHeight,
             solve_time_secs: var_solveTimeSecs,
             error: var_error,
+        };
+    }
+}
+
+impl SseDecode for crate::api::PlateSolverConfigPayload {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_astapPath = <String>::sse_decode(deserializer);
+        let mut var_astrometryPath = <String>::sse_decode(deserializer);
+        let mut var_catalogPath = <String>::sse_decode(deserializer);
+        let mut var_solverChoice = <String>::sse_decode(deserializer);
+        return crate::api::PlateSolverConfigPayload {
+            astap_path: var_astapPath,
+            astrometry_path: var_astrometryPath,
+            catalog_path: var_catalogPath,
+            solver_choice: var_solverChoice,
+        };
+    }
+}
+
+impl SseDecode for crate::api::PlateSolverDetection {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_astapPath = <Option<String>>::sse_decode(deserializer);
+        let mut var_astrometryPath = <Option<String>>::sse_decode(deserializer);
+        let mut var_catalogName = <Option<String>>::sse_decode(deserializer);
+        let mut var_catalogMagnitudeLimit = <Option<f32>>::sse_decode(deserializer);
+        let mut var_catalogPath = <Option<String>>::sse_decode(deserializer);
+        return crate::api::PlateSolverDetection {
+            astap_path: var_astapPath,
+            astrometry_path: var_astrometryPath,
+            catalog_name: var_catalogName,
+            catalog_magnitude_limit: var_catalogMagnitudeLimit,
+            catalog_path: var_catalogPath,
+        };
+    }
+}
+
+impl SseDecode for crate::api::PlateSolverInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_path = <String>::sse_decode(deserializer);
+        let mut var_flavour = <String>::sse_decode(deserializer);
+        let mut var_versionLine = <String>::sse_decode(deserializer);
+        return crate::api::PlateSolverInfo {
+            path: var_path,
+            flavour: var_flavour,
+            version_line: var_versionLine,
         };
     }
 }
@@ -11992,6 +12302,35 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Arc<AlpacaClient>>> for Arc<Al
     }
 }
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ApiDefectMapStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.camera_id.into_into_dart().into_dart(),
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.temperature_bucket_decicelsius
+                .into_into_dart()
+                .into_dart(),
+            self.defective_pixel_count.into_into_dart().into_dart(),
+            self.last_rebuilt_unix_seconds.into_into_dart().into_dart(),
+            self.apply_during_capture.into_into_dart().into_dart(),
+            self.stored_on_disk.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ApiDefectMapStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ApiDefectMapStatus>
+    for crate::api::ApiDefectMapStatus
+{
+    fn into_into_dart(self) -> crate::api::ApiDefectMapStatus {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ApiLiveStackingConfig {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -14101,6 +14440,72 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::PlateSolveResult>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::PlateSolverConfigPayload {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.astap_path.into_into_dart().into_dart(),
+            self.astrometry_path.into_into_dart().into_dart(),
+            self.catalog_path.into_into_dart().into_dart(),
+            self.solver_choice.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::PlateSolverConfigPayload
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::PlateSolverConfigPayload>
+    for crate::api::PlateSolverConfigPayload
+{
+    fn into_into_dart(self) -> crate::api::PlateSolverConfigPayload {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::PlateSolverDetection {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.astap_path.into_into_dart().into_dart(),
+            self.astrometry_path.into_into_dart().into_dart(),
+            self.catalog_name.into_into_dart().into_dart(),
+            self.catalog_magnitude_limit.into_into_dart().into_dart(),
+            self.catalog_path.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::PlateSolverDetection
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::PlateSolverDetection>
+    for crate::api::PlateSolverDetection
+{
+    fn into_into_dart(self) -> crate::api::PlateSolverDetection {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::PlateSolverInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.path.into_into_dart().into_dart(),
+            self.flavour.into_into_dart().into_dart(),
+            self.version_line.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::PlateSolverInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::PlateSolverInfo>
+    for crate::api::PlateSolverInfo
+{
+    fn into_into_dart(self) -> crate::api::PlateSolverInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::event::PolarAlignmentEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15009,6 +15414,20 @@ impl SseEncode for String {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<u8>>::sse_encode(self.into_bytes(), serializer);
+    }
+}
+
+impl SseEncode for crate::api::ApiDefectMapStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.camera_id, serializer);
+        <u32>::sse_encode(self.width, serializer);
+        <u32>::sse_encode(self.height, serializer);
+        <i16>::sse_encode(self.temperature_bucket_decicelsius, serializer);
+        <u32>::sse_encode(self.defective_pixel_count, serializer);
+        <i64>::sse_encode(self.last_rebuilt_unix_seconds, serializer);
+        <bool>::sse_encode(self.apply_during_capture, serializer);
+        <bool>::sse_encode(self.stored_on_disk, serializer);
     }
 }
 
@@ -16118,6 +16537,13 @@ impl SseEncode for crate::event::HeartbeatStatus {
     }
 }
 
+impl SseEncode for i16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i16::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16857,6 +17283,16 @@ impl SseEncode for Option<Arc<AlpacaClient>> {
     }
 }
 
+impl SseEncode for Option<crate::api::ApiDefectMapStatus> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::ApiDefectMapStatus>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<bool> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16903,6 +17339,16 @@ impl SseEncode for Option<crate::state::EquipmentProfile> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::state::EquipmentProfile>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<f32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <f32>::sse_encode(value, serializer);
         }
     }
 }
@@ -17111,6 +17557,36 @@ impl SseEncode for crate::api::PlateSolveResult {
         <f64>::sse_encode(self.field_height, serializer);
         <f64>::sse_encode(self.solve_time_secs, serializer);
         <Option<String>>::sse_encode(self.error, serializer);
+    }
+}
+
+impl SseEncode for crate::api::PlateSolverConfigPayload {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.astap_path, serializer);
+        <String>::sse_encode(self.astrometry_path, serializer);
+        <String>::sse_encode(self.catalog_path, serializer);
+        <String>::sse_encode(self.solver_choice, serializer);
+    }
+}
+
+impl SseEncode for crate::api::PlateSolverDetection {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.astap_path, serializer);
+        <Option<String>>::sse_encode(self.astrometry_path, serializer);
+        <Option<String>>::sse_encode(self.catalog_name, serializer);
+        <Option<f32>>::sse_encode(self.catalog_magnitude_limit, serializer);
+        <Option<String>>::sse_encode(self.catalog_path, serializer);
+    }
+}
+
+impl SseEncode for crate::api::PlateSolverInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.path, serializer);
+        <String>::sse_encode(self.flavour, serializer);
+        <String>::sse_encode(self.version_line, serializer);
     }
 }
 
@@ -17866,6 +18342,21 @@ mod io {
             String::from_utf8(vec).unwrap()
         }
     }
+    impl CstDecode<crate::api::ApiDefectMapStatus> for wire_cst_api_defect_map_status {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::ApiDefectMapStatus {
+            crate::api::ApiDefectMapStatus {
+                camera_id: self.camera_id.cst_decode(),
+                width: self.width.cst_decode(),
+                height: self.height.cst_decode(),
+                temperature_bucket_decicelsius: self.temperature_bucket_decicelsius.cst_decode(),
+                defective_pixel_count: self.defective_pixel_count.cst_decode(),
+                last_rebuilt_unix_seconds: self.last_rebuilt_unix_seconds.cst_decode(),
+                apply_during_capture: self.apply_during_capture.cst_decode(),
+                stored_on_disk: self.stored_on_disk.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::ApiLiveStackingConfig> for wire_cst_api_live_stacking_config {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::ApiLiveStackingConfig {
@@ -17946,6 +18437,13 @@ mod io {
         fn cst_decode(self) -> Arc<AlpacaClient> {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<Arc<AlpacaClient>>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::ApiDefectMapStatus> for *mut wire_cst_api_defect_map_status {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::ApiDefectMapStatus {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::ApiDefectMapStatus>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::ApiLiveStackingConfig> for *mut wire_cst_api_live_stacking_config {
@@ -18036,6 +18534,12 @@ mod io {
             CstDecode::<crate::state::EquipmentProfile>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<f32> for *mut f32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> f32 {
+            unsafe { *flutter_rust_bridge::for_generated::box_from_leak_ptr(self) }
+        }
+    }
     impl CstDecode<f64> for *mut f64 {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> f64 {
@@ -18120,6 +18624,13 @@ mod io {
         fn cst_decode(self) -> crate::device::PierSide {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::device::PierSide>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::PlateSolverConfigPayload> for *mut wire_cst_plate_solver_config_payload {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::PlateSolverConfigPayload {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::PlateSolverConfigPayload>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::event::PolarAlignmentEvent> for *mut wire_cst_polar_alignment_event {
@@ -19755,6 +20266,39 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::PlateSolverConfigPayload> for wire_cst_plate_solver_config_payload {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::PlateSolverConfigPayload {
+            crate::api::PlateSolverConfigPayload {
+                astap_path: self.astap_path.cst_decode(),
+                astrometry_path: self.astrometry_path.cst_decode(),
+                catalog_path: self.catalog_path.cst_decode(),
+                solver_choice: self.solver_choice.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::PlateSolverDetection> for wire_cst_plate_solver_detection {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::PlateSolverDetection {
+            crate::api::PlateSolverDetection {
+                astap_path: self.astap_path.cst_decode(),
+                astrometry_path: self.astrometry_path.cst_decode(),
+                catalog_name: self.catalog_name.cst_decode(),
+                catalog_magnitude_limit: self.catalog_magnitude_limit.cst_decode(),
+                catalog_path: self.catalog_path.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::PlateSolverInfo> for wire_cst_plate_solver_info {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::PlateSolverInfo {
+            crate::api::PlateSolverInfo {
+                path: self.path.cst_decode(),
+                flavour: self.flavour.cst_decode(),
+                version_line: self.version_line.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::event::PolarAlignmentEvent> for wire_cst_polar_alignment_event {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::event::PolarAlignmentEvent {
@@ -20311,6 +20855,25 @@ mod io {
                 stats: self.stats.cst_decode(),
                 properties: self.properties.cst_decode(),
             }
+        }
+    }
+    impl NewWithNullPtr for wire_cst_api_defect_map_status {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                camera_id: core::ptr::null_mut(),
+                width: Default::default(),
+                height: Default::default(),
+                temperature_bucket_decicelsius: Default::default(),
+                defective_pixel_count: Default::default(),
+                last_rebuilt_unix_seconds: Default::default(),
+                apply_during_capture: Default::default(),
+                stored_on_disk: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_api_defect_map_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
         }
     }
     impl NewWithNullPtr for wire_cst_api_live_stacking_config {
@@ -21270,6 +21833,51 @@ mod io {
         }
     }
     impl Default for wire_cst_plate_solve_result {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_plate_solver_config_payload {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                astap_path: core::ptr::null_mut(),
+                astrometry_path: core::ptr::null_mut(),
+                catalog_path: core::ptr::null_mut(),
+                solver_choice: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_plate_solver_config_payload {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_plate_solver_detection {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                astap_path: core::ptr::null_mut(),
+                astrometry_path: core::ptr::null_mut(),
+                catalog_name: core::ptr::null_mut(),
+                catalog_magnitude_limit: core::ptr::null_mut(),
+                catalog_path: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_plate_solver_detection {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_plate_solver_info {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                path: core::ptr::null_mut(),
+                flavour: core::ptr::null_mut(),
+                version_line: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_plate_solver_info {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -22523,6 +23131,64 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_defect_map_apply(
+        port_: i64,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        apply_during_capture: bool,
+    ) {
+        wire__crate__api__api_defect_map_apply_impl(port_, camera_id, apply_during_capture)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_defect_map_build(
+        port_: i64,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        dark_frame_paths: *mut wire_cst_list_String,
+        sensor_temperature_celsius: f64,
+    ) {
+        wire__crate__api__api_defect_map_build_impl(
+            port_,
+            camera_id,
+            dark_frame_paths,
+            sensor_temperature_celsius,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_defect_map_clear(
+        port_: i64,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        width: u32,
+        height: u32,
+        sensor_temperature_celsius: f64,
+    ) {
+        wire__crate__api__api_defect_map_clear_impl(
+            port_,
+            camera_id,
+            width,
+            height,
+            sensor_temperature_celsius,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_defect_map_get_status(
+        port_: i64,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        width: u32,
+        height: u32,
+        sensor_temperature_celsius: f64,
+    ) {
+        wire__crate__api__api_defect_map_get_status_impl(
+            port_,
+            camera_id,
+            width,
+            height,
+            sensor_temperature_celsius,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_delete_profile(
         profile_id: *mut wire_cst_list_prim_u_8_strict,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -23603,6 +24269,32 @@ mod io {
             hint_dec,
             search_radius,
         )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_platesolve_detect(
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__api_platesolve_detect_impl()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_platesolve_get_config(
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__api_platesolve_get_config_impl()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_platesolve_set_config(
+        config: *mut wire_cst_plate_solver_config_payload,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__api_platesolve_set_config_impl(config)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_platesolve_verify(
+        executable_path: *mut wire_cst_list_prim_u_8_strict,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__api_platesolve_verify_impl(executable_path)
     }
 
     #[unsafe(no_mangle)]
@@ -24763,6 +25455,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status(
+    ) -> *mut wire_cst_api_defect_map_status {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_api_defect_map_status::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_api_live_stacking_config(
     ) -> *mut wire_cst_api_live_stacking_config {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -24854,6 +25554,11 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_f_32(value: f32) -> *mut f32 {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_f_64(value: f64) -> *mut f64 {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
     }
@@ -24937,6 +25642,14 @@ mod io {
         value: i32,
     ) -> *mut i32 {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_plate_solver_config_payload(
+    ) -> *mut wire_cst_plate_solver_config_payload {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_plate_solver_config_payload::new_with_null_ptr(),
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -25384,6 +26097,18 @@ mod io {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
     }
 
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_api_defect_map_status {
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        width: u32,
+        height: u32,
+        temperature_bucket_decicelsius: i16,
+        defective_pixel_count: u32,
+        last_rebuilt_unix_seconds: i64,
+        apply_during_capture: bool,
+        stored_on_disk: bool,
+    }
     #[repr(C)]
     #[derive(Clone, Copy)]
     pub struct wire_cst_api_live_stacking_config {
@@ -26789,6 +27514,30 @@ mod io {
         field_height: f64,
         solve_time_secs: f64,
         error: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_plate_solver_config_payload {
+        astap_path: *mut wire_cst_list_prim_u_8_strict,
+        astrometry_path: *mut wire_cst_list_prim_u_8_strict,
+        catalog_path: *mut wire_cst_list_prim_u_8_strict,
+        solver_choice: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_plate_solver_detection {
+        astap_path: *mut wire_cst_list_prim_u_8_strict,
+        astrometry_path: *mut wire_cst_list_prim_u_8_strict,
+        catalog_name: *mut wire_cst_list_prim_u_8_strict,
+        catalog_magnitude_limit: *mut f32,
+        catalog_path: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_plate_solver_info {
+        path: *mut wire_cst_list_prim_u_8_strict,
+        flavour: *mut wire_cst_list_prim_u_8_strict,
+        version_line: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
