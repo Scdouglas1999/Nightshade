@@ -123,8 +123,16 @@ class NinaSequenceParser {
         case 'LoopCondition':
         case 'CountCondition':
         case 'IterationsCondition':
-          out['_loopCountFromCondition'] =
+          final iterations =
               _readInt(c.attributes['Iterations'] ?? c.attributes['Count']);
+          out['_loopCountFromCondition'] = iterations;
+          // NINA stores the iteration count on a child LoopCondition rather
+          // than on the parent LoopContainer itself. Surface it under the
+          // canonical `iterations` key so downstream mapping doesn't need to
+          // know which NINA shape produced it.
+          if (iterations != null && out['iterations'] == null) {
+            out['iterations'] = iterations;
+          }
           break;
         case 'TimeCondition':
         case 'TimeSpanCondition':
@@ -359,11 +367,22 @@ class NinaSequenceParser {
       case CanonicalKind.sequential:
       case CanonicalKind.parallel:
       case CanonicalKind.annotation:
-      case CanonicalKind.unsupported:
       case CanonicalKind.startGuiding:
       case CanonicalKind.stopGuiding:
       case CanonicalKind.park:
       case CanonicalKind.unpark:
+        break;
+      case CanonicalKind.unsupported:
+        // For unrecognized node types (e.g. LoopCondition, CountCondition,
+        // TimeCondition), preserve scalar JSON fields verbatim so downstream
+        // condition-folding (_foldConditions) can read the original values
+        // like `Iterations` / `Count` / `DateTime` / `Altitude` / `Offset`.
+        for (final entry in json.entries) {
+          final v = entry.value;
+          if (v is num || v is bool || v is String) {
+            out[entry.key] = v;
+          }
+        }
         break;
     }
     return out;

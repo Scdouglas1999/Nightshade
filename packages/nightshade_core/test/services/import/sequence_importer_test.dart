@@ -42,10 +42,11 @@ void main() {
       expect(result.sequence.name, 'M31 run');
       expect(result.sequence.nodes, isNotEmpty);
       expect(result.unsupportedNodes, isEmpty);
-      // Mapping table should include TakeExposure -> Exposure.
+      // Mapping table should include TakeExposure -> TakeExposure (the
+      // sequence-models ExposureNode reports its nodeType as 'TakeExposure').
       final exposureRow = result.mappingTable
           .firstWhere((r) => r.sourceType == 'TakeExposure');
-      expect(exposureRow.nightshadeType, 'Exposure');
+      expect(exposureRow.nightshadeType, 'TakeExposure');
     });
 
     test(

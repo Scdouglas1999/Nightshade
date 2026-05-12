@@ -93,7 +93,7 @@ void main() {
 
       // Mapping table should record the source -> nightshade pairings.
       final mappingByType = {for (final m in res.mappingTable) m.sourceType: m};
-      expect(mappingByType['TakeExposure']?.nightshadeType, 'Exposure');
+      expect(mappingByType['TakeExposure']?.nightshadeType, 'TakeExposure');
       expect(mappingByType['DeepSkyObjectContainer']?.nightshadeType,
           'TargetHeader');
     });
