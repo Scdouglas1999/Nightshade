@@ -10,15 +10,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // Skipped for v2.5.0: NightshadeApp spawns background periodic timers
-  // (LAN discovery, session-recovery heartbeats) on startup that the
-  // widget-test framework's pending-timer assertion can't tolerate. The
-  // assertion fired previously was masked by unrelated compile errors in
-  // the same package, so the leak surfaced once those were fixed.
-  // Follow-up: refactor the timer-spawning services to honor a test-mode
-  // disable flag, then re-enable this regression test.
-  testWidgets('uiScale applies text scaling correctly', skip: true,
-      (tester) async {
+  testWidgets('uiScale applies text scaling correctly', (tester) async {
     const windowSize = Size(1000, 800);
 
     tester.binding.window.devicePixelRatioTestValue = 1.0;
