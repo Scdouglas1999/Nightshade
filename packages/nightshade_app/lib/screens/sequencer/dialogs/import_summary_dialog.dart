@@ -6,13 +6,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// What the user chose to do with an imported sequence once they've reviewed
 /// the parse summary.
 enum ImportDestination {
-  /// Persist into the sequences table via [SequenceRepository] and then load
-  /// into the editor.
-  saveAndOpen,
+  /// Persist into the sequences table via [SequenceRepository] and show a
+  /// confirmation SnackBar. Does NOT load the sequence into the editor;
+  /// the user can browse to it from the library tab.
+  saveToLibrary,
 
-  /// Load into the editor only — the user can save later through the normal
-  /// save flow.
-  openOnly,
+  /// Persist into the library AND load the imported sequence into the editor
+  /// so the user can immediately work with it.
+  openInEditor,
 }
 
 /// Decision the user made in the dialog. `null` `destination` means the user
@@ -56,7 +57,7 @@ class ImportSummaryDialog extends StatefulWidget {
 
 class _ImportSummaryDialogState extends State<ImportSummaryDialog> {
   late TextEditingController _nameController;
-  ImportDestination _destination = ImportDestination.saveAndOpen;
+  ImportDestination _destination = ImportDestination.openInEditor;
 
   @override
   void initState() {
@@ -325,6 +326,16 @@ class _MappingTable extends StatelessWidget {
       return Text('No mappings were recorded.',
           style: TextStyle(fontSize: 12, color: colors.textMuted));
     }
+    final headerStyle = TextStyle(
+      fontSize: 11,
+      color: colors.textMuted,
+      fontWeight: FontWeight.w700,
+    );
+    final cellStyle = TextStyle(fontSize: 12, color: colors.textSecondary);
+    final droppedCellStyle = cellStyle.copyWith(
+      color: colors.textMuted,
+      fontStyle: FontStyle.italic,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -339,61 +350,39 @@ class _MappingTable extends StatelessWidget {
             border: Border.all(color: colors.border),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Column(
-            children: [
-              for (var i = 0; i < rows.length; i++)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    border: i == rows.length - 1
-                        ? null
-                        : Border(
-                            bottom: BorderSide(color: colors.border)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: Text(rows[i].sourceType,
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: colors.textSecondary)),
-                      ),
-                      Icon(LucideIcons.arrowRight,
-                          size: 14, color: colors.textMuted),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 5,
-                        child: Text(
-                          rows[i].nightshadeType ?? '<dropped>',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: rows[i].nightshadeType == null
-                                  ? colors.textMuted
-                                  : colors.textPrimary,
-                              fontStyle: rows[i].nightshadeType == null
-                                  ? FontStyle.italic
-                                  : FontStyle.normal),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text('${rows[i].count}',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: colors.textSecondary,
-                                fontWeight: FontWeight.w600)),
-                      ),
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 30,
+              dataRowMinHeight: 28,
+              dataRowMaxHeight: 32,
+              horizontalMargin: 10,
+              columnSpacing: 16,
+              columns: [
+                DataColumn(label: Text('Source type', style: headerStyle)),
+                DataColumn(label: Text('Nightshade type', style: headerStyle)),
+                DataColumn(
+                  label: Text('Count', style: headerStyle),
+                  numeric: true,
+                ),
+              ],
+              rows: [
+                for (final r in rows)
+                  DataRow(
+                    cells: [
+                      DataCell(Text(r.sourceType, style: cellStyle)),
+                      DataCell(Text(
+                        r.nightshadeType ?? '<dropped>',
+                        style: r.nightshadeType == null
+                            ? droppedCellStyle
+                            : cellStyle.copyWith(color: colors.textPrimary),
+                      )),
+                      DataCell(Text('${r.count}', style: cellStyle)),
                     ],
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -534,24 +523,24 @@ class _DestinationPicker extends StatelessWidget {
         RadioListTile<ImportDestination>(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          value: ImportDestination.saveAndOpen,
+          value: ImportDestination.openInEditor,
           groupValue: destination,
           onChanged: (v) {
             if (v != null) onChanged(v);
           },
-          title: Text('Save to library and open in editor',
+          title: Text('Open in editor (save + load)',
               style:
                   TextStyle(fontSize: 13, color: colors.textPrimary)),
         ),
         RadioListTile<ImportDestination>(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          value: ImportDestination.openOnly,
+          value: ImportDestination.saveToLibrary,
           groupValue: destination,
           onChanged: (v) {
             if (v != null) onChanged(v);
           },
-          title: Text('Open in editor only (don\'t save yet)',
+          title: Text('Save to library (do not open)',
               style:
                   TextStyle(fontSize: 13, color: colors.textPrimary)),
         ),

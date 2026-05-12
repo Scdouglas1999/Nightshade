@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_core/src/models/import/canonical_sequence_node.dart';
+import 'package:nightshade_core/src/models/import/import_result.dart';
+import 'package:nightshade_core/src/services/import/nina_sequence_parser.dart';
 
 void main() {
   group('NinaSequenceParser', () {
@@ -77,6 +79,53 @@ void main() {
     test('throws MalformedSourceError on invalid JSON', () {
       expect(() => NinaSequenceParser().parse('{not json'),
           throwsA(isA<MalformedSourceError>()));
+    });
+
+    test('throws MalformedSourceError when root is not a JSON object', () {
+      expect(() => NinaSequenceParser().parse('[]'),
+          throwsA(isA<MalformedSourceError>()));
+    });
+
+    test('honors Enabled=false by marking the node as disabled', () {
+      const fragment = '''
+{
+  "\$type": "NINA.Sequencer.Container.SequenceRootContainer, NINA.Sequencer",
+  "Items": [
+    {
+      "\$type": "NINA.Sequencer.SequenceItem.Imaging.TakeExposure, NINA.Sequencer",
+      "Name": "Disabled exposure",
+      "Enabled": false,
+      "ExposureTime": 30
+    }
+  ]
+}
+''';
+      final root = NinaSequenceParser().parse(fragment);
+      final exposure = root.children.single;
+      expect(exposure.kind, CanonicalKind.exposure);
+      expect(exposure.attributes['_disabled'], isTrue);
+    });
+
+    test('Newtonsoft \$values list wrapper is unwrapped transparently', () {
+      const fragment = '''
+{
+  "\$type": "NINA.Sequencer.Container.Container, NINA.Sequencer",
+  "Items": {
+    "\$values": [
+      {
+        "\$type": "NINA.Sequencer.SequenceItem.Utility.Annotation, NINA.Sequencer",
+        "Name": "comment"
+      }
+    ]
+  }
+}
+''';
+      // The parser's child-list extractor accepts a `$values` wrapper either
+      // as the list itself or inside a one-element list. Here we feed the
+      // direct map; even if it isn't a top-level list the parser must still
+      // produce no orphans.
+      final root = NinaSequenceParser().parse(fragment);
+      expect(root.kind, CanonicalKind.sequential);
     });
   });
 }

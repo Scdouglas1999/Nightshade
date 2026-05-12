@@ -17,16 +17,15 @@ import 'dialogs/import_summary_dialog.dart';
 ///   2. Read the file, detect format, parse + map (strict).
 ///   3. If [UnsupportedNodeError]: ask the user if they want to force-import
 ///      (which drops the unsupported nodes). If yes, retry in force mode.
-///   4. Show [ImportSummaryDialog]. On confirm, persist + load into editor.
+///   4. Show [ImportSummaryDialog]. On confirm, persist to library +
+///      optionally load into editor.
 class ImportSequenceFlow {
   ImportSequenceFlow._();
 
-  /// Run the full flow. Returns `true` if a sequence was imported and loaded
-  /// into the current sequence provider, `false` otherwise.
+  /// Run the full flow. Returns `true` if a sequence was imported (and saved
+  /// and/or loaded into the editor), `false` if the user cancelled or an
+  /// error occurred.
   static Future<bool> run(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
     final file = await file_selector.openFile(
       acceptedTypeGroups: const [
         file_selector.XTypeGroup(
@@ -41,72 +40,101 @@ class ImportSequenceFlow {
     final importer = ref.read(sequenceImporterProvider);
     final defaultName = _basename(file.name);
 
-    ImportResult result;
+    if (!context.mounted) return false;
+    // First, try a strict (no-force) import.
+    final ImportResult? result =
+        await _parseWithRetry(context, importer, content, defaultName);
+    if (result == null) return false;
+
+    if (!context.mounted) return false;
+    final decision = await ImportSummaryDialog.show(context, result: result);
+    if (decision == null || decision.cancelled) return false;
+
+    var sequence = result.sequence;
+    if (decision.sequenceName.isNotEmpty &&
+        decision.sequenceName != sequence.name) {
+      sequence = sequence.copyWith(name: decision.sequenceName);
+    }
+
+    // Persist to library. Both destinations save — the only difference is
+    // whether we also load the imported sequence into the editor.
+    final repo = ref.read(sequenceRepositoryProvider);
+    final int dbId;
     try {
-      result = importer.importFromString(
+      dbId = await repo.saveSequence(sequence);
+      sequence = sequence.copyWith(databaseId: dbId);
+    } catch (e) {
+      if (!context.mounted) return false;
+      context.showErrorSnackBar('Failed to save imported sequence: $e');
+      return false;
+    }
+
+    final fmt = result.sourceFormat.displayName;
+    switch (decision.destination!) {
+      case ImportDestination.openInEditor:
+        ref.read(currentSequenceProvider.notifier).loadSequence(sequence);
+        if (!context.mounted) return true;
+        context.showSuccessSnackBar(
+            'Imported "${sequence.name}" ($fmt) and opened in editor');
+        break;
+      case ImportDestination.saveToLibrary:
+        if (!context.mounted) return true;
+        context.showSuccessSnackBar(
+            'Saved "${sequence.name}" ($fmt) to library');
+        break;
+    }
+    return true;
+  }
+
+  /// Parse [content]. If the strict parse fails with [UnsupportedNodeError],
+  /// prompt the user to force-import (dropping the unsupported nodes) and
+  /// retry in force mode. Returns `null` if the user cancelled or the file
+  /// was otherwise unimportable.
+  static Future<ImportResult?> _parseWithRetry(
+    BuildContext context,
+    SequenceImporter importer,
+    String content,
+    String defaultName,
+  ) async {
+    try {
+      return importer.importFromString(
         content,
         forceUnsupported: false,
         sequenceName: defaultName,
       );
     } on UnknownFormatError catch (e) {
-      _showError(messenger,
-          'Could not identify file format: ${e.message}');
-      return false;
+      if (context.mounted) {
+        context.showErrorSnackBar(
+            'Could not identify file format: ${e.message}');
+      }
+      return null;
     } on MalformedSourceError catch (e) {
-      _showError(messenger, 'File is malformed: ${e.message}');
-      return false;
+      if (context.mounted) {
+        context.showErrorSnackBar('File is malformed: ${e.message}');
+      }
+      return null;
     } on UnsupportedNodeError catch (e) {
-      final force = await _confirmForceImport(navigator.context, e.unsupported);
-      if (force != true) return false;
+      if (!context.mounted) return null;
+      final force = await _confirmForceImport(context, e.unsupported);
+      if (force != true) return null;
       try {
-        result = importer.importFromString(
+        return importer.importFromString(
           content,
           forceUnsupported: true,
           sequenceName: defaultName,
         );
-      } catch (err) {
-        _showError(messenger, 'Force import failed: $err');
-        return false;
-      }
-    } catch (e) {
-      _showError(messenger, 'Import failed: $e');
-      return false;
-    }
-
-    if (!navigator.context.mounted) return false;
-    final decision = await ImportSummaryDialog.show(
-      navigator.context,
-      result: result,
-    );
-    if (decision == null || decision.cancelled) return false;
-
-    // Rename the sequence per user's edit (default kept if they didn't change
-    // it).
-    var sequence = result.sequence;
-    if (decision.sequenceName != sequence.name) {
-      sequence = sequence.copyWith(name: decision.sequenceName);
-    }
-
-    // Persist if requested.
-    if (decision.destination == ImportDestination.saveAndOpen) {
-      try {
-        final repo = ref.read(sequenceRepositoryProvider);
-        final dbId = await repo.saveSequence(sequence);
-        sequence = sequence.copyWith(databaseId: dbId);
-      } catch (e) {
-        _showError(messenger, 'Failed to save imported sequence: $e');
-        return false;
+      } on UnknownFormatError catch (err) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Force import failed: ${err.message}');
+        }
+        return null;
+      } on MalformedSourceError catch (err) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Force import failed: ${err.message}');
+        }
+        return null;
       }
     }
-
-    // Load into the editor.
-    ref.read(currentSequenceProvider.notifier).loadSequence(sequence);
-
-    if (context.mounted) {
-      context.showSuccessSnackBar(
-          'Imported "${sequence.name}" (${result.sourceFormat.displayName})');
-    }
-    return true;
   }
 
   static String _basename(String path) {
@@ -114,10 +142,6 @@ class ImportSequenceFlow {
     final base = lastSep >= 0 ? path.substring(lastSep + 1) : path;
     final dot = base.lastIndexOf('.');
     return dot > 0 ? base.substring(0, dot) : base;
-  }
-
-  static void _showError(ScaffoldMessengerState m, String msg) {
-    m.showSnackBar(SnackBar(content: Text(msg)));
   }
 
   static Future<bool?> _confirmForceImport(
@@ -152,7 +176,7 @@ class ImportSequenceFlow {
               for (final u in unsupported.take(8))
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 1),
-                  child: Text('• ${u.sourceType} — ${u.name}',
+                  child: Text('- ${u.sourceType} - ${u.name}',
                       style: TextStyle(
                           fontSize: 12, color: colors.textSecondary)),
                 ),
