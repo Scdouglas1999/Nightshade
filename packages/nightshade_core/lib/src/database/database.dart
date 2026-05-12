@@ -98,7 +98,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration {
@@ -1233,6 +1233,47 @@ class NightshadeDatabase extends _$NightshadeDatabase {
               'ALTER TABLE photometry_measurements ADD COLUMN standard_magnitude REAL',
             );
           }
+        }
+
+        // Version 27: Dynamic scheduler tables (W6-SCHED). The tables are
+        // intentionally managed with raw CREATE TABLE statements rather
+        // than @DriftDatabase entries so they can land without an FRB/
+        // drift codegen pass. The corresponding services do raw SQL
+        // through customSelect/customStatement.
+        if (from < 27) {
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS integration_goals ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            'target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,'
+            'filter TEXT NOT NULL,'
+            'exposure_seconds REAL NOT NULL,'
+            'frame_count INTEGER NOT NULL,'
+            'priority INTEGER NOT NULL DEFAULT 5,'
+            'created_at INTEGER NOT NULL,'
+            'UNIQUE(target_id, filter, exposure_seconds))',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_integration_goals_target '
+            'ON integration_goals (target_id)',
+          );
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS target_constraints ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            'target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,'
+            'kind TEXT NOT NULL,'
+            'payload_json TEXT NOT NULL,'
+            'enabled INTEGER NOT NULL DEFAULT 1)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_target_constraints_target '
+            'ON target_constraints (target_id)',
+          );
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS horizon_profiles ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            'name TEXT NOT NULL,'
+            'samples_json TEXT NOT NULL)',
+          );
         }
 
         await _ensureDefaultSettings();

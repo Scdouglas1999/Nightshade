@@ -60,6 +60,12 @@ export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/science/science_models.dart';
 
+// Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
+export 'src/models/scheduler/integration_goal.dart';
+export 'src/models/scheduler/target_constraint.dart';
+export 'src/models/scheduler/scheduler_decision.dart';
+export 'src/models/scheduler/scheduler_status.dart';
+
 // Providers
 export 'src/providers/app_version_provider.dart';
 export 'src/providers/database_provider.dart';
@@ -145,6 +151,17 @@ export 'src/services/sample_sequence_service.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/annotation_service.dart';
 export 'src/services/scheduler_service.dart';
+export 'src/services/scheduler/scheduler_engine.dart';
+export 'src/services/scheduler/integration_goal_service.dart'
+    hide
+        integrationGoalsSchemaSql,
+        integrationGoalsTargetIndexSql,
+        targetConstraintsSchemaSql,
+        targetConstraintsTargetIndexSql,
+        horizonProfilesSchemaSql;
+export 'src/services/scheduler/horizon_profile.dart';
+export 'src/services/scheduler/sky_calculations.dart';
+export 'src/providers/scheduler_provider.dart';
 // Hide FocusDataPoint from focus_model_service - canonical version is in backend/autofocus_result
 export 'src/services/focus_model_service.dart' hide FocusDataPoint;
 export 'src/services/logging_service.dart';
