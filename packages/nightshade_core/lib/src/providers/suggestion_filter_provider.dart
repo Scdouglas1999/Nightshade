@@ -4,6 +4,21 @@ import '../models/planning/target_suggestion.dart';
 import 'target_suggestion_provider.dart';
 
 // ============================================================================
+// Planner-side sort options
+// ============================================================================
+
+/// UI-only sort modes for the planner workspace. These re-sort the already-
+/// scored suggestion list without touching the scoring service.
+enum PlannerSortMode {
+  score,
+  altitude,
+  magnitude,
+  constellation,
+  objectType,
+  catalogId,
+}
+
+// ============================================================================
 // Filter State
 // ============================================================================
 
@@ -21,6 +36,22 @@ class SuggestionFilterState {
   final double? minMoonDistance;
   final double? minImagingHours;
 
+  /// Free-text search applied to target name / catalog id / common name.
+  final String searchQuery;
+
+  /// Multi-select object type filter. An empty set means "no filter".
+  /// Matching is case-insensitive substring against [TargetSuggestion.objectType].
+  final Set<String> selectedObjectTypes;
+
+  /// Filter on the target's altitude RIGHT NOW (not the night peak). Null
+  /// means "no filter". Distinct from the scoring service's [minAltitude],
+  /// which is evaluated against the entire night window.
+  final double? minCurrentAltitude;
+
+  /// UI-only sort override for the planner workspace. Null means "use the
+  /// upstream [TargetSuggestionConfig.sortMode]".
+  final PlannerSortMode? plannerSort;
+
   const SuggestionFilterState({
     this.minMagnitude,
     this.maxMagnitude,
@@ -29,6 +60,10 @@ class SuggestionFilterState {
     this.selectedConstellations = const {},
     this.minMoonDistance,
     this.minImagingHours,
+    this.searchQuery = '',
+    this.selectedObjectTypes = const {},
+    this.minCurrentAltitude,
+    this.plannerSort,
   });
 
   SuggestionFilterState copyWith({
@@ -39,6 +74,10 @@ class SuggestionFilterState {
     Set<String>? selectedConstellations,
     double? Function()? minMoonDistance,
     double? Function()? minImagingHours,
+    String? searchQuery,
+    Set<String>? selectedObjectTypes,
+    double? Function()? minCurrentAltitude,
+    PlannerSortMode? Function()? plannerSort,
   }) {
     return SuggestionFilterState(
       minMagnitude: minMagnitude != null ? minMagnitude() : this.minMagnitude,
@@ -53,6 +92,12 @@ class SuggestionFilterState {
           minMoonDistance != null ? minMoonDistance() : this.minMoonDistance,
       minImagingHours:
           minImagingHours != null ? minImagingHours() : this.minImagingHours,
+      searchQuery: searchQuery ?? this.searchQuery,
+      selectedObjectTypes: selectedObjectTypes ?? this.selectedObjectTypes,
+      minCurrentAltitude: minCurrentAltitude != null
+          ? minCurrentAltitude()
+          : this.minCurrentAltitude,
+      plannerSort: plannerSort != null ? plannerSort() : this.plannerSort,
     );
   }
 
@@ -66,6 +111,9 @@ class SuggestionFilterState {
     if (selectedConstellations.isNotEmpty) count++;
     if (minMoonDistance != null) count++;
     if (minImagingHours != null) count++;
+    if (searchQuery.trim().isNotEmpty) count++;
+    if (selectedObjectTypes.isNotEmpty) count++;
+    if (minCurrentAltitude != null) count++;
     return count;
   }
 }
@@ -105,52 +153,99 @@ List<TargetSuggestion> _applyFilters(
   // Fast path: no filters active
   if (filters.activeCount == 0) return suggestions;
 
-  return suggestions.where((s) {
-    // Magnitude filter
-    if (filters.minMagnitude != null) {
-      // Null magnitude passes if no filter set — but we have a filter,
-      // so null magnitude means we can't evaluate; skip the target.
-      if (s.magnitude == null) return false;
-      if (s.magnitude! < filters.minMagnitude!) return false;
-    }
-    if (filters.maxMagnitude != null) {
-      if (s.magnitude == null) return false;
-      if (s.magnitude! > filters.maxMagnitude!) return false;
-    }
-
-    // Size filter
-    if (filters.minSizeArcmin != null) {
-      if (s.sizeArcmin == null) return false;
-      if (s.sizeArcmin! < filters.minSizeArcmin!) return false;
-    }
-    if (filters.maxSizeArcmin != null) {
-      if (s.sizeArcmin == null) return false;
-      if (s.sizeArcmin! > filters.maxSizeArcmin!) return false;
-    }
-
-    // Constellation filter — empty set = no filter
-    if (filters.selectedConstellations.isNotEmpty) {
-      if (s.constellation == null) return false;
-      if (!filters.selectedConstellations.contains(s.constellation)) {
-        return false;
-      }
-    }
-
-    // Moon distance filter
-    if (filters.minMoonDistance != null) {
-      if (s.visibility.moonDistance < filters.minMoonDistance!) return false;
-    }
-
-    // Imaging hours filter
-    if (filters.minImagingHours != null) {
-      final hours = s.visibility.hoursAboveMinAlt;
-      if (hours == null) return false;
-      if (hours < filters.minImagingHours!) return false;
-    }
-
-    return true;
-  }).toList();
+  return suggestions.where((s) => _passesAllFilters(s, filters)).toList();
 }
+
+/// Returns true iff [s] passes every active filter in [filters].
+bool _passesAllFilters(TargetSuggestion s, SuggestionFilterState filters) {
+  if (filters.minMagnitude != null) {
+    if (s.magnitude == null) return false;
+    if (s.magnitude! < filters.minMagnitude!) return false;
+  }
+  if (filters.maxMagnitude != null) {
+    if (s.magnitude == null) return false;
+    if (s.magnitude! > filters.maxMagnitude!) return false;
+  }
+  if (filters.minSizeArcmin != null) {
+    if (s.sizeArcmin == null) return false;
+    if (s.sizeArcmin! < filters.minSizeArcmin!) return false;
+  }
+  if (filters.maxSizeArcmin != null) {
+    if (s.sizeArcmin == null) return false;
+    if (s.sizeArcmin! > filters.maxSizeArcmin!) return false;
+  }
+  if (filters.selectedConstellations.isNotEmpty) {
+    if (s.constellation == null) return false;
+    if (!filters.selectedConstellations.contains(s.constellation)) return false;
+  }
+  if (filters.minMoonDistance != null) {
+    if (s.visibility.moonDistance < filters.minMoonDistance!) return false;
+  }
+  if (filters.minImagingHours != null) {
+    final hours = s.visibility.hoursAboveMinAlt;
+    if (hours == null) return false;
+    if (hours < filters.minImagingHours!) return false;
+  }
+  if (filters.searchQuery.trim().isNotEmpty) {
+    if (!_matchesSearchQuery(s, filters.searchQuery)) return false;
+  }
+  if (filters.selectedObjectTypes.isNotEmpty) {
+    if (!_matchesObjectTypes(s, filters.selectedObjectTypes)) return false;
+  }
+  if (filters.minCurrentAltitude != null) {
+    if (s.visibility.currentAltitude < filters.minCurrentAltitude!) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _matchesSearchQuery(TargetSuggestion s, String rawQuery) {
+  final q = rawQuery.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final qNoSpace = q.replaceAll(RegExp(r'\s+'), '');
+  final candidates = <String>[
+    s.targetName.toLowerCase(),
+    s.targetName.toLowerCase().replaceAll(RegExp(r'\s+'), ''),
+    if (s.catalogId != null) s.catalogId!.toLowerCase(),
+    if (s.catalogId != null)
+      s.catalogId!.toLowerCase().replaceAll(RegExp(r'\s+'), ''),
+    if (s.constellation != null) s.constellation!.toLowerCase(),
+  ];
+  return candidates.any((c) => c.contains(q) || c.contains(qNoSpace));
+}
+
+bool _matchesObjectTypes(TargetSuggestion s, Set<String> selected) {
+  final raw = (s.objectType ?? '').toLowerCase();
+  if (raw.isEmpty) return false;
+  for (final type in selected) {
+    final t = type.toLowerCase();
+    if (raw.contains(t)) return true;
+    // Map UI canonical buckets onto the catalog's free-text object types.
+    final aliases = _objectTypeAliases[t];
+    if (aliases != null && aliases.any((a) => raw.contains(a))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const Map<String, List<String>> _objectTypeAliases = {
+  'galaxy': ['galaxy', 'galaxies'],
+  'nebula': [
+    'nebula',
+    'emission',
+    'reflection',
+    'dark nebula',
+    'hii',
+    'h ii',
+  ],
+  'cluster': ['cluster', 'association'],
+  'planetary': ['planetary nebula'],
+  'supernova remnant': ['supernova', 'snr'],
+  'comet': ['comet'],
+  'asteroid': ['asteroid', 'minor planet'],
+};
 
 // ============================================================================
 // Derived / Convenience Providers
@@ -232,3 +327,182 @@ final availableSizeRangeProvider =
 final activeFilterCountProvider = Provider.autoDispose<int>((ref) {
   return ref.watch(suggestionFilterProvider).activeCount;
 });
+
+// ============================================================================
+// Planner workspace providers
+// ============================================================================
+
+/// Per-filter breakdown of how many suggestions the planner UI excluded.
+/// Used by the empty-state hint to tell the user which constraint is hurting.
+class FilterExclusionBreakdown {
+  final int total;
+  final int passed;
+  final Map<String, int> excludedByFilter;
+
+  const FilterExclusionBreakdown({
+    required this.total,
+    required this.passed,
+    required this.excludedByFilter,
+  });
+
+  /// Filter label (or null) responsible for the largest single exclusion.
+  String? get worstOffender {
+    String? worst;
+    int worstCount = 0;
+    excludedByFilter.forEach((label, count) {
+      if (count > worstCount) {
+        worstCount = count;
+        worst = label;
+      }
+    });
+    return worst;
+  }
+}
+
+/// Suggestions after applying the planner filters AND the planner sort.
+/// Distinct from [filteredSuggestionsProvider] (which keeps upstream sort).
+final plannerFilteredSuggestionsProvider =
+    Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
+  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+  final filters = ref.watch(suggestionFilterProvider);
+
+  return suggestionsAsync.when(
+    data: (suggestions) {
+      final filtered = _applyFilters(suggestions, filters);
+      final sortMode = filters.plannerSort ?? PlannerSortMode.score;
+      final sorted = _sortPlannerSuggestions(filtered, sortMode);
+      return AsyncData(sorted);
+    },
+    loading: () => const AsyncLoading(),
+    error: (error, stackTrace) => AsyncError(error, stackTrace),
+  );
+});
+
+/// Builds a breakdown of which planner filters excluded the most candidates.
+/// Empty filters report zero; a filter is counted once per suggestion it
+/// removed, even when other filters would have removed the same suggestion.
+final plannerFilterExclusionProvider =
+    Provider.autoDispose<FilterExclusionBreakdown>((ref) {
+  final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+  final filters = ref.watch(suggestionFilterProvider);
+
+  final suggestions = suggestionsAsync.valueOrNull ?? const <TargetSuggestion>[];
+  final breakdown = <String, int>{};
+
+  int countExcluded(String label, bool Function(TargetSuggestion) reject) {
+    final n = suggestions.where(reject).length;
+    if (n > 0) breakdown[label] = n;
+    return n;
+  }
+
+  if (filters.searchQuery.trim().isNotEmpty) {
+    countExcluded(
+      'Search "${filters.searchQuery.trim()}"',
+      (s) => !_matchesSearchQuery(s, filters.searchQuery),
+    );
+  }
+  if (filters.selectedObjectTypes.isNotEmpty) {
+    countExcluded(
+      'Object type filter',
+      (s) => !_matchesObjectTypes(s, filters.selectedObjectTypes),
+    );
+  }
+  if (filters.selectedConstellations.isNotEmpty) {
+    countExcluded(
+      'Constellation filter',
+      (s) =>
+          s.constellation == null ||
+          !filters.selectedConstellations.contains(s.constellation),
+    );
+  }
+  if (filters.minMagnitude != null) {
+    countExcluded(
+      'Min magnitude ${filters.minMagnitude!.toStringAsFixed(1)}',
+      (s) => s.magnitude == null || s.magnitude! < filters.minMagnitude!,
+    );
+  }
+  if (filters.maxMagnitude != null) {
+    countExcluded(
+      'Max magnitude ${filters.maxMagnitude!.toStringAsFixed(1)}',
+      (s) => s.magnitude == null || s.magnitude! > filters.maxMagnitude!,
+    );
+  }
+  if (filters.minCurrentAltitude != null) {
+    countExcluded(
+      'Min altitude now ${filters.minCurrentAltitude!.toStringAsFixed(0)}°',
+      (s) => s.visibility.currentAltitude < filters.minCurrentAltitude!,
+    );
+  }
+  if (filters.minMoonDistance != null) {
+    countExcluded(
+      'Min moon separation ${filters.minMoonDistance!.toStringAsFixed(0)}°',
+      (s) => s.visibility.moonDistance < filters.minMoonDistance!,
+    );
+  }
+
+  final passed = suggestions.where((s) => _passesAllFilters(s, filters)).length;
+
+  return FilterExclusionBreakdown(
+    total: suggestions.length,
+    passed: passed,
+    excludedByFilter: breakdown,
+  );
+});
+
+List<TargetSuggestion> _sortPlannerSuggestions(
+  List<TargetSuggestion> suggestions,
+  PlannerSortMode mode,
+) {
+  final copy = List<TargetSuggestion>.of(suggestions);
+  switch (mode) {
+    case PlannerSortMode.score:
+      copy.sort((a, b) => b.totalScore.compareTo(a.totalScore));
+      break;
+    case PlannerSortMode.altitude:
+      copy.sort((a, b) {
+        final aAlt = a.visibility.peakAltitude ?? a.visibility.currentAltitude;
+        final bAlt = b.visibility.peakAltitude ?? b.visibility.currentAltitude;
+        return bAlt.compareTo(aAlt);
+      });
+      break;
+    case PlannerSortMode.magnitude:
+      // Brighter (smaller magnitude number) first. Nulls sink.
+      copy.sort((a, b) {
+        if (a.magnitude == null && b.magnitude == null) return 0;
+        if (a.magnitude == null) return 1;
+        if (b.magnitude == null) return -1;
+        return a.magnitude!.compareTo(b.magnitude!);
+      });
+      break;
+    case PlannerSortMode.constellation:
+      copy.sort((a, b) {
+        final ac = a.constellation ?? '';
+        final bc = b.constellation ?? '';
+        if (ac.isEmpty && bc.isEmpty) return 0;
+        if (ac.isEmpty) return 1;
+        if (bc.isEmpty) return -1;
+        final c = ac.compareTo(bc);
+        return c != 0 ? c : b.totalScore.compareTo(a.totalScore);
+      });
+      break;
+    case PlannerSortMode.objectType:
+      copy.sort((a, b) {
+        final at = a.objectType ?? '';
+        final bt = b.objectType ?? '';
+        if (at.isEmpty && bt.isEmpty) return 0;
+        if (at.isEmpty) return 1;
+        if (bt.isEmpty) return -1;
+        final c = at.toLowerCase().compareTo(bt.toLowerCase());
+        return c != 0 ? c : b.totalScore.compareTo(a.totalScore);
+      });
+      break;
+    case PlannerSortMode.catalogId:
+      copy.sort((a, b) {
+        final aid = a.catalogId ?? a.targetName;
+        final bid = b.catalogId ?? b.targetName;
+        return aid.toLowerCase().compareTo(bid.toLowerCase());
+      });
+      break;
+  }
+  return copy;
+}

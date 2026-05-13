@@ -63,8 +63,12 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   }
 
   Future<void> _loadPersistedTarget() async {
+    // Honor inbound query params first: /framing?ra=<hours>&dec=<deg>&name=<n>.
+    // The planning workspace uses this to hand off a chosen target to framing.
+    final applied = _applyQueryParamsTarget();
+
     final framingState = ref.read(framingProvider);
-    if (framingState.target == null) {
+    if (!applied && framingState.target == null) {
       // No target in provider, try to load from database
       await ref.read(framingProvider.notifier).loadMostRecentTarget();
     }
@@ -75,6 +79,38 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       _raController.text = currentState.target!.raFormatted;
       _decController.text = currentState.target!.decFormatted;
     }
+  }
+
+  /// Parses `?ra=&dec=&name=` from the current GoRouter location and, when
+  /// valid, hands the target to the framing provider. Returns true if a
+  /// target was applied. RA is in decimal hours, Dec is in decimal degrees.
+  bool _applyQueryParamsTarget() {
+    if (!mounted) return false;
+    final Uri uri;
+    try {
+      uri = GoRouterState.of(context).uri;
+    } catch (_) {
+      // Why: framing screen is reachable outside the GoRouter tree in tests.
+      return false;
+    }
+    final params = uri.queryParameters;
+    final raStr = params['ra'];
+    final decStr = params['dec'];
+    if (raStr == null || decStr == null) return false;
+
+    final raHours = double.tryParse(raStr);
+    final decDegrees = double.tryParse(decStr);
+    if (raHours == null || decDegrees == null) return false;
+    if (raHours < 0 || raHours >= 24) return false;
+    if (decDegrees < -90 || decDegrees > 90) return false;
+
+    final name = params['name']?.trim();
+    ref.read(framingProvider.notifier).setTargetCoordinates(
+          raHours,
+          decDegrees,
+          name: (name == null || name.isEmpty) ? null : name,
+        );
+    return true;
   }
 
   @override

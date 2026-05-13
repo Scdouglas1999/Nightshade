@@ -6,12 +6,16 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../framing/altitude_chart.dart';
 import '../../localization/nightshade_localizations.dart';
 
-/// FutureProvider that produces tonight's optimization plan.
-///
-/// Returns an error to callers rather than swallowing it, because
-/// "errors are a feature -- silent fallbacks hide bugs for months."
+/// Page size for the candidate list. The list starts at one page and grows
+/// when the user taps "Load more" or scrolls to the bottom.
+const int _kPlannerPageSize = 25;
+
+/// FutureProvider that produces tonight's optimization plan from the
+/// unfiltered suggestion pool. The primary recommendation is "best of
+/// everything tonight" so it never disappears when the user narrows filters.
 final _plannerOptimizationProvider =
     FutureProvider.autoDispose<SessionOptimizationPlan>((ref) async {
   final settings = await ref.watch(appSettingsProvider.future);
@@ -21,20 +25,25 @@ final _plannerOptimizationProvider =
       'Set your latitude and longitude in Settings before using the planner.',
     );
   }
-
   final suggestions = await ref.watch(tonightSuggestionsProvider.future);
-  final optimizer = ref.watch(sessionOptimizerServiceProvider);
-
-  return optimizer.buildPlanFromSuggestions(
-    suggestions,
-    generatedAt: DateTime.now(),
-  );
+  return ref.watch(sessionOptimizerServiceProvider).buildPlanFromSuggestions(
+        suggestions,
+        generatedAt: DateTime.now(),
+      );
 });
 
-/// Full "Plan Tonight" screen.
-///
-/// Shows the session optimizer's primary recommendation, alternate targets,
-/// risk factors, and a button to push the recommendation into the sequencer.
+/// Tracks how many candidate rows are currently rendered. Increments by
+/// [_kPlannerPageSize] each time the user requests more.
+final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
+  (_) => _kPlannerPageSize,
+);
+
+/// Tracks which suggestion (by target id) has its altitude curve expanded.
+/// Only one row is expanded at a time to keep the page tidy.
+final _expandedRowProvider = StateProvider.autoDispose<int?>((_) => null);
+
+/// Full "Plan Tonight" workspace: primary recommendation + filterable,
+/// sortable, searchable candidate list with per-row actions.
 class PlannerScreen extends ConsumerStatefulWidget {
   const PlannerScreen({super.key});
 
@@ -43,23 +52,68 @@ class PlannerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlannerScreenState extends ConsumerState<PlannerScreen> {
-  /// Index into the alternates list of the user-selected override, or null
-  /// to use the optimizer's primary pick.
   int? _selectedAlternateIndex;
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_maybeLoadMore);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_maybeLoadMore)
+      ..dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _maybeLoadMore() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 240) {
+      final filtered =
+          ref.read(plannerFilteredSuggestionsProvider).valueOrNull ?? const [];
+      final current = ref.read(_plannerVisibleCountProvider);
+      if (current < filtered.length) {
+        ref.read(_plannerVisibleCountProvider.notifier).state =
+            (current + _kPlannerPageSize).clamp(0, filtered.length);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final planAsync = ref.watch(_plannerOptimizationProvider);
+    final filtersState = ref.watch(suggestionFilterProvider);
+    final candidatesAsync = ref.watch(plannerFilteredSuggestionsProvider);
+
+    // Keep the search field in sync if the provider changes from elsewhere.
+    if (_searchController.text != filtersState.searchQuery) {
+      _searchController.value = TextEditingValue(
+        text: filtersState.searchQuery,
+        selection: TextSelection.collapsed(offset: filtersState.searchQuery.length),
+      );
+    }
 
     return Scaffold(
       backgroundColor: colors.background,
       body: Column(
         children: [
           _PlannerHeader(colors: colors),
+          _PlannerControlsBar(
+            colors: colors,
+            controller: _searchController,
+            filters: filtersState,
+            candidatesAsync: candidatesAsync,
+          ),
           Expanded(
             child: planAsync.when(
-              data: (plan) => _buildPlanContent(context, colors, plan),
+              data: (plan) => _buildBody(context, colors, plan, candidatesAsync),
               loading: () => _buildLoadingState(colors),
               error: (error, _) => _buildErrorState(context, colors, error),
             ),
@@ -69,88 +123,108 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     );
   }
 
-  Widget _buildPlanContent(
+  Widget _buildBody(
     BuildContext context,
     NightshadeColors colors,
     SessionOptimizationPlan plan,
+    AsyncValue<List<TargetSuggestion>> candidatesAsync,
+  ) {
+    return candidatesAsync.when(
+      data: (candidates) =>
+          _buildContent(context, colors, plan, candidates),
+      loading: () => _buildLoadingState(colors),
+      error: (error, _) => _buildErrorState(context, colors, error),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    NightshadeColors colors,
+    SessionOptimizationPlan plan,
+    List<TargetSuggestion> candidates,
   ) {
     final l10n = context.l10n;
 
-    if (!plan.hasRecommendation) {
-      return _buildEmptyState(colors, plan);
-    }
-
-    // The "effective" primary is either the optimizer pick or the user override.
-    final TargetSuggestion effectivePrimary;
+    // Determine the effective primary (optimizer pick, alternate override,
+    // or — when filters strip the optimizer pick out — fall back to the top
+    // candidate in the filtered list).
+    TargetSuggestion? effectivePrimary;
     if (_selectedAlternateIndex != null &&
+        plan.alternates.isNotEmpty &&
         _selectedAlternateIndex! < plan.alternates.length) {
       effectivePrimary = plan.alternates[_selectedAlternateIndex!];
-    } else {
-      effectivePrimary = plan.primaryTarget!;
+    } else if (plan.primaryTarget != null) {
+      effectivePrimary = plan.primaryTarget;
+    } else if (candidates.isNotEmpty) {
+      effectivePrimary = candidates.first;
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile =
             constraints.maxWidth < NightshadeTokens.breakpointTablet;
+        final padding = isMobile
+            ? NightshadeTokens.screenPaddingCompact
+            : NightshadeTokens.screenPadding;
 
         return SingleChildScrollView(
-          padding: isMobile
-              ? NightshadeTokens.screenPaddingCompact
-              : NightshadeTokens.screenPadding,
+          controller: _scrollController,
+          padding: padding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Primary target card
-              _PrimaryTargetCard(
-                target: effectivePrimary,
-                plan: plan,
-                colors: colors,
-                isOverride: _selectedAlternateIndex != null,
-              ),
-
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Review in Sequencer button
-              SizedBox(
-                width: double.infinity,
-                child: NightshadeButton(
-                  label: l10n.text('plannerReviewInSequencer'),
-                  icon: LucideIcons.listOrdered,
-                  variant: ButtonVariant.primary,
-                  onPressed: () =>
-                      _createSequence(context, colors, effectivePrimary, plan),
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Text(
-                l10n.text('plannerReviewHint'),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-
-              // Alternate targets
-              if (plan.alternates.isNotEmpty) ...[
-                const SizedBox(height: NightshadeTokens.space2xl),
-                _SectionHeader(
-                  title: l10n.text('plannerAlternateTargets'),
-                  subtitle: l10n.text(
-                    'plannerAlternateTargetsSubtitle',
-                    params: {
-                      'count': plan.alternates.length.toString(),
-                      'suffix': plan.alternates.length == 1 ? '' : 's',
-                    },
-                  ),
+              if (effectivePrimary != null) ...[
+                _PrimaryTargetCard(
+                  target: effectivePrimary,
+                  plan: plan,
                   colors: colors,
+                  isOverride: _selectedAlternateIndex != null,
                 ),
-                const SizedBox(height: NightshadeTokens.spaceMd),
-                ..._buildAlternateCards(colors, plan),
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    label: l10n.text('plannerReviewInSequencer'),
+                    icon: LucideIcons.listOrdered,
+                    variant: ButtonVariant.primary,
+                    onPressed: () => _createSequence(
+                      context,
+                      colors,
+                      effectivePrimary!,
+                      plan,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Text(
+                  l10n.text('plannerReviewHint'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: NightshadeTokens.space2xl),
               ],
+              _SectionHeader(
+                title: candidates.isEmpty
+                    ? 'No matching candidates'
+                    : 'Tonight’s candidates',
+                subtitle: candidates.isEmpty
+                    ? 'Adjust filters below to bring more targets back.'
+                    : '${candidates.length} target${candidates.length == 1 ? '' : 's'} after filters',
+                colors: colors,
+              ),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              if (candidates.isEmpty)
+                _FilteredEmptyState(colors: colors)
+              else
+                _CandidateList(
+                  candidates: candidates,
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
 
-              // Risk factors
               if (plan.riskFactors.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.space2xl),
                 _SectionHeader(
@@ -161,8 +235,6 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _RiskFactorsList(riskFactors: plan.riskFactors, colors: colors),
               ],
-
-              // Rationale
               if (plan.rationale.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.space2xl),
                 _SectionHeader(
@@ -173,38 +245,12 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _RationaleList(rationale: plan.rationale, colors: colors),
               ],
-
               const SizedBox(height: NightshadeTokens.space2xl),
             ],
           ),
         );
       },
     );
-  }
-
-  List<Widget> _buildAlternateCards(
-      NightshadeColors colors, SessionOptimizationPlan plan) {
-    return [
-      for (int i = 0; i < plan.alternates.length; i++)
-        Padding(
-          padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-          child: _AlternateTargetCard(
-            target: plan.alternates[i],
-            isSelected: _selectedAlternateIndex == i,
-            colors: colors,
-            onSelect: () {
-              setState(() {
-                if (_selectedAlternateIndex == i) {
-                  // Deselect to go back to optimizer's primary
-                  _selectedAlternateIndex = null;
-                } else {
-                  _selectedAlternateIndex = i;
-                }
-              });
-            },
-          ),
-        ),
-    ];
   }
 
   void _createSequence(
@@ -248,32 +294,17 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       ),
     );
 
-    // Navigate to sequencer so the user can finish configuring
     context.go('/sequencer');
   }
 
   Widget _buildLoadingState(NightshadeColors colors) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: colors.primary,
-            ),
-          ),
-          const SizedBox(height: NightshadeTokens.spaceLg),
-          Text(
-            context.l10n.text('plannerLoading'),
-            style: TextStyle(
-              fontSize: 14,
-              color: colors.textSecondary,
-            ),
-          ),
-        ],
+    return ShimmerLoading(
+      child: ListView.separated(
+        padding: NightshadeTokens.screenPadding,
+        itemCount: 6,
+        separatorBuilder: (_, __) =>
+            const SizedBox(height: NightshadeTokens.spaceMd),
+        itemBuilder: (_, __) => _CandidateSkeleton(colors: colors),
       ),
     );
   }
@@ -284,7 +315,6 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     Object error,
   ) {
     final isLocationError = error is StateError;
-
     return Center(
       child: Padding(
         padding: NightshadeTokens.screenPadding,
@@ -336,267 +366,11 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       ),
     );
   }
-
-  Widget _buildEmptyState(
-      NightshadeColors colors, SessionOptimizationPlan plan) {
-    final l10n = context.l10n;
-    final config = ref.watch(targetSuggestionConfigProvider);
-    final preferredTypes = config.preferredObjectTypes.isEmpty
-        ? l10n.text('plannerConstraintTypesAny')
-        : config.preferredObjectTypes.join(', ');
-    final moonConstraint = config.maxMoonDistance == null
-        ? l10n.text('plannerConstraintMoonAny')
-        : l10n.text(
-            'plannerConstraintMoon',
-            params: {'value': config.maxMoonDistance!.toStringAsFixed(0)},
-          );
-    final rationale = plan.rationale.isEmpty
-        ? [l10n.text('plannerNoTargetsBody')]
-        : plan.rationale;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          padding: NightshadeTokens.screenPadding,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Container(
-                  padding: const EdgeInsets.all(NightshadeTokens.space2xl),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        LucideIcons.moonStar,
-                        size: NightshadeTokens.icon2xl,
-                        color: colors.warning,
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceLg),
-                      Text(
-                        l10n.text('plannerNoTargetsTitle'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceSm),
-                      Text(
-                        l10n.text('plannerNoTargetsBody'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceLg),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: NightshadeTokens.spaceSm,
-                        runSpacing: NightshadeTokens.spaceSm,
-                        children: [
-                          _PlannerConstraintChip(
-                            icon: LucideIcons.mountain,
-                            label: l10n.text(
-                              'plannerConstraintAltitude',
-                              params: {
-                                'value': config.minAltitude.toStringAsFixed(0),
-                              },
-                            ),
-                            colors: colors,
-                          ),
-                          _PlannerConstraintChip(
-                            icon: LucideIcons.lineChart,
-                            label: l10n.text(
-                              'plannerConstraintScore',
-                              params: {
-                                'value': config.minScore.toStringAsFixed(0),
-                              },
-                            ),
-                            colors: colors,
-                          ),
-                          _PlannerConstraintChip(
-                            icon: LucideIcons.moon,
-                            label: moonConstraint,
-                            colors: colors,
-                          ),
-                          _PlannerConstraintChip(
-                            icon: LucideIcons.sparkles,
-                            label: l10n.text(
-                              'plannerConstraintTypes',
-                              params: {'value': preferredTypes},
-                            ),
-                            colors: colors,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceXl),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          l10n.text('plannerTryThis'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceSm),
-                      for (final line in rationale.take(3))
-                        _PlannerEmptyHint(
-                          text: line,
-                          colors: colors,
-                        ),
-                      _PlannerEmptyHint(
-                        text: l10n.text('plannerTryPlanetarium'),
-                        colors: colors,
-                      ),
-                      _PlannerEmptyHint(
-                        text: l10n.text('plannerTryFraming'),
-                        colors: colors,
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceXl),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: NightshadeTokens.spaceSm,
-                        runSpacing: NightshadeTokens.spaceSm,
-                        children: [
-                          NightshadeButton(
-                            label: l10n.text('plannerOpenPlanetarium'),
-                            icon: LucideIcons.star,
-                            onPressed: () => context.go('/planetarium'),
-                          ),
-                          NightshadeButton(
-                            label: l10n.text('plannerOpenFraming'),
-                            icon: LucideIcons.crop,
-                            variant: ButtonVariant.outline,
-                            onPressed: () => context.go('/framing'),
-                          ),
-                          NightshadeButton(
-                            label: l10n.text('plannerOpenSettings'),
-                            icon: LucideIcons.settings,
-                            variant: ButtonVariant.outline,
-                            onPressed: () => context.go('/settings'),
-                          ),
-                          NightshadeButton(
-                            label: l10n.text('plannerRetry'),
-                            icon: LucideIcons.refreshCw,
-                            variant: ButtonVariant.ghost,
-                            onPressed: () =>
-                                ref.invalidate(_plannerOptimizationProvider),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
-class _PlannerConstraintChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-
-  const _PlannerConstraintChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusSm,
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: colors.textSecondary),
-          const SizedBox(width: NightshadeTokens.spaceXs),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlannerEmptyHint extends StatelessWidget {
-  final String text;
-  final NightshadeColors colors;
-
-  const _PlannerEmptyHint({
-    required this.text,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            LucideIcons.checkCircle2,
-            size: 14,
-            color: colors.info,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sub-widgets
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Header
+// ============================================================================
 
 class _PlannerHeader extends StatelessWidget {
   final NightshadeColors colors;
@@ -629,6 +403,737 @@ class _PlannerHeader extends StatelessWidget {
     );
   }
 }
+
+// ============================================================================
+// Controls bar (search, filters, sort)
+// ============================================================================
+
+class _PlannerControlsBar extends ConsumerWidget {
+  final NightshadeColors colors;
+  final TextEditingController controller;
+  final SuggestionFilterState filters;
+  final AsyncValue<List<TargetSuggestion>> candidatesAsync;
+
+  const _PlannerControlsBar({
+    required this.colors,
+    required this.controller,
+    required this.filters,
+    required this.candidatesAsync,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final constellations = ref.watch(availableConstellationsProvider);
+    final magRange = ref.watch(availableMagnitudeRangeProvider);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.spaceMd,
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SearchField(
+            controller: controller,
+            colors: colors,
+            onChanged: (value) {
+              final notifier = ref.read(suggestionFilterProvider.notifier);
+              notifier.state =
+                  notifier.state.copyWith(searchQuery: value);
+              ref.read(_plannerVisibleCountProvider.notifier).state =
+                  _kPlannerPageSize;
+            },
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _ObjectTypeMultiSelect(
+                colors: colors,
+                selected: filters.selectedObjectTypes,
+              ),
+              _ConstellationDropdown(
+                colors: colors,
+                available: constellations,
+                selected: filters.selectedConstellations.isEmpty
+                    ? null
+                    : filters.selectedConstellations.first,
+              ),
+              _MagnitudeRangeControl(
+                colors: colors,
+                bounds: magRange,
+                min: filters.minMagnitude,
+                max: filters.maxMagnitude,
+              ),
+              _MinAltitudeControl(
+                colors: colors,
+                value: filters.minCurrentAltitude,
+              ),
+              _MoonSeparationControl(
+                colors: colors,
+                value: filters.minMoonDistance,
+              ),
+              _SortDropdown(
+                colors: colors,
+                value: filters.plannerSort ?? PlannerSortMode.score,
+              ),
+              if (filters.activeCount > 0)
+                _ResetChip(
+                  colors: colors,
+                  onPressed: () {
+                    ref.read(suggestionFilterProvider.notifier).state =
+                        const SuggestionFilterState();
+                    controller.clear();
+                    ref.read(_plannerVisibleCountProvider.notifier).state =
+                        _kPlannerPageSize;
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final NightshadeColors colors;
+  final ValueChanged<String> onChanged;
+
+  const _SearchField({
+    required this.controller,
+    required this.colors,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search catalog (M42, NGC7000, Orion, "horsehead")',
+          hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+          prefixIcon:
+              Icon(LucideIcons.search, size: 16, color: colors.textMuted),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  iconSize: 14,
+                  icon: Icon(LucideIcons.x, color: colors.textMuted),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                ),
+          filled: true,
+          fillColor: colors.surfaceAlt,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: colors.primary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ObjectTypeMultiSelect extends ConsumerWidget {
+  final NightshadeColors colors;
+  final Set<String> selected;
+
+  const _ObjectTypeMultiSelect({required this.colors, required this.selected});
+
+  static const _options = <String>[
+    'galaxy',
+    'nebula',
+    'cluster',
+    'planetary',
+    'supernova remnant',
+    'comet',
+    'asteroid',
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label = selected.isEmpty
+        ? 'Type: any'
+        : 'Type: ${selected.map(_displayLabel).join(', ')}';
+
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.shapes,
+      label: label,
+      active: selected.isNotEmpty,
+      onTap: () async {
+        final result = await showModalBottomSheet<Set<String>>(
+          context: context,
+          backgroundColor: colors.surface,
+          builder: (sheetCtx) {
+            final draft = Set<String>.of(selected);
+            return StatefulBuilder(
+              builder: (sheetCtx, setSheetState) {
+                return SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Object types',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceMd),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _options
+                              .map((opt) => FilterChip(
+                                    label: Text(_displayLabel(opt)),
+                                    selected: draft.contains(opt),
+                                    onSelected: (on) {
+                                      setSheetState(() {
+                                        if (on) {
+                                          draft.add(opt);
+                                        } else {
+                                          draft.remove(opt);
+                                        }
+                                      });
+                                    },
+                                  ))
+                              .toList(),
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceLg),
+                        Row(
+                          children: [
+                            NightshadeButton(
+                              label: 'Clear',
+                              variant: ButtonVariant.ghost,
+                              size: ButtonSize.small,
+                              onPressed: () {
+                                setSheetState(draft.clear);
+                              },
+                            ),
+                            const Spacer(),
+                            NightshadeButton(
+                              label: 'Apply',
+                              variant: ButtonVariant.primary,
+                              size: ButtonSize.small,
+                              onPressed: () =>
+                                  Navigator.of(sheetCtx).pop(draft),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+        if (result != null) {
+          final notifier = ref.read(suggestionFilterProvider.notifier);
+          notifier.state =
+              notifier.state.copyWith(selectedObjectTypes: result);
+          ref.read(_plannerVisibleCountProvider.notifier).state =
+              _kPlannerPageSize;
+        }
+      },
+    );
+  }
+
+  static String _displayLabel(String key) {
+    return key
+        .split(' ')
+        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+}
+
+class _ConstellationDropdown extends ConsumerWidget {
+  final NightshadeColors colors;
+  final List<String> available;
+  final String? selected;
+
+  const _ConstellationDropdown({
+    required this.colors,
+    required this.available,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = <DropdownMenuItem<String?>>[
+      const DropdownMenuItem<String?>(
+        value: null,
+        child: Text('Constellation: any'),
+      ),
+      for (final c in available)
+        DropdownMenuItem<String?>(
+          value: c,
+          child: Text('Constellation: $c'),
+        ),
+    ];
+
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: selected == null ? colors.surfaceAlt : colors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected == null
+              ? colors.border
+              : colors.primary.withValues(alpha: 0.5),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: selected,
+          items: items,
+          isDense: true,
+          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          dropdownColor: colors.surface,
+          iconSize: 14,
+          onChanged: (value) {
+            final notifier = ref.read(suggestionFilterProvider.notifier);
+            notifier.state = notifier.state.copyWith(
+              selectedConstellations:
+                  value == null ? <String>{} : <String>{value},
+            );
+            ref.read(_plannerVisibleCountProvider.notifier).state =
+                _kPlannerPageSize;
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MagnitudeRangeControl extends ConsumerWidget {
+  final NightshadeColors colors;
+  final (double, double)? bounds;
+  final double? min;
+  final double? max;
+
+  const _MagnitudeRangeControl({
+    required this.colors,
+    required this.bounds,
+    required this.min,
+    required this.max,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = min != null || max != null;
+    String label;
+    if (active) {
+      final lo = min?.toStringAsFixed(1) ?? 'any';
+      final hi = max?.toStringAsFixed(1) ?? 'any';
+      label = 'Mag $lo–$hi';
+    } else {
+      label = 'Magnitude: any';
+    }
+
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.sparkles,
+      label: label,
+      active: active,
+      onTap: () async {
+        final actualBounds = bounds ?? (-2.0, 18.0);
+        final result = await showDialog<(double?, double?)>(
+          context: context,
+          builder: (dCtx) {
+            double lo = min ?? actualBounds.$1;
+            double hi = max ?? actualBounds.$2;
+            return StatefulBuilder(
+              builder: (dCtx, setDState) {
+                return AlertDialog(
+                  backgroundColor: colors.surface,
+                  title: Text(
+                    'Magnitude range',
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Brighter ${lo.toStringAsFixed(1)} – Dimmer ${hi.toStringAsFixed(1)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      RangeSlider(
+                        values: RangeValues(lo, hi),
+                        min: actualBounds.$1,
+                        max: actualBounds.$2,
+                        divisions: 40,
+                        labels: RangeLabels(
+                          lo.toStringAsFixed(1),
+                          hi.toStringAsFixed(1),
+                        ),
+                        onChanged: (v) {
+                          setDState(() {
+                            lo = v.start;
+                            hi = v.end;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    NightshadeButton(
+                      label: 'Clear',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(dCtx).pop((null, null)),
+                    ),
+                    NightshadeButton(
+                      label: 'Apply',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(dCtx).pop((lo, hi)),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+        if (result != null) {
+          final notifier = ref.read(suggestionFilterProvider.notifier);
+          notifier.state = notifier.state.copyWith(
+            minMagnitude: () => result.$1,
+            maxMagnitude: () => result.$2,
+          );
+          ref.read(_plannerVisibleCountProvider.notifier).state =
+              _kPlannerPageSize;
+        }
+      },
+    );
+  }
+}
+
+class _MinAltitudeControl extends ConsumerWidget {
+  final NightshadeColors colors;
+  final double? value;
+
+  const _MinAltitudeControl({required this.colors, required this.value});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = value != null;
+    final label = active
+        ? 'Alt now ≥ ${value!.toStringAsFixed(0)}°'
+        : 'Alt now: any';
+
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.mountain,
+      label: label,
+      active: active,
+      onTap: () async {
+        // Why: derive a sensible default from the user's horizon profile so
+        // first-time users land on something that matches their site.
+        final horizonProfile = ref.read(horizonProfileProvider);
+        double seed = value ?? 0.0;
+        if (!active && !horizonProfile.isFlat) {
+          // Pick the maximum horizon obstruction as a starting guess.
+          double maxAlt = 0.0;
+          for (int az = 0; az < 360; az += 15) {
+            final h = horizonProfile.altitudeAtAzimuth(az.toDouble());
+            if (h > maxAlt) maxAlt = h;
+          }
+          seed = maxAlt;
+        }
+        final result = await _showAngleSlider(
+          context: context,
+          colors: colors,
+          title: 'Minimum altitude right now',
+          unit: '°',
+          initial: seed,
+          min: 0,
+          max: 89,
+        );
+        if (result != null) {
+          final notifier = ref.read(suggestionFilterProvider.notifier);
+          notifier.state =
+              notifier.state.copyWith(minCurrentAltitude: () => result);
+          ref.read(_plannerVisibleCountProvider.notifier).state =
+              _kPlannerPageSize;
+        }
+      },
+    );
+  }
+}
+
+class _MoonSeparationControl extends ConsumerWidget {
+  final NightshadeColors colors;
+  final double? value;
+
+  const _MoonSeparationControl({required this.colors, required this.value});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = value != null;
+    final label = active
+        ? 'Moon ≥ ${value!.toStringAsFixed(0)}°'
+        : 'Moon: any';
+
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.moon,
+      label: label,
+      active: active,
+      onTap: () async {
+        final result = await _showAngleSlider(
+          context: context,
+          colors: colors,
+          title: 'Minimum moon separation',
+          unit: '°',
+          initial: value ?? 30.0,
+          min: 0,
+          max: 180,
+        );
+        if (result != null) {
+          final notifier = ref.read(suggestionFilterProvider.notifier);
+          notifier.state =
+              notifier.state.copyWith(minMoonDistance: () => result);
+          ref.read(_plannerVisibleCountProvider.notifier).state =
+              _kPlannerPageSize;
+        }
+      },
+    );
+  }
+}
+
+class _SortDropdown extends ConsumerWidget {
+  final NightshadeColors colors;
+  final PlannerSortMode value;
+
+  const _SortDropdown({required this.colors, required this.value});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    const labels = {
+      PlannerSortMode.score: 'Sort: Score',
+      PlannerSortMode.altitude: 'Sort: Altitude',
+      PlannerSortMode.magnitude: 'Sort: Magnitude',
+      PlannerSortMode.constellation: 'Sort: Constellation',
+      PlannerSortMode.objectType: 'Sort: Object type',
+      PlannerSortMode.catalogId: 'Sort: Catalog ID',
+    };
+
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<PlannerSortMode>(
+          value: value,
+          items: [
+            for (final m in PlannerSortMode.values)
+              DropdownMenuItem(value: m, child: Text(labels[m]!)),
+          ],
+          isDense: true,
+          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          dropdownColor: colors.surface,
+          iconSize: 14,
+          onChanged: (v) {
+            if (v == null) return;
+            final notifier = ref.read(suggestionFilterProvider.notifier);
+            notifier.state = notifier.state.copyWith(plannerSort: () => v);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ResetChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final VoidCallback onPressed;
+
+  const _ResetChip({required this.colors, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.rotateCcw,
+      label: 'Reset filters',
+      active: true,
+      onTap: onPressed,
+    );
+  }
+}
+
+class _ControlChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ControlChip({
+    required this.colors,
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = active
+        ? colors.primary.withValues(alpha: 0.1)
+        : colors.surfaceAlt;
+    final border = active
+        ? colors.primary.withValues(alpha: 0.5)
+        : colors.border;
+    final fg = active ? colors.primary : colors.textSecondary;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: fg),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<double?> _showAngleSlider({
+  required BuildContext context,
+  required NightshadeColors colors,
+  required String title,
+  required String unit,
+  required double initial,
+  required double min,
+  required double max,
+}) async {
+  return showDialog<double>(
+    context: context,
+    builder: (dCtx) {
+      double val = initial.clamp(min, max);
+      return StatefulBuilder(
+        builder: (dCtx, setDState) {
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            title: Text(title, style: TextStyle(color: colors.textPrimary)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${val.toStringAsFixed(0)}$unit',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                Slider(
+                  value: val,
+                  min: min,
+                  max: max,
+                  divisions: (max - min).round(),
+                  label: '${val.toStringAsFixed(0)}$unit',
+                  onChanged: (v) => setDState(() => val = v),
+                ),
+              ],
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Clear',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dCtx).pop(-1.0),
+              ),
+              NightshadeButton(
+                label: 'Apply',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dCtx).pop(val),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  ).then((value) {
+    if (value == null) return null;
+    // -1 sentinel from the Clear button → tell caller to reset to null.
+    if (value < 0) return double.nan;
+    return value;
+  }).then((v) {
+    if (v == null) return null;
+    if (v.isNaN) return null;
+    return v;
+  });
+}
+
+// ============================================================================
+// Section header + reusable bits
+// ============================================================================
 
 class _SectionHeader extends StatelessWidget {
   final String title;
@@ -667,7 +1172,677 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// The main card showing the primary (or overridden) target with full detail.
+// ============================================================================
+// Candidate list with pagination
+// ============================================================================
+
+class _CandidateList extends ConsumerWidget {
+  final List<TargetSuggestion> candidates;
+  final NightshadeColors colors;
+  final bool isMobile;
+
+  const _CandidateList({
+    required this.candidates,
+    required this.colors,
+    required this.isMobile,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visibleCount =
+        ref.watch(_plannerVisibleCountProvider).clamp(0, candidates.length);
+    final visible = candidates.take(visibleCount).toList(growable: false);
+    final expandedId = ref.watch(_expandedRowProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final candidate in visible)
+          Padding(
+            padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+            child: _CandidateRow(
+              key: ValueKey('candidate-${candidate.targetId}'),
+              suggestion: candidate,
+              colors: colors,
+              isExpanded: expandedId == candidate.targetId,
+              onToggleExpand: () {
+                ref.read(_expandedRowProvider.notifier).state =
+                    expandedId == candidate.targetId
+                        ? null
+                        : candidate.targetId;
+              },
+            ),
+          ),
+        if (visibleCount < candidates.length)
+          Padding(
+            padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+            child: Align(
+              alignment: Alignment.center,
+              child: NightshadeButton(
+                label:
+                    'Load more (${candidates.length - visibleCount} remaining)',
+                icon: LucideIcons.chevronDown,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () {
+                  final next = (visibleCount + _kPlannerPageSize)
+                      .clamp(0, candidates.length);
+                  ref.read(_plannerVisibleCountProvider.notifier).state = next;
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CandidateRow extends ConsumerWidget {
+  final TargetSuggestion suggestion;
+  final NightshadeColors colors;
+  final bool isExpanded;
+  final VoidCallback onToggleExpand;
+
+  const _CandidateRow({
+    super.key,
+    required this.suggestion,
+    required this.colors,
+    required this.isExpanded,
+    required this.onToggleExpand,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final peakAlt = suggestion.visibility.peakAltitude ??
+        suggestion.visibility.currentAltitude;
+    final hoursAbove = suggestion.visibility.hoursAboveMinAlt ?? 0.0;
+    final moonDist = suggestion.visibility.moonDistance;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+      ),
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      suggestion.targetName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    if (suggestion.catalogId != null &&
+                        suggestion.catalogId != suggestion.targetName)
+                      Text(
+                        suggestion.catalogId!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _ScoreBadge(score: suggestion.totalScore, colors: colors),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: 4,
+            children: [
+              if (suggestion.objectType != null)
+                _StatChip(
+                  icon: LucideIcons.shapes,
+                  label: suggestion.objectType!,
+                  colors: colors,
+                ),
+              _StatChip(
+                icon: LucideIcons.arrowUp,
+                label: 'Peak ${peakAlt.toStringAsFixed(0)}°',
+                colors: colors,
+              ),
+              _StatChip(
+                icon: LucideIcons.clock,
+                label: '${hoursAbove.toStringAsFixed(1)}h visible',
+                colors: colors,
+              ),
+              _StatChip(
+                icon: LucideIcons.moon,
+                label: 'Moon ${moonDist.toStringAsFixed(0)}°',
+                colors: colors,
+                isWarning: moonDist < 45,
+              ),
+              if (suggestion.magnitude != null)
+                _StatChip(
+                  icon: LucideIcons.sparkles,
+                  label: 'Mag ${suggestion.magnitude!.toStringAsFixed(1)}',
+                  colors: colors,
+                ),
+              if (suggestion.constellation != null)
+                _StatChip(
+                  icon: LucideIcons.star,
+                  label: suggestion.constellation!,
+                  colors: colors,
+                ),
+            ],
+          ),
+          if (suggestion.reasoning.isNotEmpty) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              suggestion.reasoning,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+                height: 1.35,
+              ),
+            ),
+          ],
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            children: [
+              NightshadeButton(
+                label: 'Send to Framing',
+                icon: LucideIcons.frame,
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                onPressed: () => _sendToFraming(context),
+              ),
+              NightshadeButton(
+                label: 'Add to observing list',
+                icon: LucideIcons.listPlus,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => _addToObservingList(context, ref),
+              ),
+              NightshadeButton(
+                label: isExpanded ? 'Hide altitude curve' : 'Show altitude curve',
+                icon: isExpanded
+                    ? LucideIcons.chevronUp
+                    : LucideIcons.lineChart,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: onToggleExpand,
+              ),
+            ],
+          ),
+          if (isExpanded) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Divider(color: colors.border, height: 1),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            SizedBox(
+              height: 220,
+              child: AltitudeChart(
+                raHours: suggestion.raHours,
+                decDegrees: suggestion.decDegrees,
+                targetName: suggestion.targetName,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _sendToFraming(BuildContext context) {
+    final params = <String, String>{
+      'ra': suggestion.raHours.toStringAsFixed(6),
+      'dec': suggestion.decDegrees.toStringAsFixed(6),
+      'name': suggestion.targetName,
+    };
+    final uri = Uri(path: '/framing', queryParameters: params);
+    context.go(uri.toString());
+  }
+
+  Future<void> _addToObservingList(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final lists = await ref.read(observingListsDaoProvider).getAllLists();
+    if (!context.mounted) return;
+
+    final chosenId = await showDialog<int>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(
+            'Add to observing list',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (lists.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'No observing lists yet. Create one to start adding targets.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final list in lists)
+                          ListTile(
+                            dense: true,
+                            title: Text(list.name,
+                                style:
+                                    TextStyle(color: colors.textPrimary)),
+                            onTap: () => Navigator.of(dCtx).pop(list.id),
+                          ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeButton(
+                  label: 'Create new list…',
+                  icon: LucideIcons.plus,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () async {
+                    Navigator.of(dCtx).pop();
+                    final newId = await _createListAndAdd(context, ref);
+                    if (!context.mounted || newId == null) return;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (chosenId == null) return;
+    if (!context.mounted) return;
+    final id = await ref
+        .read(observingListNotifierProvider.notifier)
+        .addItem(
+          listId: chosenId,
+          objectName: suggestion.targetName,
+          catalogId: suggestion.catalogId,
+          objectType: suggestion.objectType,
+          ra: suggestion.raHours,
+          dec: suggestion.decDegrees,
+          magnitude: suggestion.magnitude,
+          sizeArcmin: suggestion.sizeArcmin,
+        );
+    if (!context.mounted) return;
+    final colorsLocal = Theme.of(context).extension<NightshadeColors>()!;
+    final notifierState = ref.read(observingListNotifierProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          id == null
+              ? (notifierState.errorMessage ?? 'Failed to add to list')
+              : 'Added ${suggestion.targetName} to the list',
+        ),
+        backgroundColor: id == null ? colorsLocal.error : colorsLocal.success,
+      ),
+    );
+  }
+
+  Future<int?> _createListAndAdd(BuildContext context, WidgetRef ref) async {
+    final nameController = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text('New list', style: TextStyle(color: colors.textPrimary)),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'List name'),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(),
+            ),
+            NightshadeButton(
+              label: 'Create',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(nameController.text),
+            ),
+          ],
+        );
+      },
+    );
+    if (name == null || name.trim().isEmpty) return null;
+    final newId = await ref
+        .read(observingListNotifierProvider.notifier)
+        .createList(name: name.trim());
+    if (newId == null) return null;
+    if (!context.mounted) return null;
+    final id = await ref
+        .read(observingListNotifierProvider.notifier)
+        .addItem(
+          listId: newId,
+          objectName: suggestion.targetName,
+          catalogId: suggestion.catalogId,
+          objectType: suggestion.objectType,
+          ra: suggestion.raHours,
+          dec: suggestion.decDegrees,
+          magnitude: suggestion.magnitude,
+          sizeArcmin: suggestion.sizeArcmin,
+        );
+    if (!context.mounted) return null;
+    final colorsLocal = Theme.of(context).extension<NightshadeColors>()!;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          id == null
+              ? 'Created list but failed to add target'
+              : 'Created "$name" and added ${suggestion.targetName}',
+        ),
+        backgroundColor: id == null ? colorsLocal.error : colorsLocal.success,
+      ),
+    );
+    return id;
+  }
+}
+
+class _ScoreBadge extends StatelessWidget {
+  final double score;
+  final NightshadeColors colors;
+
+  const _ScoreBadge({required this.score, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color badgeColor;
+    if (score >= 75) {
+      badgeColor = colors.success;
+    } else if (score >= 50) {
+      badgeColor = colors.warning;
+    } else {
+      badgeColor = colors.error;
+    }
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: badgeColor.withValues(alpha: 0.15),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+      ),
+      child: Center(
+        child: Text(
+          score.toStringAsFixed(0),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: badgeColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final NightshadeColors colors;
+  final bool isWarning;
+
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.colors,
+    this.isWarning = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chipColor = isWarning ? colors.warning : colors.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: (isWarning ? colors.warning : colors.surfaceAlt)
+            .withValues(alpha: isWarning ? 0.1 : 1.0),
+        borderRadius: BorderRadius.circular(6),
+        border: isWarning
+            ? Border.all(color: colors.warning.withValues(alpha: 0.3))
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: chipColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: chipColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CandidateSkeleton extends StatelessWidget {
+  final NightshadeColors colors;
+  const _CandidateSkeleton({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+      ),
+      padding: NightshadeTokens.cardPadding,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            SkeletonText(width: 180, height: 14),
+            Spacer(),
+            SkeletonBox(
+              width: 44,
+              height: 44,
+              borderRadius: NightshadeTokens.radiusFull,
+            ),
+          ]),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          SkeletonText(width: 240, height: 12),
+          SizedBox(height: NightshadeTokens.spaceSm),
+          Row(children: [
+            SkeletonBox(width: 60, height: 22),
+            SizedBox(width: NightshadeTokens.spaceSm),
+            SkeletonBox(width: 60, height: 22),
+            SizedBox(width: NightshadeTokens.spaceSm),
+            SkeletonBox(width: 60, height: 22),
+          ]),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          Row(children: [
+            SkeletonBox(width: 120, height: 30),
+            SizedBox(width: NightshadeTokens.spaceSm),
+            SkeletonBox(width: 150, height: 30),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Empty state (filters applied) — explains which filter excluded the most
+// ============================================================================
+
+class _FilteredEmptyState extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _FilteredEmptyState({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final breakdown = ref.watch(plannerFilterExclusionProvider);
+    final ranked = breakdown.excludedByFilter.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.filterX,
+                  size: NightshadeTokens.iconLg, color: colors.warning),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(
+                child: Text(
+                  breakdown.total == 0
+                      ? 'No targets available'
+                      : 'No targets match these filters',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          if (breakdown.total == 0)
+            Text(
+              'The scoring engine returned zero candidates for tonight. Verify your location, twilight window, and your minimum altitude/score in suggestion config.',
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+                height: 1.4,
+              ),
+            )
+          else ...[
+            Text(
+              '${breakdown.total} candidate${breakdown.total == 1 ? '' : 's'} were scored, '
+              '${breakdown.passed} passed the filters.',
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            if (ranked.isNotEmpty) ...[
+              Text(
+                'Filters with the largest impact:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceXs),
+              for (final entry in ranked.take(4))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.minusCircle,
+                          size: 12, color: colors.warning),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          entry.key,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '−${entry.value}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Reset filters',
+              icon: LucideIcons.rotateCcw,
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () {
+                ref.read(suggestionFilterProvider.notifier).state =
+                    const SuggestionFilterState();
+                ref.read(_plannerVisibleCountProvider.notifier).state =
+                    _kPlannerPageSize;
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Primary target card + auxiliary lists (kept from original screen)
+// ============================================================================
+
 class _PrimaryTargetCard extends StatelessWidget {
   final TargetSuggestion target;
   final SessionOptimizationPlan plan;
@@ -712,7 +1887,6 @@ class _PrimaryTargetCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: name + score badge
           Row(
             children: [
               Expanded(
@@ -756,10 +1930,7 @@ class _PrimaryTargetCard extends StatelessWidget {
               _ScoreBadge(score: target.totalScore, colors: colors),
             ],
           ),
-
           const SizedBox(height: NightshadeTokens.spaceMd),
-
-          // Coordinates
           Row(
             children: [
               Icon(LucideIcons.locate, size: 14, color: colors.textMuted),
@@ -774,10 +1945,7 @@ class _PrimaryTargetCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: NightshadeTokens.spaceMd),
-
-          // Stats grid
           Wrap(
             spacing: NightshadeTokens.spaceMd,
             runSpacing: NightshadeTokens.spaceSm,
@@ -832,12 +2000,6 @@ class _PrimaryTargetCard extends StatelessWidget {
                   ),
                   colors: colors,
                 ),
-              if (target.sizeArcmin != null)
-                _StatChip(
-                  icon: LucideIcons.maximize2,
-                  label: "${target.sizeArcmin!.toStringAsFixed(1)}'",
-                  colors: colors,
-                ),
               if (target.constellation != null)
                 _StatChip(
                   icon: LucideIcons.star,
@@ -846,14 +2008,6 @@ class _PrimaryTargetCard extends StatelessWidget {
                 ),
             ],
           ),
-
-          // Data progress bar
-          if (target.dataProgress > 0) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            _DataProgressBar(progress: target.dataProgress, colors: colors),
-          ],
-
-          // Estimated integration
           if (plan.estimatedUsableHours > 0) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             Row(
@@ -875,36 +2029,6 @@ class _PrimaryTargetCard extends StatelessWidget {
               ],
             ),
           ],
-
-          // Tags
-          if (target.tags.isNotEmpty) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final tag in target.tags)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-
-          // Warnings
           if (target.warnings.isNotEmpty) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             for (final warning in target.warnings.take(3))
@@ -957,275 +2081,6 @@ class _PrimaryTargetCard extends StatelessWidget {
       case WarningSeverity.info:
         return colors.textMuted;
     }
-  }
-}
-
-class _ScoreBadge extends StatelessWidget {
-  final double score;
-  final NightshadeColors colors;
-
-  const _ScoreBadge({required this.score, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color badgeColor;
-    if (score >= 75) {
-      badgeColor = colors.success;
-    } else if (score >= 50) {
-      badgeColor = colors.warning;
-    } else {
-      badgeColor = colors.error;
-    }
-
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: badgeColor.withValues(alpha: 0.15),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-      ),
-      child: Center(
-        child: Text(
-          score.toStringAsFixed(0),
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: badgeColor,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-  final bool isWarning;
-
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    this.isWarning = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = isWarning ? colors.warning : colors.textSecondary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: (isWarning ? colors.warning : colors.surfaceAlt)
-            .withValues(alpha: isWarning ? 0.1 : 1.0),
-        borderRadius: BorderRadius.circular(6),
-        border: isWarning
-            ? Border.all(color: colors.warning.withValues(alpha: 0.3))
-            : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: chipColor),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: chipColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DataProgressBar extends StatelessWidget {
-  final double progress;
-  final NightshadeColors colors;
-
-  const _DataProgressBar({
-    required this.progress,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Data Collected',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
-            ),
-            Text(
-              '${(progress * 100).toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 4,
-            backgroundColor: colors.surfaceAlt,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              progress > 0.85 ? colors.success : colors.primary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Card for an alternate target.
-class _AlternateTargetCard extends StatelessWidget {
-  final TargetSuggestion target;
-  final bool isSelected;
-  final NightshadeColors colors;
-  final VoidCallback onSelect;
-
-  const _AlternateTargetCard({
-    required this.target,
-    required this.isSelected,
-    required this.colors,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final peakAlt =
-        target.visibility.peakAltitude ?? target.visibility.currentAltitude;
-    final hoursAbove = target.visibility.hoursAboveMinAlt ?? 0.0;
-    final moonDist = target.visibility.moonDistance;
-
-    return GestureDetector(
-      onTap: onSelect,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.warning.withValues(alpha: 0.05)
-              : colors.surface,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          border: Border.all(
-            color: isSelected
-                ? colors.warning.withValues(alpha: 0.5)
-                : colors.border,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        padding: NightshadeTokens.cardPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        target.targetName,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      if (target.objectType != null)
-                        Text(
-                          target.objectType!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                _ScoreBadge(score: target.totalScore, colors: colors),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Wrap(
-              spacing: NightshadeTokens.spaceSm,
-              runSpacing: 4,
-              children: [
-                _StatChip(
-                  icon: LucideIcons.arrowUp,
-                  label: context.l10n.text(
-                    'plannerPeak',
-                    params: {'value': peakAlt.toStringAsFixed(1)},
-                  ),
-                  colors: colors,
-                ),
-                _StatChip(
-                  icon: LucideIcons.clock,
-                  label: context.l10n.text(
-                    'plannerVisible',
-                    params: {'value': hoursAbove.toStringAsFixed(1)},
-                  ),
-                  colors: colors,
-                ),
-                _StatChip(
-                  icon: LucideIcons.moon,
-                  label: context.l10n.text(
-                    'plannerMoon',
-                    params: {'value': moonDist.toStringAsFixed(0)},
-                  ),
-                  colors: colors,
-                  isWarning: moonDist < 45,
-                ),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    target.reasoning,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: NightshadeTokens.spaceMd),
-                NightshadeButton(
-                  label: isSelected
-                      ? context.l10n.text('plannerSelected')
-                      : context.l10n.text('plannerSelect'),
-                  variant: isSelected
-                      ? ButtonVariant.primary
-                      : ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: onSelect,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

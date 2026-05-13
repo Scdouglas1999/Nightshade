@@ -1,0 +1,333 @@
+// Widget tests for the Plan Tonight screen (PlannerScreen).
+//
+// We avoid spinning up the full Riverpod graph (database, FFI backend,
+// catalog loader). Instead we override the providers the planner reads:
+//   - appSettingsProvider: provide a non-zero location.
+//   - tonightSuggestionsProvider: return a deterministic in-memory list.
+//
+// The screen is mounted inside a GoRouter so `context.go(...)` reaches a real
+// router, and the /framing route is a stub that records the navigated URL.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:nightshade_app/screens/planner/planner_screen.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+class _TestAppSettingsNotifier extends AppSettingsNotifier {
+  final AppSettings _settings;
+  _TestAppSettingsNotifier(this._settings);
+
+  @override
+  Future<AppSettings> build() async => _settings;
+}
+
+TargetSuggestion _suggestion({
+  required int id,
+  required String name,
+  String? catalogId,
+  String? objectType,
+  String? constellation,
+  double score = 80.0,
+  double magnitude = 8.0,
+  double peakAlt = 60.0,
+  double moonDistance = 90.0,
+  double raHours = 5.0,
+  double decDegrees = -5.0,
+}) {
+  return TargetSuggestion(
+    targetId: id,
+    targetName: name,
+    catalogId: catalogId,
+    raHours: raHours,
+    decDegrees: decDegrees,
+    totalScore: score,
+    visibility: TargetVisibilityInfo(
+      currentAltitude: peakAlt - 5,
+      currentAzimuth: 180.0,
+      transitAltitude: peakAlt,
+      airmass: 1.2,
+      moonDistance: moonDistance,
+      peakAltitude: peakAlt,
+      hoursAboveMinAlt: 6.0,
+    ),
+    reasoning: 'Stable at high altitude with good moon separation.',
+    objectType: objectType,
+    magnitude: magnitude,
+    constellation: constellation,
+  );
+}
+
+List<TargetSuggestion> _tenCandidates() {
+  return [
+    _suggestion(
+      id: 1,
+      name: 'NGC 7000',
+      catalogId: 'NGC 7000',
+      objectType: 'Emission Nebula',
+      constellation: 'Cyg',
+      score: 92.0,
+    ),
+    _suggestion(
+      id: 2,
+      name: 'M31 Andromeda',
+      catalogId: 'M31',
+      objectType: 'Galaxy',
+      constellation: 'And',
+      score: 88.0,
+      raHours: 0.7,
+      decDegrees: 41.3,
+    ),
+    _suggestion(
+      id: 3,
+      name: 'M42 Orion',
+      catalogId: 'M42',
+      objectType: 'Emission Nebula',
+      constellation: 'Ori',
+      score: 84.0,
+      raHours: 5.6,
+      decDegrees: -5.4,
+    ),
+    _suggestion(
+      id: 4,
+      name: 'M81 Bode',
+      catalogId: 'M81',
+      objectType: 'Galaxy',
+      constellation: 'UMa',
+      score: 80.0,
+    ),
+    _suggestion(
+      id: 5,
+      name: 'M13',
+      catalogId: 'M13',
+      objectType: 'Globular Cluster',
+      constellation: 'Her',
+      score: 78.0,
+    ),
+    _suggestion(
+      id: 6,
+      name: 'M27 Dumbbell',
+      catalogId: 'M27',
+      objectType: 'Planetary Nebula',
+      constellation: 'Vul',
+      score: 74.0,
+    ),
+    _suggestion(
+      id: 7,
+      name: 'M101 Pinwheel',
+      catalogId: 'M101',
+      objectType: 'Galaxy',
+      constellation: 'UMa',
+      score: 70.0,
+    ),
+    _suggestion(
+      id: 8,
+      name: 'NGC 6960 Veil',
+      catalogId: 'NGC 6960',
+      objectType: 'Supernova Remnant',
+      constellation: 'Cyg',
+      score: 68.0,
+    ),
+    _suggestion(
+      id: 9,
+      name: 'IC 1396',
+      catalogId: 'IC 1396',
+      objectType: 'Emission Nebula',
+      constellation: 'Cep',
+      score: 66.0,
+    ),
+    _suggestion(
+      id: 10,
+      name: 'M51 Whirlpool',
+      catalogId: 'M51',
+      objectType: 'Galaxy',
+      constellation: 'CVn',
+      score: 64.0,
+    ),
+  ];
+}
+
+Future<void> _pumpPlanner(
+  WidgetTester tester, {
+  required List<TargetSuggestion> candidates,
+  required ValueChanged<String> onFramingNavigated,
+}) async {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(1280, 1024);
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  final router = GoRouter(
+    initialLocation: '/planner',
+    routes: [
+      GoRoute(
+        path: '/planner',
+        builder: (context, state) => const PlannerScreen(),
+      ),
+      GoRoute(
+        path: '/framing',
+        builder: (context, state) {
+          onFramingNavigated(state.uri.toString());
+          return const Scaffold(body: Text('FRAMING STUB'));
+        },
+      ),
+      GoRoute(
+        path: '/sequencer',
+        builder: (context, state) => const Scaffold(body: Text('SEQ STUB')),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const Scaffold(body: Text('SETTINGS')),
+      ),
+    ],
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        appSettingsProvider.overrideWith(
+          () => _TestAppSettingsNotifier(
+            const AppSettings(latitude: 40.0, longitude: -75.0),
+          ),
+        ),
+        tonightSuggestionsProvider.overrideWith((ref) async => candidates),
+      ],
+      child: MaterialApp.router(
+        theme: NightshadeTheme.dark,
+        routerConfig: router,
+      ),
+    ),
+  );
+
+  // Allow the suggestion future + post-frame callbacks to settle.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('renders more than 3 candidates when 10 are available',
+      (tester) async {
+    await _pumpPlanner(
+      tester,
+      candidates: _tenCandidates(),
+      onFramingNavigated: (_) {},
+    );
+
+    // The candidate list header reports the count after filtering.
+    expect(find.textContaining('10 targets after filters'), findsOneWidget);
+
+    // All ten candidates should be rendered (default page size is 25).
+    expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
+    expect(find.text('M31 Andromeda'), findsOneWidget);
+    expect(find.text('M42 Orion'), findsOneWidget);
+    expect(find.text('M81 Bode'), findsOneWidget);
+    expect(find.text('M13'), findsOneWidget);
+    expect(find.text('M27 Dumbbell'), findsOneWidget);
+    expect(find.text('M101 Pinwheel'), findsOneWidget);
+    expect(find.text('NGC 6960 Veil'), findsOneWidget);
+    expect(find.text('IC 1396'), findsOneWidget);
+    expect(find.text('M51 Whirlpool'), findsOneWidget);
+  });
+
+  testWidgets('search field narrows the visible candidate list',
+      (tester) async {
+    await _pumpPlanner(
+      tester,
+      candidates: _tenCandidates(),
+      onFramingNavigated: (_) {},
+    );
+
+    final searchField = find.byType(TextField).first;
+    expect(searchField, findsOneWidget);
+    await tester.enterText(searchField, 'whirlpool');
+    await tester.pump();
+
+    // The candidate list header reports the filtered count (the primary
+    // recommendation card above the list is intentionally unaffected — it
+    // always shows tonight's globally-best target).
+    expect(find.textContaining('1 target after filters'), findsOneWidget);
+    // M51 (the only match) appears in the list.
+    expect(find.text('M51 Whirlpool'), findsAtLeastNWidgets(1));
+    // Other candidate-list names disappear from the rendered tree (the
+    // primary card may still show its own; that's expected).
+    expect(find.text('M31 Andromeda'), findsNothing);
+    expect(find.text('M13'), findsNothing);
+    expect(find.text('M81 Bode'), findsNothing);
+  });
+
+  test('object-type filter removes non-matching candidates', () async {
+    final container = ProviderContainer(
+      overrides: [
+        tonightSuggestionsProvider.overrideWith(
+          (ref) async => _tenCandidates(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // Hold the autoDispose chain alive while we drive the filter directly.
+    final sub = container.listen<AsyncValue<List<TargetSuggestion>>>(
+      plannerFilteredSuggestionsProvider,
+      (_, __) {},
+    );
+    addTearDown(sub.close);
+
+    // Resolve the upstream future before reading the derived provider.
+    await container.read(tonightSuggestionsProvider.future);
+
+    container.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState(selectedObjectTypes: {'galaxy'});
+
+    final filtered =
+        container.read(plannerFilteredSuggestionsProvider).valueOrNull ??
+            const [];
+    final names = filtered.map((s) => s.targetName).toSet();
+    expect(names, containsAll(<String>[
+      'M31 Andromeda',
+      'M81 Bode',
+      'M101 Pinwheel',
+      'M51 Whirlpool',
+    ]));
+    // Nebulae / clusters / SNRs must be excluded.
+    expect(names, isNot(contains('NGC 7000')));
+    expect(names, isNot(contains('M42 Orion')));
+    expect(names, isNot(contains('M13')));
+    expect(names, isNot(contains('NGC 6960 Veil')));
+  });
+
+  testWidgets('Send to Framing navigates with ra/dec/name query params',
+      (tester) async {
+    String? capturedUrl;
+    await _pumpPlanner(
+      tester,
+      candidates: _tenCandidates(),
+      onFramingNavigated: (url) => capturedUrl = url,
+    );
+
+    // Find the first "Send to Framing" button and tap it. M31 was scrolled
+    // into view by default since the default page size is 25 and the list
+    // length is 10.
+    final sendButton = find.widgetWithText(NightshadeButton, 'Send to Framing');
+    expect(sendButton, findsWidgets);
+    // Tap the first one (NGC 7000, which is the highest-scoring candidate).
+    await tester.ensureVisible(sendButton.first);
+    await tester.pump();
+    await tester.tap(sendButton.first);
+    await tester.pumpAndSettle();
+
+    expect(capturedUrl, isNotNull);
+    final uri = Uri.parse(capturedUrl!);
+    expect(uri.path, '/framing');
+    expect(uri.queryParameters['name'], 'NGC 7000');
+    expect(double.parse(uri.queryParameters['ra']!), closeTo(5.0, 1e-3));
+    expect(double.parse(uri.queryParameters['dec']!), closeTo(-5.0, 1e-3));
+  });
+}
