@@ -16,6 +16,7 @@ class TargetScoreRow extends StatelessWidget {
   final bool isCurrent;
   final bool isWinner;
   final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const TargetScoreRow({
     super.key,
@@ -24,6 +25,7 @@ class TargetScoreRow extends StatelessWidget {
     required this.isCurrent,
     required this.isWinner,
     this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -142,6 +144,28 @@ class TargetScoreRow extends StatelessWidget {
                 flex: 4,
                 child: _GoalSummary(progress: progress, colors: colors),
               ),
+              if (onDelete != null) ...[
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Tooltip(
+                  message: 'Remove from scheduler',
+                  child: IconButton(
+                    key: ValueKey('scheduler-delete-row-${score.targetId}'),
+                    icon: Icon(
+                      LucideIcons.x,
+                      size: NightshadeTokens.iconSm,
+                      color: colors.textSecondary,
+                      semanticLabel: 'Remove ${score.targetName} from scheduler',
+                    ),
+                    splashRadius: 16,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: onDelete,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -333,6 +333,91 @@ void main() {
     });
   });
 
+  group('SchedulerEngine - requestReevaluation debounce', () {
+    test('triggers exactly one recompute within the debounce window',
+        () async {
+      final sink = _RecordingSink();
+      var loadCount = 0;
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async {
+          loadCount++;
+          return candidates;
+        },
+        clock: _fixedNow,
+      );
+      // Start triggers the cold-start evaluation (loadCount becomes 1).
+      await engine.start();
+      expect(loadCount, 1);
+
+      // Fire three requests inside a window much smaller than 500ms — the
+      // engine must coalesce them into a single re-evaluation.
+      engine.requestReevaluation(reason: 'a');
+      engine.requestReevaluation(reason: 'b');
+      engine.requestReevaluation(reason: 'c');
+
+      // Wait past the 500ms debounce window so the timer fires once.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(loadCount, 2,
+          reason: 'three requests inside the debounce window should '
+              'produce one extra evaluation, not three');
+      await engine.dispose();
+    });
+
+    test('a single requestReevaluation does fire a recompute', () async {
+      final sink = _RecordingSink();
+      var loadCount = 0;
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async {
+          loadCount++;
+          return candidates;
+        },
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(loadCount, 1);
+      engine.requestReevaluation();
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(loadCount, 2);
+      await engine.dispose();
+    });
+
+    test('two bursts separated by > 500ms produce two recomputes', () async {
+      final sink = _RecordingSink();
+      var loadCount = 0;
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async {
+          loadCount++;
+          return candidates;
+        },
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(loadCount, 1);
+      engine.requestReevaluation();
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(loadCount, 2);
+      engine.requestReevaluation();
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      expect(loadCount, 3);
+      await engine.dispose();
+    });
+  });
+
   group('SchedulerEngine - lifecycle', () {
     test('start / pause / resume / stop drives sequence sink', () async {
       final sink = _RecordingSink();

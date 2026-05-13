@@ -136,6 +136,11 @@ class SchedulerEngine {
   Timer? _tickTimer;
   bool _evaluating = false;
   final List<Completer<void>> _pendingEvaluations = [];
+  // Debounce window used by [requestReevaluation]. A burst of provider
+  // emissions (e.g. a goal upsert that also touches the constraint table)
+  // should fire ONE re-evaluation, not N.
+  static const Duration _reevaluationDebounce = Duration(milliseconds: 500);
+  Timer? _reevaluationDebounceTimer;
 
   SchedulerStatus _status = const SchedulerStatus();
   final _statusController =
@@ -217,8 +222,25 @@ class SchedulerEngine {
     return _evaluateWithReason(reason);
   }
 
+  /// Debounced re-evaluation hook for data-change listeners (target catalog,
+  /// integration goals, constraints). Multiple calls inside the
+  /// [_reevaluationDebounce] window coalesce into a single evaluation.
+  void requestReevaluation({String reason = 'data change'}) {
+    _reevaluationDebounceTimer?.cancel();
+    _reevaluationDebounceTimer = Timer(_reevaluationDebounce, () {
+      _reevaluationDebounceTimer = null;
+      // Errors must propagate to the engine's lifecycle so we don't
+      // swallow background re-eval failures (silent fallbacks hide bugs);
+      // _evaluateWithReason already serializes via the same lock the tick
+      // timer uses, so this is safe to fire-and-forget.
+      _evaluateWithReason(reason);
+    });
+  }
+
   Future<void> dispose() async {
     _tickTimer?.cancel();
+    _reevaluationDebounceTimer?.cancel();
+    _reevaluationDebounceTimer = null;
     await _triggerSubscription?.cancel();
     await _statusController.close();
     await _decisionController.close();

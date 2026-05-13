@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,8 +59,23 @@ const _targetConstraintsTargetIndex =
 class IntegrationGoalService {
   final db.NightshadeDatabase _db;
   bool _schemaEnsured = false;
+  // Manual change-notification channel for the raw `integration_goals`
+  // table: drift's reactive `watch()` only fires for tables it knows about
+  // via codegen, and this table is created out-of-band with raw SQL.
+  // Every mutation method below calls `_notifyMutated()` so subscribers of
+  // [watchAll] see the change immediately.
+  final StreamController<void> _mutations =
+      StreamController<void>.broadcast();
 
   IntegrationGoalService(this._db);
+
+  void _notifyMutated() {
+    if (!_mutations.isClosed) _mutations.add(null);
+  }
+
+  Future<void> dispose() async {
+    await _mutations.close();
+  }
 
   Future<void> _ensureSchema() async {
     if (_schemaEnsured) return;
@@ -87,6 +104,7 @@ class IntegrationGoalService {
         'UPDATE integration_goals SET frame_count = ?, priority = ? WHERE id = ?',
         [goal.frameCount, goal.priority, id],
       );
+      _notifyMutated();
       return id;
     }
     final inserted = await _db.customInsert(
@@ -101,6 +119,7 @@ class IntegrationGoalService {
             goal.createdAt.toUtc().millisecondsSinceEpoch ~/ 1000),
       ],
     );
+    _notifyMutated();
     return inserted;
   }
 
@@ -110,6 +129,39 @@ class IntegrationGoalService {
       'DELETE FROM integration_goals WHERE id = ?',
       [goalId],
     );
+    _notifyMutated();
+  }
+
+  /// Remove every integration goal attached to [targetId]. Used by the
+  /// scheduler queue's per-row delete and clear-all actions; the target
+  /// itself stays in the catalog.
+  Future<void> deleteForTarget(int targetId) async {
+    await _ensureSchema();
+    await _db.customStatement(
+      'DELETE FROM integration_goals WHERE target_id = ?',
+      [targetId],
+    );
+    _notifyMutated();
+  }
+
+  /// Remove every integration goal in the database. Used by the scheduler
+  /// queue's clear-all action.
+  Future<void> deleteAll() async {
+    await _ensureSchema();
+    await _db.customStatement('DELETE FROM integration_goals');
+    _notifyMutated();
+  }
+
+  /// Live stream of every integration goal. Emits an initial snapshot
+  /// immediately, then a fresh list on every insert / update / delete the
+  /// service itself performs. Used by the scheduler provider to wake the
+  /// engine on operator edits without polling.
+  Stream<List<IntegrationGoal>> watchAll() async* {
+    await _ensureSchema();
+    yield await listAll();
+    await for (final _ in _mutations.stream) {
+      yield await listAll();
+    }
   }
 
   Future<List<IntegrationGoal>> listForTarget(int targetId) async {

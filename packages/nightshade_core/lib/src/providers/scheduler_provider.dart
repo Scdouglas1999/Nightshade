@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../database/database.dart' as ndb;
 import '../models/scheduler/integration_goal.dart';
 import '../models/scheduler/scheduler_decision.dart';
 import '../models/scheduler/scheduler_status.dart';
@@ -11,6 +12,7 @@ import '../models/sequence/sequence_models.dart';
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
+import '../services/scheduler/target_constraint_service.dart';
 import 'database_provider.dart';
 import 'event_provider.dart';
 import 'profiles_provider.dart';
@@ -237,6 +239,21 @@ final schedulerCandidateLoaderProvider =
   return SchedulerCandidateLoader(ref);
 });
 
+/// Live stream of every integration goal. Driven by
+/// `IntegrationGoalService.watchAll`; used by [_schedulerAutoReevalProvider]
+/// to wake the engine whenever the operator edits goals.
+final integrationGoalsStreamProvider =
+    StreamProvider<List<IntegrationGoal>>((ref) {
+  return ref.watch(integrationGoalServiceProvider).watchAll();
+});
+
+/// Live stream of every constraint. Driven by
+/// `TargetConstraintService.watchAll`.
+final targetConstraintsStreamProvider =
+    StreamProvider<List<TargetConstraint>>((ref) {
+  return ref.watch(targetConstraintServiceProvider).watchAll();
+});
+
 /// The single engine instance for the app.
 final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
@@ -256,6 +273,47 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   );
   ref.onDispose(() => engine.dispose());
   return engine;
+});
+
+/// Side-effect provider that subscribes to the three "candidate inputs"
+/// (target catalog rows, integration goals, target constraints) and pokes
+/// the engine via `requestReevaluation()` whenever any of them changes.
+///
+/// The engine's internal debounce coalesces bursts (a goal upsert and a
+/// constraint edit that arrive in the same microtask trigger ONE eval).
+/// Must be `.watch`ed from the app shell (or any always-mounted Consumer)
+/// so the listeners stay live for the lifetime of the scheduler engine.
+final schedulerAutoReevalProvider = Provider<void>((ref) {
+  final engine = ref.watch(schedulerEngineProvider);
+
+  ref.listen<AsyncValue<List<ndb.Target>>>(
+    allDbTargetsProvider,
+    (previous, next) {
+      // Only react once we have data, and only after the very first
+      // emission (initial load is the cold-start, not a "change").
+      if (previous == null || !previous.hasValue) return;
+      if (!next.hasValue) return;
+      engine.requestReevaluation(reason: 'targets table changed');
+    },
+  );
+
+  ref.listen<AsyncValue<List<IntegrationGoal>>>(
+    integrationGoalsStreamProvider,
+    (previous, next) {
+      if (previous == null || !previous.hasValue) return;
+      if (!next.hasValue) return;
+      engine.requestReevaluation(reason: 'integration goals changed');
+    },
+  );
+
+  ref.listen<AsyncValue<List<TargetConstraint>>>(
+    targetConstraintsStreamProvider,
+    (previous, next) {
+      if (previous == null || !previous.hasValue) return;
+      if (!next.hasValue) return;
+      engine.requestReevaluation(reason: 'target constraints changed');
+    },
+  );
 });
 
 /// StateNotifier that mirrors the engine's status stream into Riverpod so

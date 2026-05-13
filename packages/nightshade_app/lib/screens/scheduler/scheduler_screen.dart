@@ -98,6 +98,9 @@ class _SchedulerScreenState extends ConsumerState<SchedulerScreen> {
     final status = ref.watch(schedulerStatusProvider);
     final decision = ref.watch(currentSchedulerDecisionProvider);
     final engine = ref.watch(schedulerEngineProvider);
+    // Mount the auto-reevaluation listeners for the duration the screen is
+    // alive. The provider is side-effect-only; we ignore its return value.
+    ref.watch(schedulerAutoReevalProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -784,10 +787,112 @@ class _QueueTable extends ConsumerWidget {
     required this.onRowTap,
   });
 
+  Future<void> _confirmDeleteRow(
+    BuildContext context,
+    WidgetRef ref,
+    int targetId,
+    String targetName,
+  ) async {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(
+            'Remove from scheduler?',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Remove $targetName from the scheduler? Integration goals and '
+            'constraints will be deleted; the target itself stays in your '
+            'catalog.',
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Remove',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    final goalsSvc = ref.read(integrationGoalServiceProvider);
+    final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    await goalsSvc.deleteForTarget(targetId);
+    await constraintsSvc.deleteForTarget(targetId);
+    ref.invalidate(allIntegrationGoalsProvider);
+    ref.invalidate(integrationGoalProgressProvider(targetId));
+    // Surface the change immediately even though the auto-reeval listeners
+    // will also fire — `evaluateNow` waits, the listeners don't.
+    await ref
+        .read(schedulerEngineProvider)
+        .evaluateNow(reason: 'row removed from scheduler');
+  }
+
+  Future<void> _confirmClearAll(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(
+            'Clear scheduler queue?',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Clear all targets from the scheduler? Integration goals and '
+            'constraints will be deleted; targets themselves stay in your '
+            'catalog.',
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Clear',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(dCtx).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    final goalsSvc = ref.read(integrationGoalServiceProvider);
+    final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    await goalsSvc.deleteAll();
+    await constraintsSvc.deleteAll();
+    ref.invalidate(allIntegrationGoalsProvider);
+    await ref
+        .read(schedulerEngineProvider)
+        .evaluateNow(reason: 'scheduler queue cleared');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final goalsAsync = ref.watch(allIntegrationGoalsProvider);
+    final hasRows = decision != null && decision!.scoredCandidates.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
@@ -814,9 +919,21 @@ class _QueueTable extends ConsumerWidget {
               ),
               const Spacer(),
               if (decision != null)
-                Text(
-                  'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                Padding(
+                  padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+                  child: Text(
+                    'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
+                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  ),
+                ),
+              if (hasRows)
+                NightshadeButton(
+                  key: const ValueKey('scheduler-clear-all'),
+                  label: 'Clear all',
+                  icon: LucideIcons.trash2,
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.ghost,
+                  onPressed: () => _confirmClearAll(context, ref),
                 ),
             ],
           ),
@@ -868,6 +985,12 @@ class _QueueTable extends ConsumerWidget {
                               const <IntegrationGoal>[],
                           onTap: () => onRowTap(
                               decision!.scoredCandidates[i].targetId),
+                          onDelete: () => _confirmDeleteRow(
+                            context,
+                            ref,
+                            decision!.scoredCandidates[i].targetId,
+                            decision!.scoredCandidates[i].targetName,
+                          ),
                         ),
                       ),
                   ],
@@ -928,6 +1051,7 @@ class _QueueRow extends ConsumerWidget {
   final bool isCurrent;
   final List<IntegrationGoal> goalsForTarget;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _QueueRow({
     required this.score,
@@ -935,6 +1059,7 @@ class _QueueRow extends ConsumerWidget {
     required this.isCurrent,
     required this.goalsForTarget,
     required this.onTap,
+    required this.onDelete,
   });
 
   @override
@@ -948,6 +1073,7 @@ class _QueueRow extends ConsumerWidget {
         isCurrent: isCurrent,
         isWinner: isWinner,
         onTap: onTap,
+        onDelete: onDelete,
       ),
       error: (_, __) => TargetScoreRow(
         score: score,
@@ -955,6 +1081,7 @@ class _QueueRow extends ConsumerWidget {
         isCurrent: isCurrent,
         isWinner: isWinner,
         onTap: onTap,
+        onDelete: onDelete,
       ),
       data: (progress) => TargetScoreRow(
         score: score,
@@ -962,6 +1089,7 @@ class _QueueRow extends ConsumerWidget {
         isCurrent: isCurrent,
         isWinner: isWinner,
         onTap: onTap,
+        onDelete: onDelete,
       ),
     );
   }
