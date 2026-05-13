@@ -29,7 +29,7 @@ dependencies:
     path: ../../packages/nightshade_updater
 
   # State management
-  flutter_riverpod: ^2.4.9
+  flutter_riverpod: ^2.5.1
   riverpod_annotation: ^2.3.3
 
   # Navigation

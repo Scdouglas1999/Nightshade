@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.4.9
+  flutter_riverpod: ^2.5.1
   lucide_icons: ^0.257.0
   google_fonts: ^6.1.0
   nightshade_core:
