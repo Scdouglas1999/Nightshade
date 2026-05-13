@@ -211,15 +211,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/planner',
             name: 'planner',
-            pageBuilder: (context, state) => const CustomTransitionPage(
-              child: PlannerScreen(),
-              transitionsBuilder: PageTransitions.slideFadeTransition,
-              transitionDuration: Duration(milliseconds: 300),
-            ),
+            pageBuilder: (context, state) {
+              final tabQuery = state.uri.queryParameters['tab'];
+              return CustomTransitionPage(
+                child: PlannerScreen(initialTabQuery: tabQuery),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
           ),
+          // DEPRECATED: use /planner?tab=scheduler. Kept for one release for
+          // deep-link compatibility — Scheduler merged into Plan Tonight as
+          // a tab (§UX consolidation, W8-SCHED-MERGE).
           GoRoute(
             path: '/scheduler',
             name: 'scheduler',
+            redirect: (context, state) => '/planner?tab=scheduler',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: SchedulerScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,

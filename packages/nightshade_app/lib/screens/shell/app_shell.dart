@@ -323,8 +323,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         return 9;
       case '/planner':
         return 10;
+      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
+      // W8-SCHED-MERGE); the legacy `/scheduler` route redirects to
+      // `/planner?tab=scheduler` so we should never resolve to it here, but
+      // keep -1 as a safety fall through in case the redirect is bypassed.
       case '/scheduler':
-        return 11;
       // Diagnostics merged into Analytics as a tab (§UX consolidation); the
       // legacy `/diagnostics` route redirects to `/analytics?tab=diagnostics`
       // so we should never resolve to it here, but keep -1 as a safety fall
@@ -352,7 +355,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       '/flat-wizard',
       '/weather',
       '/planner',
-      '/scheduler',
+      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
+      // W8-SCHED-MERGE) — no standalone nav slot.
     ];
     if (index < routes.length) {
       try {
@@ -457,10 +461,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navFlatWizard,
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
+                            // Scheduler merged into Plan Tonight as a tab
+                            // (§UX consolidation, W8-SCHED-MERGE), so its
+                            // top-level nav slot is gone. TutorialKeys.
+                            // navScheduler still exists for one release so a
+                            // stale deep-link from the previous onboarding
+                            // tour does not crash; the onboarding step now
+                            // targets TutorialKeys.navPlanner instead.
                             // Diagnostics moved into Analytics as a tab
                             // (§UX consolidation), so its top-level nav slot
                             // (and tutorial key) are no longer wired here.
-                            TutorialKeys.navScheduler,
                           ],
                           currentIndex: currentIndex,
                           onTabSelected: (index) =>

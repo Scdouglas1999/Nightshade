@@ -183,11 +183,9 @@ class _NightshadeBottomNavigationState
         label: l10n.text('navPlanner'),
         icon: LucideIcons.moonStar,
       ),
-      const _NavRouteItem(
-        route: '/scheduler',
-        label: 'Scheduler',
-        icon: LucideIcons.brain,
-      ),
+      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
+      // W8-SCHED-MERGE). Reach it via Plan Tonight → Target Queue or
+      // `/planner?tab=scheduler`.
       // Diagnostics merged into Analytics as a tab (§UX consolidation).
       // Reach it via Analytics → Diagnostics or `/analytics?tab=diagnostics`.
       _NavRouteItem(

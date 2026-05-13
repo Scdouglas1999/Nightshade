@@ -113,11 +113,11 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
         id: 'scheduler',
         title: 'Let the scheduler pick targets',
         body:
-            'v2.5.0 introduces a dynamic scheduler — give it your target '
-            'queue and it picks which target to image next based on '
-            'altitude, moon separation, time remaining tonight, and your '
-            'integration goals.',
-        targetKey: () => TutorialKeys.navScheduler,
+            'Plan Tonight has a new Target Queue tab — give it your '
+            'imaging goals and the scheduler picks which target to image '
+            'next based on altitude, moon separation, time remaining '
+            'tonight, and your integration goals.',
+        targetKey: () => TutorialKeys.navPlanner,
       ),
       OnboardingStep(
         id: 'plate_solving',

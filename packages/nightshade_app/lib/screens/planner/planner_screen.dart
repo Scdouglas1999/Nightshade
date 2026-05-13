@@ -8,6 +8,38 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../framing/altitude_chart.dart';
 import '../../localization/nightshade_localizations.dart';
+import 'widgets/progress_tab_content.dart';
+import 'widgets/scheduler_tab_content.dart';
+
+/// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
+/// param. Order here matches the rendered tab order; Recommendation is the
+/// default.
+enum PlannerTab {
+  recommendation,
+  scheduler,
+  progress,
+}
+
+/// Maps the router `?tab=` query value to a [PlannerTab]. Returns null for
+/// an unrecognised value so the caller can fall back to a default. Public
+/// so router code (and tests) can share the same canonical mapping.
+PlannerTab? plannerTabFromQuery(String? value) {
+  if (value == null) return null;
+  switch (value.toLowerCase()) {
+    case 'recommendation':
+    case 'recommend':
+      return PlannerTab.recommendation;
+    case 'scheduler':
+    case 'queue':
+    case 'target-queue':
+    case 'targetqueue':
+      return PlannerTab.scheduler;
+    case 'progress':
+    case 'history':
+      return PlannerTab.progress;
+  }
+  return null;
+}
 
 /// Page size for the candidate list. The list starts at one page and grows
 /// when the user taps "Load more" or scrolls to the bottom.
@@ -42,16 +74,116 @@ final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
 /// Only one row is expanded at a time to keep the page tidy.
 final _expandedRowProvider = StateProvider.autoDispose<int?>((_) => null);
 
-/// Full "Plan Tonight" workspace: primary recommendation + filterable,
-/// sortable, searchable candidate list with per-row actions.
+/// Full "Plan Tonight" workspace.
+///
+/// Three sub-tabs (W8-SCHED-MERGE):
+///   * Recommendation — the primary scoring engine: best target right now,
+///     filterable / sortable / searchable candidate list, SIMBAD fallback,
+///     risk factors and rationale.
+///   * Target Queue — RoboTarget-class dynamic scheduler, formerly the
+///     standalone `/scheduler` screen. The body is embedded via
+///     [SchedulerTabContent] so the `/scheduler` deep-link redirect lands
+///     on the same code path.
+///   * Progress — per-target imaging progress + ETA, consumes
+///     `allTargetProgressProvider`.
+///
+/// Query param `?tab=` selects the initial tab via [plannerTabFromQuery].
 class PlannerScreen extends ConsumerStatefulWidget {
-  const PlannerScreen({super.key});
+  /// Optional initial tab selection. When null, falls back to
+  /// [initialTabQuery] parsing, then to [PlannerTab.recommendation].
+  final PlannerTab? initialTab;
+
+  /// Raw `?tab=` value parsed from the router. Lets deep-links select a
+  /// specific Plan Tonight tab (notably `?tab=scheduler` from the legacy
+  /// `/scheduler` redirect).
+  final String? initialTabQuery;
+
+  const PlannerScreen({
+    super.key,
+    this.initialTab,
+    this.initialTabQuery,
+  });
 
   @override
   ConsumerState<PlannerScreen> createState() => _PlannerScreenState();
 }
 
 class _PlannerScreenState extends ConsumerState<PlannerScreen> {
+  late int _currentSubTab;
+
+  @override
+  void initState() {
+    super.initState();
+    final resolved = widget.initialTab ??
+        plannerTabFromQuery(widget.initialTabQuery) ??
+        PlannerTab.recommendation;
+    _currentSubTab = resolved.index;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    final tabs = <(PlannerTab, String)>[
+      (PlannerTab.recommendation, 'Recommendation'),
+      (PlannerTab.scheduler, 'Target Queue'),
+      (PlannerTab.progress, 'Progress'),
+    ];
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: Column(
+        children: [
+          _PlannerHeader(colors: colors),
+          Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              border: Border(bottom: BorderSide(color: colors.border)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                ...tabs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final label = entry.value.$2;
+                  return SubTabButton(
+                    label: label,
+                    isSelected: index == _currentSubTab,
+                    onTap: () => setState(() => _currentSubTab = index),
+                  );
+                }),
+                const Spacer(),
+              ],
+            ),
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: _currentSubTab,
+              children: const [
+                _RecommendationTab(),
+                SchedulerTabContent(),
+                ProgressTabContent(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Recommendation" tab — the original Plan Tonight body. Kept as a separate
+/// widget so the search/filter state and infinite-scroll machinery stay
+/// scoped to this tab (the other tabs don't need it).
+class _RecommendationTab extends ConsumerStatefulWidget {
+  const _RecommendationTab();
+
+  @override
+  ConsumerState<_RecommendationTab> createState() => _RecommendationTabState();
+}
+
+class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
   int? _selectedAlternateIndex;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -100,26 +232,22 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: Column(
-        children: [
-          _PlannerHeader(colors: colors),
-          _PlannerControlsBar(
-            colors: colors,
-            controller: _searchController,
-            filters: filtersState,
-            candidatesAsync: candidatesAsync,
+    return Column(
+      children: [
+        _PlannerControlsBar(
+          colors: colors,
+          controller: _searchController,
+          filters: filtersState,
+          candidatesAsync: candidatesAsync,
+        ),
+        Expanded(
+          child: planAsync.when(
+            data: (plan) => _buildBody(context, colors, plan, candidatesAsync),
+            loading: () => _buildLoadingState(colors),
+            error: (error, _) => _buildErrorState(context, colors, error),
           ),
-          Expanded(
-            child: planAsync.when(
-              data: (plan) => _buildBody(context, colors, plan, candidatesAsync),
-              loading: () => _buildLoadingState(colors),
-              error: (error, _) => _buildErrorState(context, colors, error),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
