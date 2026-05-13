@@ -29,8 +29,11 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   OverlayEntry? _bannerOverlay;
   late final Stream<LanPushEvent> _lanPushStream;
   StreamSubscription<LanPushEvent>? _lanPushSubscription;
-  static const _disabledUpdatesLog =
-      '[UpdateManager] Update server not configured, skipping update checks';
+  static const _logSource = 'UpdateManager';
+  static const _disabledUpdatesMessage =
+      'Update server not configured, skipping update checks';
+
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   bool _isUpdateConfigured() {
     final state = ref.read(updateProvider);
@@ -86,11 +89,11 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      debugPrint(_disabledUpdatesLog);
+      _logger.info(_disabledUpdatesMessage, source: _logSource);
       return;
     }
 
-    debugPrint('[UpdateManager] Checking for staged updates...');
+    _logger.debug('Checking for staged updates', source: _logSource);
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
 
@@ -102,11 +105,14 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
-      debugPrint(
-          '[UpdateManager] Found staged update: ${state.availableUpdate?.version}');
+      _logger.info(
+        'Found staged update',
+        source: _logSource,
+        fields: {'version': state.availableUpdate?.version},
+      );
       _showLanPushBannerDirect(state.availableUpdate?.version ?? 'Unknown');
     } else {
-      debugPrint('[UpdateManager] No staged update found');
+      _logger.debug('No staged update found', source: _logSource);
     }
   }
 
@@ -116,7 +122,11 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
-        debugPrint('[UpdateManager] LAN push received: ${manifest.version}');
+        _logger.info(
+          'LAN push update received',
+          source: _logSource,
+          fields: {'version': manifest.version},
+        );
         // Update the provider state so applyUpdate() works
         ref
             .read(updateProvider.notifier)
@@ -162,7 +172,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     final overlay = Overlay.of(context);
     overlay.insert(_bannerOverlay!);
-    debugPrint('[UpdateManager] Banner inserted into overlay');
+    _logger.debug('Banner inserted into overlay', source: _logSource);
 
     // Auto-dismiss after 60 seconds
     Future.delayed(const Duration(seconds: 60), () {
@@ -173,7 +183,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   Future<void> _checkForUpdates() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      debugPrint(_disabledUpdatesLog);
+      _logger.info(_disabledUpdatesMessage, source: _logSource);
       return;
     }
 
@@ -284,7 +294,11 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
         _bannerOverlay?.remove();
       }
     } catch (e) {
-      debugPrint('[UpdateManager] Error removing banner: $e');
+      _logger.warning(
+        'Error removing update banner',
+        source: _logSource,
+        fields: {'error': '$e'},
+      );
     }
     _bannerOverlay = null;
   }

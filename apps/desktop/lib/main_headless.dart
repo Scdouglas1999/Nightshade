@@ -59,32 +59,35 @@ const _headlessLogSource = 'HeadlessMain';
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  debugPrint('Nightshade 2.0 - Headless Mode');
-  debugPrint('==============================');
+  // Operator-facing stdout banner. The LoggingService isn't bootable yet
+  // (no ProviderContainer), so write directly to stdout. Once the logger
+  // is initialised below, all subsequent diagnostics route through it.
+  stdout.writeln('Nightshade 2.0 - Headless Mode');
+  stdout.writeln('==============================');
 
   LoggingService? logger;
   ProviderContainer? container;
   HeadlessApiServer? apiServer;
 
   try {
-    debugPrint('Initializing native bridge...');
+    stdout.writeln('Initializing native bridge...');
     await bridge.NativeBridge.init();
-    debugPrint('[OK] Native bridge initialized');
+    stdout.writeln('[OK] Native bridge initialized');
 
     // Initialize profile and settings storage (must happen before any profile/settings access)
-    debugPrint('Initializing profile and settings storage...');
+    stdout.writeln('Initializing profile and settings storage...');
     final appDir = await getApplicationDocumentsDirectory();
     final profileDir = path.join(appDir.path, 'Nightshade', 'profiles');
     await Directory(profileDir).create(recursive: true);
     await bridge.NativeBridge.apiInitProfileStorage(storagePath: profileDir);
     await bridge.NativeBridge.apiInitSettingsStorage(storagePath: profileDir);
-    debugPrint('[OK] Profile and settings storage initialized');
+    stdout.writeln('[OK] Profile and settings storage initialized');
 
-    debugPrint('Initializing catalog manager...');
+    stdout.writeln('Initializing catalog manager...');
     await _initializeCatalogManager();
-    debugPrint('[OK] Catalog manager initialized');
+    stdout.writeln('[OK] Catalog manager initialized');
 
-    debugPrint('Initializing services...');
+    stdout.writeln('Initializing services...');
     container = ProviderContainer(
       overrides: [
         // Mirror the desktop GUI override; the headless server publishes
@@ -119,8 +122,13 @@ void main(List<String> args) async {
     runtimeLogger.info('Headless API server started',
         source: _headlessLogSource);
 
-    debugPrint('\nNightshade is running in headless mode.');
-    debugPrint('Press Ctrl+C to stop.\n');
+    // Operator-facing console message announcing service readiness. Logged
+    // through the structured logger too so it shows up in log files alongside
+    // the timestamped service-started events.
+    stdout.writeln('\nNightshade is running in headless mode.');
+    stdout.writeln('Press Ctrl+C to stop.\n');
+    runtimeLogger.info('Headless mode running; waiting for SIGINT/SIGTERM',
+        source: _headlessLogSource);
 
     ProcessSignal.sigint.watch().listen((_) async {
       logger?.info('Received SIGINT, shutting down',
@@ -163,8 +171,11 @@ void main(List<String> args) async {
       'Error starting headless mode: $e\n$stackTrace',
       source: _headlessLogSource,
     );
-    debugPrint('Error starting headless mode: $e');
-    debugPrint('Stack trace: $stackTrace');
+    // Always also surface to stderr — if the logger itself failed to
+    // initialise (the path that often triggers this catch), the operator
+    // still needs to see why the daemon refused to start.
+    stderr.writeln('Error starting headless mode: $e');
+    stderr.writeln('Stack trace: $stackTrace');
     await apiServer?.stop();
     container?.dispose();
     exit(1);
@@ -178,9 +189,10 @@ Future<void> _initializeCatalogManager() async {
     await CatalogManager.instance.initialize(catalogDir);
   } catch (e, stackTrace) {
     // Catalog is non-critical for headless operation (API/sequencer still work),
-    // but log as error so it doesn't go unnoticed.
-    debugPrint('[ERROR] Failed to initialize catalog manager: $e');
-    debugPrint('[ERROR] Stack trace: $stackTrace');
+    // but emit to stderr so the failure is visible to the operator. The
+    // structured logger isn't online yet at this point in bootstrap.
+    stderr.writeln('[ERROR] Failed to initialize catalog manager: $e');
+    stderr.writeln('[ERROR] Stack trace: $stackTrace');
   }
 }
 
@@ -381,28 +393,28 @@ Future<HeadlessApiServer?> _startHeadlessServices(
         }
       }
 
+      // Operator-facing connect-URL block. These are intentionally on stdout
+      // (not the structured logger) so a sysadmin invoking the headless server
+      // sees them immediately in the console; the redacted token form keeps
+      // the captured stdout safe to share for debugging.
       if (!bindLocalOnly && localIp != null) {
-        debugPrint('\n  Mobile devices can connect to:');
-        debugPrint('    http://$localIp:$port');
+        stdout.writeln('\n  Mobile devices can connect to:');
+        stdout.writeln('    http://$localIp:$port');
         if (apiServer.effectiveAuthToken != null) {
-          debugPrint('\n  Authentication required:');
-          // Why: redact the bearer in any logged output to avoid persisting
-          // it in plaintext log files. Operators can read the full token via
-          // the app's settings UI or the headless server's printed-once
-          // first-run message in the console.
-          debugPrint(
+          stdout.writeln('\n  Authentication required:');
+          stdout.writeln(
               '    Authorization: Bearer ${_redactToken(apiServer.effectiveAuthToken!)}');
         } else {
-          debugPrint(
+          stdout.writeln(
               '\n  WARNING: unauthenticated LAN control is enabled for this run.');
         }
-        debugPrint('');
+        stdout.writeln('');
       } else {
-        debugPrint('\n  Headless API is available on:');
-        debugPrint('    http://127.0.0.1:$port');
-        debugPrint(
+        stdout.writeln('\n  Headless API is available on:');
+        stdout.writeln('    http://127.0.0.1:$port');
+        stdout.writeln(
             '  Add --require-auth or --auth-token to expose authenticated LAN access.');
-        debugPrint('');
+        stdout.writeln('');
       }
     } catch (_) {
       // Best-effort local IP discovery only.
