@@ -481,10 +481,6 @@ class TargetHeaderNode extends SequenceNode {
       ];
 }
 
-/// Legacy alias for backwards compatibility during migration
-@Deprecated('Use TargetHeaderNode instead')
-typedef TargetGroupNode = TargetHeaderNode;
-
 /// Loop node - repeats children based on condition
 class LoopNode extends SequenceNode {
   final LoopConditionType conditionType;
@@ -2808,10 +2804,6 @@ class Sequence extends Equatable {
         .toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
   }
-
-  /// Legacy getter for backwards compatibility
-  @Deprecated('Use targetHeaders instead')
-  List<TargetHeaderNode> get targetGroups => targetHeaders;
 
   /// Get node by ID
   SequenceNode? getNode(String id) => nodes[id];

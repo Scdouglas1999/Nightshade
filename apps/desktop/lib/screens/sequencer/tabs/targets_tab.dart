@@ -751,7 +751,7 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         onPressed: () {
                           // Add target to sequence
                           ref.read(currentSequenceProvider.notifier).addNode(
-                                TargetGroupNode(
+                                TargetHeaderNode(
                                   targetName: widget.target.catalogId ??
                                       widget.target.name,
                                   raHours: widget.target.ra,
@@ -838,7 +838,7 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                               ref
                                   .read(currentSequenceProvider.notifier)
                                   .addNode(
-                                    TargetGroupNode(
+                                    TargetHeaderNode(
                                       targetName: widget.target.catalogId ??
                                           widget.target.name,
                                       raHours: widget.target.ra,

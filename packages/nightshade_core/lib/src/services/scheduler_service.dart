@@ -184,7 +184,7 @@ class SchedulerService {
 
   /// Get altitude data for all targets in the sequence
   List<AltitudeData> calculateTargetAltitudes({
-    required List<TargetGroupNode> targets,
+    required List<TargetHeaderNode> targets,
     required DateTime observationTime,
     required double latitudeDegrees,
     required double longitudeDegrees,
@@ -296,8 +296,8 @@ class SchedulerService {
   }
 
   /// Optimize target order based on selected strategy
-  List<TargetGroupNode> optimizeTargetOrder({
-    required List<TargetGroupNode> targets,
+  List<TargetHeaderNode> optimizeTargetOrder({
+    required List<TargetHeaderNode> targets,
     required OptimizationStrategy strategy,
     required DateTime observationTime,
     required double latitudeDegrees,
@@ -320,7 +320,7 @@ class SchedulerService {
       dataMap[data.targetId] = data;
     }
 
-    final sortedTargets = List<TargetGroupNode>.from(targets);
+    final sortedTargets = List<TargetHeaderNode>.from(targets);
 
     switch (strategy) {
       case OptimizationStrategy.transitTime:

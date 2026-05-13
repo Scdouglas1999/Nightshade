@@ -183,7 +183,7 @@ void main() {
           () {
         final data = scheduler.calculateTargetAltitudes(
           targets: [
-            TargetGroupNode(
+            TargetHeaderNode(
               id: 'north-pole',
               name: 'North pole',
               targetName: 'North pole',

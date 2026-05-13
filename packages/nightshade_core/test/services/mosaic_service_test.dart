@@ -423,7 +423,7 @@ void main() {
       );
 
       // Count target group nodes
-      final targetGroups = nodes.values.whereType<TargetGroupNode>().toList();
+      final targetGroups = nodes.values.whereType<TargetHeaderNode>().toList();
       expect(targetGroups.length, equals(4)); // 2x2 grid
     });
 
@@ -632,7 +632,7 @@ void main() {
         options: options,
       );
 
-      final targetGroups = nodes.values.whereType<TargetGroupNode>().toList();
+      final targetGroups = nodes.values.whereType<TargetHeaderNode>().toList();
       expect(targetGroups[0].minAltitude, equals(30.0));
       expect(targetGroups[0].maxAltitude, equals(70.0));
     });
@@ -699,7 +699,7 @@ void main() {
         options: options,
       );
 
-      final targetGroups = nodes.values.whereType<TargetGroupNode>().toList();
+      final targetGroups = nodes.values.whereType<TargetHeaderNode>().toList();
 
       // With serpentine ordering for 3x2 grid:
       // Row 0: 0,1,2 (left to right)

@@ -51,14 +51,6 @@ abstract class NightshadePlugin {
   /// Release all resources, close connections, unregister callbacks.
   /// After this call, the plugin instance will be destroyed.
   Future<void> onUnload();
-
-  /// @deprecated Use [onLoad] instead
-  @Deprecated('Use onLoad(PluginContext) instead')
-  Future<void> initialize() async {}
-
-  /// @deprecated Use [onUnload] instead
-  @Deprecated('Use onUnload() instead')
-  Future<void> dispose() async {}
 }
 
 /// Context provided to plugins for accessing application functionality

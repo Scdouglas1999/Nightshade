@@ -74,17 +74,6 @@ extension DriverTypeDisplayExtension on DriverType {
   }
 }
 
-// Type aliases for backward compatibility
-// Existing code using NightshadeDeviceType, DriverBackend, or AvailableDevice will still work
-@Deprecated('Use DeviceType instead')
-typedef NightshadeDeviceType = DeviceType;
-
-@Deprecated('Use DriverType instead')
-typedef DriverBackend = DriverType;
-
-@Deprecated('Use DeviceInfo instead')
-typedef AvailableDevice = DeviceInfo;
-
 /// Service for managing device discovery and connections
 ///
 /// This service uses the NightshadeBackend abstraction to communicate

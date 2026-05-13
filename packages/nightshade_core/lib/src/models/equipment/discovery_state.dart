@@ -20,7 +20,7 @@ enum DiscoveryStatus {
 /// Discovery state for a single backend
 class BackendDiscoveryState extends Equatable {
   /// The backend being discovered
-  final DriverBackend backend;
+  final DriverType backend;
 
   /// Current status
   final DiscoveryStatus status;
@@ -29,7 +29,7 @@ class BackendDiscoveryState extends Equatable {
   final String? error;
 
   /// Devices discovered from this backend
-  final List<AvailableDevice> devices;
+  final List<DeviceInfo> devices;
 
   /// When discovery completed
   final DateTime? completedAt;
@@ -56,10 +56,10 @@ class BackendDiscoveryState extends Equatable {
   bool get hasError => status == DiscoveryStatus.error;
 
   BackendDiscoveryState copyWith({
-    DriverBackend? backend,
+    DriverType? backend,
     DiscoveryStatus? status,
     String? error,
-    List<AvailableDevice>? devices,
+    List<DeviceInfo>? devices,
     DateTime? completedAt,
     bool clearError = false,
   }) {
@@ -79,10 +79,10 @@ class BackendDiscoveryState extends Equatable {
 /// Overall discovery state across all backends
 class UnifiedDiscoveryState extends Equatable {
   /// Discovery state per backend
-  final Map<DriverBackend, BackendDiscoveryState> backendStates;
+  final Map<DriverType, BackendDiscoveryState> backendStates;
 
   /// All raw devices discovered (before grouping)
-  final List<AvailableDevice> rawDevices;
+  final List<DeviceInfo> rawDevices;
 
   /// Devices grouped by physical identity
   final List<UnifiedDevice> groupedDevices;
@@ -98,19 +98,19 @@ class UnifiedDiscoveryState extends Equatable {
   bool get allComplete => backendStates.values.every((s) => s.isComplete);
 
   /// Backends that are currently discovering
-  List<DriverBackend> get activeBackends => backendStates.entries
+  List<DriverType> get activeBackends => backendStates.entries
       .where((e) => e.value.isDiscovering)
       .map((e) => e.key)
       .toList();
 
   /// Backends that had errors
-  List<DriverBackend> get errorBackends => backendStates.entries
+  List<DriverType> get errorBackends => backendStates.entries
       .where((e) => e.value.hasError)
       .map((e) => e.key)
       .toList();
 
   /// Backends that completed successfully
-  List<DriverBackend> get successfulBackends => backendStates.entries
+  List<DriverType> get successfulBackends => backendStates.entries
       .where((e) => e.value.isSuccess)
       .map((e) => e.key)
       .toList();
@@ -129,16 +129,16 @@ class UnifiedDiscoveryState extends Equatable {
   });
 
   /// Get discovery state for a specific backend
-  BackendDiscoveryState? getBackendState(DriverBackend backend) =>
+  BackendDiscoveryState? getBackendState(DriverType backend) =>
       backendStates[backend];
 
   /// Get grouped devices of a specific type
-  List<UnifiedDevice> getDevicesByType(NightshadeDeviceType type) =>
+  List<UnifiedDevice> getDevicesByType(DeviceType type) =>
       groupedDevices.where((d) => d.type == type).toList();
 
   UnifiedDiscoveryState copyWith({
-    Map<DriverBackend, BackendDiscoveryState>? backendStates,
-    List<AvailableDevice>? rawDevices,
+    Map<DriverType, BackendDiscoveryState>? backendStates,
+    List<DeviceInfo>? rawDevices,
     List<UnifiedDevice>? groupedDevices,
     String? error,
     bool clearError = false,

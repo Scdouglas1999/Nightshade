@@ -18,14 +18,6 @@ class DeviceInfo {
     required this.driverVersion,
   });
 
-  /// Alias for backward compatibility (use driverType instead)
-  @Deprecated('Use driverType instead')
-  DriverType get backend => driverType;
-
-  /// Alias for backward compatibility (use deviceType instead)
-  @Deprecated('Use deviceType instead')
-  DeviceType get type => deviceType;
-
   /// Create from JSON (for network transport)
   factory DeviceInfo.fromJson(Map<String, dynamic> json) {
     final deviceTypeName = json['deviceType'] as String?;

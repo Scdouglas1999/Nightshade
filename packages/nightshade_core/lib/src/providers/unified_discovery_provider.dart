@@ -38,7 +38,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     final backends = _getAvailableBackends();
 
     // Initialize backend states
-    final initialStates = <DriverBackend, BackendDiscoveryState>{};
+    final initialStates = <DriverType, BackendDiscoveryState>{};
     for (final backend in backends) {
       initialStates[backend] = BackendDiscoveryState(
         backend: backend,
@@ -64,8 +64,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Collect all devices
-    final allDevices = <AvailableDevice>[];
-    final updatedStates = <DriverBackend, BackendDiscoveryState>{};
+    final allDevices = <DeviceInfo>[];
+    final updatedStates = <DriverType, BackendDiscoveryState>{};
 
     for (final result in results) {
       updatedStates[result.backend] = BackendDiscoveryState(
@@ -96,14 +96,14 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   ///
   /// Useful for adding servers manually (INDI/Alpaca)
   Future<void> discoverBackend(
-    DriverBackend backend, {
+    DriverType backend, {
     String? host,
     int? port,
   }) async {
     _cancelled = false;
 
     // Update state to show this backend is discovering
-    final currentStates = Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+    final currentStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     currentStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: DiscoveryStatus.discovering,
@@ -116,7 +116,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Update state with results
-    final updatedStates = Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     updatedStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: result.error != null
@@ -128,7 +128,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     );
 
     // Rebuild raw devices from all backends
-    final allDevices = <AvailableDevice>[];
+    final allDevices = <DeviceInfo>[];
     for (final backendState in updatedStates.values) {
       allDevices.addAll(backendState.devices);
     }
@@ -156,7 +156,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     final now = DateTime.now();
     final backends = _getAvailableBackends();
 
-    final staleBackends = <DriverBackend>[];
+    final staleBackends = <DriverType>[];
     for (final backend in backends) {
       final bs = state.backendStates[backend];
       if (bs == null ||
@@ -180,7 +180,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
     // Mark stale backends as discovering
     final currentStates =
-        Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     for (final backend in staleBackends) {
       currentStates[backend] = BackendDiscoveryState(
         backend: backend,
@@ -200,7 +200,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
     // Merge results into existing state
     final updatedStates =
-        Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     for (final result in results) {
       updatedStates[result.backend] = BackendDiscoveryState(
         backend: result.backend,
@@ -214,7 +214,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     }
 
     // Rebuild raw devices from all backends
-    final allDevices = <AvailableDevice>[];
+    final allDevices = <DeviceInfo>[];
     for (final backendState in updatedStates.values) {
       allDevices.addAll(backendState.devices);
     }
@@ -246,21 +246,21 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   }
 
   /// Get list of backends available on this platform
-  List<DriverBackend> _getAvailableBackends() {
-    final backends = <DriverBackend>[
+  List<DriverType> _getAvailableBackends() {
+    final backends = <DriverType>[
       // Simulator always available
-      DriverBackend.simulator,
+      DriverType.simulator,
       // Native always available (may find no devices)
-      DriverBackend.native,
+      DriverType.native,
       // Alpaca available on all platforms
-      DriverBackend.alpaca,
+      DriverType.alpaca,
       // INDI available on all platforms
-      DriverBackend.indi,
+      DriverType.indi,
     ];
 
     // ASCOM only on Windows
     if (Platform.isWindows) {
-      backends.insert(1, DriverBackend.ascom);
+      backends.insert(1, DriverType.ascom);
     }
 
     return backends;
@@ -268,7 +268,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
   /// Discover devices from a specific backend
   Future<_BackendResult> _discoverBackend(
-    DriverBackend backend, {
+    DriverType backend, {
     String? host,
     int? port,
   }) async {
@@ -276,21 +276,21 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
       final deviceService = _ref.read(deviceServiceProvider);
       final settings = await _ref.read(appSettingsProvider.future);
 
-      List<AvailableDevice> devices = [];
+      List<DeviceInfo> devices = [];
 
       switch (backend) {
-        case DriverBackend.ascom:
-        case DriverBackend.native:
-        case DriverBackend.simulator:
+        case DriverType.ascom:
+        case DriverType.native:
+        case DriverType.simulator:
           // Discover all device types in PARALLEL for faster discovery
-          final typeFutures = NightshadeDeviceType.values.map((type) async {
+          final typeFutures = DeviceType.values.map((type) async {
             try {
               final typeDevices = await deviceService.discoverDevices(type);
               // Filter to only include devices from this backend
-              return typeDevices.where((d) => d.backend == backend).toList();
+              return typeDevices.where((d) => d.driverType == backend).toList();
             } catch (e) {
               // Log but continue with other types
-              return <AvailableDevice>[];
+              return <DeviceInfo>[];
             }
           });
           final results = await Future.wait(typeFutures);
@@ -299,7 +299,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           }
           break;
 
-        case DriverBackend.indi:
+        case DriverType.indi:
           final indiHost = host ?? settings.indiServerHost;
           final indiPort = port ?? settings.indiServerPort;
           if (indiHost.isNotEmpty) {
@@ -315,7 +315,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           }
           break;
 
-        case DriverBackend.alpaca:
+        case DriverType.alpaca:
           final alpacaHost = host ?? settings.alpacaServerHost;
           final alpacaPort = port ?? settings.alpacaServerPort;
           if (alpacaHost.isNotEmpty) {
@@ -345,8 +345,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
 /// Internal result class for backend discovery
 class _BackendResult {
-  final DriverBackend backend;
-  final List<AvailableDevice> devices;
+  final DriverType backend;
+  final List<DeviceInfo> devices;
   final String? error;
 
   const _BackendResult({
@@ -363,53 +363,53 @@ class _BackendResult {
 /// Provider for unified cameras (grouped by physical device)
 final unifiedCamerasProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.camera);
+  return discovery.getDevicesByType(DeviceType.camera);
 });
 
 /// Provider for unified mounts
 final unifiedMountsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.mount);
+  return discovery.getDevicesByType(DeviceType.mount);
 });
 
 /// Provider for unified focusers
 final unifiedFocusersProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.focuser);
+  return discovery.getDevicesByType(DeviceType.focuser);
 });
 
 /// Provider for unified filter wheels
 final unifiedFilterWheelsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.filterWheel);
+  return discovery.getDevicesByType(DeviceType.filterWheel);
 });
 
 /// Provider for unified guiders
 final unifiedGuidersProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.guider);
+  return discovery.getDevicesByType(DeviceType.guider);
 });
 
 /// Provider for unified rotators
 final unifiedRotatorsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.rotator);
+  return discovery.getDevicesByType(DeviceType.rotator);
 });
 
 /// Provider for unified domes
 final unifiedDomesProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.dome);
+  return discovery.getDevicesByType(DeviceType.dome);
 });
 
 /// Provider for unified weather stations
 final unifiedWeatherProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.weather);
+  return discovery.getDevicesByType(DeviceType.weather);
 });
 
 /// Provider for unified safety monitors
 final unifiedSafetyMonitorsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(NightshadeDeviceType.safetyMonitor);
+  return discovery.getDevicesByType(DeviceType.safetyMonitor);
 });

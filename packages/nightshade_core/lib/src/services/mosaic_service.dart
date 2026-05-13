@@ -428,8 +428,8 @@ class MosaicService {
         orderIndex: childIds.length - 1,
       );
 
-      // Create target group
-      nodes[targetGroupId] = TargetGroupNode(
+      // Create target header
+      nodes[targetGroupId] = TargetHeaderNode(
         id: targetGroupId,
         name: 'Panel ${panel.panelIndex + 1} [${panel.row},${panel.col}]',
         targetName: '$mosaicName Panel ${panel.panelIndex + 1}',

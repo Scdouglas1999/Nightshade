@@ -65,13 +65,13 @@ class DeviceMatchingService {
   static final RegExp _instancePattern = RegExp(r'[#\(\)]\s*\d+\s*[#\(\)]?$|\s+\d+$');
 
   /// Group raw devices by physical identity
-  List<UnifiedDevice> groupDevices(List<AvailableDevice> allDevices) {
+  List<UnifiedDevice> groupDevices(List<DeviceInfo> allDevices) {
     if (allDevices.isEmpty) return [];
 
     // Group by device type first
-    final byType = <NightshadeDeviceType, List<AvailableDevice>>{};
+    final byType = <DeviceType, List<DeviceInfo>>{};
     for (final device in allDevices) {
-      byType.putIfAbsent(device.type, () => []).add(device);
+      byType.putIfAbsent(device.deviceType, () => []).add(device);
     }
 
     final result = <UnifiedDevice>[];
@@ -91,8 +91,8 @@ class DeviceMatchingService {
         final primaryNormalized = normalizeName(primary.name);
 
         // Start a new group with this device
-        final backends = <DriverBackend, AvailableDevice>{
-          primary.backend: primary,
+        final backends = <DriverType, DeviceInfo>{
+          primary.driverType: primary,
         };
 
         // Find all matching devices
@@ -100,14 +100,14 @@ class DeviceMatchingService {
           if (grouped.contains(j)) continue;
 
           final candidate = devices[j];
-          
+
           // CRITICAL: Never merge devices from the same backend
           // This prevents two identical cameras (e.g., two ASI294MC Pro) from merging
-          if (primary.backend == candidate.backend) continue;
-          
+          if (primary.driverType == candidate.driverType) continue;
+
           // If names are identical but IDs differ, they're separate physical devices
           if (primary.name == candidate.name && primary.id != candidate.id) continue;
-          
+
           final candidateNormalized = normalizeName(candidate.name);
 
           // Check similarity
@@ -115,8 +115,8 @@ class DeviceMatchingService {
 
           if (similarity >= _similarityThreshold) {
             // Same physical device, different backend
-            if (!backends.containsKey(candidate.backend)) {
-              backends[candidate.backend] = candidate;
+            if (!backends.containsKey(candidate.driverType)) {
+              backends[candidate.driverType] = candidate;
               grouped.add(j);
             }
           }
@@ -136,8 +136,8 @@ class DeviceMatchingService {
 
     // Sort by driver priority (native first), then by display name
     result.sort((a, b) {
-      final aHasNative = a.availableBackends.containsKey(DriverBackend.native);
-      final bHasNative = b.availableBackends.containsKey(DriverBackend.native);
+      final aHasNative = a.availableBackends.containsKey(DriverType.native);
+      final bHasNative = b.availableBackends.containsKey(DriverType.native);
       if (aHasNative != bHasNative) {
         return aHasNative ? -1 : 1;
       }
@@ -266,7 +266,7 @@ class DeviceMatchingService {
 
   /// Select the best display name from a list of devices
   /// Prefers more complete/descriptive names
-  String _selectBestDisplayName(List<AvailableDevice> devices) {
+  String _selectBestDisplayName(List<DeviceInfo> devices) {
     if (devices.isEmpty) return 'Unknown Device';
     if (devices.length == 1) return devices.first.name;
 

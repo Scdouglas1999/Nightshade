@@ -1315,7 +1315,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   void reorderTargets(int oldIndex, int newIndex) {
     if (state == null) return;
 
-    final targets = state!.targetGroups;
+    final targets = state!.targetHeaders;
     if (oldIndex < 0 || oldIndex >= targets.length) return;
 
     // Handle flutter reorder index adjustment
@@ -2243,11 +2243,11 @@ class SequenceExecutor {
     await sessionNotifier.startSession(
       targetName: sequence.name,
       // Use first target coordinates if available
-      targetRa: sequence.targetGroups.isNotEmpty
-          ? sequence.targetGroups.first.raHours
+      targetRa: sequence.targetHeaders.isNotEmpty
+          ? sequence.targetHeaders.first.raHours
           : null,
-      targetDec: sequence.targetGroups.isNotEmpty
-          ? sequence.targetGroups.first.decDegrees
+      targetDec: sequence.targetHeaders.isNotEmpty
+          ? sequence.targetHeaders.first.decDegrees
           : null,
     );
     sessionNotifier.setTotalExposures(sequence.totalExposures);

@@ -348,9 +348,6 @@ class _HangingPlugin implements NightshadePlugin {
   String? get minAppVersion => null;
 
   @override
-  Future<void> initialize() async {}
-
-  @override
   Future<void> onDisable() async {}
 
   @override
@@ -363,7 +360,4 @@ class _HangingPlugin implements NightshadePlugin {
 
   @override
   Future<void> onUnload() async {}
-
-  @override
-  Future<void> dispose() async {}
 }

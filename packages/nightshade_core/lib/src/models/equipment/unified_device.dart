@@ -2,12 +2,12 @@ import 'package:equatable/equatable.dart';
 import '../../services/device_service.dart';
 
 /// Priority order for driver backends (lower = higher priority)
-const Map<DriverBackend, int> _backendPriority = {
-  DriverBackend.native: 0,
-  DriverBackend.ascom: 1,
-  DriverBackend.alpaca: 2,
-  DriverBackend.indi: 3,
-  DriverBackend.simulator: 4,
+const Map<DriverType, int> _backendPriority = {
+  DriverType.native: 0,
+  DriverType.ascom: 1,
+  DriverType.alpaca: 2,
+  DriverType.indi: 3,
+  DriverType.simulator: 4,
 };
 
 /// Represents a single physical device that may be available through multiple backends.
@@ -28,13 +28,13 @@ class UnifiedDevice extends Equatable {
   final String displayName;
 
   /// Device type (camera, mount, focuser, etc.)
-  final NightshadeDeviceType type;
+  final DeviceType type;
 
   /// Map of backend -> device info for all available backends
-  final Map<DriverBackend, AvailableDevice> availableBackends;
+  final Map<DriverType, DeviceInfo> availableBackends;
 
   /// The currently selected backend (user choice, or null for default)
-  final DriverBackend? selectedBackend;
+  final DriverType? selectedBackend;
 
   const UnifiedDevice({
     required this.canonicalName,
@@ -46,14 +46,14 @@ class UnifiedDevice extends Equatable {
 
   /// The recommended backend based on static priority (Native > ASCOM > Alpaca > INDI > Simulator)
   /// For capability-aware selection, use [recommendedBackendForCapabilities] instead.
-  DriverBackend get recommendedBackend {
+  DriverType get recommendedBackend {
     if (availableBackends.isEmpty) {
       throw StateError(
         'UnifiedDevice "$displayName" has no available backends',
       );
     }
 
-    DriverBackend best = availableBackends.keys.first;
+    DriverType best = availableBackends.keys.first;
     int bestPriority = _backendPriority[best] ?? 99;
 
     for (final backend in availableBackends.keys) {
@@ -75,7 +75,7 @@ class UnifiedDevice extends Equatable {
   /// - [requireFullFeatureSet]: Prefer backends with complete feature support (Native, ASCOM)
   ///
   /// Falls back to [recommendedBackend] if no backends match the requirements.
-  DriverBackend recommendedBackendForCapabilities({
+  DriverType recommendedBackendForCapabilities({
     bool requireRemoteOperation = false,
     bool preferLinuxCompatible = false,
     bool requireFullFeatureSet = false,
@@ -87,7 +87,7 @@ class UnifiedDevice extends Equatable {
     }
 
     // Score each backend based on requirements
-    final scoredBackends = <DriverBackend, int>{};
+    final scoredBackends = <DriverType, int>{};
 
     for (final backend in availableBackends.keys) {
       int score = 100 -
@@ -95,7 +95,7 @@ class UnifiedDevice extends Equatable {
 
       // Remote operation capability (Alpaca and INDI support remote)
       if (requireRemoteOperation) {
-        if (backend == DriverBackend.alpaca || backend == DriverBackend.indi) {
+        if (backend == DriverType.alpaca || backend == DriverType.indi) {
           score += 50; // Strongly prefer remote-capable
         } else {
           score -= 100; // Heavily penalize non-remote backends
@@ -105,15 +105,15 @@ class UnifiedDevice extends Equatable {
       // Linux/cross-platform compatibility
       if (preferLinuxCompatible) {
         switch (backend) {
-          case DriverBackend.ascom:
+          case DriverType.ascom:
             score -= 30; // ASCOM is Windows-only
             break;
-          case DriverBackend.indi:
-          case DriverBackend.native:
-          case DriverBackend.alpaca:
+          case DriverType.indi:
+          case DriverType.native:
+          case DriverType.alpaca:
             score += 20; // Cross-platform friendly
             break;
-          case DriverBackend.simulator:
+          case DriverType.simulator:
             score += 10; // Simulator works everywhere
             break;
         }
@@ -122,19 +122,19 @@ class UnifiedDevice extends Equatable {
       // Full feature set (Native and ASCOM typically have best feature support)
       if (requireFullFeatureSet) {
         switch (backend) {
-          case DriverBackend.native:
+          case DriverType.native:
             score += 30; // Native SDK usually has all features
             break;
-          case DriverBackend.ascom:
+          case DriverType.ascom:
             score += 25; // ASCOM also comprehensive
             break;
-          case DriverBackend.alpaca:
+          case DriverType.alpaca:
             score += 15; // Alpaca mirrors ASCOM
             break;
-          case DriverBackend.indi:
+          case DriverType.indi:
             score += 10; // INDI varies by driver
             break;
-          case DriverBackend.simulator:
+          case DriverType.simulator:
             score += 5; // Simulator has limited features
             break;
         }
@@ -144,7 +144,7 @@ class UnifiedDevice extends Equatable {
     }
 
     // Find the highest scoring backend
-    DriverBackend best = availableBackends.keys.first;
+    DriverType best = availableBackends.keys.first;
     int bestScore = scoredBackends[best] ?? 0;
 
     for (final entry in scoredBackends.entries) {
@@ -159,7 +159,7 @@ class UnifiedDevice extends Equatable {
 
   /// Get backends sorted by capability score for a given set of requirements.
   /// Useful for UI to show users ranked backend options.
-  List<DriverBackend> getSortedBackendsForCapabilities({
+  List<DriverType> getSortedBackendsForCapabilities({
     bool requireRemoteOperation = false,
     bool preferLinuxCompatible = false,
     bool requireFullFeatureSet = false,
@@ -178,7 +178,7 @@ class UnifiedDevice extends Equatable {
   }
 
   int _getCapabilityScore(
-    DriverBackend backend,
+    DriverType backend,
     bool requireRemote,
     bool preferLinux,
     bool requireFeatures,
@@ -187,17 +187,17 @@ class UnifiedDevice extends Equatable {
 
     if (requireRemote) {
       score +=
-          (backend == DriverBackend.alpaca || backend == DriverBackend.indi)
+          (backend == DriverType.alpaca || backend == DriverType.indi)
               ? 50
               : -100;
     }
     if (preferLinux) {
-      score += backend == DriverBackend.ascom ? -30 : 20;
+      score += backend == DriverType.ascom ? -30 : 20;
     }
     if (requireFeatures) {
-      score += backend == DriverBackend.native
+      score += backend == DriverType.native
           ? 30
-          : backend == DriverBackend.ascom
+          : backend == DriverType.ascom
               ? 25
               : 10;
     }
@@ -205,24 +205,24 @@ class UnifiedDevice extends Equatable {
   }
 
   /// The active backend (selected by user, or recommended if not selected)
-  DriverBackend get activeBackend => selectedBackend ?? recommendedBackend;
+  DriverType get activeBackend => selectedBackend ?? recommendedBackend;
 
   /// Get the device ID for the active backend
   String get activeDeviceId => availableBackends[activeBackend]!.id;
 
-  /// Get the AvailableDevice for the active backend
-  AvailableDevice get activeDevice => availableBackends[activeBackend]!;
+  /// Get the DeviceInfo for the active backend
+  DeviceInfo get activeDevice => availableBackends[activeBackend]!;
 
   /// Check if a specific backend is available for this device
-  bool hasBackend(DriverBackend backend) =>
+  bool hasBackend(DriverType backend) =>
       availableBackends.containsKey(backend);
 
   /// Get the device ID for a specific backend (null if not available)
-  String? getDeviceIdForBackend(DriverBackend backend) =>
+  String? getDeviceIdForBackend(DriverType backend) =>
       availableBackends[backend]?.id;
 
   /// List of all available backends, sorted by priority
-  List<DriverBackend> get sortedBackends {
+  List<DriverType> get sortedBackends {
     final backends = availableBackends.keys.toList();
     backends.sort((a, b) =>
         (_backendPriority[a] ?? 99).compareTo(_backendPriority[b] ?? 99));
@@ -230,7 +230,7 @@ class UnifiedDevice extends Equatable {
   }
 
   /// Create a copy with a different selected backend
-  UnifiedDevice withSelectedBackend(DriverBackend? backend) {
+  UnifiedDevice withSelectedBackend(DriverType? backend) {
     return UnifiedDevice(
       canonicalName: canonicalName,
       displayName: displayName,
@@ -241,7 +241,7 @@ class UnifiedDevice extends Equatable {
   }
 
   /// Add a backend to this unified device
-  UnifiedDevice withBackend(DriverBackend backend, AvailableDevice device) {
+  UnifiedDevice withBackend(DriverType backend, DeviceInfo device) {
     return UnifiedDevice(
       canonicalName: canonicalName,
       displayName: displayName,
@@ -266,19 +266,19 @@ class UnifiedDevice extends Equatable {
 }
 
 /// Extension to get human-readable backend descriptions
-extension DriverBackendDescription on DriverBackend {
+extension DriverTypeDescription on DriverType {
   /// Get a description of this backend for tooltips
   String get description {
     switch (this) {
-      case DriverBackend.native:
+      case DriverType.native:
         return 'Direct SDK connection where the release includes the required vendor library';
-      case DriverBackend.ascom:
+      case DriverType.ascom:
         return 'Windows-only ASCOM COM driver. Use Alpaca for cross-platform ASCOM devices.';
-      case DriverBackend.alpaca:
+      case DriverType.alpaca:
         return 'ASCOM Alpaca over network. Device capabilities are reported by the Alpaca server.';
-      case DriverBackend.indi:
+      case DriverType.indi:
         return 'INDI protocol through a reachable INDI server. Feature support depends on the driver.';
-      case DriverBackend.simulator:
+      case DriverType.simulator:
         return 'Simulated device where that workflow is enabled for testing';
     }
   }
@@ -286,15 +286,15 @@ extension DriverBackendDescription on DriverBackend {
   /// Get a short label for chips
   String get shortLabel {
     switch (this) {
-      case DriverBackend.native:
+      case DriverType.native:
         return 'Native';
-      case DriverBackend.ascom:
+      case DriverType.ascom:
         return 'ASCOM COM';
-      case DriverBackend.alpaca:
+      case DriverType.alpaca:
         return 'Alpaca';
-      case DriverBackend.indi:
+      case DriverType.indi:
         return 'INDI';
-      case DriverBackend.simulator:
+      case DriverType.simulator:
         return 'Sim';
     }
   }
