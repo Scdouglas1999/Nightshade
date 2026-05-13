@@ -117,7 +117,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
             'queue and it picks which target to image next based on '
             'altitude, moon separation, time remaining tonight, and your '
             'integration goals.',
-        targetKey: () => TutorialKeys.navPlanner,
+        targetKey: () => TutorialKeys.navScheduler,
       ),
       OnboardingStep(
         id: 'plate_solving',

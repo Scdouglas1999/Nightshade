@@ -48,7 +48,7 @@ class TutorialKeys {
   static final navAnalytics = GlobalKey(debugLabel: 'nav_analytics');
   static final navWeather = GlobalKey(debugLabel: 'nav_weather');
   static final navPlanner = GlobalKey(debugLabel: 'nav_planner');
-  static final navDiagnostics = GlobalKey(debugLabel: 'nav_diagnostics');
+  static final navScheduler = GlobalKey(debugLabel: 'nav_scheduler');
   static final navSettings = GlobalKey(debugLabel: 'nav_settings');
   static final navPolarAlignment = GlobalKey(debugLabel: 'nav_polar_alignment');
 

@@ -457,11 +457,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navFlatWizard,
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
-                            // Scheduler tab has no tutorial key yet.
                             // Diagnostics moved into Analytics as a tab
                             // (§UX consolidation), so its top-level nav slot
                             // (and tutorial key) are no longer wired here.
-                            null,
+                            TutorialKeys.navScheduler,
                           ],
                           currentIndex: currentIndex,
                           onTabSelected: (index) =>
