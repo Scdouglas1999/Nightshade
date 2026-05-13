@@ -26,15 +26,25 @@ class ImportSequenceFlow {
   /// and/or loaded into the editor), `false` if the user cancelled or an
   /// error occurred.
   static Future<bool> run(BuildContext context, WidgetRef ref) async {
-    final file = await file_selector.openFile(
-      acceptedTypeGroups: const [
-        file_selector.XTypeGroup(
-          label: 'NINA / SGP sequence',
-          extensions: ['json', 'sgf'],
-        ),
-      ],
-    );
-    if (file == null) return false;
+    // Loop until the user either picks a file or explicitly cancels via the
+    // "No file selected" prompt — silently aborting on first dismissal made
+    // it look like the menu item was broken.
+    file_selector.XFile? file;
+    while (file == null) {
+      file = await file_selector.openFile(
+        acceptedTypeGroups: const [
+          file_selector.XTypeGroup(
+            label: 'NINA / SGP sequence',
+            extensions: ['json', 'sgf'],
+          ),
+        ],
+      );
+      if (file != null) break;
+      if (!context.mounted) return false;
+      final retry = await _promptNoFileSelected(context);
+      if (retry != true) return false;
+      if (!context.mounted) return false;
+    }
 
     final content = await File(file.path).readAsString();
     final importer = ref.read(sequenceImporterProvider);
@@ -135,6 +145,76 @@ class ImportSequenceFlow {
         return null;
       }
     }
+  }
+
+  /// Shown after the user dismisses the file picker without selecting a
+  /// file. Returns `true` if the user wants to reopen the picker, `false`
+  /// if they want to cancel the import entirely.
+  static Future<bool?> _promptNoFileSelected(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(LucideIcons.fileX,
+                        size: 18, color: colors.warning),
+                    const SizedBox(width: 8),
+                    Text(
+                      'No file selected',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose a NINA .json or SGP .sgf export to import.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    NightshadeButton(
+                      label: 'Cancel',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                    ),
+                    const SizedBox(width: 8),
+                    NightshadeButton(
+                      label: 'Pick a file',
+                      icon: LucideIcons.folderOpen,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   static String _basename(String path) {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/snackbar_helper.dart';
 import 'widgets/settings_widgets.dart';
@@ -188,6 +189,21 @@ class _PlateSolvingSettingsScreenState
           astapVerifyInfo: uiState.astapVerifyInfo,
           astapVerifyError: uiState.astapVerifyError,
         ),
+        if (!detection.hasAnySolver) ...[
+          const SizedBox(height: 16),
+          _NoSolverQuickStart(
+            colors: colors,
+            onRescan: uiState.savingPreference ? null : _rescan,
+            isRescanning: uiState.savingPreference,
+          ),
+        ] else if (detection.astapPath != null && !detection.astapReady) ...[
+          const SizedBox(height: 12),
+          _CatalogMissingHint(
+            colors: colors,
+            preference: preference,
+            onBrowseCatalog: () => _browseAstapCatalogDirectory(preference),
+          ),
+        ],
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
@@ -401,6 +417,275 @@ class _PlateSolvingSettingsScreenState
       return 'OK — ${info.flavour}: ${info.versionLine}';
     }
     return 'Run --help against $target to confirm the binary is healthy.';
+  }
+}
+
+/// Three-step quick-start visual shown beneath the detection banner when
+/// no plate solver is installed yet. Walks the user from "install ASTAP"
+/// to "download a catalog" to "re-scan".
+class _NoSolverQuickStart extends StatelessWidget {
+  static const String _astapDownloadUrl = 'https://www.hnsky.org/astap.htm';
+
+  final NightshadeColors colors;
+  final VoidCallback? onRescan;
+  final bool isRescanning;
+
+  const _NoSolverQuickStart({
+    required this.colors,
+    required this.onRescan,
+    required this.isRescanning,
+  });
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Get started in 3 steps',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Nightshade needs a plate solver to centre targets, verify '
+            'framing, and run polar alignment. Follow these steps, then '
+            'click Re-scan to detect the install.',
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          _QuickStartStep(
+            colors: colors,
+            stepNumber: 1,
+            title: 'Install ASTAP',
+            body: 'ASTAP is fast, free, and works fully offline. Click '
+                'below to open the download page.',
+            icon: LucideIcons.download,
+            action: NightshadeButton(
+              label: 'Open ASTAP download page',
+              icon: LucideIcons.externalLink,
+              size: ButtonSize.small,
+              variant: ButtonVariant.outline,
+              onPressed: () => _openUrl(_astapDownloadUrl),
+            ),
+            onTap: () => _openUrl(_astapDownloadUrl),
+          ),
+          const SizedBox(height: 10),
+          _QuickStartStep(
+            colors: colors,
+            stepNumber: 2,
+            title: 'Download a star catalog',
+            body: 'Grab a catalog from the same page. V17 is recommended '
+                'for almost all setups — it covers stars down to mag 17 '
+                'and works across the full sky. Drop the catalog next to '
+                'astap.exe, or into the folder you will point Nightshade '
+                'at below.',
+            icon: LucideIcons.database,
+            action: NightshadeButton(
+              label: 'Open ASTAP catalog page',
+              icon: LucideIcons.externalLink,
+              size: ButtonSize.small,
+              variant: ButtonVariant.outline,
+              onPressed: () => _openUrl(_astapDownloadUrl),
+            ),
+            onTap: () => _openUrl(_astapDownloadUrl),
+          ),
+          const SizedBox(height: 10),
+          _QuickStartStep(
+            colors: colors,
+            stepNumber: 3,
+            title: 'Click Re-scan',
+            body: 'Once ASTAP and the catalog are installed, click Re-scan '
+                'so Nightshade picks them up.',
+            icon: LucideIcons.refreshCw,
+            action: NightshadeButton(
+              label: isRescanning ? 'Re-scanning…' : 'Re-scan now',
+              icon: LucideIcons.refreshCw,
+              size: ButtonSize.small,
+              isLoading: isRescanning,
+              onPressed: onRescan,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickStartStep extends StatelessWidget {
+  final NightshadeColors colors;
+  final int stepNumber;
+  final String title;
+  final String body;
+  final IconData icon;
+  final Widget action;
+
+  /// Optional tap target for the whole card; used by step 1 / step 2 so the
+  /// whole row navigates to the install page, matching the "clickable card"
+  /// behaviour called out in the spec.
+  final VoidCallback? onTap;
+
+  const _QuickStartStep({
+    required this.colors,
+    required this.stepNumber,
+    required this.title,
+    required this.body,
+    required this.icon,
+    required this.action,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: colors.primary.withValues(alpha: 0.45),
+              ),
+            ),
+            child: Text(
+              '$stepNumber',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: colors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 14, color: colors.textSecondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                action,
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return card;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: card,
+    );
+  }
+}
+
+/// Inline hint shown above the ASTAP settings section when ASTAP is
+/// detected but no star catalog is found. The directory probed by
+/// Nightshade is surfaced verbatim alongside a one-click browse button
+/// so the user can point the app at the catalog they already have.
+class _CatalogMissingHint extends StatelessWidget {
+  final NightshadeColors colors;
+  final PlateSolverPreference preference;
+  final VoidCallback onBrowseCatalog;
+
+  const _CatalogMissingHint({
+    required this.colors,
+    required this.preference,
+    required this.onBrowseCatalog,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final probed = preference.catalogPath.isNotEmpty
+        ? preference.catalogPath
+        : 'the directory containing astap.exe';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(LucideIcons.folderSearch, size: 16, color: colors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Searching for catalogs in $probed. If your catalog lives '
+              'somewhere else, point Nightshade at it now.',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          NightshadeButton(
+            label: 'Browse for catalog directory',
+            icon: LucideIcons.folderOpen,
+            size: ButtonSize.small,
+            variant: ButtonVariant.outline,
+            onPressed: onBrowseCatalog,
+          ),
+        ],
+      ),
+    );
   }
 }
 

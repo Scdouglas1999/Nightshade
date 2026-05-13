@@ -1,9 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/screens/imaging/widgets/calibration_section.dart';
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+/// Build a GoRouter that hosts the calibration section so the
+/// "Go to Equipment" button has a real `/equipment` route to navigate to
+/// when tapped.
+GoRouter _buildRouter() {
+  return GoRouter(
+    initialLocation: '/imaging',
+    routes: [
+      GoRoute(
+        path: '/imaging',
+        builder: (context, state) {
+          final colors = Theme.of(context).extension<NightshadeColors>()!;
+          return Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: CalibrationSection(colors: colors),
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/equipment',
+        builder: (_, __) =>
+            const Scaffold(body: Text('equipment stub for test')),
+      ),
+    ],
+  );
+}
 
 void main() {
   testWidgets(
@@ -18,20 +48,9 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          child: MaterialApp(
+          child: MaterialApp.router(
             theme: NightshadeTheme.dark,
-            home: Builder(
-              builder: (context) {
-                final colors =
-                    Theme.of(context).extension<NightshadeColors>()!;
-                return Scaffold(
-                  body: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: CalibrationSection(colors: colors),
-                  ),
-                );
-              },
-            ),
+            routerConfig: _buildRouter(),
           ),
         ),
       );
@@ -89,6 +108,147 @@ void main() {
         reason:
             'Each disabled control must surface a Tooltip explaining why it '
             'is disabled.',
+      );
+
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'CalibrationSection surfaces a "Go to Equipment" button when no camera '
+    'is connected',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(900, 1200);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp.router(
+            theme: NightshadeTheme.dark,
+            routerConfig: _buildRouter(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.widgetWithText(NightshadeButton, 'Go to Equipment'),
+        findsOneWidget,
+        reason: 'No-camera empty state must expose a one-click escape '
+            'into the Equipment screen.',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'CalibrationSection offers the "Use {nearest}°C map" chip when a '
+    'different temperature bucket has a stored map',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(900, 1200);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const cameraId = 'native:zwo:ASI2600MC';
+      const cameraName = 'ZWO ASI2600MC';
+      const sensorWidth = 6248;
+      const sensorHeight = 4176;
+      const currentTempC = -10.0;
+      const alternateBucketC = -15.0;
+
+      DefectMapStatus? fakeStatusFor(DefectMapQuery query) {
+        final bucket = DefectMapTemperatureBucket.fromCelsius(
+            query.sensorTemperatureCelsius);
+        // Only the -15C bucket has a stored map. The current -10C bucket
+        // returns null, which is what triggers the alternate-bucket chip.
+        if (bucket ==
+            DefectMapTemperatureBucket.fromCelsius(alternateBucketC)) {
+          return DefectMapStatus(
+            cameraId: cameraId,
+            width: sensorWidth,
+            height: sensorHeight,
+            temperatureBucket: bucket,
+            defectivePixelCount: 1243,
+            lastRebuiltUnixSeconds:
+                DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000,
+            applyDuringCapture: false,
+            storedOnDisk: true,
+          );
+        }
+        return null;
+      }
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            cameraStateProvider.overrideWith((ref) {
+              final notifier = CameraStateNotifier(ref);
+              notifier
+                ..setConnecting(cameraId, cameraName)
+                ..setConnected()
+                ..updateTemperature(currentTempC, 0.65);
+              return notifier;
+            }),
+            cameraCapabilitiesProvider(cameraId).overrideWith(
+              (ref) async => const CameraCapabilities(
+                maxWidth: sensorWidth,
+                maxHeight: sensorHeight,
+                bitDepth: 16,
+                canSetCcdTemperature: true,
+                canSetCooler: true,
+                canGetCoolerPower: true,
+                pixelSizeX: 3.76,
+                pixelSizeY: 3.76,
+                bayerPattern: 'RGGB',
+              ),
+            ),
+            defectMapStatusProvider.overrideWith((ref, query) async {
+              return fakeStatusFor(query);
+            }),
+          ],
+          child: MaterialApp.router(
+            theme: NightshadeTheme.dark,
+            routerConfig: _buildRouter(),
+          ),
+        ),
+      );
+
+      // Allow the FutureProviders (capabilities + alternate-bucket probes)
+      // to resolve. The widget probes outward from the current bucket so
+      // multiple frames may be needed before the chip appears.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(
+        find.textContaining('No defect map for $cameraName at -10.0C'),
+        findsOneWidget,
+        reason:
+            'Empty-state copy should name the connected camera and the '
+            'current temperature bucket.',
+      );
+      expect(
+        find.textContaining(
+            'Capture 20+ dark frames at this temperature'),
+        findsOneWidget,
+        reason: 'Build-from-darks hint must be visible.',
+      );
+      expect(
+        find.textContaining('A map exists for -15.0C'),
+        findsOneWidget,
+        reason: 'Alternate-bucket chip must call out the existing bucket.',
+      );
+      expect(
+        find.widgetWithText(NightshadeButton, 'Use -15.0C map'),
+        findsOneWidget,
+        reason: 'A one-click button must accept the alternate map.',
       );
 
       expect(tester.takeException(), isNull);

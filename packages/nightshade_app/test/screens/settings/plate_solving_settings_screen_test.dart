@@ -10,8 +10,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/settings/plate_solving_settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/solver_detection_card.dart';
+// SolverDetectionCard imports the model leaf directly to avoid a circular
+// dependency on the core barrel; the screen-level tests below need the
+// detection / preference providers, so they reach in through the barrel.
 import 'package:nightshade_core/src/models/plate_solver.dart';
+import 'package:nightshade_core/src/providers/plate_solver_provider.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 Future<void> _pumpCard(
@@ -171,6 +176,115 @@ void main() {
         reason: 'Verify error must render verbatim so user can diagnose',
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('PlateSolvingSettingsScreen empty states', () {
+    testWidgets(
+        'renders the 3-step quick-start beneath the banner when no solver '
+        'is detected', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1280, 1400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            plateSolverDetectionProvider.overrideWith(
+              (ref) async => const PlateSolverDetection(),
+            ),
+            plateSolverPreferenceProvider.overrideWith(
+              (ref) async => const PlateSolverPreference(),
+            ),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const PlateSolvingSettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      // Settle the FutureProviders that the screen awaits.
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // The detection card itself surfaces "ASTAP not installed".
+      expect(
+        find.textContaining('ASTAP not installed'),
+        findsOneWidget,
+        reason: 'Detection banner still surfaces the missing-solver title',
+      );
+
+      // The new quick-start panel adds the three guided steps.
+      expect(find.text('Get started in 3 steps'), findsOneWidget);
+      expect(find.text('Install ASTAP'), findsOneWidget);
+      expect(find.text('Download a star catalog'), findsOneWidget);
+      expect(find.text('Click Re-scan'), findsOneWidget);
+      expect(find.textContaining('V17 is recommended'), findsOneWidget);
+
+      // Each step also exposes its own action button.
+      expect(
+        find.widgetWithText(NightshadeButton, 'Open ASTAP download page'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(NightshadeButton, 'Open ASTAP catalog page'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(NightshadeButton, 'Re-scan now'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'shows the catalog-missing hint with a "Browse for catalog '
+        'directory" button when ASTAP is detected but no catalog',
+        (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1280, 1400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            plateSolverDetectionProvider.overrideWith(
+              (ref) async => const PlateSolverDetection(
+                astapPath: r'C:\Program Files\astap\astap.exe',
+              ),
+            ),
+            plateSolverPreferenceProvider.overrideWith(
+              (ref) async => const PlateSolverPreference(
+                catalogPath: r'C:\Program Files\astap',
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const PlateSolvingSettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.textContaining(r'Searching for catalogs in C:\Program Files'),
+        findsOneWidget,
+        reason: 'Catalog hint must name the directory being probed',
+      );
+      expect(
+        find.widgetWithText(
+            NightshadeButton, 'Browse for catalog directory'),
+        findsOneWidget,
+      );
+      // The three-step quick-start must NOT render when ASTAP is detected.
+      expect(find.text('Get started in 3 steps'), findsNothing);
     });
   });
 

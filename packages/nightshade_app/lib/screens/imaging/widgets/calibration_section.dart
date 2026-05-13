@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -31,6 +32,7 @@ class CalibrationSection extends ConsumerWidget {
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
     final cameraId = cameraState.deviceId;
+    final cameraName = cameraState.deviceName ?? cameraId;
     final temperatureC = cameraState.temperature;
 
     final capabilitiesAsync =
@@ -52,6 +54,8 @@ class CalibrationSection extends ConsumerWidget {
       temperatureC: temperatureC,
     );
     final controlsEnabled = disabledReason == null;
+    final noCameraConnected =
+        !isConnected || cameraId == null || cameraId.isEmpty;
 
     return PanelSection(
       title: 'Image Calibration',
@@ -62,11 +66,24 @@ class CalibrationSection extends ConsumerWidget {
           _StatusBlock(
             colors: colors,
             cameraId: cameraId,
+            cameraName: cameraName,
             sensorWidth: sensorWidth,
             sensorHeight: sensorHeight,
             temperatureC: temperatureC,
             disabledReason: disabledReason,
           ),
+          if (noCameraConnected) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                label: 'Go to Equipment',
+                icon: LucideIcons.plug,
+                size: ButtonSize.small,
+                onPressed: () => context.go('/equipment'),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           _BuildButton(
             colors: colors,
@@ -124,6 +141,7 @@ class CalibrationSection extends ConsumerWidget {
 class _StatusBlock extends ConsumerWidget {
   final NightshadeColors colors;
   final String? cameraId;
+  final String? cameraName;
   final int sensorWidth;
   final int sensorHeight;
   final double? temperatureC;
@@ -132,6 +150,7 @@ class _StatusBlock extends ConsumerWidget {
   const _StatusBlock({
     required this.colors,
     required this.cameraId,
+    required this.cameraName,
     required this.sensorWidth,
     required this.sensorHeight,
     required this.temperatureC,
@@ -161,13 +180,13 @@ class _StatusBlock extends ConsumerWidget {
     return statusAsync.when(
       data: (status) {
         if (status == null) {
-          final bucket =
-              DefectMapTemperatureBucket.fromCelsius(temperatureC!).label;
-          return _StatusLine(
+          return _NoMapForBucketBlock(
             colors: colors,
-            icon: LucideIcons.info,
-            iconColor: colors.textSecondary,
-            message: 'No defect map for this camera at $bucket.',
+            cameraId: cameraId!,
+            cameraName: cameraName ?? cameraId!,
+            sensorWidth: sensorWidth,
+            sensorHeight: sensorHeight,
+            currentTemperatureC: temperatureC!,
           );
         }
         final pixels = _formatThousands(status.defectivePixelCount);
@@ -191,6 +210,193 @@ class _StatusBlock extends ConsumerWidget {
         icon: LucideIcons.alertTriangle,
         iconColor: colors.error,
         message: 'Failed to load defect map status: $err',
+      ),
+    );
+  }
+}
+
+/// Empty-state block shown when no defect map exists for the current
+/// (camera, sensor, temperature bucket) tuple. Falls back to scanning
+/// neighbouring temperature buckets so the user is offered the nearest
+/// existing map as a one-click alternative — this covers the common
+/// case where the cooler set-point drifted by 5C from the temperature
+/// the user originally captured darks at.
+class _NoMapForBucketBlock extends ConsumerWidget {
+  /// Range of buckets to probe around the current temperature when
+  /// looking for an existing map at a neighbouring set-point. 9 buckets
+  /// at 5C each spans 40C of cooler range, which covers everything from
+  /// a -25C uncooled CMOS at one extreme to a TEC running at +15C on a
+  /// hot night at the other.
+  static const int _maxBucketOffsetSteps = 9;
+  static const double _bucketStepCelsius = 5.0;
+
+  final NightshadeColors colors;
+  final String cameraId;
+  final String cameraName;
+  final int sensorWidth;
+  final int sensorHeight;
+  final double currentTemperatureC;
+
+  const _NoMapForBucketBlock({
+    required this.colors,
+    required this.cameraId,
+    required this.cameraName,
+    required this.sensorWidth,
+    required this.sensorHeight,
+    required this.currentTemperatureC,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentBucket =
+        DefectMapTemperatureBucket.fromCelsius(currentTemperatureC);
+    final fallback = _findNearestExistingBucket(ref, currentBucket);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _StatusLine(
+          colors: colors,
+          icon: LucideIcons.info,
+          iconColor: colors.textSecondary,
+          message: 'No defect map for $cameraName at ${currentBucket.label}.',
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Capture 20+ dark frames at this temperature, then click Build '
+          'to generate one.',
+          style: TextStyle(
+            fontSize: 11,
+            color: colors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        if (fallback != null) ...[
+          const SizedBox(height: 10),
+          _AlternateBucketChip(
+            colors: colors,
+            cameraId: cameraId,
+            sensorWidth: sensorWidth,
+            sensorHeight: sensorHeight,
+            currentBucket: currentBucket,
+            alternateBucket: fallback,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Probe neighbouring temperature buckets (alternating outward from the
+  /// current bucket) and return the closest one that has a stored map.
+  /// Returns null if no map exists anywhere within the probed range.
+  ///
+  /// Implementation note: this synchronously reads cached
+  /// `defectMapStatusProvider` values for each probed bucket. Riverpod's
+  /// FutureProvider.family lazily computes on read and the widget rebuilds
+  /// when each future resolves, so the first frame may show no fallback
+  /// and a follow-up frame may surface one once the probes complete.
+  DefectMapTemperatureBucket? _findNearestExistingBucket(
+    WidgetRef ref,
+    DefectMapTemperatureBucket currentBucket,
+  ) {
+    for (var step = 1; step <= _maxBucketOffsetSteps; step++) {
+      for (final sign in const [-1, 1]) {
+        final candidateCelsius =
+            currentBucket.celsius + (sign * step * _bucketStepCelsius);
+        final status = ref.watch(defectMapStatusProvider(
+          DefectMapQuery(
+            cameraId: cameraId,
+            width: sensorWidth,
+            height: sensorHeight,
+            sensorTemperatureCelsius: candidateCelsius,
+          ),
+        ));
+        final existing = status.valueOrNull;
+        if (existing != null && existing.storedOnDisk) {
+          return existing.temperatureBucket;
+        }
+      }
+    }
+    return null;
+  }
+}
+
+class _AlternateBucketChip extends ConsumerWidget {
+  final NightshadeColors colors;
+  final String cameraId;
+  final int sensorWidth;
+  final int sensorHeight;
+  final DefectMapTemperatureBucket currentBucket;
+  final DefectMapTemperatureBucket alternateBucket;
+
+  const _AlternateBucketChip({
+    required this.colors,
+    required this.cameraId,
+    required this.sensorWidth,
+    required this.sensorHeight,
+    required this.currentBucket,
+    required this.alternateBucket,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final delta =
+        (alternateBucket.celsius - currentBucket.celsius).toStringAsFixed(0);
+    final signedDelta = alternateBucket.celsius >= currentBucket.celsius
+        ? '+$delta'
+        : delta;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(LucideIcons.thermometer, size: 14, color: colors.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'A map exists for ${alternateBucket.label} ($signedDelta C '
+              'from current).',
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.textPrimary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          NightshadeButton(
+            label: 'Use ${alternateBucket.label} map',
+            icon: LucideIcons.check,
+            size: ButtonSize.small,
+            variant: ButtonVariant.outline,
+            onPressed: () async {
+              final notifier = ref.read(defectMapNotifierProvider.notifier);
+              // Enable the existing alternate-bucket map for capture-time
+              // application. The notifier scopes the apply flag to the
+              // camera id, not the bucket, so this is exactly the same
+              // call the user would have flipped via the Apply switch.
+              await notifier.setApplyDuringCapture(
+                cameraId: cameraId,
+                apply: true,
+              );
+              if (!context.mounted) return;
+              final state = ref.read(defectMapNotifierProvider);
+              if (state.errorMessage != null) {
+                context.showErrorSnackBar(state.errorMessage!);
+              } else {
+                context.showSuccessSnackBar(
+                  'Using ${alternateBucket.label} defect map for this '
+                  'camera until you build one at ${currentBucket.label}.',
+                );
+              }
+            },
+          ),
+        ],
       ),
     );
   }

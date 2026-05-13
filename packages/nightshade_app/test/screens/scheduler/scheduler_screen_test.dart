@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:nightshade_app/screens/scheduler/scheduler_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -141,7 +142,8 @@ void main() {
 
     // Three control buttons should be present in idle state: Start +
     // Re-evaluate (Pause/Resume/Stop hidden while idle).
-    expect(find.widgetWithText(NightshadeButton, 'Start'), findsOneWidget);
+    expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
+        findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Re-evaluate'),
         findsOneWidget);
 
@@ -152,6 +154,135 @@ void main() {
     // All three candidate names render in the queue.
     expect(find.text('M31'), findsOneWidget);
     expect(find.text('Setting Object'), findsOneWidget);
+  });
+
+  testWidgets(
+      'empty queue shows actionable empty state with Open target catalog '
+      'button + Learn more expander', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final engine = _buildTestEngine();
+    final emptyDecision = _decisionWith(
+      chosenId: null,
+      chosenName: null,
+      scored: const <TargetScore>[],
+    );
+
+    // Wrap the screen in a minimal GoRouter so the "Open target catalog"
+    // button can call context.go('/planner') without throwing.
+    final router = GoRouter(
+      initialLocation: '/scheduler',
+      routes: [
+        GoRoute(
+          path: '/scheduler',
+          builder: (_, __) => const Scaffold(body: SchedulerScreen()),
+        ),
+        GoRoute(
+          path: '/planner',
+          builder: (_, __) =>
+              const Scaffold(body: Text('planner stub for test')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerStatusProvider.overrideWith((ref) {
+            return _FakeStatusNotifier(const SchedulerStatus(
+              state: SchedulerState.idle,
+            ));
+          }),
+          currentSchedulerDecisionProvider.overrideWith((ref) {
+            return _FakeDecisionNotifier(emptyDecision);
+          }),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: NightshadeTheme.dark,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('No targets to schedule'), findsOneWidget);
+    expect(
+      find.textContaining('The scheduler needs targets with integration'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Open target catalog'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Learn more'),
+      findsOneWidget,
+    );
+
+    // Expanding the inline explainer should swap the label and reveal the
+    // detailed scoring paragraph.
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Learn more'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('How the scheduler picks targets'), findsOneWidget);
+    expect(
+      find.textContaining('weighted blend of how'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'idle decision panel surfaces the explicit "Start" hint copy',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final engine = _buildTestEngine();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerStatusProvider.overrideWith((ref) {
+            return _FakeStatusNotifier(const SchedulerStatus(
+              state: SchedulerState.idle,
+            ));
+          }),
+          currentSchedulerDecisionProvider.overrideWith((ref) {
+            return _FakeDecisionNotifier(null);
+          }),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(
+      find.textContaining(
+          'Scheduler is stopped. Press Start to begin evaluating'),
+      findsAtLeastNWidgets(1),
+    );
+    expect(
+      find.widgetWithText(NightshadeButton, 'Start scheduler'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('running state shows Pause and Stop buttons', (tester) async {
@@ -198,7 +329,8 @@ void main() {
     expect(find.text('Running'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Pause'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Stop'), findsOneWidget);
-    expect(find.widgetWithText(NightshadeButton, 'Start'), findsNothing);
+    expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
+        findsNothing);
   });
 }
 
