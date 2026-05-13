@@ -67,6 +67,9 @@ export 'src/models/scheduler/integration_goal.dart';
 export 'src/models/scheduler/target_constraint.dart';
 export 'src/models/scheduler/scheduler_decision.dart';
 export 'src/models/scheduler/scheduler_status.dart';
+export 'src/models/scheduler/target_progress.dart';
+export 'src/services/scheduler/target_progress_service.dart';
+export 'src/providers/target_progress_provider.dart';
 
 // Sequence import (W6-NINA-IMPORT: NINA / SGP sequence import)
 export 'src/models/import/canonical_sequence_node.dart';
