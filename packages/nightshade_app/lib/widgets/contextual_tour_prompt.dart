@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -58,6 +60,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   late Animation<Offset> _slideAnimation;
   bool _isVisible = false;
   final _overlayKey = GlobalKey();
+  Timer? _showDelayTimer;
 
   @override
   void initState() {
@@ -86,6 +89,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
 
   @override
   void dispose() {
+    _showDelayTimer?.cancel();
     _animController.dispose();
     super.dispose();
   }
@@ -108,8 +112,9 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
       return;
     }
 
-    // Add a small delay before showing
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // Add a small delay before showing. Owned so we can cancel on dispose.
+    _showDelayTimer?.cancel();
+    _showDelayTimer = Timer(const Duration(milliseconds: 500), () {
       if (mounted && !_isVisible) {
         setState(() => _isVisible = true);
         _animController.forward();
@@ -360,6 +365,7 @@ class _ContextualTourPromptOverlayState
   late Animation<Offset> _slideAnimation;
   OverlayEntry? _overlayEntry;
   bool _hasShown = false;
+  Timer? _showDelayTimer;
 
   @override
   void initState() {
@@ -387,6 +393,7 @@ class _ContextualTourPromptOverlayState
 
   @override
   void dispose() {
+    _showDelayTimer?.cancel();
     _removeOverlay();
     _animController.dispose();
     super.dispose();
@@ -406,7 +413,9 @@ class _ContextualTourPromptOverlayState
     }
 
     _hasShown = true;
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // Owned so we can cancel on dispose.
+    _showDelayTimer?.cancel();
+    _showDelayTimer = Timer(const Duration(milliseconds: 500), () {
       if (mounted) {
         _showOverlay();
       }

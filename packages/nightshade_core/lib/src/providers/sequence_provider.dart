@@ -1602,7 +1602,13 @@ class MultiSelectNotifier extends StateNotifier<Set<String>> {
 
 /// Sequence executor that manages execution
 final sequenceExecutorProvider = Provider<SequenceExecutor>((ref) {
-  return SequenceExecutor(ref);
+  final executor = SequenceExecutor(ref);
+  // Owned timers/subscriptions must be torn down with the provider lifetime —
+  // otherwise an invalidation mid-sequence leaks the periodic progress timer,
+  // the checkpoint timer, and the native event stream subscription past the
+  // disposed Ref. stop() handles the running case; this handles teardown.
+  ref.onDispose(executor.dispose);
+  return executor;
 });
 
 class SequenceExecutor {
@@ -3158,6 +3164,20 @@ class SequenceExecutor {
         }
       }
     });
+  }
+
+  /// Cancel all owned timers and subscriptions.
+  ///
+  /// Wired into the owning Provider's `ref.onDispose`. Safe to call even when
+  /// no sequence is running — all cancels are null-tolerant. Distinct from
+  /// `stop()`, which also mutates execution state and ends the session.
+  void dispose() {
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    _checkpointTimer?.cancel();
+    _checkpointTimer = null;
+    _nativeEventSubscription?.cancel();
+    _nativeEventSubscription = null;
   }
 }
 

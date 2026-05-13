@@ -72,6 +72,7 @@ class _EquipmentProfilesScreenState
           await ref
               .read(equipmentProfilesProvider.notifier)
               .updateProfile(updatedProfile);
+          if (!mounted) return;
           setState(() {
             _selectedProfile = updatedProfile;
             _isEditing = false;
@@ -153,6 +154,7 @@ class _EquipmentProfilesScreenState
                     await ref
                         .read(equipmentProfilesProvider.notifier)
                         .updateProfile(updatedProfile);
+                    if (!mounted) return;
                     setState(() {
                       _selectedProfile = updatedProfile;
                       _isEditing = false;
@@ -266,6 +268,7 @@ class _EquipmentProfilesScreenState
 
       // Wait for state to update and select the new profile
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
       final profiles = ref.read(equipmentProfileListProvider);
       final newProfile = profiles.firstWhere((p) => p.id == id);
       setState(() {
@@ -324,8 +327,9 @@ class _EquipmentProfilesScreenState
       final id = await ref
           .read(equipmentProfilesProvider.notifier)
           .duplicateProfile(profile.id!, nameController.text);
-
+      if (!mounted) return;
       await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
       final profiles = ref.read(equipmentProfileListProvider);
       final newProfile = profiles.firstWhere((p) => p.id == id);
       setState(() => _selectedProfile = newProfile);
@@ -343,6 +347,7 @@ class _EquipmentProfilesScreenState
       await ref
           .read(equipmentProfilesProvider.notifier)
           .deleteProfile(profile.id!);
+      if (!mounted) return;
       setState(() => _selectedProfile = null);
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -876,6 +878,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
   // For progress panel persistence
   bool _showProgressPanel = false;
   DateTime? _lastRunningTime;
+  Timer? _panelPersistTimer;
   static const _panelPersistDuration = Duration(seconds: 20);
 
   @override
@@ -903,9 +906,12 @@ class _NodeItemState extends ConsumerState<_NodeItem>
       _pulseController.stop();
       _pulseController.reset();
 
-      // Keep panel visible for 20 seconds after node stops running
+      // Keep panel visible for 20 seconds after node stops running. Owned so
+      // we can cancel on dispose — a teardown mid-delay would otherwise leak
+      // a pending Timer past the widget tree.
       if (oldWidget.nodeStatus == NodeStatus.running && _showProgressPanel) {
-        Future.delayed(_panelPersistDuration, () {
+        _panelPersistTimer?.cancel();
+        _panelPersistTimer = Timer(_panelPersistDuration, () {
           if (mounted && widget.nodeStatus != NodeStatus.running) {
             setState(() => _showProgressPanel = false);
           }
@@ -916,6 +922,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
 
   @override
   void dispose() {
+    _panelPersistTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }

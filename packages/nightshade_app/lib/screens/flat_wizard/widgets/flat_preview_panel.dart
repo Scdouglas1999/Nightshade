@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -555,19 +556,31 @@ class _ExposureCountdown extends StatefulWidget {
 }
 
 class _ExposureCountdownState extends State<_ExposureCountdown> {
+  // Owned so we can cancel on dispose — without an explicit Timer field this
+  // recursive Future.delayed schedules a fresh timer every 100 ms whose
+  // closure would outlive the widget tree on teardown (hot reload, widget
+  // test, fast navigation).
+  Timer? _tickTimer;
+
   @override
   void initState() {
     super.initState();
     // Trigger rebuilds for countdown animation
-    _startCountdownTimer();
+    _scheduleNextTick();
   }
 
-  void _startCountdownTimer() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && widget.state.isExposing) {
-        setState(() {});
-        _startCountdownTimer();
-      }
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleNextTick() {
+    _tickTimer?.cancel();
+    _tickTimer = Timer(const Duration(milliseconds: 100), () {
+      if (!mounted || !widget.state.isExposing) return;
+      setState(() {});
+      _scheduleNextTick();
     });
   }
 

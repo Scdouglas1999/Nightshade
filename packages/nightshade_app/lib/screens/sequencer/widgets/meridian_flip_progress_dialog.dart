@@ -42,6 +42,7 @@ class _MeridianFlipProgressDialogState
   String? _actionTaken;
   Duration _elapsed = Duration.zero;
   Timer? _elapsedTimer;
+  Timer? _autoDismissTimer;
   DateTime? _startTime;
 
   @override
@@ -62,6 +63,7 @@ class _MeridianFlipProgressDialogState
   void dispose() {
     _subscription?.cancel();
     _elapsedTimer?.cancel();
+    _autoDismissTimer?.cancel();
     super.dispose();
   }
 
@@ -127,8 +129,10 @@ class _MeridianFlipProgressDialogState
         case MeridianFlipCompleted():
           _isComplete = true;
           _elapsedTimer?.cancel();
-          // Auto-dismiss after 2 seconds
-          Future.delayed(const Duration(seconds: 2), () {
+          // Owned so we can cancel on dispose — a teardown mid-delay would
+          // otherwise leak a pending Timer past the widget tree.
+          _autoDismissTimer?.cancel();
+          _autoDismissTimer = Timer(const Duration(seconds: 2), () {
             if (mounted) {
               Navigator.of(context).pop(true); // Return success
             }
