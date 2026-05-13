@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/planning/target_suggestion.dart';
+import 'simbad_provider.dart';
 import 'target_suggestion_provider.dart';
 
 // ============================================================================
@@ -447,6 +450,49 @@ final plannerFilterExclusionProvider =
     passed: passed,
     excludedByFilter: breakdown,
   );
+});
+
+/// External-catalog (SIMBAD) name-search results for the planner search bar.
+///
+/// Watches the planner search query, debounces ~350 ms, then asks SIMBAD's
+/// TAP service to resolve the name. Empty when query has fewer than 3
+/// characters. Failure returns an empty list (logged) so the planner search
+/// keeps working when SIMBAD is unreachable.
+///
+/// Why family-keyed: each new keystroke watches a NEW provider instance, and
+/// the previous one is no longer subscribed — autoDispose tears it down
+/// before its delayed work resolves, which is the cleanest cancellation
+/// pattern in Riverpod 2.x without pulling in a CancelToken dependency.
+final plannerSimbadResultsProvider = FutureProvider.autoDispose
+    .family<List<SimbadNameMatch>, String>((ref, query) async {
+  final trimmed = query.trim();
+  if (trimmed.length < 3) return const <SimbadNameMatch>[];
+
+  // Why an explicit Timer instead of Future.delayed: the dart:async Timer
+  // can be cancelled when ref is disposed (next keystroke arrives), which
+  // matters for widget tests — Future.delayed schedules a Timer that
+  // remains pending after the tree disposes and trips the framework's
+  // !timersPending invariant.
+  final completer = Completer<void>();
+  final debounceTimer = Timer(
+    const Duration(milliseconds: 350),
+    () {
+      if (!completer.isCompleted) completer.complete();
+    },
+  );
+  var cancelled = false;
+  ref.onDispose(() {
+    cancelled = true;
+    debounceTimer.cancel();
+    if (!completer.isCompleted) completer.complete();
+  });
+
+  await completer.future;
+  if (cancelled) return const <SimbadNameMatch>[];
+
+  final results = await SimbadProvider().searchByName(trimmed);
+  if (cancelled) return const <SimbadNameMatch>[];
+  return results;
 });
 
 List<TargetSuggestion> _sortPlannerSuggestions(

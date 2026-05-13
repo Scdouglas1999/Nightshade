@@ -1,0 +1,232 @@
+{
+  "targets": [
+    {
+      "id": "zwo-native-camera-eaf-efw",
+      "manufacturer": "ZWO",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime + Nightshade tests",
+      "platforms": ["all"],
+      "patterns": ["SDKs/ZWO/**/ASICamera2.dll", "SDKs/ZWO/**/EAF_focuser.dll", "SDKs/ZWO/**/EFW_filter.dll", "SDKs/ZWO/**/libASICamera2.*"],
+      "runtime_probe": true,
+      "required_symbols": ["ASIGetNumOfConnectedCameras", "ASIOpenCamera", "ASIStartExposure", "ASIGetDataAfterExp", "EAFGetNum", "EFWGetNum"],
+      "function_checks": [
+        { "id": "zwo-camera-enumerate", "device": "Camera", "function": "Enumerate cameras", "capability": "enumerate", "symbols": ["ASIGetNumOfConnectedCameras", "ASIGetCameraProperty"], "physical": true },
+        { "id": "zwo-camera-connect", "device": "Camera", "function": "Open/close camera", "capability": "connect", "symbols": ["ASIOpenCamera", "ASICloseCamera"], "physical": true },
+        { "id": "zwo-camera-expose", "device": "Camera", "function": "Start exposure", "capability": "expose", "symbols": ["ASIStartExposure", "ASIGetExpStatus"], "physical": true },
+        { "id": "zwo-camera-download", "device": "Camera", "function": "Download image", "capability": "download_image", "symbols": ["ASIGetDataAfterExp"], "physical": true },
+        { "id": "zwo-camera-controls", "device": "Camera", "function": "Read/write controls", "capability": "controls", "symbols": ["ASIGetControlValue", "ASISetControlValue"], "physical": true },
+        { "id": "zwo-eaf-move", "device": "Focuser", "function": "Move focuser", "capability": "move_focuser", "symbols": ["EAFOpen", "EAFMove", "EAFGetPosition"], "physical": true },
+        { "id": "zwo-efw-position", "device": "FilterWheel", "function": "Set/read filter", "capability": "set_filter", "symbols": ["EFWOpen", "EFWSetPosition", "EFWGetPosition"], "physical": true }
+      ],
+      "commands": [
+        { "name": "zwo_native_tests", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "zwo", "--", "--skip", "connect_disconnect", "--skip", "operations"] }
+      ]
+    },
+    {
+      "id": "qhy-native-camera-cfw",
+      "manufacturer": "QHYCCD",
+      "device_type": "Camera,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime + Nightshade tests",
+      "platforms": ["all"],
+      "patterns": ["SDKs/QHY/**/qhyccd*.dll", "SDKs/QHY/**/libqhyccd*"],
+      "runtime_probe": true,
+      "required_symbols": ["InitQHYCCDResource", "ScanQHYCCD", "OpenQHYCCD", "GetQHYCCDParam", "ExpQHYCCDSingleFrame", "GetQHYCCDSingleFrame"],
+      "function_checks": [
+        { "id": "qhy-sdk-init", "device": "Camera", "function": "Initialize SDK", "capability": "enumerate", "symbols": ["InitQHYCCDResource"], "physical": false },
+        { "id": "qhy-camera-scan", "device": "Camera", "function": "Scan cameras", "capability": "enumerate", "symbols": ["ScanQHYCCD"], "physical": true },
+        { "id": "qhy-camera-connect", "device": "Camera", "function": "Open camera", "capability": "connect", "symbols": ["OpenQHYCCD"], "physical": true },
+        { "id": "qhy-camera-controls", "device": "Camera", "function": "Read/write params", "capability": "controls", "symbols": ["GetQHYCCDParam", "SetQHYCCDParam"], "physical": true },
+        { "id": "qhy-camera-expose-download", "device": "Camera", "function": "Expose/download frame", "capability": "download_image", "symbols": ["ExpQHYCCDSingleFrame", "GetQHYCCDSingleFrame"], "physical": true },
+        { "id": "qhy-cfw-command", "device": "FilterWheel", "function": "Send CFW command", "capability": "set_filter", "symbols": ["SendOrder2QHYCCDCFW"], "physical": true }
+      ],
+      "commands": [
+        { "name": "qhy_native_tests", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "qhy_cfw_discovery"] }
+      ]
+    },
+    {
+      "id": "playerone-native-camera",
+      "manufacturer": "Player One",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime",
+      "platforms": ["all"],
+      "patterns": ["SDKs/PlayerOne/**/PlayerOneCamera*.dll", "SDKs/PlayerOne/**/libPlayerOneCamera*"],
+      "runtime_probe": true,
+      "required_symbols": ["POAGetCameraCount", "POAOpenCamera", "POAStartExposure", "POAGetImageData"],
+      "function_checks": [
+        { "id": "poa-enumerate", "device": "Camera", "function": "Enumerate cameras", "capability": "enumerate", "symbols": ["POAGetCameraCount"], "physical": true },
+        { "id": "poa-connect", "device": "Camera", "function": "Open camera", "capability": "connect", "symbols": ["POAOpenCamera"], "physical": true },
+        { "id": "poa-expose", "device": "Camera", "function": "Start exposure", "capability": "expose", "symbols": ["POAStartExposure", "POAImageReady"], "physical": true },
+        { "id": "poa-download", "device": "Camera", "function": "Download image data", "capability": "download_image", "symbols": ["POAGetImageData"], "physical": true },
+        { "id": "poa-config", "device": "Camera", "function": "Read/write config", "capability": "controls", "symbols": ["POAGetConfig", "POASetConfig"], "physical": true }
+      ]
+    },
+    {
+      "id": "svbony-native-camera",
+      "manufacturer": "SVBONY",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime + Nightshade tests",
+      "platforms": ["all"],
+      "patterns": ["SDKs/SVBony/**/SVBCameraSDK.dll", "SDKs/SVBony/**/libSVBCameraSDK*"],
+      "runtime_probe": true,
+      "required_symbols": ["SVBGetNumOfConnectedCameras", "SVBOpenCamera", "SVBStartVideoCapture", "SVBGetVideoData"],
+      "function_checks": [
+        { "id": "svb-enumerate", "device": "Camera", "function": "Enumerate cameras", "capability": "enumerate", "symbols": ["SVBGetNumOfConnectedCameras"], "physical": true },
+        { "id": "svb-connect", "device": "Camera", "function": "Open camera", "capability": "connect", "symbols": ["SVBOpenCamera"], "physical": true },
+        { "id": "svb-stream", "device": "Camera", "function": "Stream/video capture", "capability": "stream", "symbols": ["SVBStartVideoCapture", "SVBGetVideoData"], "physical": true },
+        { "id": "svb-controls", "device": "Camera", "function": "Read/write controls", "capability": "controls", "symbols": ["SVBGetControlValue", "SVBSetControlValue"], "physical": true }
+      ],
+      "commands": [
+        { "name": "svbony_native_tests", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "svbony", "--", "--skip", "connect_disconnect", "--skip", "exposure"] }
+      ]
+    },
+    {
+      "id": "atik-native-camera",
+      "manufacturer": "Atik",
+      "device_type": "Camera,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime",
+      "platforms": ["all"],
+      "patterns": ["SDKs/Atik/**/AtikCameras.dll", "SDKs/Atik/**/libatikcameras*"],
+      "runtime_probe": true,
+      "required_symbols": ["ArtemisDeviceCount", "ArtemisConnect", "ArtemisStartExposure", "ArtemisGetImageData"],
+      "function_checks": [
+        { "id": "atik-enumerate", "device": "Camera", "function": "Enumerate devices", "capability": "enumerate", "symbols": ["ArtemisDeviceCount", "ArtemisDeviceName"], "physical": true },
+        { "id": "atik-connect", "device": "Camera", "function": "Connect/disconnect", "capability": "connect", "symbols": ["ArtemisConnect", "ArtemisDisconnect"], "physical": true },
+        { "id": "atik-expose", "device": "Camera", "function": "Start/abort exposure", "capability": "expose", "symbols": ["ArtemisStartExposure", "ArtemisAbortExposure", "ArtemisImageReady"], "physical": true },
+        { "id": "atik-download", "device": "Camera", "function": "Read image data", "capability": "download_image", "symbols": ["ArtemisGetImageData", "ArtemisImageBuffer"], "physical": true },
+        { "id": "atik-cooler", "device": "Camera", "function": "Cooling control", "capability": "cooler", "symbols": ["ArtemisSetCooling", "ArtemisCoolingInfo"], "physical": true },
+        { "id": "atik-efw", "device": "FilterWheel", "function": "Filter wheel connect", "capability": "set_filter", "symbols": ["ArtemisDeviceHasFilterWheel", "ArtemisEFWConnect"], "physical": true }
+      ]
+    },
+    {
+      "id": "fli-native-camera-focuser-filterwheel",
+      "manufacturer": "Finger Lakes Instrumentation",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK source evidence",
+      "platforms": ["all"],
+      "patterns": ["SDKs/FLI/**/libfli.c", "SDKs/FLI/**/libfli.h"],
+      "required_symbols": ["FLIList", "FLIOpen", "FLIExposeFrame", "FLIGetFilterPos"],
+      "function_checks": [
+        { "id": "fli-enumerate", "device": "Camera,Focuser,FilterWheel", "function": "Enumerate devices", "capability": "enumerate", "symbols": ["FLIList"], "physical": true },
+        { "id": "fli-open", "device": "Camera,Focuser,FilterWheel", "function": "Open device", "capability": "connect", "symbols": ["FLIOpen", "FLIClose"], "physical": true },
+        { "id": "fli-expose", "device": "Camera", "function": "Expose frame", "capability": "expose", "symbols": ["FLIExposeFrame"], "physical": true },
+        { "id": "fli-filter", "device": "FilterWheel", "function": "Set/read filter", "capability": "set_filter", "symbols": ["FLIGetFilterPos", "FLISetFilterPos"], "physical": true },
+        { "id": "fli-focuser", "device": "Focuser", "function": "Move/read focuser", "capability": "move_focuser", "symbols": ["FLIGetStepperPosition", "FLIStepMotor"], "physical": true }
+      ]
+    },
+    {
+      "id": "touptek-native-white-labels",
+      "manufacturer": "ToupTek/OGMA/Altair",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime",
+      "platforms": ["all"],
+      "patterns": ["SDKs/Touptek/**/ogmacam.dll", "SDKs/Touptek/**/libogmacam*", "SDKs/Touptek/**/ogmacam.h"],
+      "runtime_probe": true,
+      "required_symbols": ["Ogmacam_EnumV2", "Ogmacam_Open", "Ogmacam_StartPullModeWithCallback", "Ogmacam_PullImage"],
+      "function_checks": [
+        { "id": "touptek-enumerate", "device": "Camera", "function": "Enumerate cameras", "capability": "enumerate", "symbols": ["Ogmacam_EnumV2"], "physical": true },
+        { "id": "touptek-open", "device": "Camera", "function": "Open camera", "capability": "connect", "symbols": ["Ogmacam_Open"], "physical": true },
+        { "id": "touptek-stream", "device": "Camera", "function": "Pull-mode acquisition", "capability": "stream", "symbols": ["Ogmacam_StartPullModeWithCallback", "Ogmacam_PullImage"], "physical": true },
+        { "id": "touptek-controls", "device": "Camera", "function": "Read/write options", "capability": "controls", "symbols": ["Ogmacam_get_Option", "Ogmacam_put_Option"], "physical": true },
+        { "id": "touptek-temperature", "device": "Camera", "function": "Temperature telemetry", "capability": "cooler", "symbols": ["Ogmacam_get_Temperature"], "physical": true }
+      ]
+    },
+    {
+      "id": "moravian-native-camera-filterwheel",
+      "manufacturer": "Moravian",
+      "device_type": "Camera,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime",
+      "platforms": ["all"],
+      "patterns": ["SDKs/Moravian/**/gXusb.dll", "SDKs/Moravian/**/gXeth.dll", "SDKs/Moravian/**/cXusb.dll", "SDKs/Moravian/**/sfw.dll", "SDKs/Moravian/**/*.h"],
+      "runtime_probe": true,
+      "required_symbols": ["Enumerate", "Initialize", "Open", "BeginExposure", "SetFilter"],
+      "function_checks": [
+        { "id": "moravian-enumerate", "device": "Camera", "function": "Enumerate cameras", "capability": "enumerate", "symbols": ["Enumerate"], "physical": true },
+        { "id": "moravian-open", "device": "Camera", "function": "Initialize/open/close", "capability": "connect", "symbols": ["Initialize", "Open", "Close"], "physical": true },
+        { "id": "moravian-expose", "device": "Camera", "function": "Expose and retrieve image", "capability": "download_image", "symbols": ["BeginExposure", "GetImage"], "physical": true },
+        { "id": "moravian-cooler", "device": "Camera", "function": "Set temperature", "capability": "cooler", "symbols": ["SetTemperature"], "physical": true },
+        { "id": "moravian-filter", "device": "FilterWheel", "function": "Enumerate/set filter", "capability": "set_filter", "symbols": ["EnumerateFilters", "SetFilter"], "physical": true }
+      ]
+    },
+    {
+      "id": "fujifilm-native-camera",
+      "manufacturer": "Fujifilm",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK runtime",
+      "platforms": ["windows", "macos", "linux"],
+      "patterns": ["SDKs/Fujifilm/**/FF*.dll", "SDKs/Fujifilm/**/libFF*", "SDKs/Fujifilm/**/*.h"],
+      "runtime_probe": true,
+      "required_symbols": ["XSDK_Init", "XSDK_Detect", "XSDK_OpenEx", "XSDK_ReadImage"],
+      "function_checks": [
+        { "id": "fujifilm-init", "device": "Camera", "function": "Initialize SDK", "capability": "enumerate", "symbols": ["XSDK_Init", "XSDK_Exit"], "physical": false },
+        { "id": "fujifilm-detect", "device": "Camera", "function": "Detect cameras", "capability": "enumerate", "symbols": ["XSDK_Detect", "XSDK_Append"], "physical": true },
+        { "id": "fujifilm-session", "device": "Camera", "function": "Open/close session", "capability": "connect", "symbols": ["XSDK_OpenEx", "XSDK_Close"], "physical": true },
+        { "id": "fujifilm-release", "device": "Camera", "function": "Trigger release", "capability": "release", "symbols": ["XSDK_Release"], "physical": true },
+        { "id": "fujifilm-image", "device": "Camera", "function": "Read captured image", "capability": "download_image", "symbols": ["XSDK_ReadImageInfo", "XSDK_ReadImage"], "physical": true }
+      ]
+    },
+    {
+      "id": "alpaca-simulator-contract",
+      "manufacturer": "ASCOM Initiative",
+      "device_type": "Camera,FilterWheel,Mount",
+      "driver_type": "ASCOM Alpaca",
+      "confidence_tier": "Local protocol simulator",
+      "platforms": ["all"],
+      "function_checks": [
+        { "id": "alpaca-discovery-contract", "device": "All", "function": "Construct typed clients for simulator endpoints", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "alpaca-camera-flow", "device": "Camera", "function": "Connect/expose/download/abort against local simulator", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "alpaca-camera-controls", "device": "Camera", "function": "Read status/cooling/control endpoints against local simulator", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "alpaca-filterwheel-flow", "device": "FilterWheel", "function": "Read names/set/read position against local simulator", "capability": "set_filter", "symbols": [], "physical": false },
+        { "id": "alpaca-filterwheel-read", "device": "FilterWheel", "function": "Read filter position and names against local simulator", "capability": "read_filter", "symbols": [], "physical": false },
+        { "id": "alpaca-mount-flow", "device": "Mount", "function": "Tracking/slew/abort/status against local simulator", "capability": "slew", "symbols": [], "physical": false }
+        ,{ "id": "alpaca-mount-tracking", "device": "Mount", "function": "Read/write tracking against local simulator", "capability": "tracking", "symbols": [], "physical": false }
+        ,{ "id": "alpaca-mount-position", "device": "Mount", "function": "Read position/status against local simulator", "capability": "read_position", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "alpaca_simulator_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_alpaca", "--test", "alpaca_simulator_contract", "--", "--nocapture"] }
+      ]
+    },
+    {
+      "id": "mount-protocol-source-contracts",
+      "manufacturer": "Sky-Watcher/iOptron/LX200-compatible",
+      "device_type": "Mount",
+      "driver_type": "Native Serial/UDP",
+      "confidence_tier": "Protocol parser/command tests",
+      "platforms": ["all"],
+      "function_checks": [
+        { "id": "mount-protocol-enumerate", "device": "Mount", "function": "No-crash discovery tests", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "mount-protocol-slew", "device": "Mount", "function": "Slew command/parser contract", "capability": "slew", "symbols": [], "physical": false },
+        { "id": "mount-protocol-tracking", "device": "Mount", "function": "Tracking command/parser contract", "capability": "tracking", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "skywatcher_discovery", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "skywatcher_mount_discovery_no_crash"] },
+        { "name": "ioptron_discovery", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "ioptron_mount_discovery_no_crash"] },
+        { "name": "lx200_discovery", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "lx200_mount_discovery_no_crash"] },
+        { "name": "native_unit_protocol_tests", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "vendor::"] }
+      ]
+    },
+    {
+      "id": "bridge-full-workspace",
+      "manufacturer": "Nightshade",
+      "device_type": "All",
+      "driver_type": "Bridge",
+      "confidence_tier": "Workspace tests",
+      "platforms": ["all"],
+      "commands": [{ "name": "workspace_all_features", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "--all-features"] }]
+    },
+    { "id": "canon-edsdk-native-camera", "manufacturer": "Canon", "device_type": "Camera", "driver_type": "Native SDK", "confidence_tier": "API blocked", "platforms": ["windows", "macos"], "blocked": "Canon EDSDK requires developer access and native driver implementation." },
+    { "id": "nikon-native-camera", "manufacturer": "Nikon", "device_type": "Camera", "driver_type": "Native SDK", "confidence_tier": "API blocked", "platforms": ["windows", "macos"], "blocked": "Nikon SDK requires developer approval and native driver implementation." },
+    { "id": "ascom-conformu-certification", "manufacturer": "ASCOM Initiative", "device_type": "All", "driver_type": "ASCOM COM/Alpaca", "confidence_tier": "Official conformance", "platforms": ["all"], "required_tools": ["ConformU"], "blocked": "ConformU must be installed and run against ASCOM/Alpaca simulators." },
+    { "id": "indi-simulator-drivers", "manufacturer": "INDI", "device_type": "All", "driver_type": "INDI", "confidence_tier": "Official simulator drivers", "platforms": ["linux"], "required_tools": ["indiserver"], "commands": [{ "name": "indi_crate_tests", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_indi"] }] },
+    { "id": "celestron-aux-native-mount", "manufacturer": "Celestron", "device_type": "Mount", "driver_type": "Native AUX/CPWI", "confidence_tier": "Roadmap", "platforms": ["all"], "blocked": "Native Celestron AUX/CPWI support is not implemented." },
+    { "id": "pegasus-native-powerbox", "manufacturer": "Pegasus Astro", "device_type": "Switch,Focuser,Weather,DewControl", "driver_type": "Native Serial", "confidence_tier": "Roadmap", "platforms": ["all"], "blocked": "Native Pegasus Powerbox support is not implemented." }
+  ]
+}

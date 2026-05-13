@@ -225,6 +225,22 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                   isMobile: isMobile,
                 ),
 
+              // External SIMBAD name resolver — shows up only when the user
+              // is actively searching and either nothing local matched or
+              // they want to broaden beyond the installed catalog. Reads the
+              // current search query via ref so this method doesn't need a
+              // filter parameter just to gate one widget.
+              if (ref.watch(suggestionFilterProvider).searchQuery.trim().length >=
+                  3)
+                _SimbadResultsSection(
+                  query: ref
+                      .watch(suggestionFilterProvider)
+                      .searchQuery
+                      .trim(),
+                  colors: colors,
+                  hasLocalMatches: candidates.isNotEmpty,
+                ),
+
               if (plan.riskFactors.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.space2xl),
                 _SectionHeader(
@@ -1757,15 +1773,46 @@ class _FilteredEmptyState extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          if (breakdown.total == 0)
-            Text(
-              'The scoring engine returned zero candidates for tonight. Verify your location, twilight window, and your minimum altitude/score in suggestion config.',
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textSecondary,
-                height: 1.4,
-              ),
-            )
+          if (breakdown.total == 0) ...[
+            // Why: when the suggestion pool is fully empty, the dominant
+            // real-world cause is "the OpenNGC catalog hasn't been
+            // downloaded yet" — not "your filters/altitude/twilight are
+            // wrong." Detect that case and surface the actual fix.
+            Builder(builder: (ctx) {
+              final catalogState = ref.watch(catalogStateProvider);
+              final catalogReady = catalogState.dsoCatalogStatus.isInstalled;
+              if (!catalogReady) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'The OpenNGC catalog is not installed. Without it, the planner can only score targets you have already saved to your library.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceMd),
+                    NightshadeButton(
+                      label: 'Open catalog settings',
+                      onPressed: () => context.go('/settings/catalogs'),
+                      icon: LucideIcons.download,
+                      size: ButtonSize.small,
+                    ),
+                  ],
+                );
+              }
+              return Text(
+                'The scoring engine returned zero candidates for tonight. Verify your location, twilight window, and your minimum altitude/score in suggestion config.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              );
+            }),
+          ]
           else ...[
             Text(
               '${breakdown.total} candidate${breakdown.total == 1 ? '' : 's'} were scored, '
@@ -2189,5 +2236,177 @@ class _RationaleList extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Section that resolves a name fragment against SIMBAD and renders the
+/// matches as send-to-framing rows. Only mounts when the planner search bar
+/// has ≥3 characters typed.
+class _SimbadResultsSection extends ConsumerWidget {
+  final String query;
+  final NightshadeColors colors;
+  final bool hasLocalMatches;
+
+  const _SimbadResultsSection({
+    required this.query,
+    required this.colors,
+    required this.hasLocalMatches,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(plannerSimbadResultsProvider(query));
+
+    return async.when(
+      loading: () => Padding(
+        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.accent,
+              ),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Text(
+              'Searching SIMBAD for "$query"…',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+        child: Text(
+          'SIMBAD lookup failed: $e',
+          style: TextStyle(fontSize: 12, color: colors.warning),
+        ),
+      ),
+      data: (matches) {
+        if (matches.isEmpty) {
+          if (hasLocalMatches) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+            child: Text(
+              'SIMBAD found no objects matching "$query".',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: NightshadeTokens.space2xl),
+            _SectionHeader(
+              title: 'From SIMBAD',
+              subtitle:
+                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" — not scored for tonight',
+              colors: colors,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            for (final m in matches)
+              _SimbadResultRow(match: m, colors: colors),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SimbadResultRow extends ConsumerWidget {
+  final SimbadNameMatch match;
+  final NightshadeColors colors;
+
+  const _SimbadResultRow({required this.match, required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metaParts = <String>[];
+    if (match.objectType != null && match.objectType!.isNotEmpty) {
+      metaParts.add(match.objectType!);
+    }
+    if (match.magnitudeV != null) {
+      metaParts.add('mag ${match.magnitudeV!.toStringAsFixed(1)}');
+    }
+    metaParts.add(
+      'RA ${_formatRa(match.raHours)}  Dec ${_formatDec(match.decDegrees)}',
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  match.mainId,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                Text(
+                  metaParts.join(' · '),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          NightshadeButton(
+            label: 'Send to Framing',
+            icon: LucideIcons.crosshair,
+            size: ButtonSize.small,
+            onPressed: () {
+              final uri = Uri(
+                path: '/framing',
+                queryParameters: {
+                  'ra': match.raHours.toStringAsFixed(6),
+                  'dec': match.decDegrees.toStringAsFixed(6),
+                  'name': match.mainId,
+                },
+              );
+              context.go(uri.toString());
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatRa(double hours) {
+    final h = hours.floor();
+    final mDec = (hours - h) * 60;
+    final m = mDec.floor();
+    final s = ((mDec - m) * 60);
+    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m ${s.toStringAsFixed(1)}s';
+  }
+
+  static String _formatDec(double degrees) {
+    final sign = degrees < 0 ? '-' : '+';
+    final v = degrees.abs();
+    final d = v.floor();
+    final mDec = (v - d) * 60;
+    final m = mDec.floor();
+    final s = ((mDec - m) * 60);
+    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' ${s.toStringAsFixed(1)}"';
   }
 }
