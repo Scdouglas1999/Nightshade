@@ -85,26 +85,36 @@ rules:
   # §7B.3 added rules — apply across the headless API handler surface so
   # that new handlers are policed by construction, not by allowlist.
 
+  # §6a-fixed: glob was previously `handlers/**/*.dart`, which the gate's
+  # globber expands to `handlers/.*/[^/]*\.dart$` — that requires at least one
+  # `/` after `handlers/`, so flat files like `handlers/backup_handlers.dart`
+  # never matched and the three rules below silently never ran. Use `**.dart`
+  # so flat AND nested handler files are both scanned.
   - id: handlers_status_failed_string
     description: >-
       Handlers must not return HTTP 200 with `'status': 'failed'` literal —
-      use the failure helper that sets a non-2xx status code.
-    glob: apps/desktop/lib/headless_api/handlers/**/*.dart
+      use the HandlerFailure helper that sets a non-2xx status code.
+    glob: apps/desktop/lib/headless_api/handlers/**.dart
     forbidden_pattern: "['\"]status['\"]\\s*:\\s*['\"]failed['\"]"
     since_version: 2.5.0
 
   - id: handlers_empty_catch
     description: >-
       `catch (_)` in headless API handlers swallows runtime failures and
-      breaks the headless contract that errors propagate as 5xx.
-    glob: apps/desktop/lib/headless_api/handlers/**/*.dart
+      breaks the headless contract that errors propagate as 5xx. Best-effort
+      fallbacks that truly need to swallow MUST use `catch (Object _)` with a
+      `Why:` comment, so the intent is explicit and reviewers can audit.
+    glob: apps/desktop/lib/headless_api/handlers/**.dart
     forbidden_pattern: 'catch\s*\(\s*_\s*\)'
     since_version: 2.5.0
 
   - id: handlers_e_tostring
     description: >-
       Returning `e.toString()` in headless JSON bodies leaks stack traces
-      and runtime types to the network. Use the structured error helper.
-    glob: apps/desktop/lib/headless_api/handlers/**/*.dart
-    forbidden_pattern: 'e\.toString\(\)'
+      and runtime types to the network. Use the HandlerFailure helper from
+      validation.dart instead. The `\b` word boundary keeps the rule from
+      false-matching `runtimeType.toString()`, `value.toString()`, or
+      `stackTrace.toString()` — those produce no type-name leak.
+    glob: apps/desktop/lib/headless_api/handlers/**.dart
+    forbidden_pattern: '\be\.toString\(\)'
     since_version: 2.5.0

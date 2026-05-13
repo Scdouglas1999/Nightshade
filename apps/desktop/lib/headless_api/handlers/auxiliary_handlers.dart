@@ -94,19 +94,32 @@ class AuxiliaryHandlers {
 
       // Why: per-device read errors are reported as `error` fields per entry
       // rather than failing the whole request — one bad device shouldn't blind
-      // the caller to other working ones. e.toString() is allowed here because
-      // the caller has already authenticated with admin scope, and the body
-      // remains in a structured shape rather than a free-form 500.
+      // the caller to other working ones.
+      //
+      // §6a-fixed: emit a stable `read_failed` code rather than the legacy
+      // pattern of shipping the raw exception message, which would leak
+      // Dart type names. Full detail is logged for operator triage.
+      final logger = container.read(loggingServiceProvider);
       final deviceStatuses = <Map<String, dynamic>>[];
       for (final d in switchDevices) {
         try {
           deviceStatuses.add(await _readSwitchStatus(d.id, d.name));
-        } catch (e) {
+        } catch (e, stackTrace) {
+          logger.error(
+            'Switch read failed for ${d.id}: $e',
+            source: 'AuxiliaryHandlers',
+            fields: {
+              'deviceId': d.id,
+              'deviceName': d.name,
+              'stack': stackTrace.toString(),
+            },
+          );
           deviceStatuses.add({
             'connected': false,
             'deviceId': d.id,
             'deviceName': d.name,
-            'error': e.toString(),
+            'error': 'read_failed',
+            'message': 'Switch status read failed',
           });
         }
       }

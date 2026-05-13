@@ -185,11 +185,16 @@ class FileSystemHandlers {
     try {
       final docs = await getApplicationDocumentsDirectory();
       await add('Documents', docs.path);
-    } catch (_) {
+    } on Object catch (e, stackTrace) {
       // Why: getApplicationDocumentsDirectory can fail under unusual
       // platform conditions (e.g. sandboxed CI without HOME); we keep the
-      // method best-effort because other roots may still resolve. The error
-      // is logged below if we have absolutely no roots at all.
+      // method best-effort because other roots may still resolve. Log the
+      // detail so operators can diagnose the no-roots case.
+      _logger.warning(
+        'getApplicationDocumentsDirectory failed: $e',
+        source: 'FileSystemHandlers',
+        fields: {'stack': stackTrace.toString()},
+      );
     }
 
     // 2. Default backup directory used by BackupService.
@@ -197,9 +202,15 @@ class FileSystemHandlers {
       final backupService = container.read(backupServiceProvider);
       final backupDir = await backupService.getBackupDirectory();
       await add('Backups', backupDir.path);
-    } catch (_) {
-      // BackupService not yet initialised in this isolate — skip; the
-      // Documents root covers the parent dir.
+    } on Object catch (e, stackTrace) {
+      // Why: BackupService not yet initialised in this isolate — skip; the
+      // Documents root covers the parent dir. Logged at warning so operators
+      // can spot misconfiguration if the backups root is missing.
+      _logger.warning(
+        'BackupService.getBackupDirectory failed: $e',
+        source: 'FileSystemHandlers',
+        fields: {'stack': stackTrace.toString()},
+      );
     }
 
     // 3. Configured image output directory (the primary "where new captures
@@ -237,12 +248,14 @@ class FileSystemHandlers {
     final dir = Directory(path);
     try {
       return await dir.resolveSymbolicLinks();
-    } catch (_) {
+    } on FileSystemException {
       // Why: best-effort fallback — if the path doesn't exist or symlinks
       // can't be resolved, fall back to absolute-and-normalized. The earlier
       // existence check in the caller catches non-existent requested paths;
       // this fallback exists mainly for the roots branch, where a configured
-      // setting might point at a not-yet-created directory.
+      // setting might point at a not-yet-created directory. We deliberately
+      // do not log here because the configured-but-missing case is a normal
+      // user state, not an error.
       return p.normalize(dir.absolute.path);
     }
   }
@@ -257,14 +270,18 @@ class FileSystemHandlers {
         ),
       ).create();
       return true;
-    } catch (_) {
+    } on FileSystemException {
+      // Why: failure here means "not writable" — that's the whole point of
+      // the probe. We surface a structured `writable: false` to the caller.
       return false;
     } finally {
       if (tempFile != null) {
         try {
           await tempFile.delete();
-        } catch (_) {
-          // Best effort cleanup only.
+        } on FileSystemException {
+          // Why: best-effort cleanup of the probe file. Failure to delete a
+          // temp file doesn't change the writable signal we just computed,
+          // so we deliberately swallow it.
         }
       }
     }

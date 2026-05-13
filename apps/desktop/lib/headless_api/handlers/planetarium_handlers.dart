@@ -63,8 +63,16 @@ class PlanetariumHandlers {
     if (rotator != null) {
       try {
         rotatorAngle = await backend.rotatorGetAngle(rotator.id);
-      } catch (_) {
-        // Rotator angle not available
+      } on Object catch (e, stackTrace) {
+        // Why: rotator angle is optional metadata for the FOV overlay. A
+        // rotator driver failure here must not blank out the mount status
+        // the caller actually requested, so we surface `rotatorAngle: null`
+        // and log the detail for operator triage.
+        _logger.warning(
+          'rotatorGetAngle failed for ${rotator.id}: $e',
+          source: 'PlanetariumHandlers',
+          fields: {'stack': stackTrace.toString()},
+        );
       }
     }
 

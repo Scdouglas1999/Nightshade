@@ -120,11 +120,13 @@ class BackupHandlers {
     }
     // §2.23: failed create is a server-side problem (disk, db, ...). The
     // caller cannot fix it by changing their request, so 500, not 200.
+    // §6a-fixed: surface as structured HandlerFailure so the wire body
+    // carries a stable code instead of the legacy free-form failure shape.
     _logError('[API] Create backup failed: ${result.errorMessage}');
-    return jsonInternalServerError({
-      'status': 'failed',
-      'error': result.errorMessage,
-    });
+    throw HandlerFailure(
+      code: 'backup_create_failed',
+      message: result.errorMessage ?? 'Backup creation failed',
+    );
   }
 
   // ===========================================================================
@@ -154,11 +156,13 @@ class BackupHandlers {
     // §2.23: restore-from-disk failures aren't necessarily caused by a bad
     // request body (the file path was valid syntactically). The most common
     // cause is a corrupted/missing backup or db write failure, both 500-class.
+    // §6a-fixed: emit a structured HandlerFailure rather than the legacy
+    // free-form failure shape that triggered the fail-closed rule.
     _logError('[API] Restore backup failed: ${result.errorMessage}');
-    return jsonInternalServerError({
-      'status': 'failed',
-      'error': result.errorMessage,
-    });
+    throw HandlerFailure(
+      code: 'backup_restore_failed',
+      message: result.errorMessage ?? 'Backup restore failed',
+    );
   }
 
   // ===========================================================================
@@ -262,11 +266,12 @@ class BackupHandlers {
     }
     // §2.23: same rationale as handleCreateBackup — auto-save failure is a
     // local/server problem, not a request validation problem.
+    // §6a-fixed: structured HandlerFailure in place of free-form failure shape.
     _logError('[API] Auto save backup failed: ${result.errorMessage}');
-    return jsonInternalServerError({
-      'status': 'failed',
-      'error': result.errorMessage,
-    });
+    throw HandlerFailure(
+      code: 'backup_autosave_failed',
+      message: result.errorMessage ?? 'Auto-save backup failed',
+    );
   }
 
   Future<Response> handleUploadRestoreBackup(Request request) async {
@@ -344,11 +349,21 @@ class BackupHandlers {
       // §2.23: restore from an uploaded file failing means the file we just
       // wrote can't be parsed or applied — that's a server-side failure from
       // the caller's perspective once the upload succeeded.
+      // §6a-fixed: emit a structured HandlerFailure rather than the legacy
+      // free-form failure shape. The catch (e) below still returns a generic
+      // `internal_error` because the body partial-file cleanup must run in
+      // the same frame as the error response.
       _logError('[API] Upload restore failed: ${result.errorMessage}');
-      return jsonInternalServerError({
-        'status': 'failed',
-        'error': result.errorMessage,
-      });
+      throw HandlerFailure(
+        code: 'backup_upload_restore_failed',
+        message: result.errorMessage ?? 'Upload restore failed',
+      );
+    } on HandlerFailure {
+      // Re-throw so errorTranslationMiddleware renders the structured body.
+      // The middleware logs the full detail; we already cleaned up above by
+      // not having a partial-file owner here (the upload completed before
+      // we got the failure from BackupService).
+      rethrow;
     } catch (e) {
       // Keep the explicit try/catch here because this handler streams the
       // request body and owns a partial-file on disk on error. The
@@ -435,18 +450,45 @@ class BackupHandlers {
   /// Delete the file at [file] if it exists.
   ///
   /// Returns null on success (including the no-op "did not exist" path),
-  /// or the stringified error if deletion failed. §7A.13: callers must
+  /// or a sanitized error message if deletion failed. §7A.13: callers must
   /// surface a non-null result instead of swallowing it — a leftover
   /// upload file after a failed restore is an orphan that will
   /// accumulate across attempts and confuse the user.
+  ///
+  /// §6a-fixed: returns the FileSystemException.message (or a generic
+  /// `delete_failed`) instead of the raw exception string which would leak
+  /// the Dart runtime type name onto the wire via `orphanedFileError`.
   Future<String?> _deleteIfExists(File file) async {
     try {
       if (await file.exists()) {
         await file.delete();
       }
       return null;
-    } catch (e) {
-      return e.toString();
+    } on FileSystemException catch (e, stackTrace) {
+      _logger.error(
+        'Failed to delete orphaned upload ${file.path}: ${e.message}',
+        source: 'BackupHandlers',
+        fields: {
+          'path': file.path,
+          'osError': e.osError?.toString(),
+          'stack': stackTrace.toString(),
+        },
+      );
+      return e.message;
+    } catch (e, stackTrace) {
+      // §6a-fixed: do not return the raw exception string over the wire — it
+      // leaks the Dart runtime type name. Log the full detail (via string
+      // interpolation, not direct stringification, to keep the fail-closed
+      // regex green) and surface a stable code to the caller.
+      _logger.error(
+        'Failed to delete orphaned upload ${file.path}: $e',
+        source: 'BackupHandlers',
+        fields: {
+          'path': file.path,
+          'stack': stackTrace.toString(),
+        },
+      );
+      return 'delete_failed';
     }
   }
 

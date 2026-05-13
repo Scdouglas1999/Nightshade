@@ -171,7 +171,11 @@ class EquipmentHandlers {
     try {
       return DeviceType.values
           .firstWhere((e) => e.name.toLowerCase() == type.toLowerCase());
-    } catch (_) {
+    } on StateError {
+      // Why: `firstWhere` throws StateError on no-match. We deliberately
+      // return null so the caller can produce a structured 400 with the
+      // accepted device-type list, rather than letting the exception
+      // bubble as a generic 500.
       return null;
     }
   }

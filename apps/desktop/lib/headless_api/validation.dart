@@ -36,6 +36,61 @@ class BadRequestError implements Exception {
       };
 }
 
+/// Handler-level structured failure for fail-closed responses.
+///
+/// Why: handlers must not return `{'status': 'failed', 'error': e.toString()}`
+/// — that ships HTTP 200/500 bodies with leaked Dart type names and stack
+/// traces, and confuses clients about whether the operation succeeded. The
+/// `errorTranslationMiddleware` catches this exception and renders a
+/// non-2xx response with a stable machine-readable `code`, a sanitized
+/// human `message`, and an optional `details` map. Full exception detail
+/// (if any) goes to the structured log via [cause]/[stackTrace].
+class HandlerFailure implements Exception {
+  /// Stable machine-readable identifier, e.g. `backup_create_failed`.
+  final String code;
+
+  /// Sanitized human-readable summary safe to ship to the caller.
+  ///
+  /// MUST NOT include `e.toString()` output, stack traces, or internal
+  /// Dart type names. Producer-supplied service messages (e.g. a
+  /// BackupResult.errorMessage) are acceptable here because they are
+  /// curated by the service layer for caller display.
+  final String message;
+
+  /// HTTP status code. Defaults to 500 (server-side failure). Use 4xx
+  /// only when the caller can fix the request by itself.
+  final int statusCode;
+
+  /// Optional caller-visible additional fields (counts, ids, paths, etc.).
+  /// Must not contain stack traces or Dart type names.
+  final Map<String, Object?>? details;
+
+  /// Underlying cause for log-side diagnostics. NEVER serialized.
+  final Object? cause;
+
+  /// Stack trace for log-side diagnostics. NEVER serialized.
+  final StackTrace? stackTrace;
+
+  HandlerFailure({
+    required this.code,
+    required this.message,
+    this.statusCode = 500,
+    this.details,
+    this.cause,
+    this.stackTrace,
+  });
+
+  @override
+  String toString() => 'HandlerFailure(code=$code, status=$statusCode)';
+
+  Map<String, Object?> toJsonBody({String? requestId}) => {
+        'error': code,
+        'message': message,
+        if (requestId != null) 'requestId': requestId,
+        if (details != null) ...details!,
+      };
+}
+
 /// Reads the request body as a JSON object.
 ///
 /// Throws [BadRequestError] if the body is not valid JSON or not a
@@ -311,6 +366,27 @@ Middleware errorTranslationMiddleware({
         return await innerHandler(request);
       } on BadRequestError catch (e) {
         return jsonBadRequest(e.toJsonBody());
+      } on HandlerFailure catch (e, stackTrace) {
+        final requestId = requestIdFor(request);
+        // Log the full detail (cause + stack) on the server side; the wire
+        // body only carries the curated code/message/details. Why two logs:
+        // a HandlerFailure is an explicit handler decision and is logged
+        // at warning (not error) unless the underlying cause is unexpected.
+        logError(
+          '[HANDLER-FAIL][$requestId] ${e.code}: ${e.message}',
+          fields: {
+            'requestId': requestId,
+            'code': e.code,
+            'statusCode': e.statusCode,
+            if (e.cause != null) 'cause': e.cause.toString(),
+            if (e.stackTrace != null) 'cause_stack': e.stackTrace.toString(),
+            'handler_stack': stackTrace.toString(),
+          },
+        );
+        return jsonResponse(
+          e.toJsonBody(requestId: requestId),
+          statusCode: e.statusCode,
+        );
       } catch (e, stackTrace) {
         final requestId = requestIdFor(request);
         logError(
