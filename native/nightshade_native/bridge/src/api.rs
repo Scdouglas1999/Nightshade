@@ -3508,29 +3508,62 @@ pub struct CapturedImageData {
     pub raw_info: RawImageInfo,
 }
 
-/// Per-device image storage - keyed by device ID to support multi-camera operation
+/// Per-device image storage capacity.
+///
+/// Why 50: A typical 4-hour imaging session at 30s exposures produces ~480 frames,
+/// but the storage is keyed by device-id, not by frame, so each connected camera
+/// occupies one slot. 50 covers any realistic rig (1-5 cameras) with generous
+/// headroom for transient reconnections that rotate the device-id (e.g. USB
+/// re-enumeration appending a new serial suffix). At ~24 MB per u16 frame
+/// (4144x2822 sensors), the cap holds worst-case ~1.2 GB which keeps 16 GB
+/// laptops safe under prolonged sessions.
+const UNIFIED_IMAGE_STORAGE_CAPACITY: usize = 50;
+
+/// Per-device image storage - keyed by device ID to support multi-camera operation.
+///
 /// Each camera's image data is stored independently, preventing race conditions
 /// where concurrent cameras could overwrite each other's captured images.
-static UNIFIED_IMAGE_STORAGE: OnceLock<Arc<RwLock<HashMap<String, CapturedImageData>>>> =
-    OnceLock::new();
+///
+/// Bounded with an LRU policy so unique device-ids accumulated over long sessions
+/// (USB re-enumeration, network device churn) cannot leak raw u16 buffers
+/// indefinitely. On eviction the oldest-touched entry is dropped and a debug
+/// trace is emitted; see `store_captured_image_atomically`.
+static UNIFIED_IMAGE_STORAGE: OnceLock<
+    Arc<tokio::sync::Mutex<lru::LruCache<String, CapturedImageData>>>,
+> = OnceLock::new();
 
-fn get_unified_image_storage() -> &'static Arc<RwLock<HashMap<String, CapturedImageData>>> {
-    UNIFIED_IMAGE_STORAGE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+fn get_unified_image_storage(
+) -> &'static Arc<tokio::sync::Mutex<lru::LruCache<String, CapturedImageData>>> {
+    UNIFIED_IMAGE_STORAGE.get_or_init(|| {
+        let cap = std::num::NonZeroUsize::new(UNIFIED_IMAGE_STORAGE_CAPACITY)
+            .expect("UNIFIED_IMAGE_STORAGE_CAPACITY must be non-zero");
+        Arc::new(tokio::sync::Mutex::new(lru::LruCache::new(cap)))
+    })
 }
 
 /// Store captured image data atomically for a specific device
 /// This ensures all image-related data (display, raw, metadata) is updated together,
 /// preventing race conditions where the UI could see inconsistent state.
+///
+/// If the cache is at capacity and `device_id` is not already present, the
+/// least-recently-used entry is evicted. Evictions emit a `tracing::debug!`
+/// trace so memory pressure on long sessions is observable.
 pub(crate) async fn store_captured_image_atomically(
     device_id: &str,
     display: CapturedImageResult,
     raw_info: RawImageInfo,
 ) {
-    let mut storage = get_unified_image_storage().write().await;
-    storage.insert(
-        device_id.to_string(),
-        CapturedImageData { display, raw_info },
-    );
+    let mut storage = get_unified_image_storage().lock().await;
+    let value = CapturedImageData { display, raw_info };
+    if let Some((evicted_id, _evicted)) = storage.push(device_id.to_string(), value) {
+        if evicted_id != device_id {
+            tracing::debug!(
+                "UNIFIED_IMAGE_STORAGE: evicted LRU entry for device_id={} (cap={})",
+                evicted_id,
+                UNIFIED_IMAGE_STORAGE_CAPACITY
+            );
+        }
+    }
 }
 
 /// Start a camera exposure
@@ -3889,7 +3922,7 @@ pub async fn api_camera_start_exposure(
 /// Reads from per-device atomic storage to ensure consistency with raw data
 pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult, NightshadeError> {
     tracing::info!("API: api_get_last_image called for device: {}", device_id);
-    let storage = get_unified_image_storage().read().await;
+    let mut storage = get_unified_image_storage().lock().await;
     match storage.get(&device_id) {
         Some(data) => {
             tracing::info!(
@@ -3911,7 +3944,7 @@ pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult
 /// This is used for saving FITS files with original bit depth
 /// Reads from per-device atomic storage to ensure consistency with display data
 pub async fn api_get_last_raw_image_data(device_id: String) -> Result<Vec<u16>, NightshadeError> {
-    let storage = get_unified_image_storage().read().await;
+    let mut storage = get_unified_image_storage().lock().await;
     storage
         .get(&device_id)
         .map(|data| data.raw_info.data.clone())
@@ -3926,7 +3959,7 @@ pub async fn api_get_last_raw_image_data(device_id: String) -> Result<Vec<u16>, 
 pub async fn get_last_raw_image_info(
     device_id: &str,
 ) -> Result<Option<RawImageInfo>, NightshadeError> {
-    let storage = get_unified_image_storage().read().await;
+    let mut storage = get_unified_image_storage().lock().await;
     Ok(storage.get(device_id).map(|data| data.raw_info.clone()))
 }
 
@@ -3934,8 +3967,8 @@ pub async fn get_last_raw_image_info(
 /// This is used to free memory when a camera is disconnected or when explicitly requested
 pub async fn api_clear_device_image(device_id: String) -> Result<(), NightshadeError> {
     tracing::info!("API: Clearing stored image for device: {}", device_id);
-    let mut storage = get_unified_image_storage().write().await;
-    storage.remove(&device_id);
+    let mut storage = get_unified_image_storage().lock().await;
+    storage.pop(&device_id);
     Ok(())
 }
 
@@ -5062,7 +5095,7 @@ pub async fn api_get_star_crops_from_last_image(
     );
 
     // Get the last raw image for this device
-    let storage = get_unified_image_storage().read().await;
+    let mut storage = get_unified_image_storage().lock().await;
     let image_data = storage
         .get(&device_id)
         .ok_or(NightshadeError::NoImageAvailable)?;
@@ -6683,7 +6716,15 @@ pub mod alpaca_connections {
     use nightshade_alpaca::{AlpacaDevice, AlpacaDeviceType};
     use std::collections::HashMap;
 
-    // Storage for active Alpaca connections using Arc to share ownership
+    // Storage for active Alpaca connections using Arc to share ownership.
+    //
+    // Lifecycle invariant: `disconnect_alpaca_device` removes the entry before
+    // returning, so this map is bounded by the count of currently-connected
+    // Alpaca devices. Verified in audit-rust §3.5 (CQ-W1-UNIFIED-IMG): the
+    // legacy direct-API `connect_alpaca_device` / `disconnect_alpaca_device`
+    // pair is the only writer and the only reader. The unified
+    // `api_disconnect_device` path uses the per-type maps inside
+    // `DeviceManager` (devices.rs) which evict on disconnect as well.
     static ALPACA_CLIENTS: OnceLock<Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>>> =
         OnceLock::new();
 
@@ -9784,7 +9825,7 @@ pub async fn api_save_fits_from_last_capture(
     );
 
     // Get the stored raw image data for this device
-    let storage = get_unified_image_storage().read().await;
+    let mut storage = get_unified_image_storage().lock().await;
     let captured_data = storage.get(&device_id).ok_or_else(|| {
         NightshadeError::OperationFailed(format!(
             "No captured image available for device {}. Please capture an image first.",
@@ -9796,7 +9837,7 @@ pub async fn api_save_fits_from_last_capture(
     let width = captured_data.raw_info.width;
     let height = captured_data.raw_info.height;
     let data = captured_data.raw_info.data.clone();
-    drop(storage); // Release the read lock
+    drop(storage); // Release the lock
 
     // Now save using the existing logic
     tracing::info!("Saving {}x{} image ({} pixels)", width, height, data.len());
@@ -11455,4 +11496,121 @@ pub async fn api_defect_map_get_status(
         apply_during_capture,
         stored_on_disk: true,
     }))
+}
+
+#[cfg(test)]
+mod unified_image_storage_tests {
+    use super::{
+        get_unified_image_storage, store_captured_image_atomically, CapturedImageResult,
+        ImageStatsResult, RawImageInfo, UNIFIED_IMAGE_STORAGE_CAPACITY,
+    };
+
+    fn fixture_display() -> CapturedImageResult {
+        CapturedImageResult {
+            width: 1,
+            height: 1,
+            display_data: vec![0, 0, 0, 255],
+            histogram: vec![0u32; 256],
+            stats: ImageStatsResult {
+                min: 0.0,
+                max: 0.0,
+                mean: 0.0,
+                median: 0.0,
+                std_dev: 0.0,
+                hfr: None,
+                star_count: 0,
+            },
+            exposure_time: 0.1,
+            timestamp: "test".to_string(),
+            is_color: false,
+        }
+    }
+
+    fn fixture_raw(marker: u16) -> RawImageInfo {
+        RawImageInfo {
+            width: 1,
+            height: 1,
+            data: vec![marker],
+            sensor_type: Some("Monochrome".to_string()),
+            bayer_offset: None,
+        }
+    }
+
+    // Why a single test rather than two: `UNIFIED_IMAGE_STORAGE` is a
+    // process-global `OnceLock`. Cargo runs tests in parallel threads inside
+    // the same process, so two tests that both `clear()` and re-insert into
+    // the same cache would race. We fold both assertions (LRU eviction order
+    // and overwrite-doesn't-grow) into one test phased by `clear()` calls.
+    #[tokio::test]
+    async fn enforces_lru_cap_and_fifo_eviction() {
+        // Phase 1: insert 60 entries — 10 over the capacity of 50 — and
+        // verify the oldest 10 are evicted in FIFO order. Compile-time check
+        // that the insert count is strictly greater than the capacity so the
+        // FIFO assertions below are meaningful.
+        const INSERT_COUNT: usize = 60;
+        const _: () = assert!(
+            INSERT_COUNT > UNIFIED_IMAGE_STORAGE_CAPACITY,
+            "test only meaningful when insert count exceeds capacity",
+        );
+
+        {
+            let mut storage = get_unified_image_storage().lock().await;
+            storage.clear();
+        }
+
+        let key_for = |i: usize| format!("test-cq-w1-unified-img:{i:03}");
+
+        for i in 0..INSERT_COUNT {
+            store_captured_image_atomically(&key_for(i), fixture_display(), fixture_raw(i as u16))
+                .await;
+        }
+
+        {
+            let storage = get_unified_image_storage().lock().await;
+
+            assert_eq!(
+                storage.len(),
+                UNIFIED_IMAGE_STORAGE_CAPACITY,
+                "LRU should cap at {UNIFIED_IMAGE_STORAGE_CAPACITY} entries"
+            );
+
+            // First (INSERT_COUNT - CAPACITY) entries must have been evicted in
+            // FIFO order; the remaining CAPACITY entries are the most-recent ones.
+            let evicted_upper_bound = INSERT_COUNT - UNIFIED_IMAGE_STORAGE_CAPACITY;
+            for i in 0..evicted_upper_bound {
+                assert!(
+                    !storage.contains(&key_for(i)),
+                    "key {} should have been evicted (FIFO)",
+                    key_for(i)
+                );
+            }
+            for i in evicted_upper_bound..INSERT_COUNT {
+                assert!(
+                    storage.contains(&key_for(i)),
+                    "key {} should still be present",
+                    key_for(i)
+                );
+            }
+        }
+
+        // Phase 2: writing the same key multiple times must not grow the cache.
+        {
+            let mut storage = get_unified_image_storage().lock().await;
+            storage.clear();
+        }
+
+        let key = "test-cq-w1-unified-img:overwrite";
+        for marker in 0..5u16 {
+            store_captured_image_atomically(key, fixture_display(), fixture_raw(marker)).await;
+        }
+
+        let mut storage = get_unified_image_storage().lock().await;
+        assert_eq!(storage.len(), 1, "overwrites must not grow the cache");
+        let entry = storage.get(key).expect("entry must be present");
+        assert_eq!(
+            entry.raw_info.data,
+            vec![4u16],
+            "last write must win for an existing key"
+        );
+    }
 }
