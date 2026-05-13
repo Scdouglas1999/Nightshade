@@ -171,10 +171,16 @@ class HeadlessApiServer {
       // Generate a random token
       _effectiveAuthToken = _generateRandomToken();
       tokensByValue[_effectiveAuthToken!] = HeadlessTokenScope.admin;
-      _logWarning(
-          '[AUTH] Generated authentication token: $_effectiveAuthToken');
-      _logWarning(
+      // Why: the auto-generated token must be visible to the operator once
+      // so they can configure a client, but persisting it in the log file
+      // is a security defect — anyone with read access to logs would have
+      // permanent admin auth. Print full to stdout (transient), redact in
+      // the structured log.
+      print('[AUTH] Generated authentication token: $_effectiveAuthToken');
+      print(
           '[AUTH] Use this token in the Authorization header: Bearer $_effectiveAuthToken');
+      _logWarning(
+          '[AUTH] Auto-generated token (first run): ${_redactBearer(_effectiveAuthToken!)}');
     } else {
       _effectiveAuthToken = null;
     }
@@ -3268,6 +3274,14 @@ class HeadlessApiServer {
     final random = Random.secure();
     return List.generate(length, (_) => chars[random.nextInt(chars.length)])
         .join();
+  }
+
+  /// Redact a bearer/auth token for structured-log output. Shows the first
+  /// 4 + last 4 chars and masks the middle, so log readers can correlate
+  /// a token across log lines without exposing the secret in plaintext.
+  static String _redactBearer(String token) {
+    if (token.length <= 8) return '*' * token.length;
+    return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
   }
 
   /// Get the current authentication token (for logging/debugging).

@@ -386,8 +386,12 @@ Future<HeadlessApiServer?> _startHeadlessServices(
         debugPrint('    http://$localIp:$port');
         if (apiServer.effectiveAuthToken != null) {
           debugPrint('\n  Authentication required:');
+          // Why: redact the bearer in any logged output to avoid persisting
+          // it in plaintext log files. Operators can read the full token via
+          // the app's settings UI or the headless server's printed-once
+          // first-run message in the console.
           debugPrint(
-              '    Authorization: Bearer ${apiServer.effectiveAuthToken}');
+              '    Authorization: Bearer ${_redactToken(apiServer.effectiveAuthToken!)}');
         } else {
           debugPrint(
               '\n  WARNING: unauthenticated LAN control is enabled for this run.');
@@ -409,6 +413,15 @@ Future<HeadlessApiServer?> _startHeadlessServices(
     logger.error('API server failed to start: $e', source: _headlessLogSource);
     return null;
   }
+}
+
+/// Redact a bearer token for log output: shows the first 4 and last 4
+/// characters, masks the middle. Why: the headless server's first-run
+/// message previously printed the full token via debugPrint, which would
+/// persist in any log file the console output is captured to.
+String _redactToken(String token) {
+  if (token.length <= 8) return '*' * token.length;
+  return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
 }
 
 DiscoveryBroadcaster? _discoverySocket;
