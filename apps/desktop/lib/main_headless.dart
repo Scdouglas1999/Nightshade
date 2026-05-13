@@ -85,7 +85,15 @@ void main(List<String> args) async {
     debugPrint('[OK] Catalog manager initialized');
 
     debugPrint('Initializing services...');
-    container = ProviderContainer();
+    container = ProviderContainer(
+      overrides: [
+        // Mirror the desktop GUI override; the headless server publishes
+        // /api/info{version} which is read from this provider.
+        appVersionProvider.overrideWithValue(
+          const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+        ),
+      ],
+    );
     final runtimeLogger = container.read(loggingServiceProvider);
     logger = runtimeLogger;
     await runtimeLogger.initialize();

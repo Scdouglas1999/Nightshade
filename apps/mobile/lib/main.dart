@@ -74,8 +74,16 @@ void main() async {
   };
 
   runApp(
-    const ProviderScope(
-      child: NightshadeMobileApp(),
+    ProviderScope(
+      overrides: [
+        // appVersionProvider throws by default to surface misconfiguration;
+        // canonical override lives in the entry point. Version mirrors the
+        // desktop entry — single source of truth is version.yaml.
+        appVersionProvider.overrideWithValue(
+          const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+        ),
+      ],
+      child: const NightshadeMobileApp(),
     ),
   );
 }

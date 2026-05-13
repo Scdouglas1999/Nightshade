@@ -74,6 +74,15 @@ void main(List<String> args) async {
         notifier.useLocalBackend();
         return notifier;
       }),
+      // Why: appVersionProvider throws by default to surface misconfiguration
+      // loudly (an unset version masks OTA update logic). The desktop entry
+      // is the canonical place to wire it.
+      appVersionProvider.overrideWithValue(
+        const AppVersionInfo(
+          version: appVersion,
+          buildNumber: appBuildNumber,
+        ),
+      ),
     ],
   );
 
