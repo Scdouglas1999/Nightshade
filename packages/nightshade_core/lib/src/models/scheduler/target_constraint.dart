@@ -18,6 +18,14 @@ enum TargetConstraintKind {
   /// A reference to a horizon profile id; the target is rejected if its
   /// current altitude is below the profile's value at the target's azimuth.
   customHorizon,
+
+  /// A forced priority window — during this absolute UTC range, the
+  /// scheduler MUST switch to the target (hysteresis bypassed) and the
+  /// target's score gets a configurable additive boost so it dominates the
+  /// runner-up. Unlike [timeWindow] this is NOT a hard constraint outside
+  /// the window: the target remains fully eligible when no scheduled
+  /// window is active.
+  scheduledWindow,
 }
 
 /// Inclusive-exclusive local time window expressed as hh:mm.
@@ -60,6 +68,60 @@ class TargetTimeWindow extends Equatable {
   List<Object?> get props => [startMinutes, endMinutes];
 }
 
+/// Absolute UTC time range with a priority-boost amount, used by
+/// [TargetConstraintKind.scheduledWindow]. While the current time falls
+/// inside [startUtc, endUtc), the scheduler:
+///   * adds [priorityBoost] (clamped to [0, 1]) to the target's score; and
+///   * bypasses the hysteresis ratio so the target wins this tick
+///     regardless of what it was chasing before.
+class ScheduledWindow extends Equatable {
+  /// Inclusive UTC start instant.
+  final DateTime startUtc;
+
+  /// Exclusive UTC end instant.
+  final DateTime endUtc;
+
+  /// Additive boost applied to the target's total score while the window
+  /// is active. Clamped to [0, 1]; the engine clamps the resulting total
+  /// to [0, sumOfWeights + 1].
+  final double priorityBoost;
+
+  const ScheduledWindow({
+    required this.startUtc,
+    required this.endUtc,
+    this.priorityBoost = 0.5,
+  });
+
+  /// Whether [nowUtc] falls inside `[startUtc, endUtc)`.
+  bool containsUtc(DateTime nowUtc) {
+    final n = nowUtc.toUtc();
+    return !n.isBefore(startUtc.toUtc()) && n.isBefore(endUtc.toUtc());
+  }
+
+  Map<String, dynamic> toJson() => {
+        'start_utc_ms': startUtc.toUtc().millisecondsSinceEpoch,
+        'end_utc_ms': endUtc.toUtc().millisecondsSinceEpoch,
+        'priority_boost': priorityBoost,
+      };
+
+  static ScheduledWindow fromJson(Map<String, dynamic> json) {
+    return ScheduledWindow(
+      startUtc: DateTime.fromMillisecondsSinceEpoch(
+        json['start_utc_ms'] as int,
+        isUtc: true,
+      ),
+      endUtc: DateTime.fromMillisecondsSinceEpoch(
+        json['end_utc_ms'] as int,
+        isUtc: true,
+      ),
+      priorityBoost: (json['priority_boost'] as num).toDouble(),
+    );
+  }
+
+  @override
+  List<Object?> get props => [startUtc, endUtc, priorityBoost];
+}
+
 /// A single hard constraint attached to a target.
 ///
 /// Only the field matching [kind] should be populated; the others are null.
@@ -81,6 +143,9 @@ class TargetConstraint extends Equatable {
   /// Reference to HorizonProfiles.id (resolved against the same database).
   final int? customHorizonId;
 
+  /// Payload for [TargetConstraintKind.scheduledWindow].
+  final ScheduledWindow? scheduledWindow;
+
   /// If false, the constraint exists but is not evaluated. Useful for
   /// preserving operator state across nights without deleting rows.
   final bool enabled;
@@ -92,6 +157,7 @@ class TargetConstraint extends Equatable {
     this.timeWindow,
     this.moonIlluminationMax,
     this.customHorizonId,
+    this.scheduledWindow,
     this.enabled = true,
   });
 
@@ -102,6 +168,7 @@ class TargetConstraint extends Equatable {
     TargetTimeWindow? timeWindow,
     double? moonIlluminationMax,
     int? customHorizonId,
+    ScheduledWindow? scheduledWindow,
     bool? enabled,
   }) {
     return TargetConstraint(
@@ -111,6 +178,7 @@ class TargetConstraint extends Equatable {
       timeWindow: timeWindow ?? this.timeWindow,
       moonIlluminationMax: moonIlluminationMax ?? this.moonIlluminationMax,
       customHorizonId: customHorizonId ?? this.customHorizonId,
+      scheduledWindow: scheduledWindow ?? this.scheduledWindow,
       enabled: enabled ?? this.enabled,
     );
   }
@@ -136,6 +204,12 @@ class TargetConstraint extends Equatable {
               'customHorizon constraint missing customHorizonId value');
         }
         return jsonEncode({'profile_id': customHorizonId});
+      case TargetConstraintKind.scheduledWindow:
+        if (scheduledWindow == null) {
+          throw StateError(
+              'scheduledWindow constraint missing scheduledWindow value');
+        }
+        return jsonEncode(scheduledWindow!.toJson());
     }
   }
 
@@ -177,6 +251,14 @@ class TargetConstraint extends Equatable {
           customHorizonId: payload['profile_id'] as int,
           enabled: enabled,
         );
+      case TargetConstraintKind.scheduledWindow:
+        return TargetConstraint(
+          id: id,
+          targetId: targetId,
+          kind: kind,
+          scheduledWindow: ScheduledWindow.fromJson(payload),
+          enabled: enabled,
+        );
     }
   }
 
@@ -188,6 +270,7 @@ class TargetConstraint extends Equatable {
         timeWindow,
         moonIlluminationMax,
         customHorizonId,
+        scheduledWindow,
         enabled,
       ];
 }

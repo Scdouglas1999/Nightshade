@@ -296,6 +296,7 @@ class SchedulerEngine {
         score: 0,
         reasoning: ['No candidate targets available'],
         scoredCandidates: const [],
+        rejected: const [],
         evaluatedAt: now,
         isSwitch: _status.currentTargetId != null,
       );
@@ -310,8 +311,15 @@ class SchedulerEngine {
     }
 
     final scored = <TargetScore>[];
+    // Tracks which candidates fall inside an active scheduledWindow at
+    // this tick. The first such target (preferring the higher base score
+    // when multiple overlap) wins regardless of hysteresis.
+    final scheduledWindowHits = <int>{};
     for (final c in candidates) {
       scored.add(_scoreCandidate(c, now));
+      if (_hasActiveScheduledWindow(c, now)) {
+        scheduledWindowHits.add(c.targetId);
+      }
     }
 
     final eligible = scored.where((s) => !s.hardConstraintFailed).toList();
@@ -325,12 +333,21 @@ class SchedulerEngine {
             .take(3)
             .map((s) => '${s.targetName}: ${s.rejectionReasons.first}'),
       ];
+      final rejectedAll = scored
+          .map((s) => _buildRejection(
+                s,
+                chosenScore: 0,
+                primaryReasonOverride:
+                    s.hardConstraintFailed ? null : 'no eligible winner',
+              ))
+          .toList();
       final decision = SchedulerDecision(
         chosenTargetId: null,
         chosenTargetName: null,
         score: 0,
         reasoning: reasons,
         scoredCandidates: scored,
+        rejected: rejectedAll,
         evaluatedAt: now,
         isSwitch: _status.currentTargetId != null,
       );
@@ -348,8 +365,30 @@ class SchedulerEngine {
     final currentId = _status.currentTargetId;
     TargetScore winner;
     bool isSwitch;
+    // True when the chosen target was forced by an active scheduled
+    // window — the UI labels this distinctly ("Forced by scheduled
+    // window …") and we skip hysteresis.
+    bool forcedByScheduledWindow = false;
 
-    if (currentId == null) {
+    // Scheduled-window override path: any eligible candidate that has an
+    // active scheduledWindow constraint MUST be selected, bypassing
+    // hysteresis. When multiple targets are inside their windows at the
+    // same instant, the higher base score (already applied in scoring)
+    // wins — eligible[0] is sorted by totalScore so the first eligible
+    // entry whose id is in scheduledWindowHits is the right pick.
+    TargetScore? forced;
+    for (final s in eligible) {
+      if (scheduledWindowHits.contains(s.targetId)) {
+        forced = s;
+        break;
+      }
+    }
+
+    if (forced != null) {
+      winner = forced;
+      isSwitch = currentId != forced.targetId;
+      forcedByScheduledWindow = true;
+    } else if (currentId == null) {
       winner = challenger;
       isSwitch = true;
     } else {
@@ -384,12 +423,19 @@ class SchedulerEngine {
       reasoning.add(
           '  ${f.name}: value=${f.value.toStringAsFixed(3)} weight=${f.weight.toStringAsFixed(2)} -> ${f.weighted.toStringAsFixed(3)}${f.detail != null ? "  ${f.detail}" : ""}');
     }
+    if (forcedByScheduledWindow) {
+      reasoning.add(
+          'Forced by scheduled window (hysteresis bypassed) on ${winner.targetName}');
+    }
     if (eligible.length > 1) {
-      final next = eligible[1];
+      final next = eligible.firstWhere(
+        (s) => s.targetId != winner.targetId,
+        orElse: () => eligible[1],
+      );
       reasoning.add(
           'Runner-up: ${next.targetName} score ${next.totalScore.toStringAsFixed(3)}');
     }
-    if (isSwitch && currentId != null) {
+    if (isSwitch && currentId != null && !forcedByScheduledWindow) {
       reasoning.add(
           'Switching from previous target id=$currentId (hysteresis ratio=${_config.hysteresisRatio.toStringAsFixed(2)} exceeded)');
     }
@@ -399,12 +445,19 @@ class SchedulerEngine {
       ...scored.where((s) => s.hardConstraintFailed),
     ];
 
+    final rejected = <RejectedCandidate>[];
+    for (final s in orderedAll) {
+      if (s.targetId == winner.targetId) continue;
+      rejected.add(_buildRejection(s, chosenScore: winner.totalScore));
+    }
+
     final decision = SchedulerDecision(
       chosenTargetId: winner.targetId,
       chosenTargetName: winner.targetName,
       score: winner.totalScore,
       reasoning: reasoning,
       scoredCandidates: orderedAll,
+      rejected: rejected,
       evaluatedAt: now,
       isSwitch: isSwitch,
     );
@@ -422,6 +475,81 @@ class SchedulerEngine {
         await _sequenceSink.dispatchSequence(seq);
       }
     }
+  }
+
+  /// Returns true if the candidate has an enabled scheduledWindow
+  /// constraint whose absolute UTC range contains [now]. Caller uses this
+  /// to bypass hysteresis and to surface the forced-selection state on
+  /// the decision panel.
+  bool _hasActiveScheduledWindow(SchedulerCandidate c, DateTime now) {
+    for (final ct in c.constraints.where((x) => x.enabled)) {
+      if (ct.kind != TargetConstraintKind.scheduledWindow) continue;
+      final sw = ct.scheduledWindow;
+      if (sw == null) continue;
+      if (sw.containsUtc(now)) return true;
+    }
+    return false;
+  }
+
+  /// Build a [RejectedCandidate] entry that the UI will render under the
+  /// "Other candidates considered" section. The reason text is derived
+  /// from the same hard-constraint / soft-score logic that filtered them
+  /// out of [_scoreCandidate].
+  RejectedCandidate _buildRejection(
+    TargetScore s, {
+    required double chosenScore,
+    String? primaryReasonOverride,
+  }) {
+    final String primary;
+    if (primaryReasonOverride != null) {
+      primary = primaryReasonOverride;
+    } else if (s.hardConstraintFailed) {
+      primary = _summarizeRejection(s.rejectionReasons);
+    } else {
+      // Eligible-but-lower-scoring. Expose the score gap as a percentage
+      // so operators can sanity-check tight calls.
+      if (chosenScore > 0) {
+        final pct = (s.totalScore / chosenScore * 100).clamp(0, 999);
+        primary =
+            'lower score than chosen (${pct.toStringAsFixed(0)}% of winner)';
+      } else {
+        primary = 'lower score than chosen';
+      }
+    }
+    return RejectedCandidate(
+      targetId: s.targetId,
+      targetName: s.targetName,
+      score: s.totalScore,
+      primaryReason: primary,
+      hardConstraintFailures: List<String>.unmodifiable(s.rejectionReasons),
+      factors: List<ScoreFactor>.unmodifiable(s.factors),
+    );
+  }
+
+  /// Map the first per-constraint failure into a compact operator-facing
+  /// chip. Falls back to the raw text when no shorter form fits.
+  String _summarizeRejection(List<String> reasons) {
+    if (reasons.isEmpty) return 'rejected';
+    final first = reasons.first;
+    if (first.contains('altitude') && first.contains('below site minimum')) {
+      return 'below horizon';
+    }
+    if (first.contains('altitude') && first.contains('horizon profile')) {
+      return 'behind custom horizon';
+    }
+    if (first.contains('moon illumination')) {
+      return first; // already includes the "X% > Y%" detail
+    }
+    if (first.contains('outside time window')) {
+      return first;
+    }
+    if (first.contains('filter')) {
+      return 'required filter not in wheel';
+    }
+    if (first.contains('goals complete')) {
+      return 'all integration goals complete';
+    }
+    return first;
   }
 
   /// Public so tests and the UI's "Preview" button can compute a decision
@@ -471,6 +599,7 @@ class SchedulerEngine {
 
     // Hard constraint: time-window / moon / horizon.
     final localTime = now.toUtc().add(_site.localOffset);
+    double scheduledWindowBoost = 0.0;
     for (final ct in c.constraints.where((x) => x.enabled)) {
       switch (ct.kind) {
         case TargetConstraintKind.timeWindow:
@@ -499,6 +628,17 @@ class SchedulerEngine {
               rejections.add(
                   'altitude ${alt.toStringAsFixed(1)}° below horizon profile "${profile.name}" (${minAlt.toStringAsFixed(1)}° at az ${az.toStringAsFixed(0)}°)');
             }
+          }
+          break;
+        case TargetConstraintKind.scheduledWindow:
+          // Never a hard-fail — the window adds a score boost during its
+          // active range and is silent otherwise. Selection forcing is
+          // handled in _evaluateOnce via [_hasActiveScheduledWindow]. We
+          // accumulate the boost here so an inactive window contributes
+          // nothing.
+          final sw = ct.scheduledWindow;
+          if (sw != null && sw.containsUtc(now)) {
+            scheduledWindowBoost += sw.priorityBoost.clamp(0.0, 1.0);
           }
           break;
       }
@@ -560,6 +700,14 @@ class SchedulerEngine {
           value: priorityFactor,
           weight: w.userPriority,
           weighted: priorityFactor * w.userPriority),
+      if (scheduledWindowBoost > 0)
+        ScoreFactor(
+          name: 'scheduledWindow',
+          value: scheduledWindowBoost.clamp(0.0, 1.0),
+          weight: 1.0,
+          weighted: scheduledWindowBoost.clamp(0.0, 1.0),
+          detail: 'forced-window boost',
+        ),
     ];
     final total = factors.fold<double>(0.0, (s, f) => s + f.weighted);
 

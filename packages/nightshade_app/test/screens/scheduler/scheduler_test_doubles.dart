@@ -109,6 +109,7 @@ SchedulerDecision decisionWith({
   required int? chosenId,
   required String? chosenName,
   required List<TargetScore> scored,
+  List<RejectedCandidate> rejected = const [],
 }) {
   return SchedulerDecision(
     chosenTargetId: chosenId,
@@ -121,8 +122,35 @@ SchedulerDecision decisionWith({
         'No eligible candidates',
     ],
     scoredCandidates: scored,
+    rejected: rejected,
     evaluatedAt: DateTime.utc(2026, 5, 11, 4, 0),
     isSwitch: chosenId != null,
+  );
+}
+
+/// Convenience for tests that need a rejected entry without restating
+/// the whole factor breakdown.
+RejectedCandidate rejectionFor({
+  required int id,
+  required String name,
+  required double score,
+  required String primaryReason,
+  List<String> hardConstraintFailures = const [],
+  List<ScoreFactor>? factors,
+}) {
+  return RejectedCandidate(
+    targetId: id,
+    targetName: name,
+    score: score,
+    primaryReason: primaryReason,
+    hardConstraintFailures: hardConstraintFailures,
+    factors: factors ??
+        const [
+          ScoreFactor(
+              name: 'altitude', value: 0.5, weight: 1.0, weighted: 0.5),
+          ScoreFactor(
+              name: 'meridian', value: 0.3, weight: 1.0, weighted: 0.3),
+        ],
   );
 }
 

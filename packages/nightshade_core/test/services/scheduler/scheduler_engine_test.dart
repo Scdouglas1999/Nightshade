@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
 import 'package:nightshade_core/src/models/scheduler/scheduler_status.dart';
+import 'package:nightshade_core/src/models/scheduler/target_constraint.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/services/scheduler/scheduler_engine.dart';
 
@@ -62,6 +63,7 @@ SchedulerCandidate _candidate({
   List<IntegrationGoal> goals = const [],
   List<int> capturedCounts = const [],
   List<String> availableFilters = const ['L', 'R', 'G', 'B'],
+  List<TargetConstraint> constraints = const [],
 }) {
   return SchedulerCandidate(
     targetId: id,
@@ -71,7 +73,7 @@ SchedulerCandidate _candidate({
     userPriority: userPriority,
     goals: goals,
     capturedCounts: capturedCounts,
-    constraints: const [],
+    constraints: constraints,
     horizonProfiles: const {},
     availableFilters: availableFilters,
   );
@@ -442,6 +444,225 @@ void main() {
       await engine.stop();
       expect(engine.status.state, SchedulerState.idle);
       expect(sink.stopCount, 1);
+      await engine.dispose();
+    });
+  });
+
+  group('SchedulerEngine - scheduledWindow override', () {
+    // Window covers the fixed clock instant 2026-05-11 04:00 UTC. The
+    // engine should force-select the lower base-score target during the
+    // window and then revert to the higher base-score one once the
+    // window ends.
+    DateTime windowStart() => DateTime.utc(2026, 5, 11, 3, 0);
+    DateTime windowEnd() => DateTime.utc(2026, 5, 11, 5, 0);
+
+    test('forces selection mid-tick, bypassing hysteresis', () async {
+      final sink = _RecordingSink();
+      // A has a strong base score (high in south); B is rising but has a
+      // scheduledWindow covering "now". The engine must select B.
+      final aPhase1 = _candidate(
+        id: 1,
+        name: 'A',
+        raHours: 14.0,
+        decDegrees: 30.0,
+      );
+      final bPhase1 = _candidate(
+        id: 2,
+        name: 'B',
+        raHours: 18.0,
+        decDegrees: 30.0,
+        constraints: [
+          TargetConstraint(
+            targetId: 2,
+            kind: TargetConstraintKind.scheduledWindow,
+            scheduledWindow: ScheduledWindow(
+              startUtc: windowStart(),
+              endUtc: windowEnd(),
+              priorityBoost: 0.5,
+            ),
+          ),
+        ],
+      );
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [aPhase1, bPhase1],
+        clock: _fixedNow,
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      expect(decision.chosenTargetId, 2,
+          reason: 'scheduledWindow must force-select B even though A scores '
+              'higher absent the boost');
+      expect(decision.isSwitch, isTrue);
+      // The chosen target's reasoning should explicitly mention the
+      // forced-selection state so the UI / log can surface it.
+      final reasonsBlob = decision.reasoning.join('\n');
+      expect(reasonsBlob, contains('Forced by scheduled window'));
+      await engine.dispose();
+    });
+
+    test('window-end releases the bypass and lets normal scoring resume',
+        () async {
+      final sink = _RecordingSink();
+      // Phase 1: clock inside window — B forced. Phase 2: clock advanced
+      // past window AND B is now below the horizon, so the engine must
+      // forcibly swap to A (the only eligible candidate). This proves the
+      // bypass cleanly releases — without the release, B (a hard-failed
+      // candidate) could never be replaced. We verify the chosen id flips
+      // and the decision's `reasoning` no longer mentions the forced
+      // bypass.
+      var phase = 1;
+      // B inside window is near meridian; B outside window is below
+      // horizon (dec deeply south so the site can't see it).
+      SchedulerCandidate buildB() {
+        return _candidate(
+          id: 2,
+          name: 'B',
+          raHours: phase == 1 ? 14.0 : 14.0,
+          decDegrees: phase == 1 ? 30.0 : -80.0,
+          constraints: [
+            TargetConstraint(
+              targetId: 2,
+              kind: TargetConstraintKind.scheduledWindow,
+              scheduledWindow: ScheduledWindow(
+                startUtc: windowStart(),
+                endUtc: windowEnd(),
+                priorityBoost: 0.5,
+              ),
+            ),
+          ],
+        );
+      }
+
+      var nowFn = () => DateTime.utc(2026, 5, 11, 4, 0); // inside window
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [
+          _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+          buildB(),
+        ],
+        clock: () => nowFn(),
+      );
+      await engine.start();
+      expect(engine.lastDecision!.chosenTargetId, 2,
+          reason: 'B forced inside the window');
+      expect(engine.lastDecision!.reasoning.join('\n'),
+          contains('Forced by scheduled window'));
+
+      // Advance past window end and make B below-horizon.
+      phase = 2;
+      nowFn = () => DateTime.utc(2026, 5, 11, 6, 0); // past window
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, 1,
+          reason: 'B is now hard-failed and the bypass has lapsed; A wins');
+      expect(engine.lastDecision!.isSwitch, isTrue);
+      // The post-window reasoning must NOT claim "forced by scheduled
+      // window" — that's the whole point of the release.
+      expect(engine.lastDecision!.reasoning.join('\n'),
+          isNot(contains('Forced by scheduled window')));
+      await engine.dispose();
+    });
+
+    test(
+        'overlapping windows on different targets choose the higher base score',
+        () async {
+      final sink = _RecordingSink();
+      // Both A and B sit inside an active scheduled window at the same
+      // instant. A has higher base score (near meridian); B is lower. The
+      // engine must pick A — eligibility-sorted by base+boost — but it
+      // MUST still be a forced selection (hysteresis bypassed).
+      final aCandidate = _candidate(
+        id: 1,
+        name: 'A',
+        raHours: 14.0,
+        decDegrees: 30.0,
+        constraints: [
+          TargetConstraint(
+            targetId: 1,
+            kind: TargetConstraintKind.scheduledWindow,
+            scheduledWindow: ScheduledWindow(
+              startUtc: windowStart(),
+              endUtc: windowEnd(),
+              priorityBoost: 0.3,
+            ),
+          ),
+        ],
+      );
+      final bCandidate = _candidate(
+        id: 2,
+        name: 'B',
+        raHours: 18.0,
+        decDegrees: 30.0,
+        constraints: [
+          TargetConstraint(
+            targetId: 2,
+            kind: TargetConstraintKind.scheduledWindow,
+            scheduledWindow: ScheduledWindow(
+              startUtc: windowStart(),
+              endUtc: windowEnd(),
+              priorityBoost: 0.3,
+            ),
+          ),
+        ],
+      );
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [aCandidate, bCandidate],
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(engine.lastDecision!.chosenTargetId, 1,
+          reason: 'when overlapping windows, the higher base score wins');
+      final reasonsBlob = engine.lastDecision!.reasoning.join('\n');
+      expect(reasonsBlob, contains('Forced by scheduled window'));
+      await engine.dispose();
+    });
+  });
+
+  group('SchedulerEngine - rejected candidate explanations', () {
+    test('every non-chosen candidate appears in decision.rejected with a '
+        'primary why-not reason', () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        // Winner — high in south, near meridian, max altitude.
+        _candidate(id: 1, name: 'Winner', raHours: 14.0, decDegrees: 40.0),
+        // Rejected — below horizon (hard fail; deep southern dec).
+        _candidate(
+            id: 2, name: 'Below horizon', raHours: 2.0, decDegrees: -75.0),
+        // Rejected — eligible but lower score. Same RA so it's near
+        // meridian and definitely above the 25° floor at lat 40 (alt
+        // ≈ 75° here), but lower than the winner.
+        _candidate(id: 3, name: 'Same RA lower dec', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: _fixedNow,
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      expect(decision.chosenTargetId, 1);
+      // Both non-chosen targets must be in the rejected list.
+      expect(decision.rejected.length, 2);
+      final byId = {for (final r in decision.rejected) r.targetId: r};
+      expect(byId.containsKey(2), isTrue);
+      expect(byId.containsKey(3), isTrue);
+      // Hard-fail rejection should mention the horizon.
+      expect(byId[2]!.primaryReason.toLowerCase(), contains('horizon'));
+      // Hard-fail rejection should also carry the full constraint
+      // failure list so the UI can show every reason on expand.
+      expect(byId[2]!.hardConstraintFailures, isNotEmpty);
+      // Eligible-but-lower rejection should mention the score-gap.
+      expect(byId[3]!.primaryReason.toLowerCase(), contains('lower score'));
+      // Each rejected candidate must carry its full per-factor breakdown
+      // so the UI's expand-on-tap can render identical detail.
+      expect(byId[3]!.factors, isNotEmpty);
+      // Eligible-but-lower entries have no hard constraint failures.
+      expect(byId[3]!.hardConstraintFailures, isEmpty);
       await engine.dispose();
     });
   });

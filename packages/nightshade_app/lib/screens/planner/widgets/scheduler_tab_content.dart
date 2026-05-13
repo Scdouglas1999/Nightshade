@@ -290,6 +290,8 @@ class _DecisionPanel extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceLg),
           _ReasoningList(decision: decision, colors: colors),
           const SizedBox(height: NightshadeTokens.spaceLg),
+          _RejectedCandidatesSection(decision: decision, colors: colors),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           _ConfigExpansion(
             config: config,
             onWeightsChanged: onWeightsChanged,
@@ -553,6 +555,272 @@ class _ReasoningList extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Collapsible "Other candidates considered" section under the decision
+/// panel. Each row shows the rejected target's name, score, and a short
+/// primary-reason chip; tapping a row expands the same per-factor
+/// breakdown the UI renders for the chosen target.
+class _RejectedCandidatesSection extends StatefulWidget {
+  final SchedulerDecision? decision;
+  final NightshadeColors colors;
+  const _RejectedCandidatesSection(
+      {required this.decision, required this.colors});
+
+  @override
+  State<_RejectedCandidatesSection> createState() =>
+      _RejectedCandidatesSectionState();
+}
+
+class _RejectedCandidatesSectionState
+    extends State<_RejectedCandidatesSection> {
+  bool _sectionExpanded = false;
+  final Set<int> _rowExpanded = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final rejected = widget.decision?.rejected ?? const <RejectedCandidate>[];
+    if (rejected.isEmpty) return const SizedBox.shrink();
+    final colors = widget.colors;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dividerColor: Colors.transparent,
+        splashColor: Colors.transparent,
+      ),
+      child: ExpansionTile(
+        key: const ValueKey('rejected-candidates-section'),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        initiallyExpanded: _sectionExpanded,
+        onExpansionChanged: (v) => setState(() => _sectionExpanded = v),
+        leading: Icon(LucideIcons.listX,
+            size: NightshadeTokens.iconSm, color: colors.textSecondary),
+        title: Text(
+          'Other candidates considered (${rejected.length})',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        children: [
+          for (final r in rejected)
+            _RejectedRow(
+              rejection: r,
+              colors: colors,
+              expanded: _rowExpanded.contains(r.targetId),
+              onToggle: () => setState(() {
+                if (_rowExpanded.contains(r.targetId)) {
+                  _rowExpanded.remove(r.targetId);
+                } else {
+                  _rowExpanded.add(r.targetId);
+                }
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RejectedRow extends StatelessWidget {
+  final RejectedCandidate rejection;
+  final NightshadeColors colors;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  const _RejectedRow({
+    required this.rejection,
+    required this.colors,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hardFailed = rejection.hardConstraintFailures.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: ValueKey('rejected-row-${rejection.targetId}'),
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: hardFailed
+                    ? colors.error.withValues(alpha: 0.35)
+                    : colors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      expanded
+                          ? LucideIcons.chevronDown
+                          : LucideIcons.chevronRight,
+                      size: NightshadeTokens.iconSm,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        rejection.targetName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      rejection.score.toStringAsFixed(3),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 22),
+                  child: _ReasonChip(
+                    label: rejection.primaryReason,
+                    color: hardFailed ? colors.error : colors.textMuted,
+                  ),
+                ),
+                if (expanded) ...[
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 22),
+                    child: _RejectedDetails(
+                      rejection: rejection,
+                      colors: colors,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _ReasonChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.40)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _RejectedDetails extends StatelessWidget {
+  final RejectedCandidate rejection;
+  final NightshadeColors colors;
+
+  const _RejectedDetails({required this.rejection, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: NightshadeTokens.paddingMd,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (rejection.hardConstraintFailures.isNotEmpty) ...[
+            Text(
+              'Failed hard constraints',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final r in rejection.hardConstraintFailures)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  '• $r',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.error,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+          ],
+          Text(
+            'Score breakdown',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (final f in rejection.factors)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text(
+                '  ${f.name}: value=${f.value.toStringAsFixed(3)} '
+                'weight=${f.weight.toStringAsFixed(2)} '
+                '-> ${f.weighted.toStringAsFixed(3)}'
+                '${f.detail != null ? "  ${f.detail}" : ""}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                  height: 1.4,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

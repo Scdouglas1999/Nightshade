@@ -218,4 +218,93 @@ void main() {
     expect(find.text('Target queue'), findsOneWidget);
     expect(find.text('NGC 7000'), findsAtLeastNWidgets(1));
   });
+
+  testWidgets(
+      'rejected candidates render in "Other candidates considered" section '
+      'with each primary reason chip; expanding a row reveals the full '
+      'per-factor breakdown', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final engine = buildTestSchedulerEngine();
+    final decision = decisionWith(
+      chosenId: 1,
+      chosenName: 'NGC 7000',
+      scored: [
+        scoreFor(id: 1, name: 'NGC 7000', total: 2.4),
+      ],
+      rejected: [
+        rejectionFor(
+          id: 2,
+          name: 'M31',
+          score: 1.1,
+          primaryReason: 'below horizon',
+          hardConstraintFailures: const [
+            'altitude 12.0° below site minimum 25.0°',
+          ],
+        ),
+        rejectionFor(
+          id: 3,
+          name: 'M42',
+          score: 1.6,
+          primaryReason: 'lower score than chosen (66% of winner)',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerStatusProvider.overrideWith((ref) {
+            return FakeSchedulerStatusNotifier(const SchedulerStatus(
+              state: SchedulerState.idle,
+            ));
+          }),
+          currentSchedulerDecisionProvider.overrideWith((ref) {
+            return FakeCurrentSchedulerDecisionNotifier(decision);
+          }),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // The section header shows the count.
+    expect(find.text('Other candidates considered (2)'), findsOneWidget);
+
+    // Expand the section.
+    await tester.tap(find.text('Other candidates considered (2)'));
+    await tester.pumpAndSettle();
+
+    // Both rejected rows render with their primary reason chips.
+    expect(find.text('M31'), findsOneWidget);
+    expect(find.text('M42'), findsOneWidget);
+    expect(find.text('below horizon'), findsOneWidget);
+    expect(find.text('lower score than chosen (66% of winner)'),
+        findsOneWidget);
+
+    // Tap the M31 row to expand its details. The expanded body shows the
+    // hard-constraint failure list AND the per-factor score breakdown.
+    await tester.tap(find.byKey(const ValueKey('rejected-row-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Failed hard constraints'), findsOneWidget);
+    expect(find.textContaining('altitude 12.0'), findsOneWidget);
+    expect(find.text('Score breakdown'), findsOneWidget);
+    // Factor lines render with their numeric values — the test fakes
+    // produce altitude + meridian factors with known weights.
+    expect(find.textContaining('altitude:'), findsOneWidget);
+    expect(find.textContaining('meridian:'), findsOneWidget);
+  });
 }

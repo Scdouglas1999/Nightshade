@@ -64,6 +64,53 @@ class TargetScore extends Equatable {
       ];
 }
 
+/// A rejected candidate's why-not summary surfaced alongside the chosen
+/// target on the decision panel. Each entry holds enough information for
+/// the UI to render a compact "X — score 0.42 — moon too close" row plus
+/// expand-to-show-full-breakdown affordance without re-querying the engine.
+class RejectedCandidate extends Equatable {
+  final int targetId;
+  final String targetName;
+
+  /// Score the candidate would have had absent its hard-constraint
+  /// failures. Useful for ranking rejected entries next to the chosen one.
+  final double score;
+
+  /// Short single-line reason chip — the most operator-actionable text the
+  /// engine could derive (e.g. "below horizon", "moon too close (12° / min
+  /// 30°)", "outside time window 22:00–02:00", "score 0.42 < threshold
+  /// 0.50", "lower priority than chosen (47% vs 78%)").
+  final String primaryReason;
+
+  /// Full per-constraint failure list (one entry per failed hard
+  /// constraint, or empty for an eligible-but-lower-scoring candidate).
+  final List<String> hardConstraintFailures;
+
+  /// Full per-factor breakdown — same shape as the chosen target's so the
+  /// UI can render the identical widget when the operator expands a
+  /// rejected row.
+  final List<ScoreFactor> factors;
+
+  const RejectedCandidate({
+    required this.targetId,
+    required this.targetName,
+    required this.score,
+    required this.primaryReason,
+    required this.hardConstraintFailures,
+    required this.factors,
+  });
+
+  @override
+  List<Object?> get props => [
+        targetId,
+        targetName,
+        score,
+        primaryReason,
+        hardConstraintFailures,
+        factors,
+      ];
+}
+
 /// The decision the scheduler made at a particular tick.
 ///
 /// `chosenTargetId` is null when no candidate passed its hard constraints
@@ -84,6 +131,11 @@ class SchedulerDecision extends Equatable {
   /// then rejected candidates.
   final List<TargetScore> scoredCandidates;
 
+  /// Per-candidate why-not summaries for every target the engine did NOT
+  /// pick at this tick. Includes both hard-constraint-failed targets and
+  /// eligible-but-lower-scoring runners-up.
+  final List<RejectedCandidate> rejected;
+
   final DateTime evaluatedAt;
 
   /// True if this decision changed the active target relative to the
@@ -98,6 +150,7 @@ class SchedulerDecision extends Equatable {
     required this.scoredCandidates,
     required this.evaluatedAt,
     this.isSwitch = false,
+    this.rejected = const [],
   });
 
   @override
@@ -109,5 +162,6 @@ class SchedulerDecision extends Equatable {
         scoredCandidates,
         evaluatedAt,
         isSwitch,
+        rejected,
       ];
 }
