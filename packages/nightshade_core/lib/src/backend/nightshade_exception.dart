@@ -3,6 +3,9 @@
 /// This module provides a Dart exception hierarchy that mirrors the Rust
 /// NightshadeError enum, enabling rich error handling across the FFI boundary.
 
+import 'dart:convert';
+import 'dart:developer' as developer;
+
 /// Base exception for all Nightshade backend errors.
 ///
 /// This provides a structured error with:
@@ -74,33 +77,70 @@ class NightshadeException implements Exception {
     };
   }
 
-  /// Create from a generic exception with error message
+  /// Create from a generic exception with error message.
+  ///
+  /// If [error]'s string form is a Rust `ErrorInfo` JSON envelope, every
+  /// structured field (`category`, `device_id`, `error_code`,
+  /// `is_recoverable`, `should_reconnect`, `is_timeout`) is routed into the
+  /// matching subclass via [NightshadeException.fromJson].
+  ///
+  /// If decoding fails on input that *looked* like JSON (starts with `{`),
+  /// the malformed payload is logged via `dart:developer` and we fall back to
+  /// heuristic classification. Surfacing the failure is required by CLAUDE.md
+  /// ("Errors are a feature").
+  ///
+  /// TODO(v2.7): remove heuristic fallback once all Rust error paths emit
+  /// structured JSON. Tracked under audit-observe §10 / roadmap R9.
   factory NightshadeException.fromError(Object error,
       [StackTrace? stackTrace]) {
     final message = error.toString();
 
-    // Try to parse as JSON first (for structured errors from Rust)
-    if (message.startsWith('{')) {
-      try {
-        final json = _parseJson(message);
-        if (json != null) {
-          return NightshadeException.fromJson(json);
-        }
-      } catch (_) {
-        // Fall through to string-based parsing
+    if (_looksLikeJson(message)) {
+      final json = _parseJson(message);
+      if (json != null) {
+        return NightshadeException.fromJson(json);
       }
+      // Why: payload started with '{' but failed to decode — log it so the
+      // malformed envelope is not silently swallowed, then fall back.
     }
 
-    // String-based heuristic classification
     return _classifyFromMessage(message);
   }
 
+  static bool _looksLikeJson(String message) {
+    // Why: the Rust ErrorInfo serializer always produces a top-level object.
+    // Trim leading whitespace to tolerate any FFI marshalling padding.
+    final trimmed = message.trimLeft();
+    return trimmed.startsWith('{');
+  }
+
+  /// Decode a Rust `ErrorInfo` JSON envelope.
+  ///
+  /// Returns `null` when [message] is not a JSON object. Malformed input that
+  /// *starts* with `{` but fails to decode is logged at warning severity (so
+  /// the failure surfaces in `LoggingService`'s ring buffer and the platform
+  /// log) and then returned as `null` so the caller can fall back to the
+  /// heuristic classifier — preserving backward compatibility per R9.
   static Map<String, dynamic>? _parseJson(String message) {
     try {
-      // Simple JSON parsing without importing dart:convert here
-      // The actual parsing is done when this is used
-      return null; // Let the caller handle JSON parsing
-    } catch (_) {
+      final decoded = jsonDecode(message);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        // Why: jsonDecode returns Map<String, dynamic> for object literals,
+        // but defensively coerce in case the platform decoder produces a
+        // different concrete Map type.
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
+      return null;
+    } on FormatException catch (e) {
+      developer.log(
+        'NightshadeException: malformed structured-error JSON envelope: '
+        '${e.message} (input length=${message.length})',
+        name: 'NightshadeException',
+        level: 900, // warning
+      );
       return null;
     }
   }
