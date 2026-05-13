@@ -78,7 +78,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
+  # Pinned exact version across all 10 workspace packages to prevent
+  # mixed-version drift. See docs/code-quality/audit-dart.md §10 #4.
+  # Upgrade to ^5.0.0 is scheduled in W-TEST / CQ-W5-LINTS-UPGRADE.
+  flutter_lints: 3.0.2
   build_runner: ^2.4.8
   riverpod_generator: ^2.3.9
   freezed: ^2.4.6

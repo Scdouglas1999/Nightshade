@@ -1,2 +1,43 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# ---------------------------------------------------------------------------
+# Generated code: collapse from PR diffs.
+# GitHub's diff UI honours `linguist-generated=true` by hiding matched files
+# behind a "Load diff" affordance, dropping ~76k LOC of churn from review.
+# Reference: docs/code-quality/audit-tests.md §8 #1, audit-tests.md §4.
+# ---------------------------------------------------------------------------
+
+# Dart code generation (build_runner, freezed, json_serializable, drift, mocks).
+*.g.dart linguist-generated=true
+*.freezed.dart linguist-generated=true
+*.gr.dart linguist-generated=true
+*.config.dart linguist-generated=true
+*.drift.dart linguist-generated=true
+*.mocks.dart linguist-generated=true
+
+# flutter_rust_bridge generated Dart bindings.
+**/frb_generated.dart linguist-generated=true
+**/frb_generated.io.dart linguist-generated=true
+**/frb_generated.web.dart linguist-generated=true
+packages/nightshade_bridge/lib/src/frb_generated*.dart linguist-generated=true
+packages/nightshade_bridge/lib/src/api/** linguist-generated=true
+
+# flutter_rust_bridge generated Rust bindings and C headers.
+**/frb_generated.rs linguist-generated=true
+**/frb_generated.io.rs linguist-generated=true
+**/frb_generated.web.rs linguist-generated=true
+**/bridge_generated.h linguist-generated=true
+native/nightshade_native/bridge/src/frb_generated*.rs linguist-generated=true
+
+# Lockfiles: collapse, but keep diff text searchable for security audits.
+pubspec.lock linguist-generated=true
+Cargo.lock linguist-generated=true
+
+# ---------------------------------------------------------------------------
+# Line-ending policy: keep shell scripts LF on Windows checkouts so the
+# pre-commit hook installed by scripts/install-hooks.sh remains executable.
+# ---------------------------------------------------------------------------
+*.sh text eol=lf
+scripts/install-hooks.sh text eol=lf
+scripts/pre-commit.sh text eol=lf

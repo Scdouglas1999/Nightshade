@@ -1,0 +1,86 @@
+# cargo-deny configuration for the nightshade_native workspace.
+#
+# Used by CI (`.github/workflows/ci.yml` → cargo-duplicates job) to catch
+# multi-semver duplicates of the same crate. Reference:
+# docs/code-quality/audit-rust.md §5.3 (base64, thiserror, socket2,
+# getrandom, hashbrown, windows-sys, windows-targets duplicate semvers).
+#
+# Format reference: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Include all targets so Windows-only crates (windows-*, ascom transitive
+# deps) are scanned even when running on Linux CI.
+all-features = true
+
+[bans]
+# Warn on multiple-semver-versions of the same crate in the build graph.
+# Audit §5.3 calls out specific offenders; the audit job sets
+# --warn duplicate so this stays informational but visible until each
+# duplicate is consolidated.
+multiple-versions = "warn"
+
+# Known-bloaters that the audit-rust §5.3 table called out. As each
+# duplicate is consolidated, remove the entry from this skip list so we
+# don't re-introduce it.
+skip = [
+    # Mixed transitive: reqwest vs mdns-sd.
+    { name = "socket2" },
+    # Mixed transitive: indexmap variants.
+    { name = "hashbrown" },
+    # Heavy: mixed via `windows` crate transitive. Tracked in roadmap
+    # W-OBS / windows-upgrade.
+    { name = "windows-sys" },
+    { name = "windows-targets" },
+    { name = "windows_aarch64_gnullvm" },
+    { name = "windows_aarch64_msvc" },
+    { name = "windows_i686_gnu" },
+    { name = "windows_i686_gnullvm" },
+    { name = "windows_i686_msvc" },
+    { name = "windows_x86_64_gnu" },
+    { name = "windows_x86_64_gnullvm" },
+    { name = "windows_x86_64_msvc" },
+    # Varied: small footprint.
+    { name = "getrandom" },
+    { name = "wasi" },
+    { name = "rand" },
+    { name = "rand_core" },
+    { name = "rand_chacha" },
+    # Bytes layer: minor.
+    { name = "bitflags" },
+    # Pin / unicode-bidi minors.
+    { name = "syn" },
+    { name = "linux-raw-sys" },
+]
+
+# We bind tightly later — the CI job runs with `--hide-inclusion-graph`
+# and `--warn duplicate` so the duplicates the audit identified stay
+# warnings rather than blocking PRs that don't introduce *new* dupes.
+
+[licenses]
+# Don't enforce license policy from cargo-deny — that's out of scope for
+# the duplicate check. Use a permissive allow-list so the command does
+# not exit non-zero on license issues alone.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+    "0BSD",
+    "OpenSSL",
+    "BSL-1.0",
+]
+confidence-threshold = 0.8
+
+[advisories]
+# Vulnerability advisories are handled separately by the rust audit job;
+# this file only governs duplicates today. Ignore unmaintained-only
+# advisories so the duplicate run isn't gated on them.
+yanked = "warn"
+ignore = []

@@ -1,0 +1,67 @@
+# Codecov configuration for Nightshade 2.0.
+#
+# Reference: docs/code-quality/audit-tests.md §7 gap #6, recommendation #4.
+# The audit flagged that the CI coverage job used `fail_ci_if_error: false`
+# and had no threshold, so coverage could regress silently. This file
+# enforces:
+#   - max 1% coverage regression per PR (threshold)
+#   - target tracks the parent commit (target: auto)
+#   - patch coverage on new lines must reach 60%
+#
+# Docs: https://docs.codecov.com/docs/codecovyml-reference
+
+codecov:
+  # Don't post duplicate status checks while CI is still running.
+  notify:
+    after_n_builds: 1
+    wait_for_ci: true
+
+coverage:
+  # Two decimal places in the rendered percentages.
+  precision: 2
+  round: down
+  range: "60...90"
+
+  status:
+    project:
+      default:
+        # Compare against the parent commit's coverage.
+        target: auto
+        # Allow at most a 1% drop before failing the status check.
+        threshold: 1%
+        # Coverage uploads from forks may be missing — don't gate forks.
+        if_not_found: success
+        # Required for the audit-tests.md §7 #4 ask: PR-visible drops.
+        informational: false
+
+    patch:
+      default:
+        # New code introduced in the PR should reach 60% line coverage.
+        # The codebase average is below this today (audit-tests.md §1
+        # shows packages range 5%-40%), so we set a floor that doesn't
+        # block PRs in low-coverage packages while still rewarding
+        # contributions that include tests.
+        target: 60%
+        threshold: 5%
+        if_not_found: success
+        informational: false
+
+# Don't measure generated code — it skews the percentages and the audit
+# already documented the generated-vs-handwritten split in §4.
+ignore:
+  - "**/*.g.dart"
+  - "**/*.freezed.dart"
+  - "**/*.gr.dart"
+  - "**/*.config.dart"
+  - "**/*.drift.dart"
+  - "**/*.mocks.dart"
+  - "**/frb_generated*.dart"
+  - "**/frb_generated*.rs"
+  - "**/bridge_generated.h"
+  - "packages/nightshade_bridge/lib/src/api/**"
+  - "native/nightshade_native/bridge/src/frb_generated*.rs"
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
