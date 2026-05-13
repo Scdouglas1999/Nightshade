@@ -11,6 +11,7 @@ import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 import 'package:nightshade_app/widgets/first_night_wizard_launcher.dart';
+import 'package:nightshade_app/widgets/onboarding/onboarding_launcher.dart';
 
 class NightshadeApp extends ConsumerWidget {
   final bool isMobile;
@@ -180,7 +181,9 @@ class NightshadeApp extends ConsumerWidget {
             // — putting it outside would render the wizard at unscaled
             // size on high-DPI displays.
             Widget result = ScaledConfigProvider(
-              child: FirstNightWizardLauncher(child: scaledChild),
+              child: OnboardingTourLauncher(
+                child: FirstNightWizardLauncher(child: scaledChild),
+              ),
             );
 
             // Only add UpdateManager on desktop (not mobile - uses app stores)

@@ -55,6 +55,32 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   context.go('/tutorial/first-night');
                 },
               ),
+              colors: colors,
+            ),
+            SettingRow(
+              icon: LucideIcons.compass,
+              iconColor: colors.primary,
+              title: 'Re-run onboarding tour',
+              subtitle:
+                  'Replay the first-launch spotlight tour that highlights '
+                  'where Equipment, Sequencer, Scheduler, and Plate Solving '
+                  'live in the app.',
+              trailing: NightshadeButton(
+                label: 'Re-run',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                icon: LucideIcons.refreshCw,
+                // Reset the DAO row + in-memory pointer; the launcher in
+                // app.dart watches firstLaunchTourStatusProvider and will
+                // re-mount the overlay as soon as the status flips back
+                // to pending. No route change needed — the overlay sits
+                // above the current screen.
+                onPressed: () async {
+                  await ref
+                      .read(onboardingTourProvider.notifier)
+                      .reset();
+                },
+              ),
               isLast: true,
               colors: colors,
             ),

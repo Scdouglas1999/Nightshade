@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/transient_alert_badge.dart';
+import '../../../widgets/tutorial_overlay.dart' show TutorialKeys;
 
 // Conditional import for window_manager (desktop only)
 import 'title_bar_stub.dart' if (dart.library.io) 'title_bar_desktop.dart'
@@ -98,9 +99,11 @@ class TitleBar extends ConsumerWidget {
               ),
             ),
 
-            // Settings button
+            // Settings button — keyed for the onboarding overlay so the
+            // first-launch tour can spotlight where Plate Solving lives.
             Builder(
               builder: (context) => _TitleBarButton(
+                key: TutorialKeys.navSettings,
                 icon: LucideIcons.settings,
                 tooltip: 'Settings',
                 onPressed: () {
@@ -131,6 +134,7 @@ class _TitleBarButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   const _TitleBarButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,

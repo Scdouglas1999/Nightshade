@@ -160,6 +160,231 @@ final shouldShowFirstNightProvider = FutureProvider<bool>((ref) {
   return ref.watch(tutorialDaoProvider).shouldShowFirstNightOnLaunch();
 });
 
+/// Stable category name for the first-launch onboarding tour persisted in
+/// the `tutorial_progress` table. The OnboardingOverlay reads and writes
+/// this row to decide whether to auto-fire on app launch.
+///
+/// Kept distinct from the first-night wizard category so the modal wizard
+/// and the inline spotlight tour can be completed or skipped independently
+/// — a user who skips the wizard may still want the lightweight overlay,
+/// and vice versa.
+const String firstLaunchTourCategory = 'firstLaunchTour';
+
+/// State of the first-launch onboarding tour overlay.
+///
+/// Why a tri-state instead of a bool: knowing the row is missing
+/// (`unknown`) lets the UI render nothing while the DAO read is in flight,
+/// avoiding a frame where the overlay briefly mounts before the DAO says
+/// the tour is already complete. `completed` and `skipped` are kept
+/// distinct because Settings → Help shows different copy ("Replay" vs
+/// "Restart") and analytics distinguishes "the user finished" from "the
+/// user opted out".
+enum FirstLaunchTourStatus {
+  /// DAO read hasn't returned yet — render nothing.
+  unknown,
+
+  /// No row exists for the tour — auto-show on launch.
+  pending,
+
+  /// User clicked Done on the final step.
+  completed,
+
+  /// User clicked Skip, pressed Escape, or tapped outside the cutout.
+  skipped,
+}
+
+/// Helpers around [TutorialProgressDao] that answer the questions the
+/// onboarding overlay needs: "should I auto-open?", "did the user skip?",
+/// "mark me done". Keeping them in a tiny wrapper class means the overlay
+/// widget doesn't have to know the category name string or duplicate the
+/// finished/dismissed flag mapping.
+class FirstLaunchTourDao {
+  final TutorialProgressDao _progressDao;
+
+  FirstLaunchTourDao(this._progressDao);
+
+  /// Resolve the tour's current persistence status — used by the launcher
+  /// to decide whether to mount the overlay.
+  Future<FirstLaunchTourStatus> getStatus() async {
+    final progress =
+        await _progressDao.getProgress(firstLaunchTourCategory);
+    if (progress == null) {
+      return FirstLaunchTourStatus.pending;
+    }
+    if (progress.completed) {
+      return FirstLaunchTourStatus.completed;
+    }
+    if (progress.dismissed) {
+      return FirstLaunchTourStatus.skipped;
+    }
+    // A row exists but neither flag is set — treat as pending so a user
+    // who closed the overlay before completing can still see it next
+    // launch. The overlay only writes the row when the user explicitly
+    // completes or skips.
+    return FirstLaunchTourStatus.pending;
+  }
+
+  /// Mark the tour finished. Called when the user clicks Done on the
+  /// final step. After this, [getStatus] returns [FirstLaunchTourStatus.completed]
+  /// and the launcher will not auto-open again until [reset] is called.
+  Future<void> markCompleted() {
+    return _progressDao.markCompleted(firstLaunchTourCategory);
+  }
+
+  /// Mark the tour skipped — user pressed Skip, Escape, or tapped outside
+  /// the cutout. Distinguished from [markCompleted] so the Settings → Help
+  /// row can render a different label.
+  Future<void> markSkipped() {
+    return _progressDao.markDismissed(firstLaunchTourCategory);
+  }
+
+  /// Wipe the tour's progress so it auto-opens again on next launch.
+  /// Backs the Settings → Help "Re-run tutorial" button.
+  Future<void> reset() {
+    return _progressDao.resetProgress(firstLaunchTourCategory);
+  }
+}
+
+/// Provider for the first-launch onboarding tour DAO wrapper.
+final firstLaunchTourDaoProvider = Provider<FirstLaunchTourDao>((ref) {
+  return FirstLaunchTourDao(ref.watch(tutorialProgressDaoProvider));
+});
+
+/// Resolves the first-launch onboarding tour's current persistence status.
+///
+/// The OnboardingOverlay launcher watches this provider; when it resolves
+/// to [FirstLaunchTourStatus.pending], the overlay mounts. The provider is
+/// keyed by ref so widget code that calls [markCompleted] / [markSkipped]
+/// via the notifier below can `ref.invalidate` this provider to retrigger
+/// the launcher's gate (used by the Settings → Help "Re-run tutorial"
+/// row to drop the user straight into the overlay without a restart).
+final firstLaunchTourStatusProvider =
+    FutureProvider<FirstLaunchTourStatus>((ref) {
+  return ref.watch(firstLaunchTourDaoProvider).getStatus();
+});
+
+/// State notifier driving the OnboardingOverlay's step pointer.
+///
+/// Step state is intentionally session-only (not persisted) — the tour is
+/// short (6 steps + 1 optional) and meant to be completed in a single
+/// sitting. Persisting per-step would create a "you're 3/6 done, resume?"
+/// UX that nobody asked for. Completion or skip is what gets persisted via
+/// [FirstLaunchTourDao]; everything else lives in memory.
+class OnboardingTourNotifier extends StateNotifier<int> {
+  final FirstLaunchTourDao _dao;
+  final Ref _ref;
+  final int _totalCoreSteps;
+
+  /// Whether the user has unlocked the optional "defect maps" follow-up
+  /// step. Toggled on from the final card's "Show me about defect maps"
+  /// button. Off by default so the linear next/skip path stops at the
+  /// "You're set" card.
+  bool _defectMapStepUnlocked = false;
+
+  OnboardingTourNotifier({
+    required FirstLaunchTourDao dao,
+    required Ref ref,
+    required int totalCoreSteps,
+  })  : _dao = dao,
+        _ref = ref,
+        _totalCoreSteps = totalCoreSteps,
+        super(0);
+
+  /// True if the optional defect-map step is currently part of the tour.
+  bool get defectMapStepUnlocked => _defectMapStepUnlocked;
+
+  /// Current pointer to a step, 0-based.
+  int get currentStepIndex => state;
+
+  /// Total number of steps the user will see, including the optional
+  /// defect-map follow-up if it was unlocked.
+  int get totalSteps =>
+      _defectMapStepUnlocked ? _totalCoreSteps + 1 : _totalCoreSteps;
+
+  bool get isFirstStep => state == 0;
+  bool get isLastStep => state >= totalSteps - 1;
+
+  /// Advance one step. Calling next() on the last step is a no-op — the
+  /// final card uses [complete] for its Done button.
+  void next() {
+    if (state >= totalSteps - 1) return;
+    state = state + 1;
+  }
+
+  /// Go back one step. No-op on step 0.
+  void back() {
+    if (state == 0) return;
+    state = state - 1;
+  }
+
+  /// Jump to a specific step index. Throws if out of range — errors are a
+  /// feature; an out-of-range index here is a caller bug.
+  void goToStep(int index) {
+    if (index < 0 || index >= totalSteps) {
+      throw ArgumentError(
+        'OnboardingTourNotifier.goToStep: index $index outside '
+        '[0..${totalSteps - 1}]',
+      );
+    }
+    state = index;
+  }
+
+  /// Unlock the optional defect-map follow-up and jump to it. Called from
+  /// the "Show me about defect maps" button on the completion card.
+  void unlockDefectMapStep() {
+    _defectMapStepUnlocked = true;
+    state = totalSteps - 1;
+  }
+
+  /// Persist completion and invalidate the status provider so the launcher
+  /// reacts immediately (tearing down the overlay without waiting for a
+  /// rebuild from elsewhere).
+  Future<void> complete() async {
+    await _dao.markCompleted();
+    _ref.invalidate(firstLaunchTourStatusProvider);
+  }
+
+  /// Persist skip and invalidate the status provider. Same effect as
+  /// [complete] on the next launch (tour does not re-fire) but recorded
+  /// distinctly so the Settings → Help row can show "Replay" vs "Restart".
+  Future<void> skip() async {
+    await _dao.markSkipped();
+    _ref.invalidate(firstLaunchTourStatusProvider);
+  }
+
+  /// Reset the persisted progress AND the in-memory step pointer. Used by
+  /// Settings → Help → Re-run tutorial.
+  Future<void> reset() async {
+    _defectMapStepUnlocked = false;
+    state = 0;
+    await _dao.reset();
+    _ref.invalidate(firstLaunchTourStatusProvider);
+  }
+}
+
+/// Total non-optional onboarding step count. Exposed as a top-level
+/// constant so the notifier and the widget agree without round-tripping
+/// through a Provider value at construction time.
+const int onboardingTourCoreStepCount = 7;
+
+/// Provider for the onboarding tour step notifier.
+///
+/// Intentionally NOT auto-disposing: the overlay can sit above any
+/// screen, and route changes during the tour (e.g. the user clicked
+/// through to Equipment from elsewhere) would otherwise dispose the
+/// notifier and reset the step pointer. The Settings → Help "Re-run
+/// tutorial" path calls [OnboardingTourNotifier.reset] explicitly to
+/// rewind state, so we don't need the auto-dispose lifecycle to do it
+/// for us.
+final onboardingTourProvider =
+    StateNotifierProvider<OnboardingTourNotifier, int>((ref) {
+  return OnboardingTourNotifier(
+    dao: ref.watch(firstLaunchTourDaoProvider),
+    ref: ref,
+    totalCoreSteps: onboardingTourCoreStepCount,
+  );
+});
+
 /// Provider for tutorial state with database persistence
 final tutorialProvider =
     StateNotifierProvider<TutorialNotifier, TutorialProgress>((ref) {
