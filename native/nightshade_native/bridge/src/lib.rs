@@ -77,6 +77,7 @@ mod state;
 mod storage;
 mod timeout_ops;
 mod unified_device_ops;
+mod util;
 
 pub use api::*;
 pub use device::*;

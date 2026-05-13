@@ -6242,18 +6242,85 @@ impl DeviceManager {
             }
         }
 
-        // Spawn heartbeat task
+        // Spawn heartbeat task under panic supervision. Discovery and device
+        // heartbeats are critical: a silent panic here means the user thinks
+        // the device is fine while it's actually unmonitored. Restart on
+        // panic with exponential backoff so a transient driver fault doesn't
+        // kill heartbeat for the whole session.
         let device_id_clone = device_id.to_string();
         let app_state = self.app_state.clone();
         // We need a reference to perform health checks - clone Arc pointer from the global singleton
         let manager = crate::api::get_device_manager().clone();
 
-        let task = tokio::spawn(async move {
-            let mut current_interval = Duration::from_secs(config.base_interval_secs);
-            let max_interval = Duration::from_secs(config.max_interval_secs);
-            let mut consecutive_failures = 0u32;
-            let mut reconnect_attempts = 0u32;
-            let mut is_reconnecting = false;
+        let give_up_app_state = app_state.clone();
+        let give_up_device_type_str = device_type_str.clone();
+        let give_up_device_id = device_id_clone.clone();
+        let task = crate::util::supervisor::spawn_supervised_restart(
+            "device_heartbeat",
+            crate::util::supervisor::RestartPolicy::DEFAULT,
+            move || {
+                let device_id_clone = device_id_clone.clone();
+                let app_state = app_state.clone();
+                let manager = manager.clone();
+                let device_type_str = device_type_str.clone();
+                async move {
+                    DeviceManager::run_heartbeat_loop(
+                        device_id_clone,
+                        device_type,
+                        device_type_str,
+                        driver_type,
+                        config,
+                        app_state,
+                        manager,
+                    )
+                    .await;
+                }
+            },
+            Some(move |panic_msg: &str| {
+                tracing::error!(
+                    target: "supervisor",
+                    "device_heartbeat for {} exhausted restart budget; device is no longer monitored. Last panic: {panic_msg}",
+                    give_up_device_id
+                );
+                give_up_app_state.publish_equipment_event(
+                    EquipmentEvent::Error {
+                        device_type: give_up_device_type_str,
+                        device_id: give_up_device_id,
+                        message: format!(
+                            "Heartbeat supervisor gave up after repeated panics: {panic_msg}"
+                        ),
+                    },
+                    EventSeverity::Error,
+                );
+            }),
+        );
+
+        // Store the task handle
+        {
+            let mut tasks = self.heartbeat_tasks.write().await;
+            tasks.insert(device_id.to_string(), task);
+        }
+
+        Ok(())
+    }
+
+    /// Inner heartbeat loop body, factored out of `start_heartbeat_with_config`
+    /// so the panic supervisor can re-invoke it on every restart.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_heartbeat_loop(
+        device_id_clone: String,
+        device_type: DeviceType,
+        device_type_str: String,
+        driver_type: DriverType,
+        config: HeartbeatConfig,
+        app_state: SharedAppState,
+        manager: Arc<DeviceManager>,
+    ) {
+        let mut current_interval = Duration::from_secs(config.base_interval_secs);
+        let max_interval = Duration::from_secs(config.max_interval_secs);
+        let mut consecutive_failures = 0u32;
+        let mut reconnect_attempts = 0u32;
+        let mut is_reconnecting = false;
 
             loop {
                 // Wait for interval
@@ -6498,24 +6565,15 @@ impl DeviceManager {
                 }
             }
 
-            tracing::debug!("Heartbeat task ended for device: {}", device_id_clone);
+        tracing::debug!("Heartbeat task ended for device: {}", device_id_clone);
 
-            // Mark heartbeat as inactive when task ends
-            {
-                let mut devices = manager.devices.write().await;
-                if let Some(device) = devices.get_mut(&device_id_clone) {
-                    device.heartbeat_active = false;
-                }
-            }
-        });
-
-        // Store the task handle
+        // Mark heartbeat as inactive when task ends
         {
-            let mut tasks = self.heartbeat_tasks.write().await;
-            tasks.insert(device_id.to_string(), task);
+            let mut devices = manager.devices.write().await;
+            if let Some(device) = devices.get_mut(&device_id_clone) {
+                device.heartbeat_active = false;
+            }
         }
-
-        Ok(())
     }
 
     /// Stop heartbeat monitoring for a device

@@ -7151,15 +7151,66 @@ pub async fn api_sequencer_get_state() -> SequencerState {
 
 /// Subscribe to sequencer events and forward them to the main event stream
 pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
-    let executor = get_sequence_executor().read().await;
-    let mut rx = executor.subscribe();
+    // Validate the executor is reachable before spawning the supervisor so a
+    // bad caller still gets an error synchronously. Drop the lock immediately
+    // — the supervisor takes a fresh one on every restart.
+    {
+        let _executor = get_sequence_executor().read().await;
+    }
     let state = get_state().clone();
 
     tracing::info!("[EVENT_SUB] Sequencer event subscription started");
 
-    tokio::spawn(async move {
-        tracing::info!("[EVENT_SUB] Event listener task spawned");
-        while let Ok(event) = rx.recv().await {
+    // The event bridge MUST stay alive for the lifetime of the UI; losing
+    // it silently means the user sees zero sequencer updates with no error.
+    // Supervise with restart-on-panic and exponential backoff.
+    crate::util::supervisor::spawn_supervised_restart(
+        "sequencer_event_bridge",
+        crate::util::supervisor::RestartPolicy::DEFAULT,
+        move || {
+            let state = state.clone();
+            async move {
+                let mut rx = {
+                    let executor = get_sequence_executor().read().await;
+                    executor.subscribe()
+                };
+                tracing::info!("[EVENT_SUB] Event listener task spawned");
+                run_sequencer_event_loop(&mut rx, &state).await;
+            }
+        },
+        Some(|msg: &str| {
+            tracing::error!(
+                target: "supervisor",
+                "sequencer_event_bridge exhausted restart budget; UI will stop receiving sequencer events. Last panic: {msg}"
+            );
+        }),
+    );
+
+    Ok(())
+}
+
+/// Inner event-loop body for [`api_sequencer_subscribe_events`].
+/// Pulled out so the supervisor factory can call it on every restart.
+async fn run_sequencer_event_loop(
+    rx: &mut tokio::sync::broadcast::Receiver<ExecutorEvent>,
+    state: &SharedAppState,
+) {
+    loop {
+        let event = match rx.recv().await {
+            Ok(ev) => ev,
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                tracing::warn!(
+                    "[EVENT_SUB] Lagged behind sequencer; skipped {} events",
+                    skipped
+                );
+                continue;
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                tracing::info!("[EVENT_SUB] Sequencer event channel closed; bridge exiting");
+                return;
+            }
+        };
+        {
             tracing::debug!(
                 "[EVENT_SUB] Received event: {:?}",
                 std::mem::discriminant(&event)
@@ -7348,9 +7399,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                 state.publish_event(e);
             }
         }
-    });
-
-    Ok(())
+    }
 }
 
 /// Stream of sequencer events (separate from main event stream for real-time progress)
@@ -8637,31 +8686,45 @@ pub async fn api_start_polar_alignment(
     let start_from_current_val = start_from_current.unwrap_or(true);
     let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
 
-    tokio::spawn(async move {
-        let result = run_polar_alignment(
-            camera_id,
-            mount_id,
-            exposure_time,
-            step_size,
-            binning,
-            is_north,
-            manual_rotation,
-            rotate_east,
-            start_from_current_val,
-            gain_val,
-            offset_val,
-            solve_timeout_val,
-            auto_complete_threshold_val,
-        )
-        .await;
+    crate::util::supervisor::spawn_supervised_oneshot(
+        "polar_align_monitor",
+        async move {
+            let result = run_polar_alignment(
+                camera_id,
+                mount_id,
+                exposure_time,
+                step_size,
+                binning,
+                is_north,
+                manual_rotation,
+                rotate_east,
+                start_from_current_val,
+                gain_val,
+                offset_val,
+                solve_timeout_val,
+                auto_complete_threshold_val,
+            )
+            .await;
 
-        if let Err(e) = result {
-            tracing::error!("Polar alignment failed: {}", e);
-            emit_polar_status(&format!("Error: {}", e), "error", 0);
-        }
+            if let Err(e) = result {
+                tracing::error!("Polar alignment failed: {}", e);
+                emit_polar_status(&format!("Error: {}", e), "error", 0);
+            }
 
-        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
-    });
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        },
+        // If the polar-align task panics, the busy flag would otherwise
+        // remain stuck `true` forever and the user could never restart it.
+        // Clear the flag and surface the panic via the status channel.
+        Some(|panic_msg: &str| {
+            emit_polar_status(
+                &format!("Polar alignment crashed: {panic_msg}"),
+                "error",
+                0,
+            );
+            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        }),
+    );
 
     Ok(())
 }

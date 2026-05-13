@@ -56,45 +56,63 @@ impl ImagingSession {
             _processing_handle: Arc::new(RwLock::new(None)),
         };
 
-        // Spawn the processing worker
-        let app_state_clone = app_state.clone();
-        let _handle = tokio::spawn(async move {
-            tracing::info!("Imaging processing worker started");
+        // Spawn the processing worker under panic supervision. If this task
+        // panics silently, captured frames pile up in the channel buffer and
+        // the user sees their exposures vanish — we MUST log the panic and
+        // surface an exposure-failed event so the UI shows the problem.
+        let app_state_for_worker = app_state.clone();
+        let app_state_for_panic = app_state.clone();
+        let _handle = crate::util::supervisor::spawn_supervised_oneshot(
+            "imaging_processing_worker",
+            async move {
+                tracing::info!("Imaging processing worker started");
 
-            while let Some(job) = rx.recv().await {
-                tracing::info!("Processing frame {}", job.frame_number);
+                while let Some(job) = rx.recv().await {
+                    tracing::info!("Processing frame {}", job.frame_number);
 
-                // 1. Calculate stats (CPU intensive)
-                let _stats = calculate_stats_u16(&job.image);
-                let hfr = Self::calculate_hfr_avg(&job.image);
-                let star_count = detect_stars(&job.image, &StarDetectionConfig::default()).len();
+                    // 1. Calculate stats (CPU intensive)
+                    let _stats = calculate_stats_u16(&job.image);
+                    let hfr = Self::calculate_hfr_avg(&job.image);
+                    let star_count =
+                        detect_stars(&job.image, &StarDetectionConfig::default()).len();
 
-                // 2. Save to file (I/O intensive)
-                if let Some(ref path) = job.file_path {
-                    if let Err(e) =
-                        Self::save_image_static(&job.image, path, &job.params, &job.seq_image_data)
-                            .await
-                    {
-                        tracing::error!("Failed to save frame {}: {}", job.frame_number, e);
-                        Self::publish_exposure_failed_static(&app_state_clone, &e);
-                        continue;
+                    // 2. Save to file (I/O intensive)
+                    if let Some(ref path) = job.file_path {
+                        if let Err(e) = Self::save_image_static(
+                            &job.image,
+                            path,
+                            &job.params,
+                            &job.seq_image_data,
+                        )
+                        .await
+                        {
+                            tracing::error!("Failed to save frame {}: {}", job.frame_number, e);
+                            Self::publish_exposure_failed_static(&app_state_for_worker, &e);
+                            continue;
+                        }
                     }
+
+                    // 3. Publish completion event
+                    Self::publish_exposure_completed_static(
+                        &app_state_for_worker,
+                        job.frame_number,
+                        None, // Total frames unknown in loop
+                        hfr,
+                        star_count as u32,
+                    );
+
+                    tracing::info!("Frame {} processed successfully", job.frame_number);
                 }
 
-                // 3. Publish completion event
-                Self::publish_exposure_completed_static(
-                    &app_state_clone,
-                    job.frame_number,
-                    None, // Total frames unknown in loop
-                    hfr,
-                    star_count as u32,
+                tracing::info!("Imaging processing worker stopped");
+            },
+            Some(move |panic_msg: &str| {
+                Self::publish_exposure_failed_static(
+                    &app_state_for_panic,
+                    &format!("Imaging processing worker crashed: {panic_msg}"),
                 );
-
-                tracing::info!("Frame {} processed successfully", job.frame_number);
-            }
-
-            tracing::info!("Imaging processing worker stopped");
-        });
+            }),
+        );
 
         session
     }
@@ -622,16 +640,28 @@ pub async fn imaging_start_looping(
 ) -> Result<(), String> {
     let session = get_imaging_session().await?;
 
-    // Spawn background task for looping
+    // Spawn background task for looping. Panic here would otherwise abort
+    // the loop with no log signal; supervise so the panic is at least
+    // visible in logs.
     let session_clone = session.clone();
-    tokio::spawn(async move {
-        if let Err(e) = session_clone
-            .start_looping_exposure(camera_id, params)
-            .await
-        {
-            tracing::error!("Looping exposure failed: {}", e);
-        }
-    });
+    let session_for_panic = session.clone();
+    crate::util::supervisor::spawn_supervised_oneshot(
+        "imaging_loop_launcher",
+        async move {
+            if let Err(e) = session_clone
+                .start_looping_exposure(camera_id, params)
+                .await
+            {
+                tracing::error!("Looping exposure failed: {}", e);
+            }
+        },
+        // On panic the running flag would otherwise stay stuck `true` and
+        // the user could never start another loop. Force the session out of
+        // its running state.
+        Some(move |_panic_msg: &str| {
+            session_for_panic.stop_looping();
+        }),
+    );
 
     Ok(())
 }

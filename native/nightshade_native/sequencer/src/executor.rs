@@ -7,9 +7,11 @@ use crate::{
     NodeDefinition, NodeId, NodeStatus, NodeType, RecoveryAction, SafetyFailMode,
     SequenceDefinition,
 };
+use futures::FutureExt;
 use parking_lot::RwLock as StdRwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -884,7 +886,17 @@ impl SequenceExecutor {
         let resume_notify_clone = resume_notify.clone();
         let exposure_node_metadata = Arc::new(exposure_node_metadata);
         let trigger_action_context = trigger_action_context.clone();
+
+        // Clones used by the panic-supervision shell *outside* the executed
+        // future. A bare `tokio::spawn` would silently swallow any panic in
+        // the executor loop — the sequence would just stop with no event and
+        // no log. We need at least `state`, `progress`, and `event_tx` to
+        // survive the panic so we can report `SequenceFailed` to the UI.
+        let supervisor_state = state.clone();
+        let supervisor_progress = progress.clone();
+        let supervisor_event_tx = event_tx.clone();
         tokio::spawn(async move {
+            let executor_future = async move {
             let start_time = std::time::Instant::now();
 
             // The trigger monitor needs its own handle because `with_device_ops` moves
@@ -2241,6 +2253,38 @@ impl SequenceExecutor {
             }
 
             let _ = event_tx.send(ExecutorEvent::StateChanged(final_state));
+            };
+
+            // Catch any panic inside the executor future. If the future
+            // panics we MUST surface it: a silently-dead sequencer is the
+            // exact "silent fallback" CLAUDE.md forbids. Restarting node
+            // execution after a panic is not safe (device state is unknown
+            // and `root_node` has been consumed by move), so the policy is:
+            // log + emit SequenceFailed + move state to Failed.
+            if let Err(panic_payload) = AssertUnwindSafe(executor_future).catch_unwind().await {
+                let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else if let Some(s) = panic_payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+                tracing::error!(
+                    target: "supervisor",
+                    "sequencer_executor panicked; sequence aborted: {panic_msg}"
+                );
+
+                *supervisor_state.write().await = ExecutorState::Failed;
+                {
+                    let mut prog = supervisor_progress.write().unwrap();
+                    prog.state = ExecutorState::Failed;
+                }
+                let _ = supervisor_event_tx.send(ExecutorEvent::SequenceFailed {
+                    error: format!("Sequencer panicked: {panic_msg}"),
+                });
+                let _ =
+                    supervisor_event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Failed));
+            }
         });
 
         Ok(())
