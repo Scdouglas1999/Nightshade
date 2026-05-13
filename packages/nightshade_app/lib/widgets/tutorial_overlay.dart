@@ -50,7 +50,6 @@ class TutorialKeys {
   static final navPlanner = GlobalKey(debugLabel: 'nav_planner');
   static final navScheduler = GlobalKey(debugLabel: 'nav_scheduler');
   static final navSettings = GlobalKey(debugLabel: 'nav_settings');
-  static final navPolarAlignment = GlobalKey(debugLabel: 'nav_polar_alignment');
 
   /// Get a GlobalKey by its string ID.
   /// Delegates to screen-specific key classes based on the key prefix.
@@ -83,8 +82,6 @@ class TutorialKeys {
         return navWeather;
       case 'nav_settings':
         return navSettings;
-      case 'nav_polar_alignment':
-        return navPolarAlignment;
     }
 
     // Delegate to screen-specific key classes based on prefix
