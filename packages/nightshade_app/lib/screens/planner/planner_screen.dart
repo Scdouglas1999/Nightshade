@@ -441,6 +441,7 @@ class _PlannerControlsBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final constellations = ref.watch(availableConstellationsProvider);
     final magRange = ref.watch(availableMagnitudeRangeProvider);
+    final sizeRange = ref.watch(availableSizeRangeProvider);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -489,6 +490,12 @@ class _PlannerControlsBar extends ConsumerWidget {
                 bounds: magRange,
                 min: filters.minMagnitude,
                 max: filters.maxMagnitude,
+              ),
+              _SizeRangeControl(
+                colors: colors,
+                bounds: sizeRange,
+                min: filters.minSizeArcmin,
+                max: filters.maxSizeArcmin,
               ),
               _MinAltitudeControl(
                 colors: colors,
@@ -863,6 +870,151 @@ class _MagnitudeRangeControl extends ConsumerWidget {
   }
 }
 
+/// Sensible default bounds for the size slider when the data-derived range
+/// is unavailable (e.g. before suggestions resolve). Covers planetary nebulae
+/// (sub-arcminute) up to the largest M-class targets (~600').
+const double _kSizeFilterMinArcmin = 0.1;
+const double _kSizeFilterMaxArcmin = 600.0;
+
+class _SizeRangeControl extends ConsumerWidget {
+  final NightshadeColors colors;
+  final (double, double)? bounds;
+  final double? min;
+  final double? max;
+
+  const _SizeRangeControl({
+    required this.colors,
+    required this.bounds,
+    required this.min,
+    required this.max,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = min != null || max != null;
+    final label = active
+        ? 'Size ${_formatSizeLabel(min)}–${_formatSizeLabel(max)}'
+        : 'Size: any';
+
+    return _ControlChip(
+      colors: colors,
+      icon: LucideIcons.ruler,
+      label: label,
+      active: active,
+      onTap: () async {
+        // Clamp the data-derived bounds into the slider's hard limits so the
+        // RangeSlider doesn't assert when the catalog reports outliers.
+        final dataLo = bounds?.$1 ?? _kSizeFilterMinArcmin;
+        final dataHi = bounds?.$2 ?? _kSizeFilterMaxArcmin;
+        final sliderLo =
+            dataLo.clamp(_kSizeFilterMinArcmin, _kSizeFilterMaxArcmin);
+        final sliderHi =
+            dataHi.clamp(_kSizeFilterMinArcmin, _kSizeFilterMaxArcmin);
+        final actualBounds = (
+          sliderLo < _kSizeFilterMaxArcmin ? sliderLo : _kSizeFilterMinArcmin,
+          sliderHi > sliderLo ? sliderHi : _kSizeFilterMaxArcmin,
+        );
+
+        final result = await showDialog<(double?, double?)>(
+          context: context,
+          builder: (dCtx) {
+            double lo = (min ?? actualBounds.$1)
+                .clamp(actualBounds.$1, actualBounds.$2);
+            double hi = (max ?? actualBounds.$2)
+                .clamp(actualBounds.$1, actualBounds.$2);
+            return StatefulBuilder(
+              builder: (dCtx, setDState) {
+                return AlertDialog(
+                  backgroundColor: colors.surface,
+                  title: Text(
+                    'Angular size range',
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '${_formatSizeLabel(lo)} – ${_formatSizeLabel(hi)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      RangeSlider(
+                        values: RangeValues(lo, hi),
+                        min: actualBounds.$1,
+                        max: actualBounds.$2,
+                        divisions: 60,
+                        labels: RangeLabels(
+                          _formatSizeLabel(lo),
+                          _formatSizeLabel(hi),
+                        ),
+                        onChanged: (v) {
+                          setDState(() {
+                            lo = v.start;
+                            hi = v.end;
+                          });
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Targets without recorded size data are excluded '
+                          'while this filter is active.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    NightshadeButton(
+                      label: 'Clear',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(dCtx).pop((null, null)),
+                    ),
+                    NightshadeButton(
+                      label: 'Apply',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(dCtx).pop((lo, hi)),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+        if (result != null) {
+          final notifier = ref.read(suggestionFilterProvider.notifier);
+          notifier.state = notifier.state.copyWith(
+            minSizeArcmin: () => result.$1,
+            maxSizeArcmin: () => result.$2,
+          );
+          ref.read(_plannerVisibleCountProvider.notifier).state =
+              _kPlannerPageSize;
+        }
+      },
+    );
+  }
+}
+
+/// Format an arcminute value for compact display in size chips/labels.
+/// Sub-arcminute → arcseconds (`45"`); >=1' → arcminutes with one decimal
+/// (`12.4'`). Nulls and non-positive values render as "any".
+String _formatSizeLabel(double? arcmin) {
+  if (arcmin == null || arcmin <= 0) return 'any';
+  if (arcmin < 1.0) {
+    final arcsec = arcmin * 60.0;
+    return '${arcsec.toStringAsFixed(0)}"';
+  }
+  return "${arcmin.toStringAsFixed(1)}'";
+}
+
 class _MinAltitudeControl extends ConsumerWidget {
   final NightshadeColors colors;
   final double? value;
@@ -968,6 +1120,7 @@ class _SortDropdown extends ConsumerWidget {
       PlannerSortMode.score: 'Sort: Score',
       PlannerSortMode.altitude: 'Sort: Altitude',
       PlannerSortMode.magnitude: 'Sort: Magnitude',
+      PlannerSortMode.size: 'Sort: Size (largest)',
       PlannerSortMode.constellation: 'Sort: Constellation',
       PlannerSortMode.objectType: 'Sort: Object type',
       PlannerSortMode.catalogId: 'Sort: Catalog ID',
@@ -1345,6 +1498,15 @@ class _CandidateRow extends ConsumerWidget {
                 _StatChip(
                   icon: LucideIcons.sparkles,
                   label: 'Mag ${suggestion.magnitude!.toStringAsFixed(1)}',
+                  colors: colors,
+                ),
+              // Why major-axis only: the DB Target schema does not store a
+              // minor axis, so plumbing one through from OpenNGC would touch
+              // out-of-scope files for this branch.
+              if (suggestion.sizeArcmin != null && suggestion.sizeArcmin! > 0)
+                _StatChip(
+                  icon: LucideIcons.ruler,
+                  label: _formatSizeLabel(suggestion.sizeArcmin),
                   colors: colors,
                 ),
               if (suggestion.constellation != null)
@@ -2045,6 +2207,12 @@ class _PrimaryTargetCard extends StatelessWidget {
                     'plannerMagnitude',
                     params: {'value': target.magnitude!.toStringAsFixed(1)},
                   ),
+                  colors: colors,
+                ),
+              if (target.sizeArcmin != null && target.sizeArcmin! > 0)
+                _StatChip(
+                  icon: LucideIcons.ruler,
+                  label: _formatSizeLabel(target.sizeArcmin),
                   colors: colors,
                 ),
               if (target.constellation != null)

@@ -38,6 +38,7 @@ TargetSuggestion _suggestion({
   double moonDistance = 90.0,
   double raHours = 5.0,
   double decDegrees = -5.0,
+  double? sizeArcmin,
 }) {
   return TargetSuggestion(
     targetId: id,
@@ -59,7 +60,63 @@ TargetSuggestion _suggestion({
     objectType: objectType,
     magnitude: magnitude,
     constellation: constellation,
+    sizeArcmin: sizeArcmin,
   );
+}
+
+/// Five candidates with a controlled spread of sizes for size filter/sort
+/// tests: 0.5' planetary nebula, 8' globular, 30' nebula, 180' (3°) Andromeda,
+/// and one with no recorded size (must sink under size sort and be excluded
+/// by an active size filter).
+List<TargetSuggestion> _sizedCandidates() {
+  return [
+    _suggestion(
+      id: 100,
+      name: 'M57 Ring',
+      catalogId: 'M57',
+      objectType: 'Planetary Nebula',
+      constellation: 'Lyr',
+      score: 70.0,
+      sizeArcmin: 0.5,
+    ),
+    _suggestion(
+      id: 101,
+      name: 'M13',
+      catalogId: 'M13',
+      objectType: 'Globular Cluster',
+      constellation: 'Her',
+      score: 75.0,
+      sizeArcmin: 8.0,
+    ),
+    _suggestion(
+      id: 102,
+      name: 'M27 Dumbbell',
+      catalogId: 'M27',
+      objectType: 'Planetary Nebula',
+      constellation: 'Vul',
+      score: 72.0,
+      sizeArcmin: 30.0,
+    ),
+    _suggestion(
+      id: 103,
+      name: 'M31 Andromeda',
+      catalogId: 'M31',
+      objectType: 'Galaxy',
+      constellation: 'And',
+      score: 90.0,
+      sizeArcmin: 180.0,
+    ),
+    _suggestion(
+      id: 104,
+      name: 'Mystery target',
+      catalogId: 'X-1',
+      objectType: 'Galaxy',
+      constellation: 'Ori',
+      score: 60.0,
+      // no sizeArcmin → must be excluded by any active size filter
+      // and sink to the bottom under size sort
+    ),
+  ];
 }
 
 List<TargetSuggestion> _tenCandidates() {
@@ -329,5 +386,87 @@ void main() {
     expect(uri.queryParameters['name'], 'NGC 7000');
     expect(double.parse(uri.queryParameters['ra']!), closeTo(5.0, 1e-3));
     expect(double.parse(uri.queryParameters['dec']!), closeTo(-5.0, 1e-3));
+  });
+
+  test('size filter narrows the candidate list to the requested range',
+      () async {
+    final container = ProviderContainer(
+      overrides: [
+        tonightSuggestionsProvider.overrideWith(
+          (ref) async => _sizedCandidates(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final sub = container.listen<AsyncValue<List<TargetSuggestion>>>(
+      plannerFilteredSuggestionsProvider,
+      (_, __) {},
+    );
+    addTearDown(sub.close);
+
+    await container.read(tonightSuggestionsProvider.future);
+
+    // Window: 5' to 60' inclusive. Keeps M13 (8') and M27 (30').
+    // Excludes M57 (0.5', too small), M31 (180', too large), and the
+    // sizeless Mystery target.
+    container.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState(
+      minSizeArcmin: 5.0,
+      maxSizeArcmin: 60.0,
+    );
+
+    final filtered =
+        container.read(plannerFilteredSuggestionsProvider).valueOrNull ??
+            const [];
+    final names = filtered.map((s) => s.targetName).toSet();
+    expect(names, equals(<String>{'M13', 'M27 Dumbbell'}));
+
+    // The exclusion breakdown must surface the size filter so the
+    // empty-state hint can render it as a top-impact filter.
+    container.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState(minSizeArcmin: 1000.0);
+    final breakdown = container.read(plannerFilterExclusionProvider);
+    expect(breakdown.passed, 0);
+    expect(
+      breakdown.excludedByFilter.keys.any((k) => k.startsWith('Min size')),
+      isTrue,
+    );
+  });
+
+  test('size sort orders by descending size with nulls sinking', () async {
+    final container = ProviderContainer(
+      overrides: [
+        tonightSuggestionsProvider.overrideWith(
+          (ref) async => _sizedCandidates(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final sub = container.listen<AsyncValue<List<TargetSuggestion>>>(
+      plannerFilteredSuggestionsProvider,
+      (_, __) {},
+    );
+    addTearDown(sub.close);
+
+    await container.read(tonightSuggestionsProvider.future);
+
+    container.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState(plannerSort: PlannerSortMode.size);
+
+    final sorted =
+        container.read(plannerFilteredSuggestionsProvider).valueOrNull ??
+            const [];
+    final names = sorted.map((s) => s.targetName).toList();
+
+    // M31 (180') → M27 (30') → M13 (8') → M57 (0.5') → Mystery (null)
+    expect(names, equals(<String>[
+      'M31 Andromeda',
+      'M27 Dumbbell',
+      'M13',
+      'M57 Ring',
+      'Mystery target',
+    ]));
   });
 }

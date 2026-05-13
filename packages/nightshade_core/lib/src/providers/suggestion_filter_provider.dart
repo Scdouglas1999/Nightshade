@@ -16,6 +16,7 @@ enum PlannerSortMode {
   score,
   altitude,
   magnitude,
+  size,
   constellation,
   objectType,
   catalogId,
@@ -233,6 +234,17 @@ bool _matchesObjectTypes(TargetSuggestion s, Set<String> selected) {
   return false;
 }
 
+/// Format an arcminute value for compact display in filter labels.
+/// Sub-arcminute values render in arcseconds (e.g. `45"`); otherwise arcminutes
+/// with one decimal (e.g. `12.4'`).
+String _formatArcminLabel(double arcmin) {
+  if (arcmin < 1.0) {
+    final arcsec = arcmin * 60.0;
+    return '${arcsec.toStringAsFixed(0)}"';
+  }
+  return "${arcmin.toStringAsFixed(1)}'";
+}
+
 const Map<String, List<String>> _objectTypeAliases = {
   'galaxy': ['galaxy', 'galaxies'],
   'nebula': [
@@ -430,6 +442,18 @@ final plannerFilterExclusionProvider =
       (s) => s.magnitude == null || s.magnitude! > filters.maxMagnitude!,
     );
   }
+  if (filters.minSizeArcmin != null) {
+    countExcluded(
+      'Min size ${_formatArcminLabel(filters.minSizeArcmin!)}',
+      (s) => s.sizeArcmin == null || s.sizeArcmin! < filters.minSizeArcmin!,
+    );
+  }
+  if (filters.maxSizeArcmin != null) {
+    countExcluded(
+      'Max size ${_formatArcminLabel(filters.maxSizeArcmin!)}',
+      (s) => s.sizeArcmin == null || s.sizeArcmin! > filters.maxSizeArcmin!,
+    );
+  }
   if (filters.minCurrentAltitude != null) {
     countExcluded(
       'Min altitude now ${filters.minCurrentAltitude!.toStringAsFixed(0)}°',
@@ -518,6 +542,21 @@ List<TargetSuggestion> _sortPlannerSuggestions(
         if (a.magnitude == null) return 1;
         if (b.magnitude == null) return -1;
         return a.magnitude!.compareTo(b.magnitude!);
+      });
+      break;
+    case PlannerSortMode.size:
+      // Largest first. Nulls/zero sink to the bottom.
+      copy.sort((a, b) {
+        final aSize = (a.sizeArcmin != null && a.sizeArcmin! > 0)
+            ? a.sizeArcmin!
+            : null;
+        final bSize = (b.sizeArcmin != null && b.sizeArcmin! > 0)
+            ? b.sizeArcmin!
+            : null;
+        if (aSize == null && bSize == null) return 0;
+        if (aSize == null) return 1;
+        if (bSize == null) return -1;
+        return bSize.compareTo(aSize);
       });
       break;
     case PlannerSortMode.constellation:
