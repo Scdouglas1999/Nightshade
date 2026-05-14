@@ -310,6 +310,10 @@ Having issues? Check our comprehensive troubleshooting guide:
 
 **[Common Issues and Solutions](troubleshooting/common-issues.md)**
 
+Operations staff and on-call support: see the **[Operational Runbook](RUNBOOK.md)**
+for first-responder checklists covering frozen startup, plate-solve failures,
+OTA rollback, sequence resume issues, and headless server unreachability.
+
 ### Quick Links to Common Problems
 
 Equipment:
