@@ -5,7 +5,7 @@
 //! equipment through the ASCOM standard.
 
 #[cfg(windows)]
-mod windows_impl;
+mod windows;
 
 /// ASCOM device information discovered from Windows Registry
 #[derive(Debug, Clone)]
@@ -55,7 +55,7 @@ impl AscomDeviceType {
 /// Returns a list of available drivers registered in the Windows Registry
 #[cfg(windows)]
 pub fn discover_devices(device_type: AscomDeviceType) -> Vec<AscomDevice> {
-    windows_impl::discover_devices(device_type.registry_name())
+    windows::discover_devices(device_type.registry_name())
 }
 
 /// Discover ASCOM devices (non-Windows shim)
@@ -71,7 +71,7 @@ pub fn is_available() -> bool {
 
 // Re-export Windows-specific types when on Windows
 #[cfg(windows)]
-pub use windows_impl::{
+pub use windows::{
     get_timeout_config,
     // COM initialization
     init_com,
