@@ -3,11 +3,11 @@
 //! Methods in this module are additional impl blocks on `DeviceManager` and
 //! provide ASCOM-only logic for `connect_*`, `query_*_api_version`, and
 //! `perform_*_health_check`. They are invoked from the dispatcher methods in
-//! `crate::devices`. No behavior or signature has changed relative to the
+//! `crate::device_manager`. No behavior or signature has changed relative to the
 //! previous monolithic `devices.rs`.
 
 use crate::device::*;
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 // NativeDevice / NativeMount required so the trait methods `connect`,
 // `disconnect`, `get_tracking` — which the ASCOM wrappers implement via the
 // trait — are resolvable here.

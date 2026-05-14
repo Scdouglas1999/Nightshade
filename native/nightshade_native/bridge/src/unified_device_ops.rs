@@ -1430,7 +1430,7 @@ mod tests {
     use super::*;
     use crate::api::get_device_manager;
     use crate::device::{DeviceInfo, DeviceType, DriverType};
-    use crate::devices::DeviceManager;
+    use crate::device_manager::DeviceManager;
     use nightshade_native::{
         CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
         NativeCamera, NativeDevice, NativeError, NativeVendor, ReadoutMode, SensorInfo, SubFrame,

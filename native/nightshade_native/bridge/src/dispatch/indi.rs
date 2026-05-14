@@ -4,11 +4,11 @@
 //! provide INDI-only logic: device discovery, connection, API version query,
 //! switch helpers, and the per-device health check. Two free helper functions
 //! that map INDI properties / names to a `DeviceType` also live here. They are
-//! invoked from dispatcher methods in `crate::devices`. No behavior or
+//! invoked from dispatcher methods in `crate::device_manager`. No behavior or
 //! signature has changed relative to the previous monolithic `devices.rs`.
 
 use crate::device::*;
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;

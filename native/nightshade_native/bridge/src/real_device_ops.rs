@@ -6,7 +6,7 @@ use crate::api::get_device_manager;
 use crate::api::{get_sim_focuser, get_sim_rotator};
 use crate::device::FilterWheelStatus;
 use crate::device_id::{parse_device_id_cached, ConnectionInfo};
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use async_trait::async_trait;

@@ -2,11 +2,11 @@
 //!
 //! Methods in this module are additional impl blocks on `DeviceManager` and
 //! provide native-SDK-only connect logic. Invoked from the dispatcher methods
-//! in `crate::devices`. No behavior or signature has changed relative to the
+//! in `crate::device_manager`. No behavior or signature has changed relative to the
 //! previous monolithic `devices.rs`.
 
 use crate::device::*;
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 use nightshade_native::traits::{
     NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
 };
