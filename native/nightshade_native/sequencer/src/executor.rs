@@ -897,1016 +897,1046 @@ impl SequenceExecutor {
         let supervisor_event_tx = event_tx.clone();
         tokio::spawn(async move {
             let executor_future = async move {
-            let start_time = std::time::Instant::now();
+                let start_time = std::time::Instant::now();
 
-            // The trigger monitor needs its own handle because `with_device_ops` moves
-            // the original into the ExecutionContext used by the instruction tree.
-            let device_ops_for_triggers = device_ops.clone();
+                // The trigger monitor needs its own handle because `with_device_ops` moves
+                // the original into the ExecutionContext used by the instruction tree.
+                let device_ops_for_triggers = device_ops.clone();
 
-            let mut context = ExecutionContext::new("root".to_string()).with_device_ops(device_ops);
-            context.is_cancelled = is_cancelled.clone();
-            context.is_paused = is_paused_clone;
-            context.skip_to_next_target = skip_to_next_target_clone;
-            context.resume_notify = resume_notify_clone;
-            context.camera_id = camera_id;
-            context.mount_id = mount_id;
-            context.focuser_id = focuser_id;
-            context.filterwheel_id = filterwheel_id;
-            context.rotator_id = rotator_id;
-            context.dome_id = dome_id;
-            context.cover_calibrator_id = cover_calibrator_id;
-            context.save_path = save_path;
-            context.latitude = latitude;
-            context.longitude = longitude;
-            context.safety_fail_mode = safety_fail_mode;
-            context.filter_focus_offsets = filter_focus_offsets;
-            // The trigger state owns HFR baseline and exposure counts; instructions
-            // (autofocus, exposures) feed it through the context so triggers can fire.
-            context.trigger_state = Some(trigger_manager.read().await.state());
+                let mut context =
+                    ExecutionContext::new("root".to_string()).with_device_ops(device_ops);
+                context.is_cancelled = is_cancelled.clone();
+                context.is_paused = is_paused_clone;
+                context.skip_to_next_target = skip_to_next_target_clone;
+                context.resume_notify = resume_notify_clone;
+                context.camera_id = camera_id;
+                context.mount_id = mount_id;
+                context.focuser_id = focuser_id;
+                context.filterwheel_id = filterwheel_id;
+                context.rotator_id = rotator_id;
+                context.dome_id = dome_id;
+                context.cover_calibrator_id = cover_calibrator_id;
+                context.save_path = save_path;
+                context.latitude = latitude;
+                context.longitude = longitude;
+                context.safety_fail_mode = safety_fail_mode;
+                context.filter_focus_offsets = filter_focus_offsets;
+                // The trigger state owns HFR baseline and exposure counts; instructions
+                // (autofocus, exposures) feed it through the context so triggers can fire.
+                context.trigger_state = Some(trigger_manager.read().await.state());
 
-            let progress_clone = progress.clone();
-            let event_tx_clone = event_tx.clone();
-            // NodeStarted must emit exactly once per "entry" into a node; this set
-            // guards against the progress callback firing multiple Running updates
-            // for the same node within a single visit. Cleared on terminal status
-            // so loop bodies emit a fresh NodeStarted each iteration.
-            let started_nodes =
-                Arc::new(StdRwLock::new(std::collections::HashSet::<NodeId>::new()));
-            // completed_exposures must be monotonic per node so the global counter
-            // never decreases — e.g. when a loop body restarts, its frame count
-            // must not reset back to zero from the UI's perspective.
-            let node_frame_progress = Arc::new(StdRwLock::new(std::collections::HashMap::<
-                NodeId,
-                u32,
-            >::new()));
-            let node_pending_exposure_completion = Arc::new(StdRwLock::new(
-                std::collections::HashMap::<NodeId, u32>::new(),
-            ));
-            let exposure_node_metadata = exposure_node_metadata.clone();
-            context.progress_callback = Some(Box::new(move |update: ProgressUpdate| {
-                let mut prog = progress_clone.write();
-                prog.current_node_id = Some(update.node_id.clone());
-                prog.current_node_status = Some(update.status);
-                prog.message = update.message.clone();
-                prog.node_statuses
-                    .insert(update.node_id.clone(), update.status);
-                prog.elapsed_secs = start_time.elapsed().as_secs_f64();
+                let progress_clone = progress.clone();
+                let event_tx_clone = event_tx.clone();
+                // NodeStarted must emit exactly once per "entry" into a node; this set
+                // guards against the progress callback firing multiple Running updates
+                // for the same node within a single visit. Cleared on terminal status
+                // so loop bodies emit a fresh NodeStarted each iteration.
+                let started_nodes =
+                    Arc::new(StdRwLock::new(std::collections::HashSet::<NodeId>::new()));
+                // completed_exposures must be monotonic per node so the global counter
+                // never decreases — e.g. when a loop body restarts, its frame count
+                // must not reset back to zero from the UI's perspective.
+                let node_frame_progress = Arc::new(StdRwLock::new(std::collections::HashMap::<
+                    NodeId,
+                    u32,
+                >::new()));
+                let node_pending_exposure_completion = Arc::new(StdRwLock::new(
+                    std::collections::HashMap::<NodeId, u32>::new(),
+                ));
+                let exposure_node_metadata = exposure_node_metadata.clone();
+                context.progress_callback = Some(Box::new(move |update: ProgressUpdate| {
+                    let mut prog = progress_clone.write();
+                    prog.current_node_id = Some(update.node_id.clone());
+                    prog.current_node_status = Some(update.status);
+                    prog.message = update.message.clone();
+                    prog.node_statuses
+                        .insert(update.node_id.clone(), update.status);
+                    prog.elapsed_secs = start_time.elapsed().as_secs_f64();
 
-                if update.status == NodeStatus::Running {
-                    let mut started = started_nodes.write();
-                    if !started.contains(&update.node_id) {
-                        started.insert(update.node_id.clone());
-                        // Node nodes do not publish their own display name through the
-                        // progress channel — only a free-form message. Match the two
-                        // legacy formats the runtime emits so the UI shows something
-                        // meaningful rather than "Unknown".
-                        let node_name = update
-                            .message
-                            .as_ref()
-                            .map(|m| {
-                                if let Some(name) = m.strip_prefix("Executing: ") {
-                                    name.to_string()
-                                } else if let Some(rest) = m.split_once(": ").map(|(_, rest)| rest)
-                                {
-                                    rest.to_string()
-                                } else {
-                                    m.clone()
-                                }
-                            })
-                            .unwrap_or_else(|| "Unknown".to_string());
-                        tracing::info!(
-                            "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",
-                            update.node_id,
-                            node_name
-                        );
-                        let _ = event_tx_clone.send(ExecutorEvent::NodeStarted {
-                            id: update.node_id.clone(),
-                            name: node_name,
-                        });
-                    }
-                } else if matches!(
-                    update.status,
-                    NodeStatus::Success
-                        | NodeStatus::Failure
-                        | NodeStatus::Cancelled
-                        | NodeStatus::Skipped
-                ) {
-                    // Clearing the entry on terminal status lets a loop body emit
-                    // a fresh NodeStarted on its next iteration; otherwise the UI
-                    // would never re-flash the node as active when the loop cycles.
-                    let mut started = started_nodes.write();
-                    started.remove(&update.node_id);
-                    let mut frame_progress = node_frame_progress.write();
-                    frame_progress.remove(&update.node_id);
-                    let mut pending_completion = node_pending_exposure_completion.write();
-                    pending_completion.remove(&update.node_id);
-                    tracing::debug!(
-                        "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
-                        update.node_id,
-                        update.status
-                    );
-                }
-
-                if let (Some(current), Some(total)) = (update.current_frame, update.total_frames) {
-                    let mut exposure_started_event: Option<ExecutorEvent> = None;
-                    let mut exposure_completed_event: Option<ExecutorEvent> = None;
-                    let metadata = exposure_node_metadata.get(&update.node_id).cloned();
-
-                    let mut frame_progress = node_frame_progress.write();
-                    let mut pending_completion = node_pending_exposure_completion.write();
-                    let last = frame_progress.entry(update.node_id.clone()).or_insert(0);
-                    if current > *last {
-                        prog.completed_exposures =
-                            prog.completed_exposures.saturating_add(current - *last);
-                        *last = current;
-
-                        if let Some((duration_secs, filter)) = metadata {
-                            exposure_started_event = Some(ExecutorEvent::ExposureStarted {
-                                frame: current,
-                                total,
-                                filter,
-                                duration_secs,
+                    if update.status == NodeStatus::Running {
+                        let mut started = started_nodes.write();
+                        if !started.contains(&update.node_id) {
+                            started.insert(update.node_id.clone());
+                            // Node nodes do not publish their own display name through the
+                            // progress channel — only a free-form message. Match the two
+                            // legacy formats the runtime emits so the UI shows something
+                            // meaningful rather than "Unknown".
+                            let node_name = update
+                                .message
+                                .as_ref()
+                                .map(|m| {
+                                    if let Some(name) = m.strip_prefix("Executing: ") {
+                                        name.to_string()
+                                    } else if let Some(rest) =
+                                        m.split_once(": ").map(|(_, rest)| rest)
+                                    {
+                                        rest.to_string()
+                                    } else {
+                                        m.clone()
+                                    }
+                                })
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            tracing::info!(
+                                "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",
+                                update.node_id,
+                                node_name
+                            );
+                            let _ = event_tx_clone.send(ExecutorEvent::NodeStarted {
+                                id: update.node_id.clone(),
+                                name: node_name,
                             });
-                            pending_completion.insert(update.node_id.clone(), current);
-                        } else {
+                        }
+                    } else if matches!(
+                        update.status,
+                        NodeStatus::Success
+                            | NodeStatus::Failure
+                            | NodeStatus::Cancelled
+                            | NodeStatus::Skipped
+                    ) {
+                        // Clearing the entry on terminal status lets a loop body emit
+                        // a fresh NodeStarted on its next iteration; otherwise the UI
+                        // would never re-flash the node as active when the loop cycles.
+                        let mut started = started_nodes.write();
+                        started.remove(&update.node_id);
+                        let mut frame_progress = node_frame_progress.write();
+                        frame_progress.remove(&update.node_id);
+                        let mut pending_completion = node_pending_exposure_completion.write();
+                        pending_completion.remove(&update.node_id);
+                        tracing::debug!(
+                            "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
+                            update.node_id,
+                            update.status
+                        );
+                    }
+
+                    if let (Some(current), Some(total)) =
+                        (update.current_frame, update.total_frames)
+                    {
+                        let mut exposure_started_event: Option<ExecutorEvent> = None;
+                        let mut exposure_completed_event: Option<ExecutorEvent> = None;
+                        let metadata = exposure_node_metadata.get(&update.node_id).cloned();
+
+                        let mut frame_progress = node_frame_progress.write();
+                        let mut pending_completion = node_pending_exposure_completion.write();
+                        let last = frame_progress.entry(update.node_id.clone()).or_insert(0);
+                        if current > *last {
+                            prog.completed_exposures =
+                                prog.completed_exposures.saturating_add(current - *last);
+                            *last = current;
+
+                            if let Some((duration_secs, filter)) = metadata {
+                                exposure_started_event = Some(ExecutorEvent::ExposureStarted {
+                                    frame: current,
+                                    total,
+                                    filter,
+                                    duration_secs,
+                                });
+                                pending_completion.insert(update.node_id.clone(), current);
+                            } else {
+                                pending_completion.remove(&update.node_id);
+                            }
+                        } else if current == *last
+                            && pending_completion.get(&update.node_id).copied() == Some(current)
+                        {
+                            if let Some((duration_secs, _filter)) = metadata {
+                                exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
+                                    frame: current,
+                                    total,
+                                    duration_secs,
+                                });
+                            }
                             pending_completion.remove(&update.node_id);
                         }
-                    } else if current == *last
-                        && pending_completion.get(&update.node_id).copied() == Some(current)
-                    {
-                        if let Some((duration_secs, _filter)) = metadata {
-                            exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
-                                frame: current,
-                                total,
-                                duration_secs,
-                            });
+
+                        drop(pending_completion);
+                        drop(frame_progress);
+
+                        if let Some(event) = exposure_started_event {
+                            let _ = event_tx_clone.send(event);
                         }
-                        pending_completion.remove(&update.node_id);
+                        if let Some(event) = exposure_completed_event {
+                            let _ = event_tx_clone.send(event);
+                        }
                     }
 
-                    drop(pending_completion);
-                    drop(frame_progress);
-
-                    if let Some(event) = exposure_started_event {
-                        let _ = event_tx_clone.send(event);
+                    if let Some(exposure_secs) = update.completed_exposure_secs {
+                        prog.completed_integration_secs += exposure_secs;
                     }
-                    if let Some(event) = exposure_completed_event {
-                        let _ = event_tx_clone.send(event);
-                    }
-                }
 
-                if let Some(exposure_secs) = update.completed_exposure_secs {
-                    prog.completed_integration_secs += exposure_secs;
-                }
-
-                if prog.total_exposures > 0 && prog.completed_exposures > 0 {
-                    let completed = prog.completed_exposures.min(prog.total_exposures);
-                    let remaining = prog.total_exposures.saturating_sub(completed);
-                    if remaining > 0 {
-                        let avg_secs_per_exposure = prog.elapsed_secs / completed as f64;
-                        prog.estimated_remaining_secs =
-                            Some(avg_secs_per_exposure * remaining as f64);
+                    if prog.total_exposures > 0 && prog.completed_exposures > 0 {
+                        let completed = prog.completed_exposures.min(prog.total_exposures);
+                        let remaining = prog.total_exposures.saturating_sub(completed);
+                        if remaining > 0 {
+                            let avg_secs_per_exposure = prog.elapsed_secs / completed as f64;
+                            prog.estimated_remaining_secs =
+                                Some(avg_secs_per_exposure * remaining as f64);
+                        } else {
+                            prog.estimated_remaining_secs = Some(0.0);
+                        }
                     } else {
-                        prog.estimated_remaining_secs = Some(0.0);
+                        prog.estimated_remaining_secs = None;
                     }
-                } else {
-                    prog.estimated_remaining_secs = None;
-                }
 
-                // Instructions report sub-step progress through free-form messages
-                // of the form "Autofocus: Moving to start position: 25000 (5%)".
-                // Parsing them out into a structured NodeProgress event lets the UI
-                // render a progress bar without coupling the runtime to message shape.
-                if let Some(ref message) = update.message {
-                    tracing::debug!("[PROGRESS_CB] Received message: {}", message);
-                    if let Some((instruction, rest)) = message.split_once(':') {
-                        tracing::debug!(
-                            "[PROGRESS_CB] Parsed instruction='{}', rest='{}'",
-                            instruction,
-                            rest
-                        );
-                        if let Some(pct_start) = rest.rfind('(') {
-                            if let Some(pct_end) = rest[pct_start..].find(')') {
-                                let pct_str = &rest[pct_start + 1..pct_start + pct_end];
-                                tracing::debug!("[PROGRESS_CB] pct_str='{}'", pct_str);
-                                if let Some(pct_val) = pct_str.strip_suffix('%') {
-                                    if let Ok(progress_percent) = pct_val.trim().parse::<f64>() {
-                                        let detail = rest[..pct_start].trim().to_string();
-                                        tracing::info!("[PROGRESS_CB] Emitting NodeProgress: node_id={}, instruction={}, progress={}%, detail={}",
+                    // Instructions report sub-step progress through free-form messages
+                    // of the form "Autofocus: Moving to start position: 25000 (5%)".
+                    // Parsing them out into a structured NodeProgress event lets the UI
+                    // render a progress bar without coupling the runtime to message shape.
+                    if let Some(ref message) = update.message {
+                        tracing::debug!("[PROGRESS_CB] Received message: {}", message);
+                        if let Some((instruction, rest)) = message.split_once(':') {
+                            tracing::debug!(
+                                "[PROGRESS_CB] Parsed instruction='{}', rest='{}'",
+                                instruction,
+                                rest
+                            );
+                            if let Some(pct_start) = rest.rfind('(') {
+                                if let Some(pct_end) = rest[pct_start..].find(')') {
+                                    let pct_str = &rest[pct_start + 1..pct_start + pct_end];
+                                    tracing::debug!("[PROGRESS_CB] pct_str='{}'", pct_str);
+                                    if let Some(pct_val) = pct_str.strip_suffix('%') {
+                                        if let Ok(progress_percent) = pct_val.trim().parse::<f64>()
+                                        {
+                                            let detail = rest[..pct_start].trim().to_string();
+                                            tracing::info!("[PROGRESS_CB] Emitting NodeProgress: node_id={}, instruction={}, progress={}%, detail={}",
                                             update.node_id, instruction.trim(), progress_percent, detail);
-                                        let _ = event_tx_clone.send(ExecutorEvent::NodeProgress {
-                                            node_id: update.node_id.clone(),
-                                            instruction: instruction.trim().to_string(),
-                                            progress_percent,
-                                            detail,
-                                        });
+                                            let _ =
+                                                event_tx_clone.send(ExecutorEvent::NodeProgress {
+                                                    node_id: update.node_id.clone(),
+                                                    instruction: instruction.trim().to_string(),
+                                                    progress_percent,
+                                                    detail,
+                                                });
+                                        } else {
+                                            tracing::debug!(
+                                                "[PROGRESS_CB] Failed to parse pct_val='{}' as f64",
+                                                pct_val
+                                            );
+                                        }
                                     } else {
                                         tracing::debug!(
-                                            "[PROGRESS_CB] Failed to parse pct_val='{}' as f64",
-                                            pct_val
+                                            "[PROGRESS_CB] pct_str '{}' doesn't end with '%'",
+                                            pct_str
                                         );
                                     }
                                 } else {
-                                    tracing::debug!(
-                                        "[PROGRESS_CB] pct_str '{}' doesn't end with '%'",
-                                        pct_str
-                                    );
+                                    tracing::debug!("[PROGRESS_CB] No ')' found after '(' in rest");
                                 }
                             } else {
-                                tracing::debug!("[PROGRESS_CB] No ')' found after '(' in rest");
+                                tracing::debug!("[PROGRESS_CB] No '(' found in rest: '{}'", rest);
                             }
                         } else {
-                            tracing::debug!("[PROGRESS_CB] No '(' found in rest: '{}'", rest);
+                            tracing::debug!("[PROGRESS_CB] No ':' found in message");
                         }
                     } else {
-                        tracing::debug!("[PROGRESS_CB] No ':' found in message");
+                        tracing::debug!("[PROGRESS_CB] No message in ProgressUpdate");
                     }
-                } else {
-                    tracing::debug!("[PROGRESS_CB] No message in ProgressUpdate");
-                }
 
-                let _ = event_tx_clone.send(ExecutorEvent::ProgressUpdated(prog.clone()));
-            }));
+                    let _ = event_tx_clone.send(ExecutorEvent::ProgressUpdated(prog.clone()));
+                }));
 
-            let is_paused_cmd = is_paused.clone();
-            let skip_to_next_target_cmd = skip_to_next_target.clone();
-            let resume_notify_cmd = resume_notify.clone();
-            let command_handler = async {
-                while let Some(cmd) = rx.recv().await {
-                    match cmd {
-                        ExecutorCommand::Pause => {
-                            is_paused_cmd.store(true, Ordering::Relaxed);
-                            *state.write().await = ExecutorState::Paused;
-                            let _ =
-                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                        }
-                        ExecutorCommand::Resume => {
-                            // A node may be parked on `resume_notify.notified()`; we have
-                            // to wake all waiters *before* flipping is_paused so the
-                            // resumed branch sees the new state without racing.
-                            is_paused_cmd.store(false, Ordering::Relaxed);
-                            resume_notify_cmd.notify_waiters();
-                            *state.write().await = ExecutorState::Running;
-                            let _ =
-                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Running));
-                        }
-                        ExecutorCommand::Stop => {
-                            is_cancelled.store(true, Ordering::Relaxed);
-                            *state.write().await = ExecutorState::Stopping;
-                            let _ =
-                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Stopping));
-                            break;
-                        }
-                        ExecutorCommand::Skip => {
-                            tracing::info!("Skip requested - advancing to next target");
-                            skip_to_next_target_cmd.store(true, Ordering::Relaxed);
-                        }
-                        ExecutorCommand::Start => {
-                            let _ = event_tx.send(ExecutorEvent::Error {
-                                message: "Start ignored: executor is already running".to_string(),
-                            });
-                        }
-                        ExecutorCommand::SkipToNode(node_id) => {
-                            let _ = event_tx.send(ExecutorEvent::Error {
-                                message: format!(
+                let is_paused_cmd = is_paused.clone();
+                let skip_to_next_target_cmd = skip_to_next_target.clone();
+                let resume_notify_cmd = resume_notify.clone();
+                let command_handler = async {
+                    while let Some(cmd) = rx.recv().await {
+                        match cmd {
+                            ExecutorCommand::Pause => {
+                                is_paused_cmd.store(true, Ordering::Relaxed);
+                                *state.write().await = ExecutorState::Paused;
+                                let _ = event_tx
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                            }
+                            ExecutorCommand::Resume => {
+                                // A node may be parked on `resume_notify.notified()`; we have
+                                // to wake all waiters *before* flipping is_paused so the
+                                // resumed branch sees the new state without racing.
+                                is_paused_cmd.store(false, Ordering::Relaxed);
+                                resume_notify_cmd.notify_waiters();
+                                *state.write().await = ExecutorState::Running;
+                                let _ = event_tx
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Running));
+                            }
+                            ExecutorCommand::Stop => {
+                                is_cancelled.store(true, Ordering::Relaxed);
+                                *state.write().await = ExecutorState::Stopping;
+                                let _ = event_tx
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Stopping));
+                                break;
+                            }
+                            ExecutorCommand::Skip => {
+                                tracing::info!("Skip requested - advancing to next target");
+                                skip_to_next_target_cmd.store(true, Ordering::Relaxed);
+                            }
+                            ExecutorCommand::Start => {
+                                let _ = event_tx.send(ExecutorEvent::Error {
+                                    message: "Start ignored: executor is already running"
+                                        .to_string(),
+                                });
+                            }
+                            ExecutorCommand::SkipToNode(node_id) => {
+                                let _ = event_tx.send(ExecutorEvent::Error {
+                                    message: format!(
                                     "SkipToNode for '{}' is not supported during active execution",
                                     node_id
                                 ),
-                            });
-                        }
-                        ExecutorCommand::UpdateDitherConfig {
-                            pixels,
-                            settle_pixels,
-                            settle_time,
-                            settle_timeout,
-                            ra_only,
-                        } => {
-                            // Audit §1.8: write through the shared Arc so the
-                            // change takes effect on the next dither without
-                            // requiring a sequence reload.
-                            {
-                                let mut rc = runtime_config.write();
-                                rc.dither.pixels = pixels;
-                                rc.dither.settle_pixels = settle_pixels;
-                                rc.dither.settle_time = settle_time;
-                                rc.dither.settle_timeout = settle_timeout;
-                                rc.dither.ra_only = ra_only;
+                                });
                             }
-                            tracing::info!(
+                            ExecutorCommand::UpdateDitherConfig {
+                                pixels,
+                                settle_pixels,
+                                settle_time,
+                                settle_timeout,
+                                ra_only,
+                            } => {
+                                // Audit §1.8: write through the shared Arc so the
+                                // change takes effect on the next dither without
+                                // requiring a sequence reload.
+                                {
+                                    let mut rc = runtime_config.write();
+                                    rc.dither.pixels = pixels;
+                                    rc.dither.settle_pixels = settle_pixels;
+                                    rc.dither.settle_time = settle_time;
+                                    rc.dither.settle_timeout = settle_timeout;
+                                    rc.dither.ra_only = ra_only;
+                                }
+                                tracing::info!(
                                 "Runtime dither config updated: pixels={}, settle_pixels={}, settle_time={}, settle_timeout={}, ra_only={}",
                                 pixels, settle_pixels, settle_time, settle_timeout, ra_only
                             );
-                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
-                                what: "dither".to_string(),
-                            });
-                        }
-                        ExecutorCommand::UpdateLocation {
-                            latitude,
-                            longitude,
-                        } => {
-                            // Audit §1.8: write through the Arc and also push
-                            // into the trigger state so altitude-aware
-                            // triggers (AltitudeLimit, MeridianFlip hour-angle
-                            // calc) read the new value on their next poll.
-                            {
-                                let mut rc = runtime_config.write();
-                                rc.latitude = latitude;
-                                rc.longitude = longitude;
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "dither".to_string(),
+                                });
                             }
-                            {
-                                let manager = trigger_manager.read().await;
-                                let state_lock = manager.state();
-                                let mut state = state_lock.write().await;
-                                state.observer_latitude = latitude;
-                                state.observer_longitude = longitude;
-                            }
-                            tracing::info!(
-                                "Runtime location updated: lat={:?}, lon={:?}",
+                            ExecutorCommand::UpdateLocation {
                                 latitude,
-                                longitude
-                            );
-                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
-                                what: "location".to_string(),
-                            });
-                        }
-                        ExecutorCommand::UpdateFilterOffsets { offsets } => {
-                            // Audit §1.8: write through the Arc so the next
-                            // filter change reads the updated offsets.
-                            let count = offsets.len();
-                            {
-                                let mut rc = runtime_config.write();
-                                rc.filter_focus_offsets = offsets;
-                            }
-                            tracing::info!(
-                                "Runtime filter focus offsets updated: {} entries",
-                                count
-                            );
-                            let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
-                                what: "filter_offsets".to_string(),
-                            });
-                        }
-                    }
-                }
-            };
-
-            let streaming_filter_focus_offsets = context.filter_focus_offsets.clone();
-            let streaming_safety_fail_mode = context.safety_fail_mode;
-
-            let execution = async { root_node.execute(&mut context).await };
-
-            let state_clone = state.clone();
-            let event_tx_clone2 = event_tx.clone();
-            let is_cancelled_clone = is_cancelled.clone();
-            let is_paused_for_triggers = is_paused.clone();
-            let skip_to_next_target_for_triggers = skip_to_next_target.clone();
-            let progress_for_checkpoint = progress.clone();
-            let state_for_checkpoint = state.clone();
-            let is_cancelled_for_checkpoint = is_cancelled.clone();
-            let trigger_manager_for_checkpoint = trigger_manager.clone();
-            let streaming_triggers_enabled = triggers_enabled;
-            let streaming_checkpoint_task = async move {
-                // Audit §1.16: reuse the executor's Arc<CheckpointManager> so
-                // info_cache stays consistent. Constructing a second instance
-                // here was the original §1.16 bug.
-                let Some(checkpoint_mgr) = streaming_checkpoint_manager else {
-                    std::future::pending::<()>().await;
-                    return;
-                };
-                let Some(sequence) = streaming_sequence else {
-                    std::future::pending::<()>().await;
-                    return;
-                };
-
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-
-                loop {
-                    interval.tick().await;
-
-                    if is_cancelled_for_checkpoint.load(Ordering::Relaxed) {
-                        break;
-                    }
-
-                    let exec_state = *state_for_checkpoint.read().await;
-                    if !matches!(exec_state, ExecutorState::Running | ExecutorState::Paused) {
-                        continue;
-                    }
-
-                    let prog = progress_for_checkpoint.read().clone();
-                    let mut checkpoint =
-                        crate::checkpoint::SessionCheckpoint::new(sequence.clone());
-                    checkpoint.node_statuses = prog.node_statuses.clone();
-                    checkpoint.current_node = prog.current_node_id.clone();
-                    checkpoint.executor_state = exec_state;
-                    checkpoint.completed_exposures = prog.completed_exposures;
-                    checkpoint.completed_integration_secs = prog.completed_integration_secs;
-                    checkpoint.is_active = true;
-                    checkpoint.set_devices(
-                        streaming_camera_id.clone(),
-                        streaming_mount_id.clone(),
-                        streaming_focuser_id.clone(),
-                        streaming_filterwheel_id.clone(),
-                        streaming_rotator_id.clone(),
-                    );
-                    checkpoint.set_location(streaming_latitude, streaming_longitude);
-                    checkpoint.set_save_path(streaming_save_path.clone());
-
-                    let trigger_state = {
-                        let manager = trigger_manager_for_checkpoint.read().await;
-                        manager.state()
-                    };
-                    let trigger_state = trigger_state.read().await;
-                    checkpoint.set_trigger_state(
-                        crate::checkpoint::TriggerStateSnapshot::from_state(
-                            &trigger_state,
-                            streaming_safety_fail_mode,
-                            streaming_triggers_enabled,
-                            streaming_filter_focus_offsets.clone(),
-                        ),
-                    );
-
-                    match checkpoint_mgr.save(&checkpoint) {
-                        Ok(()) => tracing::debug!(
-                            "Streaming checkpoint saved ({} exposures, {:.1}s integration)",
-                            checkpoint.completed_exposures,
-                            checkpoint.completed_integration_secs
-                        ),
-                        Err(e) => tracing::warn!("Streaming checkpoint save failed: {}", e),
-                    }
-                }
-            };
-            let trigger_monitor = async {
-                if !triggers_enabled {
-                    // Hold this task open so the `try_join!` below still waits on the
-                    // other branches; an immediate return would short-circuit them.
-                    std::future::pending::<()>().await;
-                    return Vec::new();
-                }
-
-                let mut check_interval = tokio::time::interval(std::time::Duration::from_secs(1));
-                let mut fired_triggers: Vec<(String, RecoveryAction)> = Vec::new();
-
-                // Tracks whether the previous safety poll already failed. Used to
-                // rate-limit the per-mode warning so a permanently offline safety
-                // device does not flood the log every second. See SafetyFailMode
-                // dispatch below.
-                let mut safety_poll_last_was_error = false;
-
-                // Tracks per-trigger Retry attempt counts so we can escalate after
-                // exhausting `max_attempts`. Keyed by trigger ID.
-                let mut retry_attempts: HashMap<String, u32> = HashMap::new();
-
-                // §1.14: Streaming-checkpoint cadence is now driven by an independent
-                // task spawned alongside this monitor (see streaming_checkpoint_task).
-                // Keeping the monitor focused on trigger evaluation avoids dropping
-                // checkpoint saves when triggers_enabled = false.
-
-                // The MountTrackingLost / OnTrackingLimitHit triggers need a baseline
-                // expectation; without setting this flag the "tracking dropped" detector
-                // would assume tracking is unwanted and never fire. Only matters while a
-                // mount is configured for the sequence.
-                if trigger_action_context.mount_id.is_some() {
-                    let manager = trigger_manager.read().await;
-                    let trigger_state = manager.state();
-                    let mut state = trigger_state.write().await;
-                    state.set_mount_tracking_expected(true);
-                }
-
-                loop {
-                    check_interval.tick().await;
-
-                    // Pause/Stop must not fire triggers — paused sequences are explicitly
-                    // "user is intervening" and Stopping is racing to terminate, so any
-                    // recovery action here would conflict with the operator's intent.
-                    let current_state = *state_clone.read().await;
-                    if current_state != ExecutorState::Running {
-                        continue;
-                    }
-
-                    if is_cancelled_clone.load(Ordering::Relaxed) {
-                        break;
-                    }
-
-                    // Poll weather/safety status and update trigger state. Each
-                    // SafetyFailMode variant has a distinct, observable behaviour:
-                    // - FailClosed: poll errors mark the run unsafe so WeatherUnsafe
-                    //   fires the configured park-and-abort path. Recommended for
-                    //   unattended runs.
-                    // - FailOpen: poll errors are treated as safe so the sequence
-                    //   keeps running. Intended for daytime / shutdown sequences
-                    //   where the safety device is intentionally unavailable. The
-                    //   warning is rate-limited (only once per error transition) so
-                    //   logs do not flood when the device is permanently offline.
-                    // - WarnOnly: poll errors do NOT change weather_safe (last good
-                    //   reading wins), but a one-shot Error event is emitted so the
-                    //   UI can alert the operator. Existing safe/unsafe state is
-                    //   preserved.
-                    let is_safe = match device_ops_for_triggers.safety_is_safe(None).await {
-                        Ok(safe) => {
-                            if safety_poll_last_was_error {
+                                longitude,
+                            } => {
+                                // Audit §1.8: write through the Arc and also push
+                                // into the trigger state so altitude-aware
+                                // triggers (AltitudeLimit, MeridianFlip hour-angle
+                                // calc) read the new value on their next poll.
+                                {
+                                    let mut rc = runtime_config.write();
+                                    rc.latitude = latitude;
+                                    rc.longitude = longitude;
+                                }
+                                {
+                                    let manager = trigger_manager.read().await;
+                                    let state_lock = manager.state();
+                                    let mut state = state_lock.write().await;
+                                    state.observer_latitude = latitude;
+                                    state.observer_longitude = longitude;
+                                }
                                 tracing::info!(
-                                    "Safety poll recovered (mode: {:?})",
-                                    safety_fail_mode
+                                    "Runtime location updated: lat={:?}, lon={:?}",
+                                    latitude,
+                                    longitude
                                 );
-                                safety_poll_last_was_error = false;
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "location".to_string(),
+                                });
                             }
-                            Some(safe)
+                            ExecutorCommand::UpdateFilterOffsets { offsets } => {
+                                // Audit §1.8: write through the Arc so the next
+                                // filter change reads the updated offsets.
+                                let count = offsets.len();
+                                {
+                                    let mut rc = runtime_config.write();
+                                    rc.filter_focus_offsets = offsets;
+                                }
+                                tracing::info!(
+                                    "Runtime filter focus offsets updated: {} entries",
+                                    count
+                                );
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "filter_offsets".to_string(),
+                                });
+                            }
                         }
-                        Err(e) => match safety_fail_mode {
-                            SafetyFailMode::FailClosed => {
-                                if !safety_poll_last_was_error {
-                                    tracing::warn!(
+                    }
+                };
+
+                let streaming_filter_focus_offsets = context.filter_focus_offsets.clone();
+                let streaming_safety_fail_mode = context.safety_fail_mode;
+
+                let execution = async { root_node.execute(&mut context).await };
+
+                let state_clone = state.clone();
+                let event_tx_clone2 = event_tx.clone();
+                let is_cancelled_clone = is_cancelled.clone();
+                let is_paused_for_triggers = is_paused.clone();
+                let skip_to_next_target_for_triggers = skip_to_next_target.clone();
+                let progress_for_checkpoint = progress.clone();
+                let state_for_checkpoint = state.clone();
+                let is_cancelled_for_checkpoint = is_cancelled.clone();
+                let trigger_manager_for_checkpoint = trigger_manager.clone();
+                let streaming_triggers_enabled = triggers_enabled;
+                let streaming_checkpoint_task = async move {
+                    // Audit §1.16: reuse the executor's Arc<CheckpointManager> so
+                    // info_cache stays consistent. Constructing a second instance
+                    // here was the original §1.16 bug.
+                    let Some(checkpoint_mgr) = streaming_checkpoint_manager else {
+                        std::future::pending::<()>().await;
+                        return;
+                    };
+                    let Some(sequence) = streaming_sequence else {
+                        std::future::pending::<()>().await;
+                        return;
+                    };
+
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+
+                    loop {
+                        interval.tick().await;
+
+                        if is_cancelled_for_checkpoint.load(Ordering::Relaxed) {
+                            break;
+                        }
+
+                        let exec_state = *state_for_checkpoint.read().await;
+                        if !matches!(exec_state, ExecutorState::Running | ExecutorState::Paused) {
+                            continue;
+                        }
+
+                        let prog = progress_for_checkpoint.read().clone();
+                        let mut checkpoint =
+                            crate::checkpoint::SessionCheckpoint::new(sequence.clone());
+                        checkpoint.node_statuses = prog.node_statuses.clone();
+                        checkpoint.current_node = prog.current_node_id.clone();
+                        checkpoint.executor_state = exec_state;
+                        checkpoint.completed_exposures = prog.completed_exposures;
+                        checkpoint.completed_integration_secs = prog.completed_integration_secs;
+                        checkpoint.is_active = true;
+                        checkpoint.set_devices(
+                            streaming_camera_id.clone(),
+                            streaming_mount_id.clone(),
+                            streaming_focuser_id.clone(),
+                            streaming_filterwheel_id.clone(),
+                            streaming_rotator_id.clone(),
+                        );
+                        checkpoint.set_location(streaming_latitude, streaming_longitude);
+                        checkpoint.set_save_path(streaming_save_path.clone());
+
+                        let trigger_state = {
+                            let manager = trigger_manager_for_checkpoint.read().await;
+                            manager.state()
+                        };
+                        let trigger_state = trigger_state.read().await;
+                        checkpoint.set_trigger_state(
+                            crate::checkpoint::TriggerStateSnapshot::from_state(
+                                &trigger_state,
+                                streaming_safety_fail_mode,
+                                streaming_triggers_enabled,
+                                streaming_filter_focus_offsets.clone(),
+                            ),
+                        );
+
+                        match checkpoint_mgr.save(&checkpoint) {
+                            Ok(()) => tracing::debug!(
+                                "Streaming checkpoint saved ({} exposures, {:.1}s integration)",
+                                checkpoint.completed_exposures,
+                                checkpoint.completed_integration_secs
+                            ),
+                            Err(e) => tracing::warn!("Streaming checkpoint save failed: {}", e),
+                        }
+                    }
+                };
+                let trigger_monitor = async {
+                    if !triggers_enabled {
+                        // Hold this task open so the `try_join!` below still waits on the
+                        // other branches; an immediate return would short-circuit them.
+                        std::future::pending::<()>().await;
+                        return Vec::new();
+                    }
+
+                    let mut check_interval =
+                        tokio::time::interval(std::time::Duration::from_secs(1));
+                    let mut fired_triggers: Vec<(String, RecoveryAction)> = Vec::new();
+
+                    // Tracks whether the previous safety poll already failed. Used to
+                    // rate-limit the per-mode warning so a permanently offline safety
+                    // device does not flood the log every second. See SafetyFailMode
+                    // dispatch below.
+                    let mut safety_poll_last_was_error = false;
+
+                    // Tracks per-trigger Retry attempt counts so we can escalate after
+                    // exhausting `max_attempts`. Keyed by trigger ID.
+                    let mut retry_attempts: HashMap<String, u32> = HashMap::new();
+
+                    // §1.14: Streaming-checkpoint cadence is now driven by an independent
+                    // task spawned alongside this monitor (see streaming_checkpoint_task).
+                    // Keeping the monitor focused on trigger evaluation avoids dropping
+                    // checkpoint saves when triggers_enabled = false.
+
+                    // The MountTrackingLost / OnTrackingLimitHit triggers need a baseline
+                    // expectation; without setting this flag the "tracking dropped" detector
+                    // would assume tracking is unwanted and never fire. Only matters while a
+                    // mount is configured for the sequence.
+                    if trigger_action_context.mount_id.is_some() {
+                        let manager = trigger_manager.read().await;
+                        let trigger_state = manager.state();
+                        let mut state = trigger_state.write().await;
+                        state.set_mount_tracking_expected(true);
+                    }
+
+                    loop {
+                        check_interval.tick().await;
+
+                        // Pause/Stop must not fire triggers — paused sequences are explicitly
+                        // "user is intervening" and Stopping is racing to terminate, so any
+                        // recovery action here would conflict with the operator's intent.
+                        let current_state = *state_clone.read().await;
+                        if current_state != ExecutorState::Running {
+                            continue;
+                        }
+
+                        if is_cancelled_clone.load(Ordering::Relaxed) {
+                            break;
+                        }
+
+                        // Poll weather/safety status and update trigger state. Each
+                        // SafetyFailMode variant has a distinct, observable behaviour:
+                        // - FailClosed: poll errors mark the run unsafe so WeatherUnsafe
+                        //   fires the configured park-and-abort path. Recommended for
+                        //   unattended runs.
+                        // - FailOpen: poll errors are treated as safe so the sequence
+                        //   keeps running. Intended for daytime / shutdown sequences
+                        //   where the safety device is intentionally unavailable. The
+                        //   warning is rate-limited (only once per error transition) so
+                        //   logs do not flood when the device is permanently offline.
+                        // - WarnOnly: poll errors do NOT change weather_safe (last good
+                        //   reading wins), but a one-shot Error event is emitted so the
+                        //   UI can alert the operator. Existing safe/unsafe state is
+                        //   preserved.
+                        let is_safe = match device_ops_for_triggers.safety_is_safe(None).await {
+                            Ok(safe) => {
+                                if safety_poll_last_was_error {
+                                    tracing::info!(
+                                        "Safety poll recovered (mode: {:?})",
+                                        safety_fail_mode
+                                    );
+                                    safety_poll_last_was_error = false;
+                                }
+                                Some(safe)
+                            }
+                            Err(e) => match safety_fail_mode {
+                                SafetyFailMode::FailClosed => {
+                                    if !safety_poll_last_was_error {
+                                        tracing::warn!(
                                         "Safety poll error: {} - treating as unsafe (FailClosed)",
                                         e
                                     );
-                                    safety_poll_last_was_error = true;
+                                        safety_poll_last_was_error = true;
+                                    }
+                                    Some(false)
                                 }
-                                Some(false)
-                            }
-                            SafetyFailMode::FailOpen => {
-                                if !safety_poll_last_was_error {
-                                    tracing::warn!(
-                                        "Safety poll error: {} - treating as safe (FailOpen). \
+                                SafetyFailMode::FailOpen => {
+                                    if !safety_poll_last_was_error {
+                                        tracing::warn!(
+                                            "Safety poll error: {} - treating as safe (FailOpen). \
                                          Sequence will continue. Do not use FailOpen for \
                                          unattended runs.",
-                                        e
-                                    );
-                                    safety_poll_last_was_error = true;
-                                }
-                                Some(true)
-                            }
-                            SafetyFailMode::WarnOnly => {
-                                if !safety_poll_last_was_error {
-                                    tracing::warn!(
-                                        "Safety poll error: {} - WarnOnly mode, leaving \
-                                         weather_safe unchanged and emitting alert",
-                                        e
-                                    );
-                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                        message: format!(
-                                            "Safety poll failed: {}. WarnOnly mode keeps the \
-                                             previous safety state — operator attention required.",
                                             e
-                                        ),
-                                    });
-                                    safety_poll_last_was_error = true;
-                                }
-                                None
-                            }
-                        },
-                    };
-
-                    let guiding_rms = device_ops_for_triggers
-                        .guider_get_status()
-                        .await
-                        .ok()
-                        .map(|status| status.rms_total);
-
-                    {
-                        let manager = trigger_manager.read().await;
-                        let trigger_state = manager.state();
-                        let mut state = trigger_state.write().await;
-                        // WarnOnly returns None to mean "preserve previous reading" — that
-                        // is the contract that distinguishes it from FailOpen/FailClosed.
-                        if let Some(safe) = is_safe {
-                            state.weather_safe = safe;
-                        }
-
-                        if let Some(rms) = guiding_rms {
-                            state.update_guiding_rms(rms);
-                            tracing::trace!("Updated guiding RMS: {:.2}", rms);
-                        }
-
-                        // Dawn calculation needs lat/lon; if the executor was started
-                        // before the location was set (mobile rigs configure it after
-                        // mount connect), seed from the device_ops the first time it
-                        // becomes available so DawnApproaching can fire.
-                        if state.observer_latitude.is_none() {
-                            if let Some((lat, lon)) =
-                                device_ops_for_triggers.get_observer_location()
-                            {
-                                state.observer_latitude = Some(lat);
-                                state.observer_longitude = Some(lon);
-                                // Cache dawn_time once on first set; recomputing every
-                                // poll would burn CPU on a slowly-changing value.
-                                state.dawn_time =
-                                    Some(crate::triggers::calculate_dawn_time(lat, lon));
-                                tracing::debug!(
-                                    "Observer location set for dawn trigger: {}, {}",
-                                    lat,
-                                    lon
-                                );
-                            }
-                        }
-                    }
-
-                    if let Some(mount_id) = &trigger_action_context.mount_id {
-                        let tracking_result =
-                            device_ops_for_triggers.mount_is_tracking(mount_id).await;
-                        let slewing_result =
-                            device_ops_for_triggers.mount_is_slewing(mount_id).await;
-                        let parked_result = device_ops_for_triggers.mount_is_parked(mount_id).await;
-                        let pier_side_result =
-                            device_ops_for_triggers.mount_side_of_pier(mount_id).await;
-                        let coords_result = device_ops_for_triggers
-                            .mount_get_coordinates(mount_id)
-                            .await;
-
-                        let manager = trigger_manager.read().await;
-                        let trigger_state = manager.state();
-                        let mut state = trigger_state.write().await;
-
-                        // A failed tracking query is treated as a connection problem
-                        // rather than "tracking dropped" so we don't park-and-abort
-                        // on a transient driver glitch — actual loss is reported as
-                        // Ok(false), which the branch below handles distinctly.
-                        match &tracking_result {
-                            Ok(is_tracking) => {
-                                state.mount_status_query_failed = false;
-
-                                if state.mount_tracking_expected
-                                    && !is_tracking
-                                    && !state.mount_tracking_lost
-                                {
-                                    tracing::warn!("Mount tracking lost during sequence!");
-                                    state.mount_tracking_lost = true;
-
-                                    // OnTrackingLimitHit waits `tracking_limit_wait_minutes`
-                                    // before flipping; we stamp the detection time here so
-                                    // the wait period is measured from when the loss was
-                                    // first observed, not from when the trigger eventually
-                                    // evaluates (which happens on its own cadence).
-                                    if state.tracking_limit_detected_at.is_none() {
-                                        state.tracking_limit_detected_at =
-                                            Some(chrono::Utc::now().timestamp());
-                                        tracing::info!(
-                                            "Tracking limit detection timestamp recorded"
                                         );
+                                        safety_poll_last_was_error = true;
                                     }
+                                    Some(true)
                                 }
-                                // Tracking resumed before the wait elapsed — clear the
-                                // detection timestamp so a future loss starts the wait
-                                // window fresh instead of inheriting stale state.
-                                if *is_tracking && state.tracking_limit_detected_at.is_some() {
-                                    tracing::info!(
-                                        "Mount tracking resumed, cancelling tracking limit wait"
+                                SafetyFailMode::WarnOnly => {
+                                    if !safety_poll_last_was_error {
+                                        tracing::warn!(
+                                            "Safety poll error: {} - WarnOnly mode, leaving \
+                                         weather_safe unchanged and emitting alert",
+                                            e
+                                        );
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: format!(
+                                                "Safety poll failed: {}. WarnOnly mode keeps the \
+                                             previous safety state — operator attention required.",
+                                                e
+                                            ),
+                                        });
+                                        safety_poll_last_was_error = true;
+                                    }
+                                    None
+                                }
+                            },
+                        };
+
+                        let guiding_rms = device_ops_for_triggers
+                            .guider_get_status()
+                            .await
+                            .ok()
+                            .map(|status| status.rms_total);
+
+                        {
+                            let manager = trigger_manager.read().await;
+                            let trigger_state = manager.state();
+                            let mut state = trigger_state.write().await;
+                            // WarnOnly returns None to mean "preserve previous reading" — that
+                            // is the contract that distinguishes it from FailOpen/FailClosed.
+                            if let Some(safe) = is_safe {
+                                state.weather_safe = safe;
+                            }
+
+                            if let Some(rms) = guiding_rms {
+                                state.update_guiding_rms(rms);
+                                tracing::trace!("Updated guiding RMS: {:.2}", rms);
+                            }
+
+                            // Dawn calculation needs lat/lon; if the executor was started
+                            // before the location was set (mobile rigs configure it after
+                            // mount connect), seed from the device_ops the first time it
+                            // becomes available so DawnApproaching can fire.
+                            if state.observer_latitude.is_none() {
+                                if let Some((lat, lon)) =
+                                    device_ops_for_triggers.get_observer_location()
+                                {
+                                    state.observer_latitude = Some(lat);
+                                    state.observer_longitude = Some(lon);
+                                    // Cache dawn_time once on first set; recomputing every
+                                    // poll would burn CPU on a slowly-changing value.
+                                    state.dawn_time =
+                                        Some(crate::triggers::calculate_dawn_time(lat, lon));
+                                    tracing::debug!(
+                                        "Observer location set for dawn trigger: {}, {}",
+                                        lat,
+                                        lon
                                     );
-                                    state.reset_tracking_limit_detection();
                                 }
-
-                                state.mount_is_tracking = Some(*is_tracking);
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    "Mount status query failed: {} - possible connection loss",
-                                    e
-                                );
-                                state.mount_status_query_failed = true;
                             }
                         }
 
-                        if let Ok(slewing) = slewing_result {
-                            state.mount_slewing = Some(slewing);
-                        }
-                        if let Ok(parked) = parked_result {
-                            state.mount_parked = Some(parked);
-                        }
+                        if let Some(mount_id) = &trigger_action_context.mount_id {
+                            let tracking_result =
+                                device_ops_for_triggers.mount_is_tracking(mount_id).await;
+                            let slewing_result =
+                                device_ops_for_triggers.mount_is_slewing(mount_id).await;
+                            let parked_result =
+                                device_ops_for_triggers.mount_is_parked(mount_id).await;
+                            let pier_side_result =
+                                device_ops_for_triggers.mount_side_of_pier(mount_id).await;
+                            let coords_result = device_ops_for_triggers
+                                .mount_get_coordinates(mount_id)
+                                .await;
 
-                        // Two PierSide enums exist: meridian::PierSide is the
-                        // internal calculation type, crate::PierSide is the
-                        // event-stream wire format. They mirror each other but
-                        // are distinct types so the geometry code cannot leak
-                        // into FRB-exposed events.
-                        if let Ok(pier_side) = pier_side_result {
-                            let ps = match pier_side {
-                                crate::meridian::PierSide::East => crate::PierSide::East,
-                                crate::meridian::PierSide::West => crate::PierSide::West,
-                                crate::meridian::PierSide::Unknown => crate::PierSide::Unknown,
-                            };
-                            state.update_pier_side(ps);
-                        }
-
-                        // Hour angle is required for the MeridianFlip trigger's
-                        // hour-angle-threshold mode; the mount only gives us RA,
-                        // so we recompute HA = LST - RA here using the observer
-                        // longitude (already validated above before this branch).
-                        if let Ok((ra_hours, _dec)) = coords_result {
-                            if let Some(lon) = state.observer_longitude {
-                                let now = chrono::Utc::now();
-                                let jd = crate::meridian::julian_day(&now);
-                                let lst = crate::meridian::local_sidereal_time(jd, lon);
-                                let ha = crate::meridian::hour_angle(ra_hours, lst);
-                                state.update_hour_angle(ha);
-                            }
-                        }
-                    }
-
-                    if let Some(camera_id) = &trigger_action_context.camera_id {
-                        if let Ok(temp) = device_ops_for_triggers
-                            .camera_get_temperature(camera_id)
-                            .await
-                        {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
                             let mut state = trigger_state.write().await;
-                            state.update_temperature(temp);
-                            tracing::trace!("Updated camera temperature: {:.1}°C", temp);
-                        }
-                    }
 
-                    if let Some(dome_id) = &trigger_action_context.dome_id {
-                        if let Ok(status) = device_ops_for_triggers
-                            .dome_get_shutter_status(dome_id)
-                            .await
-                        {
-                            let manager = trigger_manager.read().await;
-                            let trigger_state = manager.state();
-                            let mut state = trigger_state.write().await;
-                            state.update_dome_status(status.clone());
-                            if status != "Open" && state.dome_shutter_open_expected {
-                                tracing::warn!("Dome shutter not open during sequence: {}", status);
-                            }
-                        }
-                    }
+                            // A failed tracking query is treated as a connection problem
+                            // rather than "tracking dropped" so we don't park-and-abort
+                            // on a transient driver glitch — actual loss is reported as
+                            // Ok(false), which the branch below handles distinctly.
+                            match &tracking_result {
+                                Ok(is_tracking) => {
+                                    state.mount_status_query_failed = false;
 
-                    // GuideStarLost cannot be derived from RMS alone (a settled guider
-                    // can report low RMS for one cycle before noticing the star is gone).
-                    // Polling guider status here gives the trigger a definitive signal
-                    // independent of the RMS path above.
-                    {
-                        let guide_status = device_ops_for_triggers.guider_get_status().await;
-                        let manager = trigger_manager.read().await;
-                        let trigger_state = manager.state();
-                        let mut tstate = trigger_state.write().await;
-                        match guide_status {
-                            Ok(status) => {
-                                // Only count it as "lost" when the sequence has explicitly
-                                // started guiding. Otherwise an idle guider would constantly
-                                // trip the trigger before a Guide instruction even runs.
-                                if tstate.guiding_enabled && !status.is_guiding {
-                                    tstate.set_guide_star_lost(true);
-                                } else {
-                                    tstate.set_guide_star_lost(false);
-                                }
-                            }
-                            Err(_) => {
-                                // If we can't reach the guider, treat as lost when guiding expected
-                                if tstate.guiding_enabled {
-                                    tstate.set_guide_star_lost(true);
-                                }
-                            }
-                        }
-                    }
+                                    if state.mount_tracking_expected
+                                        && !is_tracking
+                                        && !state.mount_tracking_lost
+                                    {
+                                        tracing::warn!("Mount tracking lost during sequence!");
+                                        state.mount_tracking_lost = true;
 
-                    // Recovery actions below take their own write locks on trigger_state;
-                    // holding the trigger_manager lock during them would deadlock the
-                    // trigger evaluators that share the same Arc. Snapshot the fired
-                    // triggers into an owned Vec and drop the lock before dispatching.
-                    let fired_with_names: Vec<(String, String, RecoveryAction)> = {
-                        let mut manager = trigger_manager.write().await;
-                        let fired = manager.check_all().await;
-                        fired
-                            .into_iter()
-                            .map(|(trigger_id, action)| {
-                                let trigger_name = manager
-                                    .get_trigger(&trigger_id)
-                                    .map(|t| t.name.clone())
-                                    .unwrap_or_else(|| trigger_id.clone());
-                                (trigger_id, trigger_name, action)
-                            })
-                            .collect()
-                    };
-
-                    let trigger_state_for_actions = {
-                        let manager = trigger_manager.read().await;
-                        manager.state()
-                    };
-
-                    for (trigger_id, trigger_name, action) in fired_with_names {
-                        let action_str = format!("{:?}", action);
-
-                        tracing::warn!(
-                            "Trigger fired: {} ({}) - action: {:?}",
-                            trigger_name,
-                            trigger_id,
-                            action
-                        );
-
-                        let _ = event_tx_clone2.send(ExecutorEvent::TriggerFired {
-                            trigger_id: trigger_id.clone(),
-                            trigger_name: trigger_name.clone(),
-                            action: action_str.clone(),
-                        });
-
-                        match &action {
-                            RecoveryAction::Pause => {
-                                is_paused_for_triggers.store(true, Ordering::Relaxed);
-                                *state_clone.write().await = ExecutorState::Paused;
-                                let _ = event_tx_clone2
-                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                            }
-                            RecoveryAction::ParkAndAbort => {
-                                // Audit §1.18: cancellation must be set before
-                                // returning, but the actual store now happens
-                                // in `terminate_with` so this code path cannot
-                                // forget it on a future refactor.
-
-                                // Park BEFORE aborting: a bare abort leaves the mount tracking
-                                // toward the limit. The whole point of ParkAndAbort is to put
-                                // the rig into a safe state — so we park first, then exit.
-                                if let Some(mount_id) = &trigger_action_context.mount_id {
-                                    tracing::warn!("ParkAndAbort: parking mount '{}'", mount_id);
-                                    match device_ops_for_triggers.mount_park(mount_id).await {
-                                        Ok(_) => {
+                                        // OnTrackingLimitHit waits `tracking_limit_wait_minutes`
+                                        // before flipping; we stamp the detection time here so
+                                        // the wait period is measured from when the loss was
+                                        // first observed, not from when the trigger eventually
+                                        // evaluates (which happens on its own cadence).
+                                        if state.tracking_limit_detected_at.is_none() {
+                                            state.tracking_limit_detected_at =
+                                                Some(chrono::Utc::now().timestamp());
                                             tracing::info!(
-                                                "ParkAndAbort: mount parked successfully"
+                                                "Tracking limit detection timestamp recorded"
                                             );
                                         }
-                                        Err(e) => {
-                                            tracing::error!(
-                                                "ParkAndAbort: mount park FAILED: {}. \
-                                                 Mount may be in an unsafe position!",
-                                                e
-                                            );
-                                            // One retry covers a transient driver hiccup;
-                                            // beyond that the operator must intervene anyway
-                                            // (we still proceed with abort to halt exposures).
-                                            tokio::time::sleep(std::time::Duration::from_secs(2))
-                                                .await;
-                                            if let Err(retry_err) =
-                                                device_ops_for_triggers.mount_park(mount_id).await
-                                            {
+                                    }
+                                    // Tracking resumed before the wait elapsed — clear the
+                                    // detection timestamp so a future loss starts the wait
+                                    // window fresh instead of inheriting stale state.
+                                    if *is_tracking && state.tracking_limit_detected_at.is_some() {
+                                        tracing::info!(
+                                        "Mount tracking resumed, cancelling tracking limit wait"
+                                    );
+                                        state.reset_tracking_limit_detection();
+                                    }
+
+                                    state.mount_is_tracking = Some(*is_tracking);
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Mount status query failed: {} - possible connection loss",
+                                        e
+                                    );
+                                    state.mount_status_query_failed = true;
+                                }
+                            }
+
+                            if let Ok(slewing) = slewing_result {
+                                state.mount_slewing = Some(slewing);
+                            }
+                            if let Ok(parked) = parked_result {
+                                state.mount_parked = Some(parked);
+                            }
+
+                            // Two PierSide enums exist: meridian::PierSide is the
+                            // internal calculation type, crate::PierSide is the
+                            // event-stream wire format. They mirror each other but
+                            // are distinct types so the geometry code cannot leak
+                            // into FRB-exposed events.
+                            if let Ok(pier_side) = pier_side_result {
+                                let ps = match pier_side {
+                                    crate::meridian::PierSide::East => crate::PierSide::East,
+                                    crate::meridian::PierSide::West => crate::PierSide::West,
+                                    crate::meridian::PierSide::Unknown => crate::PierSide::Unknown,
+                                };
+                                state.update_pier_side(ps);
+                            }
+
+                            // Hour angle is required for the MeridianFlip trigger's
+                            // hour-angle-threshold mode; the mount only gives us RA,
+                            // so we recompute HA = LST - RA here using the observer
+                            // longitude (already validated above before this branch).
+                            if let Ok((ra_hours, _dec)) = coords_result {
+                                if let Some(lon) = state.observer_longitude {
+                                    let now = chrono::Utc::now();
+                                    let jd = crate::meridian::julian_day(&now);
+                                    let lst = crate::meridian::local_sidereal_time(jd, lon);
+                                    let ha = crate::meridian::hour_angle(ra_hours, lst);
+                                    state.update_hour_angle(ha);
+                                }
+                            }
+                        }
+
+                        if let Some(camera_id) = &trigger_action_context.camera_id {
+                            if let Ok(temp) = device_ops_for_triggers
+                                .camera_get_temperature(camera_id)
+                                .await
+                            {
+                                let manager = trigger_manager.read().await;
+                                let trigger_state = manager.state();
+                                let mut state = trigger_state.write().await;
+                                state.update_temperature(temp);
+                                tracing::trace!("Updated camera temperature: {:.1}°C", temp);
+                            }
+                        }
+
+                        if let Some(dome_id) = &trigger_action_context.dome_id {
+                            if let Ok(status) = device_ops_for_triggers
+                                .dome_get_shutter_status(dome_id)
+                                .await
+                            {
+                                let manager = trigger_manager.read().await;
+                                let trigger_state = manager.state();
+                                let mut state = trigger_state.write().await;
+                                state.update_dome_status(status.clone());
+                                if status != "Open" && state.dome_shutter_open_expected {
+                                    tracing::warn!(
+                                        "Dome shutter not open during sequence: {}",
+                                        status
+                                    );
+                                }
+                            }
+                        }
+
+                        // GuideStarLost cannot be derived from RMS alone (a settled guider
+                        // can report low RMS for one cycle before noticing the star is gone).
+                        // Polling guider status here gives the trigger a definitive signal
+                        // independent of the RMS path above.
+                        {
+                            let guide_status = device_ops_for_triggers.guider_get_status().await;
+                            let manager = trigger_manager.read().await;
+                            let trigger_state = manager.state();
+                            let mut tstate = trigger_state.write().await;
+                            match guide_status {
+                                Ok(status) => {
+                                    // Only count it as "lost" when the sequence has explicitly
+                                    // started guiding. Otherwise an idle guider would constantly
+                                    // trip the trigger before a Guide instruction even runs.
+                                    if tstate.guiding_enabled && !status.is_guiding {
+                                        tstate.set_guide_star_lost(true);
+                                    } else {
+                                        tstate.set_guide_star_lost(false);
+                                    }
+                                }
+                                Err(_) => {
+                                    // If we can't reach the guider, treat as lost when guiding expected
+                                    if tstate.guiding_enabled {
+                                        tstate.set_guide_star_lost(true);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Recovery actions below take their own write locks on trigger_state;
+                        // holding the trigger_manager lock during them would deadlock the
+                        // trigger evaluators that share the same Arc. Snapshot the fired
+                        // triggers into an owned Vec and drop the lock before dispatching.
+                        let fired_with_names: Vec<(String, String, RecoveryAction)> = {
+                            let mut manager = trigger_manager.write().await;
+                            let fired = manager.check_all().await;
+                            fired
+                                .into_iter()
+                                .map(|(trigger_id, action)| {
+                                    let trigger_name = manager
+                                        .get_trigger(&trigger_id)
+                                        .map(|t| t.name.clone())
+                                        .unwrap_or_else(|| trigger_id.clone());
+                                    (trigger_id, trigger_name, action)
+                                })
+                                .collect()
+                        };
+
+                        let trigger_state_for_actions = {
+                            let manager = trigger_manager.read().await;
+                            manager.state()
+                        };
+
+                        for (trigger_id, trigger_name, action) in fired_with_names {
+                            let action_str = format!("{:?}", action);
+
+                            tracing::warn!(
+                                "Trigger fired: {} ({}) - action: {:?}",
+                                trigger_name,
+                                trigger_id,
+                                action
+                            );
+
+                            let _ = event_tx_clone2.send(ExecutorEvent::TriggerFired {
+                                trigger_id: trigger_id.clone(),
+                                trigger_name: trigger_name.clone(),
+                                action: action_str.clone(),
+                            });
+
+                            match &action {
+                                RecoveryAction::Pause => {
+                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                    *state_clone.write().await = ExecutorState::Paused;
+                                    let _ = event_tx_clone2
+                                        .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                }
+                                RecoveryAction::ParkAndAbort => {
+                                    // Audit §1.18: cancellation must be set before
+                                    // returning, but the actual store now happens
+                                    // in `terminate_with` so this code path cannot
+                                    // forget it on a future refactor.
+
+                                    // Park BEFORE aborting: a bare abort leaves the mount tracking
+                                    // toward the limit. The whole point of ParkAndAbort is to put
+                                    // the rig into a safe state — so we park first, then exit.
+                                    if let Some(mount_id) = &trigger_action_context.mount_id {
+                                        tracing::warn!(
+                                            "ParkAndAbort: parking mount '{}'",
+                                            mount_id
+                                        );
+                                        match device_ops_for_triggers.mount_park(mount_id).await {
+                                            Ok(_) => {
+                                                tracing::info!(
+                                                    "ParkAndAbort: mount parked successfully"
+                                                );
+                                            }
+                                            Err(e) => {
                                                 tracing::error!(
+                                                    "ParkAndAbort: mount park FAILED: {}. \
+                                                 Mount may be in an unsafe position!",
+                                                    e
+                                                );
+                                                // One retry covers a transient driver hiccup;
+                                                // beyond that the operator must intervene anyway
+                                                // (we still proceed with abort to halt exposures).
+                                                tokio::time::sleep(std::time::Duration::from_secs(
+                                                    2,
+                                                ))
+                                                .await;
+                                                if let Err(retry_err) = device_ops_for_triggers
+                                                    .mount_park(mount_id)
+                                                    .await
+                                                {
+                                                    tracing::error!(
                                                     "ParkAndAbort: mount park retry also FAILED: {}",
                                                     retry_err
                                                 );
-                                            } else {
-                                                tracing::info!(
-                                                    "ParkAndAbort: mount parked on retry"
-                                                );
+                                                } else {
+                                                    tracing::info!(
+                                                        "ParkAndAbort: mount parked on retry"
+                                                    );
+                                                }
                                             }
                                         }
+                                    } else {
+                                        tracing::warn!(
+                                            "ParkAndAbort: no mount configured, cannot park"
+                                        );
                                     }
-                                } else {
-                                    tracing::warn!(
-                                        "ParkAndAbort: no mount configured, cannot park"
+
+                                    fired_triggers.push((trigger_id, action));
+                                    return terminate_with(
+                                        &is_cancelled_clone,
+                                        fired_triggers,
+                                        "RecoveryAction::ParkAndAbort",
                                     );
                                 }
+                                RecoveryAction::NextTarget => {
+                                    tracing::info!("Trigger requested advance to next target");
+                                    skip_to_next_target_for_triggers.store(true, Ordering::Relaxed);
+                                }
+                                RecoveryAction::Autofocus => {
+                                    tracing::info!(
+                                        "Executing autofocus as trigger recovery action"
+                                    );
+                                    match (
+                                        trigger_action_context.camera_id.as_ref(),
+                                        trigger_action_context.focuser_id.as_ref(),
+                                    ) {
+                                        (Some(_), Some(_)) => {
+                                            let (
+                                                target_name,
+                                                target_ra,
+                                                target_dec,
+                                                current_filter,
+                                            ) = {
+                                                let ts = trigger_state_for_actions.read().await;
+                                                (
+                                                    ts.current_target_name.clone(),
+                                                    ts.target_ra.map(|ra| ra / 15.0),
+                                                    ts.target_dec,
+                                                    ts.current_filter.clone(),
+                                                )
+                                            };
 
-                                fired_triggers.push((trigger_id, action));
-                                return terminate_with(
-                                    &is_cancelled_clone,
-                                    fired_triggers,
-                                    "RecoveryAction::ParkAndAbort",
-                                );
-                            }
-                            RecoveryAction::NextTarget => {
-                                tracing::info!("Trigger requested advance to next target");
-                                skip_to_next_target_for_triggers.store(true, Ordering::Relaxed);
-                            }
-                            RecoveryAction::Autofocus => {
-                                tracing::info!("Executing autofocus as trigger recovery action");
-                                match (
-                                    trigger_action_context.camera_id.as_ref(),
-                                    trigger_action_context.focuser_id.as_ref(),
-                                ) {
-                                    (Some(_), Some(_)) => {
-                                        let (target_name, target_ra, target_dec, current_filter) = {
-                                            let ts = trigger_state_for_actions.read().await;
-                                            (
-                                                ts.current_target_name.clone(),
-                                                ts.target_ra.map(|ra| ra / 15.0),
-                                                ts.target_dec,
-                                                ts.current_filter.clone(),
+                                            let af_ctx = build_trigger_autofocus_context(
+                                                &trigger_action_context,
+                                                target_name,
+                                                target_ra,
+                                                target_dec,
+                                                current_filter,
+                                                is_cancelled_clone.clone(),
+                                                device_ops_for_triggers.clone(),
+                                                trigger_state_for_actions.clone(),
+                                                &runtime_config,
+                                            );
+
+                                            let af_result = crate::instructions::execute_autofocus(
+                                                &crate::AutofocusConfig::default(),
+                                                &af_ctx,
+                                                None,
                                             )
-                                        };
+                                            .await;
 
-                                        let af_ctx = build_trigger_autofocus_context(
-                                            &trigger_action_context,
-                                            target_name,
-                                            target_ra,
-                                            target_dec,
-                                            current_filter,
-                                            is_cancelled_clone.clone(),
-                                            device_ops_for_triggers.clone(),
-                                            trigger_state_for_actions.clone(),
-                                            &runtime_config,
-                                        );
-
-                                        let af_result = crate::instructions::execute_autofocus(
-                                            &crate::AutofocusConfig::default(),
-                                            &af_ctx,
-                                            None,
-                                        )
-                                        .await;
-
-                                        if af_result.status == NodeStatus::Success {
-                                            if let Some(best_hfr) = af_result.hfr_values.first() {
-                                                let mut ts =
-                                                    trigger_state_for_actions.write().await;
-                                                ts.update_hfr(*best_hfr);
-                                                ts.reset_baseline_hfr();
-                                                ts.mark_autofocus_performed();
-                                            }
-                                        } else {
-                                            // BUG-3: Reset the HFR baseline to the current degraded
-                                            // value so the trigger doesn't keep firing with a stale
-                                            // baseline from before the failed autofocus attempt.
-                                            {
-                                                let mut ts =
-                                                    trigger_state_for_actions.write().await;
-                                                ts.reset_baseline_hfr();
-                                                tracing::warn!(
+                                            if af_result.status == NodeStatus::Success {
+                                                if let Some(best_hfr) = af_result.hfr_values.first()
+                                                {
+                                                    let mut ts =
+                                                        trigger_state_for_actions.write().await;
+                                                    ts.update_hfr(*best_hfr);
+                                                    ts.reset_baseline_hfr();
+                                                    ts.mark_autofocus_performed();
+                                                }
+                                            } else {
+                                                // BUG-3: Reset the HFR baseline to the current degraded
+                                                // value so the trigger doesn't keep firing with a stale
+                                                // baseline from before the failed autofocus attempt.
+                                                {
+                                                    let mut ts =
+                                                        trigger_state_for_actions.write().await;
+                                                    ts.reset_baseline_hfr();
+                                                    tracing::warn!(
                                                     "Autofocus failed — HFR baseline reset to current value ({:?}) \
                                                      to prevent repeated trigger firing with stale baseline",
                                                     ts.baseline_hfr
                                                 );
-                                            }
+                                                }
 
+                                                is_paused_for_triggers
+                                                    .store(true, Ordering::Relaxed);
+                                                *state_clone.write().await = ExecutorState::Paused;
+                                                let _ = event_tx_clone2.send(
+                                                    ExecutorEvent::StateChanged(
+                                                        ExecutorState::Paused,
+                                                    ),
+                                                );
+                                                let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: af_result.message.unwrap_or_else(|| {
+                                                    "Autofocus trigger failed; sequence paused for intervention".to_string()
+                                                }),
+                                            });
+                                            }
+                                        }
+                                        _ => {
                                             is_paused_for_triggers.store(true, Ordering::Relaxed);
                                             *state_clone.write().await = ExecutorState::Paused;
                                             let _ = event_tx_clone2.send(
                                                 ExecutorEvent::StateChanged(ExecutorState::Paused),
                                             );
                                             let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: af_result.message.unwrap_or_else(|| {
-                                                    "Autofocus trigger failed; sequence paused for intervention".to_string()
-                                                }),
-                                            });
+                                            message: "Autofocus trigger requested but camera/focuser is not connected"
+                                                .to_string(),
+                                        });
                                         }
                                     }
-                                    _ => {
+                                }
+                                RecoveryAction::Retry { max_attempts } => {
+                                    let attempts =
+                                        retry_attempts.entry(trigger_id.clone()).or_insert(0);
+                                    if *attempts < *max_attempts {
+                                        *attempts += 1;
+                                        tracing::warn!(
+                                            "Trigger '{}' requested retry attempt {}/{}",
+                                            trigger_name,
+                                            attempts,
+                                            max_attempts
+                                        );
+                                    } else {
+                                        tracing::error!(
+                                        "Trigger '{}' exhausted {} retry attempts; pausing sequence",
+                                        trigger_name,
+                                        max_attempts
+                                    );
                                         is_paused_for_triggers.store(true, Ordering::Relaxed);
                                         *state_clone.write().await = ExecutorState::Paused;
                                         let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
                                             ExecutorState::Paused,
                                         ));
                                         let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: "Autofocus trigger requested but camera/focuser is not connected"
-                                                .to_string(),
-                                        });
-                                    }
-                                }
-                            }
-                            RecoveryAction::Retry { max_attempts } => {
-                                let attempts =
-                                    retry_attempts.entry(trigger_id.clone()).or_insert(0);
-                                if *attempts < *max_attempts {
-                                    *attempts += 1;
-                                    tracing::warn!(
-                                        "Trigger '{}' requested retry attempt {}/{}",
-                                        trigger_name,
-                                        attempts,
-                                        max_attempts
-                                    );
-                                } else {
-                                    tracing::error!(
-                                        "Trigger '{}' exhausted {} retry attempts; pausing sequence",
-                                        trigger_name,
-                                        max_attempts
-                                    );
-                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
-                                    *state_clone.write().await = ExecutorState::Paused;
-                                    let _ = event_tx_clone2
-                                        .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
                                         message: format!(
                                             "Trigger '{}' exhausted {} retry attempts; sequence paused",
                                             trigger_name, max_attempts
                                         ),
                                     });
+                                    }
                                 }
-                            }
-                            RecoveryAction::MeridianFlip(config) => {
-                                tracing::info!(
-                                    "[MERIDIAN] Trigger fired - executing meridian flip"
-                                );
+                                RecoveryAction::MeridianFlip(config) => {
+                                    tracing::info!(
+                                        "[MERIDIAN] Trigger fired - executing meridian flip"
+                                    );
 
-                                let (target_name, target_ra, target_dec) = {
-                                    let ts = trigger_state_for_actions.read().await;
-                                    (
-                                        ts.current_target_name
-                                            .clone()
-                                            .unwrap_or_else(|| "Unknown".to_string()),
-                                        ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
-                                        ts.target_dec,
-                                    )
-                                };
+                                    let (target_name, target_ra, target_dec) = {
+                                        let ts = trigger_state_for_actions.read().await;
+                                        (
+                                            ts.current_target_name
+                                                .clone()
+                                                .unwrap_or_else(|| "Unknown".to_string()),
+                                            ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
+                                            ts.target_dec,
+                                        )
+                                    };
 
-                                if let Some(flip_ctx) = build_trigger_flip_context(
-                                    &trigger_action_context,
-                                    target_name.clone(),
-                                    target_ra,
-                                    target_dec,
-                                    Some(is_cancelled_clone.clone()),
-                                    Some(trigger_state_for_actions.clone()),
-                                ) {
-                                    let mut flip_executor =
+                                    if let Some(flip_ctx) = build_trigger_flip_context(
+                                        &trigger_action_context,
+                                        target_name.clone(),
+                                        target_ra,
+                                        target_dec,
+                                        Some(is_cancelled_clone.clone()),
+                                        Some(trigger_state_for_actions.clone()),
+                                    ) {
+                                        let mut flip_executor =
                                         crate::meridian_flip_executor::MeridianFlipExecutor::new(
                                             config.clone(),
                                             device_ops_for_triggers.clone(),
                                         );
 
-                                    match flip_executor.execute(&flip_ctx).await {
+                                        match flip_executor.execute(&flip_ctx).await {
                                         crate::meridian_flip_executor::FlipResult::Success {
                                             new_pier_side,
                                             duration_secs,
@@ -1991,127 +2021,69 @@ impl SequenceExecutor {
                                             tracing::warn!("[MERIDIAN] Flip aborted: {}", reason);
                                         }
                                     }
-                                } else {
-                                    tracing::error!("[MERIDIAN] Cannot execute flip: mount not connected or target not set");
-                                }
-                            }
-                            RecoveryAction::Dither(dither_config) => {
-                                // Audit §1.5: implement the standard
-                                // DitherInterval recovery. Build an instruction
-                                // context (the trigger action context already
-                                // carries every device id, save path,
-                                // location, filter offsets, and an
-                                // is_cancelled token). The dither runs
-                                // asynchronously here; we update
-                                // last_dither_frame on success so the
-                                // DitherInterval cadence stays correct.
-                                //
-                                // Audit §1.8: prefer the runtime config over
-                                // the trigger-embedded default if the user
-                                // updated it via UpdateDitherConfig. The
-                                // trigger config still wins for `pattern`/
-                                // `grid_size` because those are not exposed
-                                // by UpdateDitherConfig.
-                                let effective_config = {
-                                    let rc = runtime_config.read();
-                                    // The runtime config has Default values
-                                    // (zero) until UpdateDitherConfig fires,
-                                    // so prefer the trigger-embedded config
-                                    // when the runtime side has not been
-                                    // explicitly set (pixels==0). Otherwise
-                                    // the runtime override wins so the user's
-                                    // last UpdateDitherConfig is honoured.
-                                    if rc.dither.pixels > 0.0 {
-                                        crate::DitherConfig {
-                                            pixels: rc.dither.pixels,
-                                            settle_pixels: rc.dither.settle_pixels,
-                                            settle_time: rc.dither.settle_time,
-                                            settle_timeout: rc.dither.settle_timeout,
-                                            ra_only: rc.dither.ra_only,
-                                            // pattern/grid_size are not
-                                            // surfaced by UpdateDitherConfig
-                                            // so the trigger value still wins.
-                                            pattern: dither_config.pattern,
-                                            grid_size: dither_config.grid_size,
-                                        }
                                     } else {
-                                        dither_config.clone()
+                                        tracing::error!("[MERIDIAN] Cannot execute flip: mount not connected or target not set");
                                     }
-                                };
-                                tracing::info!(
+                                }
+                                RecoveryAction::Dither(dither_config) => {
+                                    // Audit §1.5: implement the standard
+                                    // DitherInterval recovery. Build an instruction
+                                    // context (the trigger action context already
+                                    // carries every device id, save path,
+                                    // location, filter offsets, and an
+                                    // is_cancelled token). The dither runs
+                                    // asynchronously here; we update
+                                    // last_dither_frame on success so the
+                                    // DitherInterval cadence stays correct.
+                                    //
+                                    // Audit §1.8: prefer the runtime config over
+                                    // the trigger-embedded default if the user
+                                    // updated it via UpdateDitherConfig. The
+                                    // trigger config still wins for `pattern`/
+                                    // `grid_size` because those are not exposed
+                                    // by UpdateDitherConfig.
+                                    let effective_config = {
+                                        let rc = runtime_config.read();
+                                        // The runtime config has Default values
+                                        // (zero) until UpdateDitherConfig fires,
+                                        // so prefer the trigger-embedded config
+                                        // when the runtime side has not been
+                                        // explicitly set (pixels==0). Otherwise
+                                        // the runtime override wins so the user's
+                                        // last UpdateDitherConfig is honoured.
+                                        if rc.dither.pixels > 0.0 {
+                                            crate::DitherConfig {
+                                                pixels: rc.dither.pixels,
+                                                settle_pixels: rc.dither.settle_pixels,
+                                                settle_time: rc.dither.settle_time,
+                                                settle_timeout: rc.dither.settle_timeout,
+                                                ra_only: rc.dither.ra_only,
+                                                // pattern/grid_size are not
+                                                // surfaced by UpdateDitherConfig
+                                                // so the trigger value still wins.
+                                                pattern: dither_config.pattern,
+                                                grid_size: dither_config.grid_size,
+                                            }
+                                        } else {
+                                            dither_config.clone()
+                                        }
+                                    };
+                                    tracing::info!(
                                     "[DITHER] Trigger '{}' fired - executing dither (pixels={}, settle_pixels={})",
                                     trigger_name,
                                     effective_config.pixels,
                                     effective_config.settle_pixels,
                                 );
-                                let (target_name, target_ra, target_dec, current_filter) = {
-                                    let ts = trigger_state_for_actions.read().await;
-                                    (
-                                        ts.current_target_name.clone(),
-                                        ts.target_ra.map(|ra| ra / 15.0),
-                                        ts.target_dec,
-                                        ts.current_filter.clone(),
-                                    )
-                                };
-                                let dither_ctx = build_trigger_autofocus_context(
-                                    &trigger_action_context,
-                                    target_name,
-                                    target_ra,
-                                    target_dec,
-                                    current_filter,
-                                    is_cancelled_clone.clone(),
-                                    device_ops_for_triggers.clone(),
-                                    trigger_state_for_actions.clone(),
-                                    &runtime_config,
-                                );
-                                let dither_result =
-                                    crate::instructions::execute_dither(
-                                        &effective_config,
-                                        &dither_ctx,
-                                        None,
-                                    )
-                                    .await;
-                                if dither_result.status == NodeStatus::Success {
-                                    let mut ts = trigger_state_for_actions.write().await;
-                                    ts.mark_dither_performed();
-                                } else {
-                                    tracing::warn!(
-                                        "[DITHER] Trigger-initiated dither failed: {:?}",
-                                        dither_result.message
-                                    );
-                                }
-                            }
-                            RecoveryAction::Recenter => {
-                                // Audit §1.11: re-slew to the target and
-                                // plate-solve as the DriftLimit recovery. The
-                                // existing `execute_center` instruction
-                                // already does plate-solve + sync + slew loop;
-                                // we reuse it so behaviour matches an
-                                // explicit Center node.
-                                tracing::info!(
-                                    "[DRIFT] Trigger '{}' fired - executing recenter",
-                                    trigger_name
-                                );
-                                let (target_name, target_ra, target_dec, current_filter) = {
-                                    let ts = trigger_state_for_actions.read().await;
-                                    (
-                                        ts.current_target_name.clone(),
-                                        ts.target_ra.map(|ra| ra / 15.0),
-                                        ts.target_dec,
-                                        ts.current_filter.clone(),
-                                    )
-                                };
-                                if target_ra.is_none() || target_dec.is_none() {
-                                    tracing::error!(
-                                        "[DRIFT] Recenter requested but no target RA/Dec set; pausing for operator intervention"
-                                    );
-                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
-                                    *state_clone.write().await = ExecutorState::Paused;
-                                    let _ = event_tx_clone2.send(
-                                        ExecutorEvent::StateChanged(ExecutorState::Paused),
-                                    );
-                                } else {
-                                    let recenter_ctx = build_trigger_autofocus_context(
+                                    let (target_name, target_ra, target_dec, current_filter) = {
+                                        let ts = trigger_state_for_actions.read().await;
+                                        (
+                                            ts.current_target_name.clone(),
+                                            ts.target_ra.map(|ra| ra / 15.0),
+                                            ts.target_dec,
+                                            ts.current_filter.clone(),
+                                        )
+                                    };
+                                    let dither_ctx = build_trigger_autofocus_context(
                                         &trigger_action_context,
                                         target_name,
                                         target_ra,
@@ -2122,137 +2094,193 @@ impl SequenceExecutor {
                                         trigger_state_for_actions.clone(),
                                         &runtime_config,
                                     );
-                                    let center_config = crate::CenterConfig {
-                                        use_target_coords: true,
-                                        custom_ra: None,
-                                        custom_dec: None,
-                                        accuracy_arcsec: 10.0,
-                                        max_attempts: 3,
-                                        exposure_duration: 5.0,
-                                        filter: None,
-                                    };
-                                    let result = crate::instructions::execute_center(
-                                        &center_config,
-                                        &recenter_ctx,
+                                    let dither_result = crate::instructions::execute_dither(
+                                        &effective_config,
+                                        &dither_ctx,
                                         None,
                                     )
                                     .await;
-                                    if result.status != NodeStatus::Success {
+                                    if dither_result.status == NodeStatus::Success {
+                                        let mut ts = trigger_state_for_actions.write().await;
+                                        ts.mark_dither_performed();
+                                    } else {
                                         tracing::warn!(
-                                            "[DRIFT] Recenter failed: {:?} - pausing sequence",
-                                            result.message
+                                            "[DITHER] Trigger-initiated dither failed: {:?}",
+                                            dither_result.message
                                         );
-                                        is_paused_for_triggers
-                                            .store(true, Ordering::Relaxed);
-                                        *state_clone.write().await = ExecutorState::Paused;
-                                        let _ = event_tx_clone2.send(
-                                            ExecutorEvent::StateChanged(ExecutorState::Paused),
-                                        );
-                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: format!(
-                                                "DriftLimit recenter failed: {}",
-                                                result.message.unwrap_or_default()
-                                            ),
-                                        });
                                     }
                                 }
-                            }
-                            RecoveryAction::Continue => {
-                                // Audit §1.5: explicit no-op handler so the
-                                // match is exhaustive on every variant. The
-                                // user wants the trigger logged-and-ignored
-                                // (this is the FilterChange standard trigger's
-                                // behaviour).
-                                tracing::info!(
+                                RecoveryAction::Recenter => {
+                                    // Audit §1.11: re-slew to the target and
+                                    // plate-solve as the DriftLimit recovery. The
+                                    // existing `execute_center` instruction
+                                    // already does plate-solve + sync + slew loop;
+                                    // we reuse it so behaviour matches an
+                                    // explicit Center node.
+                                    tracing::info!(
+                                        "[DRIFT] Trigger '{}' fired - executing recenter",
+                                        trigger_name
+                                    );
+                                    let (target_name, target_ra, target_dec, current_filter) = {
+                                        let ts = trigger_state_for_actions.read().await;
+                                        (
+                                            ts.current_target_name.clone(),
+                                            ts.target_ra.map(|ra| ra / 15.0),
+                                            ts.target_dec,
+                                            ts.current_filter.clone(),
+                                        )
+                                    };
+                                    if target_ra.is_none() || target_dec.is_none() {
+                                        tracing::error!(
+                                        "[DRIFT] Recenter requested but no target RA/Dec set; pausing for operator intervention"
+                                    );
+                                        is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                        *state_clone.write().await = ExecutorState::Paused;
+                                        let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
+                                            ExecutorState::Paused,
+                                        ));
+                                    } else {
+                                        let recenter_ctx = build_trigger_autofocus_context(
+                                            &trigger_action_context,
+                                            target_name,
+                                            target_ra,
+                                            target_dec,
+                                            current_filter,
+                                            is_cancelled_clone.clone(),
+                                            device_ops_for_triggers.clone(),
+                                            trigger_state_for_actions.clone(),
+                                            &runtime_config,
+                                        );
+                                        let center_config = crate::CenterConfig {
+                                            use_target_coords: true,
+                                            custom_ra: None,
+                                            custom_dec: None,
+                                            accuracy_arcsec: 10.0,
+                                            max_attempts: 3,
+                                            exposure_duration: 5.0,
+                                            filter: None,
+                                        };
+                                        let result = crate::instructions::execute_center(
+                                            &center_config,
+                                            &recenter_ctx,
+                                            None,
+                                        )
+                                        .await;
+                                        if result.status != NodeStatus::Success {
+                                            tracing::warn!(
+                                                "[DRIFT] Recenter failed: {:?} - pausing sequence",
+                                                result.message
+                                            );
+                                            is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                            *state_clone.write().await = ExecutorState::Paused;
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::StateChanged(ExecutorState::Paused),
+                                            );
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: format!(
+                                                    "DriftLimit recenter failed: {}",
+                                                    result.message.unwrap_or_default()
+                                                ),
+                                            });
+                                        }
+                                    }
+                                }
+                                RecoveryAction::Continue => {
+                                    // Audit §1.5: explicit no-op handler so the
+                                    // match is exhaustive on every variant. The
+                                    // user wants the trigger logged-and-ignored
+                                    // (this is the FilterChange standard trigger's
+                                    // behaviour).
+                                    tracing::info!(
                                     "Trigger '{}' fired with RecoveryAction::Continue (logged and ignored)",
                                     trigger_name
                                 );
-                            }
-                            RecoveryAction::CustomBranch => {
-                                // Audit §1.5: CustomBranch was never wired and
-                                // the previous catch-all silently dropped it.
-                                // Refuse loudly so a user cannot ship a
-                                // sequence that quietly fails to act on a
-                                // trigger; pause for operator intervention.
-                                tracing::error!(
+                                }
+                                RecoveryAction::CustomBranch => {
+                                    // Audit §1.5: CustomBranch was never wired and
+                                    // the previous catch-all silently dropped it.
+                                    // Refuse loudly so a user cannot ship a
+                                    // sequence that quietly fails to act on a
+                                    // trigger; pause for operator intervention.
+                                    tracing::error!(
                                     "Trigger '{}' uses RecoveryAction::CustomBranch which is not implemented; pausing sequence",
                                     trigger_name
                                 );
-                                is_paused_for_triggers.store(true, Ordering::Relaxed);
-                                *state_clone.write().await = ExecutorState::Paused;
-                                let _ = event_tx_clone2
-                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                                let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                    is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                    *state_clone.write().await = ExecutorState::Paused;
+                                    let _ = event_tx_clone2
+                                        .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                    let _ = event_tx_clone2.send(ExecutorEvent::Error {
                                     message: format!(
                                         "Trigger '{}' configured with RecoveryAction::CustomBranch — this variant is not implemented. \
                                          Edit the sequence to use a supported recovery action.",
                                         trigger_name
                                     ),
                                 });
+                                }
                             }
+
+                            fired_triggers.push((trigger_id, action));
                         }
-
-                        fired_triggers.push((trigger_id, action));
                     }
+
+                    fired_triggers
+                };
+
+                // Fail-closed safety: an unattended sequence depends on the trigger
+                // monitor to enforce weather / altitude / drift limits. If it exits
+                // for any reason other than normal cancellation, continuing to
+                // expose would leave the rig unmonitored — so we cancel everything.
+                let result = tokio::select! {
+                    _ = command_handler => NodeStatus::Cancelled,
+                    result = execution => result,
+                    _ = streaming_checkpoint_task => NodeStatus::Cancelled,
+                    _triggers = trigger_monitor => {
+                        if triggers_enabled && !is_cancelled.load(Ordering::Relaxed) {
+                            tracing::error!(
+                                "Safety monitoring (trigger monitor) exited unexpectedly! \
+                                 Cancelling sequence to prevent unmonitored execution."
+                            );
+                            is_cancelled.store(true, Ordering::Relaxed);
+                            let _ = event_tx.send(ExecutorEvent::Error {
+                                message: "Safety monitoring failed — sequence aborted. \
+                                          The trigger monitor exited unexpectedly."
+                                    .to_string(),
+                            });
+                            NodeStatus::Failure
+                        } else {
+                            NodeStatus::Cancelled
+                        }
+                    },
+                };
+
+                let final_state = executor_state_for_result(result);
+
+                *state.write().await = final_state;
+                {
+                    let mut prog = progress.write();
+                    prog.state = final_state;
+                    prog.elapsed_secs = start_time.elapsed().as_secs_f64();
                 }
 
-                fired_triggers
-            };
-
-            // Fail-closed safety: an unattended sequence depends on the trigger
-            // monitor to enforce weather / altitude / drift limits. If it exits
-            // for any reason other than normal cancellation, continuing to
-            // expose would leave the rig unmonitored — so we cancel everything.
-            let result = tokio::select! {
-                _ = command_handler => NodeStatus::Cancelled,
-                result = execution => result,
-                _ = streaming_checkpoint_task => NodeStatus::Cancelled,
-                _triggers = trigger_monitor => {
-                    if triggers_enabled && !is_cancelled.load(Ordering::Relaxed) {
-                        tracing::error!(
-                            "Safety monitoring (trigger monitor) exited unexpectedly! \
-                             Cancelling sequence to prevent unmonitored execution."
-                        );
-                        is_cancelled.store(true, Ordering::Relaxed);
-                        let _ = event_tx.send(ExecutorEvent::Error {
-                            message: "Safety monitoring failed — sequence aborted. \
-                                      The trigger monitor exited unexpectedly."
-                                .to_string(),
+                match result {
+                    NodeStatus::Success | NodeStatus::Skipped => {
+                        let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
+                    }
+                    NodeStatus::Failure => {
+                        let _ = event_tx.send(ExecutorEvent::SequenceFailed {
+                            error: "Sequence failed".into(),
                         });
-                        NodeStatus::Failure
-                    } else {
-                        NodeStatus::Cancelled
                     }
-                },
-            };
-
-            let final_state = executor_state_for_result(result);
-
-            *state.write().await = final_state;
-            {
-                let mut prog = progress.write();
-                prog.state = final_state;
-                prog.elapsed_secs = start_time.elapsed().as_secs_f64();
-            }
-
-            match result {
-                NodeStatus::Success | NodeStatus::Skipped => {
-                    let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
+                    NodeStatus::Cancelled => {
+                        let _ = event_tx.send(ExecutorEvent::Error {
+                            message: "Sequence cancelled".into(),
+                        });
+                    }
+                    _ => {}
                 }
-                NodeStatus::Failure => {
-                    let _ = event_tx.send(ExecutorEvent::SequenceFailed {
-                        error: "Sequence failed".into(),
-                    });
-                }
-                NodeStatus::Cancelled => {
-                    let _ = event_tx.send(ExecutorEvent::Error {
-                        message: "Sequence cancelled".into(),
-                    });
-                }
-                _ => {}
-            }
 
-            let _ = event_tx.send(ExecutorEvent::StateChanged(final_state));
+                let _ = event_tx.send(ExecutorEvent::StateChanged(final_state));
             };
 
             // Catch any panic inside the executor future. If the future
@@ -2276,7 +2304,7 @@ impl SequenceExecutor {
 
                 *supervisor_state.write().await = ExecutorState::Failed;
                 {
-                    let mut prog = supervisor_progress.write().unwrap();
+                    let mut prog = supervisor_progress.write();
                     prog.state = ExecutorState::Failed;
                 }
                 let _ = supervisor_event_tx.send(ExecutorEvent::SequenceFailed {
@@ -2383,10 +2411,7 @@ impl SequenceExecutor {
 
     /// Update filter focus offsets at runtime.
     /// Audit §1.8: writes through `runtime_config`.
-    pub fn update_filter_offsets(
-        &mut self,
-        offsets: std::collections::HashMap<String, i32>,
-    ) {
+    pub fn update_filter_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
         tracing::info!("Updating filter focus offsets: {} entries", offsets.len());
         self.filter_focus_offsets = offsets.clone();
         {
@@ -2423,8 +2448,7 @@ impl SequenceExecutor {
 
     /// Set the checkpoint directory for crash recovery
     pub fn set_checkpoint_dir<P: AsRef<std::path::Path>>(&mut self, path: P) {
-        self.checkpoint_manager =
-            Some(Arc::new(crate::checkpoint::CheckpointManager::new(path)));
+        self.checkpoint_manager = Some(Arc::new(crate::checkpoint::CheckpointManager::new(path)));
     }
 
     /// Check if a recoverable checkpoint exists

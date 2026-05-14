@@ -961,8 +961,7 @@ impl NativeCamera for AtikCamera {
         // even on x86). We take the buffer as bytes and decode each pixel via from_le_bytes,
         // which is well-defined regardless of source alignment and pins the SDK's documented
         // little-endian framing.
-        let byte_slice =
-            unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, byte_count) };
+        let byte_slice = unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, byte_count) };
         let data: Vec<u16> = byte_slice
             .chunks_exact(2)
             .map(|b| u16::from_le_bytes([b[0], b[1]]))

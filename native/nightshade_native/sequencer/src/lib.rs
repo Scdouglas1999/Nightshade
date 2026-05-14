@@ -19,6 +19,7 @@ mod polar_align;
 pub mod temperature_compensation;
 mod triggers;
 
+pub use all_sky_polar::*;
 pub use checkpoint::*;
 pub use device_ops::*;
 pub use executor::*;
@@ -27,7 +28,6 @@ pub use meridian_events::*;
 pub use meridian_flip_executor::*;
 pub use mosaic::*;
 pub use node::*;
-pub use all_sky_polar::*;
 pub use polar_align::*;
 pub use triggers::*;
 

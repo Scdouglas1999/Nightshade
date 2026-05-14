@@ -1,0 +1,37 @@
+name: Hardware Compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "native/**"
+      - "tools/compat/**"
+      - "docs/production-readiness/hardware-compatibility-certification.md"
+      - ".github/workflows/hardware-compatibility.yml"
+
+jobs:
+  compatibility:
+    name: Compatibility Suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run compatibility suite
+        shell: pwsh
+        run: |
+          ./tools/compat/hardware_compat.ps1 -Mode run -Strict -Out reports/compat/current-run
+
+      - name: Upload compatibility report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hardware-compatibility-${{ matrix.os }}
+          path: reports/compat/current-run

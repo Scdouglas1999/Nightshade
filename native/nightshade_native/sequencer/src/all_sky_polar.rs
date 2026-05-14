@@ -724,8 +724,7 @@ mod tests {
             p_true.1 + dalt * alt_axis.1 + daz * az_axis.1,
             p_true.2 + dalt * alt_axis.2 + daz * az_axis.2,
         );
-        let pm_mag =
-            (p_mech_raw.0.powi(2) + p_mech_raw.1.powi(2) + p_mech_raw.2.powi(2)).sqrt();
+        let pm_mag = (p_mech_raw.0.powi(2) + p_mech_raw.1.powi(2) + p_mech_raw.2.powi(2)).sqrt();
         let p_mech = (
             p_mech_raw.0 / pm_mag,
             p_mech_raw.1 / pm_mag,
@@ -770,7 +769,11 @@ mod tests {
 
     /// Rodrigues' rotation formula: rotate `v` around unit `axis` by `theta`
     /// radians (right-hand rule).
-    fn rotate_around_axis(v: (f64, f64, f64), axis: (f64, f64, f64), theta: f64) -> (f64, f64, f64) {
+    fn rotate_around_axis(
+        v: (f64, f64, f64),
+        axis: (f64, f64, f64),
+        theta: f64,
+    ) -> (f64, f64, f64) {
         let cos_t = theta.cos();
         let sin_t = theta.sin();
         let dot = axis.0 * v.0 + axis.1 * v.1 + axis.2 * v.2;
@@ -805,9 +808,7 @@ mod tests {
             0.0,
             0.0,
         );
-        let mis = compute_polar_misalignment_from_drift(
-            &baseline, &current, 45.0, -122.0, true,
-        );
+        let mis = compute_polar_misalignment_from_drift(&baseline, &current, 45.0, -122.0, true);
         assert!(
             mis.azimuth_error_arcsec.abs() < 1e-6,
             "az error should be zero for perfect alignment, got {}",
@@ -841,7 +842,7 @@ mod tests {
         let lon = -122.0;
         let baseline = SolvedFrame {
             ra_deg: lst_deg(when, lon), // HA = 0 (meridian)
-            dec_deg: lat,                // Dec = lat: also perpendicular to alt_axis
+            dec_deg: lat,               // Dec = lat: also perpendicular to alt_axis
             when,
         };
         let current = simulate_tracking_drift(
@@ -1037,9 +1038,7 @@ mod tests {
             dec_deg: 30.0,
             when: epoch(),
         };
-        let mis = compute_polar_misalignment_from_drift(
-            &frame, &frame, 45.0, -122.0, true,
-        );
+        let mis = compute_polar_misalignment_from_drift(&frame, &frame, 45.0, -122.0, true);
         assert_eq!(mis.azimuth_error_arcsec, 0.0);
         assert_eq!(mis.altitude_error_arcsec, 0.0);
     }
@@ -1048,7 +1047,11 @@ mod tests {
     fn solver_unavailable_error_message_is_actionable() {
         let err = PolarAlignError::SolverUnavailable;
         let msg = err.to_string();
-        assert!(msg.contains("ASTAP"), "error should mention ASTAP, got: {}", msg);
+        assert!(
+            msg.contains("ASTAP"),
+            "error should mention ASTAP, got: {}",
+            msg
+        );
         assert!(
             msg.contains("Plate solver"),
             "error should mention 'Plate solver', got: {}",

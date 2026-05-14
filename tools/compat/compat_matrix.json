@@ -24,6 +24,24 @@
       ]
     },
     {
+      "id": "zwo-fake-sdk-contract",
+      "manufacturer": "ZWO",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shims",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "zwo-shim-camera-discovery", "device": "Camera", "function": "Discover camera through fake ASICamera2 SDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "zwo-shim-camera-connect-controls", "device": "Camera", "function": "Connect and read/write gain, offset, binning, cooler", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "zwo-shim-camera-expose-download", "device": "Camera", "function": "Expose, poll completion, and download image through production driver", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "zwo-shim-focuser-flow", "device": "Focuser", "function": "Discover, connect, move, read position, read temperature", "capability": "move_focuser", "symbols": [], "physical": false },
+        { "id": "zwo-shim-filterwheel-flow", "device": "FilterWheel", "function": "Discover, connect, set/read filter position", "capability": "set_filter", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "zwo_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_fake_sdk_shims_exercise_camera_focuser_filterwheel", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
       "id": "qhy-native-camera-cfw",
       "manufacturer": "QHYCCD",
       "device_type": "Camera,FilterWheel",
@@ -46,6 +64,24 @@
       ]
     },
     {
+      "id": "qhy-fake-sdk-contract",
+      "manufacturer": "QHYCCD",
+      "device_type": "Camera,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "qhy-shim-multi-model-discovery", "device": "Camera", "function": "Discover cooled mono and guide color model variants through fake qhyccd SDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "qhy-shim-camera-connect-controls", "device": "Camera", "function": "Connect and read/write gain, offset, binning, cooler, and readout mode", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "qhy-shim-camera-expose-download", "device": "Camera", "function": "Expose and download image through production driver", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "qhy-shim-cfw-flow", "device": "FilterWheel", "function": "Discover, connect, set/read QHY CFW position", "capability": "set_filter", "symbols": [], "physical": false },
+        { "id": "qhy-shim-edge-errors", "device": "Camera", "function": "Reject uncooled-camera cooler control and propagate SDK exposure errors", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "qhy_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_qhy_fake_sdk_shim_exercises_camera_filterwheel_and_model_flows", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
       "id": "playerone-native-camera",
       "manufacturer": "Player One",
       "device_type": "Camera",
@@ -61,6 +97,23 @@
         { "id": "poa-expose", "device": "Camera", "function": "Start exposure", "capability": "expose", "symbols": ["POAStartExposure", "POAImageReady"], "physical": true },
         { "id": "poa-download", "device": "Camera", "function": "Download image data", "capability": "download_image", "symbols": ["POAGetImageData"], "physical": true },
         { "id": "poa-config", "device": "Camera", "function": "Read/write config", "capability": "controls", "symbols": ["POAGetConfig", "POASetConfig"], "physical": true }
+      ]
+    },
+    {
+      "id": "playerone-fake-sdk-contract",
+      "manufacturer": "Player One",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "poa-shim-multi-model-discovery", "device": "Camera", "function": "Discover cooled mono and uncooled color model variants through fake PlayerOneCamera SDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "poa-shim-camera-connect-controls", "device": "Camera", "function": "Connect and read/write gain, offset, binning, cooler", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "poa-shim-camera-expose-download", "device": "Camera", "function": "Expose, poll completion, and download image through production driver", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "poa-shim-edge-errors", "device": "Camera", "function": "Handle exposure-not-ready, image transfer failure, unknown SDK error, and uncooled-camera cooler rejection", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "playerone_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_player_one_fake_sdk_shim_exercises_model_and_edge_flows", "--", "--ignored", "--nocapture"] }
       ]
     },
     {
@@ -84,6 +137,22 @@
       ]
     },
     {
+      "id": "svbony-fake-sdk-contract",
+      "manufacturer": "SVBONY",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "svbony-shim-camera-discovery", "device": "Camera", "function": "Discover camera through fake SVBCameraSDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "svbony-shim-camera-connect-controls", "device": "Camera", "function": "Connect and read/write gain, offset, binning, cooler", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "svbony-shim-camera-expose-download", "device": "Camera", "function": "Start capture and download image through production driver", "capability": "download_image", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "svbony_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_svbony_fake_sdk_shim_exercises_camera_flow", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
       "id": "atik-native-camera",
       "manufacturer": "Atik",
       "device_type": "Camera,FilterWheel",
@@ -100,6 +169,22 @@
         { "id": "atik-download", "device": "Camera", "function": "Read image data", "capability": "download_image", "symbols": ["ArtemisGetImageData", "ArtemisImageBuffer"], "physical": true },
         { "id": "atik-cooler", "device": "Camera", "function": "Cooling control", "capability": "cooler", "symbols": ["ArtemisSetCooling", "ArtemisCoolingInfo"], "physical": true },
         { "id": "atik-efw", "device": "FilterWheel", "function": "Filter wheel connect", "capability": "set_filter", "symbols": ["ArtemisDeviceHasFilterWheel", "ArtemisEFWConnect"], "physical": true }
+      ]
+    },
+    {
+      "id": "atik-fake-sdk-contract",
+      "manufacturer": "Atik",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "atik-shim-camera-discovery", "device": "Camera", "function": "Discover camera through fake AtikCameras SDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "atik-shim-camera-connect-controls", "device": "Camera", "function": "Connect and read/write gain, offset, binning, cooler", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "atik-shim-camera-expose-download", "device": "Camera", "function": "Expose, poll readiness, and download image through production driver", "capability": "download_image", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "atik_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_atik_fake_sdk_shim_exercises_camera_flow", "--", "--ignored", "--nocapture"] }
       ]
     },
     {
@@ -162,7 +247,7 @@
       "driver_type": "Native SDK",
       "confidence_tier": "SDK runtime",
       "platforms": ["windows", "macos", "linux"],
-      "patterns": ["SDKs/Fujifilm/**/FF*.dll", "SDKs/Fujifilm/**/libFF*", "SDKs/Fujifilm/**/*.h"],
+      "patterns": ["SDKs/Fujifilm/**/XAPI.dll", "SDKs/Fujifilm/**/libXAPI*", "SDKs/Fujifilm/**/FF*.dll", "SDKs/Fujifilm/**/libFF*", "SDKs/Fujifilm/**/*.h"],
       "runtime_probe": true,
       "required_symbols": ["XSDK_Init", "XSDK_Detect", "XSDK_OpenEx", "XSDK_ReadImage"],
       "function_checks": [
@@ -171,6 +256,28 @@
         { "id": "fujifilm-session", "device": "Camera", "function": "Open/close session", "capability": "connect", "symbols": ["XSDK_OpenEx", "XSDK_Close"], "physical": true },
         { "id": "fujifilm-release", "device": "Camera", "function": "Trigger release", "capability": "release", "symbols": ["XSDK_Release"], "physical": true },
         { "id": "fujifilm-image", "device": "Camera", "function": "Read captured image", "capability": "download_image", "symbols": ["XSDK_ReadImageInfo", "XSDK_ReadImage"], "physical": true }
+      ]
+    },
+    {
+      "id": "native-sdk-abi-header-contracts",
+      "manufacturer": "Multiple",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK header + Rust FFI ABI contract",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "abi-zwo-contract", "device": "Camera,Focuser,FilterWheel", "function": "Verify ZWO SDK headers and Rust FFI symbols/struct ordering", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-atik-contract", "device": "Camera,FilterWheel", "function": "Verify Atik SDK headers and Rust FFI symbols/struct ordering", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-svbony-contract", "device": "Camera", "function": "Verify SVBONY SDK headers and Rust FFI symbols", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-playerone-contract", "device": "Camera", "function": "Verify Player One SDK headers and Rust FFI symbols/struct ordering", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-qhy-contract", "device": "Camera,FilterWheel", "function": "Verify QHY SDK headers and Rust FFI symbols/enum values", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-touptek-contract", "device": "Camera", "function": "Verify ToupTek/Altair/OGMA SDK headers and Rust FFI symbols/struct ordering", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-moravian-contract", "device": "Camera,FilterWheel", "function": "Verify Moravian SDK headers and Rust FFI symbols", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-fli-contract", "device": "Camera,Focuser,FilterWheel", "function": "Verify FLI SDK headers and Rust FFI symbols", "capability": "abi_contract", "symbols": [], "physical": false },
+        { "id": "abi-fujifilm-contract", "device": "Camera", "function": "Verify Fujifilm SDK headers and Rust FFI symbols/struct ordering", "capability": "abi_contract", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "native_sdk_abi_header_contracts", "program": "powershell", "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/compat/sdk_abi_contracts.ps1", "-Out", "reports/compat/abi-contracts"] }
       ]
     },
     {
@@ -189,6 +296,8 @@
         { "id": "alpaca-mount-flow", "device": "Mount", "function": "Tracking/slew/abort/status against local simulator", "capability": "slew", "symbols": [], "physical": false }
         ,{ "id": "alpaca-mount-tracking", "device": "Mount", "function": "Read/write tracking against local simulator", "capability": "tracking", "symbols": [], "physical": false }
         ,{ "id": "alpaca-mount-position", "device": "Mount", "function": "Read position/status against local simulator", "capability": "read_position", "symbols": [], "physical": false }
+        ,{ "id": "alpaca-device-error-propagation", "device": "Camera", "function": "Surface Alpaca device ErrorNumber/ErrorMessage on exposure", "capability": "error_handling", "symbols": [], "physical": false }
+        ,{ "id": "alpaca-malformed-image-rejection", "device": "Camera", "function": "Reject malformed imagearrayvariant payload", "capability": "payload_validation", "symbols": [], "physical": false }
       ],
       "commands": [
         { "name": "alpaca_simulator_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_alpaca", "--test", "alpaca_simulator_contract", "--", "--nocapture"] }
@@ -220,7 +329,7 @@
       "driver_type": "Bridge",
       "confidence_tier": "Workspace tests",
       "platforms": ["all"],
-      "commands": [{ "name": "workspace_all_features", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "--all-features"] }]
+      "commands": [{ "name": "workspace_all_features", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "--workspace", "--all-features", "--exclude", "nightshade_updater"] }]
     },
     { "id": "canon-edsdk-native-camera", "manufacturer": "Canon", "device_type": "Camera", "driver_type": "Native SDK", "confidence_tier": "API blocked", "platforms": ["windows", "macos"], "blocked": "Canon EDSDK requires developer access and native driver implementation." },
     { "id": "nikon-native-camera", "manufacturer": "Nikon", "device_type": "Camera", "driver_type": "Native SDK", "confidence_tier": "API blocked", "platforms": ["windows", "macos"], "blocked": "Nikon SDK requires developer approval and native driver implementation." },

@@ -15,10 +15,33 @@
     { "target_id": "qhy-native-camera-cfw", "manufacturer": "QHYCCD", "model": "QHY5III462C", "device": "Camera", "family": "QHY planetary/guide", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls"], "evidence_grade": "sdk-family" },
     { "target_id": "qhy-native-camera-cfw", "manufacturer": "QHYCCD", "model": "QHYCFW3", "device": "FilterWheel", "family": "QHY CFW", "capabilities": ["set_filter"], "evidence_grade": "sdk-family" },
 
+    { "target_id": "qhy-fake-sdk-contract", "manufacturer": "QHYCCD", "model": "QHY268M", "device": "Camera", "family": "QHY cooled APS-C mono", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "qhy268m-cooled", "property": "cooler", "expectation": "cooled camera accepts set_cooler and reports target temperature", "evidence_check": "qhy-shim-camera-connect-controls" },
+      { "id": "qhy268m-mono-16bit", "property": "sensor", "expectation": "mono 64x48 16-bit sensor profile in fake SDK", "evidence_check": "qhy-shim-multi-model-discovery" },
+      { "id": "qhy268m-readout-modes", "property": "readout_modes", "expectation": "two readout modes are enumerated and selectable", "evidence_check": "qhy-shim-camera-connect-controls" }
+    ] },
+    { "target_id": "qhy-fake-sdk-contract", "manufacturer": "QHYCCD", "model": "QHY5III462C", "device": "Camera", "family": "QHY planetary/guide", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "qhy5iii462c-color", "property": "sensor", "expectation": "color BGGR guide/planetary profile in fake SDK", "evidence_check": "qhy-shim-multi-model-discovery" },
+      { "id": "qhy5iii462c-uncooled", "property": "cooler", "expectation": "uncooled camera rejects cooler control", "evidence_check": "qhy-shim-edge-errors" }
+    ] },
+    { "target_id": "qhy-fake-sdk-contract", "manufacturer": "QHYCCD", "model": "QHYCFW3", "device": "FilterWheel", "family": "QHY CFW", "capabilities": ["set_filter", "read_filter"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "qhycfw3-slots", "property": "filter_slots", "expectation": "seven-slot CFW is discovered and can move/read position", "evidence_check": "qhy-shim-cfw-flow" }
+    ] },
+
     { "target_id": "playerone-native-camera", "manufacturer": "Player One", "model": "Poseidon-M Pro", "device": "Camera", "family": "Player One cooled mono", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "sdk-family" },
     { "target_id": "playerone-native-camera", "manufacturer": "Player One", "model": "Poseidon-C Pro", "device": "Camera", "family": "Player One cooled color", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "sdk-family" },
     { "target_id": "playerone-native-camera", "manufacturer": "Player One", "model": "Uranus-C Pro", "device": "Camera", "family": "Player One cooled planetary", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "sdk-family" },
     { "target_id": "playerone-native-camera", "manufacturer": "Player One", "model": "Neptune-C II", "device": "Camera", "family": "Player One planetary", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls"], "evidence_grade": "sdk-family" },
+
+    { "target_id": "playerone-fake-sdk-contract", "manufacturer": "Player One", "model": "Poseidon-M Pro", "device": "Camera", "family": "Player One cooled mono", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "poseidon-m-cooled", "property": "cooler", "expectation": "cooled camera accepts set_cooler and reports cooler state", "evidence_check": "poa-shim-camera-connect-controls" },
+      { "id": "poseidon-m-mono-16bit", "property": "sensor", "expectation": "mono 64x48 16-bit sensor profile in fake SDK", "evidence_check": "poa-shim-multi-model-discovery" },
+      { "id": "poseidon-m-edge-errors", "property": "error_handling", "expectation": "not-ready exposure, unknown SDK error, and image transfer failure are surfaced", "evidence_check": "poa-shim-edge-errors" }
+    ] },
+    { "target_id": "playerone-fake-sdk-contract", "manufacturer": "Player One", "model": "Neptune-C II", "device": "Camera", "family": "Player One planetary", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "neptune-c-color-12bit", "property": "sensor", "expectation": "color 12-bit planetary profile in fake SDK", "evidence_check": "poa-shim-multi-model-discovery" },
+      { "id": "neptune-c-uncooled", "property": "cooler", "expectation": "uncooled camera rejects cooler control", "evidence_check": "poa-shim-edge-errors" }
+    ] },
 
     { "target_id": "svbony-native-camera", "manufacturer": "SVBONY", "model": "SV405CC", "device": "Camera", "family": "SVBONY cooled color", "capabilities": ["enumerate", "connect", "stream", "download_image", "controls", "cooler"], "evidence_grade": "sdk-family" },
     { "target_id": "svbony-native-camera", "manufacturer": "SVBONY", "model": "SV605CC", "device": "Camera", "family": "SVBONY cooled color", "capabilities": ["enumerate", "connect", "stream", "download_image", "controls", "cooler"], "evidence_grade": "sdk-family" },

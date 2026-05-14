@@ -2310,8 +2310,7 @@ mod tests {
     async fn audit_1_5_and_1_11_standard_triggers_include_new_audit_triggers() {
         let mut manager = TriggerManager::new();
         manager.create_standard_triggers();
-        let names: Vec<String> =
-            manager.triggers().iter().map(|t| t.id.clone()).collect();
+        let names: Vec<String> = manager.triggers().iter().map(|t| t.id.clone()).collect();
         assert!(
             names.contains(&"dither_interval".to_string()),
             "DitherInterval standard trigger missing — audit §1.5 regression. ids: {:?}",

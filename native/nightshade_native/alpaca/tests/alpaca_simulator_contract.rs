@@ -109,7 +109,30 @@ async fn handle_connection(mut stream: TcpStream, state: SimState) -> std::io::R
         .nth(3)
         .unwrap_or_default()
         .to_ascii_lowercase();
+    let device_number = path.split('/').nth(4).unwrap_or_default();
     let form = parse_form(&body);
+
+    if method == "PUT"
+        && device == "camera"
+        && device_number == "99"
+        && endpoint == "startexposure"
+    {
+        let body = json!({
+            "Value": Value::Null,
+            "ClientTransactionId": 1,
+            "ServerTransactionId": 1,
+            "ErrorNumber": 1031,
+            "ErrorMessage": "simulated camera rejected exposure"
+        })
+        .to_string();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream.write_all(response.as_bytes()).await?;
+        return stream.shutdown().await;
+    }
 
     let value = match (method, device.as_str(), endpoint.as_str()) {
         ("PUT", _, "connected") => {
@@ -173,7 +196,13 @@ async fn handle_connection(mut stream: TcpStream, state: SimState) -> std::io::R
         _ => json!(format!("unhandled {method} {path}")),
     };
 
-    let body = if method == "GET" && device == "camera" && endpoint == "imagearrayvariant" {
+    let body = if method == "GET"
+        && device == "camera"
+        && device_number == "98"
+        && endpoint == "imagearrayvariant"
+    {
+        "{\"Type\":8,\"Rank\":2,\"Value\":[[1,2],[3,4]]".to_string()
+    } else if method == "GET" && device == "camera" && endpoint == "imagearrayvariant" {
         value.to_string()
     } else {
         let error_number = if matches!(value, Value::String(ref s) if s.starts_with("unhandled ")) {
@@ -260,4 +289,30 @@ async fn alpaca_simulator_camera_filterwheel_and_telescope_contract() {
             "missing expected request {expected}; saw:\n{requests}"
         );
     }
+}
+
+#[tokio::test]
+async fn alpaca_simulator_fault_contract_surfaces_device_and_payload_errors() {
+    let (base_url, _state) = start_simulator().await;
+
+    let rejecting_camera = AlpacaCamera::from_server(&base_url, 99);
+    rejecting_camera.connect().await.unwrap();
+    let exposure_err = rejecting_camera
+        .start_exposure(0.01, true)
+        .await
+        .expect_err("device-side error should fail the exposure call");
+    assert!(
+        exposure_err.contains("simulated camera rejected exposure"),
+        "unexpected exposure error: {exposure_err}"
+    );
+
+    let malformed_camera = AlpacaCamera::from_server(&base_url, 98);
+    let image_err = malformed_camera
+        .download_image_data()
+        .await
+        .expect_err("malformed imagearrayvariant JSON should fail image download");
+    assert!(
+        image_err.contains("JSON") || image_err.contains("parse") || image_err.contains("EOF"),
+        "unexpected malformed image error: {image_err}"
+    );
 }

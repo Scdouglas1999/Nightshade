@@ -1594,12 +1594,8 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
     // 1 channel = monochrome; raw imager output is treated as mono for HFR
     // regardless of Bayer pattern, because debayering before star detection
     // would smear PSFs and inflate HFR.
-    let imaging_data = nightshade_imaging::ImageData::from_u16(
-        image.width,
-        image.height,
-        1,
-        &image.data,
-    );
+    let imaging_data =
+        nightshade_imaging::ImageData::from_u16(image.width, image.height, 1, &image.data);
 
     let config = StarDetectionConfig::default();
     let result = detect_stars_with_stats(&imaging_data, &config);
@@ -3027,7 +3023,10 @@ pub async fn execute_meridian_flip(
             error,
             action_taken,
         } => InstructionResult::failure_with_recovery(
-            format!("Meridian flip failed: {} (action taken: {:?})", error, action_taken),
+            format!(
+                "Meridian flip failed: {} (action taken: {:?})",
+                error, action_taken
+            ),
             "FLIP_FAILED",
         ),
         crate::meridian_flip_executor::FlipResult::Aborted { reason } => {

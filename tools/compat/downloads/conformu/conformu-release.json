@@ -1,0 +1,8 @@
+﻿{
+    "tool":  "ConformU",
+    "release":  "v4.3.0",
+    "asset":  "ConformU.4.3.0+49708.Setup.exe",
+    "url":  "https://github.com/ASCOMInitiative/ConformU/releases/download/v4.3.0/ConformU.4.3.0%2B49708.Setup.exe",
+    "path":  "tools/compat/downloads/conformu/ConformU.4.3.0+49708.Setup.exe",
+    "note":  "Downloaded only. Install or add ConformU to PATH before the official conformance target can run."
+}

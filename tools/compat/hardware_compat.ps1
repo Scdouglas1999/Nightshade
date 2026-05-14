@@ -68,44 +68,83 @@ function HasTextSymbol([string]$root, $files, [string]$symbol) {
     return $null
 }
 
-function EnsureNativeProbeType {
-    if (-not $script:NativeProbeLoaded -and $env:OS -eq "Windows_NT") {
-        Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class NativeProbe {
-  [DllImport("kernel32", SetLastError=true, CharSet=CharSet.Unicode)]
-  public static extern IntPtr LoadLibrary(string lpFileName);
-  [DllImport("kernel32", SetLastError=true, CharSet=CharSet.Ansi)]
-  public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-  [DllImport("kernel32", SetLastError=true)]
-  public static extern bool FreeLibrary(IntPtr hModule);
+function U16($bytes, [int]$offset) { [BitConverter]::ToUInt16($bytes, $offset) }
+function U32($bytes, [int]$offset) { [BitConverter]::ToUInt32($bytes, $offset) }
+
+function ReadCString($bytes, [int]$offset) {
+    $end = $offset
+    while ($end -lt $bytes.Length -and $bytes[$end] -ne 0) { $end++ }
+    if ($end -le $offset) { return "" }
+    [Text.Encoding]::ASCII.GetString($bytes, $offset, $end - $offset)
 }
-"@
-        $script:NativeProbeLoaded = $true
+
+function GetPeExports([string]$path) {
+    try {
+        $bytes = [IO.File]::ReadAllBytes($path)
+        if ($bytes.Length -lt 0x100 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) { return @() }
+        $pe = U32 $bytes 0x3c
+        if ($pe + 0x18 -ge $bytes.Length) { return @() }
+        if ($bytes[$pe] -ne 0x50 -or $bytes[$pe + 1] -ne 0x45) { return @() }
+
+        $sectionCount = U16 $bytes ($pe + 6)
+        $optionalSize = U16 $bytes ($pe + 20)
+        $optional = $pe + 24
+        $magic = U16 $bytes $optional
+        $dataDirectory = if ($magic -eq 0x20b) { $optional + 112 } else { $optional + 96 }
+        if ($dataDirectory + 8 -gt $bytes.Length) { return @() }
+        $exportRva = U32 $bytes $dataDirectory
+        if ($exportRva -eq 0) { return @() }
+
+        $sections = @()
+        $sectionTable = $optional + $optionalSize
+        for ($i = 0; $i -lt $sectionCount; $i++) {
+            $o = $sectionTable + ($i * 40)
+            if ($o + 40 -gt $bytes.Length) { break }
+            $virtualSize = U32 $bytes ($o + 8)
+            $virtualAddress = U32 $bytes ($o + 12)
+            $rawSize = U32 $bytes ($o + 16)
+            $rawPointer = U32 $bytes ($o + 20)
+            $span = [Math]::Max($virtualSize, $rawSize)
+            $sections += [pscustomobject]@{ va=$virtualAddress; size=$span; raw=$rawPointer }
+        }
+        function RvaToOffset([uint32]$rva, $sections) {
+            foreach ($s in $sections) {
+                if ($rva -ge $s.va -and $rva -lt ($s.va + $s.size)) {
+                    return [int]($s.raw + ($rva - $s.va))
+                }
+            }
+            return -1
+        }
+
+        $exportOffset = RvaToOffset $exportRva $sections
+        if ($exportOffset -lt 0 -or $exportOffset + 40 -gt $bytes.Length) { return @() }
+        $nameCount = U32 $bytes ($exportOffset + 24)
+        $namesRva = U32 $bytes ($exportOffset + 32)
+        $namesOffset = RvaToOffset $namesRva $sections
+        if ($namesOffset -lt 0) { return @() }
+
+        $exports = @()
+        for ($i = 0; $i -lt $nameCount; $i++) {
+            $nameRvaOffset = $namesOffset + ($i * 4)
+            if ($nameRvaOffset + 4 -gt $bytes.Length) { break }
+            $nameOffset = RvaToOffset (U32 $bytes $nameRvaOffset) $sections
+            if ($nameOffset -ge 0 -and $nameOffset -lt $bytes.Length) {
+                $name = ReadCString $bytes $nameOffset
+                if ($name) { $exports += $name }
+            }
+        }
+        return $exports
+    } catch {
+        return @()
     }
 }
 
 function FindRuntimeSymbol([string]$root, $files, [string]$symbol) {
     if ($env:OS -ne "Windows_NT") { return $null }
-    EnsureNativeProbeType
     $dlls = @($files | Where-Object { $_.Extension -ieq ".dll" })
     foreach ($dll in $dlls) {
-        $oldPath = $env:PATH
-        try {
-            $env:PATH = (Split-Path -Parent $dll.FullName) + ";" + $oldPath
-            $handle = [NativeProbe]::LoadLibrary($dll.FullName)
-            if ($handle -eq [IntPtr]::Zero) { continue }
-            try {
-                $addr = [NativeProbe]::GetProcAddress($handle, $symbol)
-                if ($addr -ne [IntPtr]::Zero) { return (Rel $root $dll.FullName) }
-            } finally {
-                [void][NativeProbe]::FreeLibrary($handle)
-            }
-        } catch {
-        } finally {
-            $env:PATH = $oldPath
-        }
+        $exports = GetPeExports $dll.FullName
+        if ($exports -contains $symbol) { return (Rel $root $dll.FullName) }
     }
     return $null
 }
@@ -162,6 +201,42 @@ function HasUnavailable([string]$s) {
     return $false
 }
 
+function AcquireConformU([string]$root) {
+    $dest = Join-Path $root "tools/compat/downloads/conformu"
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ASCOMInitiative/ConformU/releases/latest" -Headers @{ "User-Agent" = "Nightshade-compat-suite" }
+    $platform = PlatformName
+    $asset = $null
+    if ($platform -eq "windows") {
+        $asset = @($release.assets | Where-Object { $_.name -match "ConformU\..*\.Setup\.exe$" } | Select-Object -First 1)
+    } elseif ($platform -eq "macos") {
+        $asset = @($release.assets | Where-Object { $_.name -match "\.dmg$" } | Select-Object -First 1)
+    } else {
+        $asset = @($release.assets | Where-Object { $_.name -match "linux-x64\.tar\.xz$" } | Select-Object -First 1)
+    }
+    if (-not $asset) {
+        Write-Host "ConformU acquisition: no matching asset found for $platform in $($release.tag_name)"
+        return
+    }
+
+    $target = Join-Path $dest $asset.name
+    if (-not (Test-Path $target)) {
+        Write-Host "Downloading ConformU $($release.tag_name) official asset: $($asset.name)"
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $target -Headers @{ "User-Agent" = "Nightshade-compat-suite" }
+    } else {
+        Write-Host "ConformU $($release.tag_name) asset already present: $target"
+    }
+
+    [pscustomobject]@{
+        tool = "ConformU"
+        release = $release.tag_name
+        asset = $asset.name
+        url = $asset.browser_download_url
+        path = (Rel $root $target)
+        note = "Downloaded only. Install or add ConformU to PATH before the official conformance target can run."
+    } | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 (Join-Path $dest "conformu-release.json")
+}
+
 function NewFunc($target, $check, [string]$verdict, [string]$reason, $evidence) {
     [pscustomobject]@{
         target_id = $target.id
@@ -177,7 +252,7 @@ function NewFunc($target, $check, [string]$verdict, [string]$reason, $evidence) 
     }
 }
 
-function NewModel($model, [string]$targetVerdict, $functionByCapability) {
+function NewModel($model, [string]$targetVerdict, $functionByCapability, $functionByCheckId) {
     $aliases = @{
         read_filter = @("read_filter", "set_filter")
         read_position = @("read_position", "slew", "move_focuser")
@@ -205,8 +280,25 @@ function NewModel($model, [string]$targetVerdict, $functionByCapability) {
             $caps += [pscustomobject]@{ capability = $cap; verdict = if ($targetVerdict -eq "blocked" -or $targetVerdict -eq "skipped") { "blocked" } else { "fail" }; evidence = $null; physical_required = $true }
         }
     }
+
+    $contractResults = @()
+    foreach ($contract in (Items $model.contracts)) {
+        $evidenceCheck = $contract.evidence_check
+        $evidenceFunction = if ($evidenceCheck) { $functionByCheckId[$evidenceCheck] } else { $null }
+        $contractPasses = $targetVerdict -eq "pass" -and ((-not $evidenceCheck) -or ($evidenceFunction -and $evidenceFunction.verdict -eq "pass"))
+        $contractVerdict = if ($contractPasses) { "pass" } elseif ($targetVerdict -eq "blocked" -or $targetVerdict -eq "skipped") { "blocked" } else { "fail" }
+        if ($contractVerdict -ne "pass") { $missing += "contract:$($contract.id)" }
+        $contractResults += [pscustomobject]@{
+            id = $contract.id
+            property = $contract.property
+            expectation = $contract.expectation
+            evidence = $evidenceCheck
+            verdict = $contractVerdict
+        }
+    }
+
     $verdict = if ($targetVerdict -eq "pass" -and $missing.Count -eq 0) { "pass" } elseif ($targetVerdict -eq "blocked" -or $targetVerdict -eq "skipped") { "blocked" } else { "fail" }
-    $reason = if ($missing.Count -eq 0) { "declared capabilities map to passing function evidence" } else { "missing function evidence for: $($missing -join ', ')" }
+    $reason = if ($missing.Count -eq 0) { "declared capabilities and model contracts map to passing evidence" } else { "missing evidence for: $($missing -join ', ')" }
     [pscustomobject]@{
         target_id = $model.target_id
         manufacturer = $model.manufacturer
@@ -217,6 +309,7 @@ function NewModel($model, [string]$targetVerdict, $functionByCapability) {
         verdict = $verdict
         reason = $reason
         capabilities = $caps
+        contracts = $contractResults
     }
 }
 
@@ -252,6 +345,22 @@ function RenderMarkdown($report) {
             $lines += "| $($c.verdict) | $($m.manufacturer) | $($m.model) | $($c.capability) | $ev | $($c.physical_required) |"
         }
     }
+    $contractRows = @()
+    foreach ($m in $report.model_results) {
+        foreach ($c in (Items $m.contracts)) {
+            $contractRows += [pscustomobject]@{ model=$m; contract=$c }
+        }
+    }
+    if ($contractRows.Count -gt 0) {
+        $lines += ""
+        $lines += "## Model Contract Details"
+        $lines += "| Verdict | Manufacturer | Model | Property | Expectation | Evidence Check |"
+        $lines += "|---|---|---|---|---|---|"
+        foreach ($row in $contractRows) {
+            $ev = if ($row.contract.evidence) { "``$($row.contract.evidence)``" } else { "" }
+            $lines += "| $($row.contract.verdict) | $($row.model.manufacturer) | $($row.model.model) | $($row.contract.property) | $($row.contract.expectation -replace '\|','\\|') | $ev |"
+        }
+    }
     $lines += ""
     $lines += "## Blocked"
     $blocked = @($report.results | Where-Object { $_.verdict -eq "blocked" })
@@ -269,6 +378,15 @@ function RenderJUnit($report) {
                 capability = $c.capability
                 verdict = $c.verdict
                 reason = if ($c.evidence) { "mapped to $($c.evidence)" } else { $m.reason }
+            }
+        }
+        foreach ($c in (Items $m.contracts)) {
+            $modelCapabilities += [pscustomobject]@{
+                target_id = $m.target_id
+                model = $m.model
+                capability = "contract:$($c.id)"
+                verdict = $c.verdict
+                reason = if ($c.evidence) { "$($c.property) = $($c.expectation), mapped to $($c.evidence)" } else { $m.reason }
             }
         }
     }
@@ -303,6 +421,7 @@ $targetFunctionMap = @{}
 
 if ($Mode -eq "acquire-sdks") {
     Write-Host "SDK acquisition is intentionally conservative. Public downloads already found under tools/compat/downloads are preserved; license-gated SDKs remain blocked until credentials/approval are available."
+    AcquireConformU $root
 }
 
 foreach ($target in (Items $matrixData.targets)) {
@@ -395,13 +514,15 @@ foreach ($target in (Items $matrixData.targets)) {
     $functions += $fList
     $capMap = @{}
     foreach ($f in $fList) { if ($f.capability -and -not $capMap.ContainsKey($f.capability)) { $capMap[$f.capability] = $f } }
-    $targetFunctionMap[$target.id] = [pscustomobject]@{ verdict=$verdict; functions=$capMap }
+    $checkMap = @{}
+    foreach ($f in $fList) { if ($f.check_id -and -not $checkMap.ContainsKey($f.check_id)) { $checkMap[$f.check_id] = $f } }
+    $targetFunctionMap[$target.id] = [pscustomobject]@{ verdict=$verdict; functions=$capMap; checks=$checkMap }
 }
 
 $modelResults = @()
 foreach ($m in (Items $modelData.models)) {
     $tf = $targetFunctionMap[$m.target_id]
-    if ($tf) { $modelResults += NewModel $m $tf.verdict $tf.functions }
+    if ($tf) { $modelResults += NewModel $m $tf.verdict $tf.functions $tf.checks }
 }
 
 function CountVerdict($items, [string]$v) { @($items | Where-Object { $_.verdict -eq $v }).Count }
