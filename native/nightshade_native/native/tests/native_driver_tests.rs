@@ -7,12 +7,20 @@ use nightshade_native::traits::{
     NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
 };
 use nightshade_native::vendor::atik;
+#[cfg(windows)]
+use nightshade_native::vendor::fli;
+#[cfg(windows)]
+use nightshade_native::vendor::fujifilm;
 use nightshade_native::vendor::ioptron;
 use nightshade_native::vendor::lx200;
+#[cfg(windows)]
+use nightshade_native::vendor::moravian;
 use nightshade_native::vendor::player_one;
 use nightshade_native::vendor::qhy;
 use nightshade_native::vendor::skywatcher;
 use nightshade_native::vendor::svbony;
+#[cfg(windows)]
+use nightshade_native::vendor::touptek;
 use nightshade_native::vendor::zwo;
 use nightshade_native::ExposureParams;
 
@@ -1328,6 +1336,345 @@ mod fake_sdk_contract {
         env::set_var("PATH", old_path);
     }
 
+    #[tokio::test]
+    #[ignore = "software-only fake SDK contract; run explicitly from compatibility matrix"]
+    async fn test_touptek_fake_sdk_shim_exercises_white_label_model_flows() {
+        let shim_dir = build_single_fake_sdk(
+            "touptek",
+            "touptek_fake.rs",
+            "ogmacam.dll",
+            TOUPTEK_FAKE_SDK,
+        );
+        let old_dir = env::current_dir().expect("read current dir");
+        let old_path = env::var("PATH").unwrap_or_default();
+        let old_pull_error = env::var("NS_TOUPTEK_PULL_ERROR").ok();
+        env::set_current_dir(&shim_dir).expect("switch to fake SDK dir");
+        env::set_var("PATH", format!("{};{}", shim_dir.display(), old_path));
+        env::remove_var("NS_TOUPTEK_PULL_ERROR");
+
+        let devices = touptek::discover_devices_for_brand("OGMA")
+            .await
+            .expect("OGMA/ToupTek discovery");
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].name, "OGMA AP26CC");
+        assert_eq!(devices[1].name, "OGMA GP2000M");
+
+        let mut cooled = touptek::TouptekCamera::new(0, "OGMA");
+        cooled.connect().await.expect("ToupTek cooled connect");
+        assert!(cooled.capabilities().can_cool);
+        assert!(cooled.capabilities().can_subframe);
+        assert!(cooled.capabilities().can_set_binning);
+        let sensor = cooled.get_sensor_info();
+        assert_eq!((sensor.width, sensor.height), (80, 60));
+        assert!(sensor.color);
+        cooled
+            .set_cooler(true, -12.5)
+            .await
+            .expect("ToupTek set cooler");
+        cooled.set_gain(250).await.expect("ToupTek set gain");
+        cooled
+            .start_exposure(ExposureParams {
+                duration_secs: 0.01,
+                gain: Some(260),
+                offset: None,
+                bin_x: 1,
+                bin_y: 1,
+                subframe: None,
+                readout_mode: None,
+            })
+            .await
+            .expect("ToupTek start exposure");
+        assert!(!cooled
+            .is_exposure_complete()
+            .await
+            .expect("ToupTek exposure status"));
+
+        env::set_var("NS_TOUPTEK_PULL_ERROR", "1");
+        cooled
+            .download_image()
+            .await
+            .expect_err("ToupTek pull-image SDK failure should propagate");
+        env::remove_var("NS_TOUPTEK_PULL_ERROR");
+
+        let image = cooled
+            .download_image()
+            .await
+            .expect("ToupTek image download");
+        assert_eq!((image.width, image.height), (80, 60));
+        assert_eq!(image.bits_per_pixel, 16);
+        assert_eq!(image.data[0], 3000);
+        cooled
+            .disconnect()
+            .await
+            .expect("ToupTek cooled disconnect");
+
+        let mut uncooled = touptek::TouptekCamera::new(1, "OGMA");
+        uncooled.connect().await.expect("ToupTek uncooled connect");
+        assert!(!uncooled.capabilities().can_cool);
+        assert!(!uncooled.get_sensor_info().color);
+        uncooled
+            .set_cooler(true, -5.0)
+            .await
+            .expect_err("uncooled ToupTek camera should reject cooler control");
+        uncooled
+            .disconnect()
+            .await
+            .expect("ToupTek uncooled disconnect");
+
+        restore_env_var("NS_TOUPTEK_PULL_ERROR", old_pull_error);
+        env::set_current_dir(old_dir).expect("restore current dir");
+        env::set_var("PATH", old_path);
+    }
+
+    #[tokio::test]
+    #[ignore = "software-only fake SDK contract; run explicitly from compatibility matrix"]
+    async fn test_fli_fake_sdk_shim_exercises_camera_focuser_and_filterwheel_flows() {
+        let shim_dir = build_single_fake_sdk("fli", "fli_fake.rs", "libfli.dll", FLI_FAKE_SDK);
+        let old_path = env::var("PATH").unwrap_or_default();
+        let old_grab_error = env::var("NS_FLI_GRAB_ERROR").ok();
+        env::set_var("PATH", format!("{};{}", shim_dir.display(), old_path));
+        env::remove_var("NS_FLI_GRAB_ERROR");
+
+        let cameras = fli::discover_cameras().await.expect("FLI camera discovery");
+        let focusers = fli::discover_focusers()
+            .await
+            .expect("FLI focuser discovery");
+        let wheels = fli::discover_filter_wheels()
+            .await
+            .expect("FLI filter wheel discovery");
+        assert_eq!(cameras.len(), 1);
+        assert_eq!(focusers.len(), 1);
+        assert_eq!(wheels.len(), 1);
+
+        let mut camera = fli::FliCamera::new(cameras[0].device_path.clone());
+        camera.connect().await.expect("FLI camera connect");
+        assert!(camera.capabilities().can_cool);
+        assert!(camera.capabilities().can_subframe);
+        assert_eq!(
+            (
+                camera.get_sensor_info().width,
+                camera.get_sensor_info().height
+            ),
+            (64, 48)
+        );
+        camera.set_cooler(true, -20.0).await.expect("FLI cooler");
+        camera
+            .start_exposure(ExposureParams {
+                duration_secs: 0.01,
+                gain: None,
+                offset: None,
+                bin_x: 2,
+                bin_y: 2,
+                subframe: None,
+                readout_mode: None,
+            })
+            .await
+            .expect("FLI start exposure");
+        assert!(camera
+            .is_exposure_complete()
+            .await
+            .expect("FLI exposure complete"));
+
+        env::set_var("NS_FLI_GRAB_ERROR", "1");
+        camera
+            .download_image()
+            .await
+            .expect_err("FLI row grab failure should propagate");
+        env::remove_var("NS_FLI_GRAB_ERROR");
+        let image = camera.download_image().await.expect("FLI image download");
+        assert_eq!((image.width, image.height), (32, 24));
+        assert_eq!(image.data[0], 1000);
+        camera.disconnect().await.expect("FLI camera disconnect");
+
+        let mut focuser = fli::FliFocuser::new(focusers[0].device_path.clone());
+        focuser.connect().await.expect("FLI focuser connect");
+        assert_eq!(focuser.get_max_position(), 50000);
+        focuser.move_relative(120).await.expect("FLI focuser move");
+        assert_eq!(focuser.get_position().await.expect("FLI focuser pos"), 120);
+        assert!(!focuser.is_moving().await.expect("FLI focuser moving"));
+        focuser.disconnect().await.expect("FLI focuser disconnect");
+
+        let mut wheel = fli::FliFilterWheel::new(wheels[0].device_path.clone());
+        wheel.connect().await.expect("FLI wheel connect");
+        assert_eq!(wheel.get_filter_count(), 5);
+        wheel.move_to_position(3).await.expect("FLI wheel move");
+        assert_eq!(wheel.get_position().await.expect("FLI wheel pos"), 3);
+        assert_eq!(
+            wheel
+                .get_filter_names()
+                .await
+                .expect("FLI filter names")
+                .len(),
+            5
+        );
+        wheel.disconnect().await.expect("FLI wheel disconnect");
+
+        restore_env_var("NS_FLI_GRAB_ERROR", old_grab_error);
+        env::set_var("PATH", old_path);
+    }
+
+    #[tokio::test]
+    #[ignore = "software-only fake SDK contract; run explicitly from compatibility matrix"]
+    async fn test_moravian_fake_sdk_shim_exercises_camera_model_and_edge_flows() {
+        let shim_dir = build_single_fake_sdk(
+            "moravian",
+            "moravian_fake.rs",
+            "gXusb.dll",
+            MORAVIAN_FAKE_SDK,
+        );
+        let old_path = env::var("PATH").unwrap_or_default();
+        let old_begin_error = env::var("NS_MORAVIAN_BEGIN_ERROR").ok();
+        env::set_var("PATH", format!("{};{}", shim_dir.display(), old_path));
+        env::remove_var("NS_MORAVIAN_BEGIN_ERROR");
+
+        let devices = moravian::discover_devices()
+            .await
+            .expect("Moravian discovery");
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].name, "Moravian C3-61000 Pro");
+        assert_eq!(devices[1].name, "Moravian G1-1600");
+
+        let mut cooled = moravian::MoravianCamera::new(devices[0].camera_id);
+        cooled.connect().await.expect("Moravian cooled connect");
+        assert!(cooled.capabilities().can_cool);
+        assert!(cooled.capabilities().can_set_binning);
+        assert!(cooled.capabilities().has_shutter);
+        let sensor = cooled.get_sensor_info();
+        assert_eq!((sensor.width, sensor.height), (72, 54));
+        assert!(!sensor.color);
+        cooled.set_gain(7).await.expect("Moravian set gain");
+        cooled
+            .set_binning(2, 2)
+            .await
+            .expect("Moravian set binning");
+        cooled
+            .set_cooler(true, -15.0)
+            .await
+            .expect("Moravian set cooler");
+
+        env::set_var("NS_MORAVIAN_BEGIN_ERROR", "1");
+        cooled
+            .start_exposure(ExposureParams {
+                duration_secs: 0.0,
+                gain: None,
+                offset: None,
+                bin_x: 2,
+                bin_y: 2,
+                subframe: None,
+                readout_mode: None,
+            })
+            .await
+            .expect_err("Moravian begin exposure failure should propagate");
+        env::remove_var("NS_MORAVIAN_BEGIN_ERROR");
+
+        cooled
+            .start_exposure(ExposureParams {
+                duration_secs: 0.0,
+                gain: None,
+                offset: None,
+                bin_x: 2,
+                bin_y: 2,
+                subframe: None,
+                readout_mode: None,
+            })
+            .await
+            .expect("Moravian start exposure");
+        let image = cooled
+            .download_image()
+            .await
+            .expect("Moravian image download");
+        assert_eq!((image.width, image.height), (36, 27));
+        assert_eq!(image.data[0], 9000);
+        cooled
+            .disconnect()
+            .await
+            .expect("Moravian cooled disconnect");
+
+        let mut color = moravian::MoravianCamera::new(devices[1].camera_id);
+        color.connect().await.expect("Moravian color connect");
+        assert!(!color.capabilities().can_cool);
+        assert!(color.get_sensor_info().color);
+        color
+            .set_cooler(true, -5.0)
+            .await
+            .expect_err("uncooled Moravian camera should reject cooler control");
+        color.disconnect().await.expect("Moravian color disconnect");
+
+        restore_env_var("NS_MORAVIAN_BEGIN_ERROR", old_begin_error);
+        env::set_var("PATH", old_path);
+    }
+
+    #[tokio::test]
+    #[ignore = "software-only fake SDK contract; run explicitly from compatibility matrix"]
+    async fn test_fujifilm_fake_sdk_shim_exercises_session_release_and_model_flows() {
+        let shim_dir = build_single_fake_sdk(
+            "fujifilm",
+            "fujifilm_fake.rs",
+            "XAPI.dll",
+            FUJIFILM_FAKE_SDK,
+        );
+        let old_dir = env::current_dir().expect("read current dir");
+        let old_path = env::var("PATH").unwrap_or_default();
+        let old_release_error = env::var("NS_FUJIFILM_RELEASE_ERROR").ok();
+        env::set_current_dir(&shim_dir).expect("switch to fake SDK dir");
+        env::set_var("PATH", format!("{};{}", shim_dir.display(), old_path));
+        env::remove_var("NS_FUJIFILM_RELEASE_ERROR");
+
+        let devices = fujifilm::discover_devices()
+            .await
+            .expect("Fujifilm discovery");
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].name, "GFX100 II");
+        assert_eq!(devices[1].name, "X-T5");
+
+        let mut gfx = fujifilm::FujifilmCamera::new(&devices[0]);
+        gfx.connect().await.expect("Fujifilm connect");
+        assert!(gfx.capabilities().can_set_gain);
+        assert!(!gfx.capabilities().can_cool);
+        assert!(gfx.get_sensor_info().color);
+        gfx.set_gain(1600).await.expect("Fujifilm ISO set");
+        assert_eq!(gfx.get_gain().await.expect("Fujifilm ISO get"), 1600);
+        gfx.set_cooler(true, -5.0)
+            .await
+            .expect_err("Fujifilm cooler unsupported");
+
+        env::set_var("NS_FUJIFILM_RELEASE_ERROR", "1");
+        gfx.start_exposure(ExposureParams {
+            duration_secs: 0.01,
+            gain: Some(800),
+            offset: None,
+            bin_x: 1,
+            bin_y: 1,
+            subframe: None,
+            readout_mode: None,
+        })
+        .await
+        .expect_err("Fujifilm release SDK failure should propagate");
+        env::remove_var("NS_FUJIFILM_RELEASE_ERROR");
+
+        gfx.start_exposure(ExposureParams {
+            duration_secs: 0.01,
+            gain: Some(800),
+            offset: None,
+            bin_x: 1,
+            bin_y: 1,
+            subframe: None,
+            readout_mode: None,
+        })
+        .await
+        .expect("Fujifilm start exposure");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert!(gfx
+            .is_exposure_complete()
+            .await
+            .expect("Fujifilm exposure status"));
+        gfx.disconnect().await.expect("Fujifilm disconnect");
+
+        restore_env_var("NS_FUJIFILM_RELEASE_ERROR", old_release_error);
+        env::set_current_dir(old_dir).expect("restore current dir");
+        env::set_var("PATH", old_path);
+    }
+
     fn build_fake_sdks() -> PathBuf {
         let root = env::temp_dir().join(format!("nightshade-zwo-fake-sdk-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
@@ -1611,6 +1958,142 @@ fn write_cstr(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i
 #[no_mangle] pub extern "C" fn SVBStopVideoCapture(_id:c_int)->c_int{0}
 #[no_mangle] pub unsafe extern "C" fn SVBGetVideoData(_id:c_int,buf:*mut u8,buf_size:c_long,_wait_ms:c_int)->c_int{if buf.is_null()||buf_size<0{return 13;} for i in 0..((buf_size as usize)/2){let v=3000u16.wrapping_add(i as u16); *buf.add(i*2)=(v&0xff) as u8; *buf.add(i*2+1)=(v>>8) as u8;} 0}
 #[no_mangle] pub extern "C" fn SVBGetSDKVersion()->*const c_char{b"fake-svbony-1.0\0".as_ptr() as *const c_char}
+"#;
+
+    const TOUPTEK_FAKE_SDK: &str = r#"
+#![allow(non_snake_case)]
+use std::ffi::{c_char,c_int,c_uint,c_void};
+use std::sync::atomic::{AtomicI32,AtomicUsize,Ordering};
+#[repr(C)] struct OgmacamResolution{width:c_uint,height:c_uint}
+#[repr(C)] struct OgmacamModelV2{name:*const c_char,flag:u64,maxspeed:c_uint,preview:c_uint,still:c_uint,maxfanspeed:c_uint,ioctrol:c_uint,xpixsz:f32,ypixsz:f32,res:[OgmacamResolution;16]}
+#[repr(C)] struct OgmacamDeviceV2{displayname:[u16;64],id:[u16;64],model:*const OgmacamModelV2}
+#[repr(C)] struct OgmacamFrameInfoV3{width:c_uint,height:c_uint,flag:c_uint,seq:c_uint}
+static ACTIVE_INDEX:AtomicUsize=AtomicUsize::new(0); static WIDTH:AtomicI32=AtomicI32::new(80); static HEIGHT:AtomicI32=AtomicI32::new(60); static GAIN:AtomicI32=AtomicI32::new(100); static TEMP:AtomicI32=AtomicI32::new(-80);
+fn wide(text:&str)->[u16;64]{let mut out=[0u16;64]; for (i,ch) in text.encode_utf16().take(63).enumerate(){out[i]=ch;} out}
+fn model(index:usize)->*const OgmacamModelV2{let mut res:[OgmacamResolution;16]=unsafe{std::mem::zeroed()}; res[0]=if index==0{OgmacamResolution{width:80,height:60}}else{OgmacamResolution{width:40,height:30}}; let flags=if index==0{0x80|0x20000|0x200|0x08|0x20}else{0x10|0x20}; let name=if index==0{b"OGMA AP26CC\0".as_ptr()}else{b"OGMA GP2000M\0".as_ptr()}; Box::into_raw(Box::new(OgmacamModelV2{name:name as *const c_char,flag:flags,maxspeed:1,preview:1,still:1,maxfanspeed:0,ioctrol:0,xpixsz:3.76,ypixsz:3.76,res}))}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_EnumV2(devs:*mut OgmacamDeviceV2)->c_uint{if devs.is_null(){return 2;} *devs.add(0)=OgmacamDeviceV2{displayname:wide("OGMA AP26CC"),id:wide("OGMA-COOLED-0001"),model:model(0)}; *devs.add(1)=OgmacamDeviceV2{displayname:wide("OGMA GP2000M"),id:wide("OGMA-GUIDE-0002"),model:model(1)}; 2}
+#[no_mangle] pub extern "C" fn Ogmacam_OpenByIndex(index:c_uint)->*mut c_void{if index>1{return std::ptr::null_mut();} ACTIVE_INDEX.store(index as usize,Ordering::SeqCst); if index==0{WIDTH.store(80,Ordering::SeqCst); HEIGHT.store(60,Ordering::SeqCst);}else{WIDTH.store(40,Ordering::SeqCst); HEIGHT.store(30,Ordering::SeqCst);} (index as usize + 1) as *mut c_void}
+#[no_mangle] pub extern "C" fn Ogmacam_Close(_h:*mut c_void){}
+#[no_mangle] pub extern "C" fn Ogmacam_Stop(_h:*mut c_void)->c_int{0}
+#[no_mangle] pub extern "C" fn Ogmacam_Snap(_h:*mut c_void,_res:c_uint)->c_int{0}
+#[no_mangle] pub extern "C" fn Ogmacam_put_ExpoTime(_h:*mut c_void,_us:c_uint)->c_int{0}
+#[no_mangle] pub extern "C" fn Ogmacam_put_ExpoAGain(_h:*mut c_void,gain:u16)->c_int{GAIN.store(gain as i32,Ordering::SeqCst);0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_ExpoAGainRange(_h:*mut c_void,min:*mut u16,max:*mut u16,def:*mut u16)->c_int{if !min.is_null(){*min=100;} if !max.is_null(){*max=5000;} if !def.is_null(){*def=150;} 0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_Temperature(_h:*mut c_void,temp:*mut i16)->c_int{if !temp.is_null(){*temp=TEMP.load(Ordering::SeqCst) as i16;} 0}
+#[no_mangle] pub extern "C" fn Ogmacam_put_Temperature(_h:*mut c_void,temp:i16)->c_int{TEMP.store(temp as i32,Ordering::SeqCst);0}
+#[no_mangle] pub extern "C" fn Ogmacam_put_Option(_h:*mut c_void,_opt:c_uint,_value:c_int)->c_int{0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_Size(_h:*mut c_void,width:*mut c_int,height:*mut c_int)->c_int{if !width.is_null(){*width=WIDTH.load(Ordering::SeqCst);} if !height.is_null(){*height=HEIGHT.load(Ordering::SeqCst);} 0}
+#[no_mangle] pub extern "C" fn Ogmacam_put_Roi(_h:*mut c_void,_x:c_uint,_y:c_uint,width:c_uint,height:c_uint)->c_int{if width>0&&height>0{WIDTH.store(width as i32,Ordering::SeqCst); HEIGHT.store(height as i32,Ordering::SeqCst);} 0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_SerialNumber(_h:*mut c_void,buf:*mut c_char)->c_int{if buf.is_null(){return -1;} let text=if ACTIVE_INDEX.load(Ordering::SeqCst)==0{b"OGMA-COOLED-0001\0".as_slice()}else{b"OGMA-GUIDE-0002\0".as_slice()}; for i in 0..text.len(){*buf.add(i)=text[i] as c_char;} 0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_PullImageV3(_h:*mut c_void,buf:*mut c_void,_still:c_int,bits:c_int,_row:c_uint,info:*mut OgmacamFrameInfoV3)->c_int{if std::env::var("NS_TOUPTEK_PULL_ERROR").is_ok(){return -7;} if buf.is_null(){return -1;} let w=WIDTH.load(Ordering::SeqCst) as usize; let h=HEIGHT.load(Ordering::SeqCst) as usize; if !info.is_null(){(*info).width=w as c_uint; (*info).height=h as c_uint; (*info).flag=0; (*info).seq=1;} let out=buf as *mut u8; let bytes=if bits==16{2}else{1}; for i in 0..(w*h){let v=3000u16.wrapping_add(i as u16); if bytes==2{*out.add(i*2)=(v&0xff) as u8; *out.add(i*2+1)=(v>>8) as u8;}else{*out.add(i)=v as u8;}} 0}
+"#;
+
+    const FLI_FAKE_SDK: &str = r#"
+#![allow(non_snake_case)]
+use std::ffi::{c_char,c_double,c_long,CStr};
+use std::sync::atomic::{AtomicI64,Ordering};
+static LIST_DOMAIN:AtomicI64=AtomicI64::new(0); static FOCUS_POS:AtomicI64=AtomicI64::new(0); static FILTER_POS:AtomicI64=AtomicI64::new(0);
+const FLIDEVICE_CAMERA:c_long=0x100; const FLIDEVICE_FILTERWHEEL:c_long=0x200; const FLIDEVICE_FOCUSER:c_long=0x300;
+unsafe fn put(buf:*mut c_char,len:usize,text:&[u8]){if buf.is_null(){return;} for i in 0..len{*buf.add(i)=0;} for i in 0..text.len().min(len.saturating_sub(1)){*buf.add(i)=text[i] as c_char;}}
+fn kind_from_domain(domain:c_long)->c_long{domain & 0x0f00}
+fn kind_from_path(path:*const c_char)->c_long{unsafe{if path.is_null(){return FLIDEVICE_CAMERA;} let s=CStr::from_ptr(path).to_string_lossy(); if s.contains("focuser"){FLIDEVICE_FOCUSER}else if s.contains("filter"){FLIDEVICE_FILTERWHEEL}else{FLIDEVICE_CAMERA}}}
+#[no_mangle] pub unsafe extern "C" fn FLIOpen(dev:*mut c_long,name:*const c_char,domain:c_long)->c_long{if dev.is_null(){return -1;} let kind=kind_from_domain(domain); let path_kind=kind_from_path(name); if kind!=path_kind{return -2;} *dev=kind; 0}
+#[no_mangle] pub extern "C" fn FLIClose(_dev:c_long)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetModel(dev:c_long,model:*mut c_char,len:usize)->c_long{let text=match dev{FLIDEVICE_FOCUSER=>b"FLI PDF Focuser\0".as_slice(),FLIDEVICE_FILTERWHEEL=>b"FLI CFW-5-7\0".as_slice(),_=>b"FLI ProLine PL16803\0".as_slice()}; put(model,len,text); 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetSerialString(_dev:c_long,serial:*mut c_char,len:usize)->c_long{put(serial,len,b"FLI-FAKE-0001\0");0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetPixelSize(_dev:c_long,x:*mut c_double,y:*mut c_double)->c_long{if !x.is_null(){*x=9.0;} if !y.is_null(){*y=9.0;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetVisibleArea(_dev:c_long,ulx:*mut c_long,uly:*mut c_long,lrx:*mut c_long,lry:*mut c_long)->c_long{if !ulx.is_null(){*ulx=0;} if !uly.is_null(){*uly=0;} if !lrx.is_null(){*lrx=64;} if !lry.is_null(){*lry=48;} 0}
+#[no_mangle] pub extern "C" fn FLISetExposureTime(_dev:c_long,_ms:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn FLISetImageArea(_dev:c_long,_ulx:c_long,_uly:c_long,_lrx:c_long,_lry:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn FLISetHBin(_dev:c_long,bin:c_long)->c_long{if bin<=0{-1}else{0}}
+#[no_mangle] pub extern "C" fn FLISetVBin(_dev:c_long,bin:c_long)->c_long{if bin<=0{-1}else{0}}
+#[no_mangle] pub extern "C" fn FLISetFrameType(_dev:c_long,_t:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn FLIExposeFrame(_dev:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn FLICancelExposure(_dev:c_long)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetExposureStatus(_dev:c_long,time:*mut c_long)->c_long{if !time.is_null(){*time=0;} 0}
+#[no_mangle] pub extern "C" fn FLISetTemperature(_dev:c_long,_temp:c_double)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetTemperature(_dev:c_long,temp:*mut c_double)->c_long{if !temp.is_null(){*temp=-10.0;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetCoolerPower(_dev:c_long,power:*mut c_double)->c_long{if !power.is_null(){*power=42.0;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGrabRow(_dev:c_long,buff:*mut u8,width:usize)->c_long{if std::env::var("NS_FLI_GRAB_ERROR").is_ok(){return -8;} if buff.is_null(){return -1;} for i in 0..(width/2){let v=1000u16.wrapping_add(i as u16); *buff.add(i*2)=(v&0xff) as u8; *buff.add(i*2+1)=(v>>8) as u8;} 0}
+#[no_mangle] pub extern "C" fn FLISetBitDepth(_dev:c_long,_bits:c_long)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetDeviceStatus(_dev:c_long,status:*mut c_long)->c_long{if !status.is_null(){*status=0x80000000u32 as c_long;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetLibVersion(ver:*mut c_char,len:usize)->c_long{put(ver,len,b"fake-libfli-1.0\0");0}
+#[no_mangle] pub extern "C" fn FLICreateList(domain:c_long)->c_long{LIST_DOMAIN.store(domain as i64,Ordering::SeqCst);0}
+#[no_mangle] pub extern "C" fn FLIDeleteList()->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn FLIListFirst(domain:*mut c_long,filename:*mut c_char,fnlen:usize,name:*mut c_char,namelen:usize)->c_long{let kind=kind_from_domain(LIST_DOMAIN.load(Ordering::SeqCst) as c_long); let (path,label)=match kind{FLIDEVICE_FOCUSER=>(b"fake-focuser\0".as_slice(),b"FLI PDF Focuser\0".as_slice()),FLIDEVICE_FILTERWHEEL=>(b"fake-filter\0".as_slice(),b"FLI CFW-5-7\0".as_slice()),_=>(b"fake-camera\0".as_slice(),b"FLI ProLine PL16803\0".as_slice())}; put(filename,fnlen,path); put(name,namelen,label); if !domain.is_null(){*domain=LIST_DOMAIN.load(Ordering::SeqCst) as c_long;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIListNext(_domain:*mut c_long,_filename:*mut c_char,_fnlen:usize,_name:*mut c_char,_namelen:usize)->c_long{-1}
+#[no_mangle] pub extern "C" fn FLISetFilterPos(_dev:c_long,pos:c_long)->c_long{FILTER_POS.store(pos as i64,Ordering::SeqCst);0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetFilterPos(_dev:c_long,pos:*mut c_long)->c_long{if !pos.is_null(){*pos=FILTER_POS.load(Ordering::SeqCst) as c_long;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetFilterCount(_dev:c_long,count:*mut c_long)->c_long{if !count.is_null(){*count=5;} 0}
+#[no_mangle] pub extern "C" fn FLIStepMotor(_dev:c_long,steps:c_long)->c_long{FOCUS_POS.fetch_add(steps as i64,Ordering::SeqCst);0}
+#[no_mangle] pub extern "C" fn FLIStepMotorAsync(_dev:c_long,steps:c_long)->c_long{FOCUS_POS.fetch_add(steps as i64,Ordering::SeqCst);0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetStepperPosition(_dev:c_long,pos:*mut c_long)->c_long{if !pos.is_null(){*pos=FOCUS_POS.load(Ordering::SeqCst) as c_long;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetStepsRemaining(_dev:c_long,steps:*mut c_long)->c_long{if !steps.is_null(){*steps=0;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIGetFocuserExtent(_dev:c_long,extent:*mut c_long)->c_long{if !extent.is_null(){*extent=50000;} 0}
+#[no_mangle] pub unsafe extern "C" fn FLIReadTemperature(_dev:c_long,_channel:c_long,temp:*mut c_double)->c_long{if !temp.is_null(){*temp=20.5;} 0}
+#[no_mangle] pub extern "C" fn FLIEndExposure(_dev:c_long)->c_long{0}
+"#;
+
+    const MORAVIAN_FAKE_SDK: &str = r#"
+#![allow(non_snake_case)]
+use std::ffi::{c_char,c_float,c_int,c_uint,c_void};
+use std::sync::atomic::{AtomicU32,Ordering};
+type Cardinal=c_uint; type Integer=c_int; type Boolean=u8; type Real=c_float; type PCCamera=*mut c_void; type EnumerateCallback=unsafe extern "C" fn(Cardinal);
+static CURRENT_ID:AtomicU32=AtomicU32::new(1); static BIN:AtomicU32=AtomicU32::new(1);
+unsafe fn put(buf:*mut c_char,len:Cardinal,text:&[u8])->Boolean{if buf.is_null(){return 0;} for i in 0..(len as usize){*buf.add(i)=0;} for i in 0..text.len().min(len.saturating_sub(1) as usize){*buf.add(i)=text[i] as c_char;} 1}
+#[no_mangle] pub unsafe extern "C" fn Enumerate(cb:EnumerateCallback){cb(1); cb(2);}
+#[no_mangle] pub extern "C" fn Initialize(id:Cardinal)->PCCamera{if id==1||id==2{CURRENT_ID.store(id,Ordering::SeqCst); id as usize as PCCamera}else{std::ptr::null_mut()}}
+#[no_mangle] pub extern "C" fn Release(_camera:PCCamera){}
+#[no_mangle] pub unsafe extern "C" fn GetBooleanParameter(_camera:PCCamera,index:Cardinal,value:*mut Boolean)->Boolean{if value.is_null(){return 0;} let id=CURRENT_ID.load(Ordering::SeqCst); *value=match index{1=>1,3=>if id==1{1}else{0},4=>if id==1{1}else{0},7=>1,13=>1,128=>if id==2{1}else{0},_=>0}; 1}
+#[no_mangle] pub unsafe extern "C" fn GetIntegerParameter(_camera:PCCamera,index:Cardinal,value:*mut Cardinal)->Boolean{if value.is_null(){return 0;} let id=CURRENT_ID.load(Ordering::SeqCst); *value=match index{1=>if id==1{72}else{48},2=>if id==1{54}else{32},3=>376,4=>376,5=>if id==1{4}else{2},6=>if id==1{4}else{2},7=>2,_=>0}; 1}
+#[no_mangle] pub unsafe extern "C" fn GetStringParameter(_camera:PCCamera,index:Cardinal,len:Cardinal,buf:*mut c_char)->Boolean{let id=CURRENT_ID.load(Ordering::SeqCst); match index{0=>if id==1{put(buf,len,b"Moravian C3-61000 Pro\0")}else{put(buf,len,b"Moravian G1-1600\0")},2=>if id==1{put(buf,len,b"MOR-COOLED-0001\0")}else{put(buf,len,b"MOR-COLOR-0002\0")},_=>put(buf,len,b"\0")}}
+#[no_mangle] pub unsafe extern "C" fn GetValue(_camera:PCCamera,index:Cardinal,value:*mut Real)->Boolean{if value.is_null(){return 0;} *value=match index{0=>-9.5,11=>41.0,_=>0.0}; 1}
+#[no_mangle] pub extern "C" fn SetTemperature(_camera:PCCamera,_temp:Real)->Boolean{1}
+#[no_mangle] pub extern "C" fn SetBinning(_camera:PCCamera,x:Cardinal,y:Cardinal)->Boolean{if x==0||x!=y{return 0;} BIN.store(x,Ordering::SeqCst); 1}
+#[no_mangle] pub extern "C" fn SetGain(_camera:PCCamera,_gain:Cardinal)->Boolean{1}
+#[no_mangle] pub extern "C" fn SetReadMode(_camera:PCCamera,_mode:Cardinal)->Boolean{1}
+#[no_mangle] pub extern "C" fn SetFilter(_camera:PCCamera,_filter:Cardinal)->Boolean{1}
+#[no_mangle] pub unsafe extern "C" fn EnumerateReadModes(_camera:PCCamera,index:Cardinal,len:Cardinal,desc:*mut c_char)->Boolean{match index{0=>put(desc,len,b"Normal\0"),1=>put(desc,len,b"Low noise\0"),_=>0}}
+#[no_mangle] pub extern "C" fn ClearSensor(_camera:PCCamera)->Boolean{1}
+#[no_mangle] pub extern "C" fn Open(_camera:PCCamera)->Boolean{1}
+#[no_mangle] pub extern "C" fn Close(_camera:PCCamera)->Boolean{1}
+#[no_mangle] pub extern "C" fn BeginExposure(_camera:PCCamera,_use_shutter:Boolean)->Boolean{if std::env::var("NS_MORAVIAN_BEGIN_ERROR").is_ok(){0}else{1}}
+#[no_mangle] pub extern "C" fn EndExposure(_camera:PCCamera,_use_shutter:Boolean,_abort:Boolean)->Boolean{1}
+#[no_mangle] pub unsafe extern "C" fn GetImage16b(_camera:PCCamera,_x:Integer,_y:Integer,w:Integer,d:Integer,buffer_len:Cardinal,buffer:*mut c_void)->Boolean{if buffer.is_null()||w<=0||d<=0{return 0;} let pixels=(buffer_len as usize/2).min((w*d) as usize); let out=buffer as *mut u16; for i in 0..pixels{*out.add(i)=9000u16.wrapping_add(i as u16);} 1}
+#[no_mangle] pub unsafe extern "C" fn AdjustSubFrame(_camera:PCCamera,_x:*mut Integer,_y:*mut Integer,_w:*mut Integer,_d:*mut Integer)->Boolean{1}
+"#;
+
+    const FUJIFILM_FAKE_SDK: &str = r#"
+#![allow(non_snake_case)]
+use std::ffi::{c_char,c_long,c_ulong,c_void,CStr};
+use std::sync::atomic::{AtomicI32,Ordering};
+type XsdkHandle=*mut c_void;
+static ISO:AtomicI32=AtomicI32::new(800);
+#[repr(C,packed)] struct XsdkCameraList{str_product:[c_char;256],str_serial_no:[c_char;256],str_ip_address:[c_char;256],str_framework:[c_char;256],b_valid:bool}
+#[repr(C,packed)] struct XsdkDeviceInformation{str_vendor:[c_char;256],str_manufacturer:[c_char;256],str_product:[c_char;256],str_firmware:[c_char;256],str_device_type:[c_char;256],str_serial_no:[c_char;256],str_framework:[c_char;256],b_device_id:u8,str_device_name:[c_char;32],str_y_no:[c_char;32]}
+#[repr(C,packed)] struct XsdkImageInformation{str_internal_name:[c_char;32],l_format:c_long,l_data_size:c_long,l_image_pix_height:c_long,l_image_pix_width:c_long,l_image_bit_depth:c_long,l_preview_size:c_long,h_image:*mut c_void}
+unsafe fn fill<const N:usize>(buf:&mut [c_char;N],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i in 0..text.len().min(N.saturating_sub(1)){buf[i]=text[i] as c_char;}}
+#[no_mangle] pub extern "C" fn XSDK_Init(_h:*mut c_void)->c_long{0}
+#[no_mangle] pub extern "C" fn XSDK_Exit()->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_Detect(_interface:c_long,_p_interface:*mut c_char,_p_device_name:*mut c_char,count:*mut c_long)->c_long{if !count.is_null(){*count=2;} 0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_Append(_interface:c_long,_p_interface:*mut c_char,_p_device_name:*mut c_char,count:*mut c_long,list:*mut XsdkCameraList)->c_long{if !count.is_null(){*count=2;} if list.is_null(){return 0;} let mut first:XsdkCameraList=std::mem::zeroed(); fill(&mut first.str_product,b"GFX100 II"); fill(&mut first.str_serial_no,b"FUJI-GFX-0001"); fill(&mut first.str_framework,b"USB"); first.b_valid=true; *list.add(0)=first; let mut second:XsdkCameraList=std::mem::zeroed(); fill(&mut second.str_product,b"X-T5"); fill(&mut second.str_serial_no,b"FUJI-XT5-0002"); fill(&mut second.str_framework,b"USB"); second.b_valid=true; *list.add(1)=second; 0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_OpenEx(device:*const c_char,handle:*mut XsdkHandle,mode:*mut c_long,_opt:*mut c_void)->c_long{if handle.is_null(){return -1;} if !device.is_null(){let s=CStr::from_ptr(device).to_string_lossy(); if s.contains("X-T5"){ISO.store(400,Ordering::SeqCst);}} *handle=1usize as XsdkHandle; if !mode.is_null(){*mode=0;} 0}
+#[no_mangle] pub extern "C" fn XSDK_Close(_h:XsdkHandle)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_GetErrorNumber(_h:XsdkHandle,api:*mut c_long,err:*mut c_long)->c_long{if !api.is_null(){*api=0;} if !err.is_null(){*err=if std::env::var("NS_FUJIFILM_RELEASE_ERROR").is_ok(){0x00001006}else{0};} 0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_GetDeviceInfo(_h:XsdkHandle,info:*mut XsdkDeviceInformation)->c_long{if info.is_null(){return -1;} let mut v:XsdkDeviceInformation=std::mem::zeroed(); fill(&mut v.str_vendor,b"FUJIFILM"); fill(&mut v.str_manufacturer,b"FUJIFILM"); fill(&mut v.str_product,b"GFX100 II"); fill(&mut v.str_firmware,b"9.99"); fill(&mut v.str_device_type,b"Digital Camera"); fill(&mut v.str_serial_no,b"FUJI-GFX-0001"); fill(&mut v.str_framework,b"USB"); v.b_device_id=1; fill(&mut v.str_device_name,b"Nightshade Fuji"); *info=v; 0}
+#[no_mangle] pub extern "C" fn XSDK_SetPriorityMode(_h:XsdkHandle,_mode:c_long)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_Release(_h:XsdkHandle,_mode:c_long,shot:*mut c_long,af:*mut c_long)->c_long{if std::env::var("NS_FUJIFILM_RELEASE_ERROR").is_ok(){return -1;} if !shot.is_null(){*shot=0;} if !af.is_null(){*af=0;} 0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_ReadImageInfo(_h:XsdkHandle,info:*mut XsdkImageInformation)->c_long{if info.is_null(){return -1;} (*info).l_format=7; (*info).l_data_size=0; (*info).l_image_pix_width=0; (*info).l_image_pix_height=0; (*info).l_image_bit_depth=0; 0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_ReadImage(_h:XsdkHandle,_data:*mut u8,_size:c_ulong)->c_long{0}
+#[no_mangle] pub extern "C" fn XSDK_DeleteImage(_h:XsdkHandle)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_CapShutterSpeed(_h:XsdkHandle,num:*mut c_long,speeds:*mut c_long,bulb:*mut c_long)->c_long{if !num.is_null(){*num=3;} if !speeds.is_null(){*speeds.add(0)=-1; *speeds.add(1)=1000; *speeds.add(2)=500;} if !bulb.is_null(){*bulb=1;} 0}
+#[no_mangle] pub extern "C" fn XSDK_SetShutterSpeed(_h:XsdkHandle,_speed:c_long,_bulb:c_long)->c_long{0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_CapSensitivity(_h:XsdkHandle,num:*mut c_long,values:*mut c_long)->c_long{if !num.is_null(){*num=5;} if !values.is_null(){for (i,v) in [100,200,400,800,1600].iter().enumerate(){*values.add(i)=*v;}} 0}
+#[no_mangle] pub extern "C" fn XSDK_SetSensitivity(_h:XsdkHandle,value:c_long)->c_long{ISO.store(value as i32,Ordering::SeqCst);0}
+#[no_mangle] pub unsafe extern "C" fn XSDK_GetSensitivity(_h:XsdkHandle,value:*mut c_long)->c_long{if !value.is_null(){*value=ISO.load(Ordering::SeqCst) as c_long;} 0}
+#[no_mangle] pub extern "C" fn XSDK_SetDynamicRange(_h:XsdkHandle,_dr:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn XSDK_SetProp(_h:XsdkHandle,_api:c_long,_param:c_long)->c_long{0}
+#[no_mangle] pub extern "C" fn XSDK_GetProp(_h:XsdkHandle,_api:c_long,_param:c_long)->c_long{0}
 "#;
 }
 

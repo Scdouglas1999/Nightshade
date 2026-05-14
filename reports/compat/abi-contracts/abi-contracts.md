@@ -34,7 +34,7 @@
 | Atik | rust-symbol-load | `ArtemisStartExposure` | pass | native/nightshade_native/native/src/vendor/atik.rs | Rust FFI loader references the same SDK symbol |
 | Atik | rust-symbol-load | `ArtemisGetImageData` | pass | native/nightshade_native/native/src/vendor/atik.rs | Rust FFI loader references the same SDK symbol |
 | Atik | rust-symbol-load | `ArtemisSetCooling` | pass | native/nightshade_native/native/src/vendor/atik.rs | Rust FFI loader references the same SDK symbol |
-| Atik | rust-symbol-load | `ArtemisDeviceHasFilterWheel` | fail | native/nightshade_native/native/src/vendor/atik.rs | Rust FFI loader references the same SDK symbol |
+| Atik | rust-symbol-load | `ArtemisDeviceHasFilterWheel` | pass | native/nightshade_native/native/src/vendor/atik.rs | Rust FFI loader references the same SDK symbol |
 | Atik | rust-struct-order | `ArtemisProperties` | pass | native/nightshade_native/native/src/vendor/atik.rs | repr(C) wrapper keeps expected field order |
 | SVBONY | sdk-header | `header files` | pass | SDKs/SVBony/SVBONY/include/SVBCameraSDK.h, SDKs/SVBony/SVBONY/SVBDemo/stdafx.h, SDKs/SVBony/SVBONY/SVBDemo/SVBCameraSDK/SVBCameraSDK.h | required SDK header evidence is present |
 | SVBONY | rust-wrapper | `native/nightshade_native/native/src/vendor/svbony.rs` | pass | native/nightshade_native/native/src/vendor/svbony.rs | production Rust wrapper is present |
@@ -116,7 +116,7 @@
 | Moravian | rust-symbol-load | `BeginExposure` | pass | native/nightshade_native/native/src/vendor/moravian.rs | Rust FFI loader references the same SDK symbol |
 | Moravian | rust-symbol-load | `GetImage` | pass | native/nightshade_native/native/src/vendor/moravian.rs | Rust FFI loader references the same SDK symbol |
 | Moravian | rust-symbol-load | `SetTemperature` | pass | native/nightshade_native/native/src/vendor/moravian.rs | Rust FFI loader references the same SDK symbol |
-| Moravian | rust-symbol-load | `SetFilter` | fail | native/nightshade_native/native/src/vendor/moravian.rs | Rust FFI loader references the same SDK symbol |
+| Moravian | rust-symbol-load | `SetFilter` | pass | native/nightshade_native/native/src/vendor/moravian.rs | Rust FFI loader references the same SDK symbol |
 | FLI | sdk-header | `header files` | pass | SDKs/FLI/libfli-1.104/libfli.h | required SDK header evidence is present |
 | FLI | rust-wrapper | `native/nightshade_native/native/src/vendor/fli.rs` | pass | native/nightshade_native/native/src/vendor/fli.rs | production Rust wrapper is present |
 | FLI | header-symbol | `FLIOpen` | pass | SDKs/FLI/libfli-1.104/libfli.h | vendor header declares required API surface |

@@ -201,6 +201,11 @@ function HasUnavailable([string]$s) {
     return $false
 }
 
+function HasBlockedEvidence([string]$s) {
+    if (-not $s) { return $false }
+    return $s -match "\b[1-9][0-9]* blocked\b"
+}
+
 function AcquireConformU([string]$root) {
     $dest = Join-Path $root "tools/compat/downloads/conformu"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
@@ -504,6 +509,7 @@ foreach ($target in (Items $matrixData.targets)) {
             $evidence["command:$($cmd.name):output_tail"] = Tail $cr.output
             if (-not $cr.success) { $failures += "command ``$($cmd.name)`` exited with $($cr.status)" }
             if (HasUnavailable $cr.output) { $failures += "command ``$($cmd.name)`` reported unavailable SDK" }
+            if ((HasBlockedEvidence $cr.output) -and (-not (HasUnavailable $cr.output))) { $blockers += "command ``$($cmd.name)`` reported blocked evidence" }
         }
     }
 

@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="nightshade_hardware_compat" tests="477" failures="1" skipped="81">
+<testsuite name="nightshade_hardware_compat" tests="560" failures="0" skipped="84">
   <testcase classname="compat" name="zwo-native-camera-eaf-efw">
   </testcase>
   <testcase classname="compat" name="zwo-fake-sdk-contract">
@@ -28,8 +28,24 @@
   </testcase>
   <testcase classname="compat" name="fujifilm-native-camera">
   </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract">
+  </testcase>
   <testcase classname="compat" name="native-sdk-abi-header-contracts">
-    <failure message="command `native_sdk_abi_header_contracts` exited with 1" />
+  </testcase>
+  <testcase classname="compat" name="native-sdk-compiled-abi-probes">
+    <skipped message="command `native_sdk_compiled_abi_probes` reported blocked evidence" />
+  </testcase>
+  <testcase classname="compat" name="vendor-example-compilation">
+    <skipped message="command `vendor_example_compilation` reported blocked evidence" />
+  </testcase>
+  <testcase classname="compat" name="real-device-trace-replay">
+    <skipped message="command `real_device_trace_replay` reported blocked evidence" />
   </testcase>
   <testcase classname="compat" name="alpaca-simulator-contract">
   </testcase>
@@ -191,6 +207,46 @@
   </testcase>
   <testcase classname="compat" name="fujifilm-native-camera::fujifilm-image">
   </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::fli-shim-discovery">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::fli-shim-camera-flow">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::fli-shim-focuser-flow">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::fli-shim-filterwheel-flow">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::fli-shim-edge-errors">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::touptek-shim-white-label-discovery">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::touptek-shim-camera-controls">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::touptek-shim-camera-download">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::touptek-shim-model-variants">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::touptek-shim-edge-errors">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::moravian-shim-multi-model-discovery">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::moravian-shim-camera-controls">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::moravian-shim-camera-download">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::moravian-shim-model-variants">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::moravian-shim-edge-errors">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::fujifilm-shim-discovery">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::fujifilm-shim-session">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::fujifilm-shim-release">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::fujifilm-shim-capabilities">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::fujifilm-shim-edge-errors">
+  </testcase>
   <testcase classname="compat" name="native-sdk-abi-header-contracts::abi-zwo-contract">
   </testcase>
   <testcase classname="compat" name="native-sdk-abi-header-contracts::abi-atik-contract">
@@ -208,6 +264,12 @@
   <testcase classname="compat" name="native-sdk-abi-header-contracts::abi-fli-contract">
   </testcase>
   <testcase classname="compat" name="native-sdk-abi-header-contracts::abi-fujifilm-contract">
+  </testcase>
+  <testcase classname="compat" name="native-sdk-compiled-abi-probes::compiled-abi-probe-harness">
+  </testcase>
+  <testcase classname="compat" name="vendor-example-compilation::vendor-example-build-harness">
+  </testcase>
+  <testcase classname="compat" name="real-device-trace-replay::trace-schema-validation">
   </testcase>
   <testcase classname="compat" name="alpaca-simulator-contract::alpaca-discovery-contract">
   </testcase>
@@ -312,6 +374,24 @@
   <testcase classname="compat" name="fujifilm-native-camera::X-H2S">
   </testcase>
   <testcase classname="compat" name="fujifilm-native-camera::X-T5">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::ProLine PL16803">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::PDF Focuser">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::CFW-5-7">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA GP2000M">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::G1-1600">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5">
   </testcase>
   <testcase classname="compat" name="alpaca-simulator-contract::Alpaca Camera Simulator">
   </testcase>
@@ -783,6 +863,94 @@
   <testcase classname="compat" name="fujifilm-native-camera::X-T5::release">
   </testcase>
   <testcase classname="compat" name="fujifilm-native-camera::X-T5::download_image">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::ProLine PL16803::enumerate">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::ProLine PL16803::download_image">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::ProLine PL16803::error_handling">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::ProLine PL16803::contract:fli-proline-rows">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::PDF Focuser::enumerate">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::PDF Focuser::move_focuser">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::PDF Focuser::contract:fli-pdf-focuser-move">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::CFW-5-7::enumerate">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::CFW-5-7::set_filter">
+  </testcase>
+  <testcase classname="compat" name="fli-fake-sdk-contract::CFW-5-7::contract:fli-cfw-slots">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::enumerate">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::controls">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::download_image">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::error_handling">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::contract:ogma-ap26cc-cooled-color">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA AP26CC::contract:ogma-ap26cc-pull-image">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA GP2000M::enumerate">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA GP2000M::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA GP2000M::error_handling">
+  </testcase>
+  <testcase classname="compat" name="touptek-fake-sdk-contract::OGMA GP2000M::contract:ogma-gp2000m-uncooled-mono">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::enumerate">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::controls">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::download_image">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::error_handling">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::contract:moravian-c3-cooled-mono">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::C3-61000 Pro::contract:moravian-c3-image">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::G1-1600::enumerate">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::G1-1600::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::G1-1600::error_handling">
+  </testcase>
+  <testcase classname="compat" name="moravian-fake-sdk-contract::G1-1600::contract:moravian-g1-color-uncooled">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::enumerate">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::connect">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::release">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::error_handling">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::contract:gfx100ii-session">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::GFX100 II::contract:gfx100ii-no-cooler">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5::enumerate">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5::connect">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5::release">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5::model_capabilities">
+  </testcase>
+  <testcase classname="compat" name="fujifilm-fake-sdk-contract::X-T5::contract:xt5-discovery">
   </testcase>
   <testcase classname="compat" name="alpaca-simulator-contract::Alpaca Camera Simulator::enumerate">
   </testcase>

@@ -65,6 +65,40 @@
     { "target_id": "fujifilm-native-camera", "manufacturer": "Fujifilm", "model": "X-H2S", "device": "Camera", "family": "Fujifilm X", "capabilities": ["enumerate", "connect", "release", "download_image"], "evidence_grade": "sdk-header" },
     { "target_id": "fujifilm-native-camera", "manufacturer": "Fujifilm", "model": "X-T5", "device": "Camera", "family": "Fujifilm X", "capabilities": ["enumerate", "connect", "release", "download_image"], "evidence_grade": "sdk-header" },
 
+    { "target_id": "fli-fake-sdk-contract", "manufacturer": "Finger Lakes Instrumentation", "model": "ProLine PL16803", "device": "Camera", "family": "FLI cooled CCD camera", "capabilities": ["enumerate", "download_image", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "fli-proline-rows", "property": "image_transfer", "expectation": "row-based 16-bit image download succeeds and row-grab failures propagate", "evidence_check": "fli-shim-camera-flow" }
+    ] },
+    { "target_id": "fli-fake-sdk-contract", "manufacturer": "Finger Lakes Instrumentation", "model": "PDF Focuser", "device": "Focuser", "family": "FLI focuser", "capabilities": ["enumerate", "move_focuser"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "fli-pdf-focuser-move", "property": "focuser_motion", "expectation": "relative move updates position and idle state is reported", "evidence_check": "fli-shim-focuser-flow" }
+    ] },
+    { "target_id": "fli-fake-sdk-contract", "manufacturer": "Finger Lakes Instrumentation", "model": "CFW-5-7", "device": "FilterWheel", "family": "FLI filter wheel", "capabilities": ["enumerate", "set_filter"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "fli-cfw-slots", "property": "filter_slots", "expectation": "five-slot wheel is discovered and can move/read position", "evidence_check": "fli-shim-filterwheel-flow" }
+    ] },
+
+    { "target_id": "touptek-fake-sdk-contract", "manufacturer": "ToupTek/OGMA", "model": "OGMA AP26CC", "device": "Camera", "family": "ToupTek/OGMA cooled color", "capabilities": ["enumerate", "controls", "download_image", "model_capabilities", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "ogma-ap26cc-cooled-color", "property": "sensor", "expectation": "cooled color 80x60 16-bit profile maps to cooler/binning/subframe support", "evidence_check": "touptek-shim-model-variants" },
+      { "id": "ogma-ap26cc-pull-image", "property": "image_transfer", "expectation": "PullImageV3 produces a 16-bit frame and transfer errors propagate", "evidence_check": "touptek-shim-camera-download" }
+    ] },
+    { "target_id": "touptek-fake-sdk-contract", "manufacturer": "ToupTek/OGMA", "model": "OGMA GP2000M", "device": "Camera", "family": "ToupTek/OGMA guide mono", "capabilities": ["enumerate", "model_capabilities", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "ogma-gp2000m-uncooled-mono", "property": "cooler", "expectation": "uncooled mono model rejects cooler control", "evidence_check": "touptek-shim-edge-errors" }
+    ] },
+
+    { "target_id": "moravian-fake-sdk-contract", "manufacturer": "Moravian", "model": "C3-61000 Pro", "device": "Camera", "family": "Moravian cooled mono", "capabilities": ["enumerate", "controls", "download_image", "model_capabilities", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "moravian-c3-cooled-mono", "property": "sensor", "expectation": "cooled mono model maps shutter, cooler, binning, gain, and subframe capabilities", "evidence_check": "moravian-shim-model-variants" },
+      { "id": "moravian-c3-image", "property": "image_transfer", "expectation": "GetImage16b returns a binned 16-bit image and BeginExposure failure propagates", "evidence_check": "moravian-shim-camera-download" }
+    ] },
+    { "target_id": "moravian-fake-sdk-contract", "manufacturer": "Moravian", "model": "G1-1600", "device": "Camera", "family": "Moravian uncooled color", "capabilities": ["enumerate", "model_capabilities", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "moravian-g1-color-uncooled", "property": "cooler", "expectation": "uncooled color model rejects cooler control and reports Bayer sensor", "evidence_check": "moravian-shim-edge-errors" }
+    ] },
+
+    { "target_id": "fujifilm-fake-sdk-contract", "manufacturer": "Fujifilm", "model": "GFX100 II", "device": "Camera", "family": "Fujifilm GFX", "capabilities": ["enumerate", "connect", "release", "model_capabilities", "error_handling"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "gfx100ii-session", "property": "session", "expectation": "GFX model opens an XAPI session, sets ISO/shutter, and triggers release", "evidence_check": "fujifilm-shim-release" },
+      { "id": "gfx100ii-no-cooler", "property": "capabilities", "expectation": "mirrorless camera exposes ISO/release controls but no cooler", "evidence_check": "fujifilm-shim-capabilities" }
+    ] },
+    { "target_id": "fujifilm-fake-sdk-contract", "manufacturer": "Fujifilm", "model": "X-T5", "device": "Camera", "family": "Fujifilm X", "capabilities": ["enumerate", "connect", "release", "model_capabilities"], "evidence_grade": "fake-sdk-model-contract", "contracts": [
+      { "id": "xt5-discovery", "property": "enumeration", "expectation": "X-series body is discovered from XAPI append list", "evidence_check": "fujifilm-shim-discovery" }
+    ] },
+
     { "target_id": "alpaca-simulator-contract", "manufacturer": "ASCOM Initiative", "model": "Alpaca Camera Simulator", "device": "Camera", "family": "Alpaca v1", "capabilities": ["enumerate", "connect", "expose", "download_image", "controls", "cooler"], "evidence_grade": "local-simulator" },
     { "target_id": "alpaca-simulator-contract", "manufacturer": "ASCOM Initiative", "model": "Alpaca Telescope Simulator", "device": "Mount", "family": "Alpaca v1", "capabilities": ["connect", "slew", "tracking", "read_position"], "evidence_grade": "local-simulator" },
     { "target_id": "alpaca-simulator-contract", "manufacturer": "ASCOM Initiative", "model": "Alpaca FilterWheel Simulator", "device": "FilterWheel", "family": "Alpaca v1", "capabilities": ["connect", "set_filter", "read_filter"], "evidence_grade": "local-simulator" },

@@ -259,7 +259,7 @@
         "vendor":  "Atik",
         "kind":  "rust-symbol-load",
         "item":  "ArtemisDeviceHasFilterWheel",
-        "verdict":  "fail",
+        "verdict":  "pass",
         "evidence":  "native/nightshade_native/native/src/vendor/atik.rs",
         "reason":  "Rust FFI loader references the same SDK symbol"
     },
@@ -915,7 +915,7 @@
         "vendor":  "Moravian",
         "kind":  "rust-symbol-load",
         "item":  "SetFilter",
-        "verdict":  "fail",
+        "verdict":  "pass",
         "evidence":  "native/nightshade_native/native/src/vendor/moravian.rs",
         "reason":  "Rust FFI loader references the same SDK symbol"
     },

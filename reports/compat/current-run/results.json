@@ -1,20 +1,20 @@
 ﻿{
-    "generated_at":  "2026-05-13T18:02:36.9482525Z",
+    "generated_at":  "2026-05-14T21:40:03.5011724Z",
     "platform":  "windows",
     "strict":  true,
     "summary":  {
-                    "pass":  17,
-                    "fail":  1,
-                    "blocked":  5,
+                    "pass":  22,
+                    "fail":  0,
+                    "blocked":  8,
                     "skipped":  1
                 },
     "function_summary":  {
-                             "pass":  90,
+                             "pass":  113,
                              "fail":  0,
                              "blocked":  0
                          },
     "model_summary":  {
-                          "pass":  48,
+                          "pass":  57,
                           "fail":  0,
                           "blocked":  13
                       },
@@ -39,7 +39,7 @@
                                          "symbol:ASIOpenCamera":  "runtime:SDKs/ZWO/ASI_Camera_SDK/ASI_Windows_SDK_V1.40/ASI SDK/lib/x64/ASICamera2.dll",
                                          "pattern:SDKs/ZWO/**/libASICamera2.*":  "26",
                                          "pattern_sample:SDKs/ZWO/**/EAF_focuser.dll":  "SDKs/ZWO/EAF_SDK/EAF_Windows_SDK_V1.6/EAF SDK/lib/Win32/EAF_focuser.dll; SDKs/ZWO/EAF_SDK/EAF_Windows_SDK_V1.6/EAF SDK/lib/Win64/EAF_focuser.dll",
-                                         "command:zwo_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 6 tests\ntest test_zwo_eaf_sdk_status ... ok\ntest test_zwo_efw_sdk_status ... ok\ntest test_zwo_camera_sdk_status ... ok\ntest test_zwo_camera_discovery_no_crash ... ok\ntest test_zwo_focuser_discovery_no_crash ... ok\ntest test_zwo_filter_wheel_discovery_no_crash ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.01s\n\n",
+                                         "command:zwo_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.47s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 6 tests\ntest test_zwo_eaf_sdk_status ... ok\ntest test_zwo_camera_sdk_status ... ok\ntest test_zwo_efw_sdk_status ... ok\ntest test_zwo_camera_discovery_no_crash ... ok\ntest test_zwo_filter_wheel_discovery_no_crash ... ok\ntest test_zwo_focuser_discovery_no_crash ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.02s\n\n",
                                          "pattern_sample:SDKs/ZWO/**/libASICamera2.*":  "SDKs/ZWO/ASI_Camera_SDK/ASISDK_ANDROID/ASISDK_ANDROID/CameraSDK/libs/arm64-v8a/libASICamera2.so; SDKs/ZWO/ASI_Camera_SDK/ASISDK_ANDROID/ASISDK_ANDROID/CameraSDK/libs/armeabi/libASICamera2.so; SDKs/ZWO/ASI_Camera_SDK/ASISDK_ANDROID/ASISDK_ANDROID/CameraSDK/libs/armeabi-v7a/libASICamera2.so",
                                          "pattern:SDKs/ZWO/**/EFW_filter.dll":  "2",
                                          "pattern:SDKs/ZWO/**/EAF_focuser.dll":  "2",
@@ -56,7 +56,7 @@
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
                                          "command:zwo_fake_sdk_contract:status":  "0",
-                                         "command:zwo_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.19s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_fake_sdk_shims_exercise_camera_focuser_filterwheel ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 1.18s\n\n"
+                                         "command:zwo_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.21s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_fake_sdk_shims_exercise_camera_focuser_filterwheel ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 1.20s\n\n"
                                      }
                     },
                     {
@@ -78,7 +78,7 @@
                                          "pattern_sample:SDKs/QHY/**/libqhyccd*":  "SDKs/QHY/sdk_Arm64_25.09.29/sdk_Arm64_25.09.29/usr/local/lib/libqhyccd.a; SDKs/QHY/sdk_Arm64_25.09.29/sdk_Arm64_25.09.29/usr/local/lib/libqhyccd.so; SDKs/QHY/sdk_Arm64_25.09.29/sdk_Arm64_25.09.29/usr/local/lib/libqhyccd.so.20",
                                          "symbol:OpenQHYCCD":  "runtime:SDKs/QHY/sdk_WinMix_25.09.29/pkg_win/x64/qhyccd.dll",
                                          "symbol:ExpQHYCCDSingleFrame":  "runtime:SDKs/QHY/sdk_WinMix_25.09.29/pkg_win/x64/qhyccd.dll",
-                                         "command:qhy_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n\nrunning 1 test\n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\ntest test_qhy_cfw_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 1.02s\n\n",
+                                         "command:qhy_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n\nrunning 1 test\n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\ntest test_qhy_cfw_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 1.03s\n\n",
                                          "symbol:InitQHYCCDResource":  "runtime:SDKs/QHY/sdk_WinMix_25.09.29/pkg_win/x64/qhyccd.dll"
                                      }
                     },
@@ -91,7 +91,7 @@
                         "verdict":  "pass",
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
-                                         "command:qhy_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_qhy_fake_sdk_shim_exercises_camera_filterwheel_and_model_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.74s\n\n",
+                                         "command:qhy_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_qhy_fake_sdk_shim_exercises_camera_filterwheel_and_model_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.76s\n\n",
                                          "command:qhy_fake_sdk_contract:status":  "0"
                                      }
                     },
@@ -124,7 +124,7 @@
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
                                          "command:playerone_fake_sdk_contract:status":  "0",
-                                         "command:playerone_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.25s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_player_one_fake_sdk_shim_exercises_model_and_edge_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.32s\n\n"
+                                         "command:playerone_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.24s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_player_one_fake_sdk_shim_exercises_model_and_edge_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.34s\n\n"
                                      }
                     },
                     {
@@ -141,7 +141,7 @@
                                          "symbol:SVBGetVideoData":  "runtime:SDKs/SVBony/SVBONY/lib/x64/SVBCameraSDK.dll",
                                          "symbol:SVBGetNumOfConnectedCameras":  "runtime:SDKs/SVBony/SVBONY/lib/x64/SVBCameraSDK.dll",
                                          "symbol:SVBStartVideoCapture":  "runtime:SDKs/SVBony/SVBONY/lib/x64/SVBCameraSDK.dll",
-                                         "command:svbony_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.24s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 3 tests\ntest fake_sdk_contract::test_svbony_fake_sdk_shim_exercises_camera_flow ... ignored, software-only fake SDK contract; run explicitly from compatibility matrix\ntest test_svbony_camera_sdk_status ... ok\ntest test_svbony_camera_discovery_no_crash ... ok\n\ntest result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 27 filtered out; finished in 0.01s\n\n",
+                                         "command:svbony_native_tests:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.24s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 3 tests\ntest fake_sdk_contract::test_svbony_fake_sdk_shim_exercises_camera_flow ... ignored, software-only fake SDK contract; run explicitly from compatibility matrix\ntest test_svbony_camera_sdk_status ... ok\ntest test_svbony_camera_discovery_no_crash ... ok\n\ntest result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 31 filtered out; finished in 0.01s\n\n",
                                          "pattern_sample:SDKs/SVBony/**/SVBCameraSDK.dll":  "SDKs/SVBony/SVBONY/lib/x64/SVBCameraSDK.dll; SDKs/SVBony/SVBONY/lib/x86/SVBCameraSDK.dll; SDKs/SVBony/SVBONY/SVBDemo/SVBCameraSDK/SVBCameraSDK.dll",
                                          "pattern:SDKs/SVBony/**/libSVBCameraSDK*":  "0",
                                          "command:svbony_native_tests:status":  "0"
@@ -157,7 +157,7 @@
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
                                          "command:svbony_fake_sdk_contract:status":  "0",
-                                         "command:svbony_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.19s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_svbony_fake_sdk_shim_exercises_camera_flow ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.21s\n\n"
+                                         "command:svbony_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.21s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_svbony_fake_sdk_shim_exercises_camera_flow ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.23s\n\n"
                                      }
                     },
                     {
@@ -188,7 +188,7 @@
                         "verdict":  "pass",
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
-                                         "command:atik_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_atik_fake_sdk_shim_exercises_camera_flow ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.22s\n\n",
+                                         "command:atik_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.24s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_atik_fake_sdk_shim_exercises_camera_flow ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.23s\n\n",
                                          "command:atik_fake_sdk_contract:status":  "0"
                                      }
                     },
@@ -282,16 +282,107 @@
                                      }
                     },
                     {
+                        "target_id":  "fli-fake-sdk-contract",
+                        "manufacturer":  "Finger Lakes Instrumentation",
+                        "device_type":  "Camera,Focuser,FilterWheel",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "Production driver + fake SDK shim",
+                        "verdict":  "pass",
+                        "reason":  "declared runtime/API prerequisites and compatibility commands passed",
+                        "evidence":  {
+                                         "command:fli_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_fli_fake_sdk_shim_exercises_camera_focuser_and_filterwheel_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.24s\n\n",
+                                         "command:fli_fake_sdk_contract:status":  "0"
+                                     }
+                    },
+                    {
+                        "target_id":  "touptek-fake-sdk-contract",
+                        "manufacturer":  "ToupTek/OGMA/Altair",
+                        "device_type":  "Camera",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "Production driver + fake SDK shim",
+                        "verdict":  "pass",
+                        "reason":  "declared runtime/API prerequisites and compatibility commands passed",
+                        "evidence":  {
+                                         "command:touptek_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_touptek_fake_sdk_shim_exercises_white_label_model_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.24s\n\n",
+                                         "command:touptek_fake_sdk_contract:status":  "0"
+                                     }
+                    },
+                    {
+                        "target_id":  "moravian-fake-sdk-contract",
+                        "manufacturer":  "Moravian",
+                        "device_type":  "Camera",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "Production driver + fake SDK shim",
+                        "verdict":  "pass",
+                        "reason":  "declared runtime/API prerequisites and compatibility commands passed",
+                        "evidence":  {
+                                         "command:moravian_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_moravian_fake_sdk_shim_exercises_camera_model_and_edge_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.24s\n\n",
+                                         "command:moravian_fake_sdk_contract:status":  "0"
+                                     }
+                    },
+                    {
+                        "target_id":  "fujifilm-fake-sdk-contract",
+                        "manufacturer":  "Fujifilm",
+                        "device_type":  "Camera",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "Production driver + fake SDK shim",
+                        "verdict":  "pass",
+                        "reason":  "declared runtime/API prerequisites and compatibility commands passed",
+                        "evidence":  {
+                                         "command:fujifilm_fake_sdk_contract:status":  "0",
+                                         "command:fujifilm_fake_sdk_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.26s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest fake_sdk_contract::test_fujifilm_fake_sdk_shim_exercises_session_release_and_model_flows ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 1.01s\n\n"
+                                     }
+                    },
+                    {
                         "target_id":  "native-sdk-abi-header-contracts",
                         "manufacturer":  "Multiple",
                         "device_type":  "Camera,Focuser,FilterWheel",
                         "driver_type":  "Native SDK",
                         "confidence_tier":  "SDK header + Rust FFI ABI contract",
-                        "verdict":  "fail",
-                        "reason":  "command `native_sdk_abi_header_contracts` exited with 1",
+                        "verdict":  "pass",
+                        "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
-                                         "command:native_sdk_abi_header_contracts:output_tail":  "Native SDK ABI/header contracts: 142 passed, 2 failed\nFAIL Atik rust-symbol-load ArtemisDeviceHasFilterWheel: Rust FFI loader references the same SDK symbol\nFAIL Moravian rust-symbol-load SetFilter: Rust FFI loader references the same SDK symbol\n",
-                                         "command:native_sdk_abi_header_contracts:status":  "1"
+                                         "command:native_sdk_abi_header_contracts:output_tail":  "Native SDK ABI/header contracts: 144 passed, 0 failed\n",
+                                         "command:native_sdk_abi_header_contracts:status":  "0"
+                                     }
+                    },
+                    {
+                        "target_id":  "native-sdk-compiled-abi-probes",
+                        "manufacturer":  "Multiple",
+                        "device_type":  "Camera,Focuser,FilterWheel",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "SDK header compiled ABI probes",
+                        "verdict":  "blocked",
+                        "reason":  "command `native_sdk_compiled_abi_probes` reported blocked evidence",
+                        "evidence":  {
+                                         "command:native_sdk_compiled_abi_probes:status":  "0",
+                                         "command:native_sdk_compiled_abi_probes:output_tail":  "native SDK compiled ABI probes: 0 pass, 0 fail, 7 blocked\n"
+                                     }
+                    },
+                    {
+                        "target_id":  "vendor-example-compilation",
+                        "manufacturer":  "Multiple",
+                        "device_type":  "Camera,Focuser,FilterWheel,Mount",
+                        "driver_type":  "Native SDK",
+                        "confidence_tier":  "Vendor example build probes",
+                        "verdict":  "blocked",
+                        "reason":  "command `vendor_example_compilation` reported blocked evidence",
+                        "evidence":  {
+                                         "command:vendor_example_compilation:output_tail":  "vendor example compilation: 0 pass, 0 fail, 397 blocked\n",
+                                         "command:vendor_example_compilation:status":  "0"
+                                     }
+                    },
+                    {
+                        "target_id":  "real-device-trace-replay",
+                        "manufacturer":  "Community/Test Lab",
+                        "device_type":  "All",
+                        "driver_type":  "Native SDK,ASCOM,Alpaca,INDI,Serial",
+                        "confidence_tier":  "Captured real-device record/replay",
+                        "verdict":  "blocked",
+                        "reason":  "command `real_device_trace_replay` reported blocked evidence",
+                        "evidence":  {
+                                         "command:real_device_trace_replay:output_tail":  "record/replay trace validation: 0 pass, 0 fail, 1 blocked\n",
+                                         "command:real_device_trace_replay:status":  "0"
                                      }
                     },
                     {
@@ -304,7 +395,7 @@
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
                                          "command:alpaca_simulator_contract:status":  "0",
-                                         "command:alpaca_simulator_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.20s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\alpaca_simulator_contract.rs (target\\debug\\deps\\alpaca_simulator_contract-38ee1c2d6f049d65.exe)\n\nrunning 2 tests\ntest alpaca_simulator_fault_contract_surfaces_device_and_payload_errors ... ok\ntest alpaca_simulator_camera_filterwheel_and_telescope_contract ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s\n\n"
+                                         "command:alpaca_simulator_contract:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.37s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\alpaca_simulator_contract.rs (target\\debug\\deps\\alpaca_simulator_contract-38ee1c2d6f049d65.exe)\n\nrunning 2 tests\ntest alpaca_simulator_fault_contract_surfaces_device_and_payload_errors ... ok\ntest alpaca_simulator_camera_filterwheel_and_telescope_contract ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s\n\n"
                                      }
                     },
                     {
@@ -316,14 +407,14 @@
                         "verdict":  "pass",
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
-                                         "command:ioptron_discovery:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.20s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_ioptron_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s\n\n",
-                                         "command:native_unit_protocol_tests:output_tail":  "test vendor::fujifilm::tests::test_find_shutter_code_exact_matches ... ok\ntest vendor::fujifilm::tests::test_image_format_constants ... ok\ntest vendor::fujifilm::tests::test_find_shutter_code_fast_speeds ... ok\ntest vendor::fujifilm::tests::test_is_xtrans_unknown ... ok\ntest vendor::fujifilm::tests::test_is_xtrans_x_series ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_case_insensitive ... ok\ntest vendor::fujifilm::tests::test_sdk_return_values ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_unknown ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_gfx100ii ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_x_series ... ok\ntest vendor::fujifilm::tests::test_release_mode_constants ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_26mp_xtrans ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_40mp_xtrans ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_default_26mp ... ok\ntest vendor::fujifilm::tests::test_priority_mode_constants ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_gfx50sii ... ok\ntest vendor::fujifilm::tests::test_shutter_bulb_constant ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_gfx_series ... ok\ntest vendor::player_one::tests::cooler_state_defaults_to_off ... ok\ntest vendor::player_one::tests::set_cooler_then_disable_reports_off ... ok\ntest vendor::player_one::tests::set_cooler_then_status_reports_enabled ... ok\ntest vendor::sdk_loader::tests::open_vendor_library_returns_path_not_found_with_empty_candidate_list ... ok\ntest vendor::qhy::tests::set_cooler_rejects_disconnected_camera ... ok\ntest vendor::qhy::tests::set_cooler_rejects_camera_without_cooler ... ok\ntest vendor::skywatcher::tests::build_motion_mode_tracking_uses_bit2_for_ccw ... ok\ntest vendor::qhy::tests::get_status_reflects_tracked_cooler_state ... ok\ntest vendor::qhy::tests::set_cooler_propagates_sdk_failure_without_mutating_state ... ok\ntest vendor::sdk_loader::tests::open_vendor_library_returns_path_not_found_when_all_candidates_fail ... ok\ntest vendor::skywatcher::tests::build_motion_mode_goto_uses_bit2_for_fast_and_bit4_for_ccw ... ok\ntest vendor::skywatcher::tests::get_side_of_pier_returns_not_supported ... ok\ntest vendor::skywatcher::tests::get_tracking_rate_returns_not_supported ... ok\ntest vendor::skywatcher::tests::set_tracking_rate_non_sidereal_returns_not_supported ... ok\ntest vendor::skywatcher::tests::set_tracking_rate_sidereal_returns_not_supported ... ok\ntest vendor::skywatcher::tests::get_alt_az_returns_not_supported ... ok\ntest vendor::skywatcher::tests::get_sidereal_time_returns_not_supported ... ok\n\ntest result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.00s\n\n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.00s\n\n",
-                                         "command:lx200_discovery:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.20s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_lx200_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s\n\n",
+                                         "command:ioptron_discovery:output_tail":  "cargo.exe :     Blocking waiting for file lock on package cache\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Blocking wa...n package cache:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n    Blocking waiting for file lock on package cache\n    Blocking waiting for file lock on package cache\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s\n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_ioptron_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.00s\n\n",
+                                         "command:native_unit_protocol_tests:output_tail":  "test vendor::fujifilm::tests::test_is_xtrans_unknown ... ok\ntest vendor::fujifilm::tests::test_is_xtrans_gfx_series_bayer ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_case_insensitive ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_gfx_series ... ok\ntest vendor::fujifilm::tests::test_is_xtrans_x_series ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_unknown ... ok\ntest vendor::fujifilm::tests::test_release_mode_constants ... ok\ntest vendor::fujifilm::tests::test_sdk_return_values ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_26mp_xtrans ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_default_26mp ... ok\ntest vendor::fujifilm::tests::test_find_shutter_code_nearest_match ... ok\ntest vendor::fujifilm::tests::test_priority_mode_constants ... ok\ntest vendor::fujifilm::tests::test_image_format_constants ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_40mp_xtrans ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_gfx100ii ... ok\ntest vendor::fujifilm::tests::test_sensor_specs_gfx50sii ... ok\ntest vendor::fujifilm::tests::test_shutter_bulb_constant ... ok\ntest vendor::player_one::tests::set_cooler_then_disable_reports_off ... ok\ntest vendor::fujifilm::tests::test_model_from_product_name_x_series ... ok\ntest vendor::player_one::tests::set_cooler_then_status_reports_enabled ... ok\ntest vendor::player_one::tests::cooler_state_defaults_to_off ... ok\ntest vendor::sdk_loader::tests::open_vendor_library_returns_path_not_found_with_empty_candidate_list ... ok\ntest vendor::skywatcher::tests::build_motion_mode_tracking_uses_bit2_for_ccw ... ok\ntest vendor::qhy::tests::set_cooler_rejects_camera_without_cooler ... ok\ntest vendor::qhy::tests::set_cooler_rejects_disconnected_camera ... ok\ntest vendor::skywatcher::tests::get_alt_az_returns_not_supported ... ok\ntest vendor::sdk_loader::tests::open_vendor_library_returns_path_not_found_when_all_candidates_fail ... ok\ntest vendor::skywatcher::tests::build_motion_mode_goto_uses_bit2_for_fast_and_bit4_for_ccw ... ok\ntest vendor::skywatcher::tests::set_tracking_rate_non_sidereal_returns_not_supported ... ok\ntest vendor::skywatcher::tests::get_tracking_rate_returns_not_supported ... ok\ntest vendor::skywatcher::tests::get_side_of_pier_returns_not_supported ... ok\ntest vendor::skywatcher::tests::set_tracking_rate_sidereal_returns_not_supported ... ok\ntest vendor::qhy::tests::get_status_reflects_tracked_cooler_state ... ok\ntest vendor::qhy::tests::set_cooler_propagates_sdk_failure_without_mutating_state ... ok\ntest vendor::skywatcher::tests::get_sidereal_time_returns_not_supported ... ok\n\ntest result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.00s\n\n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s\n\n",
+                                         "command:lx200_discovery:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_lx200_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.00s\n\n",
                                          "command:skywatcher_discovery:status":  "0",
                                          "command:native_unit_protocol_tests:status":  "0",
                                          "command:ioptron_discovery:status":  "0",
                                          "command:lx200_discovery:status":  "0",
-                                         "command:skywatcher_discovery:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.22s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_skywatcher_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.00s\n\n"
+                                         "command:skywatcher_discovery:output_tail":  "cargo.exe :     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s\nAt C:\\Users\\scdou\\Documents\\Nightshade2\\tools\\compat\\hardware_compat.ps1:177 char:23\n+             $output = \u0026 $cmd.program @args 2\u003e\u00261 | Out-String\n+                       ~~~~~~~~~~~~~~~~~~~~~~~~~\n    + CategoryInfo          : NotSpecified: (    Finished `t...get(s) in 0.23s:String) [], RemoteException\n    + FullyQualifiedErrorId : NativeCommandError\n \n     Running tests\\native_driver_tests.rs (target\\debug\\deps\\native_driver_tests-17dd465b0d30a4be.exe)\n\nrunning 1 test\ntest test_skywatcher_mount_discovery_no_crash ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 33 filtered out; finished in 0.00s\n\n"
                                      }
                     },
                     {
@@ -336,7 +427,7 @@
                         "reason":  "declared runtime/API prerequisites and compatibility commands passed",
                         "evidence":  {
                                          "command:workspace_all_features:status":  "0",
-                                         "command:workspace_all_features:output_tail":  "   Doc-tests nightshade_ascom\n\nrunning 2 tests\ntest ascom\\src\\windows_impl.rs - windows_impl::AscomCleanupGuard (line 1776) ... ignored\ntest ascom\\src\\windows_impl.rs - windows_impl::AscomOperationGuard (line 1705) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests nightshade_imaging\n\nrunning 1 test\ntest imaging\\src\\buffer_pool.rs - buffer_pool (line 17) - compile ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s\n\n   Doc-tests nightshade_indi\n\nrunning 2 tests\ntest indi\\src\\discovery.rs - discovery::discover_mdns (line 123) - compile ... ok\ntest indi\\src\\lib.rs - check_feature_support (line 115) ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s\n\n   Doc-tests nightshade_native\n\nrunning 8 tests\ntest native\\src\\quirks\\mod.rs - quirks (line 19) ... ignored\ntest native\\src\\sync.rs - sync (line 13) ... ignored\ntest native\\src\\utils.rs - utils::CleanupGuard (line 198) ... ignored\ntest native\\src\\utils.rs - utils::TimeoutTracker (line 532) ... ignored\ntest native\\src\\utils.rs - utils::calculate_buffer_size (line 91) ... ignored\ntest native\\src\\utils.rs - utils::safe_cstr_to_string (line 38) ... ignored\ntest native\\src\\vendor\\sdk_loader.rs - vendor::sdk_loader::load_vendor_sdk (line 203) ... ignored\ntest native\\src\\vendor\\sdk_loader.rs - vendor::sdk_loader::load_vendor_sdk (line 223) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests nightshade_sequencer\n\nrunning 1 test\ntest sequencer\\src\\executor.rs - executor::terminate_with (line 284) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
+                                         "command:workspace_all_features:output_tail":  "   Doc-tests nightshade_ascom\n\nrunning 2 tests\ntest ascom\\src\\windows\\connection.rs - windows::connection::AscomCleanupGuard (line 1029) ... ignored\ntest ascom\\src\\windows\\connection.rs - windows::connection::AscomOperationGuard (line 958) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests nightshade_imaging\n\nrunning 1 test\ntest imaging\\src\\buffer_pool.rs - buffer_pool (line 17) - compile ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s\n\n   Doc-tests nightshade_indi\n\nrunning 2 tests\ntest indi\\src\\discovery.rs - discovery::discover_mdns (line 123) - compile ... ok\ntest indi\\src\\lib.rs - check_feature_support (line 115) ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s\n\n   Doc-tests nightshade_native\n\nrunning 8 tests\ntest native\\src\\quirks\\mod.rs - quirks (line 19) ... ignored\ntest native\\src\\sync.rs - sync (line 13) ... ignored\ntest native\\src\\utils.rs - utils::CleanupGuard (line 198) ... ignored\ntest native\\src\\utils.rs - utils::TimeoutTracker (line 532) ... ignored\ntest native\\src\\utils.rs - utils::calculate_buffer_size (line 91) ... ignored\ntest native\\src\\utils.rs - utils::safe_cstr_to_string (line 38) ... ignored\ntest native\\src\\vendor\\sdk_loader.rs - vendor::sdk_loader::load_vendor_sdk (line 203) ... ignored\ntest native\\src\\vendor\\sdk_loader.rs - vendor::sdk_loader::load_vendor_sdk (line 223) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n   Doc-tests nightshade_sequencer\n\nrunning 1 test\ntest sequencer\\src\\executor.rs - executor::terminate_with (line 284) ... ignored\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n"
                                      }
                     },
                     {
@@ -1400,6 +1491,286 @@
                                               ]
                              },
                              {
+                                 "target_id":  "fli-fake-sdk-contract",
+                                 "check_id":  "fli-shim-discovery",
+                                 "manufacturer":  "Finger Lakes Instrumentation",
+                                 "device":  "Camera,Focuser,FilterWheel",
+                                 "function":  "Discover camera, focuser, and filter wheel through fake libfli",
+                                 "capability":  "enumerate",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fli-fake-sdk-contract",
+                                 "check_id":  "fli-shim-camera-flow",
+                                 "manufacturer":  "Finger Lakes Instrumentation",
+                                 "device":  "Camera",
+                                 "function":  "Connect, set cooler/binning, expose, poll ready, and download rows",
+                                 "capability":  "download_image",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fli-fake-sdk-contract",
+                                 "check_id":  "fli-shim-focuser-flow",
+                                 "manufacturer":  "Finger Lakes Instrumentation",
+                                 "device":  "Focuser",
+                                 "function":  "Connect, move relative, read position, and detect idle state",
+                                 "capability":  "move_focuser",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fli-fake-sdk-contract",
+                                 "check_id":  "fli-shim-filterwheel-flow",
+                                 "manufacturer":  "Finger Lakes Instrumentation",
+                                 "device":  "FilterWheel",
+                                 "function":  "Connect, set/read filter position, and enumerate slots",
+                                 "capability":  "set_filter",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fli-fake-sdk-contract",
+                                 "check_id":  "fli-shim-edge-errors",
+                                 "manufacturer":  "Finger Lakes Instrumentation",
+                                 "device":  "Camera",
+                                 "function":  "Propagate row-grab image transfer failure",
+                                 "capability":  "error_handling",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "touptek-fake-sdk-contract",
+                                 "check_id":  "touptek-shim-white-label-discovery",
+                                 "manufacturer":  "ToupTek/OGMA/Altair",
+                                 "device":  "Camera",
+                                 "function":  "Discover OGMA white-label models through fake ToupTek SDK",
+                                 "capability":  "enumerate",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "touptek-fake-sdk-contract",
+                                 "check_id":  "touptek-shim-camera-controls",
+                                 "manufacturer":  "ToupTek/OGMA/Altair",
+                                 "device":  "Camera",
+                                 "function":  "Connect and read/write gain, cooler, binning, ROI, and raw options",
+                                 "capability":  "controls",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "touptek-fake-sdk-contract",
+                                 "check_id":  "touptek-shim-camera-download",
+                                 "manufacturer":  "ToupTek/OGMA/Altair",
+                                 "device":  "Camera",
+                                 "function":  "Start exposure and pull 16-bit image through production driver",
+                                 "capability":  "download_image",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "touptek-fake-sdk-contract",
+                                 "check_id":  "touptek-shim-model-variants",
+                                 "manufacturer":  "ToupTek/OGMA/Altair",
+                                 "device":  "Camera",
+                                 "function":  "Verify cooled color and uncooled mono capability mapping",
+                                 "capability":  "model_capabilities",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "touptek-fake-sdk-contract",
+                                 "check_id":  "touptek-shim-edge-errors",
+                                 "manufacturer":  "ToupTek/OGMA/Altair",
+                                 "device":  "Camera",
+                                 "function":  "Propagate image pull failure and reject unsupported cooler",
+                                 "capability":  "error_handling",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "moravian-fake-sdk-contract",
+                                 "check_id":  "moravian-shim-multi-model-discovery",
+                                 "manufacturer":  "Moravian",
+                                 "device":  "Camera",
+                                 "function":  "Discover cooled mono and uncooled color models through fake gXusb",
+                                 "capability":  "enumerate",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "moravian-fake-sdk-contract",
+                                 "check_id":  "moravian-shim-camera-controls",
+                                 "manufacturer":  "Moravian",
+                                 "device":  "Camera",
+                                 "function":  "Connect and read/write gain, binning, cooler, shutter, readout, and subframe capabilities",
+                                 "capability":  "controls",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "moravian-fake-sdk-contract",
+                                 "check_id":  "moravian-shim-camera-download",
+                                 "manufacturer":  "Moravian",
+                                 "device":  "Camera",
+                                 "function":  "Expose and retrieve 16-bit image through production driver",
+                                 "capability":  "download_image",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "moravian-fake-sdk-contract",
+                                 "check_id":  "moravian-shim-model-variants",
+                                 "manufacturer":  "Moravian",
+                                 "device":  "Camera",
+                                 "function":  "Verify cooled mono and uncooled color capability mapping",
+                                 "capability":  "model_capabilities",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "moravian-fake-sdk-contract",
+                                 "check_id":  "moravian-shim-edge-errors",
+                                 "manufacturer":  "Moravian",
+                                 "device":  "Camera",
+                                 "function":  "Propagate BeginExposure failure and reject unsupported cooler",
+                                 "capability":  "error_handling",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fujifilm-fake-sdk-contract",
+                                 "check_id":  "fujifilm-shim-discovery",
+                                 "manufacturer":  "Fujifilm",
+                                 "device":  "Camera",
+                                 "function":  "Discover GFX and X-series cameras through fake XAPI",
+                                 "capability":  "enumerate",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fujifilm-fake-sdk-contract",
+                                 "check_id":  "fujifilm-shim-session",
+                                 "manufacturer":  "Fujifilm",
+                                 "device":  "Camera",
+                                 "function":  "Open session, set priority, read device info, and close session",
+                                 "capability":  "connect",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fujifilm-fake-sdk-contract",
+                                 "check_id":  "fujifilm-shim-release",
+                                 "manufacturer":  "Fujifilm",
+                                 "device":  "Camera",
+                                 "function":  "Set ISO/shutter and trigger release through production driver",
+                                 "capability":  "release",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fujifilm-fake-sdk-contract",
+                                 "check_id":  "fujifilm-shim-capabilities",
+                                 "manufacturer":  "Fujifilm",
+                                 "device":  "Camera",
+                                 "function":  "Verify DSLR/mirrorless capability boundaries such as no cooler/binning",
+                                 "capability":  "model_capabilities",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "fujifilm-fake-sdk-contract",
+                                 "check_id":  "fujifilm-shim-edge-errors",
+                                 "manufacturer":  "Fujifilm",
+                                 "device":  "Camera",
+                                 "function":  "Propagate release busy/SDK error through XSDK_GetErrorNumber",
+                                 "capability":  "error_handling",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
                                  "target_id":  "native-sdk-abi-header-contracts",
                                  "check_id":  "abi-zwo-contract",
                                  "manufacturer":  "Multiple",
@@ -1518,6 +1889,48 @@
                                  "device":  "Camera",
                                  "function":  "Verify Fujifilm SDK headers and Rust FFI symbols/struct ordering",
                                  "capability":  "abi_contract",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "native-sdk-compiled-abi-probes",
+                                 "check_id":  "compiled-abi-probe-harness",
+                                 "manufacturer":  "Multiple",
+                                 "device":  "All",
+                                 "function":  "Compile small C probes against acquired vendor headers where headers and compiler are available",
+                                 "capability":  "abi_contract",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "vendor-example-compilation",
+                                 "check_id":  "vendor-example-build-harness",
+                                 "manufacturer":  "Multiple",
+                                 "device":  "All",
+                                 "function":  "Discover and compile vendor SDK example projects where packages include examples",
+                                 "capability":  "sdk_package_integrity",
+                                 "verdict":  "pass",
+                                 "reason":  "simulator/protocol/software evidence passed",
+                                 "physical_required":  false,
+                                 "evidence":  [
+
+                                              ]
+                             },
+                             {
+                                 "target_id":  "real-device-trace-replay",
+                                 "check_id":  "trace-schema-validation",
+                                 "manufacturer":  "Community/Test Lab",
+                                 "device":  "All",
+                                 "function":  "Validate captured SDK/API traces for replay readiness",
+                                 "capability":  "record_replay",
                                  "verdict":  "pass",
                                  "reason":  "simulator/protocol/software evidence passed",
                                  "physical_required":  false,
@@ -3540,6 +3953,408 @@
                                                ],
                               "contracts":  [
 
+                                            ]
+                          },
+                          {
+                              "target_id":  "fli-fake-sdk-contract",
+                              "manufacturer":  "Finger Lakes Instrumentation",
+                              "model":  "ProLine PL16803",
+                              "family":  "FLI cooled CCD camera",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "download_image",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-camera-flow",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "fli-proline-rows",
+                                                    "property":  "image_transfer",
+                                                    "expectation":  "row-based 16-bit image download succeeds and row-grab failures propagate",
+                                                    "evidence":  "fli-shim-camera-flow",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "fli-fake-sdk-contract",
+                              "manufacturer":  "Finger Lakes Instrumentation",
+                              "model":  "PDF Focuser",
+                              "family":  "FLI focuser",
+                              "device":  "Focuser",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "move_focuser",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-focuser-flow",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "fli-pdf-focuser-move",
+                                                    "property":  "focuser_motion",
+                                                    "expectation":  "relative move updates position and idle state is reported",
+                                                    "evidence":  "fli-shim-focuser-flow",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "fli-fake-sdk-contract",
+                              "manufacturer":  "Finger Lakes Instrumentation",
+                              "model":  "CFW-5-7",
+                              "family":  "FLI filter wheel",
+                              "device":  "FilterWheel",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "set_filter",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fli-shim-filterwheel-flow",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "fli-cfw-slots",
+                                                    "property":  "filter_slots",
+                                                    "expectation":  "five-slot wheel is discovered and can move/read position",
+                                                    "evidence":  "fli-shim-filterwheel-flow",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "touptek-fake-sdk-contract",
+                              "manufacturer":  "ToupTek/OGMA",
+                              "model":  "OGMA AP26CC",
+                              "family":  "ToupTek/OGMA cooled color",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-white-label-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "controls",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-camera-controls",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "download_image",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-camera-download",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-model-variants",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "ogma-ap26cc-cooled-color",
+                                                    "property":  "sensor",
+                                                    "expectation":  "cooled color 80x60 16-bit profile maps to cooler/binning/subframe support",
+                                                    "evidence":  "touptek-shim-model-variants",
+                                                    "verdict":  "pass"
+                                                },
+                                                {
+                                                    "id":  "ogma-ap26cc-pull-image",
+                                                    "property":  "image_transfer",
+                                                    "expectation":  "PullImageV3 produces a 16-bit frame and transfer errors propagate",
+                                                    "evidence":  "touptek-shim-camera-download",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "touptek-fake-sdk-contract",
+                              "manufacturer":  "ToupTek/OGMA",
+                              "model":  "OGMA GP2000M",
+                              "family":  "ToupTek/OGMA guide mono",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-white-label-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-model-variants",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "touptek-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "ogma-gp2000m-uncooled-mono",
+                                                    "property":  "cooler",
+                                                    "expectation":  "uncooled mono model rejects cooler control",
+                                                    "evidence":  "touptek-shim-edge-errors",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "moravian-fake-sdk-contract",
+                              "manufacturer":  "Moravian",
+                              "model":  "C3-61000 Pro",
+                              "family":  "Moravian cooled mono",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-multi-model-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "controls",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-camera-controls",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "download_image",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-camera-download",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-model-variants",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "moravian-c3-cooled-mono",
+                                                    "property":  "sensor",
+                                                    "expectation":  "cooled mono model maps shutter, cooler, binning, gain, and subframe capabilities",
+                                                    "evidence":  "moravian-shim-model-variants",
+                                                    "verdict":  "pass"
+                                                },
+                                                {
+                                                    "id":  "moravian-c3-image",
+                                                    "property":  "image_transfer",
+                                                    "expectation":  "GetImage16b returns a binned 16-bit image and BeginExposure failure propagates",
+                                                    "evidence":  "moravian-shim-camera-download",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "moravian-fake-sdk-contract",
+                              "manufacturer":  "Moravian",
+                              "model":  "G1-1600",
+                              "family":  "Moravian uncooled color",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-multi-model-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-model-variants",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "moravian-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "moravian-g1-color-uncooled",
+                                                    "property":  "cooler",
+                                                    "expectation":  "uncooled color model rejects cooler control and reports Bayer sensor",
+                                                    "evidence":  "moravian-shim-edge-errors",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "fujifilm-fake-sdk-contract",
+                              "manufacturer":  "Fujifilm",
+                              "model":  "GFX100 II",
+                              "family":  "Fujifilm GFX",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "connect",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-session",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "release",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-release",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-capabilities",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "error_handling",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-edge-errors",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "gfx100ii-session",
+                                                    "property":  "session",
+                                                    "expectation":  "GFX model opens an XAPI session, sets ISO/shutter, and triggers release",
+                                                    "evidence":  "fujifilm-shim-release",
+                                                    "verdict":  "pass"
+                                                },
+                                                {
+                                                    "id":  "gfx100ii-no-cooler",
+                                                    "property":  "capabilities",
+                                                    "expectation":  "mirrorless camera exposes ISO/release controls but no cooler",
+                                                    "evidence":  "fujifilm-shim-capabilities",
+                                                    "verdict":  "pass"
+                                                }
+                                            ]
+                          },
+                          {
+                              "target_id":  "fujifilm-fake-sdk-contract",
+                              "manufacturer":  "Fujifilm",
+                              "model":  "X-T5",
+                              "family":  "Fujifilm X",
+                              "device":  "Camera",
+                              "evidence_grade":  "fake-sdk-model-contract",
+                              "verdict":  "pass",
+                              "reason":  "declared capabilities and model contracts map to passing evidence",
+                              "capabilities":  [
+                                                   {
+                                                       "capability":  "enumerate",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-discovery",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "connect",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-session",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "release",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-release",
+                                                       "physical_required":  false
+                                                   },
+                                                   {
+                                                       "capability":  "model_capabilities",
+                                                       "verdict":  "pass",
+                                                       "evidence":  "fujifilm-shim-capabilities",
+                                                       "physical_required":  false
+                                                   }
+                                               ],
+                              "contracts":  [
+                                                {
+                                                    "id":  "xt5-discovery",
+                                                    "property":  "enumeration",
+                                                    "expectation":  "X-series body is discovered from XAPI append list",
+                                                    "evidence":  "fujifilm-shim-discovery",
+                                                    "verdict":  "pass"
+                                                }
                                             ]
                           },
                           {

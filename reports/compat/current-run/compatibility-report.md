@@ -1,10 +1,10 @@
 ﻿# Nightshade Hardware Compatibility Evidence
 
-- Generated: 2026-05-13T18:02:36.9482525Z
+- Generated: 2026-05-14T21:40:03.5011724Z
 - Platform: `windows`
-- Targets: 17 pass, 1 fail, 5 blocked, 1 skipped
-- Functions: 90 pass, 0 fail, 0 blocked
-- Models: 48 pass, 0 fail, 13 blocked
+- Targets: 22 pass, 0 fail, 8 blocked, 1 skipped
+- Functions: 113 pass, 0 fail, 0 blocked
+- Models: 57 pass, 0 fail, 13 blocked
 
 ## Targets
 | Verdict | Target | Manufacturer | Device | Driver | Tier | Reason |
@@ -23,7 +23,14 @@
 | pass | `touptek-native-white-labels` | ToupTek/OGMA/Altair | Camera | Native SDK | SDK runtime | declared runtime/API prerequisites and compatibility commands passed |
 | pass | `moravian-native-camera-filterwheel` | Moravian | Camera,FilterWheel | Native SDK | SDK runtime | declared runtime/API prerequisites and compatibility commands passed |
 | pass | `fujifilm-native-camera` | Fujifilm | Camera | Native SDK | SDK runtime | declared runtime/API prerequisites and compatibility commands passed |
-| fail | `native-sdk-abi-header-contracts` | Multiple | Camera,Focuser,FilterWheel | Native SDK | SDK header + Rust FFI ABI contract | command `native_sdk_abi_header_contracts` exited with 1 |
+| pass | `fli-fake-sdk-contract` | Finger Lakes Instrumentation | Camera,Focuser,FilterWheel | Native SDK | Production driver + fake SDK shim | declared runtime/API prerequisites and compatibility commands passed |
+| pass | `touptek-fake-sdk-contract` | ToupTek/OGMA/Altair | Camera | Native SDK | Production driver + fake SDK shim | declared runtime/API prerequisites and compatibility commands passed |
+| pass | `moravian-fake-sdk-contract` | Moravian | Camera | Native SDK | Production driver + fake SDK shim | declared runtime/API prerequisites and compatibility commands passed |
+| pass | `fujifilm-fake-sdk-contract` | Fujifilm | Camera | Native SDK | Production driver + fake SDK shim | declared runtime/API prerequisites and compatibility commands passed |
+| pass | `native-sdk-abi-header-contracts` | Multiple | Camera,Focuser,FilterWheel | Native SDK | SDK header + Rust FFI ABI contract | declared runtime/API prerequisites and compatibility commands passed |
+| blocked | `native-sdk-compiled-abi-probes` | Multiple | Camera,Focuser,FilterWheel | Native SDK | SDK header compiled ABI probes | command `native_sdk_compiled_abi_probes` reported blocked evidence |
+| blocked | `vendor-example-compilation` | Multiple | Camera,Focuser,FilterWheel,Mount | Native SDK | Vendor example build probes | command `vendor_example_compilation` reported blocked evidence |
+| blocked | `real-device-trace-replay` | Community/Test Lab | All | Native SDK,ASCOM,Alpaca,INDI,Serial | Captured real-device record/replay | command `real_device_trace_replay` reported blocked evidence |
 | pass | `alpaca-simulator-contract` | ASCOM Initiative | Camera,FilterWheel,Mount | ASCOM Alpaca | Local protocol simulator | declared runtime/API prerequisites and compatibility commands passed |
 | pass | `mount-protocol-source-contracts` | Sky-Watcher/iOptron/LX200-compatible | Mount | Native Serial/UDP | Protocol parser/command tests | declared runtime/API prerequisites and compatibility commands passed |
 | pass | `bridge-full-workspace` | Nightshade | All | Bridge | Workspace tests | declared runtime/API prerequisites and compatibility commands passed |
@@ -105,6 +112,26 @@
 | pass | `fujifilm-native-camera` | Camera | connect | Open/close session | True | runtime/API surface present; physical behavior still requires hardware |
 | pass | `fujifilm-native-camera` | Camera | release | Trigger release | True | runtime/API surface present; physical behavior still requires hardware |
 | pass | `fujifilm-native-camera` | Camera | download_image | Read captured image | True | runtime/API surface present; physical behavior still requires hardware |
+| pass | `fli-fake-sdk-contract` | Camera,Focuser,FilterWheel | enumerate | Discover camera, focuser, and filter wheel through fake libfli | False | simulator/protocol/software evidence passed |
+| pass | `fli-fake-sdk-contract` | Camera | download_image | Connect, set cooler/binning, expose, poll ready, and download rows | False | simulator/protocol/software evidence passed |
+| pass | `fli-fake-sdk-contract` | Focuser | move_focuser | Connect, move relative, read position, and detect idle state | False | simulator/protocol/software evidence passed |
+| pass | `fli-fake-sdk-contract` | FilterWheel | set_filter | Connect, set/read filter position, and enumerate slots | False | simulator/protocol/software evidence passed |
+| pass | `fli-fake-sdk-contract` | Camera | error_handling | Propagate row-grab image transfer failure | False | simulator/protocol/software evidence passed |
+| pass | `touptek-fake-sdk-contract` | Camera | enumerate | Discover OGMA white-label models through fake ToupTek SDK | False | simulator/protocol/software evidence passed |
+| pass | `touptek-fake-sdk-contract` | Camera | controls | Connect and read/write gain, cooler, binning, ROI, and raw options | False | simulator/protocol/software evidence passed |
+| pass | `touptek-fake-sdk-contract` | Camera | download_image | Start exposure and pull 16-bit image through production driver | False | simulator/protocol/software evidence passed |
+| pass | `touptek-fake-sdk-contract` | Camera | model_capabilities | Verify cooled color and uncooled mono capability mapping | False | simulator/protocol/software evidence passed |
+| pass | `touptek-fake-sdk-contract` | Camera | error_handling | Propagate image pull failure and reject unsupported cooler | False | simulator/protocol/software evidence passed |
+| pass | `moravian-fake-sdk-contract` | Camera | enumerate | Discover cooled mono and uncooled color models through fake gXusb | False | simulator/protocol/software evidence passed |
+| pass | `moravian-fake-sdk-contract` | Camera | controls | Connect and read/write gain, binning, cooler, shutter, readout, and subframe capabilities | False | simulator/protocol/software evidence passed |
+| pass | `moravian-fake-sdk-contract` | Camera | download_image | Expose and retrieve 16-bit image through production driver | False | simulator/protocol/software evidence passed |
+| pass | `moravian-fake-sdk-contract` | Camera | model_capabilities | Verify cooled mono and uncooled color capability mapping | False | simulator/protocol/software evidence passed |
+| pass | `moravian-fake-sdk-contract` | Camera | error_handling | Propagate BeginExposure failure and reject unsupported cooler | False | simulator/protocol/software evidence passed |
+| pass | `fujifilm-fake-sdk-contract` | Camera | enumerate | Discover GFX and X-series cameras through fake XAPI | False | simulator/protocol/software evidence passed |
+| pass | `fujifilm-fake-sdk-contract` | Camera | connect | Open session, set priority, read device info, and close session | False | simulator/protocol/software evidence passed |
+| pass | `fujifilm-fake-sdk-contract` | Camera | release | Set ISO/shutter and trigger release through production driver | False | simulator/protocol/software evidence passed |
+| pass | `fujifilm-fake-sdk-contract` | Camera | model_capabilities | Verify DSLR/mirrorless capability boundaries such as no cooler/binning | False | simulator/protocol/software evidence passed |
+| pass | `fujifilm-fake-sdk-contract` | Camera | error_handling | Propagate release busy/SDK error through XSDK_GetErrorNumber | False | simulator/protocol/software evidence passed |
 | pass | `native-sdk-abi-header-contracts` | Camera,Focuser,FilterWheel | abi_contract | Verify ZWO SDK headers and Rust FFI symbols/struct ordering | False | simulator/protocol/software evidence passed |
 | pass | `native-sdk-abi-header-contracts` | Camera,FilterWheel | abi_contract | Verify Atik SDK headers and Rust FFI symbols/struct ordering | False | simulator/protocol/software evidence passed |
 | pass | `native-sdk-abi-header-contracts` | Camera | abi_contract | Verify SVBONY SDK headers and Rust FFI symbols | False | simulator/protocol/software evidence passed |
@@ -114,6 +141,9 @@
 | pass | `native-sdk-abi-header-contracts` | Camera,FilterWheel | abi_contract | Verify Moravian SDK headers and Rust FFI symbols | False | simulator/protocol/software evidence passed |
 | pass | `native-sdk-abi-header-contracts` | Camera,Focuser,FilterWheel | abi_contract | Verify FLI SDK headers and Rust FFI symbols | False | simulator/protocol/software evidence passed |
 | pass | `native-sdk-abi-header-contracts` | Camera | abi_contract | Verify Fujifilm SDK headers and Rust FFI symbols/struct ordering | False | simulator/protocol/software evidence passed |
+| pass | `native-sdk-compiled-abi-probes` | All | abi_contract | Compile small C probes against acquired vendor headers where headers and compiler are available | False | simulator/protocol/software evidence passed |
+| pass | `vendor-example-compilation` | All | sdk_package_integrity | Discover and compile vendor SDK example projects where packages include examples | False | simulator/protocol/software evidence passed |
+| pass | `real-device-trace-replay` | All | record_replay | Validate captured SDK/API traces for replay readiness | False | simulator/protocol/software evidence passed |
 | pass | `alpaca-simulator-contract` | All | enumerate | Construct typed clients for simulator endpoints | False | simulator/protocol/software evidence passed |
 | pass | `alpaca-simulator-contract` | Camera | download_image | Connect/expose/download/abort against local simulator | False | simulator/protocol/software evidence passed |
 | pass | `alpaca-simulator-contract` | Camera | controls | Read status/cooling/control endpoints against local simulator | False | simulator/protocol/software evidence passed |
@@ -170,6 +200,15 @@
 | pass | Fujifilm | X-H2 | Camera | Fujifilm X | sdk-header | declared capabilities and model contracts map to passing evidence |
 | pass | Fujifilm | X-H2S | Camera | Fujifilm X | sdk-header | declared capabilities and model contracts map to passing evidence |
 | pass | Fujifilm | X-T5 | Camera | Fujifilm X | sdk-header | declared capabilities and model contracts map to passing evidence |
+| pass | Finger Lakes Instrumentation | ProLine PL16803 | Camera | FLI cooled CCD camera | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Finger Lakes Instrumentation | PDF Focuser | Focuser | FLI focuser | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Finger Lakes Instrumentation | CFW-5-7 | FilterWheel | FLI filter wheel | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | ToupTek/OGMA | OGMA AP26CC | Camera | ToupTek/OGMA cooled color | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | ToupTek/OGMA | OGMA GP2000M | Camera | ToupTek/OGMA guide mono | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Moravian | C3-61000 Pro | Camera | Moravian cooled mono | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Moravian | G1-1600 | Camera | Moravian uncooled color | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Fujifilm | GFX100 II | Camera | Fujifilm GFX | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
+| pass | Fujifilm | X-T5 | Camera | Fujifilm X | fake-sdk-model-contract | declared capabilities and model contracts map to passing evidence |
 | pass | ASCOM Initiative | Alpaca Camera Simulator | Camera | Alpaca v1 | local-simulator | declared capabilities and model contracts map to passing evidence |
 | pass | ASCOM Initiative | Alpaca Telescope Simulator | Mount | Alpaca v1 | local-simulator | declared capabilities and model contracts map to passing evidence |
 | pass | ASCOM Initiative | Alpaca FilterWheel Simulator | FilterWheel | Alpaca v1 | local-simulator | declared capabilities and model contracts map to passing evidence |
@@ -392,6 +431,38 @@
 | pass | Fujifilm | X-T5 | connect | `fujifilm-session` | True |
 | pass | Fujifilm | X-T5 | release | `fujifilm-release` | True |
 | pass | Fujifilm | X-T5 | download_image | `fujifilm-image` | True |
+| pass | Finger Lakes Instrumentation | ProLine PL16803 | enumerate | `fli-shim-discovery` | False |
+| pass | Finger Lakes Instrumentation | ProLine PL16803 | download_image | `fli-shim-camera-flow` | False |
+| pass | Finger Lakes Instrumentation | ProLine PL16803 | error_handling | `fli-shim-edge-errors` | False |
+| pass | Finger Lakes Instrumentation | PDF Focuser | enumerate | `fli-shim-discovery` | False |
+| pass | Finger Lakes Instrumentation | PDF Focuser | move_focuser | `fli-shim-focuser-flow` | False |
+| pass | Finger Lakes Instrumentation | CFW-5-7 | enumerate | `fli-shim-discovery` | False |
+| pass | Finger Lakes Instrumentation | CFW-5-7 | set_filter | `fli-shim-filterwheel-flow` | False |
+| pass | ToupTek/OGMA | OGMA AP26CC | enumerate | `touptek-shim-white-label-discovery` | False |
+| pass | ToupTek/OGMA | OGMA AP26CC | controls | `touptek-shim-camera-controls` | False |
+| pass | ToupTek/OGMA | OGMA AP26CC | download_image | `touptek-shim-camera-download` | False |
+| pass | ToupTek/OGMA | OGMA AP26CC | model_capabilities | `touptek-shim-model-variants` | False |
+| pass | ToupTek/OGMA | OGMA AP26CC | error_handling | `touptek-shim-edge-errors` | False |
+| pass | ToupTek/OGMA | OGMA GP2000M | enumerate | `touptek-shim-white-label-discovery` | False |
+| pass | ToupTek/OGMA | OGMA GP2000M | model_capabilities | `touptek-shim-model-variants` | False |
+| pass | ToupTek/OGMA | OGMA GP2000M | error_handling | `touptek-shim-edge-errors` | False |
+| pass | Moravian | C3-61000 Pro | enumerate | `moravian-shim-multi-model-discovery` | False |
+| pass | Moravian | C3-61000 Pro | controls | `moravian-shim-camera-controls` | False |
+| pass | Moravian | C3-61000 Pro | download_image | `moravian-shim-camera-download` | False |
+| pass | Moravian | C3-61000 Pro | model_capabilities | `moravian-shim-model-variants` | False |
+| pass | Moravian | C3-61000 Pro | error_handling | `moravian-shim-edge-errors` | False |
+| pass | Moravian | G1-1600 | enumerate | `moravian-shim-multi-model-discovery` | False |
+| pass | Moravian | G1-1600 | model_capabilities | `moravian-shim-model-variants` | False |
+| pass | Moravian | G1-1600 | error_handling | `moravian-shim-edge-errors` | False |
+| pass | Fujifilm | GFX100 II | enumerate | `fujifilm-shim-discovery` | False |
+| pass | Fujifilm | GFX100 II | connect | `fujifilm-shim-session` | False |
+| pass | Fujifilm | GFX100 II | release | `fujifilm-shim-release` | False |
+| pass | Fujifilm | GFX100 II | model_capabilities | `fujifilm-shim-capabilities` | False |
+| pass | Fujifilm | GFX100 II | error_handling | `fujifilm-shim-edge-errors` | False |
+| pass | Fujifilm | X-T5 | enumerate | `fujifilm-shim-discovery` | False |
+| pass | Fujifilm | X-T5 | connect | `fujifilm-shim-session` | False |
+| pass | Fujifilm | X-T5 | release | `fujifilm-shim-release` | False |
+| pass | Fujifilm | X-T5 | model_capabilities | `fujifilm-shim-capabilities` | False |
 | pass | ASCOM Initiative | Alpaca Camera Simulator | enumerate | `alpaca-discovery-contract` | False |
 | pass | ASCOM Initiative | Alpaca Camera Simulator | connect | `alpaca-camera-flow` | False |
 | pass | ASCOM Initiative | Alpaca Camera Simulator | expose | `alpaca-camera-flow` | False |
@@ -502,8 +573,23 @@
 | pass | Player One | Poseidon-M Pro | error_handling | not-ready exposure, unknown SDK error, and image transfer failure are surfaced | `poa-shim-edge-errors` |
 | pass | Player One | Neptune-C II | sensor | color 12-bit planetary profile in fake SDK | `poa-shim-multi-model-discovery` |
 | pass | Player One | Neptune-C II | cooler | uncooled camera rejects cooler control | `poa-shim-edge-errors` |
+| pass | Finger Lakes Instrumentation | ProLine PL16803 | image_transfer | row-based 16-bit image download succeeds and row-grab failures propagate | `fli-shim-camera-flow` |
+| pass | Finger Lakes Instrumentation | PDF Focuser | focuser_motion | relative move updates position and idle state is reported | `fli-shim-focuser-flow` |
+| pass | Finger Lakes Instrumentation | CFW-5-7 | filter_slots | five-slot wheel is discovered and can move/read position | `fli-shim-filterwheel-flow` |
+| pass | ToupTek/OGMA | OGMA AP26CC | sensor | cooled color 80x60 16-bit profile maps to cooler/binning/subframe support | `touptek-shim-model-variants` |
+| pass | ToupTek/OGMA | OGMA AP26CC | image_transfer | PullImageV3 produces a 16-bit frame and transfer errors propagate | `touptek-shim-camera-download` |
+| pass | ToupTek/OGMA | OGMA GP2000M | cooler | uncooled mono model rejects cooler control | `touptek-shim-edge-errors` |
+| pass | Moravian | C3-61000 Pro | sensor | cooled mono model maps shutter, cooler, binning, gain, and subframe capabilities | `moravian-shim-model-variants` |
+| pass | Moravian | C3-61000 Pro | image_transfer | GetImage16b returns a binned 16-bit image and BeginExposure failure propagates | `moravian-shim-camera-download` |
+| pass | Moravian | G1-1600 | cooler | uncooled color model rejects cooler control and reports Bayer sensor | `moravian-shim-edge-errors` |
+| pass | Fujifilm | GFX100 II | session | GFX model opens an XAPI session, sets ISO/shutter, and triggers release | `fujifilm-shim-release` |
+| pass | Fujifilm | GFX100 II | capabilities | mirrorless camera exposes ISO/release controls but no cooler | `fujifilm-shim-capabilities` |
+| pass | Fujifilm | X-T5 | enumeration | X-series body is discovered from XAPI append list | `fujifilm-shim-discovery` |
 
 ## Blocked
+- `native-sdk-compiled-abi-probes`: command `native_sdk_compiled_abi_probes` reported blocked evidence
+- `vendor-example-compilation`: command `vendor_example_compilation` reported blocked evidence
+- `real-device-trace-replay`: command `real_device_trace_replay` reported blocked evidence
 - `canon-edsdk-native-camera`: Canon EDSDK requires developer access and native driver implementation.
 - `nikon-native-camera`: Nikon SDK requires developer approval and native driver implementation.
 - `ascom-conformu-certification`: ConformU must be installed and run against ASCOM/Alpaca simulators.; required tool `ConformU` was not found

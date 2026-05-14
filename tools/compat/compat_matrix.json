@@ -259,6 +259,78 @@
       ]
     },
     {
+      "id": "fli-fake-sdk-contract",
+      "manufacturer": "Finger Lakes Instrumentation",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "fli-shim-discovery", "device": "Camera,Focuser,FilterWheel", "function": "Discover camera, focuser, and filter wheel through fake libfli", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "fli-shim-camera-flow", "device": "Camera", "function": "Connect, set cooler/binning, expose, poll ready, and download rows", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "fli-shim-focuser-flow", "device": "Focuser", "function": "Connect, move relative, read position, and detect idle state", "capability": "move_focuser", "symbols": [], "physical": false },
+        { "id": "fli-shim-filterwheel-flow", "device": "FilterWheel", "function": "Connect, set/read filter position, and enumerate slots", "capability": "set_filter", "symbols": [], "physical": false },
+        { "id": "fli-shim-edge-errors", "device": "Camera", "function": "Propagate row-grab image transfer failure", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "fli_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_fli_fake_sdk_shim_exercises_camera_focuser_and_filterwheel_flows", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
+      "id": "touptek-fake-sdk-contract",
+      "manufacturer": "ToupTek/OGMA/Altair",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "touptek-shim-white-label-discovery", "device": "Camera", "function": "Discover OGMA white-label models through fake ToupTek SDK", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "touptek-shim-camera-controls", "device": "Camera", "function": "Connect and read/write gain, cooler, binning, ROI, and raw options", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "touptek-shim-camera-download", "device": "Camera", "function": "Start exposure and pull 16-bit image through production driver", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "touptek-shim-model-variants", "device": "Camera", "function": "Verify cooled color and uncooled mono capability mapping", "capability": "model_capabilities", "symbols": [], "physical": false },
+        { "id": "touptek-shim-edge-errors", "device": "Camera", "function": "Propagate image pull failure and reject unsupported cooler", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "touptek_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_touptek_fake_sdk_shim_exercises_white_label_model_flows", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
+      "id": "moravian-fake-sdk-contract",
+      "manufacturer": "Moravian",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "moravian-shim-multi-model-discovery", "device": "Camera", "function": "Discover cooled mono and uncooled color models through fake gXusb", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "moravian-shim-camera-controls", "device": "Camera", "function": "Connect and read/write gain, binning, cooler, shutter, readout, and subframe capabilities", "capability": "controls", "symbols": [], "physical": false },
+        { "id": "moravian-shim-camera-download", "device": "Camera", "function": "Expose and retrieve 16-bit image through production driver", "capability": "download_image", "symbols": [], "physical": false },
+        { "id": "moravian-shim-model-variants", "device": "Camera", "function": "Verify cooled mono and uncooled color capability mapping", "capability": "model_capabilities", "symbols": [], "physical": false },
+        { "id": "moravian-shim-edge-errors", "device": "Camera", "function": "Propagate BeginExposure failure and reject unsupported cooler", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "moravian_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_moravian_fake_sdk_shim_exercises_camera_model_and_edge_flows", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
+      "id": "fujifilm-fake-sdk-contract",
+      "manufacturer": "Fujifilm",
+      "device_type": "Camera",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Production driver + fake SDK shim",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "fujifilm-shim-discovery", "device": "Camera", "function": "Discover GFX and X-series cameras through fake XAPI", "capability": "enumerate", "symbols": [], "physical": false },
+        { "id": "fujifilm-shim-session", "device": "Camera", "function": "Open session, set priority, read device info, and close session", "capability": "connect", "symbols": [], "physical": false },
+        { "id": "fujifilm-shim-release", "device": "Camera", "function": "Set ISO/shutter and trigger release through production driver", "capability": "release", "symbols": [], "physical": false },
+        { "id": "fujifilm-shim-capabilities", "device": "Camera", "function": "Verify DSLR/mirrorless capability boundaries such as no cooler/binning", "capability": "model_capabilities", "symbols": [], "physical": false },
+        { "id": "fujifilm-shim-edge-errors", "device": "Camera", "function": "Propagate release busy/SDK error through XSDK_GetErrorNumber", "capability": "error_handling", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "fujifilm_fake_sdk_contract", "cwd": "native/nightshade_native", "program": "cargo", "args": ["test", "-p", "nightshade_native", "--test", "native_driver_tests", "test_fujifilm_fake_sdk_shim_exercises_session_release_and_model_flows", "--", "--ignored", "--nocapture"] }
+      ]
+    },
+    {
       "id": "native-sdk-abi-header-contracts",
       "manufacturer": "Multiple",
       "device_type": "Camera,Focuser,FilterWheel",
@@ -278,6 +350,48 @@
       ],
       "commands": [
         { "name": "native_sdk_abi_header_contracts", "program": "powershell", "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/compat/sdk_abi_contracts.ps1", "-Out", "reports/compat/abi-contracts"] }
+      ]
+    },
+    {
+      "id": "native-sdk-compiled-abi-probes",
+      "manufacturer": "Multiple",
+      "device_type": "Camera,Focuser,FilterWheel",
+      "driver_type": "Native SDK",
+      "confidence_tier": "SDK header compiled ABI probes",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "compiled-abi-probe-harness", "device": "All", "function": "Compile small C probes against acquired vendor headers where headers and compiler are available", "capability": "abi_contract", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "native_sdk_compiled_abi_probes", "program": "powershell", "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/compat/sdk_abi_compile_probes.ps1", "-Out", "reports/compat/abi-compile-probes"] }
+      ]
+    },
+    {
+      "id": "vendor-example-compilation",
+      "manufacturer": "Multiple",
+      "device_type": "Camera,Focuser,FilterWheel,Mount",
+      "driver_type": "Native SDK",
+      "confidence_tier": "Vendor example build probes",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "vendor-example-build-harness", "device": "All", "function": "Discover and compile vendor SDK example projects where packages include examples", "capability": "sdk_package_integrity", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "vendor_example_compilation", "program": "powershell", "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/compat/vendor_examples.ps1", "-Out", "reports/compat/vendor-examples"] }
+      ]
+    },
+    {
+      "id": "real-device-trace-replay",
+      "manufacturer": "Community/Test Lab",
+      "device_type": "All",
+      "driver_type": "Native SDK,ASCOM,Alpaca,INDI,Serial",
+      "confidence_tier": "Captured real-device record/replay",
+      "platforms": ["windows"],
+      "function_checks": [
+        { "id": "trace-schema-validation", "device": "All", "function": "Validate captured SDK/API traces for replay readiness", "capability": "record_replay", "symbols": [], "physical": false }
+      ],
+      "commands": [
+        { "name": "real_device_trace_replay", "program": "powershell", "args": ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools/compat/trace_replay.ps1", "-TraceDir", "tools/compat/traces", "-Out", "reports/compat/trace-replay"] }
       ]
     },
     {

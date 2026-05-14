@@ -77,6 +77,7 @@ type SetTemperature = unsafe extern "C" fn(camera: PCCamera, temp: Real) -> Bool
 type SetBinning = unsafe extern "C" fn(camera: PCCamera, x: Cardinal, y: Cardinal) -> Boolean;
 type SetGain = unsafe extern "C" fn(camera: PCCamera, gain: Cardinal) -> Boolean;
 type SetReadMode = unsafe extern "C" fn(camera: PCCamera, mode: Cardinal) -> Boolean;
+type SetFilter = unsafe extern "C" fn(camera: PCCamera, filter: Cardinal) -> Boolean;
 type EnumerateReadModes = unsafe extern "C" fn(
     camera: PCCamera,
     index: Cardinal,
@@ -124,6 +125,8 @@ struct MoravianSdk {
     set_binning: SetBinning,
     set_gain: SetGain,
     set_read_mode: SetReadMode,
+    #[allow(dead_code)]
+    set_filter: Option<SetFilter>,
     enumerate_read_modes: EnumerateReadModes,
     clear_sensor: ClearSensor,
     open: Open_,
@@ -180,6 +183,10 @@ impl MoravianSdk {
                 set_read_mode: *library
                     .get::<SetReadMode>(b"SetReadMode\0")
                     .map_err(|e| format!("Failed to get SetReadMode: {}", e))?,
+                set_filter: library
+                    .get::<SetFilter>(b"SetFilter\0")
+                    .ok()
+                    .map(|sym| *sym),
                 enumerate_read_modes: *library
                     .get::<EnumerateReadModes>(b"EnumerateReadModes\0")
                     .map_err(|e| {

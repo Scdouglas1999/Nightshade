@@ -101,6 +101,7 @@ type ArtemisDevicePresent = unsafe extern "C" fn(device: c_int) -> c_int;
 type ArtemisDeviceName = unsafe extern "C" fn(device: c_int, name: *mut c_char) -> c_int;
 type ArtemisDeviceSerial = unsafe extern "C" fn(device: c_int, serial: *mut c_char) -> c_int;
 type ArtemisDeviceIsCamera = unsafe extern "C" fn(device: c_int) -> c_int;
+type ArtemisDeviceHasFilterWheel = unsafe extern "C" fn(device: c_int) -> c_int;
 type ArtemisConnect = unsafe extern "C" fn(device: c_int) -> ArtemisHandle;
 type ArtemisDisconnect = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisIsConnected = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
@@ -169,6 +170,8 @@ struct AtikSdk {
     device_name: ArtemisDeviceName,
     device_serial: ArtemisDeviceSerial,
     device_is_camera: ArtemisDeviceIsCamera,
+    #[allow(dead_code)]
+    device_has_filter_wheel: Option<ArtemisDeviceHasFilterWheel>,
     connect: ArtemisConnect,
     disconnect: ArtemisDisconnect,
     is_connected: ArtemisIsConnected,
@@ -238,6 +241,10 @@ impl AtikSdk {
                             e
                         ))
                     })?,
+                device_has_filter_wheel: library
+                    .get::<ArtemisDeviceHasFilterWheel>(b"ArtemisDeviceHasFilterWheel\0")
+                    .ok()
+                    .map(|sym| *sym),
                 connect: *library
                     .get::<ArtemisConnect>(b"ArtemisConnect\0")
                     .map_err(|e| {
