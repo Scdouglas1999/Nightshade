@@ -494,9 +494,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               ),
             );
 
-        if (!result.success || result.ra == null || result.dec == null) {
+        if (!result.success) {
           setState(() => _status =
-              'Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
+              'Plate solve failed: ${result.error ?? "Unknown error"}');
           return;
         }
 
@@ -504,9 +504,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         // RA is in hours, Dec is in degrees. Convert both to arcsec for display.
         // 1 hour RA = 15 degrees = 54000 arcsec
         final raErrorArcsec =
-            (result.ra! - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
+            (result.ra - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
         final decErrorArcsec =
-            (result.dec! - widget.targetDec) * 3600.0; // degrees to arcsec
+            (result.dec - widget.targetDec) * 3600.0; // degrees to arcsec
         final totalErrorArcsec = math.sqrt(
             raErrorArcsec * raErrorArcsec + decErrorArcsec * decErrorArcsec);
 

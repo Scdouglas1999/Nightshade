@@ -1332,26 +1332,17 @@ class FfiBackend implements NightshadeBackend {
     double? dec,
     double? fovDegrees,
   }) async {
-    final bridgeResult = ra != null && dec != null
-        ? await bridge.NativeBridge.plateSolveNear(
+    // `bridge.NativeBridge.plateSolve*` already returns the FRB-canonical
+    // `PlateSolveResult` (see `bridge_stub.dart` typedef), so no conversion
+    // is needed since the model-layer copy was removed.
+    return ra != null && dec != null
+        ? bridge.NativeBridge.plateSolveNear(
             imagePath,
             ra,
             dec,
             fovDegrees ?? 30.0,
           )
-        : await bridge.NativeBridge.plateSolveBlind(imagePath);
-
-    return PlateSolveResult(
-      success: bridgeResult.success,
-      ra: bridgeResult.ra,
-      dec: bridgeResult.dec,
-      pixelScale: bridgeResult.pixelScale,
-      rotation: bridgeResult.rotation,
-      fieldWidth: bridgeResult.fieldWidth,
-      fieldHeight: bridgeResult.fieldHeight,
-      solveTimeSecs: bridgeResult.solveTimeSecs,
-      error: bridgeResult.error,
-    );
+        : bridge.NativeBridge.plateSolveBlind(imagePath);
   }
 
   // =========================================================================

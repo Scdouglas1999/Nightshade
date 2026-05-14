@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/src/api/plate_solve.dart'
+    show PlateSolveResult;
 import 'plate_solve_service.dart';
 import 'imaging_service.dart';
 import 'device_service.dart';
@@ -415,13 +417,11 @@ class CenteringService {
         );
       }
 
-      if (!solveResult.success ||
-          solveResult.ra == null ||
-          solveResult.dec == null) {
+      if (!solveResult.success) {
         final iter = CenteringIteration(
           iterationNumber: iteration,
           plateSolveSuccess: false,
-          errorMessage: solveResult.errorMessage ?? 'Plate solve failed',
+          errorMessage: solveResult.error ?? 'Plate solve failed',
           timestamp: DateTime.now(),
         );
         iterations.add(iter);
@@ -445,15 +445,15 @@ class CenteringService {
 
         return CenteringResult.failure(
           errorMessage:
-              'Plate solve failed after $iteration attempts: ${solveResult.errorMessage}',
+              'Plate solve failed after $iteration attempts: ${solveResult.error}',
           iterations: iteration,
           iterationHistory: iterations,
         );
       }
 
       // Step 3: Calculate offset from target
-      final solvedRa = solveResult.ra!;
-      final solvedDec = solveResult.dec!;
+      final solvedRa = solveResult.ra;
+      final solvedDec = solveResult.dec;
       final offset = _calculateOffset(
         targetRa,
         targetDec,
@@ -658,19 +658,17 @@ class CenteringService {
       solverConfig,
     );
 
-    if (!solveResult.success ||
-        solveResult.ra == null ||
-        solveResult.dec == null) {
+    if (!solveResult.success) {
       final iter = CenteringIteration(
         iterationNumber: 1,
         plateSolveSuccess: false,
-        errorMessage: solveResult.errorMessage ?? 'Plate solve failed',
+        errorMessage: solveResult.error ?? 'Plate solve failed',
         timestamp: DateTime.now(),
       );
       iterations.add(iter);
 
       return CenteringResult.failure(
-        errorMessage: 'Plate solve failed: ${solveResult.errorMessage}',
+        errorMessage: 'Plate solve failed: ${solveResult.error}',
         iterations: 1,
         iterationHistory: iterations,
       );
@@ -680,8 +678,8 @@ class CenteringService {
     final offset = _calculateOffset(
       targetRa,
       targetDec,
-      solveResult.ra!,
-      solveResult.dec!,
+      solveResult.ra,
+      solveResult.dec,
     );
 
     final iter = CenteringIteration(

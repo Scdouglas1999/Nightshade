@@ -767,15 +767,15 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
       if (!mounted) return;
 
       if (result.success) {
-        final raText = result.ra?.toStringAsFixed(4) ?? '?';
-        final decText = result.dec?.toStringAsFixed(4) ?? '?';
-        final rotText = result.rotation?.toStringAsFixed(1) ?? '?';
+        final raText = result.ra.toStringAsFixed(4);
+        final decText = result.dec.toStringAsFixed(4);
+        final rotText = result.rotation.toStringAsFixed(1);
         context.showSuccessSnackBar(
           'Solved: RA ${raText}h, Dec $decText°, Rotation $rotText°',
         );
       } else {
         context.showErrorSnackBar(
-            'Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
+            'Plate solve failed: ${result.error ?? "Unknown error"}');
       }
     } catch (e) {
       if (mounted) {

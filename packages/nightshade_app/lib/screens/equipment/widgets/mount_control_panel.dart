@@ -416,18 +416,13 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                 );
 
       if (!result.success) {
-        throw Exception('Plate solving failed: ${result.errorMessage}');
-      }
-
-      if (result.ra == null || result.dec == null) {
-        throw Exception(
-            'Plate solving succeeded but returned null coordinates');
+        throw Exception('Plate solving failed: ${result.error}');
       }
 
       // 3. Sync Mount and show typed feedback in UI layer.
       final syncResult = await ref
           .read(mountCommandServiceProvider)
-          .sync(result.ra!, result.dec!);
+          .sync(result.ra, result.dec);
       if (mounted) {
         context.showCommandActionResult(syncResult);
       }

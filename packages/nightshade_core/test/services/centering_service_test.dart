@@ -5,9 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// Import plate_solve_service directly to get its PlateSolveResult type
-import 'package:nightshade_core/src/services/plate_solve_service.dart'
-    as plate_solve;
 
 import 'centering_service_test.mocks.dart';
 
@@ -64,8 +61,8 @@ void main() {
         const targetDec = 45.0; // degrees
         const toleranceArcsec = 30.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -91,7 +88,7 @@ void main() {
         );
 
         // Plate solve returns coordinates very close to target (within tolerance)
-        final solveResult = plate_solve.PlateSolveResult(
+        final solveResult = PlateSolveResult(
           success: true,
           ra: targetRa, // Same as target
           dec: targetDec, // Same as target
@@ -99,6 +96,7 @@ void main() {
           pixelScale: 1.0,
           fieldWidth: 2.0,
           fieldHeight: 1.5,
+          solveTimeSecs: 0.0,
         );
 
         when(mockImagingService.captureImage(
@@ -135,8 +133,8 @@ void main() {
         const targetDec = 45.0; // degrees
         const toleranceArcsec = 30.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -173,7 +171,7 @@ void main() {
           iterationCount++;
           if (iterationCount == 1) {
             // First solve: 2 arcmin (120 arcsec) off in RA
-            return plate_solve.PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa +
                   (120.0 / 3600.0 / 15.0), // 120 arcsec converted to hours
@@ -182,10 +180,11 @@ void main() {
               pixelScale: 1.0,
               fieldWidth: 2.0,
               fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
             );
           } else {
             // Second solve: within tolerance
-            return plate_solve.PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa,
               dec: targetDec,
@@ -193,6 +192,7 @@ void main() {
               pixelScale: 1.0,
               fieldWidth: 2.0,
               fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
             );
           }
         });
@@ -227,8 +227,8 @@ void main() {
         const toleranceArcsec = 30.0;
         const maxIterations = 3;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -260,7 +260,7 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return plate_solve.PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa + (300.0 / 3600.0 / 15.0), // 300 arcsec (5 arcmin) off
             dec: targetDec,
@@ -268,6 +268,7 @@ void main() {
             pixelScale: 1.0,
             fieldWidth: 2.0,
             fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
           );
         });
 
@@ -310,8 +311,8 @@ void main() {
           ],
         );
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -333,8 +334,8 @@ void main() {
 
       test('fails with an overall timeout instead of hanging indefinitely',
           () async {
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -373,8 +374,8 @@ void main() {
           ],
         );
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -396,8 +397,8 @@ void main() {
 
       test('fails when plate solve fails', () async {
         // Arrange
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -422,7 +423,17 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return plate_solve.PlateSolveResult.failed('No stars found in image');
+          return const PlateSolveResult(
+            success: false,
+            ra: 0,
+            dec: 0,
+            pixelScale: 0,
+            rotation: 0,
+            fieldWidth: 0,
+            fieldHeight: 0,
+            solveTimeSecs: 0,
+            error: 'No stars found in image',
+          );
         });
 
         // Act
@@ -445,8 +456,8 @@ void main() {
         const targetRa = 10.0;
         const targetDec = 45.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -476,7 +487,7 @@ void main() {
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
-            return plate_solve.PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa + (120.0 / 3600.0 / 15.0),
               dec: targetDec,
@@ -484,9 +495,10 @@ void main() {
               pixelScale: 1.0,
               fieldWidth: 2.0,
               fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
             );
           } else {
-            return plate_solve.PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa,
               dec: targetDec,
@@ -494,6 +506,7 @@ void main() {
               pixelScale: 1.0,
               fieldWidth: 2.0,
               fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
             );
           }
         });
@@ -544,8 +557,8 @@ void main() {
         const targetDec = 45.0;
         const toleranceArcsec = 30.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -570,7 +583,7 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return plate_solve.PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa,
             dec: targetDec,
@@ -578,6 +591,7 @@ void main() {
             pixelScale: 1.0,
             fieldWidth: 2.0,
             fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
           );
         });
 
@@ -605,8 +619,8 @@ void main() {
         const targetDec = 45.0;
         const toleranceArcsec = 30.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -631,7 +645,7 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return plate_solve.PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa + (300.0 / 3600.0 / 15.0), // 5 arcmin off
             dec: targetDec,
@@ -639,6 +653,7 @@ void main() {
             pixelScale: 1.0,
             fieldWidth: 2.0,
             fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
           );
         });
 
@@ -664,8 +679,8 @@ void main() {
         const mountRa = 10.0;
         const mountDec = 45.0;
 
-        final solverConfig = plate_solve.PlateSolverConfig(
-          type: plate_solve.PlateSolverType.astap,
+        final solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -690,7 +705,7 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return plate_solve.PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: mountRa,
             dec: mountDec,
@@ -698,6 +713,7 @@ void main() {
             pixelScale: 1.0,
             fieldWidth: 2.0,
             fieldHeight: 1.5,
+            solveTimeSecs: 0.0,
           );
         });
 

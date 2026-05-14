@@ -4,7 +4,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
-import '../backend/nightshade_backend.dart' as backend_types;
+import 'package:nightshade_bridge/src/api/plate_solve.dart'
+    show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
 import 'logging_service.dart';
@@ -18,47 +19,6 @@ class SolverNotAvailableError implements Exception {
 
   @override
   String toString() => 'SolverNotAvailableError: $message';
-}
-
-/// Plate solve result
-class PlateSolveResult {
-  final bool success;
-  final double? ra; // hours
-  final double? dec; // degrees
-  final double? rotation; // degrees
-  final double? pixelScale; // arcsec/pixel
-  final double? fieldWidth; // degrees
-  final double? fieldHeight; // degrees
-  final String? errorMessage;
-
-  const PlateSolveResult({
-    required this.success,
-    this.ra,
-    this.dec,
-    this.rotation,
-    this.pixelScale,
-    this.fieldWidth,
-    this.fieldHeight,
-    this.errorMessage,
-  });
-
-  factory PlateSolveResult.failed(String message) {
-    return PlateSolveResult(success: false, errorMessage: message);
-  }
-
-  /// Convert from backend PlateSolveResult
-  factory PlateSolveResult.fromBackend(backend_types.PlateSolveResult result) {
-    return PlateSolveResult(
-      success: result.success,
-      ra: result.ra,
-      dec: result.dec,
-      rotation: result.rotation,
-      pixelScale: result.pixelScale,
-      fieldWidth: result.fieldWidth,
-      fieldHeight: result.fieldHeight,
-      errorMessage: result.error,
-    );
-  }
 }
 
 /// Plate solver type
@@ -103,23 +63,29 @@ class PlateSolveService {
     try {
       // Use backend's plateSolve - works for both local (FFI) and remote (Network)
       final backend = _ref.read(backendProvider);
-      final result = await backend.plateSolve(
+      return await backend.plateSolve(
         imagePath: imagePath,
         ra: config.hintRa,
         dec: config.hintDec,
         fovDegrees: config.searchRadius,
       );
-      return PlateSolveResult.fromBackend(result);
     } catch (e) {
       final fallbackResult = await _solveLocally(imagePath, config);
       if (fallbackResult.success) {
         return fallbackResult;
       }
 
-      return PlateSolveResult.failed(
-        'Backend solve failed: $e. '
-        'Local fallback failed: '
-        '${fallbackResult.errorMessage ?? 'unknown error'}',
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Backend solve failed: $e. Local fallback failed: '
+            '${fallbackResult.error ?? 'unknown error'}',
       );
     }
   }
@@ -166,8 +132,16 @@ class PlateSolveService {
       ).timeout(Duration(seconds: config.timeoutSeconds));
 
       if (result.exitCode != 0) {
-        return PlateSolveResult.failed(
-          'ASTAP failed: ${result.stderr}',
+        return PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'ASTAP failed: ${result.stderr}',
         );
       }
 
@@ -177,11 +151,41 @@ class PlateSolveService {
         return _parseWcsFile(wcsPath);
       }
 
-      return PlateSolveResult.failed('No WCS file created');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'No WCS file created',
+      );
     } on TimeoutException {
-      return PlateSolveResult.failed('Plate solve timed out');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Plate solve timed out',
+      );
     } catch (e) {
-      return PlateSolveResult.failed('Error: $e');
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Error: $e',
+      );
     }
   }
 
@@ -216,8 +220,16 @@ class PlateSolveService {
       ).timeout(Duration(seconds: config.timeoutSeconds));
 
       if (result.exitCode != 0) {
-        return PlateSolveResult.failed(
-          'Astrometry.net failed: ${result.stderr}',
+        return PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'Astrometry.net failed: ${result.stderr}',
         );
       }
 
@@ -225,9 +237,29 @@ class PlateSolveService {
       final output = result.stdout.toString();
       return _parseAstrometryOutput(output);
     } on TimeoutException {
-      return PlateSolveResult.failed('Plate solve timed out');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Plate solve timed out',
+      );
     } catch (e) {
-      return PlateSolveResult.failed('Error: $e');
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Error: $e',
+      );
     }
   }
 
@@ -262,11 +294,41 @@ class PlateSolveService {
         return _parsePlateSolve2Output(outputPath);
       }
 
-      return PlateSolveResult.failed('No solution found');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'No solution found',
+      );
     } on TimeoutException {
-      return PlateSolveResult.failed('Plate solve timed out');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Plate solve timed out',
+      );
     } catch (e) {
-      return PlateSolveResult.failed('Error: $e');
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Error: $e',
+      );
     }
   }
 
@@ -296,14 +358,37 @@ class PlateSolveService {
           success: true,
           ra: crval1 / 15, // Convert degrees to hours
           dec: crval2,
-          rotation: crota2,
-          pixelScale: cdelt1 != null ? cdelt1.abs() * 3600 : null,
+          rotation: crota2 ?? 0,
+          pixelScale: cdelt1 != null ? cdelt1.abs() * 3600 : 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
         );
       }
 
-      return PlateSolveResult.failed('Could not parse WCS file');
+      return const PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Could not parse WCS file',
+      );
     } catch (e) {
-      return PlateSolveResult.failed('Error parsing WCS: $e');
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Error parsing WCS: $e',
+      );
     }
   }
 
@@ -328,11 +413,26 @@ class PlateSolveService {
           success: true,
           ra: ra / 15, // Convert degrees to hours
           dec: dec,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
         );
       }
     }
 
-    return PlateSolveResult.failed('Could not parse solution');
+    return const PlateSolveResult(
+      success: false,
+      ra: 0,
+      dec: 0,
+      pixelScale: 0,
+      rotation: 0,
+      fieldWidth: 0,
+      fieldHeight: 0,
+      solveTimeSecs: 0,
+      error: 'Could not parse solution',
+    );
   }
 
   /// Probe disk for installed solvers + ASTAP catalog. Returns a snapshot
@@ -433,8 +533,16 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstap() async {
       if (detection.astapPath == null) {
-        return PlateSolveResult.failed(
-          'ASTAP not installed at any known location.',
+        return const PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'ASTAP not installed at any known location.',
         );
       }
       final config = PlateSolverConfig(
@@ -451,8 +559,16 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstrometry() async {
       if (detection.astrometryPath == null) {
-        return PlateSolveResult.failed(
-          'Astrometry.net (solve-field) not installed.',
+        return const PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'Astrometry.net (solve-field) not installed.',
         );
       }
       final config = PlateSolverConfig(
@@ -495,7 +611,7 @@ class PlateSolveService {
           if (astapResult.success) return astapResult;
           if (detection.astrometryPath != null) {
             logging.warning(
-              'ASTAP failed (${astapResult.errorMessage}); falling back '
+              'ASTAP failed (${astapResult.error}); falling back '
               'to astrometry.net',
               source: 'PlateSolveService',
             );
@@ -513,16 +629,32 @@ class PlateSolveService {
       final lines = content.split('\n');
 
       if (lines.isEmpty) {
-        return PlateSolveResult.failed(
-          'Plate solver output file is empty',
+        return const PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'Plate solver output file is empty',
         );
       }
 
       final parts = lines[0].split(',');
       if (parts.length < 2) {
-        return PlateSolveResult.failed(
-          'Plate solver output has unexpected format: expected "RA,Dec" '
-          'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
+        return PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'Plate solver output has unexpected format: expected "RA,Dec" '
+              'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
         );
       }
 
@@ -530,9 +662,17 @@ class PlateSolveService {
       final dec = double.tryParse(parts[1]);
 
       if (ra == null || dec == null) {
-        return PlateSolveResult.failed(
-          'Plate solver output contains non-numeric coordinates: '
-          'RA="${parts[0]}", Dec="${parts[1]}"',
+        return PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'Plate solver output contains non-numeric coordinates: '
+              'RA="${parts[0]}", Dec="${parts[1]}"',
         );
       }
 
@@ -540,9 +680,24 @@ class PlateSolveService {
         success: true,
         ra: ra / 15,
         dec: dec,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
       );
     } catch (e) {
-      return PlateSolveResult.failed('Error parsing output: $e');
+      return PlateSolveResult(
+        success: false,
+        ra: 0,
+        dec: 0,
+        pixelScale: 0,
+        rotation: 0,
+        fieldWidth: 0,
+        fieldHeight: 0,
+        solveTimeSecs: 0,
+        error: 'Error parsing output: $e',
+      );
     }
   }
 }

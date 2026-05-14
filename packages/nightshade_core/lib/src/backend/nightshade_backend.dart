@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:nightshade_bridge/src/api/plate_solve.dart'
+    show PlateSolveResult;
 import '../models/autofocus_progress.dart' show StarCrop;
 import '../models/imaging/imaging_models.dart' show FrameType, ImageStats, CapturedImage;
 import '../models/equipment_profile.dart';
@@ -12,6 +14,10 @@ import '../models/backend/backend_types.dart';
 
 // Re-export backend types for backward compatibility
 export '../models/backend/backend_types.dart';
+// Re-export the FRB-canonical PlateSolveResult so callers can keep importing
+// just `nightshade_backend.dart` after the model-layer copy was deleted.
+export 'package:nightshade_bridge/src/api/plate_solve.dart'
+    show PlateSolveResult;
 
 /// Abstract backend interface for device control
 ///

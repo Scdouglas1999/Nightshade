@@ -531,8 +531,8 @@ void main() {
       );
 
       expect(result.success, isFalse);
-      expect(result.errorMessage, contains('backend failed'));
-      expect(result.errorMessage, contains('Local fallback failed'));
+      expect(result.error, contains('backend failed'));
+      expect(result.error, contains('Local fallback failed'));
     });
 
     test('dark library deduplicates entries by file path', () async {

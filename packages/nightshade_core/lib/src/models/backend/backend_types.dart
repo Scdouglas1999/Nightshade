@@ -16,7 +16,9 @@ export 'fits_header.dart';
 export 'image_result.dart';
 export 'platform_capabilities.dart';
 export 'phd2_status.dart';
-export 'plate_solve_result.dart';
+// PlateSolveResult comes from the FRB-canonical type
+// (`package:nightshade_bridge/src/api/plate_solve.dart`); re-exported through
+// `nightshade_core.dart`'s `nightshade_bridge` re-export.
 export 'remote_api_compatibility.dart';
 export 'sequencer_status.dart';
 export '../errors/nightshade_error.dart';
