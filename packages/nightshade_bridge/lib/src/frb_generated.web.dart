@@ -10,8 +10,10 @@
 // ignore_for_file: experiment_not_enabled, undefined_class
 
 import 'api.dart';
-import 'api/alpaca_connections.dart';
-import 'api/ascom_connections.dart';
+import 'api/connection/alpaca_connections.dart';
+import 'api/connection/ascom_connections.dart';
+import 'api/imaging.dart';
+import 'api/sequencer.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'device.dart';

@@ -26,7 +26,7 @@ import 'package:xml/xml.dart' as xml;
 import 'alpaca_client.dart' as alpaca;
 import 'ascom_client.dart' as ascom;
 import 'phd2_client.dart' as phd2;
-import 'api.dart' as gen_api;
+import 'api_barrel.dart' as gen_api;
 import 'device.dart' as gen_device;
 import 'event.dart' as gen_event;
 import 'state.dart' as gen_state;

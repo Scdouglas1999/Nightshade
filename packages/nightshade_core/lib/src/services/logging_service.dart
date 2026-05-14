@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
+import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 
 /// Log level for filtering
 enum LogLevel {

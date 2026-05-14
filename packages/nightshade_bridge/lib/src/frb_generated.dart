@@ -4,8 +4,30 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api.dart';
-import 'api/alpaca_connections.dart';
-import 'api/ascom_connections.dart';
+import 'api/api_version.dart';
+import 'api/connection.dart';
+import 'api/connection/alpaca_connections.dart';
+import 'api/connection/ascom_connections.dart';
+import 'api/devices/camera.dart';
+import 'api/devices/cover_calibrator.dart';
+import 'api/devices/dome.dart';
+import 'api/devices/filter_wheel.dart';
+import 'api/devices/focuser.dart';
+import 'api/devices/mount.dart';
+import 'api/devices/simulation.dart';
+import 'api/devices/switch.dart';
+import 'api/diagnostics.dart';
+import 'api/discovery.dart';
+import 'api/event_stream.dart';
+import 'api/heartbeat.dart';
+import 'api/imaging.dart';
+import 'api/init.dart';
+import 'api/phd2.dart';
+import 'api/plate_solve.dart';
+import 'api/polar_alignment.dart';
+import 'api/sequencer.dart';
+import 'api/session.dart';
+import 'api/storage.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'device.dart';
@@ -76,7 +98,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1515018275;
+  int get rustContentHash => 916996093;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -87,22 +109,22 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<Uint8List> crateApiApiApplyStretch(
+  Future<Uint8List> crateApiImagingApiApplyStretch(
       {required String filePath, required StretchParamsApi params});
 
-  Uint8List crateApiApiAutoStretchImage(
+  Uint8List crateApiImagingApiAutoStretchImage(
       {required int width, required int height, required List<int> data});
 
-  String crateApiApiBuildSequence(
+  String crateApiSequencerApiBuildSequence(
       {required String id,
       required String name,
       String? description,
       required List<String> nodeJsons,
       String? rootNodeId});
 
-  Future<BuiltinGuiderConfig> crateApiApiBuiltinGuiderGetConfig();
+  Future<BuiltinGuiderConfig> crateApiPhd2ApiBuiltinGuiderGetConfig();
 
-  Future<void> crateApiApiBuiltinGuiderSetConfig(
+  Future<void> crateApiPhd2ApiBuiltinGuiderSetConfig(
       {required double exposureSecs,
       required int gain,
       required int offset,
@@ -112,28 +134,28 @@ abstract class RustLibApi extends BaseApi {
       required double minPulseMs,
       required double maxPulseMs});
 
-  double crateApiApiCalculateAltitude(
+  double crateApiSequencerApiCalculateAltitude(
       {required double raHours,
       required double decDegrees,
       required double latitude,
       required double longitude,
       required PlatformInt64 timeUnixMillis});
 
-  Future<StretchParamsApi> crateApiApiCalculateAutoStretch(
+  Future<StretchParamsApi> crateApiImagingApiCalculateAutoStretch(
       {required String filePath});
 
-  Future<double?> crateApiApiCalculateHfr({required String filePath});
+  Future<double?> crateApiImagingApiCalculateHfr({required String filePath});
 
-  Future<Float32List> crateApiApiCalculateHistogram(
+  Future<Float32List> crateApiImagingApiCalculateHistogram(
       {required String filePath, required int bins, required int logarithmic});
 
-  double crateApiApiCalculateMosaicArea(
+  double crateApiSequencerApiCalculateMosaicArea(
       {required double panelWidthArcmin,
       required double panelHeightArcmin,
       required int panelsHorizontal,
       required int panelsVertical});
 
-  List<MosaicPanelResult> crateApiApiCalculateMosaicPanels(
+  List<MosaicPanelResult> crateApiSequencerApiCalculateMosaicPanels(
       {required double centerRa,
       required double centerDec,
       required double panelWidthArcmin,
@@ -143,7 +165,7 @@ abstract class RustLibApi extends BaseApi {
       required int panelsHorizontal,
       required int panelsVertical});
 
-  Uint16List crateApiApiCalibrateImageData(
+  Uint16List crateApiImagingApiCalibrateImageData(
       {required int width,
       required int height,
       required List<int> lightData,
@@ -151,19 +173,20 @@ abstract class RustLibApi extends BaseApi {
       Uint16List? flatData,
       Uint16List? biasData});
 
-  Future<void> crateApiApiCalibrateImageFile(
+  Future<void> crateApiImagingApiCalibrateImageFile(
       {required String lightPath,
       String? darkPath,
       String? flatPath,
       String? biasPath,
       required String outputPath});
 
-  Future<void> crateApiApiCameraCancelExposure({required String deviceId});
+  Future<void> crateApiImagingApiCameraCancelExposure(
+      {required String deviceId});
 
-  Future<void> crateApiApiCameraSetReadoutMode(
+  Future<void> crateApiDevicesCameraApiCameraSetReadoutMode(
       {required String deviceId, required int modeIndex});
 
-  Future<void> crateApiApiCameraStartExposure(
+  Future<void> crateApiImagingApiCameraStartExposure(
       {required String deviceId,
       required double durationSecs,
       required int gain,
@@ -171,55 +194,60 @@ abstract class RustLibApi extends BaseApi {
       required int binX,
       required int binY});
 
-  Future<void> crateApiApiCancelAutofocus();
+  Future<void> crateApiImagingApiCancelAutofocus();
 
-  Future<void> crateApiApiClearDeviceImage({required String deviceId});
+  Future<void> crateApiImagingApiClearDeviceImage({required String deviceId});
 
-  Future<QualityMapsResultApi> crateApiApiComputeFitsQualityMaps(
+  Future<QualityMapsResultApi> crateApiImagingApiComputeFitsQualityMaps(
       {required String filePath,
       required int gridRows,
       required int gridCols,
       required int lowClipAdu,
       required int highClipAdu});
 
-  Future<QualityMapsResultApi> crateApiApiComputeLastCaptureQualityMaps(
+  Future<QualityMapsResultApi> crateApiImagingApiComputeLastCaptureQualityMaps(
       {required String deviceId,
       required int gridRows,
       required int gridCols,
       required int lowClipAdu,
       required int highClipAdu});
 
-  Future<void> crateApiApiConnectDevice(
+  Future<void> crateApiConnectionApiConnectDevice(
       {required DeviceType deviceType, required String deviceId});
 
-  Future<void> crateApiApiCoverCalibratorCalibratorOff(
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOff(
       {required String deviceId});
 
-  Future<void> crateApiApiCoverCalibratorCalibratorOn(
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOn(
       {required String deviceId, required int brightness});
 
-  Future<void> crateApiApiCoverCalibratorCloseCover({required String deviceId});
-
-  Future<int> crateApiApiCoverCalibratorGetBrightness(
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCloseCover(
       {required String deviceId});
 
-  Future<int> crateApiApiCoverCalibratorGetCalibratorState(
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightness(
       {required String deviceId});
 
-  Future<int> crateApiApiCoverCalibratorGetCoverState(
+  Future<int>
+      crateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorState(
+          {required String deviceId});
+
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverState(
       {required String deviceId});
 
-  Future<int> crateApiApiCoverCalibratorGetMaxBrightness(
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightness(
       {required String deviceId});
 
-  Future<CoverCalibratorStatus> crateApiApiCoverCalibratorGetStatus(
+  Future<CoverCalibratorStatus>
+      crateApiDevicesCoverCalibratorApiCoverCalibratorGetStatus(
+          {required String deviceId});
+
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorHaltCover(
       {required String deviceId});
 
-  Future<void> crateApiApiCoverCalibratorHaltCover({required String deviceId});
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorOpenCover(
+      {required String deviceId});
 
-  Future<void> crateApiApiCoverCalibratorOpenCover({required String deviceId});
-
-  String crateApiApiCreateAutofocusNode(
+  String crateApiSequencerApiCreateAutofocusNode(
       {required String id,
       required String name,
       required int stepSize,
@@ -227,7 +255,7 @@ abstract class RustLibApi extends BaseApi {
       required double exposureDuration,
       required String method});
 
-  String crateApiApiCreateCenterNode(
+  String crateApiSequencerApiCreateCenterNode(
       {required String id,
       required String name,
       required int useTargetCoords,
@@ -235,16 +263,16 @@ abstract class RustLibApi extends BaseApi {
       required int maxAttempts,
       required double exposureDuration});
 
-  String crateApiApiCreateCoolCameraNode(
+  String crateApiSequencerApiCreateCoolCameraNode(
       {required String id,
       required String name,
       required double targetTemp,
       double? durationMins});
 
-  String crateApiApiCreateDelayNode(
+  String crateApiSequencerApiCreateDelayNode(
       {required String id, required String name, required double seconds});
 
-  String crateApiApiCreateDitherNode(
+  String crateApiSequencerApiCreateDitherNode(
       {required String id,
       required String name,
       required double pixels,
@@ -253,7 +281,7 @@ abstract class RustLibApi extends BaseApi {
       required double settleTimeout,
       required int raOnly});
 
-  String crateApiApiCreateExposureNode(
+  String crateApiSequencerApiCreateExposureNode(
       {required String id,
       required String name,
       required double durationSecs,
@@ -265,46 +293,47 @@ abstract class RustLibApi extends BaseApi {
       required int binning,
       int? ditherEvery});
 
-  String crateApiApiCreateFilterNode(
+  String crateApiSequencerApiCreateFilterNode(
       {required String id, required String name, required String filterName});
 
-  String crateApiApiCreateLoopNode(
+  String crateApiSequencerApiCreateLoopNode(
       {required String id,
       required String name,
       int? iterations,
       required String condition,
       required List<String> children});
 
-  String crateApiApiCreateNotificationNode(
+  String crateApiSequencerApiCreateNotificationNode(
       {required String id,
       required String name,
       required String title,
       required String message,
       required String level});
 
-  String crateApiApiCreateParkNode({required String id, required String name});
+  String crateApiSequencerApiCreateParkNode(
+      {required String id, required String name});
 
-  String crateApiApiCreateRotatorNode(
+  String crateApiSequencerApiCreateRotatorNode(
       {required String id,
       required String name,
       required double targetAngle,
       required int relative});
 
-  String crateApiApiCreateScriptNode(
+  String crateApiSequencerApiCreateScriptNode(
       {required String id,
       required String name,
       required String scriptPath,
       required List<String> arguments,
       int? timeoutSecs});
 
-  String crateApiApiCreateSlewNode(
+  String crateApiSequencerApiCreateSlewNode(
       {required String id,
       required String name,
       required int useTargetCoords,
       double? customRa,
       double? customDec});
 
-  String crateApiApiCreateTargetGroupNode(
+  String crateApiSequencerApiCreateTargetGroupNode(
       {required String id,
       required String name,
       required String targetName,
@@ -316,7 +345,7 @@ abstract class RustLibApi extends BaseApi {
       required int priority,
       required List<String> children});
 
-  String crateApiApiCreateTargetHeaderNode(
+  String crateApiSequencerApiCreateTargetHeaderNode(
       {required String id,
       required String name,
       required String targetName,
@@ -331,132 +360,137 @@ abstract class RustLibApi extends BaseApi {
       String? mosaicPanelJson,
       required List<String> children});
 
-  String crateApiApiCreateUnparkNode(
+  String crateApiSequencerApiCreateUnparkNode(
       {required String id, required String name});
 
-  String crateApiApiCreateWaitTimeNode(
+  String crateApiSequencerApiCreateWaitTimeNode(
       {required String id,
       required String name,
       PlatformInt64? waitUntil,
       String? twilightType});
 
-  String crateApiApiCreateWarmCameraNode(
+  String crateApiSequencerApiCreateWarmCameraNode(
       {required String id,
       required String name,
       required double ratePerMin,
       double? targetTemp});
 
-  Future<Uint8List> crateApiApiDebayerFitsFile(
+  Future<Uint8List> crateApiImagingApiDebayerFitsFile(
       {required String filePath,
       required BayerPatternApi pattern,
       required DebayerAlgorithmApi algorithm});
 
-  Uint8List crateApiApiDebayerImage(
+  Uint8List crateApiImagingApiDebayerImage(
       {required int width,
       required int height,
       required List<int> data,
       required String patternStr,
       required String algoStr});
 
-  Future<void> crateApiApiDefectMapApply(
+  Future<void> crateApiImagingApiDefectMapApply(
       {required String cameraId, required bool applyDuringCapture});
 
-  Future<ApiDefectMapStatus> crateApiApiDefectMapBuild(
+  Future<ApiDefectMapStatus> crateApiImagingApiDefectMapBuild(
       {required String cameraId,
       required List<String> darkFramePaths,
       required double sensorTemperatureCelsius});
 
-  Future<void> crateApiApiDefectMapClear(
+  Future<void> crateApiImagingApiDefectMapClear(
       {required String cameraId,
       required int width,
       required int height,
       required double sensorTemperatureCelsius});
 
-  Future<ApiDefectMapStatus?> crateApiApiDefectMapGetStatus(
+  Future<ApiDefectMapStatus?> crateApiImagingApiDefectMapGetStatus(
       {required String cameraId,
       required int width,
       required int height,
       required double sensorTemperatureCelsius});
 
-  void crateApiApiDeleteProfile({required String profileId});
+  void crateApiStorageApiDeleteProfile({required String profileId});
 
-  Future<StarDetectionResultApi> crateApiApiDetectStarsInFile(
+  Future<StarDetectionResultApi> crateApiImagingApiDetectStarsInFile(
       {required String filePath, StarDetectionConfigApi? config});
 
-  Future<bool> crateApiApiDeviceSupportsAction(
+  Future<bool> crateApiApiVersionApiDeviceSupportsAction(
       {required String deviceId, required String action});
 
-  Future<bool> crateApiApiDeviceSupportsVersion(
+  Future<bool> crateApiApiVersionApiDeviceSupportsVersion(
       {required String deviceId, required int requiredVersion});
 
-  Future<void> crateApiApiDisconnectDevice(
+  Future<void> crateApiConnectionApiDisconnectDevice(
       {required DeviceType deviceType, required String deviceId});
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverAlpacaAtAddress(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverAlpacaAtAddress(
       {required String host, required int port});
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverAlpacaDevices();
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverAlpacaDevices();
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverDevices(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverDevices(
       {required DeviceType deviceType});
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiAtAddress(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiAtAddress(
       {required String host, required int port});
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiCommonHosts();
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiCommonHosts();
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiLocalhost();
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiLocalhost();
 
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiNetwork();
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiNetwork();
 
-  Future<void> crateApiApiDomeCloseShutter({required String deviceId});
+  Future<void> crateApiDevicesDomeApiDomeCloseShutter(
+      {required String deviceId});
 
-  Future<double> crateApiApiDomeGetAzimuth({required String deviceId});
+  Future<double> crateApiDevicesDomeApiDomeGetAzimuth(
+      {required String deviceId});
 
-  Future<int> crateApiApiDomeGetShutterStatus({required String deviceId});
+  Future<int> crateApiDevicesDomeApiDomeGetShutterStatus(
+      {required String deviceId});
 
-  Future<bool> crateApiApiDomeIsSlewing({required String deviceId});
+  Future<bool> crateApiDevicesDomeApiDomeIsSlewing({required String deviceId});
 
-  Future<void> crateApiApiDomeOpenShutter({required String deviceId});
+  Future<void> crateApiDevicesDomeApiDomeOpenShutter(
+      {required String deviceId});
 
-  Future<void> crateApiApiDomePark({required String deviceId});
+  Future<void> crateApiDevicesDomeApiDomePark({required String deviceId});
 
-  Future<void> crateApiApiDomeSlewToAzimuth(
+  Future<void> crateApiDevicesDomeApiDomeSlewToAzimuth(
       {required String deviceId, required double azimuth});
 
-  Future<void> crateApiApiEndSession();
+  Future<void> crateApiSessionApiEndSession();
 
-  double crateApiApiEstimateMosaicTime(
+  double crateApiSequencerApiEstimateMosaicTime(
       {required int totalPanels,
       required double exposureSecs,
       required int exposuresPerPanel,
       required double overheadPerPanelSecs});
 
-  Stream<NightshadeEvent> crateApiApiEventStream();
+  Stream<NightshadeEvent> crateApiEventStreamApiEventStream();
 
-  Future<void> crateApiApiExportLogs({required String outputPath});
+  Future<void> crateApiInitApiExportLogs({required String outputPath});
 
-  Future<List<String>> crateApiApiFilterwheelGetNames(
+  Future<List<String>> crateApiDevicesSimulationApiFilterwheelGetNames(
       {required String deviceId});
 
-  Future<void> crateApiApiFilterwheelSetByName(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetByName(
       {required String deviceId, required String name});
 
-  Future<void> crateApiApiFilterwheelSetFilterNames(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetFilterNames(
       {required String deviceId, required List<String> names});
 
-  Future<void> crateApiApiFilterwheelSetPosition(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetPosition(
       {required String deviceId, required int position});
 
-  Future<void> crateApiApiFocuserHalt({required String deviceId});
+  Future<void> crateApiDevicesSimulationApiFocuserHalt(
+      {required String deviceId});
 
-  Future<void> crateApiApiFocuserMoveRelative(
+  Future<void> crateApiDevicesSimulationApiFocuserMoveRelative(
       {required String deviceId, required int delta});
 
-  Future<void> crateApiApiFocuserMoveTo(
+  Future<void> crateApiDevicesSimulationApiFocuserMoveTo(
       {required String deviceId, required int position});
 
-  Future<String> crateApiApiGenerateFilename(
+  Future<String> crateApiImagingApiGenerateFilename(
       {required String pattern,
       required String baseDir,
       String? target,
@@ -473,116 +507,128 @@ abstract class RustLibApi extends BaseApi {
       String? telescope,
       required String extension_});
 
-  Uint8List crateApiApiGenerateFitsThumbnail(
+  Uint8List crateApiImagingApiGenerateFitsThumbnail(
       {required String filePath, required int maxSize});
 
-  Future<EquipmentProfile?> crateApiApiGetActiveProfile();
+  Future<EquipmentProfile?> crateApiStorageApiGetActiveProfile();
 
-  Future<CameraCapabilities> crateApiApiGetCameraCapabilities(
+  Future<CameraCapabilities> crateApiDiagnosticsApiGetCameraCapabilities(
       {required String deviceId});
 
-  Future<CameraStatus> crateApiApiGetCameraStatus({required String deviceId});
-
-  Future<List<DeviceInfo>> crateApiApiGetConnectedDevices();
-
-  Future<CoverCalibratorCapabilities> crateApiApiGetCoverCalibratorCapabilities(
+  Future<CameraStatus> crateApiDevicesSimulationApiGetCameraStatus(
       {required String deviceId});
 
-  String? crateApiApiGetCurrentLogFile();
+  Future<List<DeviceInfo>> crateApiConnectionApiGetConnectedDevices();
 
-  Future<DeviceApiVersion> crateApiApiGetDeviceApiVersion(
+  Future<CoverCalibratorCapabilities>
+      crateApiDiagnosticsApiGetCoverCalibratorCapabilities(
+          {required String deviceId});
+
+  String? crateApiInitApiGetCurrentLogFile();
+
+  Future<DeviceApiVersion> crateApiApiVersionApiGetDeviceApiVersion(
       {required String deviceId});
 
-  Future<DeviceCapabilities> crateApiApiGetDeviceCapabilities(
+  Future<DeviceCapabilities> crateApiDiagnosticsApiGetDeviceCapabilities(
       {required String deviceId});
 
-  Future<String?> crateApiApiGetDeviceDisplayName({required String deviceId});
-
-  Future<(PlatformInt64, bool)> crateApiApiGetDeviceHealth(
+  Future<String?> crateApiConnectionApiGetDeviceDisplayName(
       {required String deviceId});
 
-  Future<DeviceHeartbeatInfo> crateApiApiGetDeviceHeartbeatInfo(
+  Future<(PlatformInt64, bool)> crateApiHeartbeatApiGetDeviceHealth(
       {required String deviceId});
 
-  List<QuirkInfo> crateApiApiGetDeviceQuirks({required String deviceId});
-
-  Future<DomeCapabilities> crateApiApiGetDomeCapabilities(
+  Future<DeviceHeartbeatInfo> crateApiHeartbeatApiGetDeviceHeartbeatInfo(
       {required String deviceId});
 
-  Future<DomeStatus> crateApiApiGetDomeStatus({required String deviceId});
-
-  BigInt crateApiApiGetDroppedEventCount();
-
-  Future<FilterWheelCapabilities> crateApiApiGetFilterwheelCapabilities(
+  List<QuirkInfo> crateApiDiagnosticsApiGetDeviceQuirks(
       {required String deviceId});
 
-  Future<FilterWheelStatus> crateApiApiGetFilterwheelStatus(
+  Future<DomeCapabilities> crateApiDiagnosticsApiGetDomeCapabilities(
       {required String deviceId});
 
-  Future<FocuserCapabilities> crateApiApiGetFocuserCapabilities(
+  Future<DomeStatus> crateApiDevicesDomeApiGetDomeStatus(
       {required String deviceId});
 
-  Future<FocuserStatus> crateApiApiGetFocuserStatus({required String deviceId});
+  BigInt crateApiEventStreamApiGetDroppedEventCount();
 
-  Future<(BigInt, BigInt, int, bool)> crateApiApiGetHeartbeatConfigForType(
-      {required DeviceType deviceType});
+  Future<FilterWheelCapabilities>
+      crateApiDiagnosticsApiGetFilterwheelCapabilities(
+          {required String deviceId});
 
-  ImageStatsResult crateApiApiGetImageStats(
+  Future<FilterWheelStatus> crateApiDevicesSimulationApiGetFilterwheelStatus(
+      {required String deviceId});
+
+  Future<FocuserCapabilities> crateApiDiagnosticsApiGetFocuserCapabilities(
+      {required String deviceId});
+
+  Future<FocuserStatus> crateApiDevicesSimulationApiGetFocuserStatus(
+      {required String deviceId});
+
+  Future<(BigInt, BigInt, int, bool)>
+      crateApiHeartbeatApiGetHeartbeatConfigForType(
+          {required DeviceType deviceType});
+
+  ImageStatsResult crateApiImagingApiGetImageStats(
       {required int width, required int height, required List<int> data});
 
-  Future<CapturedImageResult> crateApiApiGetLastImage(
+  Future<CapturedImageResult> crateApiImagingApiGetLastImage(
       {required String deviceId});
 
-  Future<Uint16List> crateApiApiGetLastRawImageData({required String deviceId});
-
-  ObserverLocation? crateApiApiGetLocation();
-
-  String? crateApiApiGetLogDirectory();
-
-  Future<MountCapabilities> crateApiApiGetMountCapabilities(
+  Future<Uint16List> crateApiImagingApiGetLastRawImageData(
       {required String deviceId});
 
-  Future<MountStatus> crateApiApiGetMountStatus({required String deviceId});
+  ObserverLocation? crateApiStorageApiGetLocation();
 
-  Future<int> crateApiApiGetNextFrameNumber(
+  String? crateApiInitApiGetLogDirectory();
+
+  Future<MountCapabilities> crateApiDiagnosticsApiGetMountCapabilities(
+      {required String deviceId});
+
+  Future<MountStatus> crateApiDevicesSimulationApiGetMountStatus(
+      {required String deviceId});
+
+  Future<int> crateApiImagingApiGetNextFrameNumber(
       {required String baseDir,
       required String pattern,
       String? target,
       String? filter,
       required FrameTypeApi frameType});
 
-  String? crateApiApiGetPlateSolverPath();
+  String? crateApiPlateSolveApiGetPlateSolverPath();
 
-  List<EquipmentProfile> crateApiApiGetProfiles();
+  List<EquipmentProfile> crateApiStorageApiGetProfiles();
 
-  QhyDiscoveryStatus crateApiApiGetQhyDiscoveryStatus();
+  QhyDiscoveryStatus crateApiDiagnosticsApiGetQhyDiscoveryStatus();
 
-  Future<RotatorCapabilities> crateApiApiGetRotatorCapabilities(
+  Future<RotatorCapabilities> crateApiDiagnosticsApiGetRotatorCapabilities(
       {required String deviceId});
 
-  Future<RotatorStatus> crateApiApiGetRotatorStatus({required String deviceId});
-
-  Future<SafetyMonitorCapabilities> crateApiApiGetSafetyMonitorCapabilities(
+  Future<RotatorStatus> crateApiDevicesSimulationApiGetRotatorStatus(
       {required String deviceId});
 
-  Future<SessionState> crateApiApiGetSessionState();
+  Future<SafetyMonitorCapabilities>
+      crateApiDiagnosticsApiGetSafetyMonitorCapabilities(
+          {required String deviceId});
 
-  AppSettings crateApiApiGetSettings();
+  Future<SessionState> crateApiSessionApiGetSessionState();
 
-  Future<List<StarCropApi>> crateApiApiGetStarCropsFromLastImage(
+  AppSettings crateApiStorageApiGetSettings();
+
+  Future<List<StarCropApi>> crateApiImagingApiGetStarCropsFromLastImage(
       {required String deviceId, required int maxCrops});
 
-  Future<SwitchCapabilities> crateApiApiGetSwitchCapabilities(
+  Future<SwitchCapabilities> crateApiDiagnosticsApiGetSwitchCapabilities(
       {required String deviceId});
 
-  String crateApiApiGetVersion();
+  String crateApiInitApiGetVersion();
 
-  Future<WeatherCapabilities> crateApiApiGetWeatherCapabilities(
+  Future<WeatherCapabilities> crateApiDiagnosticsApiGetWeatherCapabilities(
       {required String deviceId});
 
-  Future<void> crateApiApiGuiderDeselectStar({required String deviceId});
+  Future<void> crateApiPhd2ApiGuiderDeselectStar({required String deviceId});
 
-  Future<void> crateApiApiGuiderDither(
+  Future<void> crateApiPhd2ApiGuiderDither(
       {required String deviceId,
       required double amount,
       required int raOnly,
@@ -590,259 +636,269 @@ abstract class RustLibApi extends BaseApi {
       required double settleTime,
       required double settleTimeout});
 
-  Future<(double, double)> crateApiApiGuiderFindStar(
+  Future<(double, double)> crateApiPhd2ApiGuiderFindStar(
       {required String deviceId});
 
-  Future<(double, double)> crateApiApiGuiderGetLockPosition(
+  Future<(double, double)> crateApiPhd2ApiGuiderGetLockPosition(
       {required String deviceId});
 
-  Future<Phd2StarImage> crateApiApiGuiderGetStarImage(
+  Future<Phd2StarImage> crateApiPhd2ApiGuiderGetStarImage(
       {required String deviceId, required int size});
 
-  Future<Phd2Status> crateApiApiGuiderGetStatus({required String deviceId});
+  Future<Phd2Status> crateApiPhd2ApiGuiderGetStatus({required String deviceId});
 
-  Future<void> crateApiApiGuiderLoop({required String deviceId});
+  Future<void> crateApiPhd2ApiGuiderLoop({required String deviceId});
 
-  Future<void> crateApiApiGuiderSetLockPosition(
+  Future<void> crateApiPhd2ApiGuiderSetLockPosition(
       {required String deviceId,
       required double x,
       required double y,
       required bool exact});
 
-  Future<void> crateApiApiGuiderStartGuiding(
+  Future<void> crateApiPhd2ApiGuiderStartGuiding(
       {required String deviceId,
       required double settlePixels,
       required double settleTime,
       required double settleTimeout});
 
-  Future<void> crateApiApiGuiderStop({required String deviceId});
+  Future<void> crateApiPhd2ApiGuiderStop({required String deviceId});
 
-  void crateApiApiInit();
+  void crateApiInitApiInit();
 
-  void crateApiApiInitProfileStorage({required String storagePath});
+  void crateApiStorageApiInitProfileStorage({required String storagePath});
 
-  void crateApiApiInitSettingsStorage({required String storagePath});
+  void crateApiStorageApiInitSettingsStorage({required String storagePath});
 
-  void crateApiApiInitWithLogging({String? logDirectory});
+  void crateApiInitApiInitWithLogging({String? logDirectory});
 
   Future<void> crateApiApiInvalidateDiscoveryCache();
 
-  Future<bool> crateApiApiIsDeviceConnected(
+  Future<bool> crateApiConnectionApiIsDeviceConnected(
       {required DeviceType deviceType, required String deviceId});
 
-  Future<bool> crateApiApiIsHeartbeatActive({required String deviceId});
+  Future<bool> crateApiHeartbeatApiIsHeartbeatActive(
+      {required String deviceId});
 
-  bool crateApiApiIsPhd2Running();
+  bool crateApiPhd2ApiIsPhd2Running();
 
-  bool crateApiApiIsPlateSolverAvailable();
+  bool crateApiPlateSolveApiIsPlateSolverAvailable();
 
-  bool crateApiApiIsQhyDiscoveryEnabled();
+  bool crateApiDiagnosticsApiIsQhyDiscoveryEnabled();
 
-  Future<void> crateApiApiLaunchPhd2();
+  Future<void> crateApiPhd2ApiLaunchPhd2();
 
-  Future<List<String>> crateApiApiListLogFiles();
+  Future<List<String>> crateApiInitApiListLogFiles();
 
-  Future<ApiLiveStackingConfig> crateApiApiLiveStackingConfigDefault();
+  Future<ApiLiveStackingConfig> crateApiImagingApiLiveStackingConfigDefault();
 
-  Future<void> crateApiApiLoadProfile({required String profileId});
+  Future<void> crateApiStorageApiLoadProfile({required String profileId});
 
-  Future<void> crateApiApiMountFindHome({required String deviceId});
+  Future<void> crateApiDevicesSimulationApiMountFindHome(
+      {required String deviceId});
 
-  Future<void> crateApiApiMountPark({required String deviceId});
+  Future<void> crateApiDevicesSimulationApiMountPark(
+      {required String deviceId});
 
-  Future<void> crateApiApiMountPulseGuide(
+  Future<void> crateApiDevicesSimulationApiMountPulseGuide(
       {required String deviceId,
       required String direction,
       required int durationMs});
 
-  Future<void> crateApiApiMountSetTracking(
+  Future<void> crateApiDevicesSimulationApiMountSetTracking(
       {required String deviceId, required int enabled});
 
-  Future<void> crateApiApiMountSlewAltAz(
+  Future<void> crateApiDevicesSimulationApiMountSlewAltAz(
       {required String deviceId,
       required double altitude,
       required double azimuth});
 
-  Future<void> crateApiApiMountSlewToCoordinates(
+  Future<void> crateApiDevicesSimulationApiMountSlewToCoordinates(
       {required String deviceId, required double ra, required double dec});
 
-  Future<void> crateApiApiMountSyncToCoordinates(
+  Future<void> crateApiDevicesSimulationApiMountSyncToCoordinates(
       {required String deviceId, required double ra, required double dec});
 
-  Future<void> crateApiApiMountUnpark({required String deviceId});
+  Future<void> crateApiDevicesSimulationApiMountUnpark(
+      {required String deviceId});
 
-  Future<void> crateApiApiPhd2ClearCalibration({required String which});
+  Future<void> crateApiPhd2ApiPhd2ClearCalibration({required String which});
 
-  Future<void> crateApiApiPhd2Connect({String? host, int? port});
+  Future<void> crateApiPhd2ApiPhd2Connect({String? host, int? port});
 
-  Future<void> crateApiApiPhd2DeselectStar();
+  Future<void> crateApiPhd2ApiPhd2DeselectStar();
 
-  Future<void> crateApiApiPhd2Disconnect();
+  Future<void> crateApiPhd2ApiPhd2Disconnect();
 
-  Future<void> crateApiApiPhd2Dither(
+  Future<void> crateApiPhd2ApiPhd2Dither(
       {required double amount,
       required int raOnly,
       required double settlePixels,
       required double settleTime,
       required double settleTimeout});
 
-  Future<(double, double)> crateApiApiPhd2FindStar();
+  Future<(double, double)> crateApiPhd2ApiPhd2FindStar();
 
-  Future<void> crateApiApiPhd2FlipCalibration();
+  Future<void> crateApiPhd2ApiPhd2FlipCalibration();
 
-  Future<double> crateApiApiPhd2GetAlgoParam(
+  Future<double> crateApiPhd2ApiPhd2GetAlgoParam(
       {required String axis, required String name});
 
-  Future<List<String>> crateApiApiPhd2GetAlgoParamNames({required String axis});
-
-  Future<List<Phd2AlgoParam>> crateApiApiPhd2GetAllAlgoParams(
+  Future<List<String>> crateApiPhd2ApiPhd2GetAlgoParamNames(
       {required String axis});
 
-  Future<Phd2CalibrationData> crateApiApiPhd2GetCalibrationData();
+  Future<List<Phd2AlgoParam>> crateApiPhd2ApiPhd2GetAllAlgoParams(
+      {required String axis});
 
-  Future<int> crateApiApiPhd2GetExposure();
+  Future<Phd2CalibrationData> crateApiPhd2ApiPhd2GetCalibrationData();
 
-  Future<(double, double)> crateApiApiPhd2GetLockPosition();
+  Future<int> crateApiPhd2ApiPhd2GetExposure();
 
-  Future<String> crateApiApiPhd2GetProfile();
+  Future<(double, double)> crateApiPhd2ApiPhd2GetLockPosition();
 
-  Future<Phd2StarImage> crateApiApiPhd2GetStarImage({required int size});
+  Future<String> crateApiPhd2ApiPhd2GetProfile();
 
-  Future<Phd2Status> crateApiApiPhd2GetStatus();
+  Future<Phd2StarImage> crateApiPhd2ApiPhd2GetStarImage({required int size});
 
-  Future<void> crateApiApiPhd2Loop();
+  Future<Phd2Status> crateApiPhd2ApiPhd2GetStatus();
 
-  Future<void> crateApiApiPhd2SetAlgoParam(
+  Future<void> crateApiPhd2ApiPhd2Loop();
+
+  Future<void> crateApiPhd2ApiPhd2SetAlgoParam(
       {required String axis, required String name, required double value});
 
-  Future<void> crateApiApiPhd2SetExposure({required int exposureMs});
+  Future<void> crateApiPhd2ApiPhd2SetExposure({required int exposureMs});
 
-  Future<void> crateApiApiPhd2SetLockPosition(
+  Future<void> crateApiPhd2ApiPhd2SetLockPosition(
       {required double x, required double y, required bool exact});
 
-  Future<void> crateApiApiPhd2SetPaused({required bool paused});
+  Future<void> crateApiPhd2ApiPhd2SetPaused({required bool paused});
 
-  Future<void> crateApiApiPhd2StartGuiding(
+  Future<void> crateApiPhd2ApiPhd2StartGuiding(
       {required double settlePixels,
       required double settleTime,
       required double settleTimeout});
 
-  Future<void> crateApiApiPhd2StopGuiding();
+  Future<void> crateApiPhd2ApiPhd2StopGuiding();
 
-  Future<PlateSolveResult> crateApiApiPlateSolveBlind(
+  Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind(
       {required String filePath});
 
-  Future<PlateSolveResult> crateApiApiPlateSolveNear(
+  Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveNear(
       {required String filePath,
       required double hintRa,
       required double hintDec,
       required double searchRadius});
 
-  PlateSolverDetection crateApiApiPlatesolveDetect();
+  PlateSolverDetection crateApiPlateSolveApiPlatesolveDetect();
 
-  PlateSolverConfigPayload crateApiApiPlatesolveGetConfig();
+  PlateSolverConfigPayload crateApiPlateSolveApiPlatesolveGetConfig();
 
-  void crateApiApiPlatesolveSetConfig(
+  void crateApiPlateSolveApiPlatesolveSetConfig(
       {required PlateSolverConfigPayload config});
 
-  PlateSolverInfo crateApiApiPlatesolveVerify({required String executablePath});
+  PlateSolverInfo crateApiPlateSolveApiPlatesolveVerify(
+      {required String executablePath});
 
-  Future<FitsReadResult> crateApiApiReadFitsFile({required String filePath});
-
-  Future<FitsLinearReadResult> crateApiApiReadFitsLinearData(
+  Future<FitsReadResult> crateApiImagingApiReadFitsFile(
       {required String filePath});
 
-  Future<String> crateApiApiReadLogFile({required String path});
+  Future<FitsLinearReadResult> crateApiImagingApiReadFitsLinearData(
+      {required String filePath});
 
-  Future<XisfReadResult> crateApiApiReadXisfFile({required String filePath});
+  Future<String> crateApiInitApiReadLogFile({required String path});
 
-  Future<void> crateApiApiRotatorHalt({required String deviceId});
+  Future<XisfReadResult> crateApiImagingApiReadXisfFile(
+      {required String filePath});
 
-  Future<void> crateApiApiRotatorMoveRelative(
+  Future<void> crateApiDevicesSimulationApiRotatorHalt(
+      {required String deviceId});
+
+  Future<void> crateApiDevicesSimulationApiRotatorMoveRelative(
       {required String deviceId, required double delta});
 
-  Future<void> crateApiApiRotatorMoveTo(
+  Future<void> crateApiDevicesSimulationApiRotatorMoveTo(
       {required String deviceId, required double angle});
 
-  Future<void> crateApiApiRotatorSyncToPa(
+  Future<void> crateApiDevicesSimulationApiRotatorSyncToPa(
       {required String deviceId, required double pa});
 
-  Future<AutofocusResultApi> crateApiApiRunAutofocus(
+  Future<AutofocusResultApi> crateApiImagingApiRunAutofocus(
       {required String deviceId,
       required String cameraId,
       required AutofocusConfigApi config});
 
-  Future<IndiAutofocusResultApi> crateApiApiRunIndiAutofocus(
+  Future<IndiAutofocusResultApi> crateApiImagingApiRunIndiAutofocus(
       {required String cameraId,
       required String focuserId,
       required IndiAutofocusConfigApi config});
 
-  Future<void> crateApiApiSaveFitsFile(
+  Future<void> crateApiImagingApiSaveFitsFile(
       {required String filePath,
       required int width,
       required int height,
       required List<int> data,
       required FitsWriteHeader headerData});
 
-  Future<void> crateApiApiSaveFitsFromLastCapture(
+  Future<void> crateApiImagingApiSaveFitsFromLastCapture(
       {required String deviceId,
       required String filePath,
       required FitsWriteHeader headerData});
 
-  Future<void> crateApiApiSaveJpegFile(
+  Future<void> crateApiImagingApiSaveJpegFile(
       {required String filePath,
       required int width,
       required int height,
       required List<int> data,
       required int quality});
 
-  Future<void> crateApiApiSavePngFile(
+  Future<void> crateApiImagingApiSavePngFile(
       {required String filePath,
       required int width,
       required int height,
       required List<int> data});
 
-  void crateApiApiSaveProfile({required EquipmentProfile profile});
+  void crateApiStorageApiSaveProfile({required EquipmentProfile profile});
 
-  Future<void> crateApiApiSaveTiffFile(
+  Future<void> crateApiImagingApiSaveTiffFile(
       {required String filePath,
       required int width,
       required int height,
       required List<int> data});
 
-  Future<void> crateApiApiSaveXisfFile(
+  Future<void> crateApiImagingApiSaveXisfFile(
       {required String filePath,
       required int width,
       required int height,
       required List<int> data,
       required List<(String, String)> properties});
 
-  Future<void> crateApiApiSequencerClearCheckpoint();
+  Future<void> crateApiSequencerApiSequencerClearCheckpoint();
 
-  Future<CheckpointInfoApi?> crateApiApiSequencerGetCheckpointInfo();
+  Future<CheckpointInfoApi?> crateApiSequencerApiSequencerGetCheckpointInfo();
 
-  Future<SequencerState> crateApiApiSequencerGetState();
+  Future<SequencerState> crateApiSequencerApiSequencerGetState();
 
-  Future<bool> crateApiApiSequencerHasCheckpoint();
+  Future<bool> crateApiSequencerApiSequencerHasCheckpoint();
 
-  Future<void> crateApiApiSequencerLoad(
+  Future<void> crateApiSequencerApiSequencerLoad(
       {required SequenceDefinitionApi definition});
 
-  Future<void> crateApiApiSequencerLoadJson({required String json});
+  Future<void> crateApiSequencerApiSequencerLoadJson({required String json});
 
-  Future<void> crateApiApiSequencerPause();
+  Future<void> crateApiSequencerApiSequencerPause();
 
-  Future<void> crateApiApiSequencerReset();
+  Future<void> crateApiSequencerApiSequencerReset();
 
-  Future<void> crateApiApiSequencerResume();
+  Future<void> crateApiSequencerApiSequencerResume();
 
-  Future<void> crateApiApiSequencerResumeFromCheckpoint();
+  Future<void> crateApiSequencerApiSequencerResumeFromCheckpoint();
 
-  Future<void> crateApiApiSequencerSaveCheckpoint();
+  Future<void> crateApiSequencerApiSequencerSaveCheckpoint();
 
-  Future<void> crateApiApiSequencerSetCheckpointDir({required String path});
+  Future<void> crateApiSequencerApiSequencerSetCheckpointDir(
+      {required String path});
 
-  Future<void> crateApiApiSequencerSetDevices(
+  Future<void> crateApiSequencerApiSequencerSetDevices(
       {String? cameraId,
       String? mountId,
       String? focuserId,
@@ -851,78 +907,80 @@ abstract class RustLibApi extends BaseApi {
       List<String>? filterNames,
       Map<String, int>? filterFocusOffsets});
 
-  Future<void> crateApiApiSequencerSetSafetyFailMode({required String mode});
+  Future<void> crateApiSequencerApiSequencerSetSafetyFailMode(
+      {required String mode});
 
-  Future<void> crateApiApiSequencerSetSavePath({String? path});
+  Future<void> crateApiSequencerApiSequencerSetSavePath({String? path});
 
-  Future<void> crateApiApiSequencerSetSimulationMode({required bool enabled});
+  Future<void> crateApiSequencerApiSequencerSetSimulationMode(
+      {required bool enabled});
 
-  Future<void> crateApiApiSequencerSkip();
+  Future<void> crateApiSequencerApiSequencerSkip();
 
-  Future<void> crateApiApiSequencerStart();
+  Future<void> crateApiSequencerApiSequencerStart();
 
-  Future<void> crateApiApiSequencerStop();
+  Future<void> crateApiSequencerApiSequencerStop();
 
-  Future<void> crateApiApiSequencerSubscribeEvents();
+  Future<void> crateApiSequencerApiSequencerSubscribeEvents();
 
-  Future<void> crateApiApiSequencerUpdateDitherConfig(
+  Future<void> crateApiSequencerApiSequencerUpdateDitherConfig(
       {required double pixels,
       required double settlePixels,
       required double settleTime,
       required double settleTimeout,
       required bool raOnly});
 
-  Future<void> crateApiApiSequencerUpdateFilterOffsets(
+  Future<void> crateApiSequencerApiSequencerUpdateFilterOffsets(
       {required Map<String, int> offsets});
 
-  Future<void> crateApiApiSequencerUpdateLocation(
+  Future<void> crateApiSequencerApiSequencerUpdateLocation(
       {double? latitude, double? longitude});
 
-  Future<void> crateApiApiSetCameraBinning(
+  Future<void> crateApiDevicesCameraApiSetCameraBinning(
       {required String deviceId, required int binX, required int binY});
 
-  Future<void> crateApiApiSetCameraCooler(
+  Future<void> crateApiDevicesSimulationApiSetCameraCooler(
       {required String deviceId, required int enabled, double? targetTemp});
 
-  Future<void> crateApiApiSetCameraGain(
+  Future<void> crateApiDevicesSimulationApiSetCameraGain(
       {required String deviceId, required int gain});
 
-  Future<void> crateApiApiSetCameraOffset(
+  Future<void> crateApiDevicesSimulationApiSetCameraOffset(
       {required String deviceId, required int offset});
 
-  void crateApiApiSetLocation({ObserverLocation? location});
+  void crateApiStorageApiSetLocation({ObserverLocation? location});
 
-  void crateApiApiSetQhyDiscoveryEnabled({required bool enabled});
+  void crateApiDiagnosticsApiSetQhyDiscoveryEnabled({required bool enabled});
 
-  Future<ApiLiveStackingResult> crateApiApiStackingAddFrame(
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingAddFrame(
       {required String imagePath});
 
-  Future<ApiLiveStackingResult> crateApiApiStackingAddFrameFromData(
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingAddFrameFromData(
       {required int width, required int height, required List<int> data});
 
-  int crateApiApiStackingFrameCount();
+  int crateApiImagingApiStackingFrameCount();
 
-  Future<ApiLiveStackingResult> crateApiApiStackingGetResult();
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingGetResult();
 
-  Future<ApiLiveStackingStats> crateApiApiStackingGetStats();
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingGetStats();
 
-  bool crateApiApiStackingIsActive();
+  bool crateApiImagingApiStackingIsActive();
 
-  Future<void> crateApiApiStackingReset();
+  Future<void> crateApiImagingApiStackingReset();
 
-  Future<ApiLiveStackingStats> crateApiApiStackingStart(
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingStart(
       {required String referenceImagePath,
       required ApiLiveStackingConfig config});
 
-  Future<ApiLiveStackingStats> crateApiApiStackingStartFromData(
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingStartFromData(
       {required int width,
       required int height,
       required List<int> data,
       required ApiLiveStackingConfig config});
 
-  Future<void> crateApiApiStackingStop();
+  Future<void> crateApiImagingApiStackingStop();
 
-  Future<void> crateApiApiStartAllSkyPolarAlignment(
+  Future<void> crateApiPolarAlignmentApiStartAllSkyPolarAlignment(
       {required double exposureTime,
       required double solveTimeout,
       required int binning,
@@ -932,19 +990,19 @@ abstract class RustLibApi extends BaseApi {
       int? gain,
       int? offset});
 
-  Future<void> crateApiApiStartDeviceHeartbeat(
+  Future<void> crateApiHeartbeatApiStartDeviceHeartbeat(
       {required DeviceType deviceType,
       required String deviceId,
       required BigInt intervalMs});
 
-  Future<void> crateApiApiStartDeviceHeartbeatWithConfig(
+  Future<void> crateApiHeartbeatApiStartDeviceHeartbeatWithConfig(
       {required String deviceId,
       required BigInt intervalSecs,
       required int failureThreshold,
       required bool autoReconnect,
       required int maxReconnectAttempts});
 
-  Future<void> crateApiApiStartPolarAlignment(
+  Future<void> crateApiPolarAlignmentApiStartPolarAlignment(
       {required double exposureTime,
       required double stepSize,
       required int binning,
@@ -957,173 +1015,184 @@ abstract class RustLibApi extends BaseApi {
       bool? startFromCurrent,
       double? autoCompleteThreshold});
 
-  Future<void> crateApiApiStartSession(
+  Future<void> crateApiSessionApiStartSession(
       {String? targetName, double? ra, double? dec});
 
-  Future<void> crateApiApiStopDeviceHeartbeat({required String deviceId});
+  Future<void> crateApiHeartbeatApiStopDeviceHeartbeat(
+      {required String deviceId});
 
-  Future<void> crateApiApiStopPolarAlignment();
+  Future<void> crateApiPolarAlignmentApiStopPolarAlignment();
 
-  Future<bool> crateApiApiSwitchCanWrite(
+  Future<bool> crateApiDevicesSwitchApiSwitchCanWrite(
       {required String deviceId, required int switchId});
 
-  Future<String> crateApiApiSwitchGetDescription(
+  Future<String> crateApiDevicesSwitchApiSwitchGetDescription(
       {required String deviceId, required int switchId});
 
-  Future<int> crateApiApiSwitchGetMax({required String deviceId});
+  Future<int> crateApiDevicesSwitchApiSwitchGetMax({required String deviceId});
 
-  Future<double> crateApiApiSwitchGetMaxValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetMaxValue(
       {required String deviceId, required int switchId});
 
-  Future<double> crateApiApiSwitchGetMinValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetMinValue(
       {required String deviceId, required int switchId});
 
-  Future<String> crateApiApiSwitchGetName(
+  Future<String> crateApiDevicesSwitchApiSwitchGetName(
       {required String deviceId, required int switchId});
 
-  Future<bool> crateApiApiSwitchGetState(
+  Future<bool> crateApiDevicesSwitchApiSwitchGetState(
       {required String deviceId, required int switchId});
 
-  Future<double> crateApiApiSwitchGetValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetValue(
       {required String deviceId, required int switchId});
 
-  Future<void> crateApiApiSwitchSetState(
+  Future<void> crateApiDevicesSwitchApiSwitchSetState(
       {required String deviceId, required int switchId, required bool state});
 
-  Future<void> crateApiApiSwitchSetValue(
+  Future<void> crateApiDevicesSwitchApiSwitchSetValue(
       {required String deviceId, required int switchId, required double value});
 
-  void crateApiApiUpdateSettings({required AppSettings settings});
+  void crateApiStorageApiUpdateSettings({required AppSettings settings});
 
-  Future<void> crateApiCancelExposure({required String deviceId});
+  Future<void> crateApiDevicesCameraCancelExposure({required String deviceId});
 
-  Future<void> crateApiAlpacaConnectionsConnectAlpacaDevice(
+  Future<void> crateApiConnectionAlpacaConnectionsConnectAlpacaDevice(
       {required DeviceType deviceType, required String deviceId});
 
-  Future<void> crateApiAscomConnectionsConnectAscomCamera(
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomCamera(
       {required String progId});
 
-  Future<void> crateApiAscomConnectionsConnectAscomFocuser(
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomFocuser(
       {required String progId});
 
-  Future<void> crateApiAscomConnectionsConnectAscomMount(
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomMount(
       {required String progId});
 
-  Future<void> crateApiAlpacaConnectionsDisconnectAlpacaDevice(
+  Future<void> crateApiConnectionAlpacaConnectionsDisconnectAlpacaDevice(
       {required String deviceId});
 
-  Future<(int, List<String>)> crateApiFilterWheelGetConfig(
+  Future<(int, List<String>)> crateApiDevicesFilterWheelFilterWheelGetConfig(
       {required String deviceId});
 
-  Future<int> crateApiFilterWheelGetPosition({required String deviceId});
+  Future<int> crateApiDevicesFilterWheelFilterWheelGetPosition(
+      {required String deviceId});
 
-  Future<void> crateApiFilterWheelSetPosition(
+  Future<void> crateApiDevicesFilterWheelFilterWheelSetPosition(
       {required String deviceId, required int position});
 
-  Future<(int, double)> crateApiFocuserGetDetails({required String deviceId});
+  Future<(int, double)> crateApiDevicesFocuserFocuserGetDetails(
+      {required String deviceId});
 
-  Future<int> crateApiFocuserGetPosition({required String deviceId});
+  Future<int> crateApiDevicesFocuserFocuserGetPosition(
+      {required String deviceId});
 
-  Future<double?> crateApiFocuserGetTemp({required String deviceId});
+  Future<double?> crateApiDevicesFocuserFocuserGetTemp(
+      {required String deviceId});
 
-  Future<void> crateApiFocuserHalt({required String deviceId});
+  Future<void> crateApiDevicesFocuserFocuserHalt({required String deviceId});
 
-  Future<void> crateApiFocuserMoveAbs(
+  Future<void> crateApiDevicesFocuserFocuserMoveAbs(
       {required String deviceId, required int position});
 
-  Future<void> crateApiFocuserMoveRel(
+  Future<void> crateApiDevicesFocuserFocuserMoveRel(
       {required String deviceId, required int steps});
 
-  Future<ArcAlpacaClient?> crateApiAlpacaConnectionsGetAlpacaClient(
+  Future<ArcAlpacaClient?> crateApiConnectionAlpacaConnectionsGetAlpacaClient(
       {required String deviceId});
 
-  Future<double> crateApiAscomConnectionsGetAscomCameraTemp(
+  Future<double> crateApiConnectionAscomConnectionsGetAscomCameraTemp(
       {required String progId});
 
-  Future<int> crateApiAscomConnectionsGetAscomFocuserPosition(
+  Future<int> crateApiConnectionAscomConnectionsGetAscomFocuserPosition(
       {required String progId});
 
-  Future<(double, double)> crateApiAscomConnectionsGetAscomMountCoords(
-      {required String progId});
+  Future<(double, double)>
+      crateApiConnectionAscomConnectionsGetAscomMountCoords(
+          {required String progId});
 
-  Future<CameraStatus> crateApiGetCameraStatus({required String deviceId});
-
-  Future<IndiAutofocusConfigApi> crateApiIndiAutofocusConfigApiDefault();
-
-  Future<bool> crateApiAlpacaConnectionsIsConnected({required String deviceId});
-
-  Future<void> crateApiMountAbort({required String deviceId});
-
-  Future<bool> crateApiMountCanPark({required String deviceId});
-
-  Future<void> crateApiMountFindHome({required String deviceId});
-
-  Future<(double, double)> crateApiMountGetCoordinates(
+  Future<CameraStatus> crateApiDevicesCameraGetCameraStatus(
       {required String deviceId});
 
-  Future<MountStatus> crateApiMountGetStatus({required String deviceId});
+  Future<IndiAutofocusConfigApi> crateApiImagingIndiAutofocusConfigApiDefault();
 
-  Future<int> crateApiMountGetTrackingRate({required String deviceId});
+  Future<bool> crateApiConnectionAlpacaConnectionsIsConnected(
+      {required String deviceId});
 
-  Future<void> crateApiMountMoveAxis(
+  Future<void> crateApiDevicesMountMountAbort({required String deviceId});
+
+  Future<bool> crateApiDevicesMountMountCanPark({required String deviceId});
+
+  Future<void> crateApiDevicesMountMountFindHome({required String deviceId});
+
+  Future<(double, double)> crateApiDevicesMountMountGetCoordinates(
+      {required String deviceId});
+
+  Future<MountStatus> crateApiDevicesMountMountGetStatus(
+      {required String deviceId});
+
+  Future<int> crateApiDevicesMountMountGetTrackingRate(
+      {required String deviceId});
+
+  Future<void> crateApiDevicesMountMountMoveAxis(
       {required String deviceId, required int axis, required double rate});
 
-  Future<void> crateApiMountPark({required String deviceId});
+  Future<void> crateApiDevicesMountMountPark({required String deviceId});
 
-  Future<void> crateApiMountPulseGuide(
+  Future<void> crateApiDevicesMountMountPulseGuide(
       {required String deviceId,
       required String direction,
       required int durationMs});
 
-  Future<void> crateApiMountSetTracking(
+  Future<void> crateApiDevicesMountMountSetTracking(
       {required String deviceId, required int enabled});
 
-  Future<void> crateApiMountSetTrackingRate(
+  Future<void> crateApiDevicesMountMountSetTrackingRate(
       {required String deviceId, required int rate});
 
-  Future<void> crateApiMountSlew(
+  Future<void> crateApiDevicesMountMountSlew(
       {required String deviceId, required double ra, required double dec});
 
-  Future<void> crateApiMountSlewAltAz(
+  Future<void> crateApiDevicesMountMountSlewAltAz(
       {required String deviceId,
       required double altitude,
       required double azimuth});
 
-  Future<void> crateApiMountStop({required String deviceId});
+  Future<void> crateApiDevicesMountMountStop({required String deviceId});
 
-  Future<void> crateApiMountSync(
+  Future<void> crateApiDevicesMountMountSync(
       {required String deviceId, required double ra, required double dec});
 
-  Future<void> crateApiMountUnpark({required String deviceId});
+  Future<void> crateApiDevicesMountMountUnpark({required String deviceId});
 
-  Future<void> crateApiAscomConnectionsMoveAscomFocuser(
+  Future<void> crateApiConnectionAscomConnectionsMoveAscomFocuser(
       {required String progId, required int position});
 
-  Future<void> crateApiSetCameraCooler(
+  Future<void> crateApiDevicesCameraSetCameraCooler(
       {required String deviceId, required int enabled, double? targetTemp});
 
-  Future<void> crateApiSetCameraGain(
+  Future<void> crateApiDevicesFilterWheelSetCameraGain(
       {required String deviceId, required int gain});
 
-  Future<void> crateApiSetCameraOffset(
+  Future<void> crateApiDevicesFilterWheelSetCameraOffset(
       {required String deviceId, required int offset});
 
-  Future<SimulatedCamera> crateApiSimulatedCameraDefault();
+  Future<SimulatedCamera> crateApiDevicesSimulationSimulatedCameraDefault();
 
-  Future<SimulatedFilterWheel> crateApiSimulatedFilterWheelDefault();
+  Future<SimulatedFilterWheel>
+      crateApiDevicesSimulationSimulatedFilterWheelDefault();
 
-  Future<SimulatedFocuser> crateApiSimulatedFocuserDefault();
+  Future<SimulatedFocuser> crateApiDevicesSimulationSimulatedFocuserDefault();
 
-  Future<SimulatedMount> crateApiSimulatedMountDefault();
+  Future<SimulatedMount> crateApiDevicesSimulationSimulatedMountDefault();
 
-  Future<SimulatedRotator> crateApiSimulatedRotatorDefault();
+  Future<SimulatedRotator> crateApiDevicesSimulationSimulatedRotatorDefault();
 
-  Future<void> crateApiAscomConnectionsSlewAscomMount(
+  Future<void> crateApiConnectionAscomConnectionsSlewAscomMount(
       {required String progId, required double ra, required double dec});
 
-  Future<StarDetectionConfigApi> crateApiStarDetectionConfigApiDefault();
+  Future<StarDetectionConfigApi> crateApiImagingStarDetectionConfigApiDefault();
 
-  Future<void> crateApiStartExposure(
+  Future<void> crateApiDevicesCameraStartExposure(
       {required String deviceId,
       required double durationSecs,
       required int gain,
@@ -1150,57 +1219,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<Uint8List> crateApiApiApplyStretch(
+  Future<Uint8List> crateApiImagingApiApplyStretch(
       {required String filePath, required StretchParamsApi params}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
         var arg1 = cst_encode_box_autoadd_stretch_params_api(params);
-        return wire.wire__crate__api__api_apply_stretch(port_, arg0, arg1);
+        return wire.wire__crate__api__imaging__api_apply_stretch(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_8_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiApplyStretchConstMeta,
+      constMeta: kCrateApiImagingApiApplyStretchConstMeta,
       argValues: [filePath, params],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiApplyStretchConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiApplyStretchConstMeta =>
+      const TaskConstMeta(
         debugName: "api_apply_stretch",
         argNames: ["filePath", "params"],
       );
 
   @override
-  Uint8List crateApiApiAutoStretchImage(
+  Uint8List crateApiImagingApiAutoStretchImage(
       {required int width, required int height, required List<int> data}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_u_32(width);
         var arg1 = cst_encode_u_32(height);
         var arg2 = cst_encode_list_prim_u_16_loose(data);
-        return wire.wire__crate__api__api_auto_stretch_image(arg0, arg1, arg2);
+        return wire.wire__crate__api__imaging__api_auto_stretch_image(
+            arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_8_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiAutoStretchImageConstMeta,
+      constMeta: kCrateApiImagingApiAutoStretchImageConstMeta,
       argValues: [width, height, data],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiAutoStretchImageConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiAutoStretchImageConstMeta =>
       const TaskConstMeta(
         debugName: "api_auto_stretch_image",
         argNames: ["width", "height", "data"],
       );
 
   @override
-  String crateApiApiBuildSequence(
+  String crateApiSequencerApiBuildSequence(
       {required String id,
       required String name,
       String? description,
@@ -1213,48 +1285,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_opt_String(description);
         var arg3 = cst_encode_list_String(nodeJsons);
         var arg4 = cst_encode_opt_String(rootNodeId);
-        return wire.wire__crate__api__api_build_sequence(
+        return wire.wire__crate__api__sequencer__api_build_sequence(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiBuildSequenceConstMeta,
+      constMeta: kCrateApiSequencerApiBuildSequenceConstMeta,
       argValues: [id, name, description, nodeJsons, rootNodeId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiBuildSequenceConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiBuildSequenceConstMeta =>
+      const TaskConstMeta(
         debugName: "api_build_sequence",
         argNames: ["id", "name", "description", "nodeJsons", "rootNodeId"],
       );
 
   @override
-  Future<BuiltinGuiderConfig> crateApiApiBuiltinGuiderGetConfig() {
+  Future<BuiltinGuiderConfig> crateApiPhd2ApiBuiltinGuiderGetConfig() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_builtin_guider_get_config(port_);
+        return wire
+            .wire__crate__api__phd2__api_builtin_guider_get_config(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_builtin_guider_config,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiBuiltinGuiderGetConfigConstMeta,
+      constMeta: kCrateApiPhd2ApiBuiltinGuiderGetConfigConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiBuiltinGuiderGetConfigConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiBuiltinGuiderGetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_builtin_guider_get_config",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiBuiltinGuiderSetConfig(
+  Future<void> crateApiPhd2ApiBuiltinGuiderSetConfig(
       {required double exposureSecs,
       required int gain,
       required int offset,
@@ -1273,14 +1347,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg5 = cst_encode_u_64(settleSleepMs);
         var arg6 = cst_encode_f_64(minPulseMs);
         var arg7 = cst_encode_f_64(maxPulseMs);
-        return wire.wire__crate__api__api_builtin_guider_set_config(
+        return wire.wire__crate__api__phd2__api_builtin_guider_set_config(
             port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiBuiltinGuiderSetConfigConstMeta,
+      constMeta: kCrateApiPhd2ApiBuiltinGuiderSetConfigConstMeta,
       argValues: [
         exposureSecs,
         gain,
@@ -1295,7 +1369,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiBuiltinGuiderSetConfigConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiBuiltinGuiderSetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_builtin_guider_set_config",
         argNames: [
@@ -1311,7 +1385,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  double crateApiApiCalculateAltitude(
+  double crateApiSequencerApiCalculateAltitude(
       {required double raHours,
       required double decDegrees,
       required double latitude,
@@ -1324,20 +1398,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_f_64(latitude);
         var arg3 = cst_encode_f_64(longitude);
         var arg4 = cst_encode_i_64(timeUnixMillis);
-        return wire.wire__crate__api__api_calculate_altitude(
+        return wire.wire__crate__api__sequencer__api_calculate_altitude(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiCalculateAltitudeConstMeta,
+      constMeta: kCrateApiSequencerApiCalculateAltitudeConstMeta,
       argValues: [raHours, decDegrees, latitude, longitude, timeUnixMillis],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateAltitudeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCalculateAltitudeConstMeta =>
       const TaskConstMeta(
         debugName: "api_calculate_altitude",
         argNames: [
@@ -1350,80 +1424,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<StretchParamsApi> crateApiApiCalculateAutoStretch(
+  Future<StretchParamsApi> crateApiImagingApiCalculateAutoStretch(
       {required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_calculate_auto_stretch(port_, arg0);
+        return wire.wire__crate__api__imaging__api_calculate_auto_stretch(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_stretch_params_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCalculateAutoStretchConstMeta,
+      constMeta: kCrateApiImagingApiCalculateAutoStretchConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateAutoStretchConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCalculateAutoStretchConstMeta =>
       const TaskConstMeta(
         debugName: "api_calculate_auto_stretch",
         argNames: ["filePath"],
       );
 
   @override
-  Future<double?> crateApiApiCalculateHfr({required String filePath}) {
+  Future<double?> crateApiImagingApiCalculateHfr({required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_calculate_hfr(port_, arg0);
+        return wire.wire__crate__api__imaging__api_calculate_hfr(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_box_autoadd_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCalculateHfrConstMeta,
+      constMeta: kCrateApiImagingApiCalculateHfrConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateHfrConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiCalculateHfrConstMeta =>
+      const TaskConstMeta(
         debugName: "api_calculate_hfr",
         argNames: ["filePath"],
       );
 
   @override
-  Future<Float32List> crateApiApiCalculateHistogram(
+  Future<Float32List> crateApiImagingApiCalculateHistogram(
       {required String filePath, required int bins, required int logarithmic}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
         var arg1 = cst_encode_u_32(bins);
         var arg2 = cst_encode_u_8(logarithmic);
-        return wire.wire__crate__api__api_calculate_histogram(
+        return wire.wire__crate__api__imaging__api_calculate_histogram(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_f_32_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCalculateHistogramConstMeta,
+      constMeta: kCrateApiImagingApiCalculateHistogramConstMeta,
       argValues: [filePath, bins, logarithmic],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateHistogramConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCalculateHistogramConstMeta =>
       const TaskConstMeta(
         debugName: "api_calculate_histogram",
         argNames: ["filePath", "bins", "logarithmic"],
       );
 
   @override
-  double crateApiApiCalculateMosaicArea(
+  double crateApiSequencerApiCalculateMosaicArea(
       {required double panelWidthArcmin,
       required double panelHeightArcmin,
       required int panelsHorizontal,
@@ -1434,14 +1510,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_f_64(panelHeightArcmin);
         var arg2 = cst_encode_u_32(panelsHorizontal);
         var arg3 = cst_encode_u_32(panelsVertical);
-        return wire.wire__crate__api__api_calculate_mosaic_area(
+        return wire.wire__crate__api__sequencer__api_calculate_mosaic_area(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiCalculateMosaicAreaConstMeta,
+      constMeta: kCrateApiSequencerApiCalculateMosaicAreaConstMeta,
       argValues: [
         panelWidthArcmin,
         panelHeightArcmin,
@@ -1452,7 +1528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateMosaicAreaConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCalculateMosaicAreaConstMeta =>
       const TaskConstMeta(
         debugName: "api_calculate_mosaic_area",
         argNames: [
@@ -1464,7 +1540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  List<MosaicPanelResult> crateApiApiCalculateMosaicPanels(
+  List<MosaicPanelResult> crateApiSequencerApiCalculateMosaicPanels(
       {required double centerRa,
       required double centerDec,
       required double panelWidthArcmin,
@@ -1483,14 +1559,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg5 = cst_encode_f_64(rotation);
         var arg6 = cst_encode_u_32(panelsHorizontal);
         var arg7 = cst_encode_u_32(panelsVertical);
-        return wire.wire__crate__api__api_calculate_mosaic_panels(
+        return wire.wire__crate__api__sequencer__api_calculate_mosaic_panels(
             arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_mosaic_panel_result,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiCalculateMosaicPanelsConstMeta,
+      constMeta: kCrateApiSequencerApiCalculateMosaicPanelsConstMeta,
       argValues: [
         centerRa,
         centerDec,
@@ -1505,7 +1581,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalculateMosaicPanelsConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCalculateMosaicPanelsConstMeta =>
       const TaskConstMeta(
         debugName: "api_calculate_mosaic_panels",
         argNames: [
@@ -1521,7 +1597,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Uint16List crateApiApiCalibrateImageData(
+  Uint16List crateApiImagingApiCalibrateImageData(
       {required int width,
       required int height,
       required List<int> lightData,
@@ -1536,20 +1612,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_opt_list_prim_u_16_strict(darkData);
         var arg4 = cst_encode_opt_list_prim_u_16_strict(flatData);
         var arg5 = cst_encode_opt_list_prim_u_16_strict(biasData);
-        return wire.wire__crate__api__api_calibrate_image_data(
+        return wire.wire__crate__api__imaging__api_calibrate_image_data(
             arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_16_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCalibrateImageDataConstMeta,
+      constMeta: kCrateApiImagingApiCalibrateImageDataConstMeta,
       argValues: [width, height, lightData, darkData, flatData, biasData],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalibrateImageDataConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCalibrateImageDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_calibrate_image_data",
         argNames: [
@@ -1563,7 +1639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiCalibrateImageFile(
+  Future<void> crateApiImagingApiCalibrateImageFile(
       {required String lightPath,
       String? darkPath,
       String? flatPath,
@@ -1576,20 +1652,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_opt_String(flatPath);
         var arg3 = cst_encode_opt_String(biasPath);
         var arg4 = cst_encode_String(outputPath);
-        return wire.wire__crate__api__api_calibrate_image_file(
+        return wire.wire__crate__api__imaging__api_calibrate_image_file(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCalibrateImageFileConstMeta,
+      constMeta: kCrateApiImagingApiCalibrateImageFileConstMeta,
       argValues: [lightPath, darkPath, flatPath, biasPath, outputPath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCalibrateImageFileConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCalibrateImageFileConstMeta =>
       const TaskConstMeta(
         debugName: "api_calibrate_image_file",
         argNames: [
@@ -1602,56 +1678,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiCameraCancelExposure({required String deviceId}) {
+  Future<void> crateApiImagingApiCameraCancelExposure(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_camera_cancel_exposure(port_, arg0);
+        return wire.wire__crate__api__imaging__api_camera_cancel_exposure(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCameraCancelExposureConstMeta,
+      constMeta: kCrateApiImagingApiCameraCancelExposureConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCameraCancelExposureConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCameraCancelExposureConstMeta =>
       const TaskConstMeta(
         debugName: "api_camera_cancel_exposure",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiCameraSetReadoutMode(
+  Future<void> crateApiDevicesCameraApiCameraSetReadoutMode(
       {required String deviceId, required int modeIndex}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(modeIndex);
-        return wire.wire__crate__api__api_camera_set_readout_mode(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__camera__api_camera_set_readout_mode(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCameraSetReadoutModeConstMeta,
+      constMeta: kCrateApiDevicesCameraApiCameraSetReadoutModeConstMeta,
       argValues: [deviceId, modeIndex],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCameraSetReadoutModeConstMeta =>
+  TaskConstMeta get kCrateApiDevicesCameraApiCameraSetReadoutModeConstMeta =>
       const TaskConstMeta(
         debugName: "api_camera_set_readout_mode",
         argNames: ["deviceId", "modeIndex"],
       );
 
   @override
-  Future<void> crateApiApiCameraStartExposure(
+  Future<void> crateApiImagingApiCameraStartExposure(
       {required String deviceId,
       required double durationSecs,
       required int gain,
@@ -1666,20 +1745,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_i_32(offset);
         var arg4 = cst_encode_i_32(binX);
         var arg5 = cst_encode_i_32(binY);
-        return wire.wire__crate__api__api_camera_start_exposure(
+        return wire.wire__crate__api__imaging__api_camera_start_exposure(
             port_, arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCameraStartExposureConstMeta,
+      constMeta: kCrateApiImagingApiCameraStartExposureConstMeta,
       argValues: [deviceId, durationSecs, gain, offset, binX, binY],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCameraStartExposureConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiCameraStartExposureConstMeta =>
       const TaskConstMeta(
         debugName: "api_camera_start_exposure",
         argNames: [
@@ -1693,51 +1772,53 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiCancelAutofocus() {
+  Future<void> crateApiImagingApiCancelAutofocus() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_cancel_autofocus(port_);
+        return wire.wire__crate__api__imaging__api_cancel_autofocus(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCancelAutofocusConstMeta,
+      constMeta: kCrateApiImagingApiCancelAutofocusConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCancelAutofocusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiCancelAutofocusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_cancel_autofocus",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiClearDeviceImage({required String deviceId}) {
+  Future<void> crateApiImagingApiClearDeviceImage({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_clear_device_image(port_, arg0);
+        return wire.wire__crate__api__imaging__api_clear_device_image(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiClearDeviceImageConstMeta,
+      constMeta: kCrateApiImagingApiClearDeviceImageConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiClearDeviceImageConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiClearDeviceImageConstMeta =>
       const TaskConstMeta(
         debugName: "api_clear_device_image",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<QualityMapsResultApi> crateApiApiComputeFitsQualityMaps(
+  Future<QualityMapsResultApi> crateApiImagingApiComputeFitsQualityMaps(
       {required String filePath,
       required int gridRows,
       required int gridCols,
@@ -1750,20 +1831,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(gridCols);
         var arg3 = cst_encode_u_32(lowClipAdu);
         var arg4 = cst_encode_u_32(highClipAdu);
-        return wire.wire__crate__api__api_compute_fits_quality_maps(
+        return wire.wire__crate__api__imaging__api_compute_fits_quality_maps(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_quality_maps_result_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiComputeFitsQualityMapsConstMeta,
+      constMeta: kCrateApiImagingApiComputeFitsQualityMapsConstMeta,
       argValues: [filePath, gridRows, gridCols, lowClipAdu, highClipAdu],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiComputeFitsQualityMapsConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiComputeFitsQualityMapsConstMeta =>
       const TaskConstMeta(
         debugName: "api_compute_fits_quality_maps",
         argNames: [
@@ -1776,7 +1857,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<QualityMapsResultApi> crateApiApiComputeLastCaptureQualityMaps(
+  Future<QualityMapsResultApi> crateApiImagingApiComputeLastCaptureQualityMaps(
       {required String deviceId,
       required int gridRows,
       required int gridCols,
@@ -1789,20 +1870,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(gridCols);
         var arg3 = cst_encode_u_32(lowClipAdu);
         var arg4 = cst_encode_u_32(highClipAdu);
-        return wire.wire__crate__api__api_compute_last_capture_quality_maps(
-            port_, arg0, arg1, arg2, arg3, arg4);
+        return wire
+            .wire__crate__api__imaging__api_compute_last_capture_quality_maps(
+                port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_quality_maps_result_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiComputeLastCaptureQualityMapsConstMeta,
+      constMeta: kCrateApiImagingApiComputeLastCaptureQualityMapsConstMeta,
       argValues: [deviceId, gridRows, gridCols, lowClipAdu, highClipAdu],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiComputeLastCaptureQualityMapsConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiComputeLastCaptureQualityMapsConstMeta =>
       const TaskConstMeta(
         debugName: "api_compute_last_capture_quality_maps",
         argNames: [
@@ -1815,280 +1897,316 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiConnectDevice(
+  Future<void> crateApiConnectionApiConnectDevice(
       {required DeviceType deviceType, required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
         var arg1 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_connect_device(port_, arg0, arg1);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiConnectDeviceConstMeta,
-      argValues: [deviceType, deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiConnectDeviceConstMeta => const TaskConstMeta(
-        debugName: "api_connect_device",
-        argNames: ["deviceType", "deviceId"],
-      );
-
-  @override
-  Future<void> crateApiApiCoverCalibratorCalibratorOff(
-      {required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_calibrator_off(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiCoverCalibratorCalibratorOffConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiCoverCalibratorCalibratorOffConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_calibrator_off",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<void> crateApiApiCoverCalibratorCalibratorOn(
-      {required String deviceId, required int brightness}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        var arg1 = cst_encode_i_32(brightness);
-        return wire.wire__crate__api__api_cover_calibrator_calibrator_on(
+        return wire.wire__crate__api__connection__api_connect_device(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorCalibratorOnConstMeta,
+      constMeta: kCrateApiConnectionApiConnectDeviceConstMeta,
+      argValues: [deviceType, deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiConnectionApiConnectDeviceConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_connect_device",
+        argNames: ["deviceType", "deviceId"],
+      );
+
+  @override
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOff(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_calibrator_off(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOffConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOffConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_calibrator_off",
+            argNames: ["deviceId"],
+          );
+
+  @override
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOn(
+      {required String deviceId, required int brightness}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(brightness);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_calibrator_on(
+                port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOnConstMeta,
       argValues: [deviceId, brightness],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorCalibratorOnConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_calibrator_on",
-        argNames: ["deviceId", "brightness"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOnConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_calibrator_on",
+            argNames: ["deviceId", "brightness"],
+          );
 
   @override
-  Future<void> crateApiApiCoverCalibratorCloseCover(
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorCloseCover(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_close_cover(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_close_cover(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorCloseCoverConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorCloseCoverConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorCloseCoverConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_close_cover",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorCloseCoverConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_close_cover",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<int> crateApiApiCoverCalibratorGetBrightness(
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightness(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_get_brightness(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_brightness(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorGetBrightnessConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightnessConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorGetBrightnessConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_get_brightness",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightnessConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_get_brightness",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<int> crateApiApiCoverCalibratorGetCalibratorState(
-      {required String deviceId}) {
+  Future<int>
+      crateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorState(
+          {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_get_calibrator_state(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_calibrator_state(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorGetCalibratorStateConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorStateConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorGetCalibratorStateConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_get_calibrator_state",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorStateConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_get_calibrator_state",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<int> crateApiApiCoverCalibratorGetCoverState(
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverState(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_get_cover_state(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_cover_state(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorGetCoverStateConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverStateConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorGetCoverStateConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_get_cover_state",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverStateConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_get_cover_state",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<int> crateApiApiCoverCalibratorGetMaxBrightness(
+  Future<int> crateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightness(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_get_max_brightness(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_max_brightness(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorGetMaxBrightnessConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightnessConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorGetMaxBrightnessConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_get_max_brightness",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightnessConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_get_max_brightness",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<CoverCalibratorStatus> crateApiApiCoverCalibratorGetStatus(
-      {required String deviceId}) {
+  Future<CoverCalibratorStatus>
+      crateApiDevicesCoverCalibratorApiCoverCalibratorGetStatus(
+          {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_get_status(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_cover_calibrator_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorGetStatusConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorGetStatusConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_get_status",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorGetStatusConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_get_status",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<void> crateApiApiCoverCalibratorHaltCover({required String deviceId}) {
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorHaltCover(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_halt_cover(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_halt_cover(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorHaltCoverConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorHaltCoverConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorHaltCoverConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_halt_cover",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorHaltCoverConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_halt_cover",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<void> crateApiApiCoverCalibratorOpenCover({required String deviceId}) {
+  Future<void> crateApiDevicesCoverCalibratorApiCoverCalibratorOpenCover(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_cover_calibrator_open_cover(
-            port_, arg0);
+        return wire
+            .wire__crate__api__devices__cover_calibrator__api_cover_calibrator_open_cover(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCoverCalibratorOpenCoverConstMeta,
+      constMeta:
+          kCrateApiDevicesCoverCalibratorApiCoverCalibratorOpenCoverConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCoverCalibratorOpenCoverConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_cover_calibrator_open_cover",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesCoverCalibratorApiCoverCalibratorOpenCoverConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_cover_calibrator_open_cover",
+            argNames: ["deviceId"],
+          );
 
   @override
-  String crateApiApiCreateAutofocusNode(
+  String crateApiSequencerApiCreateAutofocusNode(
       {required String id,
       required String name,
       required int stepSize,
@@ -2103,20 +2221,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_u_32(stepsOut);
         var arg4 = cst_encode_f_64(exposureDuration);
         var arg5 = cst_encode_String(method);
-        return wire.wire__crate__api__api_create_autofocus_node(
+        return wire.wire__crate__api__sequencer__api_create_autofocus_node(
             arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateAutofocusNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateAutofocusNodeConstMeta,
       argValues: [id, name, stepSize, stepsOut, exposureDuration, method],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateAutofocusNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateAutofocusNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_autofocus_node",
         argNames: [
@@ -2130,7 +2248,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateCenterNode(
+  String crateApiSequencerApiCreateCenterNode(
       {required String id,
       required String name,
       required int useTargetCoords,
@@ -2145,14 +2263,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_f_64(accuracyArcsec);
         var arg4 = cst_encode_u_32(maxAttempts);
         var arg5 = cst_encode_f_64(exposureDuration);
-        return wire.wire__crate__api__api_create_center_node(
+        return wire.wire__crate__api__sequencer__api_create_center_node(
             arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateCenterNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateCenterNodeConstMeta,
       argValues: [
         id,
         name,
@@ -2165,7 +2283,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateCenterNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateCenterNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_center_node",
         argNames: [
@@ -2179,7 +2297,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateCoolCameraNode(
+  String crateApiSequencerApiCreateCoolCameraNode(
       {required String id,
       required String name,
       required double targetTemp,
@@ -2190,52 +2308,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_f_64(targetTemp);
         var arg3 = cst_encode_opt_box_autoadd_f_64(durationMins);
-        return wire.wire__crate__api__api_create_cool_camera_node(
+        return wire.wire__crate__api__sequencer__api_create_cool_camera_node(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateCoolCameraNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateCoolCameraNodeConstMeta,
       argValues: [id, name, targetTemp, durationMins],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateCoolCameraNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateCoolCameraNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_cool_camera_node",
         argNames: ["id", "name", "targetTemp", "durationMins"],
       );
 
   @override
-  String crateApiApiCreateDelayNode(
+  String crateApiSequencerApiCreateDelayNode(
       {required String id, required String name, required double seconds}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(id);
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_f_64(seconds);
-        return wire.wire__crate__api__api_create_delay_node(arg0, arg1, arg2);
+        return wire.wire__crate__api__sequencer__api_create_delay_node(
+            arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateDelayNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateDelayNodeConstMeta,
       argValues: [id, name, seconds],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateDelayNodeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiCreateDelayNodeConstMeta =>
+      const TaskConstMeta(
         debugName: "api_create_delay_node",
         argNames: ["id", "name", "seconds"],
       );
 
   @override
-  String crateApiApiCreateDitherNode(
+  String crateApiSequencerApiCreateDitherNode(
       {required String id,
       required String name,
       required double pixels,
@@ -2252,14 +2372,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg4 = cst_encode_f_64(settleTime);
         var arg5 = cst_encode_f_64(settleTimeout);
         var arg6 = cst_encode_u_8(raOnly);
-        return wire.wire__crate__api__api_create_dither_node(
+        return wire.wire__crate__api__sequencer__api_create_dither_node(
             arg0, arg1, arg2, arg3, arg4, arg5, arg6);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateDitherNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateDitherNodeConstMeta,
       argValues: [
         id,
         name,
@@ -2273,7 +2393,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateDitherNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateDitherNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_dither_node",
         argNames: [
@@ -2288,7 +2408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateExposureNode(
+  String crateApiSequencerApiCreateExposureNode(
       {required String id,
       required String name,
       required double durationSecs,
@@ -2311,14 +2431,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg7 = cst_encode_opt_box_autoadd_i_32(offset);
         var arg8 = cst_encode_i_32(binning);
         var arg9 = cst_encode_opt_box_autoadd_u_32(ditherEvery);
-        return wire.wire__crate__api__api_create_exposure_node(
+        return wire.wire__crate__api__sequencer__api_create_exposure_node(
             arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateExposureNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateExposureNodeConstMeta,
       argValues: [
         id,
         name,
@@ -2335,7 +2455,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateExposureNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateExposureNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_exposure_node",
         argNames: [
@@ -2353,33 +2473,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateFilterNode(
+  String crateApiSequencerApiCreateFilterNode(
       {required String id, required String name, required String filterName}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(id);
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_String(filterName);
-        return wire.wire__crate__api__api_create_filter_node(arg0, arg1, arg2);
+        return wire.wire__crate__api__sequencer__api_create_filter_node(
+            arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateFilterNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateFilterNodeConstMeta,
       argValues: [id, name, filterName],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateFilterNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateFilterNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_filter_node",
         argNames: ["id", "name", "filterName"],
       );
 
   @override
-  String crateApiApiCreateLoopNode(
+  String crateApiSequencerApiCreateLoopNode(
       {required String id,
       required String name,
       int? iterations,
@@ -2392,26 +2513,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_opt_box_autoadd_u_32(iterations);
         var arg3 = cst_encode_String(condition);
         var arg4 = cst_encode_list_String(children);
-        return wire.wire__crate__api__api_create_loop_node(
+        return wire.wire__crate__api__sequencer__api_create_loop_node(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateLoopNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateLoopNodeConstMeta,
       argValues: [id, name, iterations, condition, children],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateLoopNodeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiCreateLoopNodeConstMeta =>
+      const TaskConstMeta(
         debugName: "api_create_loop_node",
         argNames: ["id", "name", "iterations", "condition", "children"],
       );
 
   @override
-  String crateApiApiCreateNotificationNode(
+  String crateApiSequencerApiCreateNotificationNode(
       {required String id,
       required String name,
       required String title,
@@ -2424,50 +2546,53 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_String(title);
         var arg3 = cst_encode_String(message);
         var arg4 = cst_encode_String(level);
-        return wire.wire__crate__api__api_create_notification_node(
+        return wire.wire__crate__api__sequencer__api_create_notification_node(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateNotificationNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateNotificationNodeConstMeta,
       argValues: [id, name, title, message, level],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateNotificationNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateNotificationNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_notification_node",
         argNames: ["id", "name", "title", "message", "level"],
       );
 
   @override
-  String crateApiApiCreateParkNode({required String id, required String name}) {
+  String crateApiSequencerApiCreateParkNode(
+      {required String id, required String name}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(id);
         var arg1 = cst_encode_String(name);
-        return wire.wire__crate__api__api_create_park_node(arg0, arg1);
+        return wire.wire__crate__api__sequencer__api_create_park_node(
+            arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateParkNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateParkNodeConstMeta,
       argValues: [id, name],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateParkNodeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiCreateParkNodeConstMeta =>
+      const TaskConstMeta(
         debugName: "api_create_park_node",
         argNames: ["id", "name"],
       );
 
   @override
-  String crateApiApiCreateRotatorNode(
+  String crateApiSequencerApiCreateRotatorNode(
       {required String id,
       required String name,
       required double targetAngle,
@@ -2478,27 +2603,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_f_64(targetAngle);
         var arg3 = cst_encode_u_8(relative);
-        return wire.wire__crate__api__api_create_rotator_node(
+        return wire.wire__crate__api__sequencer__api_create_rotator_node(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateRotatorNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateRotatorNodeConstMeta,
       argValues: [id, name, targetAngle, relative],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateRotatorNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateRotatorNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_rotator_node",
         argNames: ["id", "name", "targetAngle", "relative"],
       );
 
   @override
-  String crateApiApiCreateScriptNode(
+  String crateApiSequencerApiCreateScriptNode(
       {required String id,
       required String name,
       required String scriptPath,
@@ -2511,27 +2636,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_String(scriptPath);
         var arg3 = cst_encode_list_String(arguments);
         var arg4 = cst_encode_opt_box_autoadd_u_32(timeoutSecs);
-        return wire.wire__crate__api__api_create_script_node(
+        return wire.wire__crate__api__sequencer__api_create_script_node(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateScriptNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateScriptNodeConstMeta,
       argValues: [id, name, scriptPath, arguments, timeoutSecs],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateScriptNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateScriptNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_script_node",
         argNames: ["id", "name", "scriptPath", "arguments", "timeoutSecs"],
       );
 
   @override
-  String crateApiApiCreateSlewNode(
+  String crateApiSequencerApiCreateSlewNode(
       {required String id,
       required String name,
       required int useTargetCoords,
@@ -2544,26 +2669,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_8(useTargetCoords);
         var arg3 = cst_encode_opt_box_autoadd_f_64(customRa);
         var arg4 = cst_encode_opt_box_autoadd_f_64(customDec);
-        return wire.wire__crate__api__api_create_slew_node(
+        return wire.wire__crate__api__sequencer__api_create_slew_node(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateSlewNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateSlewNodeConstMeta,
       argValues: [id, name, useTargetCoords, customRa, customDec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateSlewNodeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiCreateSlewNodeConstMeta =>
+      const TaskConstMeta(
         debugName: "api_create_slew_node",
         argNames: ["id", "name", "useTargetCoords", "customRa", "customDec"],
       );
 
   @override
-  String crateApiApiCreateTargetGroupNode(
+  String crateApiSequencerApiCreateTargetGroupNode(
       {required String id,
       required String name,
       required String targetName,
@@ -2586,14 +2712,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg7 = cst_encode_opt_box_autoadd_f_64(maxAltitude);
         var arg8 = cst_encode_i_32(priority);
         var arg9 = cst_encode_list_String(children);
-        return wire.wire__crate__api__api_create_target_group_node(
+        return wire.wire__crate__api__sequencer__api_create_target_group_node(
             arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateTargetGroupNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateTargetGroupNodeConstMeta,
       argValues: [
         id,
         name,
@@ -2610,7 +2736,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateTargetGroupNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateTargetGroupNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_target_group_node",
         argNames: [
@@ -2628,7 +2754,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateTargetHeaderNode(
+  String crateApiSequencerApiCreateTargetHeaderNode(
       {required String id,
       required String name,
       required String targetName,
@@ -2657,7 +2783,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg10 = cst_encode_opt_box_autoadd_i_64(endBefore);
         var arg11 = cst_encode_opt_String(mosaicPanelJson);
         var arg12 = cst_encode_list_String(children);
-        return wire.wire__crate__api__api_create_target_header_node(
+        return wire.wire__crate__api__sequencer__api_create_target_header_node(
             arg0,
             arg1,
             arg2,
@@ -2676,7 +2802,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateTargetHeaderNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateTargetHeaderNodeConstMeta,
       argValues: [
         id,
         name,
@@ -2696,7 +2822,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateTargetHeaderNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateTargetHeaderNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_target_header_node",
         argNames: [
@@ -2717,32 +2843,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiApiCreateUnparkNode(
+  String crateApiSequencerApiCreateUnparkNode(
       {required String id, required String name}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(id);
         var arg1 = cst_encode_String(name);
-        return wire.wire__crate__api__api_create_unpark_node(arg0, arg1);
+        return wire.wire__crate__api__sequencer__api_create_unpark_node(
+            arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateUnparkNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateUnparkNodeConstMeta,
       argValues: [id, name],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateUnparkNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateUnparkNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_unpark_node",
         argNames: ["id", "name"],
       );
 
   @override
-  String crateApiApiCreateWaitTimeNode(
+  String crateApiSequencerApiCreateWaitTimeNode(
       {required String id,
       required String name,
       PlatformInt64? waitUntil,
@@ -2753,27 +2880,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_opt_box_autoadd_i_64(waitUntil);
         var arg3 = cst_encode_opt_String(twilightType);
-        return wire.wire__crate__api__api_create_wait_time_node(
+        return wire.wire__crate__api__sequencer__api_create_wait_time_node(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateWaitTimeNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateWaitTimeNodeConstMeta,
       argValues: [id, name, waitUntil, twilightType],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateWaitTimeNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateWaitTimeNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_wait_time_node",
         argNames: ["id", "name", "waitUntil", "twilightType"],
       );
 
   @override
-  String crateApiApiCreateWarmCameraNode(
+  String crateApiSequencerApiCreateWarmCameraNode(
       {required String id,
       required String name,
       required double ratePerMin,
@@ -2784,27 +2911,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_f_64(ratePerMin);
         var arg3 = cst_encode_opt_box_autoadd_f_64(targetTemp);
-        return wire.wire__crate__api__api_create_warm_camera_node(
+        return wire.wire__crate__api__sequencer__api_create_warm_camera_node(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiCreateWarmCameraNodeConstMeta,
+      constMeta: kCrateApiSequencerApiCreateWarmCameraNodeConstMeta,
       argValues: [id, name, ratePerMin, targetTemp],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiCreateWarmCameraNodeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiCreateWarmCameraNodeConstMeta =>
       const TaskConstMeta(
         debugName: "api_create_warm_camera_node",
         argNames: ["id", "name", "ratePerMin", "targetTemp"],
       );
 
   @override
-  Future<Uint8List> crateApiApiDebayerFitsFile(
+  Future<Uint8List> crateApiImagingApiDebayerFitsFile(
       {required String filePath,
       required BayerPatternApi pattern,
       required DebayerAlgorithmApi algorithm}) {
@@ -2813,26 +2940,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(filePath);
         var arg1 = cst_encode_bayer_pattern_api(pattern);
         var arg2 = cst_encode_debayer_algorithm_api(algorithm);
-        return wire.wire__crate__api__api_debayer_fits_file(
+        return wire.wire__crate__api__imaging__api_debayer_fits_file(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_8_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDebayerFitsFileConstMeta,
+      constMeta: kCrateApiImagingApiDebayerFitsFileConstMeta,
       argValues: [filePath, pattern, algorithm],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDebayerFitsFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiDebayerFitsFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_debayer_fits_file",
         argNames: ["filePath", "pattern", "algorithm"],
       );
 
   @override
-  Uint8List crateApiApiDebayerImage(
+  Uint8List crateApiImagingApiDebayerImage(
       {required int width,
       required int height,
       required List<int> data,
@@ -2845,50 +2973,53 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_list_prim_u_16_loose(data);
         var arg3 = cst_encode_String(patternStr);
         var arg4 = cst_encode_String(algoStr);
-        return wire.wire__crate__api__api_debayer_image(
+        return wire.wire__crate__api__imaging__api_debayer_image(
             arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_8_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDebayerImageConstMeta,
+      constMeta: kCrateApiImagingApiDebayerImageConstMeta,
       argValues: [width, height, data, patternStr, algoStr],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDebayerImageConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiDebayerImageConstMeta =>
+      const TaskConstMeta(
         debugName: "api_debayer_image",
         argNames: ["width", "height", "data", "patternStr", "algoStr"],
       );
 
   @override
-  Future<void> crateApiApiDefectMapApply(
+  Future<void> crateApiImagingApiDefectMapApply(
       {required String cameraId, required bool applyDuringCapture}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(cameraId);
         var arg1 = cst_encode_bool(applyDuringCapture);
-        return wire.wire__crate__api__api_defect_map_apply(port_, arg0, arg1);
+        return wire.wire__crate__api__imaging__api_defect_map_apply(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDefectMapApplyConstMeta,
+      constMeta: kCrateApiImagingApiDefectMapApplyConstMeta,
       argValues: [cameraId, applyDuringCapture],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDefectMapApplyConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiDefectMapApplyConstMeta =>
+      const TaskConstMeta(
         debugName: "api_defect_map_apply",
         argNames: ["cameraId", "applyDuringCapture"],
       );
 
   @override
-  Future<ApiDefectMapStatus> crateApiApiDefectMapBuild(
+  Future<ApiDefectMapStatus> crateApiImagingApiDefectMapBuild(
       {required String cameraId,
       required List<String> darkFramePaths,
       required double sensorTemperatureCelsius}) {
@@ -2897,26 +3028,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(cameraId);
         var arg1 = cst_encode_list_String(darkFramePaths);
         var arg2 = cst_encode_f_64(sensorTemperatureCelsius);
-        return wire.wire__crate__api__api_defect_map_build(
+        return wire.wire__crate__api__imaging__api_defect_map_build(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_defect_map_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDefectMapBuildConstMeta,
+      constMeta: kCrateApiImagingApiDefectMapBuildConstMeta,
       argValues: [cameraId, darkFramePaths, sensorTemperatureCelsius],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDefectMapBuildConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiDefectMapBuildConstMeta =>
+      const TaskConstMeta(
         debugName: "api_defect_map_build",
         argNames: ["cameraId", "darkFramePaths", "sensorTemperatureCelsius"],
       );
 
   @override
-  Future<void> crateApiApiDefectMapClear(
+  Future<void> crateApiImagingApiDefectMapClear(
       {required String cameraId,
       required int width,
       required int height,
@@ -2927,26 +3059,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_u_32(width);
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_f_64(sensorTemperatureCelsius);
-        return wire.wire__crate__api__api_defect_map_clear(
+        return wire.wire__crate__api__imaging__api_defect_map_clear(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDefectMapClearConstMeta,
+      constMeta: kCrateApiImagingApiDefectMapClearConstMeta,
       argValues: [cameraId, width, height, sensorTemperatureCelsius],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDefectMapClearConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiDefectMapClearConstMeta =>
+      const TaskConstMeta(
         debugName: "api_defect_map_clear",
         argNames: ["cameraId", "width", "height", "sensorTemperatureCelsius"],
       );
 
   @override
-  Future<ApiDefectMapStatus?> crateApiApiDefectMapGetStatus(
+  Future<ApiDefectMapStatus?> crateApiImagingApiDefectMapGetStatus(
       {required String cameraId,
       required int width,
       required int height,
@@ -2957,496 +3090,519 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_u_32(width);
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_f_64(sensorTemperatureCelsius);
-        return wire.wire__crate__api__api_defect_map_get_status(
+        return wire.wire__crate__api__imaging__api_defect_map_get_status(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_box_autoadd_api_defect_map_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDefectMapGetStatusConstMeta,
+      constMeta: kCrateApiImagingApiDefectMapGetStatusConstMeta,
       argValues: [cameraId, width, height, sensorTemperatureCelsius],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDefectMapGetStatusConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiDefectMapGetStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_defect_map_get_status",
         argNames: ["cameraId", "width", "height", "sensorTemperatureCelsius"],
       );
 
   @override
-  void crateApiApiDeleteProfile({required String profileId}) {
+  void crateApiStorageApiDeleteProfile({required String profileId}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(profileId);
-        return wire.wire__crate__api__api_delete_profile(arg0);
+        return wire.wire__crate__api__storage__api_delete_profile(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDeleteProfileConstMeta,
+      constMeta: kCrateApiStorageApiDeleteProfileConstMeta,
       argValues: [profileId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDeleteProfileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiDeleteProfileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_delete_profile",
         argNames: ["profileId"],
       );
 
   @override
-  Future<StarDetectionResultApi> crateApiApiDetectStarsInFile(
+  Future<StarDetectionResultApi> crateApiImagingApiDetectStarsInFile(
       {required String filePath, StarDetectionConfigApi? config}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
         var arg1 = cst_encode_opt_box_autoadd_star_detection_config_api(config);
-        return wire.wire__crate__api__api_detect_stars_in_file(
+        return wire.wire__crate__api__imaging__api_detect_stars_in_file(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_star_detection_result_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDetectStarsInFileConstMeta,
+      constMeta: kCrateApiImagingApiDetectStarsInFileConstMeta,
       argValues: [filePath, config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDetectStarsInFileConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiDetectStarsInFileConstMeta =>
       const TaskConstMeta(
         debugName: "api_detect_stars_in_file",
         argNames: ["filePath", "config"],
       );
 
   @override
-  Future<bool> crateApiApiDeviceSupportsAction(
+  Future<bool> crateApiApiVersionApiDeviceSupportsAction(
       {required String deviceId, required String action}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(action);
-        return wire.wire__crate__api__api_device_supports_action(
+        return wire.wire__crate__api__api_version__api_device_supports_action(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDeviceSupportsActionConstMeta,
+      constMeta: kCrateApiApiVersionApiDeviceSupportsActionConstMeta,
       argValues: [deviceId, action],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDeviceSupportsActionConstMeta =>
+  TaskConstMeta get kCrateApiApiVersionApiDeviceSupportsActionConstMeta =>
       const TaskConstMeta(
         debugName: "api_device_supports_action",
         argNames: ["deviceId", "action"],
       );
 
   @override
-  Future<bool> crateApiApiDeviceSupportsVersion(
+  Future<bool> crateApiApiVersionApiDeviceSupportsVersion(
       {required String deviceId, required int requiredVersion}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_32(requiredVersion);
-        return wire.wire__crate__api__api_device_supports_version(
+        return wire.wire__crate__api__api_version__api_device_supports_version(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDeviceSupportsVersionConstMeta,
+      constMeta: kCrateApiApiVersionApiDeviceSupportsVersionConstMeta,
       argValues: [deviceId, requiredVersion],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDeviceSupportsVersionConstMeta =>
+  TaskConstMeta get kCrateApiApiVersionApiDeviceSupportsVersionConstMeta =>
       const TaskConstMeta(
         debugName: "api_device_supports_version",
         argNames: ["deviceId", "requiredVersion"],
       );
 
   @override
-  Future<void> crateApiApiDisconnectDevice(
+  Future<void> crateApiConnectionApiDisconnectDevice(
       {required DeviceType deviceType, required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
         var arg1 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_disconnect_device(port_, arg0, arg1);
+        return wire.wire__crate__api__connection__api_disconnect_device(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDisconnectDeviceConstMeta,
+      constMeta: kCrateApiConnectionApiDisconnectDeviceConstMeta,
       argValues: [deviceType, deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDisconnectDeviceConstMeta =>
+  TaskConstMeta get kCrateApiConnectionApiDisconnectDeviceConstMeta =>
       const TaskConstMeta(
         debugName: "api_disconnect_device",
         argNames: ["deviceType", "deviceId"],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverAlpacaAtAddress(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverAlpacaAtAddress(
       {required String host, required int port}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(host);
         var arg1 = cst_encode_u_16(port);
-        return wire.wire__crate__api__api_discover_alpaca_at_address(
+        return wire.wire__crate__api__discovery__api_discover_alpaca_at_address(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverAlpacaAtAddressConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverAlpacaAtAddressConstMeta,
       argValues: [host, port],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverAlpacaAtAddressConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverAlpacaAtAddressConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_alpaca_at_address",
         argNames: ["host", "port"],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverAlpacaDevices() {
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverAlpacaDevices() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_discover_alpaca_devices(port_);
+        return wire
+            .wire__crate__api__discovery__api_discover_alpaca_devices(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverAlpacaDevicesConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverAlpacaDevicesConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverAlpacaDevicesConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverAlpacaDevicesConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_alpaca_devices",
         argNames: [],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverDevices(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverDevices(
       {required DeviceType deviceType}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
-        return wire.wire__crate__api__api_discover_devices(port_, arg0);
+        return wire.wire__crate__api__discovery__api_discover_devices(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverDevicesConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverDevicesConstMeta,
       argValues: [deviceType],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverDevicesConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverDevicesConstMeta =>
+      const TaskConstMeta(
         debugName: "api_discover_devices",
         argNames: ["deviceType"],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiAtAddress(
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiAtAddress(
       {required String host, required int port}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(host);
         var arg1 = cst_encode_u_16(port);
-        return wire.wire__crate__api__api_discover_indi_at_address(
+        return wire.wire__crate__api__discovery__api_discover_indi_at_address(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverIndiAtAddressConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverIndiAtAddressConstMeta,
       argValues: [host, port],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverIndiAtAddressConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverIndiAtAddressConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_indi_at_address",
         argNames: ["host", "port"],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiCommonHosts() {
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiCommonHosts() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_discover_indi_common_hosts(port_);
+        return wire
+            .wire__crate__api__discovery__api_discover_indi_common_hosts(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverIndiCommonHostsConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverIndiCommonHostsConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverIndiCommonHostsConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverIndiCommonHostsConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_indi_common_hosts",
         argNames: [],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiLocalhost() {
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiLocalhost() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_discover_indi_localhost(port_);
+        return wire
+            .wire__crate__api__discovery__api_discover_indi_localhost(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverIndiLocalhostConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverIndiLocalhostConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverIndiLocalhostConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverIndiLocalhostConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_indi_localhost",
         argNames: [],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiDiscoverIndiNetwork() {
+  Future<List<DeviceInfo>> crateApiDiscoveryApiDiscoverIndiNetwork() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_discover_indi_network(port_);
+        return wire
+            .wire__crate__api__discovery__api_discover_indi_network(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDiscoverIndiNetworkConstMeta,
+      constMeta: kCrateApiDiscoveryApiDiscoverIndiNetworkConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDiscoverIndiNetworkConstMeta =>
+  TaskConstMeta get kCrateApiDiscoveryApiDiscoverIndiNetworkConstMeta =>
       const TaskConstMeta(
         debugName: "api_discover_indi_network",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiDomeCloseShutter({required String deviceId}) {
+  Future<void> crateApiDevicesDomeApiDomeCloseShutter(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_close_shutter(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_dome_close_shutter(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeCloseShutterConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeCloseShutterConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeCloseShutterConstMeta =>
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeCloseShutterConstMeta =>
       const TaskConstMeta(
         debugName: "api_dome_close_shutter",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<double> crateApiApiDomeGetAzimuth({required String deviceId}) {
+  Future<double> crateApiDevicesDomeApiDomeGetAzimuth(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_get_azimuth(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_dome_get_azimuth(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeGetAzimuthConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeGetAzimuthConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeGetAzimuthConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeGetAzimuthConstMeta =>
+      const TaskConstMeta(
         debugName: "api_dome_get_azimuth",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<int> crateApiApiDomeGetShutterStatus({required String deviceId}) {
+  Future<int> crateApiDevicesDomeApiDomeGetShutterStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_get_shutter_status(port_, arg0);
+        return wire
+            .wire__crate__api__devices__dome__api_dome_get_shutter_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeGetShutterStatusConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeGetShutterStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeGetShutterStatusConstMeta =>
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeGetShutterStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_dome_get_shutter_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<bool> crateApiApiDomeIsSlewing({required String deviceId}) {
+  Future<bool> crateApiDevicesDomeApiDomeIsSlewing({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_is_slewing(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_dome_is_slewing(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeIsSlewingConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeIsSlewingConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeIsSlewingConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeIsSlewingConstMeta =>
+      const TaskConstMeta(
         debugName: "api_dome_is_slewing",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiDomeOpenShutter({required String deviceId}) {
+  Future<void> crateApiDevicesDomeApiDomeOpenShutter(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_open_shutter(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_dome_open_shutter(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeOpenShutterConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeOpenShutterConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeOpenShutterConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeOpenShutterConstMeta =>
+      const TaskConstMeta(
         debugName: "api_dome_open_shutter",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiDomePark({required String deviceId}) {
+  Future<void> crateApiDevicesDomeApiDomePark({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_dome_park(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_dome_park(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeParkConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeParkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeParkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeParkConstMeta =>
+      const TaskConstMeta(
         debugName: "api_dome_park",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiDomeSlewToAzimuth(
+  Future<void> crateApiDevicesDomeApiDomeSlewToAzimuth(
       {required String deviceId, required double azimuth}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(azimuth);
-        return wire.wire__crate__api__api_dome_slew_to_azimuth(
+        return wire.wire__crate__api__devices__dome__api_dome_slew_to_azimuth(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiDomeSlewToAzimuthConstMeta,
+      constMeta: kCrateApiDevicesDomeApiDomeSlewToAzimuthConstMeta,
       argValues: [deviceId, azimuth],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiDomeSlewToAzimuthConstMeta =>
+  TaskConstMeta get kCrateApiDevicesDomeApiDomeSlewToAzimuthConstMeta =>
       const TaskConstMeta(
         debugName: "api_dome_slew_to_azimuth",
         argNames: ["deviceId", "azimuth"],
       );
 
   @override
-  Future<void> crateApiApiEndSession() {
+  Future<void> crateApiSessionApiEndSession() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_end_session(port_);
+        return wire.wire__crate__api__session__api_end_session(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiEndSessionConstMeta,
+      constMeta: kCrateApiSessionApiEndSessionConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiEndSessionConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSessionApiEndSessionConstMeta =>
+      const TaskConstMeta(
         debugName: "api_end_session",
         argNames: [],
       );
 
   @override
-  double crateApiApiEstimateMosaicTime(
+  double crateApiSequencerApiEstimateMosaicTime(
       {required int totalPanels,
       required double exposureSecs,
       required int exposuresPerPanel,
@@ -3457,14 +3613,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_f_64(exposureSecs);
         var arg2 = cst_encode_u_32(exposuresPerPanel);
         var arg3 = cst_encode_f_64(overheadPerPanelSecs);
-        return wire.wire__crate__api__api_estimate_mosaic_time(
+        return wire.wire__crate__api__sequencer__api_estimate_mosaic_time(
             arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiEstimateMosaicTimeConstMeta,
+      constMeta: kCrateApiSequencerApiEstimateMosaicTimeConstMeta,
       argValues: [
         totalPanels,
         exposureSecs,
@@ -3475,7 +3631,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiEstimateMosaicTimeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiEstimateMosaicTimeConstMeta =>
       const TaskConstMeta(
         debugName: "api_estimate_mosaic_time",
         argNames: [
@@ -3487,227 +3643,244 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<NightshadeEvent> crateApiApiEventStream() {
+  Stream<NightshadeEvent> crateApiEventStreamApiEventStream() {
     final sink = RustStreamSink<NightshadeEvent>();
     unawaited(handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_StreamSink_nightshade_event_Dco(sink);
-        return wire.wire__crate__api__api_event_stream(port_, arg0);
+        return wire.wire__crate__api__event_stream__api_event_stream(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_AnyhowException,
       ),
-      constMeta: kCrateApiApiEventStreamConstMeta,
+      constMeta: kCrateApiEventStreamApiEventStreamConstMeta,
       argValues: [sink],
       apiImpl: this,
     )));
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiApiEventStreamConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiEventStreamApiEventStreamConstMeta =>
+      const TaskConstMeta(
         debugName: "api_event_stream",
         argNames: ["sink"],
       );
 
   @override
-  Future<void> crateApiApiExportLogs({required String outputPath}) {
+  Future<void> crateApiInitApiExportLogs({required String outputPath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(outputPath);
-        return wire.wire__crate__api__api_export_logs(port_, arg0);
+        return wire.wire__crate__api__init__api_export_logs(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiExportLogsConstMeta,
+      constMeta: kCrateApiInitApiExportLogsConstMeta,
       argValues: [outputPath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiExportLogsConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiExportLogsConstMeta => const TaskConstMeta(
         debugName: "api_export_logs",
         argNames: ["outputPath"],
       );
 
   @override
-  Future<List<String>> crateApiApiFilterwheelGetNames(
+  Future<List<String>> crateApiDevicesSimulationApiFilterwheelGetNames(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_filterwheel_get_names(port_, arg0);
+        return wire
+            .wire__crate__api__devices__simulation__api_filterwheel_get_names(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFilterwheelGetNamesConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFilterwheelGetNamesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFilterwheelGetNamesConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiFilterwheelGetNamesConstMeta =>
       const TaskConstMeta(
         debugName: "api_filterwheel_get_names",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiFilterwheelSetByName(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetByName(
       {required String deviceId, required String name}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(name);
-        return wire.wire__crate__api__api_filterwheel_set_by_name(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_filterwheel_set_by_name(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFilterwheelSetByNameConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFilterwheelSetByNameConstMeta,
       argValues: [deviceId, name],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFilterwheelSetByNameConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_filterwheel_set_by_name",
-        argNames: ["deviceId", "name"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiFilterwheelSetByNameConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_filterwheel_set_by_name",
+            argNames: ["deviceId", "name"],
+          );
 
   @override
-  Future<void> crateApiApiFilterwheelSetFilterNames(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetFilterNames(
       {required String deviceId, required List<String> names}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_list_String(names);
-        return wire.wire__crate__api__api_filterwheel_set_filter_names(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_filterwheel_set_filter_names(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFilterwheelSetFilterNamesConstMeta,
+      constMeta:
+          kCrateApiDevicesSimulationApiFilterwheelSetFilterNamesConstMeta,
       argValues: [deviceId, names],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFilterwheelSetFilterNamesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_filterwheel_set_filter_names",
-        argNames: ["deviceId", "names"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiFilterwheelSetFilterNamesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_filterwheel_set_filter_names",
+            argNames: ["deviceId", "names"],
+          );
 
   @override
-  Future<void> crateApiApiFilterwheelSetPosition(
+  Future<void> crateApiDevicesSimulationApiFilterwheelSetPosition(
       {required String deviceId, required int position}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(position);
-        return wire.wire__crate__api__api_filterwheel_set_position(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_filterwheel_set_position(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFilterwheelSetPositionConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFilterwheelSetPositionConstMeta,
       argValues: [deviceId, position],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFilterwheelSetPositionConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_filterwheel_set_position",
-        argNames: ["deviceId", "position"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiFilterwheelSetPositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_filterwheel_set_position",
+            argNames: ["deviceId", "position"],
+          );
 
   @override
-  Future<void> crateApiApiFocuserHalt({required String deviceId}) {
+  Future<void> crateApiDevicesSimulationApiFocuserHalt(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_focuser_halt(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_focuser_halt(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFocuserHaltConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFocuserHaltConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFocuserHaltConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiFocuserHaltConstMeta =>
+      const TaskConstMeta(
         debugName: "api_focuser_halt",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiFocuserMoveRelative(
+  Future<void> crateApiDevicesSimulationApiFocuserMoveRelative(
       {required String deviceId, required int delta}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(delta);
-        return wire.wire__crate__api__api_focuser_move_relative(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_focuser_move_relative(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFocuserMoveRelativeConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFocuserMoveRelativeConstMeta,
       argValues: [deviceId, delta],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFocuserMoveRelativeConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiFocuserMoveRelativeConstMeta =>
       const TaskConstMeta(
         debugName: "api_focuser_move_relative",
         argNames: ["deviceId", "delta"],
       );
 
   @override
-  Future<void> crateApiApiFocuserMoveTo(
+  Future<void> crateApiDevicesSimulationApiFocuserMoveTo(
       {required String deviceId, required int position}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(position);
-        return wire.wire__crate__api__api_focuser_move_to(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__simulation__api_focuser_move_to(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiFocuserMoveToConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiFocuserMoveToConstMeta,
       argValues: [deviceId, position],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiFocuserMoveToConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiFocuserMoveToConstMeta =>
+      const TaskConstMeta(
         debugName: "api_focuser_move_to",
         argNames: ["deviceId", "position"],
       );
 
   @override
-  Future<String> crateApiApiGenerateFilename(
+  Future<String> crateApiImagingApiGenerateFilename(
       {required String pattern,
       required String baseDir,
       String? target,
@@ -3740,7 +3913,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg12 = cst_encode_opt_String(camera);
         var arg13 = cst_encode_opt_String(telescope);
         var arg14 = cst_encode_String(extension_);
-        return wire.wire__crate__api__api_generate_filename(
+        return wire.wire__crate__api__imaging__api_generate_filename(
             port_,
             arg0,
             arg1,
@@ -3762,7 +3935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: dco_decode_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGenerateFilenameConstMeta,
+      constMeta: kCrateApiImagingApiGenerateFilenameConstMeta,
       argValues: [
         pattern,
         baseDir,
@@ -3784,7 +3957,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGenerateFilenameConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiGenerateFilenameConstMeta =>
       const TaskConstMeta(
         debugName: "api_generate_filename",
         argNames: [
@@ -3807,660 +3980,704 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Uint8List crateApiApiGenerateFitsThumbnail(
+  Uint8List crateApiImagingApiGenerateFitsThumbnail(
       {required String filePath, required int maxSize}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(filePath);
         var arg1 = cst_encode_u_32(maxSize);
-        return wire.wire__crate__api__api_generate_fits_thumbnail(arg0, arg1);
+        return wire.wire__crate__api__imaging__api_generate_fits_thumbnail(
+            arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_8_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGenerateFitsThumbnailConstMeta,
+      constMeta: kCrateApiImagingApiGenerateFitsThumbnailConstMeta,
       argValues: [filePath, maxSize],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGenerateFitsThumbnailConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiGenerateFitsThumbnailConstMeta =>
       const TaskConstMeta(
         debugName: "api_generate_fits_thumbnail",
         argNames: ["filePath", "maxSize"],
       );
 
   @override
-  Future<EquipmentProfile?> crateApiApiGetActiveProfile() {
+  Future<EquipmentProfile?> crateApiStorageApiGetActiveProfile() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_get_active_profile(port_);
+        return wire.wire__crate__api__storage__api_get_active_profile(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_box_autoadd_equipment_profile,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetActiveProfileConstMeta,
+      constMeta: kCrateApiStorageApiGetActiveProfileConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetActiveProfileConstMeta =>
+  TaskConstMeta get kCrateApiStorageApiGetActiveProfileConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_active_profile",
         argNames: [],
       );
 
   @override
-  Future<CameraCapabilities> crateApiApiGetCameraCapabilities(
+  Future<CameraCapabilities> crateApiDiagnosticsApiGetCameraCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_camera_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_camera_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_camera_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetCameraCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetCameraCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetCameraCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetCameraCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_camera_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<CameraStatus> crateApiApiGetCameraStatus({required String deviceId}) {
+  Future<CameraStatus> crateApiDevicesSimulationApiGetCameraStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_camera_status(port_, arg0);
+        return wire
+            .wire__crate__api__devices__simulation__api_get_camera_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_camera_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetCameraStatusConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiGetCameraStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetCameraStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiGetCameraStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_camera_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<List<DeviceInfo>> crateApiApiGetConnectedDevices() {
+  Future<List<DeviceInfo>> crateApiConnectionApiGetConnectedDevices() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_get_connected_devices(port_);
+        return wire
+            .wire__crate__api__connection__api_get_connected_devices(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_device_info,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetConnectedDevicesConstMeta,
+      constMeta: kCrateApiConnectionApiGetConnectedDevicesConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetConnectedDevicesConstMeta =>
+  TaskConstMeta get kCrateApiConnectionApiGetConnectedDevicesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_connected_devices",
         argNames: [],
       );
 
   @override
-  Future<CoverCalibratorCapabilities> crateApiApiGetCoverCalibratorCapabilities(
-      {required String deviceId}) {
+  Future<CoverCalibratorCapabilities>
+      crateApiDiagnosticsApiGetCoverCalibratorCapabilities(
+          {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_cover_calibrator_capabilities(
-            port_, arg0);
+        return wire
+            .wire__crate__api__diagnostics__api_get_cover_calibrator_capabilities(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_cover_calibrator_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetCoverCalibratorCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetCoverCalibratorCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetCoverCalibratorCapabilitiesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_get_cover_calibrator_capabilities",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDiagnosticsApiGetCoverCalibratorCapabilitiesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_get_cover_calibrator_capabilities",
+            argNames: ["deviceId"],
+          );
 
   @override
-  String? crateApiApiGetCurrentLogFile() {
+  String? crateApiInitApiGetCurrentLogFile() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_current_log_file();
+        return wire.wire__crate__api__init__api_get_current_log_file();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetCurrentLogFileConstMeta,
+      constMeta: kCrateApiInitApiGetCurrentLogFileConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetCurrentLogFileConstMeta =>
+  TaskConstMeta get kCrateApiInitApiGetCurrentLogFileConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_current_log_file",
         argNames: [],
       );
 
   @override
-  Future<DeviceApiVersion> crateApiApiGetDeviceApiVersion(
+  Future<DeviceApiVersion> crateApiApiVersionApiGetDeviceApiVersion(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_api_version(port_, arg0);
+        return wire.wire__crate__api__api_version__api_get_device_api_version(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_device_api_version,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDeviceApiVersionConstMeta,
+      constMeta: kCrateApiApiVersionApiGetDeviceApiVersionConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceApiVersionConstMeta =>
+  TaskConstMeta get kCrateApiApiVersionApiGetDeviceApiVersionConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_device_api_version",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<DeviceCapabilities> crateApiApiGetDeviceCapabilities(
+  Future<DeviceCapabilities> crateApiDiagnosticsApiGetDeviceCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_device_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_device_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDeviceCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetDeviceCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetDeviceCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_device_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<String?> crateApiApiGetDeviceDisplayName({required String deviceId}) {
+  Future<String?> crateApiConnectionApiGetDeviceDisplayName(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_display_name(port_, arg0);
+        return wire.wire__crate__api__connection__api_get_device_display_name(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetDeviceDisplayNameConstMeta,
+      constMeta: kCrateApiConnectionApiGetDeviceDisplayNameConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceDisplayNameConstMeta =>
+  TaskConstMeta get kCrateApiConnectionApiGetDeviceDisplayNameConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_device_display_name",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<(PlatformInt64, bool)> crateApiApiGetDeviceHealth(
+  Future<(PlatformInt64, bool)> crateApiHeartbeatApiGetDeviceHealth(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_health(port_, arg0);
+        return wire.wire__crate__api__heartbeat__api_get_device_health(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_i_64_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDeviceHealthConstMeta,
+      constMeta: kCrateApiHeartbeatApiGetDeviceHealthConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceHealthConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiHeartbeatApiGetDeviceHealthConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_device_health",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<DeviceHeartbeatInfo> crateApiApiGetDeviceHeartbeatInfo(
+  Future<DeviceHeartbeatInfo> crateApiHeartbeatApiGetDeviceHeartbeatInfo(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_heartbeat_info(
+        return wire.wire__crate__api__heartbeat__api_get_device_heartbeat_info(
             port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_device_heartbeat_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDeviceHeartbeatInfoConstMeta,
+      constMeta: kCrateApiHeartbeatApiGetDeviceHeartbeatInfoConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceHeartbeatInfoConstMeta =>
+  TaskConstMeta get kCrateApiHeartbeatApiGetDeviceHeartbeatInfoConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_device_heartbeat_info",
         argNames: ["deviceId"],
       );
 
   @override
-  List<QuirkInfo> crateApiApiGetDeviceQuirks({required String deviceId}) {
+  List<QuirkInfo> crateApiDiagnosticsApiGetDeviceQuirks(
+      {required String deviceId}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_device_quirks(arg0);
+        return wire.wire__crate__api__diagnostics__api_get_device_quirks(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_quirk_info,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetDeviceQuirksConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetDeviceQuirksConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDeviceQuirksConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDiagnosticsApiGetDeviceQuirksConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_device_quirks",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<DomeCapabilities> crateApiApiGetDomeCapabilities(
+  Future<DomeCapabilities> crateApiDiagnosticsApiGetDomeCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_dome_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_dome_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_dome_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDomeCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetDomeCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDomeCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetDomeCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_dome_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<DomeStatus> crateApiApiGetDomeStatus({required String deviceId}) {
+  Future<DomeStatus> crateApiDevicesDomeApiGetDomeStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_dome_status(port_, arg0);
+        return wire.wire__crate__api__devices__dome__api_get_dome_status(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_dome_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetDomeStatusConstMeta,
+      constMeta: kCrateApiDevicesDomeApiGetDomeStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDomeStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesDomeApiGetDomeStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_dome_status",
         argNames: ["deviceId"],
       );
 
   @override
-  BigInt crateApiApiGetDroppedEventCount() {
+  BigInt crateApiEventStreamApiGetDroppedEventCount() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_dropped_event_count();
+        return wire
+            .wire__crate__api__event_stream__api_get_dropped_event_count();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_u_64,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetDroppedEventCountConstMeta,
+      constMeta: kCrateApiEventStreamApiGetDroppedEventCountConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetDroppedEventCountConstMeta =>
+  TaskConstMeta get kCrateApiEventStreamApiGetDroppedEventCountConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_dropped_event_count",
         argNames: [],
       );
 
   @override
-  Future<FilterWheelCapabilities> crateApiApiGetFilterwheelCapabilities(
-      {required String deviceId}) {
+  Future<FilterWheelCapabilities>
+      crateApiDiagnosticsApiGetFilterwheelCapabilities(
+          {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_filterwheel_capabilities(
-            port_, arg0);
+        return wire
+            .wire__crate__api__diagnostics__api_get_filterwheel_capabilities(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_filter_wheel_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetFilterwheelCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetFilterwheelCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetFilterwheelCapabilitiesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_get_filterwheel_capabilities",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDiagnosticsApiGetFilterwheelCapabilitiesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_get_filterwheel_capabilities",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<FilterWheelStatus> crateApiApiGetFilterwheelStatus(
+  Future<FilterWheelStatus> crateApiDevicesSimulationApiGetFilterwheelStatus(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_filterwheel_status(port_, arg0);
+        return wire
+            .wire__crate__api__devices__simulation__api_get_filterwheel_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_filter_wheel_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetFilterwheelStatusConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiGetFilterwheelStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetFilterwheelStatusConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_get_filterwheel_status",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiGetFilterwheelStatusConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_get_filterwheel_status",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<FocuserCapabilities> crateApiApiGetFocuserCapabilities(
+  Future<FocuserCapabilities> crateApiDiagnosticsApiGetFocuserCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_focuser_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_focuser_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_focuser_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetFocuserCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetFocuserCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetFocuserCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetFocuserCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_focuser_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<FocuserStatus> crateApiApiGetFocuserStatus(
+  Future<FocuserStatus> crateApiDevicesSimulationApiGetFocuserStatus(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_focuser_status(port_, arg0);
+        return wire
+            .wire__crate__api__devices__simulation__api_get_focuser_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_focuser_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetFocuserStatusConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiGetFocuserStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetFocuserStatusConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiGetFocuserStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_focuser_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<(BigInt, BigInt, int, bool)> crateApiApiGetHeartbeatConfigForType(
-      {required DeviceType deviceType}) {
+  Future<(BigInt, BigInt, int, bool)>
+      crateApiHeartbeatApiGetHeartbeatConfigForType(
+          {required DeviceType deviceType}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
-        return wire.wire__crate__api__api_get_heartbeat_config_for_type(
-            port_, arg0);
+        return wire
+            .wire__crate__api__heartbeat__api_get_heartbeat_config_for_type(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_u_64_u_64_u_32_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetHeartbeatConfigForTypeConstMeta,
+      constMeta: kCrateApiHeartbeatApiGetHeartbeatConfigForTypeConstMeta,
       argValues: [deviceType],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetHeartbeatConfigForTypeConstMeta =>
+  TaskConstMeta get kCrateApiHeartbeatApiGetHeartbeatConfigForTypeConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_heartbeat_config_for_type",
         argNames: ["deviceType"],
       );
 
   @override
-  ImageStatsResult crateApiApiGetImageStats(
+  ImageStatsResult crateApiImagingApiGetImageStats(
       {required int width, required int height, required List<int> data}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_u_32(width);
         var arg1 = cst_encode_u_32(height);
         var arg2 = cst_encode_list_prim_u_16_loose(data);
-        return wire.wire__crate__api__api_get_image_stats(arg0, arg1, arg2);
+        return wire.wire__crate__api__imaging__api_get_image_stats(
+            arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_image_stats_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetImageStatsConstMeta,
+      constMeta: kCrateApiImagingApiGetImageStatsConstMeta,
       argValues: [width, height, data],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetImageStatsConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiGetImageStatsConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_image_stats",
         argNames: ["width", "height", "data"],
       );
 
   @override
-  Future<CapturedImageResult> crateApiApiGetLastImage(
+  Future<CapturedImageResult> crateApiImagingApiGetLastImage(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_last_image(port_, arg0);
+        return wire.wire__crate__api__imaging__api_get_last_image(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_captured_image_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetLastImageConstMeta,
+      constMeta: kCrateApiImagingApiGetLastImageConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetLastImageConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiGetLastImageConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_last_image",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<Uint16List> crateApiApiGetLastRawImageData(
+  Future<Uint16List> crateApiImagingApiGetLastRawImageData(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_last_raw_image_data(port_, arg0);
+        return wire.wire__crate__api__imaging__api_get_last_raw_image_data(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_prim_u_16_strict,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetLastRawImageDataConstMeta,
+      constMeta: kCrateApiImagingApiGetLastRawImageDataConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetLastRawImageDataConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiGetLastRawImageDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_last_raw_image_data",
         argNames: ["deviceId"],
       );
 
   @override
-  ObserverLocation? crateApiApiGetLocation() {
+  ObserverLocation? crateApiStorageApiGetLocation() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_location();
+        return wire.wire__crate__api__storage__api_get_location();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_box_autoadd_observer_location,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetLocationConstMeta,
+      constMeta: kCrateApiStorageApiGetLocationConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetLocationConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiGetLocationConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_location",
         argNames: [],
       );
 
   @override
-  String? crateApiApiGetLogDirectory() {
+  String? crateApiInitApiGetLogDirectory() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_log_directory();
+        return wire.wire__crate__api__init__api_get_log_directory();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetLogDirectoryConstMeta,
+      constMeta: kCrateApiInitApiGetLogDirectoryConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetLogDirectoryConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiGetLogDirectoryConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_log_directory",
         argNames: [],
       );
 
   @override
-  Future<MountCapabilities> crateApiApiGetMountCapabilities(
+  Future<MountCapabilities> crateApiDiagnosticsApiGetMountCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_mount_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_mount_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_mount_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetMountCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetMountCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetMountCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetMountCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_mount_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<MountStatus> crateApiApiGetMountStatus({required String deviceId}) {
+  Future<MountStatus> crateApiDevicesSimulationApiGetMountStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_mount_status(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_get_mount_status(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_mount_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetMountStatusConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiGetMountStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetMountStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiGetMountStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_mount_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<int> crateApiApiGetNextFrameNumber(
+  Future<int> crateApiImagingApiGetNextFrameNumber(
       {required String baseDir,
       required String pattern,
       String? target,
@@ -4473,325 +4690,339 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_opt_String(target);
         var arg3 = cst_encode_opt_String(filter);
         var arg4 = cst_encode_frame_type_api(frameType);
-        return wire.wire__crate__api__api_get_next_frame_number(
+        return wire.wire__crate__api__imaging__api_get_next_frame_number(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_u_32,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetNextFrameNumberConstMeta,
+      constMeta: kCrateApiImagingApiGetNextFrameNumberConstMeta,
       argValues: [baseDir, pattern, target, filter, frameType],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetNextFrameNumberConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiGetNextFrameNumberConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_next_frame_number",
         argNames: ["baseDir", "pattern", "target", "filter", "frameType"],
       );
 
   @override
-  String? crateApiApiGetPlateSolverPath() {
+  String? crateApiPlateSolveApiGetPlateSolverPath() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_plate_solver_path();
+        return wire.wire__crate__api__plate_solve__api_get_plate_solver_path();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetPlateSolverPathConstMeta,
+      constMeta: kCrateApiPlateSolveApiGetPlateSolverPathConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetPlateSolverPathConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiGetPlateSolverPathConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_plate_solver_path",
         argNames: [],
       );
 
   @override
-  List<EquipmentProfile> crateApiApiGetProfiles() {
+  List<EquipmentProfile> crateApiStorageApiGetProfiles() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_profiles();
+        return wire.wire__crate__api__storage__api_get_profiles();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_equipment_profile,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetProfilesConstMeta,
+      constMeta: kCrateApiStorageApiGetProfilesConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetProfilesConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiGetProfilesConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_profiles",
         argNames: [],
       );
 
   @override
-  QhyDiscoveryStatus crateApiApiGetQhyDiscoveryStatus() {
+  QhyDiscoveryStatus crateApiDiagnosticsApiGetQhyDiscoveryStatus() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_qhy_discovery_status();
+        return wire
+            .wire__crate__api__diagnostics__api_get_qhy_discovery_status();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_qhy_discovery_status,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetQhyDiscoveryStatusConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetQhyDiscoveryStatusConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetQhyDiscoveryStatusConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetQhyDiscoveryStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_qhy_discovery_status",
         argNames: [],
       );
 
   @override
-  Future<RotatorCapabilities> crateApiApiGetRotatorCapabilities(
+  Future<RotatorCapabilities> crateApiDiagnosticsApiGetRotatorCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_rotator_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_rotator_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_rotator_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetRotatorCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetRotatorCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetRotatorCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetRotatorCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_rotator_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<RotatorStatus> crateApiApiGetRotatorStatus(
+  Future<RotatorStatus> crateApiDevicesSimulationApiGetRotatorStatus(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_rotator_status(port_, arg0);
+        return wire
+            .wire__crate__api__devices__simulation__api_get_rotator_status(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_rotator_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetRotatorStatusConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiGetRotatorStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetRotatorStatusConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiGetRotatorStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_rotator_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<SafetyMonitorCapabilities> crateApiApiGetSafetyMonitorCapabilities(
-      {required String deviceId}) {
+  Future<SafetyMonitorCapabilities>
+      crateApiDiagnosticsApiGetSafetyMonitorCapabilities(
+          {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_safety_monitor_capabilities(
-            port_, arg0);
+        return wire
+            .wire__crate__api__diagnostics__api_get_safety_monitor_capabilities(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_safety_monitor_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetSafetyMonitorCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetSafetyMonitorCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetSafetyMonitorCapabilitiesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_get_safety_monitor_capabilities",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiDiagnosticsApiGetSafetyMonitorCapabilitiesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_get_safety_monitor_capabilities",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<SessionState> crateApiApiGetSessionState() {
+  Future<SessionState> crateApiSessionApiGetSessionState() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_get_session_state(port_);
+        return wire.wire__crate__api__session__api_get_session_state(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_session_state,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetSessionStateConstMeta,
+      constMeta: kCrateApiSessionApiGetSessionStateConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetSessionStateConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSessionApiGetSessionStateConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_session_state",
         argNames: [],
       );
 
   @override
-  AppSettings crateApiApiGetSettings() {
+  AppSettings crateApiStorageApiGetSettings() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_settings();
+        return wire.wire__crate__api__storage__api_get_settings();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_app_settings,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetSettingsConstMeta,
+      constMeta: kCrateApiStorageApiGetSettingsConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetSettingsConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiGetSettingsConstMeta =>
+      const TaskConstMeta(
         debugName: "api_get_settings",
         argNames: [],
       );
 
   @override
-  Future<List<StarCropApi>> crateApiApiGetStarCropsFromLastImage(
+  Future<List<StarCropApi>> crateApiImagingApiGetStarCropsFromLastImage(
       {required String deviceId, required int maxCrops}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_32(maxCrops);
-        return wire.wire__crate__api__api_get_star_crops_from_last_image(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__imaging__api_get_star_crops_from_last_image(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_star_crop_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetStarCropsFromLastImageConstMeta,
+      constMeta: kCrateApiImagingApiGetStarCropsFromLastImageConstMeta,
       argValues: [deviceId, maxCrops],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetStarCropsFromLastImageConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiGetStarCropsFromLastImageConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_star_crops_from_last_image",
         argNames: ["deviceId", "maxCrops"],
       );
 
   @override
-  Future<SwitchCapabilities> crateApiApiGetSwitchCapabilities(
+  Future<SwitchCapabilities> crateApiDiagnosticsApiGetSwitchCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_switch_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_switch_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_switch_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetSwitchCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetSwitchCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetSwitchCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetSwitchCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_switch_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  String crateApiApiGetVersion() {
+  String crateApiInitApiGetVersion() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_get_version();
+        return wire.wire__crate__api__init__api_get_version();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiGetVersionConstMeta,
+      constMeta: kCrateApiInitApiGetVersionConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetVersionConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiGetVersionConstMeta => const TaskConstMeta(
         debugName: "api_get_version",
         argNames: [],
       );
 
   @override
-  Future<WeatherCapabilities> crateApiApiGetWeatherCapabilities(
+  Future<WeatherCapabilities> crateApiDiagnosticsApiGetWeatherCapabilities(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_get_weather_capabilities(port_, arg0);
+        return wire.wire__crate__api__diagnostics__api_get_weather_capabilities(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_weather_capabilities,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGetWeatherCapabilitiesConstMeta,
+      constMeta: kCrateApiDiagnosticsApiGetWeatherCapabilitiesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGetWeatherCapabilitiesConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiGetWeatherCapabilitiesConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_weather_capabilities",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiGuiderDeselectStar({required String deviceId}) {
+  Future<void> crateApiPhd2ApiGuiderDeselectStar({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_deselect_star(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_deselect_star(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderDeselectStarConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderDeselectStarConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderDeselectStarConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiGuiderDeselectStarConstMeta =>
       const TaskConstMeta(
         debugName: "api_guider_deselect_star",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiGuiderDither(
+  Future<void> crateApiPhd2ApiGuiderDither(
       {required String deviceId,
       required double amount,
       required int raOnly,
@@ -4806,14 +5037,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_f_64(settlePixels);
         var arg4 = cst_encode_f_64(settleTime);
         var arg5 = cst_encode_f_64(settleTimeout);
-        return wire.wire__crate__api__api_guider_dither(
+        return wire.wire__crate__api__phd2__api_guider_dither(
             port_, arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderDitherConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderDitherConstMeta,
       argValues: [
         deviceId,
         amount,
@@ -4826,7 +5057,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderDitherConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiGuiderDitherConstMeta =>
+      const TaskConstMeta(
         debugName: "api_guider_dither",
         argNames: [
           "deviceId",
@@ -4839,124 +5071,128 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<(double, double)> crateApiApiGuiderFindStar(
+  Future<(double, double)> crateApiPhd2ApiGuiderFindStar(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_find_star(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_find_star(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_f_64_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderFindStarConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderFindStarConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderFindStarConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiGuiderFindStarConstMeta =>
+      const TaskConstMeta(
         debugName: "api_guider_find_star",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<(double, double)> crateApiApiGuiderGetLockPosition(
+  Future<(double, double)> crateApiPhd2ApiGuiderGetLockPosition(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_get_lock_position(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_get_lock_position(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_f_64_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderGetLockPositionConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderGetLockPositionConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderGetLockPositionConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiGuiderGetLockPositionConstMeta =>
       const TaskConstMeta(
         debugName: "api_guider_get_lock_position",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<Phd2StarImage> crateApiApiGuiderGetStarImage(
+  Future<Phd2StarImage> crateApiPhd2ApiGuiderGetStarImage(
       {required String deviceId, required int size}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_32(size);
-        return wire.wire__crate__api__api_guider_get_star_image(
+        return wire.wire__crate__api__phd2__api_guider_get_star_image(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_phd_2_star_image,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderGetStarImageConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderGetStarImageConstMeta,
       argValues: [deviceId, size],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderGetStarImageConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiGuiderGetStarImageConstMeta =>
       const TaskConstMeta(
         debugName: "api_guider_get_star_image",
         argNames: ["deviceId", "size"],
       );
 
   @override
-  Future<Phd2Status> crateApiApiGuiderGetStatus({required String deviceId}) {
+  Future<Phd2Status> crateApiPhd2ApiGuiderGetStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_get_status(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_get_status(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_phd_2_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderGetStatusConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderGetStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderGetStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiGuiderGetStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_guider_get_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiGuiderLoop({required String deviceId}) {
+  Future<void> crateApiPhd2ApiGuiderLoop({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_loop(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_loop(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderLoopConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderLoopConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderLoopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiGuiderLoopConstMeta => const TaskConstMeta(
         debugName: "api_guider_loop",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiGuiderSetLockPosition(
+  Future<void> crateApiPhd2ApiGuiderSetLockPosition(
       {required String deviceId,
       required double x,
       required double y,
@@ -4967,27 +5203,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_f_64(x);
         var arg2 = cst_encode_f_64(y);
         var arg3 = cst_encode_bool(exact);
-        return wire.wire__crate__api__api_guider_set_lock_position(
+        return wire.wire__crate__api__phd2__api_guider_set_lock_position(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderSetLockPositionConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderSetLockPositionConstMeta,
       argValues: [deviceId, x, y, exact],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderSetLockPositionConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiGuiderSetLockPositionConstMeta =>
       const TaskConstMeta(
         debugName: "api_guider_set_lock_position",
         argNames: ["deviceId", "x", "y", "exact"],
       );
 
   @override
-  Future<void> crateApiApiGuiderStartGuiding(
+  Future<void> crateApiPhd2ApiGuiderStartGuiding(
       {required String deviceId,
       required double settlePixels,
       required double settleTime,
@@ -4998,132 +5234,133 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_f_64(settlePixels);
         var arg2 = cst_encode_f_64(settleTime);
         var arg3 = cst_encode_f_64(settleTimeout);
-        return wire.wire__crate__api__api_guider_start_guiding(
+        return wire.wire__crate__api__phd2__api_guider_start_guiding(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderStartGuidingConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderStartGuidingConstMeta,
       argValues: [deviceId, settlePixels, settleTime, settleTimeout],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderStartGuidingConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiGuiderStartGuidingConstMeta =>
       const TaskConstMeta(
         debugName: "api_guider_start_guiding",
         argNames: ["deviceId", "settlePixels", "settleTime", "settleTimeout"],
       );
 
   @override
-  Future<void> crateApiApiGuiderStop({required String deviceId}) {
+  Future<void> crateApiPhd2ApiGuiderStop({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_guider_stop(port_, arg0);
+        return wire.wire__crate__api__phd2__api_guider_stop(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiGuiderStopConstMeta,
+      constMeta: kCrateApiPhd2ApiGuiderStopConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiGuiderStopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiGuiderStopConstMeta => const TaskConstMeta(
         debugName: "api_guider_stop",
         argNames: ["deviceId"],
       );
 
   @override
-  void crateApiApiInit() {
+  void crateApiInitApiInit() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_init();
+        return wire.wire__crate__api__init__api_init();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiInitConstMeta,
+      constMeta: kCrateApiInitApiInitConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiInitConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiInitConstMeta => const TaskConstMeta(
         debugName: "api_init",
         argNames: [],
       );
 
   @override
-  void crateApiApiInitProfileStorage({required String storagePath}) {
+  void crateApiStorageApiInitProfileStorage({required String storagePath}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(storagePath);
-        return wire.wire__crate__api__api_init_profile_storage(arg0);
+        return wire.wire__crate__api__storage__api_init_profile_storage(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiInitProfileStorageConstMeta,
+      constMeta: kCrateApiStorageApiInitProfileStorageConstMeta,
       argValues: [storagePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiInitProfileStorageConstMeta =>
+  TaskConstMeta get kCrateApiStorageApiInitProfileStorageConstMeta =>
       const TaskConstMeta(
         debugName: "api_init_profile_storage",
         argNames: ["storagePath"],
       );
 
   @override
-  void crateApiApiInitSettingsStorage({required String storagePath}) {
+  void crateApiStorageApiInitSettingsStorage({required String storagePath}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(storagePath);
-        return wire.wire__crate__api__api_init_settings_storage(arg0);
+        return wire.wire__crate__api__storage__api_init_settings_storage(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiInitSettingsStorageConstMeta,
+      constMeta: kCrateApiStorageApiInitSettingsStorageConstMeta,
       argValues: [storagePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiInitSettingsStorageConstMeta =>
+  TaskConstMeta get kCrateApiStorageApiInitSettingsStorageConstMeta =>
       const TaskConstMeta(
         debugName: "api_init_settings_storage",
         argNames: ["storagePath"],
       );
 
   @override
-  void crateApiApiInitWithLogging({String? logDirectory}) {
+  void crateApiInitApiInitWithLogging({String? logDirectory}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_opt_String(logDirectory);
-        return wire.wire__crate__api__api_init_with_logging(arg0);
+        return wire.wire__crate__api__init__api_init_with_logging(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiInitWithLoggingConstMeta,
+      constMeta: kCrateApiInitApiInitWithLoggingConstMeta,
       argValues: [logDirectory],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiInitWithLoggingConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiInitWithLoggingConstMeta =>
+      const TaskConstMeta(
         debugName: "api_init_with_logging",
         argNames: ["logDirectory"],
       );
@@ -5151,251 +5388,265 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiApiIsDeviceConnected(
+  Future<bool> crateApiConnectionApiIsDeviceConnected(
       {required DeviceType deviceType, required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
         var arg1 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_is_device_connected(
+        return wire.wire__crate__api__connection__api_is_device_connected(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiIsDeviceConnectedConstMeta,
+      constMeta: kCrateApiConnectionApiIsDeviceConnectedConstMeta,
       argValues: [deviceType, deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiIsDeviceConnectedConstMeta =>
+  TaskConstMeta get kCrateApiConnectionApiIsDeviceConnectedConstMeta =>
       const TaskConstMeta(
         debugName: "api_is_device_connected",
         argNames: ["deviceType", "deviceId"],
       );
 
   @override
-  Future<bool> crateApiApiIsHeartbeatActive({required String deviceId}) {
+  Future<bool> crateApiHeartbeatApiIsHeartbeatActive(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_is_heartbeat_active(port_, arg0);
+        return wire.wire__crate__api__heartbeat__api_is_heartbeat_active(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiIsHeartbeatActiveConstMeta,
+      constMeta: kCrateApiHeartbeatApiIsHeartbeatActiveConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiIsHeartbeatActiveConstMeta =>
+  TaskConstMeta get kCrateApiHeartbeatApiIsHeartbeatActiveConstMeta =>
       const TaskConstMeta(
         debugName: "api_is_heartbeat_active",
         argNames: ["deviceId"],
       );
 
   @override
-  bool crateApiApiIsPhd2Running() {
+  bool crateApiPhd2ApiIsPhd2Running() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_is_phd2_running();
+        return wire.wire__crate__api__phd2__api_is_phd2_running();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiIsPhd2RunningConstMeta,
+      constMeta: kCrateApiPhd2ApiIsPhd2RunningConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiIsPhd2RunningConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiIsPhd2RunningConstMeta =>
+      const TaskConstMeta(
         debugName: "api_is_phd2_running",
         argNames: [],
       );
 
   @override
-  bool crateApiApiIsPlateSolverAvailable() {
+  bool crateApiPlateSolveApiIsPlateSolverAvailable() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_is_plate_solver_available();
+        return wire
+            .wire__crate__api__plate_solve__api_is_plate_solver_available();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiIsPlateSolverAvailableConstMeta,
+      constMeta: kCrateApiPlateSolveApiIsPlateSolverAvailableConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiIsPlateSolverAvailableConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiIsPlateSolverAvailableConstMeta =>
       const TaskConstMeta(
         debugName: "api_is_plate_solver_available",
         argNames: [],
       );
 
   @override
-  bool crateApiApiIsQhyDiscoveryEnabled() {
+  bool crateApiDiagnosticsApiIsQhyDiscoveryEnabled() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_is_qhy_discovery_enabled();
+        return wire
+            .wire__crate__api__diagnostics__api_is_qhy_discovery_enabled();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiIsQhyDiscoveryEnabledConstMeta,
+      constMeta: kCrateApiDiagnosticsApiIsQhyDiscoveryEnabledConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiIsQhyDiscoveryEnabledConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiIsQhyDiscoveryEnabledConstMeta =>
       const TaskConstMeta(
         debugName: "api_is_qhy_discovery_enabled",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiLaunchPhd2() {
+  Future<void> crateApiPhd2ApiLaunchPhd2() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_launch_phd2(port_);
+        return wire.wire__crate__api__phd2__api_launch_phd2(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiLaunchPhd2ConstMeta,
+      constMeta: kCrateApiPhd2ApiLaunchPhd2ConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiLaunchPhd2ConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiLaunchPhd2ConstMeta => const TaskConstMeta(
         debugName: "api_launch_phd2",
         argNames: [],
       );
 
   @override
-  Future<List<String>> crateApiApiListLogFiles() {
+  Future<List<String>> crateApiInitApiListLogFiles() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_list_log_files(port_);
+        return wire.wire__crate__api__init__api_list_log_files(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiListLogFilesConstMeta,
+      constMeta: kCrateApiInitApiListLogFilesConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiListLogFilesConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiListLogFilesConstMeta =>
+      const TaskConstMeta(
         debugName: "api_list_log_files",
         argNames: [],
       );
 
   @override
-  Future<ApiLiveStackingConfig> crateApiApiLiveStackingConfigDefault() {
+  Future<ApiLiveStackingConfig> crateApiImagingApiLiveStackingConfigDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_live_stacking_config_default(port_);
+        return wire
+            .wire__crate__api__imaging__api_live_stacking_config_default(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_config,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiLiveStackingConfigDefaultConstMeta,
+      constMeta: kCrateApiImagingApiLiveStackingConfigDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiLiveStackingConfigDefaultConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiLiveStackingConfigDefaultConstMeta =>
       const TaskConstMeta(
         debugName: "api_live_stacking_config_default",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiLoadProfile({required String profileId}) {
+  Future<void> crateApiStorageApiLoadProfile({required String profileId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(profileId);
-        return wire.wire__crate__api__api_load_profile(port_, arg0);
+        return wire.wire__crate__api__storage__api_load_profile(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiLoadProfileConstMeta,
+      constMeta: kCrateApiStorageApiLoadProfileConstMeta,
       argValues: [profileId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiLoadProfileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiLoadProfileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_load_profile",
         argNames: ["profileId"],
       );
 
   @override
-  Future<void> crateApiApiMountFindHome({required String deviceId}) {
+  Future<void> crateApiDevicesSimulationApiMountFindHome(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_mount_find_home(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_mount_find_home(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountFindHomeConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountFindHomeConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountFindHomeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountFindHomeConstMeta =>
+      const TaskConstMeta(
         debugName: "api_mount_find_home",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiMountPark({required String deviceId}) {
+  Future<void> crateApiDevicesSimulationApiMountPark(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_mount_park(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_mount_park(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountParkConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountParkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountParkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountParkConstMeta =>
+      const TaskConstMeta(
         debugName: "api_mount_park",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiMountPulseGuide(
+  Future<void> crateApiDevicesSimulationApiMountPulseGuide(
       {required String deviceId,
       required String direction,
       required int durationMs}) {
@@ -5404,51 +5655,55 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(direction);
         var arg2 = cst_encode_i_32(durationMs);
-        return wire.wire__crate__api__api_mount_pulse_guide(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__devices__simulation__api_mount_pulse_guide(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountPulseGuideConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountPulseGuideConstMeta,
       argValues: [deviceId, direction, durationMs],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountPulseGuideConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountPulseGuideConstMeta =>
+      const TaskConstMeta(
         debugName: "api_mount_pulse_guide",
         argNames: ["deviceId", "direction", "durationMs"],
       );
 
   @override
-  Future<void> crateApiApiMountSetTracking(
+  Future<void> crateApiDevicesSimulationApiMountSetTracking(
       {required String deviceId, required int enabled}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_8(enabled);
-        return wire.wire__crate__api__api_mount_set_tracking(port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_mount_set_tracking(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountSetTrackingConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountSetTrackingConstMeta,
       argValues: [deviceId, enabled],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountSetTrackingConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountSetTrackingConstMeta =>
       const TaskConstMeta(
         debugName: "api_mount_set_tracking",
         argNames: ["deviceId", "enabled"],
       );
 
   @override
-  Future<void> crateApiApiMountSlewAltAz(
+  Future<void> crateApiDevicesSimulationApiMountSlewAltAz(
       {required String deviceId,
       required double altitude,
       required double azimuth}) {
@@ -5457,191 +5712,202 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(altitude);
         var arg2 = cst_encode_f_64(azimuth);
-        return wire.wire__crate__api__api_mount_slew_alt_az(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__devices__simulation__api_mount_slew_alt_az(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountSlewAltAzConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountSlewAltAzConstMeta,
       argValues: [deviceId, altitude, azimuth],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountSlewAltAzConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountSlewAltAzConstMeta =>
+      const TaskConstMeta(
         debugName: "api_mount_slew_alt_az",
         argNames: ["deviceId", "altitude", "azimuth"],
       );
 
   @override
-  Future<void> crateApiApiMountSlewToCoordinates(
+  Future<void> crateApiDevicesSimulationApiMountSlewToCoordinates(
       {required String deviceId, required double ra, required double dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(ra);
         var arg2 = cst_encode_f_64(dec);
-        return wire.wire__crate__api__api_mount_slew_to_coordinates(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__devices__simulation__api_mount_slew_to_coordinates(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountSlewToCoordinatesConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountSlewToCoordinatesConstMeta,
       argValues: [deviceId, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountSlewToCoordinatesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_mount_slew_to_coordinates",
-        argNames: ["deviceId", "ra", "dec"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiMountSlewToCoordinatesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_mount_slew_to_coordinates",
+            argNames: ["deviceId", "ra", "dec"],
+          );
 
   @override
-  Future<void> crateApiApiMountSyncToCoordinates(
+  Future<void> crateApiDevicesSimulationApiMountSyncToCoordinates(
       {required String deviceId, required double ra, required double dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(ra);
         var arg2 = cst_encode_f_64(dec);
-        return wire.wire__crate__api__api_mount_sync_to_coordinates(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__devices__simulation__api_mount_sync_to_coordinates(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountSyncToCoordinatesConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountSyncToCoordinatesConstMeta,
       argValues: [deviceId, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountSyncToCoordinatesConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_mount_sync_to_coordinates",
-        argNames: ["deviceId", "ra", "dec"],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationApiMountSyncToCoordinatesConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_mount_sync_to_coordinates",
+            argNames: ["deviceId", "ra", "dec"],
+          );
 
   @override
-  Future<void> crateApiApiMountUnpark({required String deviceId}) {
+  Future<void> crateApiDevicesSimulationApiMountUnpark(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_mount_unpark(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_mount_unpark(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiMountUnparkConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiMountUnparkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiMountUnparkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiMountUnparkConstMeta =>
+      const TaskConstMeta(
         debugName: "api_mount_unpark",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiPhd2ClearCalibration({required String which}) {
+  Future<void> crateApiPhd2ApiPhd2ClearCalibration({required String which}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(which);
-        return wire.wire__crate__api__api_phd2_clear_calibration(port_, arg0);
+        return wire.wire__crate__api__phd2__api_phd2_clear_calibration(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2ClearCalibrationConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2ClearCalibrationConstMeta,
       argValues: [which],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2ClearCalibrationConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2ClearCalibrationConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_clear_calibration",
         argNames: ["which"],
       );
 
   @override
-  Future<void> crateApiApiPhd2Connect({String? host, int? port}) {
+  Future<void> crateApiPhd2ApiPhd2Connect({String? host, int? port}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_String(host);
         var arg1 = cst_encode_opt_box_autoadd_u_16(port);
-        return wire.wire__crate__api__api_phd2_connect(port_, arg0, arg1);
+        return wire.wire__crate__api__phd2__api_phd2_connect(port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2ConnectConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2ConnectConstMeta,
       argValues: [host, port],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2ConnectConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2ConnectConstMeta => const TaskConstMeta(
         debugName: "api_phd2_connect",
         argNames: ["host", "port"],
       );
 
   @override
-  Future<void> crateApiApiPhd2DeselectStar() {
+  Future<void> crateApiPhd2ApiPhd2DeselectStar() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_deselect_star(port_);
+        return wire.wire__crate__api__phd2__api_phd2_deselect_star(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2DeselectStarConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2DeselectStarConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2DeselectStarConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2DeselectStarConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_deselect_star",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiPhd2Disconnect() {
+  Future<void> crateApiPhd2ApiPhd2Disconnect() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_disconnect(port_);
+        return wire.wire__crate__api__phd2__api_phd2_disconnect(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2DisconnectConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2DisconnectConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2DisconnectConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2DisconnectConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_disconnect",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiPhd2Dither(
+  Future<void> crateApiPhd2ApiPhd2Dither(
       {required double amount,
       required int raOnly,
       required double settlePixels,
@@ -5654,20 +5920,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_f_64(settlePixels);
         var arg3 = cst_encode_f_64(settleTime);
         var arg4 = cst_encode_f_64(settleTimeout);
-        return wire.wire__crate__api__api_phd2_dither(
+        return wire.wire__crate__api__phd2__api_phd2_dither(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2DitherConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2DitherConstMeta,
       argValues: [amount, raOnly, settlePixels, settleTime, settleTimeout],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2DitherConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2DitherConstMeta => const TaskConstMeta(
         debugName: "api_phd2_dither",
         argNames: [
           "amount",
@@ -5679,374 +5945,383 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<(double, double)> crateApiApiPhd2FindStar() {
+  Future<(double, double)> crateApiPhd2ApiPhd2FindStar() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_find_star(port_);
+        return wire.wire__crate__api__phd2__api_phd2_find_star(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_f_64_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2FindStarConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2FindStarConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2FindStarConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2FindStarConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_find_star",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiPhd2FlipCalibration() {
+  Future<void> crateApiPhd2ApiPhd2FlipCalibration() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_flip_calibration(port_);
+        return wire.wire__crate__api__phd2__api_phd2_flip_calibration(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2FlipCalibrationConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2FlipCalibrationConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2FlipCalibrationConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2FlipCalibrationConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_flip_calibration",
         argNames: [],
       );
 
   @override
-  Future<double> crateApiApiPhd2GetAlgoParam(
+  Future<double> crateApiPhd2ApiPhd2GetAlgoParam(
       {required String axis, required String name}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(axis);
         var arg1 = cst_encode_String(name);
-        return wire.wire__crate__api__api_phd2_get_algo_param(
+        return wire.wire__crate__api__phd2__api_phd2_get_algo_param(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetAlgoParamConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetAlgoParamConstMeta,
       argValues: [axis, name],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetAlgoParamConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetAlgoParamConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_algo_param",
         argNames: ["axis", "name"],
       );
 
   @override
-  Future<List<String>> crateApiApiPhd2GetAlgoParamNames(
+  Future<List<String>> crateApiPhd2ApiPhd2GetAlgoParamNames(
       {required String axis}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(axis);
-        return wire.wire__crate__api__api_phd2_get_algo_param_names(
+        return wire.wire__crate__api__phd2__api_phd2_get_algo_param_names(
             port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetAlgoParamNamesConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetAlgoParamNamesConstMeta,
       argValues: [axis],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetAlgoParamNamesConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetAlgoParamNamesConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_algo_param_names",
         argNames: ["axis"],
       );
 
   @override
-  Future<List<Phd2AlgoParam>> crateApiApiPhd2GetAllAlgoParams(
+  Future<List<Phd2AlgoParam>> crateApiPhd2ApiPhd2GetAllAlgoParams(
       {required String axis}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(axis);
-        return wire.wire__crate__api__api_phd2_get_all_algo_params(port_, arg0);
+        return wire.wire__crate__api__phd2__api_phd2_get_all_algo_params(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_list_phd_2_algo_param,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetAllAlgoParamsConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetAllAlgoParamsConstMeta,
       argValues: [axis],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetAllAlgoParamsConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetAllAlgoParamsConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_all_algo_params",
         argNames: ["axis"],
       );
 
   @override
-  Future<Phd2CalibrationData> crateApiApiPhd2GetCalibrationData() {
+  Future<Phd2CalibrationData> crateApiPhd2ApiPhd2GetCalibrationData() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_get_calibration_data(port_);
+        return wire
+            .wire__crate__api__phd2__api_phd2_get_calibration_data(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_phd_2_calibration_data,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetCalibrationDataConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetCalibrationDataConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetCalibrationDataConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetCalibrationDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_calibration_data",
         argNames: [],
       );
 
   @override
-  Future<int> crateApiApiPhd2GetExposure() {
+  Future<int> crateApiPhd2ApiPhd2GetExposure() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_get_exposure(port_);
+        return wire.wire__crate__api__phd2__api_phd2_get_exposure(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_u_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetExposureConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetExposureConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetExposureConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetExposureConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_get_exposure",
         argNames: [],
       );
 
   @override
-  Future<(double, double)> crateApiApiPhd2GetLockPosition() {
+  Future<(double, double)> crateApiPhd2ApiPhd2GetLockPosition() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_get_lock_position(port_);
+        return wire.wire__crate__api__phd2__api_phd2_get_lock_position(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_f_64_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetLockPositionConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetLockPositionConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetLockPositionConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetLockPositionConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_lock_position",
         argNames: [],
       );
 
   @override
-  Future<String> crateApiApiPhd2GetProfile() {
+  Future<String> crateApiPhd2ApiPhd2GetProfile() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_get_profile(port_);
+        return wire.wire__crate__api__phd2__api_phd2_get_profile(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetProfileConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetProfileConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetProfileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetProfileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_get_profile",
         argNames: [],
       );
 
   @override
-  Future<Phd2StarImage> crateApiApiPhd2GetStarImage({required int size}) {
+  Future<Phd2StarImage> crateApiPhd2ApiPhd2GetStarImage({required int size}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_u_32(size);
-        return wire.wire__crate__api__api_phd2_get_star_image(port_, arg0);
+        return wire.wire__crate__api__phd2__api_phd2_get_star_image(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_phd_2_star_image,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetStarImageConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetStarImageConstMeta,
       argValues: [size],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetStarImageConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetStarImageConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_get_star_image",
         argNames: ["size"],
       );
 
   @override
-  Future<Phd2Status> crateApiApiPhd2GetStatus() {
+  Future<Phd2Status> crateApiPhd2ApiPhd2GetStatus() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_get_status(port_);
+        return wire.wire__crate__api__phd2__api_phd2_get_status(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_phd_2_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2GetStatusConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2GetStatusConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2GetStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2GetStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_get_status",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiPhd2Loop() {
+  Future<void> crateApiPhd2ApiPhd2Loop() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_loop(port_);
+        return wire.wire__crate__api__phd2__api_phd2_loop(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2LoopConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2LoopConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2LoopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2LoopConstMeta => const TaskConstMeta(
         debugName: "api_phd2_loop",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiPhd2SetAlgoParam(
+  Future<void> crateApiPhd2ApiPhd2SetAlgoParam(
       {required String axis, required String name, required double value}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(axis);
         var arg1 = cst_encode_String(name);
         var arg2 = cst_encode_f_64(value);
-        return wire.wire__crate__api__api_phd2_set_algo_param(
+        return wire.wire__crate__api__phd2__api_phd2_set_algo_param(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2SetAlgoParamConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2SetAlgoParamConstMeta,
       argValues: [axis, name, value],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2SetAlgoParamConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2SetAlgoParamConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_set_algo_param",
         argNames: ["axis", "name", "value"],
       );
 
   @override
-  Future<void> crateApiApiPhd2SetExposure({required int exposureMs}) {
+  Future<void> crateApiPhd2ApiPhd2SetExposure({required int exposureMs}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_u_32(exposureMs);
-        return wire.wire__crate__api__api_phd2_set_exposure(port_, arg0);
+        return wire.wire__crate__api__phd2__api_phd2_set_exposure(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2SetExposureConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2SetExposureConstMeta,
       argValues: [exposureMs],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2SetExposureConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2SetExposureConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_set_exposure",
         argNames: ["exposureMs"],
       );
 
   @override
-  Future<void> crateApiApiPhd2SetLockPosition(
+  Future<void> crateApiPhd2ApiPhd2SetLockPosition(
       {required double x, required double y, required bool exact}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_f_64(x);
         var arg1 = cst_encode_f_64(y);
         var arg2 = cst_encode_bool(exact);
-        return wire.wire__crate__api__api_phd2_set_lock_position(
+        return wire.wire__crate__api__phd2__api_phd2_set_lock_position(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2SetLockPositionConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2SetLockPositionConstMeta,
       argValues: [x, y, exact],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2SetLockPositionConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2SetLockPositionConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_set_lock_position",
         argNames: ["x", "y", "exact"],
       );
 
   @override
-  Future<void> crateApiApiPhd2SetPaused({required bool paused}) {
+  Future<void> crateApiPhd2ApiPhd2SetPaused({required bool paused}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_bool(paused);
-        return wire.wire__crate__api__api_phd2_set_paused(port_, arg0);
+        return wire.wire__crate__api__phd2__api_phd2_set_paused(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2SetPausedConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2SetPausedConstMeta,
       argValues: [paused],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2SetPausedConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2SetPausedConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_set_paused",
         argNames: ["paused"],
       );
 
   @override
-  Future<void> crateApiApiPhd2StartGuiding(
+  Future<void> crateApiPhd2ApiPhd2StartGuiding(
       {required double settlePixels,
       required double settleTime,
       required double settleTimeout}) {
@@ -6055,71 +6330,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_f_64(settlePixels);
         var arg1 = cst_encode_f_64(settleTime);
         var arg2 = cst_encode_f_64(settleTimeout);
-        return wire.wire__crate__api__api_phd2_start_guiding(
+        return wire.wire__crate__api__phd2__api_phd2_start_guiding(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2StartGuidingConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2StartGuidingConstMeta,
       argValues: [settlePixels, settleTime, settleTimeout],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2StartGuidingConstMeta =>
+  TaskConstMeta get kCrateApiPhd2ApiPhd2StartGuidingConstMeta =>
       const TaskConstMeta(
         debugName: "api_phd2_start_guiding",
         argNames: ["settlePixels", "settleTime", "settleTimeout"],
       );
 
   @override
-  Future<void> crateApiApiPhd2StopGuiding() {
+  Future<void> crateApiPhd2ApiPhd2StopGuiding() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_phd2_stop_guiding(port_);
+        return wire.wire__crate__api__phd2__api_phd2_stop_guiding(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPhd2StopGuidingConstMeta,
+      constMeta: kCrateApiPhd2ApiPhd2StopGuidingConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPhd2StopGuidingConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPhd2ApiPhd2StopGuidingConstMeta =>
+      const TaskConstMeta(
         debugName: "api_phd2_stop_guiding",
         argNames: [],
       );
 
   @override
-  Future<PlateSolveResult> crateApiApiPlateSolveBlind(
+  Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveBlind(
       {required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_plate_solve_blind(port_, arg0);
+        return wire.wire__crate__api__plate_solve__api_plate_solve_blind(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_plate_solve_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlateSolveBlindConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlateSolveBlindConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlateSolveBlindConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPlateSolveApiPlateSolveBlindConstMeta =>
+      const TaskConstMeta(
         debugName: "api_plate_solve_blind",
         argNames: ["filePath"],
       );
 
   @override
-  Future<PlateSolveResult> crateApiApiPlateSolveNear(
+  Future<PlateSolveResult> crateApiPlateSolveApiPlateSolveNear(
       {required String filePath,
       required double hintRa,
       required double hintDec,
@@ -6130,304 +6408,320 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_f_64(hintRa);
         var arg2 = cst_encode_f_64(hintDec);
         var arg3 = cst_encode_f_64(searchRadius);
-        return wire.wire__crate__api__api_plate_solve_near(
+        return wire.wire__crate__api__plate_solve__api_plate_solve_near(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_plate_solve_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlateSolveNearConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlateSolveNearConstMeta,
       argValues: [filePath, hintRa, hintDec, searchRadius],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlateSolveNearConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiPlateSolveApiPlateSolveNearConstMeta =>
+      const TaskConstMeta(
         debugName: "api_plate_solve_near",
         argNames: ["filePath", "hintRa", "hintDec", "searchRadius"],
       );
 
   @override
-  PlateSolverDetection crateApiApiPlatesolveDetect() {
+  PlateSolverDetection crateApiPlateSolveApiPlatesolveDetect() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_platesolve_detect();
+        return wire.wire__crate__api__plate_solve__api_platesolve_detect();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_plate_solver_detection,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlatesolveDetectConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlatesolveDetectConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlatesolveDetectConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiPlatesolveDetectConstMeta =>
       const TaskConstMeta(
         debugName: "api_platesolve_detect",
         argNames: [],
       );
 
   @override
-  PlateSolverConfigPayload crateApiApiPlatesolveGetConfig() {
+  PlateSolverConfigPayload crateApiPlateSolveApiPlatesolveGetConfig() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_platesolve_get_config();
+        return wire.wire__crate__api__plate_solve__api_platesolve_get_config();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_plate_solver_config_payload,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlatesolveGetConfigConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlatesolveGetConfigConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlatesolveGetConfigConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiPlatesolveGetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_platesolve_get_config",
         argNames: [],
       );
 
   @override
-  void crateApiApiPlatesolveSetConfig(
+  void crateApiPlateSolveApiPlatesolveSetConfig(
       {required PlateSolverConfigPayload config}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_box_autoadd_plate_solver_config_payload(config);
-        return wire.wire__crate__api__api_platesolve_set_config(arg0);
+        return wire
+            .wire__crate__api__plate_solve__api_platesolve_set_config(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlatesolveSetConfigConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlatesolveSetConfigConstMeta,
       argValues: [config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlatesolveSetConfigConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiPlatesolveSetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_platesolve_set_config",
         argNames: ["config"],
       );
 
   @override
-  PlateSolverInfo crateApiApiPlatesolveVerify(
+  PlateSolverInfo crateApiPlateSolveApiPlatesolveVerify(
       {required String executablePath}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_String(executablePath);
-        return wire.wire__crate__api__api_platesolve_verify(arg0);
+        return wire.wire__crate__api__plate_solve__api_platesolve_verify(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_plate_solver_info,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiPlatesolveVerifyConstMeta,
+      constMeta: kCrateApiPlateSolveApiPlatesolveVerifyConstMeta,
       argValues: [executablePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiPlatesolveVerifyConstMeta =>
+  TaskConstMeta get kCrateApiPlateSolveApiPlatesolveVerifyConstMeta =>
       const TaskConstMeta(
         debugName: "api_platesolve_verify",
         argNames: ["executablePath"],
       );
 
   @override
-  Future<FitsReadResult> crateApiApiReadFitsFile({required String filePath}) {
+  Future<FitsReadResult> crateApiImagingApiReadFitsFile(
+      {required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_read_fits_file(port_, arg0);
+        return wire.wire__crate__api__imaging__api_read_fits_file(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_fits_read_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiReadFitsFileConstMeta,
+      constMeta: kCrateApiImagingApiReadFitsFileConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiReadFitsFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiReadFitsFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_read_fits_file",
         argNames: ["filePath"],
       );
 
   @override
-  Future<FitsLinearReadResult> crateApiApiReadFitsLinearData(
+  Future<FitsLinearReadResult> crateApiImagingApiReadFitsLinearData(
       {required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_read_fits_linear_data(port_, arg0);
+        return wire.wire__crate__api__imaging__api_read_fits_linear_data(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_fits_linear_read_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiReadFitsLinearDataConstMeta,
+      constMeta: kCrateApiImagingApiReadFitsLinearDataConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiReadFitsLinearDataConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiReadFitsLinearDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_read_fits_linear_data",
         argNames: ["filePath"],
       );
 
   @override
-  Future<String> crateApiApiReadLogFile({required String path}) {
+  Future<String> crateApiInitApiReadLogFile({required String path}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(path);
-        return wire.wire__crate__api__api_read_log_file(port_, arg0);
+        return wire.wire__crate__api__init__api_read_log_file(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiReadLogFileConstMeta,
+      constMeta: kCrateApiInitApiReadLogFileConstMeta,
       argValues: [path],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiReadLogFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInitApiReadLogFileConstMeta => const TaskConstMeta(
         debugName: "api_read_log_file",
         argNames: ["path"],
       );
 
   @override
-  Future<XisfReadResult> crateApiApiReadXisfFile({required String filePath}) {
+  Future<XisfReadResult> crateApiImagingApiReadXisfFile(
+      {required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(filePath);
-        return wire.wire__crate__api__api_read_xisf_file(port_, arg0);
+        return wire.wire__crate__api__imaging__api_read_xisf_file(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_xisf_read_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiReadXisfFileConstMeta,
+      constMeta: kCrateApiImagingApiReadXisfFileConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiReadXisfFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiReadXisfFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_read_xisf_file",
         argNames: ["filePath"],
       );
 
   @override
-  Future<void> crateApiApiRotatorHalt({required String deviceId}) {
+  Future<void> crateApiDevicesSimulationApiRotatorHalt(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_rotator_halt(port_, arg0);
+        return wire.wire__crate__api__devices__simulation__api_rotator_halt(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRotatorHaltConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiRotatorHaltConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRotatorHaltConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiRotatorHaltConstMeta =>
+      const TaskConstMeta(
         debugName: "api_rotator_halt",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiRotatorMoveRelative(
+  Future<void> crateApiDevicesSimulationApiRotatorMoveRelative(
       {required String deviceId, required double delta}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(delta);
-        return wire.wire__crate__api__api_rotator_move_relative(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_rotator_move_relative(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRotatorMoveRelativeConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiRotatorMoveRelativeConstMeta,
       argValues: [deviceId, delta],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRotatorMoveRelativeConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationApiRotatorMoveRelativeConstMeta =>
       const TaskConstMeta(
         debugName: "api_rotator_move_relative",
         argNames: ["deviceId", "delta"],
       );
 
   @override
-  Future<void> crateApiApiRotatorMoveTo(
+  Future<void> crateApiDevicesSimulationApiRotatorMoveTo(
       {required String deviceId, required double angle}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(angle);
-        return wire.wire__crate__api__api_rotator_move_to(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__simulation__api_rotator_move_to(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRotatorMoveToConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiRotatorMoveToConstMeta,
       argValues: [deviceId, angle],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRotatorMoveToConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiRotatorMoveToConstMeta =>
+      const TaskConstMeta(
         debugName: "api_rotator_move_to",
         argNames: ["deviceId", "angle"],
       );
 
   @override
-  Future<void> crateApiApiRotatorSyncToPa(
+  Future<void> crateApiDevicesSimulationApiRotatorSyncToPa(
       {required String deviceId, required double pa}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(pa);
-        return wire.wire__crate__api__api_rotator_sync_to_pa(port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_rotator_sync_to_pa(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRotatorSyncToPaConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiRotatorSyncToPaConstMeta,
       argValues: [deviceId, pa],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRotatorSyncToPaConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiRotatorSyncToPaConstMeta =>
+      const TaskConstMeta(
         debugName: "api_rotator_sync_to_pa",
         argNames: ["deviceId", "pa"],
       );
 
   @override
-  Future<AutofocusResultApi> crateApiApiRunAutofocus(
+  Future<AutofocusResultApi> crateApiImagingApiRunAutofocus(
       {required String deviceId,
       required String cameraId,
       required AutofocusConfigApi config}) {
@@ -6436,26 +6730,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(cameraId);
         var arg2 = cst_encode_box_autoadd_autofocus_config_api(config);
-        return wire.wire__crate__api__api_run_autofocus(
+        return wire.wire__crate__api__imaging__api_run_autofocus(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_autofocus_result_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRunAutofocusConstMeta,
+      constMeta: kCrateApiImagingApiRunAutofocusConstMeta,
       argValues: [deviceId, cameraId, config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRunAutofocusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiRunAutofocusConstMeta =>
+      const TaskConstMeta(
         debugName: "api_run_autofocus",
         argNames: ["deviceId", "cameraId", "config"],
       );
 
   @override
-  Future<IndiAutofocusResultApi> crateApiApiRunIndiAutofocus(
+  Future<IndiAutofocusResultApi> crateApiImagingApiRunIndiAutofocus(
       {required String cameraId,
       required String focuserId,
       required IndiAutofocusConfigApi config}) {
@@ -6464,27 +6759,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(cameraId);
         var arg1 = cst_encode_String(focuserId);
         var arg2 = cst_encode_box_autoadd_indi_autofocus_config_api(config);
-        return wire.wire__crate__api__api_run_indi_autofocus(
+        return wire.wire__crate__api__imaging__api_run_indi_autofocus(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_indi_autofocus_result_api,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiRunIndiAutofocusConstMeta,
+      constMeta: kCrateApiImagingApiRunIndiAutofocusConstMeta,
       argValues: [cameraId, focuserId, config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiRunIndiAutofocusConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiRunIndiAutofocusConstMeta =>
       const TaskConstMeta(
         debugName: "api_run_indi_autofocus",
         argNames: ["cameraId", "focuserId", "config"],
       );
 
   @override
-  Future<void> crateApiApiSaveFitsFile(
+  Future<void> crateApiImagingApiSaveFitsFile(
       {required String filePath,
       required int width,
       required int height,
@@ -6497,26 +6792,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_list_prim_u_16_loose(data);
         var arg4 = cst_encode_box_autoadd_fits_write_header(headerData);
-        return wire.wire__crate__api__api_save_fits_file(
+        return wire.wire__crate__api__imaging__api_save_fits_file(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveFitsFileConstMeta,
+      constMeta: kCrateApiImagingApiSaveFitsFileConstMeta,
       argValues: [filePath, width, height, data, headerData],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveFitsFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiSaveFitsFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_fits_file",
         argNames: ["filePath", "width", "height", "data", "headerData"],
       );
 
   @override
-  Future<void> crateApiApiSaveFitsFromLastCapture(
+  Future<void> crateApiImagingApiSaveFitsFromLastCapture(
       {required String deviceId,
       required String filePath,
       required FitsWriteHeader headerData}) {
@@ -6525,27 +6821,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(filePath);
         var arg2 = cst_encode_box_autoadd_fits_write_header(headerData);
-        return wire.wire__crate__api__api_save_fits_from_last_capture(
+        return wire.wire__crate__api__imaging__api_save_fits_from_last_capture(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveFitsFromLastCaptureConstMeta,
+      constMeta: kCrateApiImagingApiSaveFitsFromLastCaptureConstMeta,
       argValues: [deviceId, filePath, headerData],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveFitsFromLastCaptureConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiSaveFitsFromLastCaptureConstMeta =>
       const TaskConstMeta(
         debugName: "api_save_fits_from_last_capture",
         argNames: ["deviceId", "filePath", "headerData"],
       );
 
   @override
-  Future<void> crateApiApiSaveJpegFile(
+  Future<void> crateApiImagingApiSaveJpegFile(
       {required String filePath,
       required int width,
       required int height,
@@ -6558,26 +6854,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_list_prim_u_16_loose(data);
         var arg4 = cst_encode_u_8(quality);
-        return wire.wire__crate__api__api_save_jpeg_file(
+        return wire.wire__crate__api__imaging__api_save_jpeg_file(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveJpegFileConstMeta,
+      constMeta: kCrateApiImagingApiSaveJpegFileConstMeta,
       argValues: [filePath, width, height, data, quality],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveJpegFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiSaveJpegFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_jpeg_file",
         argNames: ["filePath", "width", "height", "data", "quality"],
       );
 
   @override
-  Future<void> crateApiApiSavePngFile(
+  Future<void> crateApiImagingApiSavePngFile(
       {required String filePath,
       required int width,
       required int height,
@@ -6588,48 +6885,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_u_32(width);
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_list_prim_u_16_loose(data);
-        return wire.wire__crate__api__api_save_png_file(
+        return wire.wire__crate__api__imaging__api_save_png_file(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSavePngFileConstMeta,
+      constMeta: kCrateApiImagingApiSavePngFileConstMeta,
       argValues: [filePath, width, height, data],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSavePngFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiSavePngFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_png_file",
         argNames: ["filePath", "width", "height", "data"],
       );
 
   @override
-  void crateApiApiSaveProfile({required EquipmentProfile profile}) {
+  void crateApiStorageApiSaveProfile({required EquipmentProfile profile}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_box_autoadd_equipment_profile(profile);
-        return wire.wire__crate__api__api_save_profile(arg0);
+        return wire.wire__crate__api__storage__api_save_profile(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveProfileConstMeta,
+      constMeta: kCrateApiStorageApiSaveProfileConstMeta,
       argValues: [profile],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveProfileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiSaveProfileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_profile",
         argNames: ["profile"],
       );
 
   @override
-  Future<void> crateApiApiSaveTiffFile(
+  Future<void> crateApiImagingApiSaveTiffFile(
       {required String filePath,
       required int width,
       required int height,
@@ -6640,26 +6939,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_u_32(width);
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_list_prim_u_16_loose(data);
-        return wire.wire__crate__api__api_save_tiff_file(
+        return wire.wire__crate__api__imaging__api_save_tiff_file(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveTiffFileConstMeta,
+      constMeta: kCrateApiImagingApiSaveTiffFileConstMeta,
       argValues: [filePath, width, height, data],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveTiffFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiSaveTiffFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_tiff_file",
         argNames: ["filePath", "width", "height", "data"],
       );
 
   @override
-  Future<void> crateApiApiSaveXisfFile(
+  Future<void> crateApiImagingApiSaveXisfFile(
       {required String filePath,
       required int width,
       required int height,
@@ -6672,292 +6972,308 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(height);
         var arg3 = cst_encode_list_prim_u_16_loose(data);
         var arg4 = cst_encode_list_record_string_string(properties);
-        return wire.wire__crate__api__api_save_xisf_file(
+        return wire.wire__crate__api__imaging__api_save_xisf_file(
             port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSaveXisfFileConstMeta,
+      constMeta: kCrateApiImagingApiSaveXisfFileConstMeta,
       argValues: [filePath, width, height, data, properties],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSaveXisfFileConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiSaveXisfFileConstMeta =>
+      const TaskConstMeta(
         debugName: "api_save_xisf_file",
         argNames: ["filePath", "width", "height", "data", "properties"],
       );
 
   @override
-  Future<void> crateApiApiSequencerClearCheckpoint() {
+  Future<void> crateApiSequencerApiSequencerClearCheckpoint() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_clear_checkpoint(port_);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_clear_checkpoint(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerClearCheckpointConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerClearCheckpointConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerClearCheckpointConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerClearCheckpointConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_clear_checkpoint",
         argNames: [],
       );
 
   @override
-  Future<CheckpointInfoApi?> crateApiApiSequencerGetCheckpointInfo() {
+  Future<CheckpointInfoApi?> crateApiSequencerApiSequencerGetCheckpointInfo() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_get_checkpoint_info(port_);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_get_checkpoint_info(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_opt_box_autoadd_checkpoint_info_api,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiSequencerGetCheckpointInfoConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerGetCheckpointInfoConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerGetCheckpointInfoConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerGetCheckpointInfoConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_get_checkpoint_info",
         argNames: [],
       );
 
   @override
-  Future<SequencerState> crateApiApiSequencerGetState() {
+  Future<SequencerState> crateApiSequencerApiSequencerGetState() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_get_state(port_);
+        return wire.wire__crate__api__sequencer__api_sequencer_get_state(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_sequencer_state,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiSequencerGetStateConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerGetStateConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerGetStateConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerGetStateConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_get_state",
         argNames: [],
       );
 
   @override
-  Future<bool> crateApiApiSequencerHasCheckpoint() {
+  Future<bool> crateApiSequencerApiSequencerHasCheckpoint() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_has_checkpoint(port_);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_has_checkpoint(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiSequencerHasCheckpointConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerHasCheckpointConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerHasCheckpointConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerHasCheckpointConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_has_checkpoint",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiSequencerLoad(
+  Future<void> crateApiSequencerApiSequencerLoad(
       {required SequenceDefinitionApi definition}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_box_autoadd_sequence_definition_api(definition);
-        return wire.wire__crate__api__api_sequencer_load(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerLoadConstMeta,
-      argValues: [definition],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerLoadConstMeta => const TaskConstMeta(
-        debugName: "api_sequencer_load",
-        argNames: ["definition"],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerLoadJson({required String json}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(json);
-        return wire.wire__crate__api__api_sequencer_load_json(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerLoadJsonConstMeta,
-      argValues: [json],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerLoadJsonConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_sequencer_load_json",
-        argNames: ["json"],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerPause() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_pause(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerPauseConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerPauseConstMeta => const TaskConstMeta(
-        debugName: "api_sequencer_pause",
-        argNames: [],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerReset() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_reset(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerResetConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerResetConstMeta => const TaskConstMeta(
-        debugName: "api_sequencer_reset",
-        argNames: [],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerResume() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_resume(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerResumeConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerResumeConstMeta => const TaskConstMeta(
-        debugName: "api_sequencer_resume",
-        argNames: [],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerResumeFromCheckpoint() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire
-            .wire__crate__api__api_sequencer_resume_from_checkpoint(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerResumeFromCheckpointConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerResumeFromCheckpointConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_sequencer_resume_from_checkpoint",
-        argNames: [],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerSaveCheckpoint() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_save_checkpoint(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerSaveCheckpointConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerSaveCheckpointConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_sequencer_save_checkpoint",
-        argNames: [],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerSetCheckpointDir({required String path}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(path);
-        return wire.wire__crate__api__api_sequencer_set_checkpoint_dir(
+        return wire.wire__crate__api__sequencer__api_sequencer_load(
             port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSetCheckpointDirConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerLoadConstMeta,
+      argValues: [definition],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerLoadConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_load",
+        argNames: ["definition"],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerLoadJson({required String json}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(json);
+        return wire.wire__crate__api__sequencer__api_sequencer_load_json(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerLoadJsonConstMeta,
+      argValues: [json],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerLoadJsonConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_load_json",
+        argNames: ["json"],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerPause() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire.wire__crate__api__sequencer__api_sequencer_pause(port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerPauseConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerPauseConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_pause",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerReset() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire.wire__crate__api__sequencer__api_sequencer_reset(port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerResetConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerResetConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_reset",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerResume() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire.wire__crate__api__sequencer__api_sequencer_resume(port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerResumeConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerResumeConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_resume",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerResumeFromCheckpoint() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint(
+                port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerResumeFromCheckpointConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiSequencerApiSequencerResumeFromCheckpointConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_sequencer_resume_from_checkpoint",
+            argNames: [],
+          );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerSaveCheckpoint() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_save_checkpoint(port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerSaveCheckpointConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerSaveCheckpointConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_save_checkpoint",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerSetCheckpointDir(
+      {required String path}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(path);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerSetCheckpointDirConstMeta,
       argValues: [path],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSetCheckpointDirConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerSetCheckpointDirConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_set_checkpoint_dir",
         argNames: ["path"],
       );
 
   @override
-  Future<void> crateApiApiSequencerSetDevices(
+  Future<void> crateApiSequencerApiSequencerSetDevices(
       {String? cameraId,
       String? mountId,
       String? focuserId,
@@ -6974,14 +7290,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg4 = cst_encode_opt_String(rotatorId);
         var arg5 = cst_encode_opt_list_String(filterNames);
         var arg6 = cst_encode_opt_Map_String_i_32_None(filterFocusOffsets);
-        return wire.wire__crate__api__api_sequencer_set_devices(
+        return wire.wire__crate__api__sequencer__api_sequencer_set_devices(
             port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSetDevicesConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerSetDevicesConstMeta,
       argValues: [
         cameraId,
         mountId,
@@ -6995,7 +7311,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSetDevicesConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerSetDevicesConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_set_devices",
         argNames: [
@@ -7010,163 +7326,172 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSequencerSetSafetyFailMode({required String mode}) {
+  Future<void> crateApiSequencerApiSequencerSetSafetyFailMode(
+      {required String mode}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(mode);
-        return wire.wire__crate__api__api_sequencer_set_safety_fail_mode(
-            port_, arg0);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSetSafetyFailModeConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerSetSafetyFailModeConstMeta,
       argValues: [mode],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSetSafetyFailModeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerSetSafetyFailModeConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_set_safety_fail_mode",
         argNames: ["mode"],
       );
 
   @override
-  Future<void> crateApiApiSequencerSetSavePath({String? path}) {
+  Future<void> crateApiSequencerApiSequencerSetSavePath({String? path}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_String(path);
-        return wire.wire__crate__api__api_sequencer_set_save_path(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiApiSequencerSetSavePathConstMeta,
-      argValues: [path],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiApiSequencerSetSavePathConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_sequencer_set_save_path",
-        argNames: ["path"],
-      );
-
-  @override
-  Future<void> crateApiApiSequencerSetSimulationMode({required bool enabled}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_bool(enabled);
-        return wire.wire__crate__api__api_sequencer_set_simulation_mode(
+        return wire.wire__crate__api__sequencer__api_sequencer_set_save_path(
             port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSetSimulationModeConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerSetSavePathConstMeta,
+      argValues: [path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiSequencerSetSavePathConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_set_save_path",
+        argNames: ["path"],
+      );
+
+  @override
+  Future<void> crateApiSequencerApiSequencerSetSimulationMode(
+      {required bool enabled}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_bool(enabled);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_set_simulation_mode(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiSequencerApiSequencerSetSimulationModeConstMeta,
       argValues: [enabled],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSetSimulationModeConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerSetSimulationModeConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_set_simulation_mode",
         argNames: ["enabled"],
       );
 
   @override
-  Future<void> crateApiApiSequencerSkip() {
+  Future<void> crateApiSequencerApiSequencerSkip() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_skip(port_);
+        return wire.wire__crate__api__sequencer__api_sequencer_skip(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSkipConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerSkipConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSkipConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiSequencerSkipConstMeta =>
+      const TaskConstMeta(
         debugName: "api_sequencer_skip",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiSequencerStart() {
+  Future<void> crateApiSequencerApiSequencerStart() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_start(port_);
+        return wire.wire__crate__api__sequencer__api_sequencer_start(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerStartConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerStartConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerStartConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiSequencerStartConstMeta =>
+      const TaskConstMeta(
         debugName: "api_sequencer_start",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiSequencerStop() {
+  Future<void> crateApiSequencerApiSequencerStop() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_stop(port_);
+        return wire.wire__crate__api__sequencer__api_sequencer_stop(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerStopConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerStopConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerStopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSequencerApiSequencerStopConstMeta =>
+      const TaskConstMeta(
         debugName: "api_sequencer_stop",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiSequencerSubscribeEvents() {
+  Future<void> crateApiSequencerApiSequencerSubscribeEvents() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_sequencer_subscribe_events(port_);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_subscribe_events(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerSubscribeEventsConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerSubscribeEventsConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerSubscribeEventsConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerSubscribeEventsConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_subscribe_events",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiSequencerUpdateDitherConfig(
+  Future<void> crateApiSequencerApiSequencerUpdateDitherConfig(
       {required double pixels,
       required double settlePixels,
       required double settleTime,
@@ -7179,20 +7504,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_f_64(settleTime);
         var arg3 = cst_encode_f_64(settleTimeout);
         var arg4 = cst_encode_bool(raOnly);
-        return wire.wire__crate__api__api_sequencer_update_dither_config(
-            port_, arg0, arg1, arg2, arg3, arg4);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_update_dither_config(
+                port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerUpdateDitherConfigConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerUpdateDitherConfigConstMeta,
       argValues: [pixels, settlePixels, settleTime, settleTimeout, raOnly],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerUpdateDitherConfigConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerUpdateDitherConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_update_dither_config",
         argNames: [
@@ -7205,389 +7531,404 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiSequencerUpdateFilterOffsets(
+  Future<void> crateApiSequencerApiSequencerUpdateFilterOffsets(
       {required Map<String, int> offsets}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_Map_String_i_32_None(offsets);
-        return wire.wire__crate__api__api_sequencer_update_filter_offsets(
-            port_, arg0);
+        return wire
+            .wire__crate__api__sequencer__api_sequencer_update_filter_offsets(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerUpdateFilterOffsetsConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerUpdateFilterOffsetsConstMeta,
       argValues: [offsets],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerUpdateFilterOffsetsConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_sequencer_update_filter_offsets",
-        argNames: ["offsets"],
-      );
+  TaskConstMeta
+      get kCrateApiSequencerApiSequencerUpdateFilterOffsetsConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_sequencer_update_filter_offsets",
+            argNames: ["offsets"],
+          );
 
   @override
-  Future<void> crateApiApiSequencerUpdateLocation(
+  Future<void> crateApiSequencerApiSequencerUpdateLocation(
       {double? latitude, double? longitude}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_box_autoadd_f_64(latitude);
         var arg1 = cst_encode_opt_box_autoadd_f_64(longitude);
-        return wire.wire__crate__api__api_sequencer_update_location(
+        return wire.wire__crate__api__sequencer__api_sequencer_update_location(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSequencerUpdateLocationConstMeta,
+      constMeta: kCrateApiSequencerApiSequencerUpdateLocationConstMeta,
       argValues: [latitude, longitude],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSequencerUpdateLocationConstMeta =>
+  TaskConstMeta get kCrateApiSequencerApiSequencerUpdateLocationConstMeta =>
       const TaskConstMeta(
         debugName: "api_sequencer_update_location",
         argNames: ["latitude", "longitude"],
       );
 
   @override
-  Future<void> crateApiApiSetCameraBinning(
+  Future<void> crateApiDevicesCameraApiSetCameraBinning(
       {required String deviceId, required int binX, required int binY}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(binX);
         var arg2 = cst_encode_i_32(binY);
-        return wire.wire__crate__api__api_set_camera_binning(
+        return wire.wire__crate__api__devices__camera__api_set_camera_binning(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSetCameraBinningConstMeta,
+      constMeta: kCrateApiDevicesCameraApiSetCameraBinningConstMeta,
       argValues: [deviceId, binX, binY],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetCameraBinningConstMeta =>
+  TaskConstMeta get kCrateApiDevicesCameraApiSetCameraBinningConstMeta =>
       const TaskConstMeta(
         debugName: "api_set_camera_binning",
         argNames: ["deviceId", "binX", "binY"],
       );
 
   @override
-  Future<void> crateApiApiSetCameraCooler(
+  Future<void> crateApiDevicesSimulationApiSetCameraCooler(
       {required String deviceId, required int enabled, double? targetTemp}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_8(enabled);
         var arg2 = cst_encode_opt_box_autoadd_f_64(targetTemp);
-        return wire.wire__crate__api__api_set_camera_cooler(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__devices__simulation__api_set_camera_cooler(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSetCameraCoolerConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiSetCameraCoolerConstMeta,
       argValues: [deviceId, enabled, targetTemp],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetCameraCoolerConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiSetCameraCoolerConstMeta =>
+      const TaskConstMeta(
         debugName: "api_set_camera_cooler",
         argNames: ["deviceId", "enabled", "targetTemp"],
       );
 
   @override
-  Future<void> crateApiApiSetCameraGain(
+  Future<void> crateApiDevicesSimulationApiSetCameraGain(
       {required String deviceId, required int gain}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(gain);
-        return wire.wire__crate__api__api_set_camera_gain(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__simulation__api_set_camera_gain(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSetCameraGainConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiSetCameraGainConstMeta,
       argValues: [deviceId, gain],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetCameraGainConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiSetCameraGainConstMeta =>
+      const TaskConstMeta(
         debugName: "api_set_camera_gain",
         argNames: ["deviceId", "gain"],
       );
 
   @override
-  Future<void> crateApiApiSetCameraOffset(
+  Future<void> crateApiDevicesSimulationApiSetCameraOffset(
       {required String deviceId, required int offset}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(offset);
-        return wire.wire__crate__api__api_set_camera_offset(port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__simulation__api_set_camera_offset(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSetCameraOffsetConstMeta,
+      constMeta: kCrateApiDevicesSimulationApiSetCameraOffsetConstMeta,
       argValues: [deviceId, offset],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetCameraOffsetConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSimulationApiSetCameraOffsetConstMeta =>
+      const TaskConstMeta(
         debugName: "api_set_camera_offset",
         argNames: ["deviceId", "offset"],
       );
 
   @override
-  void crateApiApiSetLocation({ObserverLocation? location}) {
+  void crateApiStorageApiSetLocation({ObserverLocation? location}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_opt_box_autoadd_observer_location(location);
-        return wire.wire__crate__api__api_set_location(arg0);
+        return wire.wire__crate__api__storage__api_set_location(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSetLocationConstMeta,
+      constMeta: kCrateApiStorageApiSetLocationConstMeta,
       argValues: [location],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetLocationConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiSetLocationConstMeta =>
+      const TaskConstMeta(
         debugName: "api_set_location",
         argNames: ["location"],
       );
 
   @override
-  void crateApiApiSetQhyDiscoveryEnabled({required bool enabled}) {
+  void crateApiDiagnosticsApiSetQhyDiscoveryEnabled({required bool enabled}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_bool(enabled);
-        return wire.wire__crate__api__api_set_qhy_discovery_enabled(arg0);
+        return wire
+            .wire__crate__api__diagnostics__api_set_qhy_discovery_enabled(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiSetQhyDiscoveryEnabledConstMeta,
+      constMeta: kCrateApiDiagnosticsApiSetQhyDiscoveryEnabledConstMeta,
       argValues: [enabled],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSetQhyDiscoveryEnabledConstMeta =>
+  TaskConstMeta get kCrateApiDiagnosticsApiSetQhyDiscoveryEnabledConstMeta =>
       const TaskConstMeta(
         debugName: "api_set_qhy_discovery_enabled",
         argNames: ["enabled"],
       );
 
   @override
-  Future<ApiLiveStackingResult> crateApiApiStackingAddFrame(
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingAddFrame(
       {required String imagePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(imagePath);
-        return wire.wire__crate__api__api_stacking_add_frame(port_, arg0);
+        return wire.wire__crate__api__imaging__api_stacking_add_frame(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingAddFrameConstMeta,
+      constMeta: kCrateApiImagingApiStackingAddFrameConstMeta,
       argValues: [imagePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingAddFrameConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingAddFrameConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_add_frame",
         argNames: ["imagePath"],
       );
 
   @override
-  Future<ApiLiveStackingResult> crateApiApiStackingAddFrameFromData(
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingAddFrameFromData(
       {required int width, required int height, required List<int> data}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_u_32(width);
         var arg1 = cst_encode_u_32(height);
         var arg2 = cst_encode_list_prim_u_16_loose(data);
-        return wire.wire__crate__api__api_stacking_add_frame_from_data(
+        return wire.wire__crate__api__imaging__api_stacking_add_frame_from_data(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingAddFrameFromDataConstMeta,
+      constMeta: kCrateApiImagingApiStackingAddFrameFromDataConstMeta,
       argValues: [width, height, data],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingAddFrameFromDataConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingAddFrameFromDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_add_frame_from_data",
         argNames: ["width", "height", "data"],
       );
 
   @override
-  int crateApiApiStackingFrameCount() {
+  int crateApiImagingApiStackingFrameCount() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_stacking_frame_count();
+        return wire.wire__crate__api__imaging__api_stacking_frame_count();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_u_32,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiStackingFrameCountConstMeta,
+      constMeta: kCrateApiImagingApiStackingFrameCountConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingFrameCountConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingFrameCountConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_frame_count",
         argNames: [],
       );
 
   @override
-  Future<ApiLiveStackingResult> crateApiApiStackingGetResult() {
+  Future<ApiLiveStackingResult> crateApiImagingApiStackingGetResult() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_stacking_get_result(port_);
+        return wire.wire__crate__api__imaging__api_stacking_get_result(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_result,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingGetResultConstMeta,
+      constMeta: kCrateApiImagingApiStackingGetResultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingGetResultConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingGetResultConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_get_result",
         argNames: [],
       );
 
   @override
-  Future<ApiLiveStackingStats> crateApiApiStackingGetStats() {
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingGetStats() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_stacking_get_stats(port_);
+        return wire.wire__crate__api__imaging__api_stacking_get_stats(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_stats,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingGetStatsConstMeta,
+      constMeta: kCrateApiImagingApiStackingGetStatsConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingGetStatsConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingGetStatsConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_get_stats",
         argNames: [],
       );
 
   @override
-  bool crateApiApiStackingIsActive() {
+  bool crateApiImagingApiStackingIsActive() {
     return handler.executeSync(SyncTask(
       callFfi: () {
-        return wire.wire__crate__api__api_stacking_is_active();
+        return wire.wire__crate__api__imaging__api_stacking_is_active();
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiApiStackingIsActiveConstMeta,
+      constMeta: kCrateApiImagingApiStackingIsActiveConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingIsActiveConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingIsActiveConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_is_active",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiStackingReset() {
+  Future<void> crateApiImagingApiStackingReset() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_stacking_reset(port_);
+        return wire.wire__crate__api__imaging__api_stacking_reset(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingResetConstMeta,
+      constMeta: kCrateApiImagingApiStackingResetConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingResetConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiStackingResetConstMeta =>
+      const TaskConstMeta(
         debugName: "api_stacking_reset",
         argNames: [],
       );
 
   @override
-  Future<ApiLiveStackingStats> crateApiApiStackingStart(
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingStart(
       {required String referenceImagePath,
       required ApiLiveStackingConfig config}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(referenceImagePath);
         var arg1 = cst_encode_box_autoadd_api_live_stacking_config(config);
-        return wire.wire__crate__api__api_stacking_start(port_, arg0, arg1);
+        return wire.wire__crate__api__imaging__api_stacking_start(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_stats,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingStartConstMeta,
+      constMeta: kCrateApiImagingApiStackingStartConstMeta,
       argValues: [referenceImagePath, config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingStartConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiStackingStartConstMeta =>
+      const TaskConstMeta(
         debugName: "api_stacking_start",
         argNames: ["referenceImagePath", "config"],
       );
 
   @override
-  Future<ApiLiveStackingStats> crateApiApiStackingStartFromData(
+  Future<ApiLiveStackingStats> crateApiImagingApiStackingStartFromData(
       {required int width,
       required int height,
       required List<int> data,
@@ -7598,48 +7939,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg1 = cst_encode_u_32(height);
         var arg2 = cst_encode_list_prim_u_16_loose(data);
         var arg3 = cst_encode_box_autoadd_api_live_stacking_config(config);
-        return wire.wire__crate__api__api_stacking_start_from_data(
+        return wire.wire__crate__api__imaging__api_stacking_start_from_data(
             port_, arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_api_live_stacking_stats,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingStartFromDataConstMeta,
+      constMeta: kCrateApiImagingApiStackingStartFromDataConstMeta,
       argValues: [width, height, data, config],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingStartFromDataConstMeta =>
+  TaskConstMeta get kCrateApiImagingApiStackingStartFromDataConstMeta =>
       const TaskConstMeta(
         debugName: "api_stacking_start_from_data",
         argNames: ["width", "height", "data", "config"],
       );
 
   @override
-  Future<void> crateApiApiStackingStop() {
+  Future<void> crateApiImagingApiStackingStop() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_stacking_stop(port_);
+        return wire.wire__crate__api__imaging__api_stacking_stop(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStackingStopConstMeta,
+      constMeta: kCrateApiImagingApiStackingStopConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStackingStopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiImagingApiStackingStopConstMeta =>
+      const TaskConstMeta(
         debugName: "api_stacking_stop",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiApiStartAllSkyPolarAlignment(
+  Future<void> crateApiPolarAlignmentApiStartAllSkyPolarAlignment(
       {required double exposureTime,
       required double solveTimeout,
       required int binning,
@@ -7658,14 +8000,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg5 = cst_encode_f_64(iterationCadenceSecs);
         var arg6 = cst_encode_opt_box_autoadd_i_32(gain);
         var arg7 = cst_encode_opt_box_autoadd_i_32(offset);
-        return wire.wire__crate__api__api_start_all_sky_polar_alignment(
-            port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+        return wire
+            .wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment(
+                port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStartAllSkyPolarAlignmentConstMeta,
+      constMeta: kCrateApiPolarAlignmentApiStartAllSkyPolarAlignmentConstMeta,
       argValues: [
         exposureTime,
         solveTimeout,
@@ -7680,23 +8023,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStartAllSkyPolarAlignmentConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_start_all_sky_polar_alignment",
-        argNames: [
-          "exposureTime",
-          "solveTimeout",
-          "binning",
-          "isNorth",
-          "acceptanceThresholdArcsec",
-          "iterationCadenceSecs",
-          "gain",
-          "offset"
-        ],
-      );
+  TaskConstMeta
+      get kCrateApiPolarAlignmentApiStartAllSkyPolarAlignmentConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_start_all_sky_polar_alignment",
+            argNames: [
+              "exposureTime",
+              "solveTimeout",
+              "binning",
+              "isNorth",
+              "acceptanceThresholdArcsec",
+              "iterationCadenceSecs",
+              "gain",
+              "offset"
+            ],
+          );
 
   @override
-  Future<void> crateApiApiStartDeviceHeartbeat(
+  Future<void> crateApiHeartbeatApiStartDeviceHeartbeat(
       {required DeviceType deviceType,
       required String deviceId,
       required BigInt intervalMs}) {
@@ -7705,27 +8049,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_device_type(deviceType);
         var arg1 = cst_encode_String(deviceId);
         var arg2 = cst_encode_u_64(intervalMs);
-        return wire.wire__crate__api__api_start_device_heartbeat(
+        return wire.wire__crate__api__heartbeat__api_start_device_heartbeat(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStartDeviceHeartbeatConstMeta,
+      constMeta: kCrateApiHeartbeatApiStartDeviceHeartbeatConstMeta,
       argValues: [deviceType, deviceId, intervalMs],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStartDeviceHeartbeatConstMeta =>
+  TaskConstMeta get kCrateApiHeartbeatApiStartDeviceHeartbeatConstMeta =>
       const TaskConstMeta(
         debugName: "api_start_device_heartbeat",
         argNames: ["deviceType", "deviceId", "intervalMs"],
       );
 
   @override
-  Future<void> crateApiApiStartDeviceHeartbeatWithConfig(
+  Future<void> crateApiHeartbeatApiStartDeviceHeartbeatWithConfig(
       {required String deviceId,
       required BigInt intervalSecs,
       required int failureThreshold,
@@ -7738,14 +8082,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_u_32(failureThreshold);
         var arg3 = cst_encode_bool(autoReconnect);
         var arg4 = cst_encode_u_32(maxReconnectAttempts);
-        return wire.wire__crate__api__api_start_device_heartbeat_with_config(
-            port_, arg0, arg1, arg2, arg3, arg4);
+        return wire
+            .wire__crate__api__heartbeat__api_start_device_heartbeat_with_config(
+                port_, arg0, arg1, arg2, arg3, arg4);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStartDeviceHeartbeatWithConfigConstMeta,
+      constMeta: kCrateApiHeartbeatApiStartDeviceHeartbeatWithConfigConstMeta,
       argValues: [
         deviceId,
         intervalSecs,
@@ -7757,20 +8102,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStartDeviceHeartbeatWithConfigConstMeta =>
-      const TaskConstMeta(
-        debugName: "api_start_device_heartbeat_with_config",
-        argNames: [
-          "deviceId",
-          "intervalSecs",
-          "failureThreshold",
-          "autoReconnect",
-          "maxReconnectAttempts"
-        ],
-      );
+  TaskConstMeta
+      get kCrateApiHeartbeatApiStartDeviceHeartbeatWithConfigConstMeta =>
+          const TaskConstMeta(
+            debugName: "api_start_device_heartbeat_with_config",
+            argNames: [
+              "deviceId",
+              "intervalSecs",
+              "failureThreshold",
+              "autoReconnect",
+              "maxReconnectAttempts"
+            ],
+          );
 
   @override
-  Future<void> crateApiApiStartPolarAlignment(
+  Future<void> crateApiPolarAlignmentApiStartPolarAlignment(
       {required double exposureTime,
       required double stepSize,
       required int binning,
@@ -7795,14 +8141,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg8 = cst_encode_opt_box_autoadd_f_64(solveTimeout);
         var arg9 = cst_encode_opt_box_autoadd_bool(startFromCurrent);
         var arg10 = cst_encode_opt_box_autoadd_f_64(autoCompleteThreshold);
-        return wire.wire__crate__api__api_start_polar_alignment(port_, arg0,
-            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+        return wire
+            .wire__crate__api__polar_alignment__api_start_polar_alignment(
+                port_,
+                arg0,
+                arg1,
+                arg2,
+                arg3,
+                arg4,
+                arg5,
+                arg6,
+                arg7,
+                arg8,
+                arg9,
+                arg10);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStartPolarAlignmentConstMeta,
+      constMeta: kCrateApiPolarAlignmentApiStartPolarAlignmentConstMeta,
       argValues: [
         exposureTime,
         stepSize,
@@ -7820,7 +8178,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStartPolarAlignmentConstMeta =>
+  TaskConstMeta get kCrateApiPolarAlignmentApiStartPolarAlignmentConstMeta =>
       const TaskConstMeta(
         debugName: "api_start_polar_alignment",
         argNames: [
@@ -7839,300 +8197,316 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiApiStartSession(
+  Future<void> crateApiSessionApiStartSession(
       {String? targetName, double? ra, double? dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_String(targetName);
         var arg1 = cst_encode_opt_box_autoadd_f_64(ra);
         var arg2 = cst_encode_opt_box_autoadd_f_64(dec);
-        return wire.wire__crate__api__api_start_session(
+        return wire.wire__crate__api__session__api_start_session(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStartSessionConstMeta,
+      constMeta: kCrateApiSessionApiStartSessionConstMeta,
       argValues: [targetName, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStartSessionConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiSessionApiStartSessionConstMeta =>
+      const TaskConstMeta(
         debugName: "api_start_session",
         argNames: ["targetName", "ra", "dec"],
       );
 
   @override
-  Future<void> crateApiApiStopDeviceHeartbeat({required String deviceId}) {
+  Future<void> crateApiHeartbeatApiStopDeviceHeartbeat(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_stop_device_heartbeat(port_, arg0);
+        return wire.wire__crate__api__heartbeat__api_stop_device_heartbeat(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStopDeviceHeartbeatConstMeta,
+      constMeta: kCrateApiHeartbeatApiStopDeviceHeartbeatConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStopDeviceHeartbeatConstMeta =>
+  TaskConstMeta get kCrateApiHeartbeatApiStopDeviceHeartbeatConstMeta =>
       const TaskConstMeta(
         debugName: "api_stop_device_heartbeat",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiApiStopPolarAlignment() {
+  Future<void> crateApiPolarAlignmentApiStopPolarAlignment() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__api_stop_polar_alignment(port_);
+        return wire
+            .wire__crate__api__polar_alignment__api_stop_polar_alignment(port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiStopPolarAlignmentConstMeta,
+      constMeta: kCrateApiPolarAlignmentApiStopPolarAlignmentConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiStopPolarAlignmentConstMeta =>
+  TaskConstMeta get kCrateApiPolarAlignmentApiStopPolarAlignmentConstMeta =>
       const TaskConstMeta(
         debugName: "api_stop_polar_alignment",
         argNames: [],
       );
 
   @override
-  Future<bool> crateApiApiSwitchCanWrite(
+  Future<bool> crateApiDevicesSwitchApiSwitchCanWrite(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_can_write(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__switch__api_switch_can_write(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchCanWriteConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchCanWriteConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchCanWriteConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchCanWriteConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_can_write",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<String> crateApiApiSwitchGetDescription(
+  Future<String> crateApiDevicesSwitchApiSwitchGetDescription(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_description(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__devices__switch__api_switch_get_description(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetDescriptionConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetDescriptionConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetDescriptionConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetDescriptionConstMeta =>
       const TaskConstMeta(
         debugName: "api_switch_get_description",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<int> crateApiApiSwitchGetMax({required String deviceId}) {
+  Future<int> crateApiDevicesSwitchApiSwitchGetMax({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__api_switch_get_max(port_, arg0);
+        return wire.wire__crate__api__devices__switch__api_switch_get_max(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetMaxConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetMaxConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetMaxConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetMaxConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_get_max",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<double> crateApiApiSwitchGetMaxValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetMaxValue(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_max_value(
+        return wire.wire__crate__api__devices__switch__api_switch_get_max_value(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetMaxValueConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetMaxValueConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetMaxValueConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetMaxValueConstMeta =>
       const TaskConstMeta(
         debugName: "api_switch_get_max_value",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<double> crateApiApiSwitchGetMinValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetMinValue(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_min_value(
+        return wire.wire__crate__api__devices__switch__api_switch_get_min_value(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetMinValueConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetMinValueConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetMinValueConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetMinValueConstMeta =>
       const TaskConstMeta(
         debugName: "api_switch_get_min_value",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<String> crateApiApiSwitchGetName(
+  Future<String> crateApiDevicesSwitchApiSwitchGetName(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_name(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__switch__api_switch_get_name(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_String,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetNameConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetNameConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetNameConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetNameConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_get_name",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<bool> crateApiApiSwitchGetState(
+  Future<bool> crateApiDevicesSwitchApiSwitchGetState(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_state(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__switch__api_switch_get_state(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetStateConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetStateConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetStateConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetStateConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_get_state",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<double> crateApiApiSwitchGetValue(
+  Future<double> crateApiDevicesSwitchApiSwitchGetValue(
       {required String deviceId, required int switchId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
-        return wire.wire__crate__api__api_switch_get_value(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__switch__api_switch_get_value(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchGetValueConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchGetValueConstMeta,
       argValues: [deviceId, switchId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchGetValueConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchGetValueConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_get_value",
         argNames: ["deviceId", "switchId"],
       );
 
   @override
-  Future<void> crateApiApiSwitchSetState(
+  Future<void> crateApiDevicesSwitchApiSwitchSetState(
       {required String deviceId, required int switchId, required bool state}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
         var arg2 = cst_encode_bool(state);
-        return wire.wire__crate__api__api_switch_set_state(
+        return wire.wire__crate__api__devices__switch__api_switch_set_state(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchSetStateConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchSetStateConstMeta,
       argValues: [deviceId, switchId, state],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchSetStateConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchSetStateConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_set_state",
         argNames: ["deviceId", "switchId", "state"],
       );
 
   @override
-  Future<void> crateApiApiSwitchSetValue(
+  Future<void> crateApiDevicesSwitchApiSwitchSetValue(
       {required String deviceId,
       required int switchId,
       required double value}) {
@@ -8141,759 +8515,829 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(switchId);
         var arg2 = cst_encode_f_64(value);
-        return wire.wire__crate__api__api_switch_set_value(
+        return wire.wire__crate__api__devices__switch__api_switch_set_value(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiSwitchSetValueConstMeta,
+      constMeta: kCrateApiDevicesSwitchApiSwitchSetValueConstMeta,
       argValues: [deviceId, switchId, value],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiSwitchSetValueConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesSwitchApiSwitchSetValueConstMeta =>
+      const TaskConstMeta(
         debugName: "api_switch_set_value",
         argNames: ["deviceId", "switchId", "value"],
       );
 
   @override
-  void crateApiApiUpdateSettings({required AppSettings settings}) {
+  void crateApiStorageApiUpdateSettings({required AppSettings settings}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_box_autoadd_app_settings(settings);
-        return wire.wire__crate__api__api_update_settings(arg0);
+        return wire.wire__crate__api__storage__api_update_settings(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiApiUpdateSettingsConstMeta,
+      constMeta: kCrateApiStorageApiUpdateSettingsConstMeta,
       argValues: [settings],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiApiUpdateSettingsConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiStorageApiUpdateSettingsConstMeta =>
+      const TaskConstMeta(
         debugName: "api_update_settings",
         argNames: ["settings"],
       );
 
   @override
-  Future<void> crateApiCancelExposure({required String deviceId}) {
+  Future<void> crateApiDevicesCameraCancelExposure({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__cancel_exposure(port_, arg0);
+        return wire.wire__crate__api__devices__camera__cancel_exposure(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiCancelExposureConstMeta,
+      constMeta: kCrateApiDevicesCameraCancelExposureConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiCancelExposureConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesCameraCancelExposureConstMeta =>
+      const TaskConstMeta(
         debugName: "cancel_exposure",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiAlpacaConnectionsConnectAlpacaDevice(
+  Future<void> crateApiConnectionAlpacaConnectionsConnectAlpacaDevice(
       {required DeviceType deviceType, required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_device_type(deviceType);
         var arg1 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__alpaca_connections__connect_alpaca_device(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__connection__alpaca_connections__connect_alpaca_device(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiAlpacaConnectionsConnectAlpacaDeviceConstMeta,
+      constMeta:
+          kCrateApiConnectionAlpacaConnectionsConnectAlpacaDeviceConstMeta,
       argValues: [deviceType, deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAlpacaConnectionsConnectAlpacaDeviceConstMeta =>
-      const TaskConstMeta(
-        debugName: "connect_alpaca_device",
-        argNames: ["deviceType", "deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiConnectionAlpacaConnectionsConnectAlpacaDeviceConstMeta =>
+          const TaskConstMeta(
+            debugName: "connect_alpaca_device",
+            argNames: ["deviceType", "deviceId"],
+          );
 
   @override
-  Future<void> crateApiAscomConnectionsConnectAscomCamera(
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomCamera(
       {required String progId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(progId);
-        return wire.wire__crate__api__ascom_connections__connect_ascom_camera(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiAscomConnectionsConnectAscomCameraConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsConnectAscomCameraConstMeta =>
-      const TaskConstMeta(
-        debugName: "connect_ascom_camera",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<void> crateApiAscomConnectionsConnectAscomFocuser(
-      {required String progId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(progId);
-        return wire.wire__crate__api__ascom_connections__connect_ascom_focuser(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiAscomConnectionsConnectAscomFocuserConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsConnectAscomFocuserConstMeta =>
-      const TaskConstMeta(
-        debugName: "connect_ascom_focuser",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<void> crateApiAscomConnectionsConnectAscomMount(
-      {required String progId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(progId);
-        return wire.wire__crate__api__ascom_connections__connect_ascom_mount(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiAscomConnectionsConnectAscomMountConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsConnectAscomMountConstMeta =>
-      const TaskConstMeta(
-        debugName: "connect_ascom_mount",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<void> crateApiAlpacaConnectionsDisconnectAlpacaDevice(
-      {required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
         return wire
-            .wire__crate__api__alpaca_connections__disconnect_alpaca_device(
+            .wire__crate__api__connection__ascom_connections__connect_ascom_camera(
                 port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiAlpacaConnectionsDisconnectAlpacaDeviceConstMeta,
+      constMeta: kCrateApiConnectionAscomConnectionsConnectAscomCameraConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsConnectAscomCameraConstMeta =>
+          const TaskConstMeta(
+            debugName: "connect_ascom_camera",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomFocuser(
+      {required String progId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(progId);
+        return wire
+            .wire__crate__api__connection__ascom_connections__connect_ascom_focuser(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiConnectionAscomConnectionsConnectAscomFocuserConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsConnectAscomFocuserConstMeta =>
+          const TaskConstMeta(
+            debugName: "connect_ascom_focuser",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<void> crateApiConnectionAscomConnectionsConnectAscomMount(
+      {required String progId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(progId);
+        return wire
+            .wire__crate__api__connection__ascom_connections__connect_ascom_mount(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiConnectionAscomConnectionsConnectAscomMountConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsConnectAscomMountConstMeta =>
+          const TaskConstMeta(
+            debugName: "connect_ascom_mount",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<void> crateApiConnectionAlpacaConnectionsDisconnectAlpacaDevice(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire
+            .wire__crate__api__connection__alpaca_connections__disconnect_alpaca_device(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiConnectionAlpacaConnectionsDisconnectAlpacaDeviceConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAlpacaConnectionsDisconnectAlpacaDeviceConstMeta =>
-      const TaskConstMeta(
-        debugName: "disconnect_alpaca_device",
-        argNames: ["deviceId"],
-      );
+  TaskConstMeta
+      get kCrateApiConnectionAlpacaConnectionsDisconnectAlpacaDeviceConstMeta =>
+          const TaskConstMeta(
+            debugName: "disconnect_alpaca_device",
+            argNames: ["deviceId"],
+          );
 
   @override
-  Future<(int, List<String>)> crateApiFilterWheelGetConfig(
+  Future<(int, List<String>)> crateApiDevicesFilterWheelFilterWheelGetConfig(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__filter_wheel_get_config(port_, arg0);
+        return wire
+            .wire__crate__api__devices__filter_wheel__filter_wheel_get_config(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_i_32_list_string,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiFilterWheelGetConfigConstMeta,
+      constMeta: kCrateApiDevicesFilterWheelFilterWheelGetConfigConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiFilterWheelGetConfigConstMeta =>
+  TaskConstMeta get kCrateApiDevicesFilterWheelFilterWheelGetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "filter_wheel_get_config",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<int> crateApiFilterWheelGetPosition({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__filter_wheel_get_position(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_i_32,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFilterWheelGetPositionConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFilterWheelGetPositionConstMeta =>
-      const TaskConstMeta(
-        debugName: "filter_wheel_get_position",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<void> crateApiFilterWheelSetPosition(
-      {required String deviceId, required int position}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        var arg1 = cst_encode_i_32(position);
-        return wire.wire__crate__api__filter_wheel_set_position(
-            port_, arg0, arg1);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFilterWheelSetPositionConstMeta,
-      argValues: [deviceId, position],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFilterWheelSetPositionConstMeta =>
-      const TaskConstMeta(
-        debugName: "filter_wheel_set_position",
-        argNames: ["deviceId", "position"],
-      );
-
-  @override
-  Future<(int, double)> crateApiFocuserGetDetails({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__focuser_get_details(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_record_i_32_f_64,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserGetDetailsConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserGetDetailsConstMeta => const TaskConstMeta(
-        debugName: "focuser_get_details",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<int> crateApiFocuserGetPosition({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__focuser_get_position(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_i_32,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserGetPositionConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserGetPositionConstMeta => const TaskConstMeta(
-        debugName: "focuser_get_position",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<double?> crateApiFocuserGetTemp({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__focuser_get_temp(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_opt_box_autoadd_f_64,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserGetTempConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserGetTempConstMeta => const TaskConstMeta(
-        debugName: "focuser_get_temp",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<void> crateApiFocuserHalt({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__focuser_halt(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserHaltConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserHaltConstMeta => const TaskConstMeta(
-        debugName: "focuser_halt",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<void> crateApiFocuserMoveAbs(
-      {required String deviceId, required int position}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        var arg1 = cst_encode_i_32(position);
-        return wire.wire__crate__api__focuser_move_abs(port_, arg0, arg1);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserMoveAbsConstMeta,
-      argValues: [deviceId, position],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserMoveAbsConstMeta => const TaskConstMeta(
-        debugName: "focuser_move_abs",
-        argNames: ["deviceId", "position"],
-      );
-
-  @override
-  Future<void> crateApiFocuserMoveRel(
-      {required String deviceId, required int steps}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        var arg1 = cst_encode_i_32(steps);
-        return wire.wire__crate__api__focuser_move_rel(port_, arg0, arg1);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiFocuserMoveRelConstMeta,
-      argValues: [deviceId, steps],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiFocuserMoveRelConstMeta => const TaskConstMeta(
-        debugName: "focuser_move_rel",
-        argNames: ["deviceId", "steps"],
-      );
-
-  @override
-  Future<ArcAlpacaClient?> crateApiAlpacaConnectionsGetAlpacaClient(
+  Future<int> crateApiDevicesFilterWheelFilterWheelGetPosition(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__alpaca_connections__get_alpaca_client(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData:
-            dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient,
-        decodeErrorData: null,
-      ),
-      constMeta: kCrateApiAlpacaConnectionsGetAlpacaClientConstMeta,
-      argValues: [deviceId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAlpacaConnectionsGetAlpacaClientConstMeta =>
-      const TaskConstMeta(
-        debugName: "get_alpaca_client",
-        argNames: ["deviceId"],
-      );
-
-  @override
-  Future<double> crateApiAscomConnectionsGetAscomCameraTemp(
-      {required String progId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(progId);
-        return wire.wire__crate__api__ascom_connections__get_ascom_camera_temp(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_f_64,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiAscomConnectionsGetAscomCameraTempConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsGetAscomCameraTempConstMeta =>
-      const TaskConstMeta(
-        debugName: "get_ascom_camera_temp",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<int> crateApiAscomConnectionsGetAscomFocuserPosition(
-      {required String progId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(progId);
         return wire
-            .wire__crate__api__ascom_connections__get_ascom_focuser_position(
+            .wire__crate__api__devices__filter_wheel__filter_wheel_get_position(
                 port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiAscomConnectionsGetAscomFocuserPositionConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsGetAscomFocuserPositionConstMeta =>
-      const TaskConstMeta(
-        debugName: "get_ascom_focuser_position",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<(double, double)> crateApiAscomConnectionsGetAscomMountCoords(
-      {required String progId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(progId);
-        return wire.wire__crate__api__ascom_connections__get_ascom_mount_coords(
-            port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_record_f_64_f_64,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiAscomConnectionsGetAscomMountCoordsConstMeta,
-      argValues: [progId],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiAscomConnectionsGetAscomMountCoordsConstMeta =>
-      const TaskConstMeta(
-        debugName: "get_ascom_mount_coords",
-        argNames: ["progId"],
-      );
-
-  @override
-  Future<CameraStatus> crateApiGetCameraStatus({required String deviceId}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__get_camera_status(port_, arg0);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_camera_status,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiGetCameraStatusConstMeta,
+      constMeta: kCrateApiDevicesFilterWheelFilterWheelGetPositionConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiGetCameraStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta
+      get kCrateApiDevicesFilterWheelFilterWheelGetPositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "filter_wheel_get_position",
+            argNames: ["deviceId"],
+          );
+
+  @override
+  Future<void> crateApiDevicesFilterWheelFilterWheelSetPosition(
+      {required String deviceId, required int position}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(position);
+        return wire
+            .wire__crate__api__devices__filter_wheel__filter_wheel_set_position(
+                port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFilterWheelFilterWheelSetPositionConstMeta,
+      argValues: [deviceId, position],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiDevicesFilterWheelFilterWheelSetPositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "filter_wheel_set_position",
+            argNames: ["deviceId", "position"],
+          );
+
+  @override
+  Future<(int, double)> crateApiDevicesFocuserFocuserGetDetails(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__devices__focuser__focuser_get_details(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_record_i_32_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserGetDetailsConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserGetDetailsConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_get_details",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<int> crateApiDevicesFocuserFocuserGetPosition(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__devices__focuser__focuser_get_position(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_i_32,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserGetPositionConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserGetPositionConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_get_position",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<double?> crateApiDevicesFocuserFocuserGetTemp(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__devices__focuser__focuser_get_temp(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_opt_box_autoadd_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserGetTempConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserGetTempConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_get_temp",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<void> crateApiDevicesFocuserFocuserHalt({required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__devices__focuser__focuser_halt(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserHaltConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserHaltConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_halt",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<void> crateApiDevicesFocuserFocuserMoveAbs(
+      {required String deviceId, required int position}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(position);
+        return wire.wire__crate__api__devices__focuser__focuser_move_abs(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserMoveAbsConstMeta,
+      argValues: [deviceId, position],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserMoveAbsConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_move_abs",
+        argNames: ["deviceId", "position"],
+      );
+
+  @override
+  Future<void> crateApiDevicesFocuserFocuserMoveRel(
+      {required String deviceId, required int steps}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(steps);
+        return wire.wire__crate__api__devices__focuser__focuser_move_rel(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesFocuserFocuserMoveRelConstMeta,
+      argValues: [deviceId, steps],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesFocuserFocuserMoveRelConstMeta =>
+      const TaskConstMeta(
+        debugName: "focuser_move_rel",
+        argNames: ["deviceId", "steps"],
+      );
+
+  @override
+  Future<ArcAlpacaClient?> crateApiConnectionAlpacaConnectionsGetAlpacaClient(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire
+            .wire__crate__api__connection__alpaca_connections__get_alpaca_client(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData:
+            dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiConnectionAlpacaConnectionsGetAlpacaClientConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAlpacaConnectionsGetAlpacaClientConstMeta =>
+          const TaskConstMeta(
+            debugName: "get_alpaca_client",
+            argNames: ["deviceId"],
+          );
+
+  @override
+  Future<double> crateApiConnectionAscomConnectionsGetAscomCameraTemp(
+      {required String progId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(progId);
+        return wire
+            .wire__crate__api__connection__ascom_connections__get_ascom_camera_temp(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiConnectionAscomConnectionsGetAscomCameraTempConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsGetAscomCameraTempConstMeta =>
+          const TaskConstMeta(
+            debugName: "get_ascom_camera_temp",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<int> crateApiConnectionAscomConnectionsGetAscomFocuserPosition(
+      {required String progId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(progId);
+        return wire
+            .wire__crate__api__connection__ascom_connections__get_ascom_focuser_position(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_i_32,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiConnectionAscomConnectionsGetAscomFocuserPositionConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsGetAscomFocuserPositionConstMeta =>
+          const TaskConstMeta(
+            debugName: "get_ascom_focuser_position",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<(double, double)>
+      crateApiConnectionAscomConnectionsGetAscomMountCoords(
+          {required String progId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(progId);
+        return wire
+            .wire__crate__api__connection__ascom_connections__get_ascom_mount_coords(
+                port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_record_f_64_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta:
+          kCrateApiConnectionAscomConnectionsGetAscomMountCoordsConstMeta,
+      argValues: [progId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsGetAscomMountCoordsConstMeta =>
+          const TaskConstMeta(
+            debugName: "get_ascom_mount_coords",
+            argNames: ["progId"],
+          );
+
+  @override
+  Future<CameraStatus> crateApiDevicesCameraGetCameraStatus(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__devices__camera__get_camera_status(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_camera_status,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesCameraGetCameraStatusConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesCameraGetCameraStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "get_camera_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<IndiAutofocusConfigApi> crateApiIndiAutofocusConfigApiDefault() {
+  Future<IndiAutofocusConfigApi>
+      crateApiImagingIndiAutofocusConfigApiDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__indi_autofocus_config_api_default(port_);
+        return wire
+            .wire__crate__api__imaging__indi_autofocus_config_api_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_indi_autofocus_config_api,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiIndiAutofocusConfigApiDefaultConstMeta,
+      constMeta: kCrateApiImagingIndiAutofocusConfigApiDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiIndiAutofocusConfigApiDefaultConstMeta =>
+  TaskConstMeta get kCrateApiImagingIndiAutofocusConfigApiDefaultConstMeta =>
       const TaskConstMeta(
         debugName: "indi_autofocus_config_api_default",
         argNames: [],
       );
 
   @override
-  Future<bool> crateApiAlpacaConnectionsIsConnected(
+  Future<bool> crateApiConnectionAlpacaConnectionsIsConnected(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__alpaca_connections__is_connected(
-            port_, arg0);
+        return wire
+            .wire__crate__api__connection__alpaca_connections__is_connected(
+                port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiAlpacaConnectionsIsConnectedConstMeta,
+      constMeta: kCrateApiConnectionAlpacaConnectionsIsConnectedConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAlpacaConnectionsIsConnectedConstMeta =>
+  TaskConstMeta get kCrateApiConnectionAlpacaConnectionsIsConnectedConstMeta =>
       const TaskConstMeta(
         debugName: "is_connected",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiMountAbort({required String deviceId}) {
+  Future<void> crateApiDevicesMountMountAbort({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_abort(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_abort(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountAbortConstMeta,
+      constMeta: kCrateApiDevicesMountMountAbortConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountAbortConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountAbortConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_abort",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<bool> crateApiMountCanPark({required String deviceId}) {
+  Future<bool> crateApiDevicesMountMountCanPark({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_can_park(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_can_park(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_bool,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountCanParkConstMeta,
+      constMeta: kCrateApiDevicesMountMountCanParkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountCanParkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountCanParkConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_can_park",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiMountFindHome({required String deviceId}) {
+  Future<void> crateApiDevicesMountMountFindHome({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_find_home(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_find_home(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountFindHomeConstMeta,
+      constMeta: kCrateApiDevicesMountMountFindHomeConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountFindHomeConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountFindHomeConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_find_home",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<(double, double)> crateApiMountGetCoordinates(
+  Future<(double, double)> crateApiDevicesMountMountGetCoordinates(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_get_coordinates(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_get_coordinates(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_record_f_64_f_64,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountGetCoordinatesConstMeta,
+      constMeta: kCrateApiDevicesMountMountGetCoordinatesConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountGetCoordinatesConstMeta =>
+  TaskConstMeta get kCrateApiDevicesMountMountGetCoordinatesConstMeta =>
       const TaskConstMeta(
         debugName: "mount_get_coordinates",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<MountStatus> crateApiMountGetStatus({required String deviceId}) {
+  Future<MountStatus> crateApiDevicesMountMountGetStatus(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_get_status(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_get_status(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_mount_status,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountGetStatusConstMeta,
+      constMeta: kCrateApiDevicesMountMountGetStatusConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountGetStatusConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountGetStatusConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_get_status",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<int> crateApiMountGetTrackingRate({required String deviceId}) {
+  Future<int> crateApiDevicesMountMountGetTrackingRate(
+      {required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_get_tracking_rate(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_get_tracking_rate(
+            port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_32,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountGetTrackingRateConstMeta,
+      constMeta: kCrateApiDevicesMountMountGetTrackingRateConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountGetTrackingRateConstMeta =>
+  TaskConstMeta get kCrateApiDevicesMountMountGetTrackingRateConstMeta =>
       const TaskConstMeta(
         debugName: "mount_get_tracking_rate",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiMountMoveAxis(
+  Future<void> crateApiDevicesMountMountMoveAxis(
       {required String deviceId, required int axis, required double rate}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(axis);
         var arg2 = cst_encode_f_64(rate);
-        return wire.wire__crate__api__mount_move_axis(port_, arg0, arg1, arg2);
+        return wire.wire__crate__api__devices__mount__mount_move_axis(
+            port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountMoveAxisConstMeta,
+      constMeta: kCrateApiDevicesMountMountMoveAxisConstMeta,
       argValues: [deviceId, axis, rate],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountMoveAxisConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountMoveAxisConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_move_axis",
         argNames: ["deviceId", "axis", "rate"],
       );
 
   @override
-  Future<void> crateApiMountPark({required String deviceId}) {
+  Future<void> crateApiDevicesMountMountPark({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_park(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_park(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountParkConstMeta,
+      constMeta: kCrateApiDevicesMountMountParkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountParkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountParkConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_park",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiMountPulseGuide(
+  Future<void> crateApiDevicesMountMountPulseGuide(
       {required String deviceId,
       required String direction,
       required int durationMs}) {
@@ -8902,101 +9346,106 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_String(direction);
         var arg2 = cst_encode_u_32(durationMs);
-        return wire.wire__crate__api__mount_pulse_guide(
+        return wire.wire__crate__api__devices__mount__mount_pulse_guide(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountPulseGuideConstMeta,
+      constMeta: kCrateApiDevicesMountMountPulseGuideConstMeta,
       argValues: [deviceId, direction, durationMs],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountPulseGuideConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountPulseGuideConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_pulse_guide",
         argNames: ["deviceId", "direction", "durationMs"],
       );
 
   @override
-  Future<void> crateApiMountSetTracking(
+  Future<void> crateApiDevicesMountMountSetTracking(
       {required String deviceId, required int enabled}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_8(enabled);
-        return wire.wire__crate__api__mount_set_tracking(port_, arg0, arg1);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_unit,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiMountSetTrackingConstMeta,
-      argValues: [deviceId, enabled],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiMountSetTrackingConstMeta => const TaskConstMeta(
-        debugName: "mount_set_tracking",
-        argNames: ["deviceId", "enabled"],
-      );
-
-  @override
-  Future<void> crateApiMountSetTrackingRate(
-      {required String deviceId, required int rate}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        var arg0 = cst_encode_String(deviceId);
-        var arg1 = cst_encode_i_32(rate);
-        return wire.wire__crate__api__mount_set_tracking_rate(
+        return wire.wire__crate__api__devices__mount__mount_set_tracking(
             port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountSetTrackingRateConstMeta,
+      constMeta: kCrateApiDevicesMountMountSetTrackingConstMeta,
+      argValues: [deviceId, enabled],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDevicesMountMountSetTrackingConstMeta =>
+      const TaskConstMeta(
+        debugName: "mount_set_tracking",
+        argNames: ["deviceId", "enabled"],
+      );
+
+  @override
+  Future<void> crateApiDevicesMountMountSetTrackingRate(
+      {required String deviceId, required int rate}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(rate);
+        return wire.wire__crate__api__devices__mount__mount_set_tracking_rate(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiDevicesMountMountSetTrackingRateConstMeta,
       argValues: [deviceId, rate],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountSetTrackingRateConstMeta =>
+  TaskConstMeta get kCrateApiDevicesMountMountSetTrackingRateConstMeta =>
       const TaskConstMeta(
         debugName: "mount_set_tracking_rate",
         argNames: ["deviceId", "rate"],
       );
 
   @override
-  Future<void> crateApiMountSlew(
+  Future<void> crateApiDevicesMountMountSlew(
       {required String deviceId, required double ra, required double dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(ra);
         var arg2 = cst_encode_f_64(dec);
-        return wire.wire__crate__api__mount_slew(port_, arg0, arg1, arg2);
+        return wire.wire__crate__api__devices__mount__mount_slew(
+            port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountSlewConstMeta,
+      constMeta: kCrateApiDevicesMountMountSlewConstMeta,
       argValues: [deviceId, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountSlewConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountSlewConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_slew",
         argNames: ["deviceId", "ra", "dec"],
       );
 
   @override
-  Future<void> crateApiMountSlewAltAz(
+  Future<void> crateApiDevicesMountMountSlewAltAz(
       {required String deviceId,
       required double altitude,
       required double azimuth}) {
@@ -9005,354 +9454,385 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(altitude);
         var arg2 = cst_encode_f_64(azimuth);
-        return wire.wire__crate__api__mount_slew_alt_az(
+        return wire.wire__crate__api__devices__mount__mount_slew_alt_az(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountSlewAltAzConstMeta,
+      constMeta: kCrateApiDevicesMountMountSlewAltAzConstMeta,
       argValues: [deviceId, altitude, azimuth],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountSlewAltAzConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountSlewAltAzConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_slew_alt_az",
         argNames: ["deviceId", "altitude", "azimuth"],
       );
 
   @override
-  Future<void> crateApiMountStop({required String deviceId}) {
+  Future<void> crateApiDevicesMountMountStop({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_stop(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_stop(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountStopConstMeta,
+      constMeta: kCrateApiDevicesMountMountStopConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountStopConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountStopConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_stop",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiMountSync(
+  Future<void> crateApiDevicesMountMountSync(
       {required String deviceId, required double ra, required double dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_f_64(ra);
         var arg2 = cst_encode_f_64(dec);
-        return wire.wire__crate__api__mount_sync(port_, arg0, arg1, arg2);
+        return wire.wire__crate__api__devices__mount__mount_sync(
+            port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountSyncConstMeta,
+      constMeta: kCrateApiDevicesMountMountSyncConstMeta,
       argValues: [deviceId, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountSyncConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountSyncConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_sync",
         argNames: ["deviceId", "ra", "dec"],
       );
 
   @override
-  Future<void> crateApiMountUnpark({required String deviceId}) {
+  Future<void> crateApiDevicesMountMountUnpark({required String deviceId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
-        return wire.wire__crate__api__mount_unpark(port_, arg0);
+        return wire.wire__crate__api__devices__mount__mount_unpark(port_, arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiMountUnparkConstMeta,
+      constMeta: kCrateApiDevicesMountMountUnparkConstMeta,
       argValues: [deviceId],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiMountUnparkConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesMountMountUnparkConstMeta =>
+      const TaskConstMeta(
         debugName: "mount_unpark",
         argNames: ["deviceId"],
       );
 
   @override
-  Future<void> crateApiAscomConnectionsMoveAscomFocuser(
+  Future<void> crateApiConnectionAscomConnectionsMoveAscomFocuser(
       {required String progId, required int position}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(progId);
         var arg1 = cst_encode_i_32(position);
-        return wire.wire__crate__api__ascom_connections__move_ascom_focuser(
-            port_, arg0, arg1);
+        return wire
+            .wire__crate__api__connection__ascom_connections__move_ascom_focuser(
+                port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiAscomConnectionsMoveAscomFocuserConstMeta,
+      constMeta: kCrateApiConnectionAscomConnectionsMoveAscomFocuserConstMeta,
       argValues: [progId, position],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAscomConnectionsMoveAscomFocuserConstMeta =>
-      const TaskConstMeta(
-        debugName: "move_ascom_focuser",
-        argNames: ["progId", "position"],
-      );
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsMoveAscomFocuserConstMeta =>
+          const TaskConstMeta(
+            debugName: "move_ascom_focuser",
+            argNames: ["progId", "position"],
+          );
 
   @override
-  Future<void> crateApiSetCameraCooler(
+  Future<void> crateApiDevicesCameraSetCameraCooler(
       {required String deviceId, required int enabled, double? targetTemp}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_u_8(enabled);
         var arg2 = cst_encode_opt_box_autoadd_f_64(targetTemp);
-        return wire.wire__crate__api__set_camera_cooler(
+        return wire.wire__crate__api__devices__camera__set_camera_cooler(
             port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiSetCameraCoolerConstMeta,
+      constMeta: kCrateApiDevicesCameraSetCameraCoolerConstMeta,
       argValues: [deviceId, enabled, targetTemp],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSetCameraCoolerConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesCameraSetCameraCoolerConstMeta =>
+      const TaskConstMeta(
         debugName: "set_camera_cooler",
         argNames: ["deviceId", "enabled", "targetTemp"],
       );
 
   @override
-  Future<void> crateApiSetCameraGain(
+  Future<void> crateApiDevicesFilterWheelSetCameraGain(
       {required String deviceId, required int gain}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(gain);
-        return wire.wire__crate__api__set_camera_gain(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__filter_wheel__set_camera_gain(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiSetCameraGainConstMeta,
+      constMeta: kCrateApiDevicesFilterWheelSetCameraGainConstMeta,
       argValues: [deviceId, gain],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSetCameraGainConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesFilterWheelSetCameraGainConstMeta =>
+      const TaskConstMeta(
         debugName: "set_camera_gain",
         argNames: ["deviceId", "gain"],
       );
 
   @override
-  Future<void> crateApiSetCameraOffset(
+  Future<void> crateApiDevicesFilterWheelSetCameraOffset(
       {required String deviceId, required int offset}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(deviceId);
         var arg1 = cst_encode_i_32(offset);
-        return wire.wire__crate__api__set_camera_offset(port_, arg0, arg1);
+        return wire.wire__crate__api__devices__filter_wheel__set_camera_offset(
+            port_, arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiSetCameraOffsetConstMeta,
+      constMeta: kCrateApiDevicesFilterWheelSetCameraOffsetConstMeta,
       argValues: [deviceId, offset],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSetCameraOffsetConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesFilterWheelSetCameraOffsetConstMeta =>
+      const TaskConstMeta(
         debugName: "set_camera_offset",
         argNames: ["deviceId", "offset"],
       );
 
   @override
-  Future<SimulatedCamera> crateApiSimulatedCameraDefault() {
+  Future<SimulatedCamera> crateApiDevicesSimulationSimulatedCameraDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__simulated_camera_default(port_);
+        return wire
+            .wire__crate__api__devices__simulation__simulated_camera_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_simulated_camera,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimulatedCameraDefaultConstMeta,
+      constMeta: kCrateApiDevicesSimulationSimulatedCameraDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimulatedCameraDefaultConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationSimulatedCameraDefaultConstMeta =>
       const TaskConstMeta(
         debugName: "simulated_camera_default",
         argNames: [],
       );
 
   @override
-  Future<SimulatedFilterWheel> crateApiSimulatedFilterWheelDefault() {
+  Future<SimulatedFilterWheel>
+      crateApiDevicesSimulationSimulatedFilterWheelDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__simulated_filter_wheel_default(port_);
+        return wire
+            .wire__crate__api__devices__simulation__simulated_filter_wheel_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_simulated_filter_wheel,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimulatedFilterWheelDefaultConstMeta,
+      constMeta: kCrateApiDevicesSimulationSimulatedFilterWheelDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimulatedFilterWheelDefaultConstMeta =>
-      const TaskConstMeta(
-        debugName: "simulated_filter_wheel_default",
-        argNames: [],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationSimulatedFilterWheelDefaultConstMeta =>
+          const TaskConstMeta(
+            debugName: "simulated_filter_wheel_default",
+            argNames: [],
+          );
 
   @override
-  Future<SimulatedFocuser> crateApiSimulatedFocuserDefault() {
+  Future<SimulatedFocuser> crateApiDevicesSimulationSimulatedFocuserDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__simulated_focuser_default(port_);
+        return wire
+            .wire__crate__api__devices__simulation__simulated_focuser_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_simulated_focuser,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimulatedFocuserDefaultConstMeta,
+      constMeta: kCrateApiDevicesSimulationSimulatedFocuserDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimulatedFocuserDefaultConstMeta =>
-      const TaskConstMeta(
-        debugName: "simulated_focuser_default",
-        argNames: [],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationSimulatedFocuserDefaultConstMeta =>
+          const TaskConstMeta(
+            debugName: "simulated_focuser_default",
+            argNames: [],
+          );
 
   @override
-  Future<SimulatedMount> crateApiSimulatedMountDefault() {
+  Future<SimulatedMount> crateApiDevicesSimulationSimulatedMountDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__simulated_mount_default(port_);
+        return wire
+            .wire__crate__api__devices__simulation__simulated_mount_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_simulated_mount,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimulatedMountDefaultConstMeta,
+      constMeta: kCrateApiDevicesSimulationSimulatedMountDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimulatedMountDefaultConstMeta =>
+  TaskConstMeta get kCrateApiDevicesSimulationSimulatedMountDefaultConstMeta =>
       const TaskConstMeta(
         debugName: "simulated_mount_default",
         argNames: [],
       );
 
   @override
-  Future<SimulatedRotator> crateApiSimulatedRotatorDefault() {
+  Future<SimulatedRotator> crateApiDevicesSimulationSimulatedRotatorDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__simulated_rotator_default(port_);
+        return wire
+            .wire__crate__api__devices__simulation__simulated_rotator_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_simulated_rotator,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimulatedRotatorDefaultConstMeta,
+      constMeta: kCrateApiDevicesSimulationSimulatedRotatorDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimulatedRotatorDefaultConstMeta =>
-      const TaskConstMeta(
-        debugName: "simulated_rotator_default",
-        argNames: [],
-      );
+  TaskConstMeta
+      get kCrateApiDevicesSimulationSimulatedRotatorDefaultConstMeta =>
+          const TaskConstMeta(
+            debugName: "simulated_rotator_default",
+            argNames: [],
+          );
 
   @override
-  Future<void> crateApiAscomConnectionsSlewAscomMount(
+  Future<void> crateApiConnectionAscomConnectionsSlewAscomMount(
       {required String progId, required double ra, required double dec}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_String(progId);
         var arg1 = cst_encode_f_64(ra);
         var arg2 = cst_encode_f_64(dec);
-        return wire.wire__crate__api__ascom_connections__slew_ascom_mount(
-            port_, arg0, arg1, arg2);
+        return wire
+            .wire__crate__api__connection__ascom_connections__slew_ascom_mount(
+                port_, arg0, arg1, arg2);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiAscomConnectionsSlewAscomMountConstMeta,
+      constMeta: kCrateApiConnectionAscomConnectionsSlewAscomMountConstMeta,
       argValues: [progId, ra, dec],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAscomConnectionsSlewAscomMountConstMeta =>
-      const TaskConstMeta(
-        debugName: "slew_ascom_mount",
-        argNames: ["progId", "ra", "dec"],
-      );
+  TaskConstMeta
+      get kCrateApiConnectionAscomConnectionsSlewAscomMountConstMeta =>
+          const TaskConstMeta(
+            debugName: "slew_ascom_mount",
+            argNames: ["progId", "ra", "dec"],
+          );
 
   @override
-  Future<StarDetectionConfigApi> crateApiStarDetectionConfigApiDefault() {
+  Future<StarDetectionConfigApi>
+      crateApiImagingStarDetectionConfigApiDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
-        return wire.wire__crate__api__star_detection_config_api_default(port_);
+        return wire
+            .wire__crate__api__imaging__star_detection_config_api_default(
+                port_);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_star_detection_config_api,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiStarDetectionConfigApiDefaultConstMeta,
+      constMeta: kCrateApiImagingStarDetectionConfigApiDefaultConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiStarDetectionConfigApiDefaultConstMeta =>
+  TaskConstMeta get kCrateApiImagingStarDetectionConfigApiDefaultConstMeta =>
       const TaskConstMeta(
         debugName: "star_detection_config_api_default",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiStartExposure(
+  Future<void> crateApiDevicesCameraStartExposure(
       {required String deviceId,
       required double durationSecs,
       required int gain,
@@ -9367,20 +9847,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_i_32(offset);
         var arg4 = cst_encode_i_32(binX);
         var arg5 = cst_encode_i_32(binY);
-        return wire.wire__crate__api__start_exposure(
+        return wire.wire__crate__api__devices__camera__start_exposure(
             port_, arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
-      constMeta: kCrateApiStartExposureConstMeta,
+      constMeta: kCrateApiDevicesCameraStartExposureConstMeta,
       argValues: [deviceId, durationSecs, gain, offset, binX, binY],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiStartExposureConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiDevicesCameraStartExposureConstMeta =>
+      const TaskConstMeta(
         debugName: "start_exposure",
         argNames: [
           "deviceId",

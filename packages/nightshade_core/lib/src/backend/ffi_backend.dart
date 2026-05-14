@@ -8,7 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
+import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
 import 'package:nightshade_bridge/src/device.dart' as bridge_device;
 import 'package:nightshade_bridge/src/error.dart' as bridge_error;

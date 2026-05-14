@@ -35,7 +35,7 @@ export 'src/bridge_stub.dart'
         TrackingRate,
         FrameType,
         ShutterState;
-export 'src/api.dart';
+export 'src/api_barrel.dart';
 
 // Export Alpaca client for direct HTTP-based device communication
 export 'src/alpaca_client.dart';

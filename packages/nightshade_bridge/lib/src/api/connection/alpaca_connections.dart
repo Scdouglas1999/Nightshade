@@ -3,9 +3,9 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
-import '../device.dart';
-import '../error.dart';
-import '../frb_generated.dart';
+import '../../device.dart';
+import '../../error.dart';
+import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `get_alpaca_clients`, `parse_alpaca_id`
@@ -13,22 +13,23 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Connect to an Alpaca device
 Future<void> connectAlpacaDevice(
         {required DeviceType deviceType, required String deviceId}) =>
-    RustLib.instance.api.crateApiAlpacaConnectionsConnectAlpacaDevice(
+    RustLib.instance.api.crateApiConnectionAlpacaConnectionsConnectAlpacaDevice(
         deviceType: deviceType, deviceId: deviceId);
 
 /// Disconnect from an Alpaca device
 Future<void> disconnectAlpacaDevice({required String deviceId}) =>
     RustLib.instance.api
-        .crateApiAlpacaConnectionsDisconnectAlpacaDevice(deviceId: deviceId);
+        .crateApiConnectionAlpacaConnectionsDisconnectAlpacaDevice(
+            deviceId: deviceId);
 
 /// Get an Alpaca client
 Future<ArcAlpacaClient?> getAlpacaClient({required String deviceId}) =>
     RustLib.instance.api
-        .crateApiAlpacaConnectionsGetAlpacaClient(deviceId: deviceId);
+        .crateApiConnectionAlpacaConnectionsGetAlpacaClient(deviceId: deviceId);
 
 /// Check if Alpaca is connected
 Future<bool> isConnected({required String deviceId}) => RustLib.instance.api
-    .crateApiAlpacaConnectionsIsConnected(deviceId: deviceId);
+    .crateApiConnectionAlpacaConnectionsIsConnected(deviceId: deviceId);
 
 // Rust type: RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Arc < AlpacaClient >>>
 abstract class ArcAlpacaClient implements RustOpaqueInterface {}

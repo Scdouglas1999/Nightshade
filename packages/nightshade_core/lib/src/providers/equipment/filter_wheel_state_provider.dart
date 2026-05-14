@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
+import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
 import '../profiles_provider.dart';
