@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
@@ -111,7 +112,23 @@ class NetworkBackend implements NightshadeBackend {
   /// Persistent HTTP client for connection reuse.
   /// Using a single client avoids TCP connection churn and enables
   /// keep-alive connections for better performance.
+  ///
+  /// Why: dart:io `HttpClient` is retained for the binary streaming paths
+  /// (image thumbnail/download, raw image bytes, FITS write) that rely on
+  /// chunked response streaming. The JSON helper layer below uses
+  /// `package:http` so it can be injected with a `MockClient` in tests.
   late final HttpClient _httpClient;
+
+  /// `package:http` client used by the JSON HTTP helpers (`_get`, `_post`,
+  /// `_put`, `_delete`, `_downloadBytes`, `_postRaw`, `_postRawBytes`, and
+  /// `_checkServerCompatibility`). Injectable so tests can substitute a
+  /// `MockClient` without spinning up a real HTTP server.
+  final http.Client _http;
+
+  /// Whether `_http` was constructed internally and therefore must be closed
+  /// in `dispose`. When a caller injects a client (e.g. a test fake), the
+  /// caller owns its lifecycle.
+  final bool _ownsHttpClient;
 
   // Connection state management
   BackendConnectionState _connectionState = BackendConnectionState.disconnected;
@@ -131,13 +148,20 @@ class NetworkBackend implements NightshadeBackend {
     this.authToken,
     this.webSocketHeartbeatInterval = const Duration(seconds: 15),
     this.webSocketHeartbeatTimeout = const Duration(seconds: 45),
-  }) {
+    http.Client? httpClient,
+    bool autoConnectWebSocket = true,
+  })  : _http = httpClient ?? http.Client(),
+        _ownsHttpClient = httpClient == null {
     // Initialize persistent HTTP client with connection pooling
     _httpClient = HttpClient()
       ..idleTimeout = const Duration(seconds: 30)
       ..connectionTimeout = const Duration(seconds: 10);
-    // Connect WebSocket immediately
-    connect();
+    // Connect WebSocket immediately. Tests that only exercise the HTTP
+    // request/response path can disable this to avoid background timers
+    // and reconnect storms.
+    if (autoConnectWebSocket) {
+      connect();
+    }
   }
 
   /// Stream of connection state changes
@@ -174,14 +198,13 @@ class NetworkBackend implements NightshadeBackend {
 
   Future<RemoteApiCompatibilityResult> _checkServerCompatibility() async {
     final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
-    final request =
-        await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
-    request.headers.set(
-      RemoteApiCompatibility.apiVersionHeader,
-      RemoteApiCompatibility.clientApiVersion.format(),
-    );
-    request.headers.set(_requestIdHeader, _nextRequestId('compat'));
-    final response = await request.close().timeout(const Duration(seconds: 3));
+    final headers = <String, String>{
+      RemoteApiCompatibility.apiVersionHeader:
+          RemoteApiCompatibility.clientApiVersion.format(),
+      _requestIdHeader: _nextRequestId('compat'),
+    };
+    final response =
+        await _http.get(uri, headers: headers).timeout(const Duration(seconds: 3));
     if (response.statusCode != 200) {
       throw HttpException(
         'GET /api/info failed with HTTP ${response.statusCode}',
@@ -189,8 +212,7 @@ class NetworkBackend implements NightshadeBackend {
       );
     }
 
-    final responseBody = await response.transform(utf8.decoder).join();
-    final info = jsonDecode(responseBody) as Map<String, dynamic>;
+    final info = jsonDecode(response.body) as Map<String, dynamic>;
     return RemoteApiCompatibility.check(info['version'] as String?);
   }
 
@@ -401,6 +423,9 @@ class NetworkBackend implements NightshadeBackend {
     _wsSubscription?.cancel();
     _wsChannel?.sink.close();
     _httpClient.close(force: true);
+    if (_ownsHttpClient) {
+      _http.close();
+    }
     _eventController.close();
     _connectionStateController.close();
     _polarAlignController.close();
@@ -592,23 +617,15 @@ class NetworkBackend implements NightshadeBackend {
               ...queryParams.map((k, v) => MapEntry(k, v.toString())),
             });
 
-      final request = await _httpClient.getUrl(uri);
-
-      // Add authentication headers
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
-
-      final response = await request.close();
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _http.get(uri, headers: headers);
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'GET', endpoint);
+            response.statusCode, response.body, 'GET', endpoint);
       }
 
-      return jsonDecode(responseBody) as Map<String, dynamic>;
+      return jsonDecode(response.body) as Map<String, dynamic>;
     });
   }
 
@@ -617,28 +634,21 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final request = await _httpClient.postUrl(uri);
-      request.headers.contentType = ContentType.json;
-
-      // Add authentication headers
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      headers[HttpHeaders.contentTypeHeader] = 'application/json';
 
-      if (body != null) {
-        request.write(jsonEncode(body));
-      }
-
-      final response = await request.close();
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _http.post(
+        uri,
+        headers: headers,
+        body: body == null ? null : jsonEncode(body),
+      );
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'POST', endpoint);
+            response.statusCode, response.body, 'POST', endpoint);
       }
 
-      return jsonDecode(responseBody) as Map<String, dynamic>;
+      return jsonDecode(response.body) as Map<String, dynamic>;
     });
   }
 
@@ -646,20 +656,12 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final request = await _httpClient.deleteUrl(uri);
-
-      // Add authentication headers
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
-
-      final response = await request.close();
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _http.delete(uri, headers: headers);
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'DELETE', endpoint);
+            response.statusCode, response.body, 'DELETE', endpoint);
       }
     });
   }
@@ -669,49 +671,37 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final request = await _httpClient.putUrl(uri);
-      request.headers.contentType = ContentType.json;
-
-      // Add authentication headers
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      headers[HttpHeaders.contentTypeHeader] = 'application/json';
 
-      if (body != null) {
-        request.write(jsonEncode(body));
-      }
-
-      final response = await request.close();
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _http.put(
+        uri,
+        headers: headers,
+        body: body == null ? null : jsonEncode(body),
+      );
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'PUT', endpoint);
+            response.statusCode, response.body, 'PUT', endpoint);
       }
 
-      return jsonDecode(responseBody) as Map<String, dynamic>;
+      return jsonDecode(response.body) as Map<String, dynamic>;
     });
   }
 
   Future<Uint8List> _downloadBytes(String endpoint) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final request = await _httpClient.getUrl(uri);
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
 
-      final response = await request.close();
+      final response = await _http.get(uri, headers: headers);
       if (response.statusCode != 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
+        // Why: package:http already buffered the full body, so use it for
+        // the error parser instead of re-reading the stream.
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'GET', endpoint);
+            response.statusCode, response.body, 'GET', endpoint);
       }
-
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      return Uint8List.fromList(bytes);
+      return response.bodyBytes;
     });
   }
 
@@ -727,25 +717,18 @@ class NetworkBackend implements NightshadeBackend {
         queryParameters:
             queryParams.map((key, value) => MapEntry(key, value.toString())),
       );
-      final request = await _httpClient.postUrl(uri);
-      request.headers.contentType = ContentType.parse(contentType);
 
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      headers[HttpHeaders.contentTypeHeader] = contentType;
 
-      request.add(bytes);
-
-      final response = await request.close();
-      final responseBody = await response.transform(utf8.decoder).join();
+      final response = await _http.post(uri, headers: headers, body: bytes);
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'POST', endpoint);
+            response.statusCode, response.body, 'POST', endpoint);
       }
 
-      return jsonDecode(responseBody) as Map<String, dynamic>;
+      return jsonDecode(response.body) as Map<String, dynamic>;
     });
   }
 
@@ -755,25 +738,20 @@ class NetworkBackend implements NightshadeBackend {
   ) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final request = await _httpClient.postUrl(uri);
-      request.headers.contentType = ContentType.json;
 
       final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
+      headers[HttpHeaders.contentTypeHeader] = 'application/json';
 
-      request.write(jsonEncode(body));
-
-      final response = await request.close();
+      final response = await _http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(body),
+      );
       if (response.statusCode != 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
         throw _parseErrorResponse(
-            response.statusCode, responseBody, 'POST', endpoint);
+            response.statusCode, response.body, 'POST', endpoint);
       }
-
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      return Uint8List.fromList(bytes);
+      return response.bodyBytes;
     });
   }
 
