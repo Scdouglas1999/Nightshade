@@ -37,7 +37,6 @@ export 'src/components/collapsible_sidebar.dart';
 export 'src/dialogs/nightshade_dialog.dart';
 
 // Widgets
-export 'src/widgets/polar_alignment_wizard.dart';
 export 'src/widgets/resizable_panel.dart';
 export 'src/widgets/error_dialog.dart';
 export 'src/widgets/update_dialog.dart';

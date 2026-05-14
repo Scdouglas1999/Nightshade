@@ -433,7 +433,7 @@ packages:
     source: hosted
     version: "1.16.0"
   nightshade_bridge:
-    dependency: "direct main"
+    dependency: "direct overridden"
     description:
       path: "../nightshade_bridge"
       relative: true

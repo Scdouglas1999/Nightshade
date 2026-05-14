@@ -2,12 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
-import 'package:nightshade_bridge/src/event.dart' as bridge_event;
-
-import '../components/nightshade_button.dart';
-import '../theme/nightshade_colors.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Polar Alignment Wizard
 /// Guides the user through the three-point polar alignment process
@@ -79,7 +76,7 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
     try {
       // Subscribe to events using the generated API
       _eventSubscription?.cancel();
-      _eventSubscription = bridge_api.apiEventStream().listen(_handleEvent);
+      _eventSubscription = bridge.apiEventStream().listen(_handleEvent);
 
       await ref.read(sequenceExecutorProvider).start();
     } catch (e) {
@@ -90,10 +87,10 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
     }
   }
 
-  void _handleEvent(bridge_event.NightshadeEvent event) {
-    if (event.category == bridge_event.EventCategory.polarAlignment) {
+  void _handleEvent(bridge.NightshadeEvent event) {
+    if (event.category == bridge.EventCategory.polarAlignment) {
       final payload = event.payload;
-      if (payload is bridge_event.EventPayload_PolarAlignment) {
+      if (payload is bridge.EventPayload_PolarAlignment) {
         final e = payload.field0;
         setState(() {
           _azimuthError = e.azimuthError;
@@ -103,12 +100,12 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
               'Adjusting... Error: ${e.totalError.toStringAsFixed(1)}\'';
         });
       }
-    } else if (event.category == bridge_event.EventCategory.sequencer) {
+    } else if (event.category == bridge.EventCategory.sequencer) {
       // Handle completion/failure
       final payload = event.payload;
-      if (payload is bridge_event.EventPayload_Sequencer) {
+      if (payload is bridge.EventPayload_Sequencer) {
         final seqEvent = payload.field0;
-        if (seqEvent is bridge_event.SequencerEvent_NodeCompleted) {
+        if (seqEvent is bridge.SequencerEvent_NodeCompleted) {
           // Check if success or failure
           if (seqEvent.status == 'success') {
             setState(() {
