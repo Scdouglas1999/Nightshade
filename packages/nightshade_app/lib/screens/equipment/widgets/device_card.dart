@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-
-enum DeviceType {
-  camera,
-  telescope,
-  mount,
-  focuser,
-  filterWheel,
-  guider,
-  weather,
-  dome,
-  rotator,
-}
 
 class DeviceCard extends StatelessWidget {
   final String title;
@@ -48,8 +37,6 @@ class DeviceCard extends StatelessWidget {
     switch (deviceType) {
       case DeviceType.camera:
         return LucideIcons.camera;
-      case DeviceType.telescope:
-        return LucideIcons.scan;
       case DeviceType.mount:
         return LucideIcons.move3d;
       case DeviceType.focuser:
@@ -64,6 +51,12 @@ class DeviceCard extends StatelessWidget {
         return LucideIcons.home;
       case DeviceType.rotator:
         return LucideIcons.rotateCw;
+      case DeviceType.safetyMonitor:
+        return LucideIcons.shield;
+      case DeviceType.switch_:
+        return LucideIcons.toggleLeft;
+      case DeviceType.coverCalibrator:
+        return LucideIcons.lightbulb;
     }
   }
 

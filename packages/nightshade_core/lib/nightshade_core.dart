@@ -36,7 +36,7 @@ export 'src/models/equipment/equipment_models.dart';
 export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
-export 'src/models/settings/app_settings.dart' hide AppSettings;
+export 'src/models/settings/app_settings.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';

@@ -7,9 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
-// Hide nightshade_core's NotificationService — the mobile-side service of
-// the same name owns local-notification deep-linking (audit §3.8).
-import 'package:nightshade_core/nightshade_core.dart' hide NotificationService;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -546,7 +544,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           // is created lazily by `appRouterProvider`; reading it here also
           // ensures it exists before a notification can fire.
           final router = ref.watch(appRouterProvider);
-          NotificationService().setNavigator((location) {
+          MobileNotificationService().setNavigator((location) {
             router.go(location);
           });
 

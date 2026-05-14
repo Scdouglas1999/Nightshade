@@ -50,7 +50,7 @@ await service.stopService(
 
 **Platform Support:** Android only (iOS uses different background modes)
 
-### 2. NotificationService (`notification_service.dart`)
+### 2. MobileNotificationService (`notification_service.dart`)
 
 Local notification service for important imaging events.
 
@@ -69,7 +69,7 @@ Local notification service for important imaging events.
 
 **Usage:**
 ```dart
-final service = NotificationService();
+final service = MobileNotificationService();
 await service.initialize();
 
 // Send completion notification

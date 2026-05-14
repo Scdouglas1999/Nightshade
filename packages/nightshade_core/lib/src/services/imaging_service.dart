@@ -559,7 +559,7 @@ class ImagingService {
 
   /// Generate file path for captured image
   Future<String> _generateImageFilePath({
-    required AppSettings appSettings,
+    required AppSettingsState appSettings,
     required ExposureSettings exposureSettings,
     String? targetName,
     required int frameNumber,
@@ -644,7 +644,7 @@ class ImagingService {
     required int height,
     required CapturedImageResult capturedImage,
     required ExposureSettings exposureSettings,
-    AppSettings? appSettings,
+    AppSettingsState? appSettings,
     String? targetName,
     required DateTime timestamp,
   }) async {
@@ -706,7 +706,7 @@ class ImagingService {
     required String filePath,
     required CapturedImageResult capturedImage,
     required ExposureSettings exposureSettings,
-    required AppSettings appSettings,
+    required AppSettingsState appSettings,
     String? targetName,
     required DateTime timestamp,
   }) async {

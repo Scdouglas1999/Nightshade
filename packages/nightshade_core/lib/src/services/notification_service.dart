@@ -34,7 +34,7 @@ class NotificationService {
   static const Duration defaultRequestTimeout = Duration(seconds: 15);
 
   final Ref? _ref;
-  final AppSettings? Function()? _settingsReader;
+  final AppSettingsState? Function()? _settingsReader;
   final http.Client _httpClient;
   final Duration _requestTimeout;
   final bool _ownsHttpClient;
@@ -50,7 +50,7 @@ class NotificationService {
         _ownsHttpClient = httpClient == null;
 
   NotificationService.testing({
-    required AppSettings? Function() settingsReader,
+    required AppSettingsState? Function() settingsReader,
     http.Client? httpClient,
     Duration requestTimeout = defaultRequestTimeout,
   })  : _ref = null,
@@ -65,7 +65,7 @@ class NotificationService {
     }
   }
 
-  AppSettings? _readSettings() {
+  AppSettingsState? _readSettings() {
     return _settingsReader?.call() ??
         _ref?.read(appSettingsProvider).valueOrNull;
   }
@@ -165,7 +165,7 @@ class NotificationService {
     );
   }
 
-  bool _shouldNotifyForEvent(NotificationEvent event, AppSettings settings) {
+  bool _shouldNotifyForEvent(NotificationEvent event, AppSettingsState settings) {
     switch (event) {
       case NotificationEvent.sequenceComplete:
         return settings.notifyOnSequenceComplete;
@@ -185,7 +185,7 @@ class NotificationService {
     String title,
     String message,
     NotificationEvent event,
-    AppSettings settings,
+    AppSettingsState settings,
   ) async {
     if (settings.discordWebhook.isEmpty) {
       return false;
@@ -233,7 +233,7 @@ class NotificationService {
     String title,
     String message,
     NotificationPriority priority,
-    AppSettings settings,
+    AppSettingsState settings,
   ) async {
     if (settings.pushoverKey.isEmpty || settings.pushoverUser.isEmpty) {
       return false;

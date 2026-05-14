@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide ObserverLocation;
+import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';

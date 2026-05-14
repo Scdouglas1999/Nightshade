@@ -51,7 +51,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _latController.text = settings.latitude.toStringAsFixed(6);
       _lonController.text = settings.longitude.toStringAsFixed(6);

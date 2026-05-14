@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart' hide ObserverLocation;
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 /// Provider that watches settings and syncs to planetarium provider and Rust backend
 /// This ensures settings is the source of truth - changes in settings automatically update planetarium and Rust

@@ -47,7 +47,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _autoFocusController.text = settings.autoFocusEveryMinutes.toString();
       _ditherController.text = settings.ditherEveryFrames.toString();

@@ -54,26 +54,26 @@ import '../services/mosaic_planner.dart';
 // ============================================================================
 
 /// Observer location state
-class ObserverLocation {
+class PlanetariumObserver {
   final double latitude;
   final double longitude;
   final double elevation;
   final String? locationName;
 
-  const ObserverLocation({
+  const PlanetariumObserver({
     this.latitude = 34.0522, // Los Angeles default
     this.longitude = -118.2437,
     this.elevation = 0,
     this.locationName,
   });
 
-  ObserverLocation copyWith({
+  PlanetariumObserver copyWith({
     double? latitude,
     double? longitude,
     double? elevation,
     String? locationName,
   }) {
-    return ObserverLocation(
+    return PlanetariumObserver(
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       elevation: elevation ?? this.elevation,
@@ -82,8 +82,8 @@ class ObserverLocation {
   }
 }
 
-class ObserverLocationNotifier extends StateNotifier<ObserverLocation> {
-  ObserverLocationNotifier() : super(const ObserverLocation());
+class PlanetariumObserverNotifier extends StateNotifier<PlanetariumObserver> {
+  PlanetariumObserverNotifier() : super(const PlanetariumObserver());
 
   void setLocation({
     double? latitude,
@@ -103,8 +103,8 @@ class ObserverLocationNotifier extends StateNotifier<ObserverLocation> {
 }
 
 final observerLocationProvider =
-    StateNotifierProvider<ObserverLocationNotifier, ObserverLocation>((ref) {
-  return ObserverLocationNotifier();
+    StateNotifierProvider<PlanetariumObserverNotifier, PlanetariumObserver>((ref) {
+  return PlanetariumObserverNotifier();
 });
 
 // ============================================================================

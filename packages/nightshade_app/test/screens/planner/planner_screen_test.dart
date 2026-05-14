@@ -46,8 +46,8 @@ List<Override> _commonOverrides() {
 /// "set your location" error state and confuse the tab-structure assertions.
 class _StubAppSettingsNotifier extends AppSettingsNotifier {
   @override
-  Future<AppSettings> build() async {
-    return const AppSettings(
+  Future<AppSettingsState> build() async {
+    return const AppSettingsState(
       latitude: 40.0,
       longitude: -75.0,
     );

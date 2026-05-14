@@ -27,7 +27,7 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _patternController.text = settings.fileNamingPattern;
       _initialized = true;

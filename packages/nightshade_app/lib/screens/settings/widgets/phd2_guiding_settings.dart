@@ -34,7 +34,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _portController.text = settings.phd2Port.toString();
       _hostController.text = settings.phd2Host;

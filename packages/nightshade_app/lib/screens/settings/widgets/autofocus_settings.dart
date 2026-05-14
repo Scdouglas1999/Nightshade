@@ -55,7 +55,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _initialOffsetStepsController.text =
           settings.afInitialOffsetSteps.toString();
@@ -126,7 +126,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   }
 
   Widget _buildDesktopTwoColumnLayout(
-      AppSettings settings, AppSettingsNotifier notifier) {
+      AppSettingsState settings, AppSettingsNotifier notifier) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
@@ -402,7 +402,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   }
 
   List<Widget> _buildMobileLayout(
-      AppSettings settings, AppSettingsNotifier notifier) {
+      AppSettingsState settings, AppSettingsNotifier notifier) {
     return [
       SettingRow(
         icon: LucideIcons.filter,
@@ -758,7 +758,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   }
 
   Widget _buildFilterSettingsSection(
-    AppSettings settings,
+    AppSettingsState settings,
     AppSettingsNotifier notifier,
     FilterWheelState filterWheelState,
   ) {
@@ -810,7 +810,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     List<String> filterNames,
     Map<String, FilterAutofocusConfig> filterSettingsMap,
     AppSettingsNotifier notifier,
-    AppSettings settings,
+    AppSettingsState settings,
   ) {
     return Column(
       children: [
@@ -902,7 +902,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     List<String> filterNames,
     Map<String, FilterAutofocusConfig> filterSettingsMap,
     AppSettingsNotifier notifier,
-    AppSettings settings,
+    AppSettingsState settings,
   ) {
     final widgets = <Widget>[];
 

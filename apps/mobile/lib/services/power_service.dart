@@ -139,17 +139,17 @@ class PowerService {
 
         switch (warningLevel) {
           case BatteryWarningLevel.low:
-            await NotificationService().notifyLowBattery(level);
+            await MobileNotificationService().notifyLowBattery(level);
             onBatteryWarning?.call(warningLevel);
             break;
 
           case BatteryWarningLevel.veryLow:
-            await NotificationService().notifyLowBattery(level);
+            await MobileNotificationService().notifyLowBattery(level);
             onBatteryWarning?.call(warningLevel);
             break;
 
           case BatteryWarningLevel.critical:
-            await NotificationService().notifyLowBattery(level);
+            await MobileNotificationService().notifyLowBattery(level);
             onBatteryWarning?.call(warningLevel);
             onCriticalBattery?.call();
             break;

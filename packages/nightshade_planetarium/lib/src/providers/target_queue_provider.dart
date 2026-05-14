@@ -540,7 +540,12 @@ final pendingTargetsCountProvider = Provider<int>((ref) {
   return ref.watch(targetQueueProvider).pendingTargets.length;
 });
 
-/// Provider for overall session progress
-final sessionProgressProvider = Provider<double>((ref) {
+/// Provider for overall target-queue progress (planetarium-side).
+///
+/// Renamed from `sessionProgressProvider` to avoid colliding with
+/// `nightshade_core/session_provider.dart:sessionProgressProvider`, which
+/// reports the active imaging session's progress. The planetarium version
+/// reflects pending vs completed targets in the visual queue.
+final queueProgressProvider = Provider<double>((ref) {
   return ref.watch(targetQueueProvider).overallProgress;
 });

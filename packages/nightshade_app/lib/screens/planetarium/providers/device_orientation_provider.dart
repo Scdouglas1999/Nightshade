@@ -308,7 +308,7 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
 /// Returns (raHours, decDegrees).
 (double, double)? deviceOrientationToRaDec({
   required DeviceOrientationState orientation,
-  required ObserverLocation location,
+  required PlanetariumObserver location,
   required ObservationTimeState time,
 }) {
   if (!orientation.isActive) return null;

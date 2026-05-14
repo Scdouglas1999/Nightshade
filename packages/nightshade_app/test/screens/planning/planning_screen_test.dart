@@ -19,11 +19,11 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 class _TestAppSettingsNotifier extends AppSettingsNotifier {
-  final AppSettings _settings;
+  final AppSettingsState _settings;
   _TestAppSettingsNotifier(this._settings);
 
   @override
-  Future<AppSettings> build() async => _settings;
+  Future<AppSettingsState> build() async => _settings;
 }
 
 TargetSuggestion _suggestion({
@@ -250,7 +250,7 @@ Future<void> _pumpPlanner(
       overrides: [
         appSettingsProvider.overrideWith(
           () => _TestAppSettingsNotifier(
-            const AppSettings(latitude: 40.0, longitude: -75.0),
+            const AppSettingsState(latitude: 40.0, longitude: -75.0),
           ),
         ),
         tonightSuggestionsProvider.overrideWith((ref) async => candidates),

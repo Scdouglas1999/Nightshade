@@ -38,7 +38,7 @@ void main() {
       ],
     );
 
-    const settings = AppSettings(
+    const settings = AppSettingsState(
       uiScale: 'Small (0.8x)',
       autoDiscoverOnLaunch: false,
     );
@@ -73,10 +73,10 @@ void main() {
 }
 
 class _TestAppSettingsNotifier extends AppSettingsNotifier {
-  final AppSettings _settings;
+  final AppSettingsState _settings;
 
   _TestAppSettingsNotifier(this._settings);
 
   @override
-  Future<AppSettings> build() async => _settings;
+  Future<AppSettingsState> build() async => _settings;
 }

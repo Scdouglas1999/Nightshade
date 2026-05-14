@@ -52,7 +52,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
   }
 
   void _commitPort(
-    AppSettings settings, {
+    AppSettingsState settings, {
     required bool showFeedback,
   }) {
     final port = int.tryParse(_portController.text);

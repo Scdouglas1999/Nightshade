@@ -35,7 +35,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _timeoutController.text = settings.plateSolveTimeout.toString();
       _radiusController.text =

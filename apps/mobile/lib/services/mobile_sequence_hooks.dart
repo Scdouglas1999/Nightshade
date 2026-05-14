@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/nightshade_app.dart' show iosBackgroundBannerProvider;
-import 'package:nightshade_core/nightshade_core.dart' hide NotificationService;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'foreground_service.dart';
 import 'notification_service.dart';
 import 'power_service.dart';
@@ -14,7 +14,7 @@ import 'power_service.dart';
 class MobileSequenceHooks {
   final Ref _ref;
   final ImagingForegroundService _foregroundService = ImagingForegroundService();
-  final NotificationService _notificationService = NotificationService();
+  final MobileNotificationService _notificationService = MobileNotificationService();
   final PowerService _powerService = PowerService();
   StreamSubscription<Map<String, dynamic>>? _pushNotificationSubscription;
 
@@ -228,7 +228,7 @@ class MobileSequenceHooks {
   }
 
   void _handleBatteryWarning(BatteryWarningLevel level) {
-    // Warnings are already sent by PowerService via NotificationService
+    // Warnings are already sent by PowerService via MobileNotificationService
     // This callback is for any additional handling
     print('[MobileSequenceHooks] Battery warning: $level');
   }

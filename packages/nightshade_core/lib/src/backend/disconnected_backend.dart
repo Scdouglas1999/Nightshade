@@ -5,7 +5,7 @@ import '../models/imaging/imaging_models.dart';
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
-import '../providers/settings_provider.dart' hide AppSettings;
+import '../providers/settings_provider.dart';
 import 'nightshade_backend.dart';
 
 // Import pure Dart types from backend_types

@@ -8,7 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Provider for target search query
-final targetSearchProvider = StateProvider<String>((ref) => '');
+final sequenceTargetSearchProvider = StateProvider<String>((ref) => '');
 
 /// Provider for target type filter
 final targetTypeFilterProvider = StateProvider<String?>((ref) => null);
@@ -25,7 +25,7 @@ class TargetsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final targetsAsync = ref.watch(targetsProvider);
-    final searchQuery = ref.watch(targetSearchProvider);
+    final searchQuery = ref.watch(sequenceTargetSearchProvider);
     final typeFilter = ref.watch(targetTypeFilterProvider);
 
     return Padding(
@@ -151,7 +151,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: (value) {
-                      ref.read(targetSearchProvider.notifier).state = value;
+                      ref.read(sequenceTargetSearchProvider.notifier).state = value;
                     },
                     style: TextStyle(
                       fontSize: 13,
@@ -172,7 +172,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
                   GestureDetector(
                     onTap: () {
                       _searchController.clear();
-                      ref.read(targetSearchProvider.notifier).state = '';
+                      ref.read(sequenceTargetSearchProvider.notifier).state = '';
                     },
                     child: Icon(LucideIcons.x,
                         size: 16, color: widget.colors.textMuted),

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide ObserverLocation;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:intl/intl.dart';
 import '../planetarium_screen.dart';
 import 'sidebar_shared_widgets.dart';
@@ -625,7 +625,7 @@ class _PassTimeLabel extends StatelessWidget {
 class _LocationIndicator extends StatelessWidget {
   final NightshadeColors colors;
   final bool isDefaultLocation;
-  final ObserverLocation location;
+  final PlanetariumObserver location;
 
   const _LocationIndicator({
     required this.colors,

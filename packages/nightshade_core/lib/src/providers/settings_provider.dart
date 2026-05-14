@@ -11,8 +11,12 @@ import '../models/imaging/imaging_models.dart'
 // App Settings - Complete settings model
 // ============================================================================
 
-/// Complete application settings
-class AppSettings {
+/// Runtime, in-memory application-settings state owned by
+/// [AppSettingsNotifier]. Distinct from the persisted/freezed
+/// `AppSettings` model in `models/settings/app_settings.dart`, which is the
+/// Rust-bridge / JSON-persisted snapshot. Renamed from `AppSettings` to
+/// disambiguate (audit-arch §2.2).
+class AppSettingsState {
   // General
   final bool startMinimized;
   final bool autoConnectEquipment;
@@ -143,7 +147,7 @@ class AppSettings {
   final String
       afFilterSettingsJson; // JSON map of filter name to FilterAutofocusConfig
 
-  const AppSettings({
+  const AppSettingsState({
     // General
     this.startMinimized = false,
     this.autoConnectEquipment = true,
@@ -271,7 +275,7 @@ class AppSettings {
     this.afFilterSettingsJson = '{}',
   });
 
-  AppSettings copyWith({
+  AppSettingsState copyWith({
     bool? startMinimized,
     bool? autoConnectEquipment,
     bool? autoSaveSequences,
@@ -367,7 +371,7 @@ class AppSettings {
     String? afAutofocusFilterName,
     String? afFilterSettingsJson,
   }) {
-    return AppSettings(
+    return AppSettingsState(
       startMinimized: startMinimized ?? this.startMinimized,
       autoConnectEquipment: autoConnectEquipment ?? this.autoConnectEquipment,
       autoSaveSequences: autoSaveSequences ?? this.autoSaveSequences,
@@ -474,12 +478,12 @@ class AppSettings {
 }
 
 /// Main app settings notifier that persists all settings to database
-class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
+class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   models.AppSettings? _remoteSettingsSnapshot;
 
-  AppSettings _fromRemoteSettings(models.AppSettings remote) {
+  AppSettingsState _fromRemoteSettings(models.AppSettings remote) {
     final location = remote.location;
-    return AppSettings(
+    return AppSettingsState(
       autoConnectEquipment: remote.autoConnect,
       autoDiscoverOnLaunch: remote.autoDiscoverOnLaunch,
       theme: remote.theme,
@@ -516,7 +520,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     );
   }
 
-  models.AppSettings _toRemoteSettings(AppSettings settings) {
+  models.AppSettings _toRemoteSettings(AppSettingsState settings) {
     final previous = _remoteSettingsSnapshot;
     return models.AppSettings(
       location: models.ObserverLocation(
@@ -565,7 +569,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     );
   }
 
-  Future<void> _writeRemoteSettings(AppSettings settings) async {
+  Future<void> _writeRemoteSettings(AppSettingsState settings) async {
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
       throw StateError('Remote settings write requested without network backend');
@@ -577,7 +581,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 
   @override
-  Future<AppSettings> build() async {
+  Future<AppSettingsState> build() async {
     final backend = ref.watch(backendProvider);
     if (backend is NetworkBackend) {
       final remoteSettings = await backend.getSettings();
@@ -589,7 +593,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     final dao = ref.read(settingsDaoProvider);
     final allSettings = await dao.getAllSettings();
 
-    return AppSettings(
+    return AppSettingsState(
       // General
       startMinimized: _parseBool(allSettings['start_minimized'], false),
       autoConnectEquipment:
@@ -793,8 +797,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     await dao.setSettings(settings);
   }
 
-  AppSettings _applySettingsMap(
-    AppSettings current,
+  AppSettingsState _applySettingsMap(
+    AppSettingsState current,
     Map<String, String> settings,
   ) {
     return current.copyWith(
@@ -1106,12 +1110,13 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     );
   }
 
-  /// Helper to update a single field in the current AppSettings state.
+  /// Helper to update a single field in the current AppSettingsState.
   ///
   /// If the state hasn't loaded yet (no value), the update is silently skipped
   /// because there's nothing to patch. The database write has already succeeded,
   /// so the next full load will pick up the new value.
-  void _patchState(AppSettings Function(AppSettings current) updater) {
+  void _patchState(
+      AppSettingsState Function(AppSettingsState current) updater) {
     final current = state.valueOrNull;
     if (current == null) return;
     state = AsyncData(updater(current));
@@ -1646,7 +1651,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
 
 /// Main app settings provider
 final appSettingsProvider =
-    AsyncNotifierProvider<AppSettingsNotifier, AppSettings>(() {
+    AsyncNotifierProvider<AppSettingsNotifier, AppSettingsState>(() {
   return AppSettingsNotifier();
 });
 
@@ -1683,7 +1688,7 @@ final appObserverLocationProvider = Provider<LocationSettings?>((ref) {
 // ============================================================================
 
 /// Convenience provider that derives a typed [AutofocusSettings] from the
-/// persisted [AppSettings] autofocus fields.
+/// persisted [AppSettingsState] autofocus fields.
 ///
 /// This avoids every consumer needing to manually pluck out individual
 /// `af_*` fields and parse the filter settings JSON.

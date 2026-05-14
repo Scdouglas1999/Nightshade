@@ -52,8 +52,8 @@ Future<void> _runBackgroundServices(
   );
 
   try {
-    AppSettings? lastAppliedSettings;
-    container.listen<AsyncValue<AppSettings>>(
+    AppSettingsState? lastAppliedSettings;
+    container.listen<AsyncValue<AppSettingsState>>(
       appSettingsProvider,
       (_, next) {
         final settings = next.valueOrNull;
@@ -105,7 +105,7 @@ class _ApiServerLifecycle {
 
   HeadlessApiServer? _apiServer;
   StreamSubscription<dynamic>? _collaborationSubscription;
-  AppSettings? _queuedSettings;
+  AppSettingsState? _queuedSettings;
   bool _isApplying = false;
 
   _ApiServerLifecycle({
@@ -114,7 +114,7 @@ class _ApiServerLifecycle {
     required this.persistentToken,
   });
 
-  Future<void> scheduleUpdate(AppSettings settings) async {
+  Future<void> scheduleUpdate(AppSettingsState settings) async {
     _queuedSettings = settings;
     if (_isApplying) {
       return;
@@ -132,7 +132,7 @@ class _ApiServerLifecycle {
     }
   }
 
-  Future<void> _stop(AppSettings settings, {String error = ''}) async {
+  Future<void> _stop(AppSettingsState settings, {String error = ''}) async {
     await _collaborationSubscription?.cancel();
     _collaborationSubscription = null;
 
@@ -152,7 +152,7 @@ class _ApiServerLifecycle {
         );
   }
 
-  Future<void> _apply(AppSettings settings) async {
+  Future<void> _apply(AppSettingsState settings) async {
     await _stop(settings);
 
     if (!settings.webServerEnabled) {

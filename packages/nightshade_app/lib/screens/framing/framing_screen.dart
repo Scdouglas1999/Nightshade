@@ -124,7 +124,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   /// Returns null when no target or no usable location is available.
   (double, double)? _computeCurrentAltAz(
     FramingTarget? target,
-    AppSettings? settings,
+    AppSettingsState? settings,
   ) {
     if (target == null || settings == null) return null;
     final lat = settings.latitude;

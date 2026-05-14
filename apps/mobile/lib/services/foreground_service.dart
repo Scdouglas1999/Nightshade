@@ -114,12 +114,12 @@ class ImagingForegroundService {
 
     // Send final notification before stopping service
     if (sequenceCompleted) {
-      await NotificationService().notifySequenceComplete(
+      await MobileNotificationService().notifySequenceComplete(
         _currentTarget,
         _completedExposures,
       );
     } else if (errorMessage != null) {
-      await NotificationService().notifySequenceFailed(
+      await MobileNotificationService().notifySequenceFailed(
         _currentTarget,
         errorMessage,
       );

@@ -158,7 +158,7 @@ class _MediumLayout extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
   final bool hasLocation;
-  final AppSettings? appSettings;
+  final AppSettingsState? appSettings;
   final WidgetRef ref;
 
   const _MediumLayout({
@@ -262,7 +262,7 @@ class _ExpandedLayout extends ConsumerWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
   final bool hasLocation;
-  final AppSettings? appSettings;
+  final AppSettingsState? appSettings;
   final WidgetRef ref;
 
   const _ExpandedLayout({
@@ -385,7 +385,7 @@ class _ExpandedLayout extends ConsumerWidget {
 class _RadarPreview extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
-  final AppSettings appSettings;
+  final AppSettingsState appSettings;
   final WidgetRef ref;
   final double width;
   final double height;

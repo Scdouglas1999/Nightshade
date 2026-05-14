@@ -90,7 +90,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
     }
   }
 
-  void _initControllers(AppSettings settings) {
+  void _initControllers(AppSettingsState settings) {
     if (!_initialized) {
       _discordController.text = settings.discordWebhook;
       _pushoverKeyController.text = settings.pushoverKey;

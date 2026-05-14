@@ -143,7 +143,7 @@ void main() {
       });
 
       final service = NotificationService.testing(
-        settingsReader: () => AppSettings(
+        settingsReader: () => AppSettingsState(
           notificationsEnabled: true,
           discordWebhook: 'https://example.com/webhook',
         ),

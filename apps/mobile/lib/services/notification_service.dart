@@ -9,10 +9,11 @@ import 'package:flutter/foundation.dart';
 /// via the GoRouter instance it owns (audit §3.8).
 typedef NotificationNavigator = void Function(String location);
 
-class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
-  factory NotificationService() => _instance;
-  NotificationService._internal();
+class MobileNotificationService {
+  static final MobileNotificationService _instance =
+      MobileNotificationService._internal();
+  factory MobileNotificationService() => _instance;
+  MobileNotificationService._internal();
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
@@ -138,7 +139,7 @@ class NotificationService {
     if (route == null) {
       // Unknown payload shape — surfacing it loudly beats silent fallback.
       debugPrint(
-          '[NotificationService] Notification payload has no route: $payload');
+          '[MobileNotificationService] Notification payload has no route: $payload');
       return;
     }
 
@@ -147,7 +148,7 @@ class NotificationService {
       // The app hasn't wired up the router yet (cold start path). Record
       // the route so we don't pretend the tap did something.
       debugPrint(
-          '[NotificationService] No navigator installed; dropped tap to $route ($payload)');
+          '[MobileNotificationService] No navigator installed; dropped tap to $route ($payload)');
       return;
     }
 

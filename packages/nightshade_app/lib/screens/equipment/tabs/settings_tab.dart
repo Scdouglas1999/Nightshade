@@ -60,7 +60,7 @@ class EquipmentSettingsTab extends ConsumerWidget {
 }
 
 class _CameraSettingsCard extends ConsumerWidget {
-  final AppSettings settings;
+  final AppSettingsState settings;
 
   const _CameraSettingsCard({required this.settings});
 
@@ -130,7 +130,7 @@ class _CameraSettingsCard extends ConsumerWidget {
 }
 
 class _MountSettingsCard extends ConsumerWidget {
-  final AppSettings settings;
+  final AppSettingsState settings;
 
   const _MountSettingsCard({required this.settings});
 
@@ -191,7 +191,7 @@ class _MountSettingsCard extends ConsumerWidget {
 }
 
 class _FocuserSettingsCard extends ConsumerWidget {
-  final AppSettings settings;
+  final AppSettingsState settings;
 
   const _FocuserSettingsCard({required this.settings});
 
@@ -258,7 +258,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
 }
 
 class _GuiderSettingsCard extends ConsumerWidget {
-  final AppSettings settings;
+  final AppSettingsState settings;
 
   const _GuiderSettingsCard({required this.settings});
 
