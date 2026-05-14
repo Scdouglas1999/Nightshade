@@ -12,9 +12,6 @@ import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
 import 'package:nightshade_bridge/src/device.dart' as bridge_device;
 import 'package:nightshade_bridge/src/error.dart' as bridge_error;
-import 'package:nightshade_core/src/database/database.dart'
-    hide EquipmentProfile, CapturedImage;
-import 'package:nightshade_core/src/database/daos/images_dao.dart';
 
 // Import pure Dart types from backend_types for return types
 import '../models/backend/device_capabilities.dart' as dart_caps;

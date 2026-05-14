@@ -5,9 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -2006,8 +2004,8 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
     }
   }
 
-  CapturedImage? _findLatestByFilter(
-      List<CapturedImage> images, Set<String> names) {
+  DbCapturedImage? _findLatestByFilter(
+      List<DbCapturedImage> images, Set<String> names) {
     final filtered = images.where((image) {
       final filter = (image.filter ?? '').toLowerCase().trim();
       for (final name in names) {

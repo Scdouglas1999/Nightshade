@@ -81,7 +81,7 @@ Future<bool> showSaveToProfileDialog({
     } else if (action == _NoProfileAction.selectExisting) {
       if (!context.mounted) return false;
       // Show profile picker
-      final selectedProfile = await showDialog<db.EquipmentProfile>(
+      final selectedProfile = await showDialog<DbEquipmentProfile>(
         context: context,
         builder: (context) => _ProfilePickerDialog(colors: colors),
       );

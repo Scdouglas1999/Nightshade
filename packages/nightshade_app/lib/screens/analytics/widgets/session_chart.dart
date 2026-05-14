@@ -2,7 +2,7 @@ import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
+import 'package:nightshade_core/nightshade_core.dart' show DbCapturedImage;
 
 /// Chart data point with timestamp and value
 class ChartDataPoint {
@@ -233,7 +233,7 @@ class SessionChart extends StatelessWidget {
 
 /// HFR (Half-Flux Radius) trend chart
 class HfrChart extends StatelessWidget {
-  final List<CapturedImage> images;
+  final List<DbCapturedImage> images;
 
   const HfrChart({super.key, required this.images});
 
@@ -258,7 +258,7 @@ class HfrChart extends StatelessWidget {
 
 /// Temperature trend chart
 class TemperatureChart extends StatelessWidget {
-  final List<CapturedImage> images;
+  final List<DbCapturedImage> images;
 
   const TemperatureChart({super.key, required this.images});
 
@@ -283,7 +283,7 @@ class TemperatureChart extends StatelessWidget {
 
 /// Guiding RMS chart
 class GuidingRmsChart extends StatelessWidget {
-  final List<CapturedImage> images;
+  final List<DbCapturedImage> images;
 
   const GuidingRmsChart({super.key, required this.images});
 
@@ -308,7 +308,7 @@ class GuidingRmsChart extends StatelessWidget {
 
 /// Focuser position chart (for focus drift tracking)
 class FocuserPositionChart extends StatelessWidget {
-  final List<CapturedImage> images;
+  final List<DbCapturedImage> images;
 
   const FocuserPositionChart({super.key, required this.images});
 

@@ -4,7 +4,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' as db;
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../../utils/device_format_utils.dart';
@@ -247,7 +246,7 @@ class _ProfilesError extends StatelessWidget {
 }
 
 class _ProfileCard extends ConsumerStatefulWidget {
-  final db.EquipmentProfile profile;
+  final DbEquipmentProfile profile;
   final NightshadeColors colors;
 
   const _ProfileCard({
@@ -454,7 +453,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     );
   }
 
-  List<String> _buildEquipmentList(db.EquipmentProfile profile) {
+  List<String> _buildEquipmentList(DbEquipmentProfile profile) {
     final items = <String>[];
     if (profile.cameraId != null) {
       items.add('Camera: ${formatDeviceId(profile.cameraId!)}');
@@ -478,7 +477,7 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     return items.take(4).toList();
   }
 
-  String? _formatOptics(db.EquipmentProfile profile) {
+  String? _formatOptics(DbEquipmentProfile profile) {
     if (profile.focalLength <= 0 && profile.aperture <= 0) {
       return null;
     }

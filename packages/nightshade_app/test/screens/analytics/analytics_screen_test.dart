@@ -10,12 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart'
-    show CapturedImage, ImagingSession;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/daos/tutorial_progress_dao.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Test-only TutorialNotifier that reports tutorials disabled so the
@@ -47,10 +42,10 @@ List<Override> _commonOverrides() {
       (ref) => Stream<List<ImagingSession>>.value(const []),
     ),
     standaloneImagesProvider.overrideWith(
-      (ref) => Stream<List<CapturedImage>>.value(const []),
+      (ref) => Stream<List<DbCapturedImage>>.value(const []),
     ),
     allDbImagesProvider.overrideWith(
-      (ref) => Stream<List<CapturedImage>>.value(const []),
+      (ref) => Stream<List<DbCapturedImage>>.value(const []),
     ),
     tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
   ];

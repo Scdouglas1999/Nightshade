@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show apiReadFitsFile;
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show CatalogManager, HygStarData;
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -1193,12 +1191,12 @@ class _PhotometricCalibrationWizardState
 
 /// Provider for session images (used by the calibration wizard).
 final sessionImagesProvider =
-    FutureProvider.family<List<CapturedImage>, int>((ref, sessionId) {
+    FutureProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     return backend.getSessionImageRows(sessionId).then(
           (rows) => rows
-              .map((row) => CapturedImage.fromJson(row))
+              .map((row) => DbCapturedImage.fromJson(row))
               .toList(growable: false),
         );
   }

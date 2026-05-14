@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/equipment_keys.dart';
@@ -10,7 +9,7 @@ import 'profile_chip.dart';
 /// A horizontal scrollable bar of profile chips for quick profile selection
 class QuickConnectBar extends ConsumerWidget {
   final int? selectedProfileId;
-  final ValueChanged<db.EquipmentProfile> onProfileSelected;
+  final ValueChanged<DbEquipmentProfile> onProfileSelected;
   final VoidCallback onCreateProfile;
 
   const QuickConnectBar({
@@ -83,7 +82,7 @@ class QuickConnectBar extends ConsumerWidget {
   Widget _buildProfileBar(
     BuildContext context,
     WidgetRef ref,
-    List<db.EquipmentProfile> profiles,
+    List<DbEquipmentProfile> profiles,
     NightshadeColors colors,
     CameraStateSnapshot cameraState,
     MountState mountState,
@@ -136,7 +135,7 @@ class QuickConnectBar extends ConsumerWidget {
   }
 
   (ProfileConnectionState, int, int) _getProfileConnectionState(
-    db.EquipmentProfile profile,
+    DbEquipmentProfile profile,
     CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
@@ -386,7 +385,7 @@ class QuickConnectBar extends ConsumerWidget {
   void _showProfileMenu(
     BuildContext context,
     WidgetRef ref,
-    db.EquipmentProfile profile,
+    DbEquipmentProfile profile,
     NightshadeColors colors,
   ) {
     final RenderBox button = context.findRenderObject() as RenderBox;

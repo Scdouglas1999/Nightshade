@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
 import '../../../utils/device_format_utils.dart';

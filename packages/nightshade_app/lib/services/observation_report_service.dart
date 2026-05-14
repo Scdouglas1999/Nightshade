@@ -2,10 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart'
-    show CapturedImage, ImagingSession;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -308,7 +305,7 @@ class ObservationReportService {
   }
 
   pw.Widget _buildSessionSummarySection(
-      ImagingSession session, List<CapturedImage> acceptedImages) {
+      ImagingSession session, List<DbCapturedImage> acceptedImages) {
     final successRate = session.totalExposures > 0
         ? (session.successfulExposures / session.totalExposures * 100)
         : 0.0;
@@ -358,7 +355,7 @@ class ObservationReportService {
   }
 
   pw.Widget _buildImageQualitySection(
-      ImagingSession session, List<CapturedImage> images) {
+      ImagingSession session, List<DbCapturedImage> images) {
     if (images.isEmpty) {
       return pw.SizedBox.shrink();
     }
@@ -412,12 +409,12 @@ class ObservationReportService {
     );
   }
 
-  pw.Widget _buildFilterBreakdownSection(List<CapturedImage> images) {
+  pw.Widget _buildFilterBreakdownSection(List<DbCapturedImage> images) {
     if (images.isEmpty) {
       return pw.SizedBox.shrink();
     }
 
-    final filterGroups = <String, List<CapturedImage>>{};
+    final filterGroups = <String, List<DbCapturedImage>>{};
     for (final image in images) {
       final filter = image.filter ?? 'No Filter';
       filterGroups.putIfAbsent(filter, () => []).add(image);
@@ -956,7 +953,7 @@ class ObservationReportService {
     return '${minutes}m';
   }
 
-  String _filterGroupAvgHfr(List<CapturedImage> images) {
+  String _filterGroupAvgHfr(List<DbCapturedImage> images) {
     final List<double> hfrValues = images
         .where((i) => i.hfr != null)
         .map<double>((i) => i.hfr!)

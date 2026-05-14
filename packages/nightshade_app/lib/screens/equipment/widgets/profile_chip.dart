@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/src/database/database.dart' as db;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Connection state for a profile
@@ -18,7 +18,7 @@ enum ProfileConnectionState {
 
 /// A chip widget representing an equipment profile
 class ProfileChip extends ConsumerStatefulWidget {
-  final db.EquipmentProfile profile;
+  final DbEquipmentProfile profile;
   final bool isSelected;
   final ProfileConnectionState connectionState;
   final int connectedDevices;

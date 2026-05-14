@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/services/observation_report_service.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show apiReadFitsFile;
 import 'package:nightshade_core/nightshade_core.dart';
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show CatalogManager, HygStarData;
 import 'package:shelf/shelf.dart';
@@ -549,8 +547,8 @@ class ScienceHandlers {
     return jsonOk({'id': id});
   }
 
-  db.CapturedImage? _findLatestByFilter(
-    List<db.CapturedImage> images,
+  DbCapturedImage? _findLatestByFilter(
+    List<DbCapturedImage> images,
     Set<String> names,
   ) {
     final filtered = images.where((image) {

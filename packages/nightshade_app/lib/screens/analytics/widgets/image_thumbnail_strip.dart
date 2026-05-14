@@ -3,12 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_core/nightshade_core.dart'
     show
         backendProvider,
         isRemoteModeProvider,
+        DbCapturedImage,
         FrameQualityAssessment,
         FrameQualityAssessmentService,
         FrameQualityLevel;
@@ -21,8 +20,8 @@ enum _QualityFilter {
 
 /// Horizontal scrollable strip of image thumbnails
 class ImageThumbnailStrip extends StatefulWidget {
-  final List<CapturedImage> images;
-  final Function(CapturedImage)? onImageTap;
+  final List<DbCapturedImage> images;
+  final Function(DbCapturedImage)? onImageTap;
 
   const ImageThumbnailStrip({
     super.key,
@@ -242,7 +241,7 @@ class _ThumbnailPayload {
 }
 
 class _ImageThumbnail extends ConsumerStatefulWidget {
-  final CapturedImage image;
+  final DbCapturedImage image;
   final FrameQualityAssessment? assessment;
   final VoidCallback? onTap;
 

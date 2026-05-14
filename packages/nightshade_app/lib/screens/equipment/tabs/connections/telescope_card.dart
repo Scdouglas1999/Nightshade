@@ -16,7 +16,7 @@ class _TelescopeCard extends ConsumerWidget {
         border: Border.all(color: colors.border),
       ),
       child: profileAsync.when(
-        data: (db.EquipmentProfile? profile) {
+        data: (DbEquipmentProfile? profile) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -194,7 +194,7 @@ class _ProfileDeviceLine extends StatelessWidget {
 }
 
 class _OpticsSummaryCard extends StatelessWidget {
-  final db.EquipmentProfile? profile;
+  final DbEquipmentProfile? profile;
   final NightshadeColors colors;
 
   const _OpticsSummaryCard({required this.profile, required this.colors});

@@ -1,9 +1,14 @@
 /// Nightshade Core - Shared business logic
 library nightshade_core;
 
-// Database - hide conflicting entity names
+// Database - hide entity names that collide with domain-model classes of the
+// same name. The drift row types for `CapturedImage` / `EquipmentProfile` are
+// still reachable through this barrel via the `DbCapturedImage` /
+// `DbEquipmentProfile` typedef aliases re-exported below
+// (see audit-arch §3.2, §8 #13, CQ-W4-BARREL-EXPOSE).
 export 'src/database/database.dart'
     hide Target, Sequence, SequenceNode, CapturedImage, EquipmentProfile;
+export 'src/database/database_aliases.dart';
 export 'src/database/seed_data.dart';
 
 // DAOs

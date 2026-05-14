@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// The adaptive connection status zone that changes based on connection state.
@@ -14,7 +12,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// - Connected (compact): Shows minimal status bar
 /// - Error (attention required): Shows error with retry options
 class ConnectionStatusZone extends ConsumerStatefulWidget {
-  final db.EquipmentProfile? selectedProfile;
+  final DbEquipmentProfile? selectedProfile;
   final VoidCallback onConnectAll;
   final VoidCallback onDisconnectAll;
   final VoidCallback onEditProfile;
@@ -203,7 +201,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
   }
 
   List<_DeviceStatus> _buildDeviceList(
-    db.EquipmentProfile profile,
+    DbEquipmentProfile profile,
     CameraStateSnapshot camera,
     MountState mount,
     FocuserState focuser,
@@ -530,7 +528,7 @@ class _CompactStatusBar extends StatelessWidget {
 }
 
 class _DisconnectedView extends StatelessWidget {
-  final db.EquipmentProfile profile;
+  final DbEquipmentProfile profile;
   final List<_DeviceStatus> devices;
   final NightshadeColors colors;
   final VoidCallback onConnect;
@@ -645,7 +643,7 @@ class _DisconnectedView extends StatelessWidget {
 }
 
 class _ConnectingView extends StatelessWidget {
-  final db.EquipmentProfile profile;
+  final DbEquipmentProfile profile;
   final List<_DeviceStatus> devices;
   final NightshadeColors colors;
   final VoidCallback onCancel;

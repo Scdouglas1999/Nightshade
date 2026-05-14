@@ -7,10 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart'
-    show CapturedImage, ImagingSession;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
@@ -484,7 +481,7 @@ class _AnalyticsAsyncState extends StatelessWidget {
 
 /// Provider for watching session images
 final sessionImagesProvider =
-    StreamProvider.family<List<CapturedImage>, int>((ref, sessionId) {
+    StreamProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     return _pollRemoteSessionImages(backend, sessionId);
@@ -493,7 +490,7 @@ final sessionImagesProvider =
 });
 
 /// Provider for watching standalone (sessionless) images
-final standaloneImagesProvider = StreamProvider<List<CapturedImage>>((ref) {
+final standaloneImagesProvider = StreamProvider<List<DbCapturedImage>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     return _pollRemoteStandaloneImages(backend);
@@ -1068,7 +1065,7 @@ class _SessionDetailDialog extends ConsumerWidget {
   Widget _buildImagesSection(
     BuildContext context,
     NightshadeColors colors,
-    List<CapturedImage> images,
+    List<DbCapturedImage> images,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1199,7 +1196,7 @@ class _SessionDetailDialog extends ConsumerWidget {
   }
 }
 
-Stream<List<CapturedImage>> _pollRemoteSessionImages(
+Stream<List<DbCapturedImage>> _pollRemoteSessionImages(
   NetworkBackend backend,
   int sessionId,
 ) async* {
@@ -1210,7 +1207,7 @@ Stream<List<CapturedImage>> _pollRemoteSessionImages(
   }
 }
 
-Stream<List<CapturedImage>> _pollRemoteStandaloneImages(
+Stream<List<DbCapturedImage>> _pollRemoteStandaloneImages(
   NetworkBackend backend,
 ) async* {
   yield await _fetchRemoteStandaloneImages(backend);
@@ -1220,19 +1217,19 @@ Stream<List<CapturedImage>> _pollRemoteStandaloneImages(
   }
 }
 
-Future<List<CapturedImage>> _fetchRemoteSessionImages(
+Future<List<DbCapturedImage>> _fetchRemoteSessionImages(
   NetworkBackend backend,
   int sessionId,
 ) async {
   final rows = await backend.getSessionImageRows(sessionId);
-  return rows.map(CapturedImage.fromJson).toList(growable: false);
+  return rows.map(DbCapturedImage.fromJson).toList(growable: false);
 }
 
-Future<List<CapturedImage>> _fetchRemoteStandaloneImages(
+Future<List<DbCapturedImage>> _fetchRemoteStandaloneImages(
   NetworkBackend backend,
 ) async {
   final rows = await backend.getStandaloneImageRows();
-  return rows.map(CapturedImage.fromJson).toList(growable: false);
+  return rows.map(DbCapturedImage.fromJson).toList(growable: false);
 }
 
 Future<String> _saveRemoteExport(

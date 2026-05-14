@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
@@ -41,7 +39,7 @@ final perFilterIntegrationProvider =
     return const AsyncValue.loading();
   }
 
-  final images = imagesAsync.value ?? const <CapturedImage>[];
+  final images = imagesAsync.value ?? const <DbCapturedImage>[];
   final result = <int, Map<String, double>>{};
 
   for (final image in images) {
