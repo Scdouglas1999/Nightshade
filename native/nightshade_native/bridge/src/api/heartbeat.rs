@@ -3,7 +3,7 @@
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
 use crate::filter_matching::find_filter_match;
@@ -110,7 +110,7 @@ pub async fn api_start_device_heartbeat_with_config(
         max_reconnect_attempts
     );
 
-    let config = crate::devices::HeartbeatConfig {
+    let config = crate::device_manager::HeartbeatConfig {
         base_interval_secs: interval_secs,
         max_interval_secs: interval_secs * 6, // 6x base for max backoff
         failure_threshold,
@@ -139,15 +139,15 @@ pub async fn api_start_device_heartbeat_with_config(
 /// A tuple of (interval_secs, max_interval_secs, failure_threshold, auto_reconnect)
 pub fn api_get_heartbeat_config_for_type(device_type: DeviceType) -> (u64, u64, u32, bool) {
     let config = match device_type {
-        DeviceType::Camera => crate::devices::HeartbeatConfig::for_camera(),
-        DeviceType::Mount => crate::devices::HeartbeatConfig::for_mount(),
-        DeviceType::Focuser => crate::devices::HeartbeatConfig::for_focuser(),
-        DeviceType::FilterWheel => crate::devices::HeartbeatConfig::for_filter_wheel(),
-        DeviceType::Dome => crate::devices::HeartbeatConfig::for_dome(),
-        DeviceType::Rotator => crate::devices::HeartbeatConfig::for_rotator(),
-        DeviceType::Weather => crate::devices::HeartbeatConfig::for_weather(),
-        DeviceType::SafetyMonitor => crate::devices::HeartbeatConfig::for_safety_monitor(),
-        _ => crate::devices::HeartbeatConfig::default(),
+        DeviceType::Camera => crate::device_manager::HeartbeatConfig::for_camera(),
+        DeviceType::Mount => crate::device_manager::HeartbeatConfig::for_mount(),
+        DeviceType::Focuser => crate::device_manager::HeartbeatConfig::for_focuser(),
+        DeviceType::FilterWheel => crate::device_manager::HeartbeatConfig::for_filter_wheel(),
+        DeviceType::Dome => crate::device_manager::HeartbeatConfig::for_dome(),
+        DeviceType::Rotator => crate::device_manager::HeartbeatConfig::for_rotator(),
+        DeviceType::Weather => crate::device_manager::HeartbeatConfig::for_weather(),
+        DeviceType::SafetyMonitor => crate::device_manager::HeartbeatConfig::for_safety_monitor(),
+        _ => crate::device_manager::HeartbeatConfig::default(),
     };
 
     (
@@ -224,7 +224,7 @@ pub async fn api_get_device_heartbeat_info(
     let device_type_enum = device.info.device_type.clone();
 
     // Get device-type specific configuration
-    let config = crate::devices::HeartbeatConfig::for_device_type(&device_type_enum);
+    let config = crate::device_manager::HeartbeatConfig::for_device_type(&device_type_enum);
 
     Ok(DeviceHeartbeatInfo {
         device_id,

@@ -4,7 +4,7 @@
 //! Each function is marked with the appropriate flutter_rust_bridge attributes.
 
 use crate::device::*;
-use crate::devices::DeviceManager;
+use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
 use crate::state::*;
