@@ -1,13 +1,13 @@
 // CQ-W3-API-RS: device-control submodules (audit-rust §9)
 
-mod camera;
-mod cover_calibrator;
-mod dome;
-mod filter_wheel;
-mod focuser;
-mod mount;
-mod simulation;
-mod switch;
+pub mod camera;
+pub mod cover_calibrator;
+pub mod dome;
+pub mod filter_wheel;
+pub mod focuser;
+pub mod mount;
+pub mod simulation;
+pub mod switch;
 
 pub use camera::*;
 pub use cover_calibrator::*;

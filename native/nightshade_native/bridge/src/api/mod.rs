@@ -107,21 +107,21 @@ pub async fn api_invalidate_discovery_cache() {
 // Submodule declarations (CQ-W3-API-RS decomposition — audit-rust §9)
 // =============================================================================
 
-mod init;
-mod event_stream;
-mod discovery;
-mod connection;
-mod heartbeat;
-mod api_version;
-mod session;
-mod storage;
-mod diagnostics;
-mod plate_solve;
-mod phd2;
-mod polar_alignment;
-mod sequencer;
-mod imaging;
-mod devices;
+pub mod init;
+pub mod event_stream;
+pub mod discovery;
+pub mod connection;
+pub mod heartbeat;
+pub mod api_version;
+pub mod session;
+pub mod storage;
+pub mod diagnostics;
+pub mod plate_solve;
+pub mod phd2;
+pub mod polar_alignment;
+pub mod sequencer;
+pub mod imaging;
+pub mod devices;
 
 pub use init::*;
 pub use event_stream::*;
