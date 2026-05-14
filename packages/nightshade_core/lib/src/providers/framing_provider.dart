@@ -81,10 +81,10 @@ class FramingState {
   final bool mosaicEnabled;
 
   /// Mosaic configuration
-  final MosaicConfig mosaicConfig;
+  final FramingMosaicConfig mosaicConfig;
 
   /// Generated mosaic panels (computed from config and target)
-  final List<MosaicPanel> mosaicPanels;
+  final List<FramingMosaicPanel> mosaicPanels;
 
   /// Currently selected panel index (-1 = none)
   final int selectedPanelIndex;
@@ -118,7 +118,7 @@ class FramingState {
     this.equipmentFovOverlayOpacity = 0.3,
     this.showEquipmentFovOverlay = true,
     this.mosaicEnabled = false,
-    this.mosaicConfig = const MosaicConfig(),
+    this.mosaicConfig = const FramingMosaicConfig(),
     this.mosaicPanels = const [],
     this.selectedPanelIndex = -1,
     this.showPanelNumbers = true,
@@ -146,8 +146,8 @@ class FramingState {
     double? equipmentFovOverlayOpacity,
     bool? showEquipmentFovOverlay,
     bool? mosaicEnabled,
-    MosaicConfig? mosaicConfig,
-    List<MosaicPanel>? mosaicPanels,
+    FramingMosaicConfig? mosaicConfig,
+    List<FramingMosaicPanel>? mosaicPanels,
     int? selectedPanelIndex,
     bool? showPanelNumbers,
     bool? showSequencePath,
@@ -333,8 +333,12 @@ enum SurveySource {
 // MOSAIC SUPPORT
 // =============================================================================
 
-/// Configuration for a mosaic pattern
-class MosaicConfig {
+/// Configuration for a mosaic pattern in the framing assistant.
+///
+/// Distinct from `MosaicConfig` in `services/mosaic_service.dart`, which
+/// describes mosaic geometry in arcminutes/degrees for sequence generation.
+/// This UI-facing version is grid-based (columns/rows/overlapPercent).
+class FramingMosaicConfig {
   /// Number of horizontal panels
   final int columns;
 
@@ -353,7 +357,7 @@ class MosaicConfig {
   /// Custom panel rotation for each panel (null = use global rotation)
   final double? panelRotation;
 
-  const MosaicConfig({
+  const FramingMosaicConfig({
     this.columns = 2,
     this.rows = 2,
     this.overlapPercent = 15.0,
@@ -362,7 +366,7 @@ class MosaicConfig {
     this.panelRotation,
   });
 
-  MosaicConfig copyWith({
+  FramingMosaicConfig copyWith({
     int? columns,
     int? rows,
     double? overlapPercent,
@@ -370,7 +374,7 @@ class MosaicConfig {
     MosaicStartCorner? startCorner,
     double? panelRotation,
   }) {
-    return MosaicConfig(
+    return FramingMosaicConfig(
       columns: columns ?? this.columns,
       rows: rows ?? this.rows,
       overlapPercent: overlapPercent ?? this.overlapPercent,
@@ -398,8 +402,11 @@ enum MosaicStartCorner {
   bottomRight,
 }
 
-/// Individual panel in a mosaic
-class MosaicPanel {
+/// Individual panel in a framing-assistant mosaic.
+///
+/// Distinct from `MosaicPanel` in `services/mosaic_service.dart`, which is the
+/// service-layer geometry representation used by `MosaicService`.
+class FramingMosaicPanel {
   /// Panel index (0-based, in capture order)
   final int index;
 
@@ -421,7 +428,7 @@ class MosaicPanel {
   /// Whether this panel has been captured
   final bool isCaptured;
 
-  const MosaicPanel({
+  const FramingMosaicPanel({
     required this.index,
     required this.column,
     required this.row,
@@ -431,7 +438,7 @@ class MosaicPanel {
     this.isCaptured = false,
   });
 
-  MosaicPanel copyWith({
+  FramingMosaicPanel copyWith({
     int? index,
     int? column,
     int? row,
@@ -440,7 +447,7 @@ class MosaicPanel {
     String? name,
     bool? isCaptured,
   }) {
-    return MosaicPanel(
+    return FramingMosaicPanel(
       index: index ?? this.index,
       column: column ?? this.column,
       row: row ?? this.row,
@@ -884,7 +891,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
   }
 
   /// Update mosaic configuration
-  void setMosaicConfig(MosaicConfig config) {
+  void setMosaicConfig(FramingMosaicConfig config) {
     state = state.copyWith(mosaicConfig: config);
     if (state.mosaicEnabled) {
       _recalculateMosaicPanels();
@@ -967,7 +974,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final startDecOffset = totalHeightDeg / 2 - fovHeight / 2;
 
     // Generate panels in capture order
-    final panels = <MosaicPanel>[];
+    final panels = <FramingMosaicPanel>[];
     int panelIndex = 0;
 
     for (int row = 0; row < config.rows; row++) {
@@ -988,7 +995,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
         final panelRa = (centerRa + raOffsetHours) % 24;
         final panelDec = (centerDec + decOffsetDeg).clamp(-90.0, 90.0);
 
-        panels.add(MosaicPanel(
+        panels.add(FramingMosaicPanel(
           index: panelIndex,
           column: actualCol,
           row: actualRow,
@@ -1004,13 +1011,13 @@ class FramingNotifier extends StateNotifier<FramingState> {
     state = state.copyWith(mosaicPanels: panels);
   }
 
-  int _getActualRow(int row, MosaicConfig config) {
+  int _getActualRow(int row, FramingMosaicConfig config) {
     final flipVertical = config.startCorner == MosaicStartCorner.bottomLeft ||
         config.startCorner == MosaicStartCorner.bottomRight;
     return flipVertical ? (config.rows - 1 - row) : row;
   }
 
-  int _getActualCol(int col, int row, MosaicConfig config) {
+  int _getActualCol(int col, int row, FramingMosaicConfig config) {
     final flipHorizontal = config.startCorner == MosaicStartCorner.topRight ||
         config.startCorner == MosaicStartCorner.bottomRight;
     final baseCol = flipHorizontal ? (config.columns - 1 - col) : col;

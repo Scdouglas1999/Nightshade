@@ -44,8 +44,7 @@ export 'src/models/tutorial/tutorial_models.dart';
 // The model-layer FirstNightWizard class collides with the widget class of
 // the same name in nightshade_app. We hide it from the barrel so callers
 // either import tutorial_step.dart directly (the widget does) or just use
-// FirstNightWizardStep. This is the same pattern used elsewhere in this
-// barrel for MosaicConfig / MosaicPanel.
+// FirstNightWizardStep.
 export 'src/models/tutorial/tutorial_step.dart' hide FirstNightWizard;
 export 'src/models/phd2_models.dart';
 export 'src/models/weather/weather_models.dart';
@@ -82,10 +81,11 @@ export 'src/providers/equipment_provider.dart';
 export 'src/providers/unified_discovery_provider.dart';
 export 'src/providers/device_backend_selection_provider.dart';
 export 'src/providers/event_provider.dart';
-// framing_provider owns the canonical UI-facing MosaicConfig / MosaicPanel
-// (grid-based: columns/rows/overlapPercent). mosaic_service has its own
-// geometry-flavored versions (centerRa/panelWidthArcmin/...) which we hide
-// here to disambiguate the public barrel and prevent private-path imports.
+// framing_provider exposes the UI-facing FramingMosaicConfig /
+// FramingMosaicPanel (grid-based: columns/rows/overlapPercent). The
+// service-layer MosaicConfig / MosaicPanel in mosaic_service.dart
+// (geometry-flavored: centerRa/panelWidthArcmin/...) live under their
+// canonical names and are now safe to re-export from the barrel.
 export 'src/providers/framing_provider.dart';
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
@@ -202,10 +202,7 @@ export 'src/services/auto_save_service.dart';
 export 'src/services/notification_service.dart';
 export 'src/services/push_notification_service.dart';
 export 'src/services/session_export_service.dart';
-// MosaicConfig/MosaicPanel collide with framing_provider's UI-level versions;
-// service-internal callers (MosaicService consumers) import them via the
-// service file directly.
-export 'src/services/mosaic_service.dart' hide MosaicConfig, MosaicPanel;
+export 'src/services/mosaic_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
 export 'src/services/calibration_service.dart';

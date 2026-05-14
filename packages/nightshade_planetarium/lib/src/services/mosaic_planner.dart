@@ -42,7 +42,7 @@ enum MosaicRotation {
 }
 
 /// A single panel in a mosaic
-class MosaicPanel {
+class PlanetariumMosaicPanel {
   /// Panel index (0-based, row-major)
   final int index;
 
@@ -73,7 +73,7 @@ class MosaicPanel {
   /// Custom label for the panel
   String? label;
 
-  MosaicPanel({
+  PlanetariumMosaicPanel({
     required this.index,
     required this.row,
     required this.column,
@@ -118,7 +118,7 @@ class MosaicPanel {
     }).toList();
   }
 
-  MosaicPanel copyWith({
+  PlanetariumMosaicPanel copyWith({
     int? index,
     int? row,
     int? column,
@@ -130,7 +130,7 @@ class MosaicPanel {
     double? imagingTimeMinutes,
     String? label,
   }) {
-    return MosaicPanel(
+    return PlanetariumMosaicPanel(
       index: index ?? this.index,
       row: row ?? this.row,
       column: column ?? this.column,
@@ -146,7 +146,7 @@ class MosaicPanel {
 }
 
 /// Mosaic configuration
-class MosaicConfig {
+class PlanetariumMosaicConfig {
   /// Center coordinate of the mosaic
   final CelestialCoordinate center;
 
@@ -174,7 +174,7 @@ class MosaicConfig {
   /// Number of columns (calculated or specified)
   int? columns;
 
-  MosaicConfig({
+  PlanetariumMosaicConfig({
     required this.center,
     required this.totalWidth,
     required this.totalHeight,
@@ -186,7 +186,7 @@ class MosaicConfig {
     this.columns,
   });
 
-  MosaicConfig copyWith({
+  PlanetariumMosaicConfig copyWith({
     CelestialCoordinate? center,
     double? totalWidth,
     double? totalHeight,
@@ -197,7 +197,7 @@ class MosaicConfig {
     int? rows,
     int? columns,
   }) {
-    return MosaicConfig(
+    return PlanetariumMosaicConfig(
       center: center ?? this.center,
       totalWidth: totalWidth ?? this.totalWidth,
       totalHeight: totalHeight ?? this.totalHeight,
@@ -214,10 +214,10 @@ class MosaicConfig {
 /// Planned mosaic with all panels
 class MosaicPlan {
   /// Configuration used to generate this plan
-  final MosaicConfig config;
+  final PlanetariumMosaicConfig config;
 
   /// All panels in the mosaic
-  final List<MosaicPanel> panels;
+  final List<PlanetariumMosaicPanel> panels;
 
   /// Total number of rows
   final int rows;
@@ -284,7 +284,7 @@ class MosaicPlan {
   }
 
   /// Get panels in capture order
-  List<MosaicPanel> get panelsInCaptureOrder {
+  List<PlanetariumMosaicPanel> get panelsInCaptureOrder {
     return captureOrder.map((i) => panels[i]).toList();
   }
 }
@@ -325,7 +325,7 @@ class MosaicPlanner {
   }
 
   /// Generate a mosaic plan
-  static MosaicPlan generateMosaic(MosaicConfig config) {
+  static MosaicPlan generateMosaic(PlanetariumMosaicConfig config) {
     // Calculate panel counts if not specified
     final (calcRows, calcCols) = calculatePanelCount(
       totalWidth: config.totalWidth,
@@ -351,7 +351,7 @@ class MosaicPlanner {
     final startOffsetY = -effectiveHeight / 2 + config.panelFovHeight / 2;
 
     // Generate panels
-    final panels = <MosaicPanel>[];
+    final panels = <PlanetariumMosaicPanel>[];
     var index = 0;
 
     for (var row = 0; row < rows; row++) {
@@ -374,7 +374,7 @@ class MosaicPlanner {
 
         final panelDec = (config.center.dec + dDec).clamp(-90.0, 90.0);
 
-        panels.add(MosaicPanel(
+        panels.add(PlanetariumMosaicPanel(
           index: index,
           row: row,
           column: col,
@@ -422,7 +422,7 @@ class MosaicPlanner {
     final totalWidth = panelFovWidth + (columns - 1) * stepWidth;
     final totalHeight = panelFovHeight + (rows - 1) * stepHeight;
 
-    return generateMosaic(MosaicConfig(
+    return generateMosaic(PlanetariumMosaicConfig(
       center: center,
       totalWidth: totalWidth,
       totalHeight: totalHeight,
@@ -436,7 +436,7 @@ class MosaicPlanner {
   }
 
   /// Calculate slew distance between two panels
-  static double slewDistance(MosaicPanel from, MosaicPanel to) {
+  static double slewDistance(PlanetariumMosaicPanel from, PlanetariumMosaicPanel to) {
     return AstronomyCalculations.angularSeparation(
       ra1Deg: from.center.ra * 15,
       dec1Deg: from.center.dec,
@@ -458,7 +458,7 @@ class MosaicPlanner {
   }
 
   /// Check if two panels overlap
-  static bool panelsOverlap(MosaicPanel a, MosaicPanel b) {
+  static bool panelsOverlap(PlanetariumMosaicPanel a, PlanetariumMosaicPanel b) {
     // Simple AABB check (doesn't account for rotation properly)
     final aCorners = a.corners;
     final bCorners = b.corners;

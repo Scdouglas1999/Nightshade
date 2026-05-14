@@ -365,7 +365,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                             framingState: framingState,
                           ),
                           const SizedBox(height: 20),
-                          FramingMosaicPanel(
+                          FramingMosaicSection(
                             colors: colors,
                             framingState: framingState,
                             equipmentAsync: equipmentResult,

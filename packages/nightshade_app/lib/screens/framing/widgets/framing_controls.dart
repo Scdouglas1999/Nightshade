@@ -868,7 +868,7 @@ class _CornerOption extends StatelessWidget {
 /// database as an individual target named "<targetName> - Panel <n>".
 class FramingExportMosaicButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-  final List<MosaicPanel> panels;
+  final List<FramingMosaicPanel> panels;
   final String targetName;
 
   const FramingExportMosaicButton({

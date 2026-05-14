@@ -370,8 +370,8 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 /// Draws the mosaic panel grid: panel outlines, optional numbering, optional
 /// sequence path, selection highlight, and a START marker on panel 1.
 class FramingMosaicGridPainter extends CustomPainter {
-  final MosaicConfig config;
-  final List<MosaicPanel> panels;
+  final FramingMosaicConfig config;
+  final List<FramingMosaicPanel> panels;
   final double fovWidth;
   final double fovHeight;
   final double zoom;

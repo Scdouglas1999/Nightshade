@@ -823,12 +823,12 @@ class FramingAltitudePanel extends StatelessWidget {
 /// Mosaic planning panel: enable switch, columns/rows spinners, overlap
 /// slider, capture pattern (serpentine/numbers), start-corner selector, panel
 /// list, and export-to-targets button.
-class FramingMosaicPanel extends ConsumerWidget {
+class FramingMosaicSection extends ConsumerWidget {
   final NightshadeColors colors;
   final FramingState framingState;
   final AsyncValue<FramingEquipmentResult> equipmentAsync;
 
-  const FramingMosaicPanel({
+  const FramingMosaicSection({
     super.key,
     required this.colors,
     required this.framingState,

@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-// MosaicConfig collides with framing_provider's UI-level version in the
-// public barrel; this wizard builds the MosaicService geometry config, so we
-// hide the barrel's MosaicConfig and pull the service variant directly.
-import 'package:nightshade_core/nightshade_core.dart' hide MosaicConfig;
-import 'package:nightshade_core/src/services/mosaic_service.dart'
-    show MosaicConfig;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'dart:math' as math;
 
 import '../../../utils/snackbar_helper.dart';

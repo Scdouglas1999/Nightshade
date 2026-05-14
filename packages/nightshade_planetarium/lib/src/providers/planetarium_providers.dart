@@ -1181,7 +1181,7 @@ final equipmentFOVProvider =
 /// Current mosaic plan state
 class MosaicPlanState {
   final MosaicPlan? plan;
-  final MosaicConfig? config;
+  final PlanetariumMosaicConfig? config;
   final bool isEditing;
 
   const MosaicPlanState({
@@ -1192,7 +1192,7 @@ class MosaicPlanState {
 
   MosaicPlanState copyWith({
     MosaicPlan? plan,
-    MosaicConfig? config,
+    PlanetariumMosaicConfig? config,
     bool? isEditing,
   }) {
     return MosaicPlanState(
@@ -1218,7 +1218,7 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
 
     if (fov == null) return;
 
-    final config = MosaicConfig(
+    final config = PlanetariumMosaicConfig(
       center: center,
       totalWidth: totalWidth,
       totalHeight: totalHeight,
