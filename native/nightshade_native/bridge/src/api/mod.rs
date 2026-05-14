@@ -2,10 +2,16 @@
 //!
 //! This module contains all the functions that can be called from Dart.
 //! Each function is marked with the appropriate flutter_rust_bridge attributes.
+//!
+//! CQ-W3-API-RS (audit-rust §9 / audit-arch §1.2): mid-split state.
+//! Foundation sections (init, event_stream, discovery, connection, heartbeat,
+//! api_version) have been extracted to dedicated submodules. The remainder
+//! of the original api.rs is still inline below; subsequent commits extract
+//! devices/ (Commit B) and imaging/sequencer/etc (Commit C).
 
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
-use crate::device_manager::DeviceManager;
+use crate::devices::DeviceManager;
 use crate::error::*;
 use crate::event::*;
 use crate::filter_matching::find_filter_match;
@@ -19,7 +25,7 @@ use nightshade_imaging::{
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -52,11 +58,11 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
 /// When `api_discover_devices()` is called for any device type, the first call
 /// runs full discovery for all sources (ASCOM, Alpaca, Native, INDI) and caches
 /// every result. Subsequent calls within the TTL just filter by device_type.
-struct DiscoveryCache {
+pub(crate) struct DiscoveryCache {
     /// All discovered devices from every source, unfiltered
-    all_devices: Vec<DeviceInfo>,
+    pub(crate) all_devices: Vec<DeviceInfo>,
     /// When the cache was last populated
-    timestamp: Instant,
+    pub(crate) timestamp: Instant,
 }
 
 /// Global unified discovery cache
@@ -66,25 +72,23 @@ static DISCOVERY_CACHE: OnceLock<Mutex<Option<DiscoveryCache>>> = OnceLock::new(
 // Event Stream Overflow Tracking
 // =============================================================================
 
-use std::sync::atomic::AtomicU64;
-
 /// Global counter for total events dropped across all event streams.
 /// This is incremented when a receiver falls behind and events are skipped.
-static TOTAL_DROPPED_EVENTS: AtomicU64 = AtomicU64::new(0);
-static TEMP_FITS_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+pub(crate) static TOTAL_DROPPED_EVENTS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static TEMP_FITS_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// How long to cache unified discovery results (60 seconds)
-const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(60);
+pub(crate) const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// Get or initialize the discovery cache
-fn get_discovery_cache() -> &'static Mutex<Option<DiscoveryCache>> {
+pub(crate) fn get_discovery_cache() -> &'static Mutex<Option<DiscoveryCache>> {
     DISCOVERY_CACHE.get_or_init(|| Mutex::new(None))
 }
 
 /// Discovery state to prevent concurrent discovery operations
 static DISCOVERY_IN_PROGRESS: OnceLock<Mutex<bool>> = OnceLock::new();
 
-fn get_discovery_lock() -> &'static Mutex<bool> {
+pub(crate) fn get_discovery_lock() -> &'static Mutex<bool> {
     DISCOVERY_IN_PROGRESS.get_or_init(|| Mutex::new(false))
 }
 
@@ -116,1427 +120,28 @@ pub async fn api_invalidate_discovery_cache() {
 }
 
 // =============================================================================
-// Initialization
+// Foundation submodules (CQ-W3-API-RS:GroupA — audit-rust §9)
 // =============================================================================
 
-/// Initialize the native bridge with optional file logging
-/// Must be called once at app startup before any other API calls
-///
-/// # Arguments
-/// * `log_directory` - Optional path to store log files. If None, logs only to console.
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_init_with_logging(log_directory: Option<String>) -> Result<(), NightshadeError> {
-    // Initialize logging (with file output if directory provided)
-    crate::init_native_with_logging(log_directory)?;
+mod api_version;
+mod connection;
+mod discovery;
+mod event_stream;
+mod heartbeat;
+mod init;
 
-    tracing::info!("Nightshade Native API initialized");
-
-    // Initialize the app state
-    let _ = get_state();
-
-    // Initialize device manager (this will spawn Tokio tasks, so runtime must exist)
-    let _ = get_device_manager();
-
-    // Publish system initialized event
-    get_state().publish_system_event(SystemEvent::Initialized);
-
-    Ok(())
-}
-
-/// Initialize the native bridge and return success (console logging only)
-/// Must be called once at app startup before any other API calls
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_init() -> Result<(), NightshadeError> {
-    api_init_with_logging(None)
-}
-
-/// Get the version of the native library
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_get_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
-}
-
-/// Get the current log directory path
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_get_log_directory() -> Option<String> {
-    crate::get_log_directory()
-}
-
-/// Get the current log file path (today's log)
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_get_current_log_file() -> Option<String> {
-    crate::get_current_log_file()
-}
-
-/// List all available log files
-pub fn api_list_log_files() -> Vec<String> {
-    crate::list_log_files()
-}
-
-/// Read a log file's contents
-pub fn api_read_log_file(path: String) -> Result<String, NightshadeError> {
-    crate::read_log_file(path)
-}
-
-/// Export all logs to a single file for diagnostics
-pub fn api_export_logs(output_path: String) -> Result<(), NightshadeError> {
-    crate::export_logs_to_file(output_path)
-}
+pub use api_version::*;
+pub use connection::*;
+pub use discovery::*;
+pub use event_stream::*;
+pub use heartbeat::*;
+pub use init::*;
 
 // =============================================================================
-// Event Stream
+// Pending extraction (Commit B / C): the rest of the original api.rs body
+// follows verbatim below. Items are still resolved via the imports at the
+// head of this file.
 // =============================================================================
-
-/// Stream of events from the native side
-/// The Dart side should listen to this stream for UI updates
-///
-/// # Overflow Handling
-///
-/// If the Dart side falls behind in consuming events (e.g., during heavy UI work),
-/// the event stream will skip lagged events and send an `EventsDropped` notification
-/// so the Dart side knows to refresh its state. The total number of dropped events
-/// is tracked for diagnostics.
-pub async fn api_event_stream(
-    sink: crate::frb_generated::StreamSink<NightshadeEvent>,
-) -> anyhow::Result<()> {
-    tracing::info!(
-        "[API_EVENT_STREAM] Starting event stream function (buffer size: {})",
-        crate::event::DEFAULT_EVENT_BUFFER_SIZE
-    );
-
-    let mut rx = get_state().event_bus.subscribe();
-    tracing::info!("[API_EVENT_STREAM] Subscribed to event bus");
-
-    // Send a ready signal so Dart knows the subscription is active
-    // This prevents race conditions where events are published before we're subscribed
-    if let Err(err) = sink.add(create_event_auto_id(
-        EventSeverity::Info,
-        EventCategory::System,
-        EventPayload::System(SystemEvent::Notification {
-            title: "EventStreamReady".to_string(),
-            message: "Event stream subscription is active".to_string(),
-            level: "debug".to_string(),
-        }),
-    )) {
-        tracing::warn!("[API_EVENT_STREAM] Failed to send ready signal: {}", err);
-        return Ok(());
-    }
-    tracing::info!("[API_EVENT_STREAM] Sent ready signal to Dart");
-
-    loop {
-        match rx.recv().await {
-            Ok(event) => {
-                tracing::debug!(
-                    "[API_EVENT_STREAM] Forwarding event to Dart: {:?}",
-                    std::mem::discriminant(&event.payload)
-                );
-                if let Err(err) = sink.add(event) {
-                    tracing::warn!("[API_EVENT_STREAM] Failed to send event to Dart: {}", err);
-                    break;
-                }
-            }
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                // Update the global dropped event counter
-                let previous_total = TOTAL_DROPPED_EVENTS.fetch_add(n, Ordering::Relaxed);
-                let new_total = previous_total + n;
-
-                tracing::warn!(
-                    "[API_EVENT_STREAM] Event stream lagged! Skipped {} events (total dropped: {}). \
-                    Consider increasing DEFAULT_EVENT_BUFFER_SIZE or optimizing Dart event handling.",
-                    n, new_total
-                );
-
-                // Send a notification to Dart so it knows events were dropped
-                // This allows the UI to refresh its state from the source of truth
-                if let Err(err) = sink.add(create_event_auto_id(
-                    EventSeverity::Warning,
-                    EventCategory::System,
-                    EventPayload::System(SystemEvent::EventsDropped {
-                        dropped_count: n,
-                        total_dropped: new_total,
-                    }),
-                )) {
-                    tracing::warn!(
-                        "[API_EVENT_STREAM] Failed to send dropped-events notice: {}",
-                        err
-                    );
-                    break;
-                }
-            }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                tracing::info!("[API_EVENT_STREAM] Event bus closed, stopping stream");
-                break;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Get the total number of events dropped since app start.
-/// Useful for diagnostics and monitoring event stream health.
-#[flutter_rust_bridge::frb(sync)]
-pub fn api_get_dropped_event_count() -> u64 {
-    TOTAL_DROPPED_EVENTS.load(Ordering::Relaxed)
-}
-
-// =============================================================================
-// Device Discovery - ASCOM and ALPACA IMPLEMENTATION
-// =============================================================================
-
-/// Discover available Alpaca devices on the network
-pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, NightshadeError> {
-    use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
-    use std::time::Duration;
-
-    tracing::debug!("Discovering Alpaca devices on network...");
-
-    let alpaca_devices = discover_all_devices(Duration::from_secs(3)).await;
-
-    let mut devices = Vec::new();
-    for alpaca_dev in alpaca_devices {
-        let device_type = match alpaca_dev.device_type {
-            AlpacaDeviceType::Camera => DeviceType::Camera,
-            AlpacaDeviceType::Telescope => DeviceType::Mount,
-            AlpacaDeviceType::Focuser => DeviceType::Focuser,
-            AlpacaDeviceType::FilterWheel => DeviceType::FilterWheel,
-            AlpacaDeviceType::Rotator => DeviceType::Rotator,
-            AlpacaDeviceType::Dome => DeviceType::Dome,
-            AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
-            AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
-            AlpacaDeviceType::Switch => DeviceType::Switch,
-            AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
-        };
-
-        tracing::debug!(
-            "Found Alpaca device: {} at {} (unique_id: {})",
-            alpaca_dev.device_name,
-            alpaca_dev.base_url,
-            alpaca_dev.unique_id
-        );
-
-        // Generate display name using unique_id for disambiguation
-        let unique_id = if alpaca_dev.unique_id.is_empty() {
-            None
-        } else {
-            Some(alpaca_dev.unique_id.clone())
-        };
-        let display_name = DeviceInfo::generate_display_name(
-            &alpaca_dev.device_name,
-            None, // No serial number from Alpaca
-            unique_id.as_deref(),
-            None, // No index needed
-        );
-
-        devices.push(DeviceInfo {
-            id: alpaca_dev.id(),
-            name: alpaca_dev.device_name.clone(),
-            device_type,
-            driver_type: DriverType::Alpaca,
-            description: format!("Alpaca device at {}", alpaca_dev.base_url),
-            driver_version: "Alpaca".to_string(),
-            serial_number: None,
-            unique_id,
-            display_name,
-        });
-    }
-
-    tracing::debug!("Found {} Alpaca devices", devices.len());
-    Ok(devices)
-}
-
-/// Discover Alpaca devices at a specific server address
-pub async fn api_discover_alpaca_at_address(
-    host: String,
-    port: u16,
-) -> Result<Vec<DeviceInfo>, NightshadeError> {
-    use nightshade_alpaca::{get_configured_devices, AlpacaDeviceType};
-
-    tracing::debug!("Discovering Alpaca devices at {}:{}", host, port);
-
-    let alpaca_devices = get_configured_devices(&host, port).await.map_err(|e| {
-        NightshadeError::connection_failed(
-            format!("{}:{}", host, port),
-            format!("Failed to connect to Alpaca server: {}", e),
-        )
-    })?;
-
-    let mut devices = Vec::new();
-    for alpaca_dev in alpaca_devices {
-        let device_type = match alpaca_dev.device_type {
-            AlpacaDeviceType::Camera => DeviceType::Camera,
-            AlpacaDeviceType::Telescope => DeviceType::Mount,
-            AlpacaDeviceType::Focuser => DeviceType::Focuser,
-            AlpacaDeviceType::FilterWheel => DeviceType::FilterWheel,
-            AlpacaDeviceType::Rotator => DeviceType::Rotator,
-            AlpacaDeviceType::Dome => DeviceType::Dome,
-            AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
-            AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
-            AlpacaDeviceType::Switch => DeviceType::Switch,
-            AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
-        };
-
-        // Generate display name using unique_id for disambiguation
-        let unique_id = if alpaca_dev.unique_id.is_empty() {
-            None
-        } else {
-            Some(alpaca_dev.unique_id.clone())
-        };
-        let display_name = DeviceInfo::generate_display_name(
-            &alpaca_dev.device_name,
-            None,
-            unique_id.as_deref(),
-            None,
-        );
-
-        devices.push(DeviceInfo {
-            id: alpaca_dev.id(),
-            name: alpaca_dev.device_name.clone(),
-            device_type,
-            driver_type: DriverType::Alpaca,
-            description: format!("Alpaca device at {}", alpaca_dev.base_url),
-            driver_version: "Alpaca".to_string(),
-            serial_number: None,
-            unique_id,
-            display_name,
-        });
-    }
-
-    Ok(devices)
-}
-
-/// Discover INDI devices at a specific server address
-pub async fn api_discover_indi_at_address(
-    host: String,
-    port: u16,
-) -> Result<Vec<DeviceInfo>, NightshadeError> {
-    tracing::debug!("Discovering INDI devices at {}:{}", host, port);
-
-    get_device_manager()
-        .discover_indi_devices(&host, port)
-        .await
-        .map_err(|e| {
-            NightshadeError::connection_failed(
-                format!("{}:{}", host, port),
-                format!("Failed to connect to INDI server: {}", e),
-            )
-        })
-}
-
-async fn query_indi_device_serial_from_client(
-    client: &nightshade_indi::IndiClient,
-    device_name: &str,
-) -> Option<String> {
-    const SERIAL_CANDIDATES: [(&str, &str); 8] = [
-        ("DEVICE_INFO", "DEVICE_SERIAL"),
-        ("DEVICE_INFO", "SERIAL"),
-        ("EQUIPMENT_INFO", "SERIAL"),
-        ("DRIVER_INFO", "SERIAL"),
-        ("INFO", "SERIAL"),
-        ("DEVICE", "SERIAL"),
-        ("DEVICE_INFO", "SN"),
-        ("INFO", "SN"),
-    ];
-
-    for (property, element) in SERIAL_CANDIDATES {
-        if let Some(value) = client
-            .get_property_value(device_name, property, element)
-            .await
-        {
-            let trimmed = value.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-
-    let properties = client.get_properties(device_name).await;
-    for property in properties {
-        let property_upper = property.name.to_uppercase();
-        if !(property_upper.contains("INFO") || property_upper.contains("DEVICE")) {
-            continue;
-        }
-
-        for element in property.elements {
-            let element_upper = element.to_uppercase();
-            if element_upper.contains("SERIAL") || element_upper == "SN" {
-                if let Some(value) = client
-                    .get_property_value(device_name, &property.name, &element)
-                    .await
-                {
-                    let trimmed = value.trim();
-                    if !trimmed.is_empty() {
-                        return Some(trimmed.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    None
-}
-
-async fn query_indi_serials_for_server(
-    host: &str,
-    port: u16,
-    device_names: &[String],
-) -> HashMap<String, String> {
-    let mut serials = HashMap::new();
-    let mut client = nightshade_indi::IndiClient::new(host, Some(port));
-
-    let mut timeout_config = client.timeout_config().clone();
-    timeout_config.connection_timeout_secs = 3;
-    timeout_config.property_timeout_secs = 2;
-    timeout_config.message_timeout_secs = 5;
-    client.set_timeout_config(timeout_config);
-
-    if let Err(e) = client.connect().await {
-        tracing::debug!(
-            "Unable to query INDI serials from {}:{} ({}). Continuing without serial metadata.",
-            host,
-            port,
-            e
-        );
-        return serials;
-    }
-
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    for device_name in device_names {
-        if let Some(serial) = query_indi_device_serial_from_client(&client, device_name).await {
-            serials.insert(device_name.clone(), serial);
-        }
-    }
-
-    if let Err(e) = client.disconnect().await {
-        tracing::debug!(
-            "INDI serial query disconnect warning for {}:{}: {}",
-            host,
-            port,
-            e
-        );
-    }
-
-    serials
-}
-
-/// Auto-discover INDI servers on localhost
-pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, NightshadeError> {
-    use nightshade_indi::{discover_localhost, IndiDeviceType as IndiType};
-
-    tracing::debug!("Auto-discovering INDI servers on localhost...");
-
-    let mut all_devices = Vec::new();
-
-    if let Some(server) = discover_localhost().await {
-        tracing::debug!(
-            "Found INDI server at {}:{} with {} devices",
-            server.host,
-            server.port,
-            server.devices.len()
-        );
-        let device_names = server
-            .devices
-            .iter()
-            .map(|d| d.name.clone())
-            .collect::<Vec<_>>();
-        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
-
-        for device in server.devices {
-            let device_type = match device.device_type {
-                IndiType::Camera => DeviceType::Camera,
-                IndiType::Telescope => DeviceType::Mount,
-                IndiType::Focuser => DeviceType::Focuser,
-                IndiType::FilterWheel => DeviceType::FilterWheel,
-                IndiType::Dome => DeviceType::Dome,
-                IndiType::Rotator => DeviceType::Rotator,
-                IndiType::Guider => DeviceType::Guider,
-                IndiType::Weather => DeviceType::Weather,
-                IndiType::SafetyMonitor => DeviceType::SafetyMonitor,
-                IndiType::CoverCalibrator => DeviceType::CoverCalibrator,
-                IndiType::Unknown => continue,
-            };
-
-            let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
-            let serial_number = serials.get(&device.name).cloned();
-            let unique_id = serial_number.clone();
-
-            all_devices.push(DeviceInfo {
-                id: device_id,
-                name: device.name.clone(),
-                device_type,
-                driver_type: DriverType::Indi,
-                description: format!("INDI device at {}:{}", server.host, server.port),
-                driver_version: "INDI".to_string(),
-                serial_number,
-                unique_id,
-                display_name: device.name.clone(),
-            });
-        }
-    }
-
-    tracing::debug!("Found {} INDI devices on localhost", all_devices.len());
-    Ok(all_devices)
-}
-
-/// Auto-discover INDI servers on common hostnames (localhost, raspberrypi, stellarmate, etc.)
-pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, NightshadeError> {
-    use nightshade_indi::{discover_common_hosts, IndiDeviceType as IndiType};
-
-    tracing::debug!("Auto-discovering INDI servers on common hosts...");
-
-    let mut all_devices = Vec::new();
-    let servers = discover_common_hosts().await;
-
-    tracing::debug!("Found {} INDI servers on common hosts", servers.len());
-
-    for server in servers {
-        let device_names = server
-            .devices
-            .iter()
-            .map(|d| d.name.clone())
-            .collect::<Vec<_>>();
-        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
-        for device in server.devices {
-            let device_type = match device.device_type {
-                IndiType::Camera => DeviceType::Camera,
-                IndiType::Telescope => DeviceType::Mount,
-                IndiType::Focuser => DeviceType::Focuser,
-                IndiType::FilterWheel => DeviceType::FilterWheel,
-                IndiType::Dome => DeviceType::Dome,
-                IndiType::Rotator => DeviceType::Rotator,
-                IndiType::Guider => DeviceType::Guider,
-                IndiType::Weather => DeviceType::Weather,
-                IndiType::SafetyMonitor => DeviceType::SafetyMonitor,
-                IndiType::CoverCalibrator => DeviceType::CoverCalibrator,
-                IndiType::Unknown => continue,
-            };
-
-            let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
-            let serial_number = serials.get(&device.name).cloned();
-            let unique_id = serial_number.clone();
-
-            all_devices.push(DeviceInfo {
-                id: device_id,
-                name: device.name.clone(),
-                device_type,
-                driver_type: DriverType::Indi,
-                description: format!("INDI device at {}:{}", server.host, server.port),
-                driver_version: "INDI".to_string(),
-                serial_number,
-                unique_id,
-                display_name: device.name.clone(),
-            });
-        }
-    }
-
-    tracing::debug!("Found {} INDI devices total", all_devices.len());
-    Ok(all_devices)
-}
-
-/// Auto-discover INDI servers on the local network (scans subnet)
-pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeError> {
-    use nightshade_indi::{discover_local_network, IndiDeviceType as IndiType};
-    use std::time::Duration;
-
-    tracing::debug!("Scanning local network for INDI servers...");
-
-    let mut all_devices = Vec::new();
-    let servers = discover_local_network(Duration::from_millis(200)).await;
-
-    tracing::debug!("Found {} INDI servers on local network", servers.len());
-
-    for server in servers {
-        let device_names = server
-            .devices
-            .iter()
-            .map(|d| d.name.clone())
-            .collect::<Vec<_>>();
-        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
-        for device in server.devices {
-            let device_type = match device.device_type {
-                IndiType::Camera => DeviceType::Camera,
-                IndiType::Telescope => DeviceType::Mount,
-                IndiType::Focuser => DeviceType::Focuser,
-                IndiType::FilterWheel => DeviceType::FilterWheel,
-                IndiType::Dome => DeviceType::Dome,
-                IndiType::Rotator => DeviceType::Rotator,
-                IndiType::Guider => DeviceType::Guider,
-                IndiType::Weather => DeviceType::Weather,
-                IndiType::SafetyMonitor => DeviceType::SafetyMonitor,
-                IndiType::CoverCalibrator => DeviceType::CoverCalibrator,
-                IndiType::Unknown => continue,
-            };
-
-            let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
-            let serial_number = serials.get(&device.name).cloned();
-            let unique_id = serial_number.clone();
-
-            all_devices.push(DeviceInfo {
-                id: device_id,
-                name: device.name.clone(),
-                device_type,
-                driver_type: DriverType::Indi,
-                description: format!("INDI device at {}:{}", server.host, server.port),
-                driver_version: "INDI".to_string(),
-                serial_number,
-                unique_id,
-                display_name: device.name.clone(),
-            });
-        }
-    }
-
-    tracing::debug!("Found {} INDI devices on network", all_devices.len());
-    Ok(all_devices)
-}
-
-/// Discover available devices of a specific type.
-/// Queries Windows-only ASCOM COM drivers, Alpaca network devices or bridges,
-/// Native SDK paths bundled for the current release, simulator paths where
-/// enabled, and reachable INDI servers. All results are cached for 60 seconds -- the FIRST call to this
-/// function runs full discovery for every source and every device type, and subsequent
-/// calls within the TTL simply filter the cached results by the requested `device_type`.
-pub async fn api_discover_devices(
-    device_type: DeviceType,
-) -> Result<Vec<DeviceInfo>, NightshadeError> {
-    tracing::debug!("Discovering {} devices", device_type.as_str());
-
-    // =====================================================
-    // CHECK UNIFIED CACHE
-    // =====================================================
-    {
-        let cache = get_discovery_cache().lock().await;
-        if let Some(ref cached) = *cache {
-            if cached.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
-                tracing::debug!(
-                    "Using cached discovery results ({} total devices, {:.1}s old)",
-                    cached.all_devices.len(),
-                    cached.timestamp.elapsed().as_secs_f32()
-                );
-                let filtered: Vec<DeviceInfo> = cached
-                    .all_devices
-                    .iter()
-                    .filter(|d| d.device_type == device_type)
-                    .cloned()
-                    .collect();
-                return Ok(filtered);
-            }
-        }
-    }
-
-    // =====================================================
-    // ACQUIRE LOCK & DOUBLE-CHECK CACHE
-    // =====================================================
-    let mut in_progress = get_discovery_lock().lock().await;
-
-    // Another concurrent caller may have populated the cache while we waited
-    {
-        let cache = get_discovery_cache().lock().await;
-        if let Some(ref cached) = *cache {
-            if cached.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
-                let filtered: Vec<DeviceInfo> = cached
-                    .all_devices
-                    .iter()
-                    .filter(|d| d.device_type == device_type)
-                    .cloned()
-                    .collect();
-                return Ok(filtered);
-            }
-        }
-    }
-
-    // =====================================================
-    // RUN FULL DISCOVERY (all sources, all types)
-    // =====================================================
-    *in_progress = true;
-    let mut all_devices: Vec<DeviceInfo> = Vec::new();
-
-    let mut ascom_count: usize = 0;
-    let mut alpaca_count: usize = 0;
-    let mut native_count: usize = 0;
-    let mut indi_count: usize = 0;
-
-    // ----- ASCOM discovery (Windows only) -----
-    #[cfg(windows)]
-    {
-        use nightshade_ascom::{discover_devices as ascom_discover, AscomDeviceType};
-
-        let ascom_types = [
-            (AscomDeviceType::Camera, DeviceType::Camera),
-            (AscomDeviceType::Telescope, DeviceType::Mount),
-            (AscomDeviceType::Focuser, DeviceType::Focuser),
-            (AscomDeviceType::FilterWheel, DeviceType::FilterWheel),
-            (AscomDeviceType::Rotator, DeviceType::Rotator),
-            (AscomDeviceType::Dome, DeviceType::Dome),
-            (AscomDeviceType::ObservingConditions, DeviceType::Weather),
-            (AscomDeviceType::SafetyMonitor, DeviceType::SafetyMonitor),
-            (
-                AscomDeviceType::CoverCalibrator,
-                DeviceType::CoverCalibrator,
-            ),
-        ];
-
-        for (ascom_type, dev_type) in ascom_types {
-            let ascom_devs = ascom_discover(ascom_type);
-            for ascom_dev in ascom_devs {
-                let prog_id_lower = ascom_dev.prog_id.to_lowercase();
-                let name_lower = ascom_dev.name.to_lowercase();
-
-                // Filter out simulators and diagnostic tools
-                let is_simulator = prog_id_lower.contains("simulator")
-                    || name_lower.contains("simulator")
-                    || prog_id_lower.contains("sim.")
-                    || prog_id_lower.ends_with("sim")
-                    || prog_id_lower.starts_with("ccdsim")
-                    || prog_id_lower.starts_with("scopesim")
-                    || prog_id_lower.starts_with("focussim")
-                    || prog_id_lower.starts_with("domesim")
-                    || prog_id_lower.starts_with("filterwheelsim")
-                    || name_lower == "simulator";
-
-                let is_diagnostic = prog_id_lower.contains("hub.")
-                    || prog_id_lower.contains("pipe.")
-                    || prog_id_lower.contains("poth.")
-                    || prog_id_lower.starts_with("hub.")
-                    || prog_id_lower.starts_with("pipe.")
-                    || prog_id_lower.starts_with("poth.");
-
-                if is_simulator || is_diagnostic {
-                    tracing::trace!(
-                        "Filtering out ASCOM device: {} ({})",
-                        ascom_dev.name,
-                        ascom_dev.prog_id
-                    );
-                    continue;
-                }
-                all_devices.push(DeviceInfo {
-                    id: format!("ascom:{}", ascom_dev.prog_id),
-                    name: ascom_dev.name.clone(),
-                    device_type: dev_type,
-                    driver_type: DriverType::Ascom,
-                    description: ascom_dev.description,
-                    driver_version: "ASCOM".to_string(),
-                    serial_number: None,
-                    unique_id: None,
-                    display_name: ascom_dev.name.clone(),
-                });
-                ascom_count += 1;
-            }
-        }
-    }
-
-    // ----- Alpaca discovery -----
-    {
-        use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
-
-        let alpaca_devs = discover_all_devices(Duration::from_secs(2)).await;
-        for alpaca_dev in alpaca_devs {
-            let dev_type = match alpaca_dev.device_type {
-                AlpacaDeviceType::Camera => DeviceType::Camera,
-                AlpacaDeviceType::Telescope => DeviceType::Mount,
-                AlpacaDeviceType::Focuser => DeviceType::Focuser,
-                AlpacaDeviceType::FilterWheel => DeviceType::FilterWheel,
-                AlpacaDeviceType::Rotator => DeviceType::Rotator,
-                AlpacaDeviceType::Dome => DeviceType::Dome,
-                AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
-                AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
-                AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
-                _ => continue,
-            };
-
-            let unique_id = if alpaca_dev.unique_id.is_empty() {
-                None
-            } else {
-                Some(alpaca_dev.unique_id.clone())
-            };
-            let display_name = DeviceInfo::generate_display_name(
-                &alpaca_dev.device_name,
-                None,
-                unique_id.as_deref(),
-                None,
-            );
-
-            all_devices.push(DeviceInfo {
-                id: alpaca_dev.id(),
-                name: alpaca_dev.device_name.clone(),
-                device_type: dev_type,
-                driver_type: DriverType::Alpaca,
-                description: format!("Alpaca device at {}", alpaca_dev.base_url),
-                driver_version: "Alpaca".to_string(),
-                serial_number: None,
-                unique_id,
-                display_name,
-            });
-            alpaca_count += 1;
-        }
-    }
-
-    // ----- Native vendor SDK discovery -----
-    {
-        use nightshade_native::discover_all_devices as native_discover_all;
-
-        if let Ok(native_devices) = native_discover_all().await {
-            for native_dev in native_devices {
-                let dev_type = match native_dev.device_type {
-                    nightshade_native::DeviceType::Camera => DeviceType::Camera,
-                    nightshade_native::DeviceType::Mount => DeviceType::Mount,
-                    nightshade_native::DeviceType::Focuser => DeviceType::Focuser,
-                    nightshade_native::DeviceType::FilterWheel => DeviceType::FilterWheel,
-                    nightshade_native::DeviceType::Rotator => DeviceType::Rotator,
-                };
-                tracing::debug!(
-                    "Found native device: {} ({})",
-                    native_dev.display_name,
-                    native_dev.vendor.as_str()
-                );
-                all_devices.push(DeviceInfo {
-                    id: native_dev.id,
-                    name: native_dev.name.clone(),
-                    device_type: dev_type,
-                    driver_type: DriverType::Native,
-                    description: format!("{} native driver", native_dev.vendor.as_str()),
-                    driver_version: native_dev
-                        .sdk_version
-                        .unwrap_or_else(|| "Native".to_string()),
-                    serial_number: native_dev.serial_number,
-                    unique_id: None,
-                    display_name: native_dev.display_name,
-                });
-                native_count += 1;
-            }
-        }
-    }
-
-    // ----- INDI discovery -----
-    {
-        let indi_devices = get_device_manager().get_all_indi_devices().await;
-        for dev in indi_devices {
-            tracing::debug!("Found INDI device: {} ({:?})", dev.name, dev.device_type);
-            indi_count += 1;
-            all_devices.push(dev);
-        }
-    }
-
-    // ----- Built-in Guider (always available) -----
-    all_devices.push(DeviceInfo {
-        id: crate::builtin_guider::device_id().to_string(),
-        name: "Built-in Multi-Star Guider".to_string(),
-        device_type: DeviceType::Guider,
-        driver_type: DriverType::Native,
-        description: "Software guider using Nightshade star tracking and mount pulse guide"
-            .to_string(),
-        driver_version: "Nightshade".to_string(),
-        serial_number: None,
-        unique_id: Some("builtin_multi_star_guider".to_string()),
-        display_name: "Built-in Multi-Star Guider".to_string(),
-    });
-
-    // ----- PHD2 discovery -----
-    {
-        let is_running = nightshade_imaging::is_phd2_running();
-        let is_installed = nightshade_imaging::is_phd2_installed();
-
-        if is_running || is_installed {
-            tracing::debug!(
-                "Found PHD2 Guiding (Running: {}, Installed: {})",
-                is_running,
-                is_installed
-            );
-            all_devices.push(DeviceInfo {
-                id: "phd2_guider".to_string(),
-                name: "PHD2 Guiding".to_string(),
-                device_type: DeviceType::Guider,
-                driver_type: DriverType::Native,
-                description: if is_running {
-                    "PHD2 Guiding (Running)"
-                } else {
-                    "PHD2 Guiding (Installed)"
-                }
-                .to_string(),
-                driver_version: "PHD2".to_string(),
-                serial_number: None,
-                unique_id: None,
-                display_name: "PHD2 Guiding".to_string(),
-            });
-        }
-    }
-
-    // ----- Simulator (always available) -----
-    all_devices.push(DeviceInfo {
-        id: "sim_camera_1".to_string(),
-        name: "Simulated Camera".to_string(),
-        device_type: DeviceType::Camera,
-        driver_type: DriverType::Simulator,
-        description: "Internal Simulator".to_string(),
-        driver_version: "1.0.0".to_string(),
-        serial_number: Some("SIM-123".to_string()),
-        unique_id: Some("sim_camera_1".to_string()),
-        display_name: "Simulated Camera".to_string(),
-    });
-
-    // ----- Summary log line -----
-    tracing::info!(
-        "Discovery complete: {} ASCOM, {} Alpaca, {} Native, {} INDI devices",
-        ascom_count,
-        alpaca_count,
-        native_count,
-        indi_count
-    );
-
-    // ----- Cache ALL results -----
-    {
-        let mut cache = get_discovery_cache().lock().await;
-        *cache = Some(DiscoveryCache {
-            all_devices: all_devices.clone(),
-            timestamp: Instant::now(),
-        });
-    }
-
-    *in_progress = false;
-
-    // Filter by requested device type
-    let filtered: Vec<DeviceInfo> = all_devices
-        .into_iter()
-        .filter(|d| d.device_type == device_type)
-        .collect();
-
-    Ok(filtered)
-}
-
-// =============================================================================
-// Device Connection
-// =============================================================================
-
-/// Try to construct a DeviceInfo from a device ID string without running discovery.
-/// This avoids opening/closing hardware (e.g. ZWO EFW) which can interfere with
-/// subsequent position reads.
-fn device_info_from_id(device_id: &str, device_type: DeviceType) -> Option<DeviceInfo> {
-    if device_id.starts_with("native:") {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() >= 3 {
-            let vendor = parts[1];
-            let name = match vendor {
-                "builtin_guider" => "Built-in Multi-Star Guider".to_string(),
-                "zwo" => format!("ZWO Camera {}", parts[2]),
-                "zwo_eaf" => format!("ZWO EAF {}", parts[2]),
-                "zwo_efw" => format!("ZWO EFW {}", parts[2]),
-                "qhy" => format!("QHY {}", parts[2]),
-                "qhy_cfw" => format!("QHY CFW ({})", parts[2]),
-                "fli" | "fli_fw" | "fli_focuser" => format!("FLI {}", parts[2]),
-                "player_one" | "playerone" => format!("Player One {}", parts[2]),
-                "svbony" => format!("SVBony {}", parts[2]),
-                "atik" => format!("Atik {}", parts[2]),
-                "moravian" => format!("Moravian {}", parts[2]),
-                "touptek" => format!("Touptek {}", parts.get(2).unwrap_or(&"")),
-                _ => format!("{} {}", vendor, parts[2]),
-            };
-            return Some(DeviceInfo {
-                id: device_id.to_string(),
-                name: name.clone(),
-                device_type,
-                driver_type: DriverType::Native,
-                description: format!("Native {} driver", vendor),
-                driver_version: "Native".to_string(),
-                serial_number: None,
-                unique_id: None,
-                display_name: name,
-            });
-        }
-    } else if device_id.starts_with("ascom:") {
-        let prog_id = &device_id[6..]; // strip "ascom:"
-        let name = prog_id.split('.').skip(1).collect::<Vec<_>>().join(" ");
-        let name = if name.is_empty() {
-            prog_id.to_string()
-        } else {
-            name
-        };
-        return Some(DeviceInfo {
-            id: device_id.to_string(),
-            name: name.clone(),
-            device_type,
-            driver_type: DriverType::Ascom,
-            description: format!("ASCOM driver: {}", prog_id),
-            driver_version: "ASCOM".to_string(),
-            serial_number: None,
-            unique_id: None,
-            display_name: name,
-        });
-    } else if device_id.starts_with("alpaca:") {
-        return Some(DeviceInfo {
-            id: device_id.to_string(),
-            name: "Alpaca Device".to_string(),
-            device_type,
-            driver_type: DriverType::Alpaca,
-            description: "Alpaca device".to_string(),
-            driver_version: "Alpaca".to_string(),
-            serial_number: None,
-            unique_id: None,
-            display_name: "Alpaca Device".to_string(),
-        });
-    } else if device_id.starts_with("indi:") {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        let name = if parts.len() >= 4 {
-            parts[3..].join(":")
-        } else {
-            device_id.to_string()
-        };
-        return Some(DeviceInfo {
-            id: device_id.to_string(),
-            name: name.clone(),
-            device_type,
-            driver_type: DriverType::Indi,
-            description: "INDI device".to_string(),
-            driver_version: "INDI".to_string(),
-            serial_number: None,
-            unique_id: None,
-            display_name: name,
-        });
-    }
-    None
-}
-
-/// Connect to a device
-pub async fn api_connect_device(
-    device_type: DeviceType,
-    device_id: String,
-) -> Result<(), NightshadeError> {
-    tracing::info!(
-        "Connecting to {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
-    tracing::info!(
-        "Connecting to {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
-    // Special handling for PHD2 auto-launch
-    if is_phd2_device_id(&device_id) {
-        if !nightshade_imaging::is_phd2_running() {
-            tracing::info!("PHD2 not running, attempting to launch...");
-            if let Err(e) = nightshade_imaging::launch_phd2() {
-                tracing::error!("Failed to launch PHD2: {}", e);
-                return Err(NightshadeError::connection_failed(
-                    &device_id,
-                    format!("Failed to launch PHD2: {}", e),
-                ));
-            }
-
-            // Wait for it to start
-            tracing::info!("Waiting for PHD2 to start...");
-            let mut started = false;
-            for _ in 0..20 {
-                // Wait up to 10 seconds
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                if nightshade_imaging::is_phd2_running() {
-                    started = true;
-                    break;
-                }
-            }
-
-            if !started {
-                return Err(NightshadeError::connection_failed(
-                    &device_id,
-                    "Timed out waiting for PHD2 to start",
-                ));
-            }
-        }
-    }
-
-    // Check if device is registered in DeviceManager, if not, discover and register it
-    let device_manager = get_device_manager();
-
-    // Check if device is already registered
-    let is_registered = device_manager.is_device_registered(&device_id).await;
-
-    // If not registered, register it so the DeviceManager can connect.
-    // Try to construct DeviceInfo from the device ID first (avoids running
-    // native discovery which opens/closes hardware and can interfere with
-    // subsequent position reads on filter wheels).
-    if !is_registered {
-        tracing::info!("Device {} not registered, registering...", device_id);
-
-        let device_info = device_info_from_id(&device_id, device_type.clone());
-        if let Some(info) = device_info {
-            device_manager.register_device(info.clone(), false).await;
-            tracing::info!("Registered device from ID: {} ({})", info.name, device_id);
-        } else {
-            // Fallback: run full discovery to find the device
-            tracing::info!(
-                "Could not construct DeviceInfo from ID, running discovery for {}",
-                device_id
-            );
-            let discovered_devices = api_discover_devices(device_type.clone()).await?;
-            if let Some(info) = discovered_devices.iter().find(|d| d.id == device_id) {
-                device_manager.register_device(info.clone(), false).await;
-                tracing::info!(
-                    "Registered device via discovery: {} ({})",
-                    info.name,
-                    device_id
-                );
-            } else {
-                return Err(NightshadeError::connection_failed(
-                    &device_id,
-                    "Device not found during discovery",
-                ));
-            }
-        }
-    }
-
-    // Use the DeviceManager to handle the connection
-    device_manager
-        .connect_device(&device_id)
-        .await
-        .map_err(|e| NightshadeError::connection_failed(&device_id, e))
-}
-
-fn is_phd2_device_id(device_id: &str) -> bool {
-    device_id == "phd2_guider"
-        || device_id == "phd2"
-        || device_id.starts_with("phd2:")
-        || device_id.starts_with("phd2://")
-}
-
-/// Get the display name for a device that's already registered in the device manager.
-/// Returns None if the device isn't registered.
-/// This avoids running a full discovery just to resolve a device name.
-pub async fn api_get_device_display_name(device_id: String) -> Option<String> {
-    get_device_manager()
-        .get_device_display_name(&device_id)
-        .await
-}
-
-/// Disconnect from a device
-pub async fn api_disconnect_device(
-    device_type: DeviceType,
-    device_id: String,
-) -> Result<(), NightshadeError> {
-    tracing::info!(
-        "Disconnecting from {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
-    tracing::info!(
-        "Disconnecting from {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
-    // Use the DeviceManager to handle disconnection
-    get_device_manager()
-        .disconnect_device(&device_id)
-        .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
-}
-
-/// Check if a device is connected
-pub async fn api_is_device_connected(device_type: DeviceType, device_id: String) -> bool {
-    get_state()
-        .is_device_connected(device_type, &device_id)
-        .await
-}
-
-/// Get list of connected devices
-pub async fn api_get_connected_devices() -> Vec<DeviceInfo> {
-    let state = get_state();
-    let mut devices = Vec::new();
-
-    for device_type in [
-        DeviceType::Camera,
-        DeviceType::Mount,
-        DeviceType::Focuser,
-        DeviceType::FilterWheel,
-        DeviceType::Guider,
-        DeviceType::Rotator,
-        DeviceType::Dome,
-        DeviceType::Weather,
-    ] {
-        devices.extend(state.get_devices(device_type).await);
-    }
-
-    devices
-}
-
-// =============================================================================
-// Device Heartbeat Monitoring
-// =============================================================================
-
-/// Start heartbeat monitoring for a device
-///
-/// This will poll the device status at the specified interval and emit
-/// a Disconnected event if the device becomes unresponsive.
-///
-/// # Arguments
-/// * `device_type` - The type of device to monitor (used for validation)
-/// * `device_id` - The unique identifier for the device
-/// * `interval_ms` - Heartbeat interval in milliseconds (recommended: 10000)
-pub async fn api_start_device_heartbeat(
-    device_type: DeviceType,
-    device_id: String,
-    interval_ms: u64,
-) -> Result<(), NightshadeError> {
-    tracing::info!(
-        "Starting heartbeat monitoring for {} device: {} (interval: {}ms)",
-        device_type.as_str(),
-        device_id,
-        interval_ms
-    );
-
-    // Validate device type matches
-    if let Some(device) = get_device_manager().get_device(&device_id).await {
-        if device.info.device_type != device_type {
-            return Err(NightshadeError::InvalidParameter(format!(
-                "Device {} is type {:?}, not {:?}",
-                device_id, device.info.device_type, device_type
-            )));
-        }
-    }
-
-    get_device_manager()
-        .start_heartbeat(&device_id, std::time::Duration::from_millis(interval_ms))
-        .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
-}
-
-/// Stop heartbeat monitoring for a device
-///
-/// # Arguments
-/// * `device_id` - The unique identifier for the device
-pub async fn api_stop_device_heartbeat(device_id: String) -> Result<(), NightshadeError> {
-    tracing::info!("Stopping heartbeat monitoring for device: {}", device_id);
-
-    get_device_manager()
-        .stop_heartbeat(&device_id)
-        .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
-}
-
-/// Start heartbeat monitoring with custom configuration
-///
-/// This allows full control over the heartbeat behavior including:
-/// - Check interval and maximum interval after backoff
-/// - Number of failures before marking device as disconnected
-/// - Whether to attempt auto-reconnection
-/// - Reconnection attempt limits and delays
-///
-/// # Arguments
-/// * `device_id` - The unique identifier for the device
-/// * `interval_secs` - Base interval between heartbeats in seconds
-/// * `failure_threshold` - Number of consecutive failures before disconnect
-/// * `auto_reconnect` - Whether to attempt automatic reconnection
-/// * `max_reconnect_attempts` - Maximum reconnection attempts (0 = unlimited)
-pub async fn api_start_device_heartbeat_with_config(
-    device_id: String,
-    interval_secs: u64,
-    failure_threshold: u32,
-    auto_reconnect: bool,
-    max_reconnect_attempts: u32,
-) -> Result<(), NightshadeError> {
-    tracing::info!(
-        "Starting heartbeat with config for device: {} (interval={}s, threshold={}, auto_reconnect={}, max_attempts={})",
-        device_id,
-        interval_secs,
-        failure_threshold,
-        auto_reconnect,
-        max_reconnect_attempts
-    );
-
-    let config = crate::device_manager::HeartbeatConfig {
-        base_interval_secs: interval_secs,
-        max_interval_secs: interval_secs * 6, // 6x base for max backoff
-        failure_threshold,
-        backoff_multiplier: 2.0,
-        auto_reconnect,
-        max_reconnect_attempts,
-        reconnect_delay_secs: 5,
-    };
-
-    get_device_manager()
-        .start_heartbeat_with_config(&device_id, config)
-        .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
-}
-
-/// Get the default heartbeat configuration for a device type
-///
-/// Returns the recommended heartbeat settings for the specified device type.
-/// Different device types have different optimal configurations based on
-/// their operational characteristics.
-///
-/// # Arguments
-/// * `device_type` - The type of device to get configuration for
-///
-/// # Returns
-/// A tuple of (interval_secs, max_interval_secs, failure_threshold, auto_reconnect)
-pub fn api_get_heartbeat_config_for_type(device_type: DeviceType) -> (u64, u64, u32, bool) {
-    let config = match device_type {
-        DeviceType::Camera => crate::device_manager::HeartbeatConfig::for_camera(),
-        DeviceType::Mount => crate::device_manager::HeartbeatConfig::for_mount(),
-        DeviceType::Focuser => crate::device_manager::HeartbeatConfig::for_focuser(),
-        DeviceType::FilterWheel => crate::device_manager::HeartbeatConfig::for_filter_wheel(),
-        DeviceType::Dome => crate::device_manager::HeartbeatConfig::for_dome(),
-        DeviceType::Rotator => crate::device_manager::HeartbeatConfig::for_rotator(),
-        DeviceType::Weather => crate::device_manager::HeartbeatConfig::for_weather(),
-        DeviceType::SafetyMonitor => crate::device_manager::HeartbeatConfig::for_safety_monitor(),
-        _ => crate::device_manager::HeartbeatConfig::default(),
-    };
-
-    (
-        config.base_interval_secs,
-        config.max_interval_secs,
-        config.failure_threshold,
-        config.auto_reconnect,
-    )
-}
-
-/// Check device health status
-///
-/// Returns the last successful communication timestamp and whether
-/// the device is currently responding to heartbeat checks.
-///
-/// # Arguments
-/// * `device_id` - The unique identifier for the device
-///
-/// # Returns
-/// A tuple of (last_successful_timestamp_ms, is_healthy)
-pub async fn api_get_device_health(device_id: String) -> Result<(i64, bool), NightshadeError> {
-    get_device_manager()
-        .get_device_health(&device_id)
-        .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
-}
-
-/// Detailed heartbeat status for a device
-#[derive(Debug, Clone)]
-#[flutter_rust_bridge::frb]
-pub struct DeviceHeartbeatInfo {
-    /// Device ID
-    pub device_id: String,
-    /// Device type (e.g., "Camera", "Mount")
-    pub device_type: String,
-    /// Whether heartbeat monitoring is currently active
-    pub heartbeat_active: bool,
-    /// Last successful communication timestamp (milliseconds since epoch)
-    pub last_successful_comm_ms: Option<i64>,
-    /// Current heartbeat interval in seconds
-    pub interval_secs: u64,
-    /// Maximum interval after backoff in seconds
-    pub max_interval_secs: u64,
-    /// Number of failures before marking disconnected
-    pub failure_threshold: u32,
-    /// Whether auto-reconnect is enabled
-    pub auto_reconnect: bool,
-    /// Maximum reconnection attempts (0 = unlimited)
-    pub max_reconnect_attempts: u32,
-}
-
-/// Get detailed heartbeat status for a device
-///
-/// Returns comprehensive information about the heartbeat monitoring status
-/// including configuration, last successful communication, and whether
-/// monitoring is active.
-///
-/// # Arguments
-/// * `device_id` - The unique identifier for the device
-///
-/// # Returns
-/// DeviceHeartbeatInfo with all heartbeat details
-pub async fn api_get_device_heartbeat_info(
-    device_id: String,
-) -> Result<DeviceHeartbeatInfo, NightshadeError> {
-    let manager = get_device_manager();
-
-    // Check if device exists and get its info using the public API
-    let device = manager
-        .get_device(&device_id)
-        .await
-        .ok_or_else(|| NightshadeError::DeviceNotFound(device_id.clone()))?;
-
-    let device_type_enum = device.info.device_type.clone();
-
-    // Get device-type specific configuration
-    let config = crate::device_manager::HeartbeatConfig::for_device_type(&device_type_enum);
-
-    Ok(DeviceHeartbeatInfo {
-        device_id,
-        device_type: device_type_enum.as_str().to_string(),
-        heartbeat_active: device.heartbeat_active,
-        last_successful_comm_ms: device.last_successful_comm,
-        interval_secs: config.base_interval_secs,
-        max_interval_secs: config.max_interval_secs,
-        failure_threshold: config.failure_threshold,
-        auto_reconnect: config.auto_reconnect,
-        max_reconnect_attempts: config.max_reconnect_attempts,
-    })
-}
-
-/// Check if heartbeat monitoring is active for a device
-pub async fn api_is_heartbeat_active(device_id: String) -> Result<bool, NightshadeError> {
-    Ok(get_device_manager().is_heartbeat_active(&device_id).await)
-}
-
-// =============================================================================
-// Device API Version Negotiation
-// =============================================================================
-
-/// Get the API version information for a connected device.
-///
-/// This queries the device's interface version, driver version, and supported actions.
-/// For Alpaca devices, this uses the InterfaceVersion property.
-/// For ASCOM devices, this uses the InterfaceVersion COM property.
-/// For INDI devices, this returns the protocol version from the server greeting.
-///
-/// Returns cached version info if available and fresh (less than 5 minutes old),
-/// otherwise queries the device directly.
-pub async fn api_get_device_api_version(
-    device_id: String,
-) -> Result<DeviceApiVersion, NightshadeError> {
-    // First check cached version
-    if let Some(cached) = get_device_manager()
-        .get_device_api_version(&device_id)
-        .await
-    {
-        if cached.is_fresh() {
-            return Ok(cached);
-        }
-    }
-
-    // Query fresh version info
-    get_device_manager()
-        .query_device_api_version(&device_id)
-        .await
-        .map_err(|e| NightshadeError::DeviceNotFound(e))
-}
-
-/// Check if a device supports a specific interface version.
-///
-/// This is useful for checking if newer API methods are available before calling them.
-/// Returns true if the device reports an interface version >= the required version,
-/// and false when version information is unavailable.
-pub async fn api_device_supports_version(
-    device_id: String,
-    required_version: u32,
-) -> Result<bool, NightshadeError> {
-    Ok(get_device_manager()
-        .device_supports_version(&device_id, required_version)
-        .await)
-}
-
-/// Check if a device supports a specific action.
-///
-/// For ASCOM/Alpaca devices, checks the SupportedActions list.
-/// Returns true only when the action is explicitly reported as supported.
-pub async fn api_device_supports_action(
-    device_id: String,
-    action: String,
-) -> Result<bool, NightshadeError> {
-    Ok(get_device_manager()
-        .device_supports_action(&device_id, &action)
-        .await)
-}
 
 // =============================================================================
 // Camera Control (Simulator implementation)
@@ -2408,7 +1013,7 @@ pub async fn api_mount_slew_to_coordinates(
     dec: f64,
 ) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
+        tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}Â°", ra, dec);
 
         {
             let mut mount = get_sim_mount().write().await;
@@ -2444,7 +1049,7 @@ pub async fn api_mount_sync_to_coordinates(
     dec: f64,
 ) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        tracing::info!("Syncing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
+        tracing::info!("Syncing to RA: {:.4}h, Dec: {:.4}Â°", ra, dec);
 
         let mut mount = get_sim_mount().write().await;
         mount.status.right_ascension = ra;
@@ -2532,7 +1137,7 @@ pub async fn api_mount_slew_alt_az(
     azimuth: f64,
 ) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        tracing::info!("Slewing to Alt: {:.4}°, Az: {:.4}°", altitude, azimuth);
+        tracing::info!("Slewing to Alt: {:.4}Â°, Az: {:.4}Â°", altitude, azimuth);
 
         {
             let mut mount = get_sim_mount().write().await;
@@ -3103,7 +1708,7 @@ pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, 
 /// Move rotator to angle
 pub async fn api_rotator_move_to(device_id: String, angle: f64) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        tracing::info!("Moving simulator rotator to {}°", angle);
+        tracing::info!("Moving simulator rotator to {}Â°", angle);
 
         {
             let mut rotator = get_sim_rotator().write().await;
@@ -3188,7 +1793,7 @@ pub async fn api_rotator_sync_to_pa(
     pa: f64,
 ) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        // Simulator has no mechanical offset — just snap the reported angle.
+        // Simulator has no mechanical offset â€” just snap the reported angle.
         let mut rotator = get_sim_rotator().write().await;
         rotator.status.position = pa;
         rotator.status.mechanical_position = pa;
@@ -3440,7 +2045,7 @@ pub struct CapturedImageResult {
     pub stats: ImageStatsResult,
     pub exposure_time: f64,
     pub timestamp: String,
-    pub is_color: bool, // true if source was color (RGB), false if grayscale — retained for stretch/analysis paths
+    pub is_color: bool, // true if source was color (RGB), false if grayscale â€” retained for stretch/analysis paths
 }
 
 /// Convert grayscale (1 byte/pixel) or RGB (3 bytes/pixel) display data to RGBA (4 bytes/pixel).
@@ -3765,7 +2370,7 @@ pub async fn api_camera_start_exposure(
             // Safe conversion from u8 buffer to u16 values
             if image.data.len() % 2 != 0 {
                 return Err(NightshadeError::ImageError(
-                    "Odd byte count in image data — cannot convert to u16 pixels".to_string(),
+                    "Odd byte count in image data â€” cannot convert to u16 pixels".to_string(),
                 ));
             }
             let u16_data: Vec<u16> = image
@@ -5636,7 +4241,7 @@ pub async fn api_plate_solve_near(
     use std::path::Path;
 
     tracing::info!(
-        "Plate solving near RA:{:.2}°, Dec:{:.2}°: {}",
+        "Plate solving near RA:{:.2}Â°, Dec:{:.2}Â°: {}",
         hint_ra,
         hint_dec,
         file_path
@@ -5738,12 +4343,12 @@ impl From<crate::storage::PlateSolverPreference> for PlateSolverConfigPayload {
 
 /// Detect installed plate solvers and catalogs. Honours the user-configured
 /// override paths from the persisted plate-solver preference, if any. Does
-/// not run the binaries — that's `api_platesolve_verify`.
+/// not run the binaries â€” that's `api_platesolve_verify`.
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> {
     use std::path::Path;
 
-    // Why: first-run / no-saved-prefs is the dominant case — return defaults
+    // Why: first-run / no-saved-prefs is the dominant case â€” return defaults
     // so detection still scans standard install paths. A storage IO error
     // here is non-fatal because the only state read is overlay-on-defaults;
     // the user can still set explicit paths in the Plate Solving settings.
@@ -5767,7 +4372,7 @@ pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> 
     };
 
     // Probing involves filesystem reads which are fast but blocking. The
-    // function is sync — callers can wrap it if they need it off the UI
+    // function is sync â€” callers can wrap it if they need it off the UI
     // isolate.
     nightshade_imaging::invalidate_solver_availability_cache();
 
@@ -6008,7 +4613,7 @@ pub async fn api_phd2_connect(
                     // FFI enum, which is out of scope here.
                     nightshade_imaging::Phd2State::Unknown(raw) => {
                         tracing::warn!(
-                            "PHD2: unrecognised state {:?} bubbled into bridge — \
+                            "PHD2: unrecognised state {:?} bubbled into bridge â€” \
                              treating as Disconnected for guiding-event mapping",
                             raw
                         );
@@ -6706,145 +5311,6 @@ pub struct BuiltinGuiderConfig {
 }
 
 // =============================================================================
-// ALPACA DEVICE CONNECTION (Cross-platform)
-// =============================================================================
-
-pub mod alpaca_connections {
-    use super::*;
-    // Re-export AlpacaClient for FRB bindings
-    pub use nightshade_alpaca::AlpacaClient;
-    use nightshade_alpaca::{AlpacaDevice, AlpacaDeviceType};
-    use std::collections::HashMap;
-
-    // Storage for active Alpaca connections using Arc to share ownership.
-    //
-    // Lifecycle invariant: `disconnect_alpaca_device` removes the entry before
-    // returning, so this map is bounded by the count of currently-connected
-    // Alpaca devices. Verified in audit-rust §3.5 (CQ-W1-UNIFIED-IMG): the
-    // legacy direct-API `connect_alpaca_device` / `disconnect_alpaca_device`
-    // pair is the only writer and the only reader. The unified
-    // `api_disconnect_device` path uses the per-type maps inside
-    // `DeviceManager` (devices.rs) which evict on disconnect as well.
-    static ALPACA_CLIENTS: OnceLock<Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>>> =
-        OnceLock::new();
-
-    fn get_alpaca_clients() -> &'static Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>> {
-        ALPACA_CLIENTS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    /// Parse an Alpaca device ID into its components
-    /// Format: "alpaca:{base_url}:{device_type}:{device_number}"
-    fn parse_alpaca_id(device_id: &str) -> Option<(String, AlpacaDeviceType, u32)> {
-        let id_part = device_id.strip_prefix("alpaca:")?;
-
-        // The format is: http://host:port:device_type:device_number
-        // We need to carefully parse this since base_url contains colons
-
-        // Find the last two colons which separate device_type and device_number
-        let mut parts: Vec<&str> = id_part.rsplitn(3, ':').collect();
-        parts.reverse();
-
-        if parts.len() < 3 {
-            return None;
-        }
-
-        let base_url = parts[0].to_string();
-        let device_type = AlpacaDeviceType::from_str(parts[1])?;
-        let device_number: u32 = parts[2].parse().ok()?;
-
-        Some((base_url, device_type, device_number))
-    }
-
-    /// Connect to an Alpaca device
-    pub async fn connect_alpaca_device(
-        device_type: DeviceType,
-        device_id: &str,
-    ) -> Result<(), NightshadeError> {
-        let (base_url, alpaca_type, device_number) =
-            parse_alpaca_id(device_id).ok_or_else(|| {
-                NightshadeError::invalid_device_id(device_id, "Failed to parse Alpaca device ID")
-            })?;
-
-        // Create the device struct
-        let device = AlpacaDevice {
-            device_type: alpaca_type,
-            device_number,
-            server_name: base_url.clone(),
-            manufacturer: String::new(),
-            device_name: format!("Alpaca {}", device_type.as_str()),
-            unique_id: device_id.to_string(),
-            base_url: base_url.clone(),
-        };
-
-        // Create and connect the client
-        let client = AlpacaClient::new(&device);
-
-        client.connect().await.map_err(|e| {
-            NightshadeError::connection_failed(
-                device_id,
-                format!("Alpaca connection failed: {}", e),
-            )
-        })?;
-
-        let name = client
-            .get_name()
-            .await
-            .unwrap_or_else(|_| device_id.to_string());
-        tracing::info!("Connected to Alpaca device: {}", name);
-
-        // Store the client wrapped in Arc
-        let mut clients = get_alpaca_clients().write().await;
-        clients.insert(device_id.to_string(), Arc::new(client));
-
-        Ok(())
-    }
-
-    /// Disconnect from an Alpaca device
-    pub async fn disconnect_alpaca_device(device_id: &str) -> Result<(), NightshadeError> {
-        let mut clients = get_alpaca_clients().write().await;
-
-        if let Some(client) = clients.get(device_id) {
-            client.disconnect().await.map_err(|e| {
-                NightshadeError::OperationFailed(format!("Alpaca disconnect failed: {}", e))
-            })?;
-        }
-
-        clients.remove(device_id);
-        Ok(())
-    }
-
-    /// Get an Alpaca client
-    pub async fn get_alpaca_client(device_id: &str) -> Option<Arc<AlpacaClient>> {
-        let clients = get_alpaca_clients().read().await;
-        clients.get(device_id).cloned()
-    }
-
-    /// Check if Alpaca is connected
-    pub async fn is_connected(device_id: &str) -> bool {
-        let clients = get_alpaca_clients().read().await;
-        if let Some(client) = clients.get(device_id) {
-            match client.is_connected().await {
-                Ok(connected) => connected,
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to query Alpaca connection state for {}: {}",
-                        device_id,
-                        e
-                    );
-                    false
-                }
-            }
-        } else {
-            false
-        }
-    }
-}
-
-// =============================================================================
-// REAL ASCOM DEVICE CONNECTION
-// =============================================================================
-
-// =============================================================================
 // SEQUENCER API
 // =============================================================================
 
@@ -7153,7 +5619,7 @@ pub async fn api_sequencer_get_state() -> SequencerState {
 pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
     // Validate the executor is reachable before spawning the supervisor so a
     // bad caller still gets an error synchronously. Drop the lock immediately
-    // — the supervisor takes a fresh one on every restart.
+    // â€” the supervisor takes a fresh one on every restart.
     {
         let _executor = get_sequence_executor().read().await;
     }
@@ -7379,7 +5845,7 @@ async fn run_sequencer_event_loop(
                     ))
                 }
                 ExecutorEvent::RuntimeConfigUpdated { what } => {
-                    // Audit §1.8: surface runtime-config updates as a generic
+                    // Audit Â§1.8: surface runtime-config updates as a generic
                     // sequencer Error event with informational severity so the
                     // existing UI subscriber sees the change without needing
                     // a new typed payload (a typed payload would require an
@@ -8650,7 +7116,7 @@ pub async fn api_start_polar_alignment(
     get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
 
     tracing::info!(
-        "Starting polar alignment: exposure={}s, step={}°, binning={}, north={}, manual={}, east={}",
+        "Starting polar alignment: exposure={}s, step={}Â°, binning={}, north={}, manual={}, east={}",
         exposure_time, step_size, binning, is_north, manual_rotation, rotate_east
     );
 
@@ -8838,7 +7304,7 @@ async fn run_polar_alignment(
             let ra_degrees = solve_result.ra * 15.0; // RA hours to degrees
             solved_points.push((ra_degrees, solve_result.dec));
             tracing::info!(
-                "Point {} solved: RA={:.4}h ({:.4}°), Dec={:.4}°",
+                "Point {} solved: RA={:.4}h ({:.4}Â°), Dec={:.4}Â°",
                 point,
                 solve_result.ra,
                 ra_degrees,
@@ -8864,7 +7330,7 @@ async fn run_polar_alignment(
         if point < 3 {
             if manual_rotation {
                 emit_polar_status(
-                    &format!("Rotate mount {}° and wait...", step_size as i32),
+                    &format!("Rotate mount {}Â° and wait...", step_size as i32),
                     "measuring",
                     point as i32,
                 );
@@ -8906,18 +7372,18 @@ async fn run_polar_alignment(
     let pole_dec = if is_north { 90.0 } else { -90.0 };
 
     tracing::info!(
-        "Rotation center: RA={:.4}°, Dec={:.4}°",
+        "Rotation center: RA={:.4}Â°, Dec={:.4}Â°",
         center_ra,
         center_dec
     );
 
-    // Geometric validation: check if calculated center is within 15° of expected pole
+    // Geometric validation: check if calculated center is within 15Â° of expected pole
     let dec_diff = (center_dec - pole_dec).abs();
     if dec_diff > 15.0 {
         let error_msg = format!(
-            "Calculated rotation center (Dec={:.2}°) is {:.1}° away from expected pole (Dec={:.0}°). \
+            "Calculated rotation center (Dec={:.2}Â°) is {:.1}Â° away from expected pole (Dec={:.0}Â°). \
             This suggests poor plate solves or insufficient mount rotation. \
-            Please ensure: 1) Clear view of pole area, 2) Mount rotates at least {}° between points, \
+            Please ensure: 1) Clear view of pole area, 2) Mount rotates at least {}Â° between points, \
             3) Plate solving is accurate. Try increasing step size or checking camera focus.",
             center_dec, dec_diff, pole_dec, step_size
         );
@@ -9112,7 +7578,7 @@ async fn run_polar_alignment(
                 center_ra = new_center_ra;
                 center_dec = new_center_dec;
                 tracing::debug!(
-                    "Updated rotation center: RA={:.4}°, Dec={:.4}°",
+                    "Updated rotation center: RA={:.4}Â°, Dec={:.4}Â°",
                     center_ra,
                     center_dec
                 );
@@ -9355,9 +7821,9 @@ pub async fn api_stop_polar_alignment() -> Result<(), NightshadeError> {
 /// live drift feedback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PolarAlignmentMode {
-    /// Three-Point Polar Alignment — requires pole region visible.
+    /// Three-Point Polar Alignment â€” requires pole region visible.
     ThreePoint,
-    /// Sharpcap-style all-sky polar alignment — works from any sky direction.
+    /// Sharpcap-style all-sky polar alignment â€” works from any sky direction.
     AllSky,
 }
 
@@ -9371,15 +7837,15 @@ pub enum PolarAlignmentMode {
 /// azimuth and altitude error.
 ///
 /// # Arguments
-/// * `exposure_time` — exposure duration per frame, seconds.
-/// * `solve_timeout` — plate-solve timeout per frame, seconds.
-/// * `binning` — camera binning factor (1, 2, or 4 typical).
-/// * `is_north` — northern hemisphere observer flag.
-/// * `acceptance_threshold_arcsec` — alignment auto-completes when the
-///   total error stays below this for 3 seconds (default 30″ = good for
+/// * `exposure_time` â€” exposure duration per frame, seconds.
+/// * `solve_timeout` â€” plate-solve timeout per frame, seconds.
+/// * `binning` â€” camera binning factor (1, 2, or 4 typical).
+/// * `is_north` â€” northern hemisphere observer flag.
+/// * `acceptance_threshold_arcsec` â€” alignment auto-completes when the
+///   total error stays below this for 3 seconds (default 30â€³ = good for
 ///   ~3-minute unguided subs).
-/// * `iteration_cadence_secs` — re-solve cadence (default 3s).
-/// * `gain`, `offset` — optional camera parameters.
+/// * `iteration_cadence_secs` â€” re-solve cadence (default 3s).
+/// * `gain`, `offset` â€” optional camera parameters.
 ///
 /// # Errors
 /// Returns `NightshadeError::OperationFailed` if a plate solver is not
@@ -9407,11 +7873,11 @@ pub async fn api_start_all_sky_polar_alignment(
         ));
     }
 
-    // Fail loudly if the plate solver isn't installed — the all-sky
+    // Fail loudly if the plate solver isn't installed â€” the all-sky
     // algorithm is plate-solve-only by design.
     if !nightshade_imaging::is_solver_available() {
         return Err(NightshadeError::OperationFailed(
-            "Plate solver required — install ASTAP and re-run all-sky polar alignment"
+            "Plate solver required â€” install ASTAP and re-run all-sky polar alignment"
                 .to_string(),
         ));
     }
@@ -9558,7 +8024,7 @@ pub async fn api_start_all_sky_polar_alignment(
             }
             Err(PolarAlignError::SolverUnavailable) => {
                 emit_polar_status(
-                    "Plate solver required — install ASTAP and re-run all-sky polar alignment",
+                    "Plate solver required â€” install ASTAP and re-run all-sky polar alignment",
                     "error",
                     0,
                 );
@@ -9637,8 +8103,8 @@ pub fn api_init_settings_storage(storage_path: String) -> Result<(), NightshadeE
     crate::state::init_settings_storage(path.clone())
         .map_err(|e| NightshadeError::OperationFailed(e))?;
     // Plate-solver preferences share the settings directory. Errors here are
-    // not fatal — the API falls back to in-memory defaults if storage is
-    // unavailable — but a hard failure to initialise still surfaces.
+    // not fatal â€” the API falls back to in-memory defaults if storage is
+    // unavailable â€” but a hard failure to initialise still surfaces.
     crate::state::init_platesolver_storage(path)
         .map_err(|e| NightshadeError::OperationFailed(e))?;
 
@@ -9832,13 +8298,13 @@ pub async fn api_save_fits_file(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // Why: airmass returns Err for below-horizon inputs (audit Â§6.14). Surface
         // that as an OperationFailed so the caller knows the frame metadata was
         // attempted with an invalid altitude rather than silently writing a
         // sentinel value or omitting the keyword.
         let airmass = calculate_airmass(altitude).map_err(|e| {
             NightshadeError::OperationFailed(format!(
-                "Cannot compute AIRMASS for altitude {}°: {}",
+                "Cannot compute AIRMASS for altitude {}Â°: {}",
                 altitude, e
             ))
         })?;
@@ -9994,13 +8460,13 @@ pub async fn api_save_fits_from_last_capture(
         header.set_float("DEC", dec);
     }
     if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs (audit §6.14). Surface
+        // Why: airmass returns Err for below-horizon inputs (audit Â§6.14). Surface
         // that as an OperationFailed so the caller knows the frame metadata was
         // attempted with an invalid altitude rather than silently writing a
         // sentinel value or omitting the keyword.
         let airmass = calculate_airmass(altitude).map_err(|e| {
             NightshadeError::OperationFailed(format!(
-                "Cannot compute AIRMASS for altitude {}°: {}",
+                "Cannot compute AIRMASS for altitude {}Â°: {}",
                 altitude, e
             ))
         })?;
@@ -10212,153 +8678,6 @@ pub fn api_generate_fits_thumbnail(
     Ok(jpeg_data)
 }
 
-#[cfg(windows)]
-pub mod ascom_connections {
-    use super::*;
-    use std::collections::HashMap;
-
-    // Storage for active ASCOM connections
-    static ASCOM_CAMERAS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomCamera>>>> =
-        OnceLock::new();
-    static ASCOM_MOUNTS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomMount>>>> =
-        OnceLock::new();
-    static ASCOM_FOCUSERS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>>> =
-        OnceLock::new();
-
-    fn get_ascom_cameras() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomCamera>>> {
-        ASCOM_CAMERAS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    fn get_ascom_mounts() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomMount>>> {
-        ASCOM_MOUNTS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    fn get_ascom_focusers() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>>
-    {
-        ASCOM_FOCUSERS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    /// Connect to a real ASCOM camera
-    pub async fn connect_ascom_camera(prog_id: &str) -> Result<(), NightshadeError> {
-        let mut camera = nightshade_ascom::AscomCamera::new(prog_id)
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        camera
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        let name = camera.name().unwrap_or_else(|_| prog_id.to_string());
-        tracing::info!("Connected to ASCOM camera: {}", name);
-
-        // Store the connection
-        let mut cameras = get_ascom_cameras().write().await;
-        cameras.insert(prog_id.to_string(), camera);
-
-        Ok(())
-    }
-
-    /// Connect to a real ASCOM mount
-    pub async fn connect_ascom_mount(prog_id: &str) -> Result<(), NightshadeError> {
-        let mut mount = nightshade_ascom::AscomMount::new(prog_id)
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        mount
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        let name = mount.name().unwrap_or_else(|_| prog_id.to_string());
-        tracing::info!("Connected to ASCOM mount: {}", name);
-
-        // Store the connection
-        let mut mounts = get_ascom_mounts().write().await;
-        mounts.insert(prog_id.to_string(), mount);
-
-        Ok(())
-    }
-
-    /// Connect to a real ASCOM focuser
-    pub async fn connect_ascom_focuser(prog_id: &str) -> Result<(), NightshadeError> {
-        let mut focuser = nightshade_ascom::AscomFocuser::new(prog_id)
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        focuser
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
-
-        tracing::info!("Connected to ASCOM focuser: {}", prog_id);
-
-        // Store the connection
-        let mut focusers = get_ascom_focusers().write().await;
-        focusers.insert(prog_id.to_string(), focuser);
-
-        Ok(())
-    }
-
-    /// Get real ASCOM camera temperature
-    pub async fn get_ascom_camera_temp(prog_id: &str) -> Result<f64, NightshadeError> {
-        let cameras = get_ascom_cameras().read().await;
-        let camera = cameras
-            .get(prog_id)
-            .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-
-        camera
-            .ccd_temperature()
-            .map_err(|e| NightshadeError::OperationFailed(e))
-    }
-
-    /// Get real ASCOM mount coordinates
-    pub async fn get_ascom_mount_coords(prog_id: &str) -> Result<(f64, f64), NightshadeError> {
-        let mounts = get_ascom_mounts().read().await;
-        let mount = mounts
-            .get(prog_id)
-            .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-
-        let ra = mount
-            .right_ascension()
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let dec = mount
-            .declination()
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
-
-        Ok((ra, dec))
-    }
-
-    /// Slew real ASCOM mount
-    pub async fn slew_ascom_mount(prog_id: &str, ra: f64, dec: f64) -> Result<(), NightshadeError> {
-        let mut mounts = get_ascom_mounts().write().await;
-        let mount = mounts
-            .get_mut(prog_id)
-            .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-
-        mount
-            .slew_to_coordinates_async(ra, dec)
-            .map_err(|e| NightshadeError::OperationFailed(e))
-    }
-
-    /// Get real ASCOM focuser position
-    pub async fn get_ascom_focuser_position(prog_id: &str) -> Result<i32, NightshadeError> {
-        let focusers = get_ascom_focusers().read().await;
-        let focuser = focusers
-            .get(prog_id)
-            .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-
-        focuser
-            .position()
-            .map_err(|e| NightshadeError::OperationFailed(e))
-    }
-
-    /// Move real ASCOM focuser
-    pub async fn move_ascom_focuser(prog_id: &str, position: i32) -> Result<(), NightshadeError> {
-        let mut focusers = get_ascom_focusers().write().await;
-        let focuser = focusers
-            .get_mut(prog_id)
-            .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-
-        focuser
-            .move_to(position)
-            .map_err(|e| NightshadeError::OperationFailed(e))
-    }
-}
 
 /// Apply Auto White Balance using Histogram Peak Alignment
 /// This aligns the background sky peak of R and B channels to the G channel
@@ -11335,7 +9654,7 @@ fn defect_maps_root() -> std::path::PathBuf {
     // data path set by the Flutter shell on launch (see main_headless.dart
     // and the FFI bridge startup). The temp_dir fallback exists for unit
     // tests and for headless invocations where the env var hasn't been
-    // populated yet — for those callers the defect maps are session-scoped
+    // populated yet â€” for those callers the defect maps are session-scoped
     // and don't need to survive a reboot. Production hosts hit the env-var
     // branch first.
     let base = std::env::var_os("NIGHTSHADE_DATA_DIR")
@@ -11435,7 +9754,7 @@ pub async fn api_defect_map_build(
 
     let apply_during_capture = {
         // Why: absence of a flag for this camera id is the canonical "off"
-        // state — apply-during-capture is opt-in and the map is only written
+        // state â€” apply-during-capture is opt-in and the map is only written
         // when the user toggles it on for a specific (camera, temperature)
         // pair. No need to surface this as an error.
         let flags = defect_apply_flags().lock().await;
@@ -11542,7 +9861,7 @@ pub async fn api_defect_map_get_status(
 
     let apply_during_capture = {
         // Why: absence of a flag for this camera id is the canonical "off"
-        // state — apply-during-capture is opt-in and the map is only written
+        // state â€” apply-during-capture is opt-in and the map is only written
         // when the user toggles it on for a specific (camera, temperature)
         // pair. No need to surface this as an error.
         let flags = defect_apply_flags().lock().await;
@@ -11606,7 +9925,7 @@ mod unified_image_storage_tests {
     // and overwrite-doesn't-grow) into one test phased by `clear()` calls.
     #[tokio::test]
     async fn enforces_lru_cap_and_fifo_eviction() {
-        // Phase 1: insert 60 entries — 10 over the capacity of 50 — and
+        // Phase 1: insert 60 entries â€” 10 over the capacity of 50 â€” and
         // verify the oldest 10 are evicted in FIFO order. Compile-time check
         // that the insert count is strictly greater than the capacity so the
         // FIFO assertions below are meaningful.
