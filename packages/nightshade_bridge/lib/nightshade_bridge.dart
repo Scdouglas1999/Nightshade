@@ -24,7 +24,6 @@ export 'src/bridge_stub.dart'
         // Types that conflict with device.dart
         DeviceType,
         DriverType,
-        CameraState,
         CameraStatus,
         DeviceInfo,
         FilterWheelStatus,

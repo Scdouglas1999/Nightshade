@@ -221,8 +221,8 @@ class DeviceError extends Equatable {
       'DeviceError(type: $type, message: $message, deviceId: $deviceId)';
 }
 
-/// Camera state
-class CameraState extends Equatable {
+/// Camera state snapshot
+class CameraStateSnapshot extends Equatable {
   final DeviceConnectionState connectionState;
   final String? deviceId;
   final String? deviceName;
@@ -246,7 +246,7 @@ class CameraState extends Equatable {
   /// Whether auto-reconnection is enabled for this device
   final bool autoReconnectEnabled;
 
-  const CameraState({
+  const CameraStateSnapshot({
     this.connectionState = DeviceConnectionState.disconnected,
     this.deviceId,
     this.deviceName,
@@ -278,9 +278,9 @@ class CameraState extends Equatable {
   }
 
   /// Clear error and return a new state
-  CameraState clearError() => copyWith(clearError: true);
+  CameraStateSnapshot clearError() => copyWith(clearError: true);
 
-  CameraState copyWith({
+  CameraStateSnapshot copyWith({
     DeviceConnectionState? connectionState,
     String? deviceId,
     String? deviceName,
@@ -299,7 +299,7 @@ class CameraState extends Equatable {
     bool? autoReconnectEnabled,
     bool clearError = false,
   }) {
-    return CameraState(
+    return CameraStateSnapshot(
       connectionState: connectionState ?? this.connectionState,
       deviceId: deviceId ?? this.deviceId,
       deviceName: deviceName ?? this.deviceName,

@@ -143,7 +143,7 @@ export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
 
 // Backend interface
-export 'src/backend/nightshade_backend.dart' hide CameraState;
+export 'src/backend/nightshade_backend.dart';
 export 'src/backend/ffi_backend.dart';
 export 'src/backend/network_backend.dart';
 export 'src/backend/disconnected_backend.dart';

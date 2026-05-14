@@ -9,15 +9,15 @@ import 'equipment_retry_defaults.dart';
 
 /// Camera state provider
 final cameraStateProvider =
-    StateNotifierProvider<CameraStateNotifier, CameraState>((ref) {
+    StateNotifierProvider<CameraStateNotifier, CameraStateSnapshot>((ref) {
   return CameraStateNotifier(ref);
 });
 
-class CameraStateNotifier extends StateNotifier<CameraState> {
+class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   final Ref _ref;
   int _retryAttempts = 0;
 
-  CameraStateNotifier(this._ref) : super(const CameraState());
+  CameraStateNotifier(this._ref) : super(const CameraStateSnapshot());
 
   Future<void> connect(String deviceId,
       {int maxRetries = kDefaultMaxRetries}) async {
@@ -98,7 +98,7 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
   }
 
   void setDisconnected() {
-    state = const CameraState();
+    state = const CameraStateSnapshot();
   }
 
   void updateTemperature(double temp, double power) {

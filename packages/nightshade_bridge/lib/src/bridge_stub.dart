@@ -76,7 +76,6 @@ String _canonicalGuiderDeviceId(String deviceId) {
 // From device.dart
 typedef DeviceType = gen_device.DeviceType;
 typedef DriverType = gen_device.DriverType;
-typedef CameraState = gen_device.CameraState;
 typedef CameraStatus = gen_device.CameraStatus;
 typedef DeviceInfo = gen_device.DeviceInfo;
 typedef FilterWheelStatus = gen_device.FilterWheelStatus;
@@ -404,7 +403,7 @@ class NativeBridge {
   static void _initializeDefaultStates() {
     _cameraStatus = const CameraStatus(
       connected: false,
-      state: CameraState.idle,
+      state: gen_device.CameraState.idle,
       sensorTemp: 20.0,
       coolerPower: 0.0,
       targetTemp: -10.0,

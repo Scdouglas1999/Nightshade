@@ -204,7 +204,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
 
   List<_DeviceStatus> _buildDeviceList(
     db.EquipmentProfile profile,
-    CameraState camera,
+    CameraStateSnapshot camera,
     MountState mount,
     FocuserState focuser,
     FilterWheelState filterWheel,

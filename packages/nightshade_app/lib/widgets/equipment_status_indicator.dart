@@ -77,7 +77,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   }
 
   int _countConnectedDevices(
-    CameraState camera,
+    CameraStateSnapshot camera,
     MountState mount,
     FocuserState focuser,
     FilterWheelState filterWheel,
@@ -110,7 +110,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     EquipmentProfileModel activeProfile,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,
@@ -362,7 +362,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     return fallback;
   }
 
-  String _getCameraStatus(CameraState state) {
+  String _getCameraStatus(CameraStateSnapshot state) {
     if (state.connectionState != DeviceConnectionState.connected) {
       return '---';
     }

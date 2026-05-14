@@ -228,7 +228,7 @@ class ProfileSidebar extends ConsumerWidget {
     WidgetRef ref,
     List<EquipmentProfileModel> profiles,
     NightshadeColors colors,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,
@@ -492,7 +492,7 @@ class ProfileSidebar extends ConsumerWidget {
   /// Get device connection states for a profile
   Map<_DeviceType, DeviceConnectionState?> _getDeviceConnectionStates(
     EquipmentProfileModel profile,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,
@@ -664,7 +664,7 @@ class ProfileSidebar extends ConsumerWidget {
   /// Get connected/disconnected status for footer buttons
   (bool hasConnected, bool hasDisconnected) _getProfileDeviceStatus(
     EquipmentProfileModel profile,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,

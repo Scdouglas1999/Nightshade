@@ -85,7 +85,7 @@ class QuickConnectBar extends ConsumerWidget {
     WidgetRef ref,
     List<db.EquipmentProfile> profiles,
     NightshadeColors colors,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,
@@ -137,7 +137,7 @@ class QuickConnectBar extends ConsumerWidget {
 
   (ProfileConnectionState, int, int) _getProfileConnectionState(
     db.EquipmentProfile profile,
-    CameraState cameraState,
+    CameraStateSnapshot cameraState,
     MountState mountState,
     FocuserState focuserState,
     FilterWheelState filterWheelState,

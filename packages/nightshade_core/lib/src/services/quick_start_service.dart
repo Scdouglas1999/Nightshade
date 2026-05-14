@@ -569,7 +569,7 @@ class QuickStartService {
   /// This method extracts relevant settings from the current device states
   /// and creates an EquipmentSnapshot that can be saved with a session.
   EquipmentSnapshot captureEquipmentSnapshot({
-    required CameraState cameraState,
+    required CameraStateSnapshot cameraState,
     required FilterWheelState filterWheelState,
     required FocuserState focuserState,
     double? exposureTime,

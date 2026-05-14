@@ -1,7 +1,7 @@
 part of '../connections_tab.dart';
 
 class _CameraDeviceCard extends ConsumerStatefulWidget {
-  final CameraState cameraState;
+  final CameraStateSnapshot cameraState;
   final NightshadeColors colors;
 
   const _CameraDeviceCard({

@@ -247,7 +247,7 @@ class _FullscreenImage extends StatelessWidget {
 }
 
 class _ExposureControls extends ConsumerStatefulWidget {
-  final CameraState state;
+  final CameraStateSnapshot state;
   final ExposureProgress progress;
   final ExposureSettings settings;
 
@@ -394,7 +394,7 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
 }
 
 class _CoolingCard extends ConsumerWidget {
-  final CameraState state;
+  final CameraStateSnapshot state;
   const _CoolingCard({required this.state});
 
   @override
