@@ -195,8 +195,7 @@ export 'src/services/scheduler/target_constraint_service.dart';
 export 'src/services/scheduler/horizon_profile.dart';
 export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';
-// Hide FocusDataPoint from focus_model_service - canonical version is in backend/autofocus_result
-export 'src/services/focus_model_service.dart' hide FocusDataPoint;
+export 'src/services/focus_model_service.dart';
 export 'src/services/logging_service.dart';
 export 'src/services/error_service.dart';
 export 'src/services/flat_wizard_service.dart';

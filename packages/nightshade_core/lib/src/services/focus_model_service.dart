@@ -15,15 +15,20 @@ final focusModelServiceProvider = Provider<FocusModelService>((ref) {
   return service;
 });
 
-/// A single focus data point
-class FocusDataPoint {
+/// A single temperature-compensation history sample collected after each
+/// successful autofocus run. Persisted across sessions to feed the linear
+/// regression model that predicts focus position from temperature.
+///
+/// Distinct from `FocusDataPoint` (in `models/backend/autofocus_result.dart`),
+/// which represents a single sample on an in-progress autofocus V-curve.
+class FocusHistoryPoint {
   final DateTime timestamp;
   final double temperatureCelsius;
   final int focusPosition;
   final double hfr;
   final String? filterName;
 
-  FocusDataPoint({
+  FocusHistoryPoint({
     required this.timestamp,
     required this.temperatureCelsius,
     required this.focusPosition,
@@ -39,7 +44,8 @@ class FocusDataPoint {
         'filter': filterName,
       };
 
-  factory FocusDataPoint.fromJson(Map<String, dynamic> json) => FocusDataPoint(
+  factory FocusHistoryPoint.fromJson(Map<String, dynamic> json) =>
+      FocusHistoryPoint(
         timestamp: DateTime.parse(json['timestamp'] as String),
         temperatureCelsius: (json['temperature'] as num).toDouble(),
         focusPosition: json['position'] as int,
@@ -125,7 +131,7 @@ class FilterOffset {
 /// Complete focus data for an equipment profile
 class ProfileFocusData {
   final String profileId;
-  final List<FocusDataPoint> dataPoints;
+  final List<FocusHistoryPoint> dataPoints;
   final FocusModel? temperatureModel;
   final Map<String, FilterOffset> filterOffsets;
   final String? referenceFilter;
@@ -140,7 +146,7 @@ class ProfileFocusData {
 
   ProfileFocusData copyWith({
     String? profileId,
-    List<FocusDataPoint>? dataPoints,
+    List<FocusHistoryPoint>? dataPoints,
     FocusModel? temperatureModel,
     Map<String, FilterOffset>? filterOffsets,
     String? referenceFilter,
@@ -166,7 +172,7 @@ class ProfileFocusData {
       ProfileFocusData(
         profileId: json['profileId'] as String,
         dataPoints: (json['dataPoints'] as List<dynamic>?)
-                ?.map((p) => FocusDataPoint.fromJson(p as Map<String, dynamic>))
+                ?.map((p) => FocusHistoryPoint.fromJson(p as Map<String, dynamic>))
                 .toList() ??
             [],
         temperatureModel: json['temperatureModel'] != null
@@ -217,7 +223,7 @@ class FocusModelService {
     String? filterName,
   }) async {
     await initialize();
-    final point = FocusDataPoint(
+    final point = FocusHistoryPoint(
       timestamp: DateTime.now(),
       temperatureCelsius: temperatureCelsius,
       focusPosition: focusPosition,
@@ -255,19 +261,19 @@ class FocusModelService {
   }
 
   /// Calculate linear regression model for temperature vs focus position
-  FocusModel? _calculateTemperatureModel(List<FocusDataPoint> points) {
+  FocusModel? _calculateTemperatureModel(List<FocusHistoryPoint> points) {
     if (points.length < 3) return null;
 
     // Use only the best HFR point per temperature range
     // Group by temperature buckets (1°C)
-    final buckets = <int, List<FocusDataPoint>>{};
+    final buckets = <int, List<FocusHistoryPoint>>{};
     for (final point in points) {
       final bucket = point.temperatureCelsius.round();
       buckets.putIfAbsent(bucket, () => []).add(point);
     }
 
     // Take best (lowest HFR) from each bucket
-    final bestPoints = <FocusDataPoint>[];
+    final bestPoints = <FocusHistoryPoint>[];
     for (final bucket in buckets.values) {
       bucket.sort((a, b) => a.hfr.compareTo(b.hfr));
       bestPoints.add(bucket.first);
@@ -325,13 +331,13 @@ class FocusModelService {
 
   /// Update filter offsets based on collected data
   Map<String, FilterOffset> _updateFilterOffsets(
-    List<FocusDataPoint> points,
+    List<FocusHistoryPoint> points,
     String referenceFilter,
   ) {
     final offsets = <String, FilterOffset>{};
 
     // Group by filter
-    final byFilter = <String, List<FocusDataPoint>>{};
+    final byFilter = <String, List<FocusHistoryPoint>>{};
     for (final point in points) {
       if (point.filterName != null) {
         byFilter.putIfAbsent(point.filterName!, () => []).add(point);

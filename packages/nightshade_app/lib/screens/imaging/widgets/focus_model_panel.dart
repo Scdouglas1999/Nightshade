@@ -5,10 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// Import focus model service types with prefix to avoid FocusDataPoint name collision
-// with the autofocus_result FocusDataPoint exported via nightshade_backend.
-import 'package:nightshade_core/src/services/focus_model_service.dart'
-    as focus_model;
 
 import '../../../utils/snackbar_helper.dart';
 
@@ -88,7 +84,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
   }
 
   /// Collects unique filter names from data points.
-  List<String> _getFilterNames(List<focus_model.FocusDataPoint> points) {
+  List<String> _getFilterNames(List<FocusHistoryPoint> points) {
     final names = <String>{};
     for (final p in points) {
       if (p.filterName != null) {
@@ -104,7 +100,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     bool isMobile,
     bool tempCompEnabled,
     FocusModel? model,
-    List<focus_model.FocusDataPoint> dataPoints,
+    List<FocusHistoryPoint> dataPoints,
   ) {
     return InkWell(
       onTap: () => setState(() => _isExpanded = !_isExpanded),
@@ -251,7 +247,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
 
   Widget _buildScatterPlot(
     NightshadeColors colors,
-    List<focus_model.FocusDataPoint> points,
+    List<FocusHistoryPoint> points,
     FocusModel? model,
     bool isMobile,
   ) {
@@ -431,7 +427,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     NightshadeColors colors,
     String profileId,
     FocusModelService focusService,
-    List<focus_model.FocusDataPoint> dataPoints,
+    List<FocusHistoryPoint> dataPoints,
   ) {
     return Row(
       children: [
@@ -683,7 +679,7 @@ class _FilterChip extends StatelessWidget {
 /// CustomPainter that draws a temperature vs focus position scatter plot
 /// with a regression line overlay.
 class _TemperatureFocusPlotPainter extends CustomPainter {
-  final List<focus_model.FocusDataPoint> points;
+  final List<FocusHistoryPoint> points;
   final FocusModel? model;
   final Color accentColor;
   final Color gridColor;
