@@ -152,7 +152,14 @@ pub struct TelescopeFullStatus {
     pub slewing: bool,
     pub tracking: bool,
     pub tracking_rate: DriveRate,
-    pub is_pulse_guiding: bool,
+    // Why: §audit-rust 4.3 — `IsPulseGuiding` is an OPTIONAL ASCOM property
+    // (mounts where `CanPulseGuide == false` return error 0x400 / NotImplemented).
+    // Modelling this as `Option<bool>` lets callers distinguish "device reports
+    // not pulse-guiding" from "device cannot report pulse-guiding state",
+    // matching the ASCOM Windows mount.rs convention. The previous
+    // `.unwrap_or(false)` silently coerced both error and parse failures to
+    // "not guiding", which the audit flagged as a CLAUDE.md violation.
+    pub is_pulse_guiding: Option<bool>,
     // Position state
     pub at_home: bool,
     pub at_park: bool,
@@ -957,7 +964,9 @@ impl AlpacaTelescope {
             slewing: slewing?,
             tracking: tracking?,
             tracking_rate: tracking_rate?,
-            is_pulse_guiding: is_pulse_guiding.unwrap_or(false),
+            // Why: §audit-rust 4.3 — surface unsupported/parse failures as `None`
+            // rather than silently reporting "not pulse-guiding".
+            is_pulse_guiding: is_pulse_guiding.ok(),
             // Position state - critical
             at_home: at_home?,
             at_park: at_park?,

@@ -626,7 +626,7 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
-                    let body = response.text().await.unwrap_or_default();
+                    let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
@@ -698,7 +698,7 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
-                    let body = response.text().await.unwrap_or_default();
+                    let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
@@ -756,7 +756,7 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
-                    let body = response.text().await.unwrap_or_default();
+                    let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
@@ -807,7 +807,7 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
@@ -844,7 +844,7 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
@@ -898,7 +898,7 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
@@ -952,7 +952,7 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
@@ -996,7 +996,7 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
