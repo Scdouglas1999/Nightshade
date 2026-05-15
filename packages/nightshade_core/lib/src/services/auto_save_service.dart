@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sequence/sequence_models.dart';
 import 'sequence_repository.dart';
@@ -111,10 +111,18 @@ class AutoSaveService {
       _config = config;
     }
 
-    debugPrint('AutoSaveService: Starting with config:');
-    debugPrint('  Sequence auto-save: ${_config.sequenceEnabled} (every ${_config.sequenceInterval.inMinutes} min)');
-    debugPrint('  Backup auto-save: ${_config.backupEnabled} (every ${_config.backupInterval.inHours} hours)');
-    debugPrint('  Max backups: ${_config.maxBackups}');
+    developer.log('AutoSaveService: Starting with config:',
+        name: 'AutoSaveService', level: 800);
+    developer.log(
+        '  Sequence auto-save: ${_config.sequenceEnabled} (every ${_config.sequenceInterval.inMinutes} min)',
+        name: 'AutoSaveService',
+        level: 800);
+    developer.log(
+        '  Backup auto-save: ${_config.backupEnabled} (every ${_config.backupInterval.inHours} hours)',
+        name: 'AutoSaveService',
+        level: 800);
+    developer.log('  Max backups: ${_config.maxBackups}',
+        name: 'AutoSaveService', level: 800);
 
     // Start sequence auto-save timer
     if (_config.sequenceEnabled) {
@@ -137,14 +145,16 @@ class AutoSaveService {
       });
     }
 
-    debugPrint('AutoSaveService: Started successfully');
+    developer.log('AutoSaveService: Started successfully',
+        name: 'AutoSaveService', level: 800);
   }
 
   /// Stop the auto-save service
   ///
   /// Flushes any pending sequence saves before stopping timers.
   Future<void> stop() async {
-    debugPrint('AutoSaveService: Stopping...');
+    developer.log('AutoSaveService: Stopping...',
+        name: 'AutoSaveService', level: 800);
 
     _sequenceTimer?.cancel();
     _sequenceTimer = null;
@@ -157,7 +167,8 @@ class AutoSaveService {
       await _autoSaveSequences();
     }
 
-    debugPrint('AutoSaveService: Stopped');
+    developer.log('AutoSaveService: Stopped',
+        name: 'AutoSaveService', level: 800);
   }
 
   /// Update configuration (restarts timers if needed)
@@ -174,7 +185,8 @@ class AutoSaveService {
       start();
     }
 
-    debugPrint('AutoSaveService: Configuration updated');
+    developer.log('AutoSaveService: Configuration updated',
+        name: 'AutoSaveService', level: 800);
   }
 
   /// Mark a sequence as having unsaved changes
@@ -207,7 +219,10 @@ class AutoSaveService {
       return;
     }
 
-    debugPrint('AutoSaveService: Auto-saving ${_pendingSequences.length} sequence(s)...');
+    developer.log(
+        'AutoSaveService: Auto-saving ${_pendingSequences.length} sequence(s)...',
+        name: 'AutoSaveService',
+        level: 800);
 
     _updateStatus(_status.copyWith(isSequenceSaving: true));
 
@@ -226,9 +241,13 @@ class AutoSaveService {
         lastError: null,
       ));
 
-      debugPrint('AutoSaveService: Successfully saved ${sequences.length} sequence(s)');
+      developer.log(
+          'AutoSaveService: Successfully saved ${sequences.length} sequence(s)',
+          name: 'AutoSaveService',
+          level: 800);
     } catch (e) {
-      debugPrint('AutoSaveService: Error saving sequences: $e');
+      developer.log('AutoSaveService: Error saving sequences: $e',
+          name: 'AutoSaveService', level: 1000, error: e);
       _updateStatus(_status.copyWith(
         isSequenceSaving: false,
         lastError: 'Failed to auto-save sequences: $e',
@@ -242,7 +261,10 @@ class AutoSaveService {
     if (_status.lastBackup != null) {
       final timeSinceLastBackup = DateTime.now().difference(_status.lastBackup!);
       if (timeSinceLastBackup < _config.backupInterval) {
-        debugPrint('AutoSaveService: Skipping backup, last backup was ${timeSinceLastBackup.inHours} hours ago');
+        developer.log(
+            'AutoSaveService: Skipping backup, last backup was ${timeSinceLastBackup.inHours} hours ago',
+            name: 'AutoSaveService',
+            level: 800);
         return;
       }
     }
@@ -252,7 +274,8 @@ class AutoSaveService {
 
   /// Perform automatic backup
   Future<BackupResult> _autoBackup() async {
-    debugPrint('AutoSaveService: Starting automatic backup...');
+    developer.log('AutoSaveService: Starting automatic backup...',
+        name: 'AutoSaveService', level: 800);
 
     _updateStatus(_status.copyWith(isBackingUp: true));
 
@@ -260,7 +283,10 @@ class AutoSaveService {
       final result = await backupService.autoSaveBackup();
 
       if (result.success) {
-        debugPrint('AutoSaveService: Backup completed successfully: ${result.filePath}');
+        developer.log(
+            'AutoSaveService: Backup completed successfully: ${result.filePath}',
+            name: 'AutoSaveService',
+            level: 800);
 
         _updateStatus(_status.copyWith(
           isBackingUp: false,
@@ -271,7 +297,10 @@ class AutoSaveService {
         // Clean up old backups
         await _cleanupOldBackups();
       } else {
-        debugPrint('AutoSaveService: Backup failed: ${result.errorMessage}');
+        developer.log(
+            'AutoSaveService: Backup failed: ${result.errorMessage}',
+            name: 'AutoSaveService',
+            level: 900);
 
         _updateStatus(_status.copyWith(
           isBackingUp: false,
@@ -281,7 +310,8 @@ class AutoSaveService {
 
       return result;
     } catch (e) {
-      debugPrint('AutoSaveService: Error during backup: $e');
+      developer.log('AutoSaveService: Error during backup: $e',
+          name: 'AutoSaveService', level: 1000, error: e);
 
       _updateStatus(_status.copyWith(
         isBackingUp: false,
@@ -310,19 +340,30 @@ class AutoSaveService {
       if (autoSaveBackups.length > _config.maxBackups) {
         final toDelete = autoSaveBackups.sublist(_config.maxBackups);
 
-        debugPrint('AutoSaveService: Cleaning up ${toDelete.length} old backup(s)');
+        developer.log(
+            'AutoSaveService: Cleaning up ${toDelete.length} old backup(s)',
+            name: 'AutoSaveService',
+            level: 800);
 
         for (final file in toDelete) {
           try {
             await file.delete();
-            debugPrint('AutoSaveService: Deleted old backup: ${file.path}');
+            developer.log(
+                'AutoSaveService: Deleted old backup: ${file.path}',
+                name: 'AutoSaveService',
+                level: 800);
           } catch (e) {
-            debugPrint('AutoSaveService: Failed to delete backup ${file.path}: $e');
+            developer.log(
+                'AutoSaveService: Failed to delete backup ${file.path}: $e',
+                name: 'AutoSaveService',
+                level: 900,
+                error: e);
           }
         }
       }
     } catch (e) {
-      debugPrint('AutoSaveService: Error cleaning up backups: $e');
+      developer.log('AutoSaveService: Error cleaning up backups: $e',
+          name: 'AutoSaveService', level: 900, error: e);
     }
   }
 
@@ -348,7 +389,8 @@ class AutoSaveService {
     }
 
     _statusController.close();
-    debugPrint('AutoSaveService: Disposed');
+    developer.log('AutoSaveService: Disposed',
+        name: 'AutoSaveService', level: 800);
   }
 }
 

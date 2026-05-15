@@ -2,9 +2,9 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
@@ -176,7 +176,10 @@ class NetworkBackend implements NightshadeBackend {
     if (_connectionState != newState) {
       _connectionState = newState;
       _connectionStateController.add(newState);
-      debugPrint('[NetworkBackend] Connection state changed to: $newState');
+      developer.log(
+          '[NetworkBackend] Connection state changed to: $newState',
+          name: 'NetworkBackend',
+          level: 800);
     }
   }
 
@@ -185,13 +188,15 @@ class NetworkBackend implements NightshadeBackend {
     try {
       final compatibility = await _checkServerCompatibility();
       if (!compatibility.isCompatible) {
-        debugPrint('Connection rejected: ${compatibility.message}');
+        developer.log('Connection rejected: ${compatibility.message}',
+            name: 'NetworkBackend', level: 900);
         return false;
       }
 
       return true;
     } catch (e) {
-      debugPrint('Connection test failed: $e');
+      developer.log('Connection test failed: $e',
+          name: 'NetworkBackend', level: 900, error: e);
       return false;
     }
   }
@@ -229,7 +234,8 @@ class NetworkBackend implements NightshadeBackend {
 
       final compatibility = await _checkServerCompatibility();
       if (!compatibility.isCompatible) {
-        debugPrint('Connection rejected: ${compatibility.message}');
+        developer.log('Connection rejected: ${compatibility.message}',
+            name: 'NetworkBackend', level: 900);
         _updateConnectionState(BackendConnectionState.disconnected);
         return;
       }
@@ -289,16 +295,19 @@ class NetworkBackend implements NightshadeBackend {
               _polarAlignController.add(event.data);
             }
           } catch (e) {
-            debugPrint('Error parsing WebSocket message: $e');
+            developer.log('Error parsing WebSocket message: $e',
+                name: 'NetworkBackend', level: 900, error: e);
           }
         },
         onError: (error) {
-          debugPrint('WebSocket error: $error');
+          developer.log('WebSocket error: $error',
+              name: 'NetworkBackend', level: 1000, error: error);
           _eventController.addError(error);
           _handleConnectionFailure();
         },
         onDone: () {
-          debugPrint('WebSocket connection closed');
+          developer.log('WebSocket connection closed',
+              name: 'NetworkBackend', level: 900);
           _handleConnectionFailure();
         },
       );
@@ -307,7 +316,8 @@ class NetworkBackend implements NightshadeBackend {
       _updateConnectionState(BackendConnectionState.connected);
       final wasReconnect = _reconnectAttempt > 0;
       _reconnectAttempt = 0; // Reset reconnect counter on success
-      debugPrint('[NetworkBackend] WebSocket connected successfully');
+      developer.log('[NetworkBackend] WebSocket connected successfully',
+          name: 'NetworkBackend', level: 800);
       _startWebSocketHeartbeat();
 
       // After a reconnect (not the initial connect), emit a synthetic event
@@ -324,7 +334,8 @@ class NetworkBackend implements NightshadeBackend {
         ));
       }
     } catch (e) {
-      debugPrint('Failed to connect WebSocket: $e');
+      developer.log('Failed to connect WebSocket: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       _handleConnectionFailure();
     }
   }
@@ -354,12 +365,15 @@ class NetworkBackend implements NightshadeBackend {
     );
 
     _reconnectAttempt++;
-    debugPrint(
-        '[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)');
+    developer.log(
+        '[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)',
+        name: 'NetworkBackend',
+        level: 800);
 
     _reconnectTimer = Timer(delay, () {
       if (_connectionState != BackendConnectionState.connected) {
-        debugPrint('[NetworkBackend] Attempting reconnection...');
+        developer.log('[NetworkBackend] Attempting reconnection...',
+            name: 'NetworkBackend', level: 800);
         connect();
       }
     });
@@ -376,7 +390,8 @@ class NetworkBackend implements NightshadeBackend {
       if (lastMessageAt != null &&
           DateTime.now().difference(lastMessageAt) >
               webSocketHeartbeatTimeout) {
-        debugPrint('[NetworkBackend] WebSocket heartbeat timed out');
+        developer.log('[NetworkBackend] WebSocket heartbeat timed out',
+            name: 'NetworkBackend', level: 900);
         _wsSubscription?.cancel();
         _wsSubscription = null;
         _wsChannel?.sink.close();
@@ -391,7 +406,11 @@ class NetworkBackend implements NightshadeBackend {
           'timestamp': DateTime.now().toUtc().toIso8601String(),
         }));
       } catch (e) {
-        debugPrint('[NetworkBackend] Failed to send WebSocket heartbeat: $e');
+        developer.log(
+            '[NetworkBackend] Failed to send WebSocket heartbeat: $e',
+            name: 'NetworkBackend',
+            level: 900,
+            error: e);
         _handleConnectionFailure();
       }
     });
@@ -549,9 +568,16 @@ class NetworkBackend implements NightshadeBackend {
       // path is best-effort; the HTTP-status fallback below always produces
       // a useful NightshadeError. Logging at FINE keeps the dev console
       // signal-only when servers regularly return non-JSON 5xx pages.
-      debugPrint(
+      // Justification: trace-level (500) — diagnostic-only for the
+      // best-effort JSON decode path; HTTP-status fallback below is the
+      // real error surface.
+      developer.log(
         '[NetworkBackend] _parseErrorResponse JSON decode failed '
-        '(status=$statusCode endpoint=$endpoint): $e\n$stackTrace',
+        '(status=$statusCode endpoint=$endpoint): $e',
+        name: 'NetworkBackend',
+        level: 500,
+        error: e,
+        stackTrace: stackTrace,
       );
     }
 
@@ -590,22 +616,31 @@ class NetworkBackend implements NightshadeBackend {
 
         // Check if this is the last attempt
         if (attempt >= maxAttempts) {
-          debugPrint(
-              '[NetworkBackend] Request failed after $maxAttempts attempts: $e');
+          developer.log(
+              '[NetworkBackend] Request failed after $maxAttempts attempts: $e',
+              name: 'NetworkBackend',
+              level: 1000,
+              error: e);
           rethrow;
         }
 
         // Only retry transient failures
         if (!_isTransientFailure(e)) {
-          debugPrint(
-              '[NetworkBackend] Non-transient failure, not retrying: $e');
+          developer.log(
+              '[NetworkBackend] Non-transient failure, not retrying: $e',
+              name: 'NetworkBackend',
+              level: 1000,
+              error: e);
           rethrow;
         }
 
         // Calculate backoff delay: 1s, 2s, 4s
         final delay = Duration(seconds: 1 << (attempt - 1));
-        debugPrint(
-            '[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e');
+        developer.log(
+            '[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e',
+            name: 'NetworkBackend',
+            level: 900,
+            error: e);
         await Future.delayed(delay);
       }
     }
@@ -790,20 +825,27 @@ class NetworkBackend implements NightshadeBackend {
     if (_cachedDevices != null &&
         _cacheTimestamp != null &&
         DateTime.now().difference(_cacheTimestamp!) < _cacheDuration) {
-      debugPrint(
-          '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)');
+      developer.log(
+          '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)',
+          name: 'NetworkBackend',
+          level: 800);
     } else if (_ongoingDiscovery != null) {
       // Another discovery is in progress, wait for it
-      debugPrint('[NetworkBackend] Waiting for ongoing discovery...');
+      developer.log('[NetworkBackend] Waiting for ongoing discovery...',
+          name: 'NetworkBackend', level: 800);
       _cachedDevices = await _ongoingDiscovery!;
     } else {
       // Start new discovery
-      debugPrint('[NetworkBackend] Starting new device discovery...');
+      developer.log('[NetworkBackend] Starting new device discovery...',
+          name: 'NetworkBackend', level: 800);
       _ongoingDiscovery = _fetchDevicesFromServer();
       try {
         _cachedDevices = await _ongoingDiscovery!;
         _cacheTimestamp = DateTime.now();
-        debugPrint('[NetworkBackend] Cached ${_cachedDevices!.length} devices');
+        developer.log(
+            '[NetworkBackend] Cached ${_cachedDevices!.length} devices',
+            name: 'NetworkBackend',
+            level: 800);
       } finally {
         _ongoingDiscovery = null;
       }
@@ -831,8 +873,10 @@ class NetworkBackend implements NightshadeBackend {
             ))
         .toList();
 
-    debugPrint(
-        '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices');
+    developer.log(
+        '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices',
+        name: 'NetworkBackend',
+        level: 800);
     return filtered;
   }
 
@@ -850,7 +894,8 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Invalidate device cache (called when "Scan Network" is clicked)
   void invalidateDeviceCache() {
-    debugPrint('[NetworkBackend] Cache invalidated');
+    developer.log('[NetworkBackend] Cache invalidated',
+        name: 'NetworkBackend', level: 800);
     _cachedDevices = null;
     _cacheTimestamp = null;
   }
@@ -1822,7 +1867,8 @@ class NetworkBackend implements NightshadeBackend {
           await _get('equipment/camera/capabilities', {'deviceId': deviceId});
       return CameraCapabilities.fromJson(response);
     } catch (e) {
-      debugPrint('Failed to get camera capabilities: $e');
+      developer.log('Failed to get camera capabilities: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -1834,7 +1880,8 @@ class NetworkBackend implements NightshadeBackend {
           await _get('equipment/mount/capabilities', {'deviceId': deviceId});
       return MountCapabilities.fromJson(response);
     } catch (e) {
-      debugPrint('Failed to get mount capabilities: $e');
+      developer.log('Failed to get mount capabilities: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -1846,7 +1893,8 @@ class NetworkBackend implements NightshadeBackend {
           await _get('equipment/focuser/capabilities', {'deviceId': deviceId});
       return FocuserCapabilities.fromJson(response);
     } catch (e) {
-      debugPrint('Failed to get focuser capabilities: $e');
+      developer.log('Failed to get focuser capabilities: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -1859,7 +1907,8 @@ class NetworkBackend implements NightshadeBackend {
           'equipment/filter-wheel/capabilities', {'deviceId': deviceId});
       return FilterWheelCapabilities.fromJson(response);
     } catch (e) {
-      debugPrint('Failed to get filter wheel capabilities: $e');
+      developer.log('Failed to get filter wheel capabilities: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -1871,7 +1920,8 @@ class NetworkBackend implements NightshadeBackend {
           await _get('equipment/rotator/capabilities', {'deviceId': deviceId});
       return RotatorCapabilities.fromJson(response);
     } catch (e) {
-      debugPrint('Failed to get rotator capabilities: $e');
+      developer.log('Failed to get rotator capabilities: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -2272,8 +2322,10 @@ class NetworkBackend implements NightshadeBackend {
       await sink.close();
     }
 
-    debugPrint(
-        '[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)');
+    developer.log(
+        '[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)',
+        name: 'NetworkBackend',
+        level: 800);
   }
 
   FrameType _parseFrameType(String str) {
@@ -2505,7 +2557,8 @@ class NetworkBackend implements NightshadeBackend {
       final response = await _get('targets/$id');
       return response['target'] as Map<String, dynamic>?;
     } catch (e) {
-      debugPrint('Failed to get target $id: $e');
+      developer.log('Failed to get target $id: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -2594,7 +2647,8 @@ class NetworkBackend implements NightshadeBackend {
       final response = await _get('sequence-management/$id');
       return response['sequence'] as Map<String, dynamic>?;
     } catch (e) {
-      debugPrint('Failed to get sequence $id: $e');
+      developer.log('Failed to get sequence $id: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -2777,7 +2831,8 @@ class NetworkBackend implements NightshadeBackend {
       final response = await _get('sessions/active');
       return response['session'] as Map<String, dynamic>?;
     } catch (e) {
-      debugPrint('Failed to get active session: $e');
+      developer.log('Failed to get active session: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
@@ -2788,7 +2843,8 @@ class NetworkBackend implements NightshadeBackend {
       final response = await _get('sessions/$id');
       return response['session'] as Map<String, dynamic>?;
     } catch (e) {
-      debugPrint('Failed to get session $id: $e');
+      developer.log('Failed to get session $id: $e',
+          name: 'NetworkBackend', level: 1000, error: e);
       return null;
     }
   }
