@@ -28,7 +28,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Error handling
-thiserror = "1.0"
+# Why: bumped to 2.0 to match `tracing-appender` 0.2.5 transitive choice and
+# eliminate the thiserror 1.x/2.x semver duplication in the workspace.
+thiserror = "2.0"
 anyhow = "1.0"
 
 # Logging
@@ -50,6 +52,9 @@ quick-xml = "0.31"
 
 # Image processing
 image = "0.24"
+
+# Base64 encoding (unified across bridge/indi/sequencer to dedupe semver)
+base64 = "0.22"
 
 # FFI
 flutter_rust_bridge = "2.0"

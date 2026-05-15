@@ -13,7 +13,7 @@ tracing.workspace = true
 
 # XML parsing for INDI protocol
 quick-xml = { version = "0.31", features = ["async-tokio"] }
-base64 = "0.21"
+base64.workspace = true
 
 # mDNS discovery
 mdns-sd = "0.11"

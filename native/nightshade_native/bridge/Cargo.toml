@@ -20,7 +20,7 @@ tracing-appender.workspace = true
 flutter_rust_bridge = "=2.11.1"
 chrono.workspace = true
 async-stream.workspace = true
-base64 = "0.21"
+base64.workspace = true
 rayon = "1.10"
 
 # Image encoding for thumbnails
