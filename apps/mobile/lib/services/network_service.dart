@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
@@ -70,16 +71,21 @@ class NetworkService {
   /// Initialize the network service
   Future<void> initialize() async {
     if (_isInitialized) {
-      print('[NetworkService] Already initialized');
+      developer.log('Already initialized',
+          name: 'NetworkService', level: 800);
       return;
     }
 
-    print('[NetworkService] Initializing...');
+    developer.log('Initializing...', name: 'NetworkService', level: 800);
 
     // Load last known server
     _lastKnownServer = await EnhancedNightshadeDiscovery.loadLastServer();
     if (_lastKnownServer != null) {
-      print('[NetworkService] Loaded last known server: ${_lastKnownServer!.name}');
+      developer.log(
+        'Loaded last known server: ${_lastKnownServer!.name}',
+        name: 'NetworkService',
+        level: 800,
+      );
     }
 
     // Get initial connectivity status
@@ -111,12 +117,19 @@ class NetworkService {
         _onConnectivityChanged(results);
       },
       onError: (error) {
-        print('[NetworkService] Connectivity stream error: $error');
+        // Caught + degraded: stream errors are non-fatal but we lose
+        // connectivity-change events until the OS re-emits. Warn so the
+        // gap is visible if reconnects start failing.
+        developer.log(
+          'Connectivity stream error: $error',
+          name: 'NetworkService',
+          level: 900,
+        );
       },
     );
 
     _isInitialized = true;
-    print('[NetworkService] Initialized');
+    developer.log('Initialized', name: 'NetworkService', level: 800);
 
     // Try to reconnect to last server if we have WiFi
     if (_state.hasWifi && _lastKnownServer != null) {
@@ -126,7 +139,7 @@ class NetworkService {
 
   /// Dispose of the network service
   Future<void> dispose() async {
-    print('[NetworkService] Disposing...');
+    developer.log('Disposing...', name: 'NetworkService', level: 800);
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
     _reconnectTimer?.cancel();
@@ -137,7 +150,11 @@ class NetworkService {
 
   /// Handle connectivity changes
   void _onConnectivityChanged(List<ConnectivityResult> results) {
-    print('[NetworkService] Connectivity changed: $results');
+    developer.log(
+      'Connectivity changed: $results',
+      name: 'NetworkService',
+      level: 800,
+    );
 
     final hadWifi = _state.hasWifi;
     final hasWifi = results.contains(ConnectivityResult.wifi);
@@ -149,13 +166,18 @@ class NetworkService {
 
     // If we gained WiFi connection, try to reconnect
     if (!hadWifi && hasWifi) {
-      print('[NetworkService] WiFi connected, attempting to reconnect...');
+      developer.log(
+        'WiFi connected, attempting to reconnect...',
+        name: 'NetworkService',
+        level: 800,
+      );
       _attemptReconnect();
     }
 
     // If we lost WiFi, mark as disconnected
     if (hadWifi && !hasWifi) {
-      print('[NetworkService] WiFi lost');
+      // Lost transport — degraded UX, surface as warning.
+      developer.log('WiFi lost', name: 'NetworkService', level: 900);
       _updateState(_state.copyWith(
         status: NetworkStatus.disconnected,
         statusMessage: 'WiFi connection lost',
@@ -165,7 +187,11 @@ class NetworkService {
 
     // Warn if using mobile data
     if (!hasWifi && results.contains(ConnectivityResult.mobile)) {
-      print('[NetworkService] Warning: Using mobile data');
+      developer.log(
+        'Using mobile data',
+        name: 'NetworkService',
+        level: 900,
+      );
       _updateState(_state.copyWith(
         statusMessage: 'Connected via mobile data (may use data)',
       ));
@@ -196,7 +222,11 @@ class NetworkService {
   /// Attempt to reconnect to last known server
   Future<void> _attemptReconnect() async {
     if (_lastKnownServer == null) {
-      print('[NetworkService] No last known server to reconnect to');
+      developer.log(
+        'No last known server to reconnect to',
+        name: 'NetworkService',
+        level: 800,
+      );
       return;
     }
 
@@ -214,14 +244,23 @@ class NetworkService {
       );
 
       if (isReachable) {
-        print('[NetworkService] Reconnected to ${_lastKnownServer!.name}');
+        developer.log(
+          'Reconnected to ${_lastKnownServer!.name}',
+          name: 'NetworkService',
+          level: 800,
+        );
         _updateState(_state.copyWith(
           status: NetworkStatus.connected,
           connectedServer: _lastKnownServer,
           statusMessage: 'Connected to ${_lastKnownServer!.name}',
         ));
       } else {
-        print('[NetworkService] Server not reachable, will retry...');
+        // Caught + degraded path — reconnect failed, retry scheduled.
+        developer.log(
+          'Server not reachable, will retry...',
+          name: 'NetworkService',
+          level: 900,
+        );
         _updateState(_state.copyWith(
           status: NetworkStatus.disconnected,
           statusMessage: 'Server not found on network',
@@ -230,8 +269,16 @@ class NetworkService {
         // Schedule retry
         _scheduleReconnect();
       }
-    } catch (e) {
-      print('[NetworkService] Reconnect error: $e');
+    } catch (e, st) {
+      // Caught + retry scheduled — log as severe so the failure chain is
+      // attributable in DevTools even though we degrade gracefully.
+      developer.log(
+        'Reconnect error: $e',
+        name: 'NetworkService',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
       _updateState(_state.copyWith(
         status: NetworkStatus.disconnected,
         statusMessage: 'Failed to reconnect: $e',
@@ -255,7 +302,11 @@ class NetworkService {
   /// Manually trigger server rediscovery
   Future<DiscoveredServer?> rediscoverServer() async {
     if (!_state.hasConnection) {
-      print('[NetworkService] No network connection for discovery');
+      developer.log(
+        'No network connection for discovery',
+        name: 'NetworkService',
+        level: 900,
+      );
       return null;
     }
 
@@ -281,8 +332,16 @@ class NetworkService {
         ));
         return null;
       }
-    } catch (e) {
-      print('[NetworkService] Discovery error: $e');
+    } catch (e, st) {
+      // Caught + surfaced to UI via statusMessage; severe so the underlying
+      // error chain is preserved.
+      developer.log(
+        'Discovery error: $e',
+        name: 'NetworkService',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
       _updateState(_state.copyWith(
         status: NetworkStatus.disconnected,
         statusMessage: 'Discovery failed: $e',
@@ -293,7 +352,11 @@ class NetworkService {
 
   /// Connect to a specific server
   Future<void> connectToServer(DiscoveredServer server) async {
-    print('[NetworkService] Connecting to ${server.name} at ${server.host}:${server.webPort}');
+    developer.log(
+      'Connecting to ${server.name} at ${server.host}:${server.webPort}',
+      name: 'NetworkService',
+      level: 800,
+    );
 
     // Save as last known server
     await EnhancedNightshadeDiscovery.saveLastServer(server);
@@ -308,7 +371,11 @@ class NetworkService {
 
   /// Disconnect from current server
   Future<void> disconnect() async {
-    print('[NetworkService] Disconnecting from server');
+    developer.log(
+      'Disconnecting from server',
+      name: 'NetworkService',
+      level: 800,
+    );
 
     // Clear saved server
     await EnhancedNightshadeDiscovery.clearLastServer();

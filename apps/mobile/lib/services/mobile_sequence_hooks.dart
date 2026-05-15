@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/nightshade_app.dart' show iosBackgroundBannerProvider;
 import 'package:nightshade_core/nightshade_core.dart';
@@ -57,10 +57,20 @@ class MobileSequenceHooks {
     if (backend is NetworkBackend) {
       _pushNotificationSubscription =
           backend.pushNotificationStream.listen((data) {
-        debugPrint('[MobileSequenceHooks] Received push notification: ${data['title']}');
+        developer.log(
+          'Received push notification: ${data['title']}',
+          name: 'MobileSequenceHooks',
+          level: 800,
+        );
         _notificationService.notifyPush(data);
       }, onError: (error) {
-        debugPrint('[MobileSequenceHooks] Push notification stream error: $error');
+        // Caught + degraded: stream errors mean we miss push notifications
+        // until the backend reconnects. Warn so the gap is visible.
+        developer.log(
+          'Push notification stream error: $error',
+          name: 'MobileSequenceHooks',
+          level: 900,
+        );
       });
     }
   }
@@ -164,7 +174,11 @@ class MobileSequenceHooks {
   Future<void> _startImagingSession(Sequence? sequence) async {
     if (sequence == null) return;
 
-    print('[MobileSequenceHooks] Starting imaging session for ${sequence.name}');
+    developer.log(
+      'Starting imaging session for ${sequence.name}',
+      name: 'MobileSequenceHooks',
+      level: 800,
+    );
 
     // Start power management (wake lock + battery monitoring)
     await _powerService.startImagingSession();
@@ -184,7 +198,11 @@ class MobileSequenceHooks {
     String? targetName,
     int? completedExposures,
   }) async {
-    print('[MobileSequenceHooks] Stopping imaging session (completed: $sequenceCompleted)');
+    developer.log(
+      'Stopping imaging session (completed: $sequenceCompleted)',
+      name: 'MobileSequenceHooks',
+      level: 800,
+    );
 
     // Stop power management
     await _powerService.stopImagingSession();
@@ -212,7 +230,13 @@ class MobileSequenceHooks {
   }
 
   void _handleCriticalBattery() async {
-    print('[MobileSequenceHooks] Critical battery level - pausing sequence');
+    // Critical battery is a safety event — warn so it's visible above the
+    // info noise floor in DevTools and the log file.
+    developer.log(
+      'Critical battery level - pausing sequence',
+      name: 'MobileSequenceHooks',
+      level: 900,
+    );
 
     // Auto-pause sequence at critical battery level
     final executionState = _ref.read(sequenceExecutionStateProvider);
@@ -221,8 +245,16 @@ class MobileSequenceHooks {
       try {
         final backend = _ref.read(backendProvider);
         await backend.sequencerPause();
-      } catch (e) {
-        print('[MobileSequenceHooks] Failed to pause sequence: $e');
+      } catch (e, st) {
+        // Caught here, sequence keeps running on a critical battery — this
+        // is a serious failure mode; log as severe with error chain.
+        developer.log(
+          'Failed to pause sequence: $e',
+          name: 'MobileSequenceHooks',
+          level: 1000,
+          error: e,
+          stackTrace: st,
+        );
       }
     }
   }
@@ -230,7 +262,11 @@ class MobileSequenceHooks {
   void _handleBatteryWarning(BatteryWarningLevel level) {
     // Warnings are already sent by PowerService via MobileNotificationService
     // This callback is for any additional handling
-    print('[MobileSequenceHooks] Battery warning: $level');
+    developer.log(
+      'Battery warning: $level',
+      name: 'MobileSequenceHooks',
+      level: 900,
+    );
   }
 
   Future<void> dispose() async {
