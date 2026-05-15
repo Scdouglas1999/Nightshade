@@ -439,6 +439,18 @@ pub enum DeviceCapabilities {
 }
 
 /// Get capabilities for an Alpaca device
+///
+/// # Silent-fallback contract (audit-rust §4.3)
+///
+/// This function probes optional ASCOM/Alpaca capability properties (`CanSlew`,
+/// `CanPark`, etc.). Per the ASCOM specification, drivers signal "this feature is
+/// not supported" by returning Alpaca error `0x400` (`NotImplemented`) or, on
+/// transport failure, a HTTP/parse error. The capability struct exists exactly to
+/// expose these advertised-feature flags to the UI; the lenient `unwrap_or(false)`
+/// at each site is therefore the **correct** semantics: "if the driver refuses to
+/// answer, treat the feature as unavailable rather than crashing the connection
+/// dialog". The per-site `// Why:` annotations below cite the specific ASCOM
+/// property each fallback represents.
 async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
     // Use cached parsing for better performance
     let parsed = parse_device_id_cached(device_id)?;
@@ -457,17 +469,25 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .await
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+            // Why: every `CanXxx` flag below maps to an OPTIONAL ASCOM telescope
+            // property. Drivers that don't implement a capability return 0x400 /
+            // NotImplemented; defaulting to `false` means "feature absent" — the
+            // intended ASCOM contract for capability discovery.
             let caps = MountCapabilities {
-                can_slew: telescope.can_slew().await.unwrap_or(false),
-                can_slew_async: telescope.can_slew_async().await.unwrap_or(false),
-                can_sync: telescope.can_sync().await.unwrap_or(false),
-                can_park: telescope.can_park().await.unwrap_or(false),
-                can_unpark: telescope.can_unpark().await.unwrap_or(false),
-                can_set_park: telescope.can_set_park().await.unwrap_or(false),
-                can_pulse_guide: telescope.can_pulse_guide().await.unwrap_or(false),
-                can_set_tracking: telescope.can_set_tracking().await.unwrap_or(false),
+                can_slew: telescope.can_slew().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSlew (optional)
+                can_slew_async: telescope.can_slew_async().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSlewAsync (optional)
+                can_sync: telescope.can_sync().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSync (optional)
+                can_park: telescope.can_park().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanPark (optional)
+                can_unpark: telescope.can_unpark().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanUnpark (optional)
+                can_set_park: telescope.can_set_park().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSetPark (optional)
+                can_pulse_guide: telescope.can_pulse_guide().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanPulseGuide (optional)
+                can_set_tracking: telescope.can_set_tracking().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSetTracking (optional)
+                // Why: ASCOM EquatorialSystem enum (0=Other, 1=Topocentric…). Treating an
+                // unreadable value as "0 → not equatorial" is conservative: AltAz-only
+                // mounts return 0 explicitly, so the downstream UI shouldn't enable
+                // RA/Dec controls if the property is missing.
                 is_equatorial: telescope.equatorial_system().await.unwrap_or(0) > 0,
-                can_find_home: telescope.can_find_home().await.unwrap_or(false),
+                can_find_home: telescope.can_find_home().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanFindHome (optional)
                 tracking: telescope.tracking().await.ok(),
                 can_abort_slew: true, // Most mounts support abort
                 axis_count: 2,        // Alpaca lacks axis_count method, default to 2
@@ -484,9 +504,18 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .await
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+            // Why: ASCOM ICameraV3 capability struct. `CameraXSize/YSize` and `MaxADU`
+            // are MANDATORY for any working camera, but we tolerate failure to keep
+            // the capability dialog usable on partially-broken drivers (the user
+            // will see "0x0 sensor" and disconnect). All `Can*` and `MaxBinX/Y` are
+            // optional; defaulting bin to 1 means "no binning supported", which
+            // matches the ASCOM convention for cameras that omit `MaxBinX`.
             let caps = CameraCapabilities {
+                // Why: ICameraV3.CameraXSize is mandatory but treating 0 as "unknown
+                // sensor" lets the dialog open even if the driver flakes out on first
+                // query; user sees clearly-broken dimensions and reconnects.
                 max_width: camera.camera_x_size().await.unwrap_or(0) as u32,
-                max_height: camera.camera_y_size().await.unwrap_or(0) as u32,
+                max_height: camera.camera_y_size().await.unwrap_or(0) as u32, // Why: same as max_width above
                 bit_depth: camera
                     .max_adu()
                     .await
@@ -499,16 +528,27 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                             8
                         }
                     })
+                    // Why: ICameraV3.MaxADU missing → assume the dominant astro-CCD
+                    // depth of 16-bit. 8-bit cameras are vanishingly rare; assuming
+                    // 16-bit avoids truncating real 16-bit data should the driver
+                    // recover later in the session.
                     .unwrap_or(16),
-                has_shutter: camera.has_shutter().await.unwrap_or(false),
-                can_set_ccd_temperature: camera.can_set_ccd_temperature().await.unwrap_or(false),
+                has_shutter: camera.has_shutter().await.unwrap_or(false), // Why: ICameraV3.HasShutter (optional, cooled CCDs only)
+                can_set_ccd_temperature: camera.can_set_ccd_temperature().await.unwrap_or(false), // Why: ICameraV3.CanSetCCDTemperature (optional)
+                // Why: ICameraV3.MaxBinX absent → assume bin 1×1 (no binning), the
+                // safest assumption that prevents the UI from offering bin modes
+                // the driver may reject.
                 can_bin: camera.max_bin_x().await.unwrap_or(1) > 1,
-                max_bin_x: camera.max_bin_x().await.unwrap_or(1),
-                max_bin_y: camera.max_bin_y().await.unwrap_or(1),
-                can_abort_exposure: camera.can_abort_exposure().await.unwrap_or(false),
-                can_stop_exposure: camera.can_stop_exposure().await.unwrap_or(false),
+                max_bin_x: camera.max_bin_x().await.unwrap_or(1), // Why: same MaxBinX rationale
+                max_bin_y: camera.max_bin_y().await.unwrap_or(1), // Why: same — MaxBinY absent → 1
+                can_abort_exposure: camera.can_abort_exposure().await.unwrap_or(false), // Why: ICameraV3.CanAbortExposure (optional)
+                can_stop_exposure: camera.can_stop_exposure().await.unwrap_or(false), // Why: ICameraV3.CanStopExposure (optional)
                 pixel_size_x: camera.pixel_size_x().await.ok(),
                 pixel_size_y: camera.pixel_size_y().await.ok(),
+                // Why: SensorType enum 0=Monochrome, >0 = color variant. If the
+                // driver hides this property, default to monochrome — debayering
+                // a mono frame is a no-op, debayering a hidden color sensor
+                // produces a green frame, so mono is the safer fallback.
                 is_color: camera.sensor_type().await.map(|t| t > 0).unwrap_or(false),
                 exposure_min: None, // Alpaca lacks exposure_min method
                 exposure_max: None, // Alpaca lacks exposure_max method
@@ -526,14 +566,17 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
             let caps = FocuserCapabilities {
+                // Why: ASCOM IFocuserV3.MaxStep is mandatory but tolerating absence
+                // with 0 keeps the dialog usable on relative-only focusers that
+                // misreport. Downstream UI shows "max 0" → user disables auto-focus.
                 max_position: focuser.max_step().await.unwrap_or(0),
-                max_increment: focuser.max_increment().await.unwrap_or(0),
+                max_increment: focuser.max_increment().await.unwrap_or(0), // Why: IFocuserV3.MaxIncrement (mandatory but tolerated, same as MaxStep)
                 step_size: focuser.step_size().await.ok(),
-                absolute: focuser.absolute().await.unwrap_or(false),
-                temp_comp_available: focuser.temp_comp_available().await.unwrap_or(false),
-                temp_comp: focuser.temp_comp().await.unwrap_or(false),
+                absolute: focuser.absolute().await.unwrap_or(false), // Why: IFocuserV3.Absolute — default to relative focuser if unknown (safer: forces relative-move UI)
+                temp_comp_available: focuser.temp_comp_available().await.unwrap_or(false), // Why: IFocuserV3.TempCompAvailable (optional)
+                temp_comp: focuser.temp_comp().await.unwrap_or(false), // Why: IFocuserV3.TempComp — off by default if unreadable
                 temperature: focuser.temperature().await.ok(),
-                is_moving: focuser.is_moving().await.unwrap_or(false),
+                is_moving: focuser.is_moving().await.unwrap_or(false), // Why: IFocuserV3.IsMoving — "not moving" is the safer default; UI re-polls
                 position: focuser.position().await.ok(),
                 ..Default::default()
             };
@@ -547,7 +590,13 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .await
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+            // Why: ASCOM IFilterWheelV2.Names is mandatory but tolerated. If the
+            // driver fails the names lookup we surface an empty wheel (0 positions)
+            // rather than aborting connection setup; user retries via "rescan".
             let names = fw.names().await.unwrap_or_default();
+            // Why: IFilterWheelV2.FocusOffsets is mandatory and parallel to Names
+            // but defaults to empty so the auto-focus subsystem skips per-filter
+            // offset compensation rather than panicking on a missing array.
             let offsets = fw.focus_offsets().await.unwrap_or_default();
 
             let caps = FilterWheelCapabilities {
@@ -570,10 +619,10 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
             let caps = RotatorCapabilities {
-                can_reverse: rotator.can_reverse().await.unwrap_or(false),
-                reverse: rotator.reverse().await.unwrap_or(false),
+                can_reverse: rotator.can_reverse().await.unwrap_or(false), // Why: ASCOM IRotatorV3.CanReverse (optional; pre-V3 rotators lack reversal)
+                reverse: rotator.reverse().await.unwrap_or(false), // Why: IRotatorV3.Reverse — false (not reversed) is the safer default
                 step_size: rotator.step_size().await.ok(),
-                is_moving: rotator.is_moving().await.unwrap_or(false),
+                is_moving: rotator.is_moving().await.unwrap_or(false), // Why: IRotatorV3.IsMoving — "stationary" default; UI re-polls during slew
                 mechanical_position: rotator.mechanical_position().await.ok(),
                 position: rotator.position().await.ok(),
                 can_move_absolute: true, // Alpaca rotators support absolute positioning
@@ -599,20 +648,24 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 nightshade_alpaca::ShutterStatus::Error => ShutterStatus::Unknown,
             });
 
+            // Why: ASCOM IDomeV2 `Can*` and state flags are all OPTIONAL per spec
+            // (a clamshell-only dome implements almost none). Defaulting to false
+            // means "feature absent / not in that state", which is the conservative
+            // posture for a structure that costs money to mis-control.
             let caps = DomeCapabilities {
-                can_set_azimuth: dome.can_set_azimuth().await.unwrap_or(false),
-                can_park: dome.can_park().await.unwrap_or(false),
-                can_find_home: dome.can_find_home().await.unwrap_or(false),
-                can_set_shutter: dome.can_set_shutter().await.unwrap_or(false),
-                can_sync_azimuth: dome.can_sync_azimuth().await.unwrap_or(false),
+                can_set_azimuth: dome.can_set_azimuth().await.unwrap_or(false), // Why: IDomeV2.CanSetAzimuth (optional)
+                can_park: dome.can_park().await.unwrap_or(false), // Why: IDomeV2.CanPark (optional)
+                can_find_home: dome.can_find_home().await.unwrap_or(false), // Why: IDomeV2.CanFindHome (optional)
+                can_set_shutter: dome.can_set_shutter().await.unwrap_or(false), // Why: IDomeV2.CanSetShutter (optional; clamshells often false)
+                can_sync_azimuth: dome.can_sync_azimuth().await.unwrap_or(false), // Why: IDomeV2.CanSyncAzimuth (optional)
                 azimuth: dome.azimuth().await.ok(),
-                slewing: dome.slewing().await.unwrap_or(false),
-                at_home: dome.at_home().await.unwrap_or(false),
-                at_park: dome.at_park().await.unwrap_or(false),
+                slewing: dome.slewing().await.unwrap_or(false), // Why: IDomeV2.Slewing — "not slewing" is the safe initial state
+                at_home: dome.at_home().await.unwrap_or(false), // Why: IDomeV2.AtHome — "not at home" is the safe initial state
+                at_park: dome.at_park().await.unwrap_or(false), // Why: IDomeV2.AtPark — assume not parked until proven otherwise
                 shutter_status,
-                can_slave: dome.can_slave().await.unwrap_or(false),
-                slaved: dome.slaved().await.unwrap_or(false),
-                can_abort: true, // Alpaca domes support abort
+                can_slave: dome.can_slave().await.unwrap_or(false), // Why: IDomeV2.CanSlave (optional)
+                slaved: dome.slaved().await.unwrap_or(false), // Why: IDomeV2.Slaved — "not slaved" is the safe default
+                can_abort: true,                              // Alpaca domes support abort
             };
 
             dome.disconnect().await.ok();
@@ -645,6 +698,10 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             });
 
             let caps = CoverCalibratorCapabilities {
+                // Why: ICoverCalibratorV1.MaxBrightness is mandatory only when a
+                // calibrator is present. Defaulting to 0 means "no brightness
+                // levels available" — correct for cover-only devices where the
+                // calibrator slot is absent.
                 max_brightness: cc.max_brightness().await.unwrap_or(0),
                 cover_present: cover_state.map_or(false, |s| s != CoverState::NotPresent),
                 calibrator_present: calibrator_state
@@ -710,6 +767,10 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
             let caps = SafetyMonitorCapabilities {
+                // Why: ISafetyMonitorV1.IsSafe is the entire raison-d'être of this
+                // device. Defaulting to `false` ("not safe") on read failure is the
+                // ONLY correct fallback — a comms error must NEVER be reported as
+                // "safe to image". This is the conservative SafetyMonitor contract.
                 is_safe: safety.is_safe().await.unwrap_or(false),
                 safety_description: None, // Alpaca doesn't provide a description
             };
@@ -724,21 +785,28 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 .await
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+            // Why: ASCOM ISwitchV2.MaxSwitch is mandatory. Defaulting to 0 on
+            // read failure means "no channels exposed" — the for-loop below then
+            // returns an empty `switches` vec, which the UI shows as a switch
+            // device with zero controllable outputs. User-visible, non-fatal.
             let max_switch = switch.max_switch().await.unwrap_or(0);
             let mut switches = Vec::new();
 
             for i in 0..max_switch {
+                // Why: ISwitchV2.GetSwitchName(i) is mandatory but tolerating
+                // failure with "Switch {i}" lets the user still discriminate
+                // channels by index when a driver omits the name table.
                 let name = switch
                     .get_switch_name(i)
                     .await
                     .unwrap_or_else(|_| format!("Switch {}", i));
-                let description = switch.get_switch_description(i).await.unwrap_or_default();
-                let min_value = switch.min_switch_value(i).await.unwrap_or(0.0);
-                let max_value = switch.max_switch_value(i).await.unwrap_or(1.0);
-                // Alpaca doesn't provide switch step, default to 1.0
+                let description = switch.get_switch_description(i).await.unwrap_or_default(); // Why: ISwitchV2.GetSwitchDescription(i) — empty string OK; UI hides empty descriptions
+                let min_value = switch.min_switch_value(i).await.unwrap_or(0.0); // Why: ISwitchV2.MinSwitchValue(i) — 0.0 matches the boolean-switch convention below
+                let max_value = switch.max_switch_value(i).await.unwrap_or(1.0); // Why: ISwitchV2.MaxSwitchValue(i) — 1.0 pairs with 0.0 above to produce a boolean switch by default
+                                                                                 // Alpaca doesn't provide switch step, default to 1.0
                 let step = 1.0;
-                let can_write = switch.can_write(i).await.unwrap_or(false);
-                let value = switch.get_switch_value(i).await.unwrap_or(0.0);
+                let can_write = switch.can_write(i).await.unwrap_or(false); // Why: ISwitchV2.CanWrite(i) — read-only default forces user to verify before issuing writes
+                let value = switch.get_switch_value(i).await.unwrap_or(0.0); // Why: ISwitchV2.GetSwitchValue(i) — 0.0 = "off" / lowest, the safest displayed state
 
                 // Determine if this is a boolean switch
                 // If min == 0 and max == 1, it's boolean
@@ -774,6 +842,16 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 }
 
 /// Get capabilities for an ASCOM device (Windows only)
+///
+/// # Silent-fallback contract (audit-rust §4.3)
+///
+/// ASCOM drivers raise `PropertyNotImplementedException` (HRESULT `0x80040400`)
+/// when asked for an optional property they don't implement. The COM wrappers
+/// in `nightshade_ascom` translate that to `Err`. Each `unwrap_or(false / 0)`
+/// below therefore preserves the documented ASCOM "feature absent" semantics —
+/// the per-site `// Why:` annotations cite the specific COM property each
+/// fallback represents. Forwarding these errors as `?` would prevent the
+/// connection dialog from ever populating for partially-conforming drivers.
 #[cfg(windows)]
 async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
     use crate::ascom_wrapper::AscomCameraWrapper;
@@ -886,11 +964,14 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let _ = focuser.disconnect();
 
         Ok(DeviceCapabilities::Focuser(FocuserCapabilities {
+            // Why: ASCOM IFocuserV3.MaxStep — when wrapper returns None the
+            // property threw PropertyNotImplementedException. 0 means "no
+            // travel range advertised", which disables absolute-position UI.
             max_position: caps.max_step.unwrap_or(0),
-            max_increment: caps.max_increment.unwrap_or(0),
+            max_increment: caps.max_increment.unwrap_or(0), // Why: IFocuserV3.MaxIncrement — same contract as MaxStep above
             step_size: caps.step_size,
-            absolute: caps.absolute.unwrap_or(false),
-            temp_comp_available: caps.temp_comp_available.unwrap_or(false),
+            absolute: caps.absolute.unwrap_or(false), // Why: IFocuserV3.Absolute — default to relative focuser if driver omits it (safer UX)
+            temp_comp_available: caps.temp_comp_available.unwrap_or(false), // Why: IFocuserV3.TempCompAvailable (optional)
             ..Default::default()
         }))
     } else if prog_id_lower.contains("filterwheel") || prog_id_lower.contains("filter") {
@@ -905,6 +986,10 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         fw.connect()
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+        // Why: ASCOM IFilterWheelV2.Names is mandatory but tolerated. On
+        // PropertyNotImplemented we expose an empty filter list — UI shows a
+        // 0-position wheel and the user reconfigures the driver. Better than
+        // failing the entire equipment-profile load on one bad accessor.
         let names = fw.names().unwrap_or_default();
         let position = fw.position().ok().map(|p| p as i32);
         let _ = fw.disconnect();
@@ -930,15 +1015,21 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
         let caps = RotatorCapabilities {
-            can_reverse: rotator.interface_version().unwrap_or(0) >= 3, // IRotatorV3 supports CanReverse
+            // Why: ASCOM IRotator.InterfaceVersion — if missing, assume the
+            // V1 baseline (version 0 < 3) which lacks CanReverse. This is
+            // strictly conservative: CanReverse=true on a V1 driver would
+            // be a UI bug (the driver throws on Reverse property access).
+            can_reverse: rotator.interface_version().unwrap_or(0) >= 3,
             reverse: false,  // Must query if can_reverse is true
             step_size: None, // ASCOM rotators don't expose step size directly
-            is_moving: rotator.is_moving().unwrap_or(false),
+            is_moving: rotator.is_moving().unwrap_or(false), // Why: IRotatorV3.IsMoving — "stationary" default; the polling loop will correct it on the next tick
             mechanical_position: rotator.mechanical_position().ok(),
             position: rotator.position().ok(),
             can_move_absolute: true, // All ASCOM rotators support MoveAbsolute
             can_halt: true,          // All ASCOM rotators support Halt
-            can_sync: rotator.interface_version().unwrap_or(0) >= 3, // IRotatorV3 supports Sync
+            // Why: Same interface-version contract as can_reverse above —
+            // assume V1 (no Sync) when InterfaceVersion is unreadable.
+            can_sync: rotator.interface_version().unwrap_or(0) >= 3,
         };
 
         let _ = rotator.disconnect();
@@ -965,18 +1056,24 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         });
 
         let caps = DomeCapabilities {
-            can_set_azimuth: dome.slew_to_azimuth(0.0).is_ok().then_some(true).unwrap_or(
-                // Try reading azimuth as a proxy for slew support
-                dome.azimuth().is_ok(),
-            ),
+            // Why: ASCOM IDomeV2 does not expose CanSetAzimuth directly. We
+            // probe by attempting SlewToAzimuth(0); success means CanSetAzimuth.
+            // On failure, fall back to whether Azimuth is readable — a dome
+            // that reports its azimuth but rejects slew is still usable in
+            // read-only roles (slaving by another scope's tracking).
+            can_set_azimuth: dome
+                .slew_to_azimuth(0.0)
+                .is_ok()
+                .then_some(true)
+                .unwrap_or(dome.azimuth().is_ok()),
             can_park: dome.at_park().is_ok(),
             can_find_home: false, // ASCOM Dome doesn't expose CanFindHome directly; conservative
             can_set_shutter: shutter_status.is_some(),
             can_sync_azimuth: false, // ASCOM Dome SyncToAzimuth availability is driver-specific
             azimuth: dome.azimuth().ok(),
-            slewing: dome.slewing().unwrap_or(false),
+            slewing: dome.slewing().unwrap_or(false), // Why: IDomeV2.Slewing — "not slewing" is the safe initial state; polled afterwards
             at_home: false,
-            at_park: dome.at_park().unwrap_or(false),
+            at_park: dome.at_park().unwrap_or(false), // Why: IDomeV2.AtPark — assume "not parked" if unreadable so the user is prompted to park manually
             shutter_status,
             can_slave: false, // Conservative default
             slaved: false,
@@ -999,6 +1096,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
         let caps = SafetyMonitorCapabilities {
+            // Why: ASCOM ISafetyMonitorV1.IsSafe — the entire purpose of this
+            // device class. Defaulting to `false` ("not safe") on read failure
+            // is mandatory: a COM error must NEVER be coerced into "safe to
+            // image". This matches the ASCOM specification's fail-closed
+            // safety contract.
             is_safe: safety.is_safe().unwrap_or(false),
             safety_description: safety.driver_info().ok(),
         };
@@ -1051,19 +1153,25 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             .connect()
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
+        // Why: ASCOM ISwitchV2.MaxSwitch — 0 fallback means "no channels
+        // advertised" so the loop produces an empty switches list; user sees
+        // a switch device with no controllable outputs and reconfigures.
         let max_switch = switch.max_switch().unwrap_or(0);
         let mut switches = Vec::new();
 
         for i in 0..max_switch {
+            // Why: ISwitchV2.GetSwitchName(i) — "Switch {i}" fallback lets the
+            // user still discriminate channels by index when the driver omits
+            // the name array.
             let name = switch
                 .get_switch_name(i)
                 .unwrap_or_else(|_| format!("Switch {}", i));
-            let description = switch.get_switch_description(i).unwrap_or_default();
-            let min_value = switch.min_switch_value(i).unwrap_or(0.0);
-            let max_value = switch.max_switch_value(i).unwrap_or(1.0);
+            let description = switch.get_switch_description(i).unwrap_or_default(); // Why: ISwitchV2.GetSwitchDescription(i) — empty OK; UI hides empty descriptions
+            let min_value = switch.min_switch_value(i).unwrap_or(0.0); // Why: ISwitchV2.MinSwitchValue(i) — pairs with max=1.0 to form a boolean switch by default
+            let max_value = switch.max_switch_value(i).unwrap_or(1.0); // Why: ISwitchV2.MaxSwitchValue(i) — see min_value
             let step = 1.0; // ASCOM ISwitchV2 doesn't expose SwitchStep
-            let can_write = switch.can_write(i).unwrap_or(false);
-            let value = switch.get_switch_value(i).unwrap_or(0.0);
+            let can_write = switch.can_write(i).unwrap_or(false); // Why: ISwitchV2.CanWrite(i) — read-only default forces user verification before issuing writes
+            let value = switch.get_switch_value(i).unwrap_or(0.0); // Why: ISwitchV2.GetSwitchValue(i) — 0.0 = "off"/lowest, the safest displayed state
             let is_boolean = (min_value == 0.0 && max_value == 1.0) || (min_value == max_value);
 
             switches.push(SwitchInfo {
@@ -1121,6 +1229,10 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         });
 
         let caps = CoverCalibratorCapabilities {
+            // Why: ASCOM ICoverCalibratorV1.MaxBrightness is mandatory only
+            // when a calibrator is present; cover-only devices throw
+            // PropertyNotImplemented. 0 means "no brightness levels" which
+            // disables the brightness slider — correct for cover-only setups.
             max_brightness: cc.max_brightness().unwrap_or(0),
             cover_present: cover_state.map_or(false, |s| s != CoverState::NotPresent),
             calibrator_present: calibrator_state
@@ -1265,6 +1377,15 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
 /// Native SDK devices (ZWO, QHY, PlayerOne, etc.) typically have well-defined
 /// capabilities that can be queried from their SDK functions. This function
 /// returns capability information based on the vendor and device type.
+///
+/// # Silent-fallback contract (audit-rust §4.3)
+///
+/// Native vendor SDKs use their own `Result` types: failures here usually mean
+/// "the SDK rejected the call because the camera/mount is mid-state-transition"
+/// (e.g. querying `is_moving` while a homing routine is firing). The capability
+/// struct is a SNAPSHOT — defaulting transient-state booleans to `false` and
+/// missing-list queries to empty is acceptable because the equipment view
+/// re-polls these values on a timer once the connection is established.
 async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
     let mgr = crate::api::get_device_manager();
 
@@ -1286,6 +1407,10 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 let sensor_info = camera.get_sensor_info();
                 let gain_range = camera.get_gain_range().await.ok();
                 let offset_range = camera.get_offset_range().await.ok();
+                // Why: vendor SDK readout-mode enumeration is optional (only ZWO
+                // and QHY expose multi-mode sensors). Empty vec → UI hides the
+                // readout-mode selector, matching cameras that have a single
+                // hard-coded mode.
                 let readout_modes = camera.get_readout_modes().await.unwrap_or_default();
                 let status = camera.get_status().await.ok();
 
@@ -1359,6 +1484,10 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             if let Some(focuser) = native_focusers.get(device_id) {
                 let position = focuser.get_position().await.ok();
                 let temperature = focuser.get_temperature().await.ok().flatten();
+                // Why: transient-state probe — if the focuser SDK is busy with
+                // another command we treat the focuser as stationary in this
+                // snapshot. The equipment poller re-reads on a 500 ms cadence,
+                // so a false "stationary" reading self-corrects within a frame.
                 let is_moving = focuser.is_moving().await.unwrap_or(false);
                 Ok(DeviceCapabilities::Focuser(FocuserCapabilities {
                     max_position: focuser.get_max_position(),
@@ -1380,8 +1509,13 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         crate::device::DeviceType::FilterWheel => {
             let native_fws = mgr.native_filter_wheels.read().await;
             if let Some(fw) = native_fws.get(device_id) {
+                // Why: vendor SDKs that don't persist filter labels (e.g. ZWO
+                // EFW) return an error here on first connect. Empty vec → UI
+                // renders generic "Filter 1, Filter 2..." labels indexed off
+                // `get_filter_count()`, which is sufficient for slot selection.
                 let names = fw.get_filter_names().await.unwrap_or_default();
                 let position = fw.get_position().await.ok().map(|p| p as i32);
+                // Why: same transient-state contract as focuser is_moving above.
                 let is_moving = fw.is_moving().await.unwrap_or(false);
                 Ok(DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
                     position_count: fw.get_filter_count(),
@@ -1414,13 +1548,21 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 let azimuth = dome.get_azimuth().await.ok();
                 let slewing_result = dome.is_slewing().await;
                 let can_abort = slewing_result.is_ok();
+                // Why: paired-probe pattern: the Result<bool> tells us BOTH whether
+                // the capability exists (Ok = `can_abort`) and the current state
+                // (false on Err is safe-default "not slewing"). The capability is
+                // returned via `can_abort` so callers can distinguish "absent" from
+                // "present and false" via the separate flag.
                 let slewing = slewing_result.unwrap_or(false);
                 let at_home_result = dome.is_at_home().await;
                 let can_find_home = at_home_result.is_ok();
-                let at_home = at_home_result.unwrap_or(false);
+                let at_home = at_home_result.unwrap_or(false); // Why: same paired-probe pattern as `slewing` above
                 let at_park_result = dome.is_parked().await;
                 let can_park = at_park_result.is_ok();
-                let at_park = at_park_result.unwrap_or(false);
+                let at_park = at_park_result.unwrap_or(false); // Why: same paired-probe pattern as `slewing` above
+                                                               // Why: NativeDome.is_slaved() failure is treated as "not slaved"
+                                                               // because the slave-loop is a host-side process we control; if
+                                                               // it's not visible to the device wrapper, it's not running.
                 let slaved = dome.is_slaved().await.unwrap_or(false);
                 let shutter_status =
                     dome.get_shutter_status()
@@ -1507,6 +1649,10 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         crate::device::DeviceType::SafetyMonitor => {
             let native_safety = mgr.native_safety_monitors.read().await;
             if let Some(safety) = native_safety.get(device_id) {
+                // Why: SafetyMonitor "fail-closed" rule — a comms error from a
+                // native safety driver MUST report "unsafe", never "safe".
+                // Matches the ASCOM ISafetyMonitorV1 contract enforced at the
+                // Alpaca/ASCOM branches above.
                 let is_safe = safety.is_safe().await.unwrap_or(false);
                 Ok(DeviceCapabilities::SafetyMonitor(
                     SafetyMonitorCapabilities {
