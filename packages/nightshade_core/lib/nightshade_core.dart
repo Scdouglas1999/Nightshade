@@ -9,6 +9,7 @@ library nightshade_core;
 export 'src/database/database.dart'
     hide Target, Sequence, SequenceNode, CapturedImage, EquipmentProfile;
 export 'src/database/database_aliases.dart';
+export 'src/database/integrity_check.dart';
 export 'src/database/seed_data.dart';
 
 // DAOs

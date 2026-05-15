@@ -5,6 +5,8 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import 'integrity_check.dart' as integrity;
+import 'integrity_check.dart' show DatabaseRecoveryMarker;
 import 'tables/equipment_profiles.dart';
 import 'tables/imaging_sessions.dart';
 import 'tables/targets.dart';
@@ -113,6 +115,34 @@ class NightshadeDatabase extends _$NightshadeDatabase {
       beforeOpen: (details) async {
         // Enable foreign key enforcement
         await customStatement('PRAGMA foreign_keys = ON');
+
+        // WHY a second integrity check here in addition to the pre-flight in
+        // `_openConnection()`: the pre-flight catches corruption present
+        // when the app starts, but cannot catch in-session corruption from a
+        // crash, an SSD bit-flip, or a forced unmount. Running
+        // `PRAGMA integrity_check` once per open is cheap (microseconds on a
+        // small DB) and gives ops a structured warning in logs the moment
+        // corruption first manifests rather than the next time the app
+        // happens to read a damaged page. We do NOT auto-recover from here —
+        // the connection is already live in a background isolate and we
+        // cannot rotate the file out from under it safely.
+        final integrityRow = await customSelect('PRAGMA integrity_check;').get();
+        final ok = integrityRow.length == 1 &&
+            integrityRow.first.data['integrity_check'] == 'ok';
+        if (!ok) {
+          // Emit through dart:developer-style logging would be nice, but
+          // logging_service is not on the database layer's dependency
+          // graph. A plain `print` matches the convention used elsewhere in
+          // this file for migration-time diagnostics and is captured by the
+          // app's stdout/stderr log sinks.
+          // ignore: avoid_print
+          print(
+            '[nightshade_db] WARNING: PRAGMA integrity_check failed at '
+            'beforeOpen: ${integrityRow.map((r) => r.data['integrity_check']).join('; ')}. '
+            'Database remains live; restart the app to trigger the '
+            'corruption-recovery rotation.',
+          );
+        }
       },
       onUpgrade: (Migrator m, int from, int to) async {
         // Version 2: Add indexes for better query performance
@@ -1498,6 +1528,22 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     ).get();
     return result.any((row) => row.data['name'] == column);
   }
+
+  /// One-shot UI hook: returns a [DatabaseRecoveryMarker] iff the previous
+  /// app launch rotated a corrupt database into a forensic backup, then
+  /// clears every recovery marker in the database directory so the same
+  /// dialog is not shown again.
+  ///
+  /// Why a static helper rather than an instance method: the UI layer needs
+  /// to call this at startup, BEFORE constructing the database (otherwise
+  /// the freshly-recreated DB has already been "consumed" by the migrator
+  /// and the marker has lost its UX meaning of "this is the first launch
+  /// AFTER recovery"). Static avoids a chicken-and-egg dependency on a
+  /// live [NightshadeDatabase].
+  static Future<DatabaseRecoveryMarker?> consumeRecoveryMarker() async {
+    final dbFile = await resolveDefaultDatabaseFile();
+    return integrity.consumeRecoveryMarker(dbFile.parent);
+  }
 }
 
 const Map<String, String> _defaultSettings = {
@@ -1614,13 +1660,40 @@ const Map<String, String> _defaultSettings = {
   'dark_library.temp_tolerance': '2.0',
 };
 
+/// Resolve the on-disk path the desktop/mobile database lives at. Exposed
+/// separately so the UI bootstrap and CLI tools can find the file (e.g. for
+/// "Show database location" buttons or post-recovery diagnostics) without
+/// re-implementing the path heuristic.
+Future<File> resolveDefaultDatabaseFile() async {
+  final dbFolder = await getApplicationDocumentsDirectory();
+  return File(p.join(dbFolder.path, 'Nightshade', 'nightshade.db'));
+}
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'Nightshade', 'nightshade.db'));
+    final file = await resolveDefaultDatabaseFile();
 
     // Ensure directory exists
     await file.parent.create(recursive: true);
+
+    // WHY pre-flight integrity check: Drift's `beforeOpen` runs after the
+    // SQLite connection is established, which is too late to swap a corrupt
+    // file out of the way without race conditions inside the background
+    // isolate. Running the check here — on the foreground isolate, before
+    // `NativeDatabase.createInBackground` ever resolves — lets us rotate the
+    // corrupt file to a `nightshade-corrupt-<ts>.db` forensic backup so that
+    // drift's `onCreate` then seeds a fresh database.
+    //
+    // The recovery marker file written by [runIntegrityCheckAndRecover] is
+    // consumed on next launch by [NightshadeDatabase.consumeRecoveryMarker]
+    // so the UI can show a one-shot "your database was corrupted and
+    // recovered from backup" dialog.
+    //
+    // Per project policy we do NOT swallow recovery failures here: if the
+    // integrity check itself throws (file lock, permission denied, etc.)
+    // the exception propagates and the operator sees the real error rather
+    // than a silently broken database.
+    await integrity.runIntegrityCheckAndRecover(file);
 
     return NativeDatabase.createInBackground(file);
   });

@@ -10,6 +10,7 @@ import 'package:nightshade_app/services/location_sync_service.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
+import 'package:nightshade_app/widgets/database_recovery_launcher.dart';
 import 'package:nightshade_app/widgets/first_night_wizard_launcher.dart';
 import 'package:nightshade_app/widgets/onboarding/onboarding_launcher.dart';
 
@@ -180,9 +181,18 @@ class NightshadeApp extends ConsumerWidget {
             // config so the wizard dialog inherits text scaling and theme
             // — putting it outside would render the wizard at unscaled
             // size on high-DPI displays.
+            // DatabaseRecoveryLauncher wraps the onboarding + first-night
+            // launchers so its one-shot dialog wins over them on the first
+            // launch after corruption recovery — the user needs to know
+            // their data is gone before they get pulled into onboarding
+            // for what looks like a fresh install. It sits inside
+            // ScaledConfigProvider so the dialog inherits the app's scale
+            // and theme.
             Widget result = ScaledConfigProvider(
-              child: OnboardingTourLauncher(
-                child: FirstNightWizardLauncher(child: scaledChild),
+              child: DatabaseRecoveryLauncher(
+                child: OnboardingTourLauncher(
+                  child: FirstNightWizardLauncher(child: scaledChild),
+                ),
               ),
             );
 

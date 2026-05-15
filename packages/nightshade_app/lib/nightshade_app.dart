@@ -35,6 +35,7 @@ export 'widgets/mobile_sequence_overlay.dart';
 export 'widgets/session_recovery_checker.dart';
 export 'widgets/session_recovery_dialog.dart';
 export 'widgets/auto_discovery_launcher.dart';
+export 'widgets/database_recovery_launcher.dart';
 export 'widgets/tutorial_overlay.dart';
 export 'widgets/welcome_flow.dart';
 export 'widgets/tour_selection_sheet.dart';
