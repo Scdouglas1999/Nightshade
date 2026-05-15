@@ -131,8 +131,7 @@ class NightshadeDiscovery {
       'webPort': webPort,
       'signalingPort': signalingPort,
     };
-    final messageBytes =
-        utf8.encode('$_responsePrefix${jsonEncode(payload)}');
+    final messageBytes = utf8.encode('$_responsePrefix${jsonEncode(payload)}');
 
     void emit() {
       try {
@@ -149,25 +148,75 @@ class NightshadeDiscovery {
 
     // Immediate emit so a client probing in this same tick gets a response,
     // then resume on the periodic schedule.
+    //
+    // Why supervised: although `emit` already has an internal try/catch for
+    // socket.send, any other failure inside the periodic tick (e.g. an
+    // unexpected NPE from a future maintainer expanding the body) would
+    // be silently swallowed by Timer.periodic. Wrapping the tick body in
+    // _superviseSync makes such regressions visible in the dev log —
+    // audit-observe §8c "background-service supervision".
     emit();
-    final timer = Timer.periodic(interval, (_) => emit());
+    final timer = Timer.periodic(
+      interval,
+      (_) => _superviseSync('broadcastEmit', emit),
+    );
 
     // Also respond directly to client probes so a client that joined after
     // our last broadcast tick doesn't have to wait for the next one.
-    socket.listen((event) {
-      if (event != RawSocketEvent.read) return;
-      final datagram = socket.receive();
-      if (datagram == null) return;
-      try {
-        final raw = utf8.decode(datagram.data);
-        if (!raw.startsWith(_requestPrefix)) return;
-        socket.send(messageBytes, datagram.address, datagram.port);
-      } catch (_) {
-        // Malformed datagrams are ignored — they are noise on a shared LAN.
-      }
-    });
+    //
+    // Why onError: socket.listen carries transport errors via the onError
+    // hook. Without one, an interface-disappearing event during shutdown
+    // (and the resulting OSError) becomes an unhandled async error in the
+    // surrounding zone and is silently dropped.
+    socket.listen(
+      (event) {
+        if (event != RawSocketEvent.read) return;
+        final datagram = socket.receive();
+        if (datagram == null) return;
+        try {
+          final raw = utf8.decode(datagram.data);
+          if (!raw.startsWith(_requestPrefix)) return;
+          socket.send(messageBytes, datagram.address, datagram.port);
+        } catch (e, stackTrace) {
+          // Why: a malformed datagram is expected noise on a shared LAN —
+          // log at fine level. The previous `catch (_)` lost the
+          // distinction between routine noise and a real socket failure.
+          developer.log(
+            'Ignoring malformed discovery probe: $e\n$stackTrace',
+            name: 'NightshadeDiscovery',
+            level: 500,
+          );
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        developer.log(
+          'Broadcaster socket error: $error\n$stackTrace',
+          name: 'NightshadeDiscovery',
+          level: 1000,
+        );
+      },
+    );
 
     return DiscoveryBroadcaster._(socket, timer);
+  }
+
+  /// Run [task] and log any thrown exception at error level.
+  ///
+  /// Why: Timer.periodic and Stream.listen callbacks complete outside any
+  /// await chain — exceptions become unhandled errors that the zone drops.
+  /// audit-observe §8c flagged this as the "background-service supervision"
+  /// gap. We log but do not rethrow because the caller is fire-and-forget;
+  /// rethrowing would land in the same dropped-error path.
+  static void _superviseSync(String name, void Function() task) {
+    try {
+      task();
+    } catch (e, stackTrace) {
+      developer.log(
+        'Supervised task "$name" failed: $e\n$stackTrace',
+        name: 'NightshadeDiscovery',
+        level: 1000,
+      );
+    }
   }
 
   /// Discover Nightshade servers on the local network (mobile/client side).
@@ -219,12 +268,10 @@ class NightshadeDiscovery {
             host: host,
             webPort: webPort,
             signalingPort: info['signalingPort'] as int,
-            name: info['name'] is String
-                ? info['name'] as String
-                : 'Nightshade',
-            version: info['version'] is String
-                ? info['version'] as String
-                : '2.0.0',
+            name:
+                info['name'] is String ? info['name'] as String : 'Nightshade',
+            version:
+                info['version'] is String ? info['version'] as String : '2.0.0',
           ));
           developer.log('Found server: ${servers.last.name} at $host',
               name: 'NightshadeDiscovery', level: 800);
@@ -243,7 +290,8 @@ class NightshadeDiscovery {
       socket.send(probe, InternetAddress('255.255.255.255'), _serverPort);
 
       await Future.delayed(timeout);
-      developer.log('Discovery timeout reached, found ${servers.length} servers',
+      developer.log(
+          'Discovery timeout reached, found ${servers.length} servers',
           name: 'NightshadeDiscovery');
       return servers;
     } catch (e) {
@@ -301,7 +349,8 @@ class UpdatePushDiscovery {
     final seen = <String>{};
 
     try {
-      developer.log('Creating UDP socket for discovery...', name: 'UpdatePushDiscovery');
+      developer.log('Creating UDP socket for discovery...',
+          name: 'UpdatePushDiscovery');
       final socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
         _discoveryPort,
@@ -333,29 +382,35 @@ class UpdatePushDiscovery {
                     isReceiving: info['isReceiving'] as bool? ?? false,
                   );
                   targets.add(target);
-                  developer.log('Found target: $target', name: 'UpdatePushDiscovery', level: 800);
+                  developer.log('Found target: $target',
+                      name: 'UpdatePushDiscovery', level: 800);
                 }
               }
             } catch (e) {
-              developer.log('Error parsing packet: $e', name: 'UpdatePushDiscovery', level: 1000);
+              developer.log('Error parsing packet: $e',
+                  name: 'UpdatePushDiscovery', level: 1000);
             }
           }
         }
       });
 
       // Send update push discovery broadcast
-      developer.log('Sending discovery broadcast...', name: 'UpdatePushDiscovery');
+      developer.log('Sending discovery broadcast...',
+          name: 'UpdatePushDiscovery');
       final discoveryData = utf8.encode(_updatePushMessage);
-      socket.send(discoveryData, InternetAddress('255.255.255.255'), _discoveryPort);
+      socket.send(
+          discoveryData, InternetAddress('255.255.255.255'), _discoveryPort);
 
       // Wait for responses
       await Future.delayed(timeout);
-      developer.log('Discovery complete, found ${targets.length} targets', name: 'UpdatePushDiscovery');
+      developer.log('Discovery complete, found ${targets.length} targets',
+          name: 'UpdatePushDiscovery');
       socket.close();
 
       return targets;
     } catch (e) {
-      developer.log('Discovery error: $e', name: 'UpdatePushDiscovery', level: 1000);
+      developer.log('Discovery error: $e',
+          name: 'UpdatePushDiscovery', level: 1000);
       return targets;
     }
   }
@@ -392,16 +447,20 @@ class UpdatePushDiscovery {
               final response = '$_updateResponsePrefix${jsonEncode(info)}';
               final data = utf8.encode(response);
               socket.send(data, datagram.address, datagram.port);
-              developer.log('Responded to discovery from ${datagram.address.address}', name: 'UpdatePushDiscovery');
+              developer.log(
+                  'Responded to discovery from ${datagram.address.address}',
+                  name: 'UpdatePushDiscovery');
             }
           } catch (e) {
-            developer.log('Error handling discovery: $e', name: 'UpdatePushDiscovery', level: 1000);
+            developer.log('Error handling discovery: $e',
+                name: 'UpdatePushDiscovery', level: 1000);
           }
         }
       }
     });
 
-    developer.log('Listening for update push discovery on port $_discoveryPort', name: 'UpdatePushDiscovery', level: 800);
+    developer.log('Listening for update push discovery on port $_discoveryPort',
+        name: 'UpdatePushDiscovery', level: 800);
     return socket;
   }
 }

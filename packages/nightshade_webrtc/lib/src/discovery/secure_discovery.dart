@@ -101,7 +101,8 @@ class SecureDiscovery {
     DiscoveryMode mode = DiscoveryMode.pairedOnly,
   }) async {
     if (_socket != null) {
-      developer.log('Server already running', name: 'SecureDiscovery', level: 900);
+      developer.log('Server already running',
+          name: 'SecureDiscovery', level: 900);
       return;
     }
 
@@ -115,27 +116,65 @@ class SecureDiscovery {
 
     _socket!.broadcastEnabled = true;
 
-    developer.log('Secure discovery server started in ${mode.name} mode', name: 'SecureDiscovery', level: 800);
+    developer.log('Secure discovery server started in ${mode.name} mode',
+        name: 'SecureDiscovery', level: 800);
 
-    // Listen for discovery requests
-    _socket!.listen((event) {
-      if (event == RawSocketEvent.read) {
+    // Listen for discovery requests.
+    //
+    // Why supervised: _handleDiscoveryRequest is async and awaits the token
+    // manager. Stream.listen does not await it, so any throw from the async
+    // handler (DB error, malformed paired-device row, etc.) becomes an
+    // unawaited Future error that the zone silently drops — the audit's
+    // §8c "background-service supervision" gap. We attach an onError to the
+    // stream itself and wrap the async dispatch in _supervise so an exception
+    // is logged at error level rather than vanishing, *and* the listener
+    // keeps running for subsequent datagrams.
+    _socket!.listen(
+      (event) {
+        if (event != RawSocketEvent.read) return;
         final datagram = _socket!.receive();
-        if (datagram != null) {
-          _handleDiscoveryRequest(datagram, signalingPort);
-        }
-      }
-    });
+        if (datagram == null) return;
+        _supervise(
+          'handleDiscoveryRequest',
+          () => _handleDiscoveryRequest(datagram, signalingPort),
+        );
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        // Why: a transport-level error (interface disappearing, OS-level
+        // socket reset) would otherwise terminate the stream silently.
+        developer.log(
+          'Discovery socket error: $error\n$stackTrace',
+          name: 'SecureDiscovery',
+          level: 1000,
+        );
+      },
+    );
 
-    // Optional: Broadcast in pairing mode only
+    // Optional: Broadcast in pairing mode only.
+    //
+    // Why supervised: Timer.periodic swallows exceptions thrown by its
+    // callback — _broadcastPresence calls socket.send which can raise on
+    // transient network conditions. Without the wrapper, a single failure
+    // becomes silent and the broadcast appears to keep ticking from
+    // outside, but produces no packets.
     if (mode == DiscoveryMode.pairing) {
       _broadcastTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-        _broadcastPresence(signalingPort);
+        _superviseSync(
+          'broadcastPresence',
+          () => _broadcastPresence(signalingPort),
+        );
       });
     }
   }
 
-  void _handleDiscoveryRequest(Datagram datagram, int signalingPort) async {
+  // Why Future<void>: the supervisor in startServer awaits this dispatch to
+  // capture exceptions thrown across async gaps (token-manager DB reads,
+  // etc.). A void-returning async function would silently drop its errors
+  // into the surrounding zone — exactly the §8c gap this CQ addresses.
+  Future<void> _handleDiscoveryRequest(
+    Datagram datagram,
+    int signalingPort,
+  ) async {
     final String message;
     try {
       message = utf8.decode(datagram.data);
@@ -204,9 +243,8 @@ class SecureDiscovery {
     // contain `:` (e.g. `native:touptek:zwo:0`), which is exactly the case
     // the old split-on-`:` parser corrupted.
     final rawDeviceId = req['deviceId'];
-    final String? deviceId = rawDeviceId is String && rawDeviceId.isNotEmpty
-        ? rawDeviceId
-        : null;
+    final String? deviceId =
+        rawDeviceId is String && rawDeviceId.isNotEmpty ? rawDeviceId : null;
 
     bool shouldRespond = false;
 
@@ -223,9 +261,8 @@ class SecureDiscovery {
       case DiscoveryMode.pairedOnly:
         // Only respond to paired devices
         if (deviceId != null) {
-          final device = await _tokenManager
-              .getActivePairedDevices()
-              .then((devices) =>
+          final device = await _tokenManager.getActivePairedDevices().then(
+              (devices) =>
                   devices.where((d) => d.deviceId == deviceId).firstOrNull);
           shouldRespond = device != null;
         } else if (isPairingRequest) {
@@ -282,10 +319,14 @@ class SecureDiscovery {
       _broadcastTimer?.cancel();
       _broadcastTimer = null;
     } else {
-      // Start broadcasting if in pairing mode
+      // Start broadcasting if in pairing mode. Same supervisor rationale as
+      // startServer — Timer.periodic silently drops thrown exceptions.
       if (_broadcastTimer == null && _socket != null) {
         _broadcastTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-          _broadcastPresence(signalingPort);
+          _superviseSync(
+            'broadcastPresence',
+            () => _broadcastPresence(signalingPort),
+          );
         });
       }
     }
@@ -353,10 +394,12 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      developer.log('Discovery complete, found ${servers.length} servers', name: 'SecureDiscovery');
+      developer.log('Discovery complete, found ${servers.length} servers',
+          name: 'SecureDiscovery');
       return servers;
     } catch (e) {
-      developer.log('Discovery error: $e', name: 'SecureDiscovery', level: 1000);
+      developer.log('Discovery error: $e',
+          name: 'SecureDiscovery', level: 1000);
       return servers;
     }
   }
@@ -369,7 +412,8 @@ class SecureDiscovery {
     final seen = <String>{};
 
     try {
-      developer.log('Looking for servers in pairing mode...', name: 'SecureDiscovery');
+      developer.log('Looking for servers in pairing mode...',
+          name: 'SecureDiscovery');
 
       final socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -404,10 +448,12 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      developer.log('Found ${servers.length} servers in pairing mode', name: 'SecureDiscovery');
+      developer.log('Found ${servers.length} servers in pairing mode',
+          name: 'SecureDiscovery');
       return servers;
     } catch (e) {
-      developer.log('Discovery error: $e', name: 'SecureDiscovery', level: 1000);
+      developer.log('Discovery error: $e',
+          name: 'SecureDiscovery', level: 1000);
       return servers;
     }
   }
@@ -509,6 +555,44 @@ class SecureDiscovery {
   }
 
   void dispose() {
-    stopServer();
+    // Why: stopServer is async but dispose has no return value. Fire-and-
+    // forget would silently swallow any exception from socket teardown.
+    // Route through _supervise so a failure is at least logged.
+    _supervise('dispose', stopServer);
+  }
+
+  /// Run [task] and log any thrown exception at error level.
+  ///
+  /// Why: the audit (§8c, "background-service supervision") flagged that
+  /// async work spawned from Stream.listen / Timer callbacks completes
+  /// outside any await chain — exceptions become unhandled Future errors
+  /// that the zone drops. This wrapper ensures the failure shows up in the
+  /// dev log instead of vanishing. It does NOT rethrow because the caller
+  /// is by definition fire-and-forget; we can't surface to anyone.
+  static void _supervise(String name, Future<void> Function() task) {
+    Future<void>(() async {
+      try {
+        await task();
+      } catch (e, stackTrace) {
+        developer.log(
+          'Supervised task "$name" failed: $e\n$stackTrace',
+          name: 'SecureDiscovery',
+          level: 1000,
+        );
+      }
+    });
+  }
+
+  /// Synchronous variant for Timer.periodic callbacks. Same rationale.
+  static void _superviseSync(String name, void Function() task) {
+    try {
+      task();
+    } catch (e, stackTrace) {
+      developer.log(
+        'Supervised task "$name" failed: $e\n$stackTrace',
+        name: 'SecureDiscovery',
+        level: 1000,
+      );
+    }
   }
 }
