@@ -48,10 +48,9 @@ dependencies:
   logging: ^1.3.0
 
 dev_dependencies:
-  # Pinned exact version across all 10 workspace packages to prevent
-  # mixed-version drift. See docs/code-quality/audit-dart.md §10 #4.
-  # Upgrade to ^5.0.0 is scheduled in W-TEST / CQ-W5-LINTS-UPGRADE.
-  flutter_lints: 3.0.2
+  # Pinned across all 10 workspace packages to prevent mixed-version drift.
+  # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
+  flutter_lints: ^5.0.0
   build_runner: ^2.4.8
   freezed: ^2.4.6
   json_serializable: ^6.7.1

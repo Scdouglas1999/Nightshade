@@ -22,10 +22,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # Pinned exact version across all 10 workspace packages to prevent
-  # mixed-version drift. See docs/code-quality/audit-dart.md §10 #4.
-  # Upgrade to ^5.0.0 is scheduled in W-TEST / CQ-W5-LINTS-UPGRADE.
-  flutter_lints: 3.0.2
+  # Pinned across all 10 workspace packages to prevent mixed-version drift.
+  # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
+  # Noisy new rules (override_on_non_overriding_member, super_formal_parameter_*,
+  # use_string_in_part_of_directives, deprecated_member_use_from_same_package)
+  # are disabled at the workspace root analysis_options.yaml. Lint-debt sweep
+  # against the new ruleset is tracked as a follow-on per CQ-W5-LINTS-UPGRADE.
+  flutter_lints: ^5.0.0
   ffigen: ^11.0.0
   build_runner: ^2.4.8
   freezed: ^2.4.7

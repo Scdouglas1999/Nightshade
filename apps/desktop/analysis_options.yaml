@@ -1,20 +1,12 @@
-include: package:flutter_lints/flutter.yaml
+# Inherits from the workspace-root analysis_options.yaml which configures
+# flutter_lints 5.x rule overrides. Desktop-specific avoid_print enforced
+# (134 historical print() calls were migrated to LoggingService in
+# CQ-W2-PRINT — keep the rule on so they cannot regress).
+include: ../../analysis_options.yaml
 
 linter:
   rules:
-    prefer_const_constructors: true
-    prefer_const_declarations: true
+    avoid_print: true
     prefer_final_fields: true
     prefer_final_locals: true
     unnecessary_this: true
-    avoid_print: true
-
-analyzer:
-  exclude:
-    - "**/*.g.dart"
-    - "**/*.freezed.dart"
-
-
-
-
-

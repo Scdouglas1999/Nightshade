@@ -1,3 +1,3 @@
 # Inherits from the workspace-root analysis_options.yaml which configures
-# flutter_lints 5.x rule overrides. No mobile-specific lints today.
+# flutter_lints 5.x rule overrides.
 include: ../../analysis_options.yaml
