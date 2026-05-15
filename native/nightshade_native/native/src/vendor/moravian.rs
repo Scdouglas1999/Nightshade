@@ -138,14 +138,18 @@ struct MoravianSdk {
     _library: Library,
 }
 
+// SAFETY: MoravianSdk holds only function pointers and a `libloading::Library` (memory-mapped DLL handle). The function pointers reference code in a shared library that lives for the whole program (we store the Library to keep it loaded). All actual SDK calls go through `moravian_mutex()` which serializes access, so the underlying gXusb SDK never sees concurrent invocation.
 unsafe impl Send for MoravianSdk {}
+// SAFETY: Same justification as `impl Send`: pointer-and-handle aggregate that becomes safe under the moravian_mutex serialization used by every call site.
 unsafe impl Sync for MoravianSdk {}
 
 impl MoravianSdk {
     fn load() -> Result<Self, String> {
+        // SAFETY: libloading::Library::new performs platform dynamic loading; the lib name "gXusb.dll" is a compile-time constant and the resulting Library is moved into the returned MoravianSdk so the function-pointer references remain valid for the program's lifetime — no memory access happens here.
         let library = unsafe { Library::new("gXusb.dll") }
             .map_err(|e| format!("Failed to load gXusb.dll: {}", e))?;
 
+        // SAFETY: each `library.get::<FnType>(b"symbol\0")` followed by `*sym` dereferences a libloading::Symbol to its function-pointer ABI only after a successful name lookup; the FFI signatures (Enumerate/Initialize/Release/Get*Parameter/etc.) match the gXusb SDK header signatures exactly — verified against the gXusb.h definitions on which the type aliases above were modelled.
         unsafe {
             Ok(Self {
                 enumerate: *library
@@ -267,6 +271,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
         .unwrap_or_else(|e| e.into_inner()) = Some(ids_sink.clone());
 
     // Enumerate cameras
+    // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); ACTIVE_ENUMERATION_IDS has been set to `ids_sink` above so the callback has a sink to push to; `enumerate_callback` is a properly declared `unsafe extern "C" fn(Cardinal)` matching the EnumerateCallback typedef.
     unsafe { (sdk.enumerate)(enumerate_callback) };
     *ACTIVE_ENUMERATION_IDS
         .lock()
@@ -279,6 +284,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
 
     for (index, &id) in ids.iter().enumerate() {
         // Temporarily initialize to get camera info
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); `id` was just emitted by Enumerate via enumerate_callback so it is a valid camera ID for Initialize.
         let handle = unsafe { (sdk.initialize)(id) };
         if handle.is_null() {
             continue;
@@ -286,20 +292,24 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
 
         // Get camera description
         let mut name_buf = [0i8; 256];
+        // SAFETY: moravian_mutex held; `handle` was just successfully initialized (non-null check above); name_buf is a 256-byte stack array and we pass `256` as the truthful length so the SDK cannot overrun.
         if unsafe {
             (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr())
         } != 0
         {
+            // SAFETY: name_buf is 256 bytes and the SDK guarantees NUL-termination within the buffer on success (return != 0) per gXusb.h.
             let name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
 
             // Get serial number
             let mut serial_buf = [0i8; 64];
+            // SAFETY: moravian_mutex held; `handle` is still the successfully-initialized one from above; serial_buf is 64 bytes and the truthful length is passed.
             let serial_number = if unsafe {
                 (sdk.get_string_parameter)(handle, GSP_CAMERA_SERIAL, 64, serial_buf.as_mut_ptr())
             } != 0
             {
+                // SAFETY: serial_buf is 64 bytes; gXusb SDK guarantees NUL-termination on success.
                 let serial = unsafe { std::ffi::CStr::from_ptr(serial_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -321,6 +331,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
         }
 
         // Release temporary handle
+        // SAFETY: moravian_mutex held; `handle` was successfully initialized at the top of this iteration; Release pairs with Initialize per gXusb.h.
         unsafe { (sdk.release)(handle) };
     }
 
@@ -332,7 +343,9 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
 // ============================================================================
 
 struct HandleWrapper(PCCamera);
+// SAFETY: HandleWrapper wraps a raw `*mut c_void` camera handle. The handle is opaque to us — we never deref it. It is only handed back to the gXusb SDK functions, which serialize through `moravian_mutex()`, so no concurrent access ever happens to the underlying SDK state via this pointer.
 unsafe impl Send for HandleWrapper {}
+// SAFETY: Same justification as `impl Send`. The pointer is opaque and access to it is gated by both the wrapping `Mutex<HandleWrapper>` (held inside MoravianCamera) and the global `moravian_mutex()`.
 unsafe impl Sync for HandleWrapper {}
 
 // ============================================================================
@@ -425,6 +438,7 @@ impl NativeDevice for MoravianCamera {
         let _lock = moravian_mutex().lock().await;
 
         // Initialize camera
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); `self.camera_id` was set at construction (passed in from MoravianCameraInfo.camera_id which was emitted by Enumerate); Initialize takes the camera ID by value and returns a fresh handle (NULL on failure, checked below).
         let handle = unsafe { (sdk.initialize)(self.camera_id) };
         if handle.is_null() {
             tracing::error!(
@@ -449,6 +463,7 @@ impl NativeDevice for MoravianCamera {
 
             // Get name
             let mut name_buf = [0i8; 256];
+            // SAFETY: moravian_mutex held above; `handle` is the just-successfully-initialized camera handle stored in self.handle; name_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
             if unsafe {
                 (sdk.get_string_parameter)(
                     handle,
@@ -458,6 +473,7 @@ impl NativeDevice for MoravianCamera {
                 )
             } != 0
             {
+                // SAFETY: name_buf is 256 bytes; gXusb SDK guarantees NUL-termination within on success.
                 self.name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -466,6 +482,7 @@ impl NativeDevice for MoravianCamera {
             // Get sensor dimensions
             let mut width: Cardinal = 0;
             let mut height: Cardinal = 0;
+            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; both out-pointers are valid stack POD references.
             unsafe {
                 (sdk.get_integer_parameter)(handle, GIP_CHIP_W, &mut width);
                 (sdk.get_integer_parameter)(handle, GIP_CHIP_D, &mut height);
@@ -474,6 +491,7 @@ impl NativeDevice for MoravianCamera {
             // Get pixel size (in 0.01 microns per SDK docs)
             let mut pixel_w: Cardinal = 0;
             let mut pixel_d: Cardinal = 0;
+            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; both out-pointers are valid stack POD references.
             unsafe {
                 (sdk.get_integer_parameter)(handle, GIP_PIXEL_W, &mut pixel_w);
                 (sdk.get_integer_parameter)(handle, GIP_PIXEL_D, &mut pixel_d);
@@ -481,6 +499,7 @@ impl NativeDevice for MoravianCamera {
 
             // Check if color camera
             let mut is_color: Boolean = 0;
+            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; `&mut is_color` is a valid stack out-pointer to a u8.
             let color =
                 if unsafe { (sdk.get_boolean_parameter)(handle, GBP_RGB, &mut is_color) } != 0 {
                     is_color != 0
@@ -512,6 +531,7 @@ impl NativeDevice for MoravianCamera {
             let mut max_bin_x: Cardinal = 1;
             let mut max_bin_y: Cardinal = 1;
 
+            // SAFETY: moravian_mutex held above; `handle` is the successfully-initialized handle; every out-pointer here is a valid stack POD reference (u8 or Cardinal) — the SDK writes at most one POD value into each.
             unsafe {
                 (sdk.get_boolean_parameter)(handle, GBP_COOLER, &mut has_cooler);
                 (sdk.get_boolean_parameter)(handle, GBP_SHUTTER, &mut has_shutter);
@@ -541,6 +561,7 @@ impl NativeDevice for MoravianCamera {
         // Open camera for imaging
         {
             let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+            // SAFETY: moravian_mutex held above; `handle` is the just-initialized non-null camera handle (verified non-null when stored above); gXusb Open() takes the handle and opens the device for imaging.
             if unsafe { (sdk.open)(handle) } == 0 {
                 tracing::error!(
                     "Moravian Open() failed for camera '{}' (ID {}). Camera may be in use by another application.",
@@ -579,9 +600,11 @@ impl NativeDevice for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // Close camera
+        // SAFETY: moravian_mutex held above; we only enter this branch when self.connected == true, so the handle was previously opened via Open(); Close() pairs with Open().
         unsafe { (sdk.close)(handle) };
 
         // Release camera
+        // SAFETY: moravian_mutex held; handle was previously Initialize()'d (we're on the connected path); Release() pairs with Initialize() and is the required final cleanup per gXusb.h.
         unsafe { (sdk.release)(handle) };
 
         {
@@ -623,6 +646,7 @@ impl NativeCamera for MoravianCamera {
         // Get temperature
         let current_temp = {
             let mut value: Real = 0.0;
+            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; `&mut value` is a valid stack out-pointer to a c_float.
             if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
                 Some(value as f64)
             } else {
@@ -633,6 +657,7 @@ impl NativeCamera for MoravianCamera {
         // Get cooler power
         let cooler_power = {
             let mut value: Real = 0.0;
+            // SAFETY: moravian_mutex held; self.connected was checked at entry; `&mut value` is a valid stack out-pointer to a c_float.
             if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } != 0 {
                 Some(value as f64)
             } else {
@@ -691,6 +716,7 @@ impl NativeCamera for MoravianCamera {
             let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
             // Clear sensor first
+            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; ClearSensor takes just the handle.
             if unsafe { (sdk.clear_sensor)(handle) } == 0 {
                 tracing::error!(
                     "Moravian ClearSensor() failed for camera '{}'. Sensor may be busy or hardware error occurred.",
@@ -705,6 +731,7 @@ impl NativeCamera for MoravianCamera {
             // Start exposure (use shutter if available)
             let use_shutter = if self.use_shutter { 1 } else { 0 };
 
+            // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); use_shutter is a 0/1 Boolean derived from cached SDK capability.
             if unsafe { (sdk.begin_exposure)(handle, use_shutter) } == 0 {
                 tracing::error!(
                     "Moravian BeginExposure() failed for camera '{}'. Duration: {:.3}s, UseShutter: {}",
@@ -745,6 +772,7 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // End exposure with abort
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry; EndExposure takes the handle plus two Boolean values (use_shutter=0, abort=1) by value.
         unsafe { (sdk.end_exposure)(handle, 0, 1) };
 
         self.state = CameraState::Idle;
@@ -767,6 +795,7 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         // End exposure
+        // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; EndExposure takes handle plus two Booleans (use_shutter, abort=0) by value to finalize the exposure.
         if unsafe { (sdk.end_exposure)(handle, if self.use_shutter { 1 } else { 0 }, 0) } == 0 {
             tracing::error!(
                 "Moravian EndExposure() failed for camera '{}'. Exposure may not have completed properly.",
@@ -795,6 +824,7 @@ impl NativeCamera for MoravianCamera {
         let mut data: Vec<u16> = vec![0u16; buffer_size];
 
         // Download image
+        // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); `data` was `vec![0u16; buffer_size]` where buffer_size = binned_width * binned_height, so `buffer_size * 2` bytes is the exact length we pass — the SDK cannot overrun; `data.as_mut_ptr() as *mut c_void` provides a valid non-null buffer pointer.
         let result = unsafe {
             (sdk.get_image_16b)(
                 handle,
@@ -829,6 +859,7 @@ impl NativeCamera for MoravianCamera {
         // Get temperature while we still hold the mutex
         let temperature = {
             let mut value: Real = 0.0;
+            // SAFETY: moravian_mutex still held (same scope as the download above); handle is still open; `&mut value` is a valid stack out-pointer to a c_float.
             if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
                 Some(value as f64)
             } else {
@@ -893,6 +924,7 @@ impl NativeCamera for MoravianCamera {
 
         if enabled {
             // Set target temperature
+            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so handle is open; SetTemperature takes the handle plus a c_float by value.
             if unsafe { (sdk.set_temperature)(handle, target_temp as f32) } == 0 {
                 tracing::error!(
                     "Moravian SetTemperature() failed for camera '{}'. Target: {:.1}°C",
@@ -908,6 +940,7 @@ impl NativeCamera for MoravianCamera {
             self.target_temp = target_temp;
         } else {
             // Warm up to ambient (set high temperature target)
+            // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); SetTemperature accepts the handle and a c_float (25.0°C warm-up target) by value.
             unsafe { (sdk.set_temperature)(handle, 25.0) };
             self.cooler_on = false;
         }
@@ -934,6 +967,7 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let mut value: Real = 0.0;
+        // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a c_float.
         if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
             Ok(value as f64)
         } else {
@@ -954,6 +988,7 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         let mut value: Real = 0.0;
+        // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a c_float.
         if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } != 0 {
             Ok(value as f64)
         } else {
@@ -977,6 +1012,7 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected and capabilities.can_set_gain were checked at entry so the handle is open and the camera supports gain; SetGain takes the handle and a Cardinal by value.
         if unsafe { (sdk.set_gain)(handle, gain as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetGain() failed for camera '{}'. Requested gain: {}",
@@ -1015,6 +1051,7 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; SetBinning takes the handle plus two Cardinals by value — caller-validated against capabilities.max_bin_x/max_bin_y in the error message below if rejected.
         if unsafe { (sdk.set_binning)(handle, bin_x as Cardinal, bin_y as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetBinning() failed for camera '{}'. Requested: {}x{}. Max: {}x{}",
@@ -1058,6 +1095,7 @@ impl NativeCamera for MoravianCamera {
             let mut w = sf.width as Integer;
             let mut d = sf.height as Integer;
 
+            // SAFETY: moravian_mutex held above; self.connected and capabilities.can_subframe were checked at entry so the handle is open and supports subframes; all four out-pointers are valid stack POD Integer references that the SDK clamps in-place to valid sensor bounds.
             if unsafe { (sdk.adjust_subframe)(handle, &mut x, &mut y, &mut w, &mut d) } == 0 {
                 tracing::error!(
                     "Moravian AdjustSubFrame() failed for camera '{}'. Requested: ({}, {}) {}x{}. Sensor: {}x{}",
@@ -1112,6 +1150,7 @@ impl NativeCamera for MoravianCamera {
         // Get number of readout modes
         let num_modes = {
             let mut value: Cardinal = 0;
+            // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a Cardinal.
             if unsafe { (sdk.get_integer_parameter)(handle, GIP_READ_MODES, &mut value) } != 0 {
                 value
             } else {
@@ -1122,7 +1161,9 @@ impl NativeCamera for MoravianCamera {
         let mut modes = Vec::new();
         for i in 0..num_modes {
             let mut desc_buf = [0i8; 256];
+            // SAFETY: moravian_mutex held; handle is open; `i` is in the range [0, num_modes) as reported by the SDK above; desc_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
             if unsafe { (sdk.enumerate_read_modes)(handle, i, 256, desc_buf.as_mut_ptr()) } != 0 {
+                // SAFETY: desc_buf is 256 bytes; gXusb SDK guarantees NUL-termination within the buffer on success.
                 let description = unsafe { std::ffi::CStr::from_ptr(desc_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -1166,6 +1207,7 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
+        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; SetReadMode takes the handle plus a Cardinal index by value.
         if unsafe { (sdk.set_read_mode)(handle, mode.index as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetReadMode() failed for camera '{}'. Mode index: {} ('{}')",
