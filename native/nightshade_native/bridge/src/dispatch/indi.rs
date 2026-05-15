@@ -142,6 +142,18 @@ impl DeviceManager {
 
         let can_set_tracking_rate = prop.perm != nightshade_indi::IndiPermission::ReadOnly;
         for element in prop.elements {
+            // Why (audit-rust §4.3): `IndiClient::get_switch` returns
+            // `Option<bool>` — `None` means "INDI client has not yet received
+            // a definition for this device.property.element pair" (the
+            // background reader publishes asynchronously). We are looping
+            // every element of TELESCOPE_TRACK_RATE looking for the one
+            // currently set to ON; a not-yet-streamed element is by
+            // definition not-currently-active, so `unwrap_or(false)` correctly
+            // tells the loop to skip ahead and check the next candidate.
+            // If NO element ever resolves to On the function falls through to
+            // the post-loop default of (Sidereal, false), matching the INDI
+            // convention that an absent state implies the default sidereal
+            // rate.
             if !client
                 .get_switch(device_name, "TELESCOPE_TRACK_RATE", &element)
                 .await

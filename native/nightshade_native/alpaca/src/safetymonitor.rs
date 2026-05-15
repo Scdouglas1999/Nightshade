@@ -277,6 +277,15 @@ impl AlpacaSafetyMonitor {
             self.interface_version(),
         );
 
+        // Why (audit-rust §4.3): the four mandatory ASCOM identification
+        // properties (`name`, `description`, `driverversion`, `interfaceversion`)
+        // propagate via `?` — if any is missing the whole device-info read
+        // fails. `driverinfo` is the only optional descriptor (ASCOM common
+        // property `IDriverInfo.DriverInfo`); the spec lets drivers return
+        // empty or omit it entirely, so the audit-flagged silent fallback to
+        // an empty string here is the SPEC-MANDATED behavior. This is the
+        // SafetyMonitor info-string only, NOT the IsSafe state (see
+        // `is_safe_typed` above — that one fail-CLOSES via `?`).
         Ok(SafetyMonitorInfo {
             name: name?,
             description: description?,

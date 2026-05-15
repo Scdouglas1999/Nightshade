@@ -170,6 +170,29 @@ impl DeviceManager {
     }
 
     /// Query API version for an ASCOM device (Windows only)
+    ///
+    /// # Silent-fallback contract (audit-rust §4.3)
+    ///
+    /// Mirror of the Alpaca-side `query_alpaca_api_version` contract: this is
+    /// a best-effort discovery probe of the four ASCOM-common identification
+    /// properties (`InterfaceVersion`, `DriverVersion`, `DriverInfo`,
+    /// `SupportedActions`) backing the equipment-compatibility matrix.
+    ///
+    /// * `interface_version`, `driver_version`, `driver_info` are pre-tagged
+    ///   `.ok()` → `Option<T>` because a legacy ASCOM driver that does not
+    ///   implement a property raises `PropertyNotImplementedException`
+    ///   (HRESULT `0x80040400`); the UI renders missing values as "Unknown".
+    /// * `supported_actions` returns `Vec<String>`; ASCOM's `ISupportedActions`
+    ///   is an optional V2+ interface, so a `NotImplementedException` here is
+    ///   the spec-mandated signal for "this driver has no custom actions" and
+    ///   `unwrap_or_default()` yields the correct empty-list semantics.
+    /// * `interface_version.unwrap_or(1)` defaults to the ASCOM V1 baseline
+    ///   when the property is absent; every conforming ASCOM driver implements
+    ///   at least the V1 interface for its device type.
+    ///
+    /// Device-absence (registry miss) remains a hard `Err` via the per-arm
+    /// `else { return Err(...) }`; silent fallbacks only mask optional-property
+    /// failures, never the device-not-connected signal.
     #[cfg(windows)]
     pub async fn query_ascom_api_version(
         &self,
@@ -196,6 +219,12 @@ impl DeviceManager {
                     let interface_version = camera_guard.interface_version().await.ok();
                     let driver_version = camera_guard.driver_version().await.ok();
                     let driver_info = camera_guard.driver_info().await.ok();
+                    // Why (audit-rust §4.3): see function-header contract.
+                    // `SupportedActions` → empty Vec when ASCOM driver throws
+                    // PropertyNotImplementedException for the V2+ optional
+                    // ISupportedActions interface; `interface_version` → V1
+                    // baseline when the property itself is unimplemented.
+                    // This pattern repeats for every device-type arm below.
                     let supported_actions =
                         camera_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(

@@ -173,6 +173,13 @@ impl From<reqwest::Error> for AlpacaError {
                 duration_ms: 30000, // Default timeout - actual tracked in specific methods
             }
         } else if err.is_connect() {
+            // Why (audit-rust §4.3): we are inside `From<reqwest::Error>` and
+            // *already* producing an error variant (ConnectionRefused). reqwest
+            // sometimes elides the URL on connect failures that originate
+            // before name resolution (e.g. invalid scheme); the textual "unknown"
+            // is a cosmetic placeholder inside the error payload so logs stay
+            // readable. The actual connection-refused signal is preserved via
+            // the variant + `cause: err.to_string()`.
             let url = err
                 .url()
                 .map(|u| u.to_string())
@@ -387,6 +394,11 @@ impl RetryConfig {
 /// Simple pseudo-random number generator for jitter (0.0 to 1.0)
 fn rand_simple() -> f64 {
     use std::time::{SystemTime, UNIX_EPOCH};
+    // Why (audit-rust §4.3): `duration_since(UNIX_EPOCH)` only fails when the
+    // system clock is set before 1970-01-01. This jitter source is purely a
+    // retry-backoff perturbation (not cryptographic, not security-sensitive),
+    // so a pre-epoch clock falling through to `Duration::ZERO` (no jitter on
+    // that one retry) is preferable to panicking the entire HTTP retry layer.
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -500,6 +512,14 @@ impl AlpacaClient {
 
     fn standard_http_client(&self) -> Result<&Client, AlpacaError> {
         self.http_client.as_ref().ok_or_else(|| {
+            // Why (audit-rust §4.3): if `http_client` is None we *must* have
+            // recorded the construction error in `http_client_error` at
+            // `with_config` time (see ~line 459-462 where the two fields are
+            // populated as a (Some, None) / (None, Some) pair). The fallback
+            // string only fires if a future refactor breaks that invariant,
+            // in which case ClientInitializationFailed is still the correct
+            // hard error to return — we just don't have the original cause
+            // text to embed in it.
             AlpacaError::ClientInitializationFailed(
                 self.http_client_error
                     .clone()

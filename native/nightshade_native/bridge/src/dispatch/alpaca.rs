@@ -115,6 +115,33 @@ impl DeviceManager {
     }
 
     /// Query and cache API version for an Alpaca device
+    ///
+    /// # Silent-fallback contract (audit-rust §4.3)
+    ///
+    /// This helper is a best-effort version-discovery probe: it queries the
+    /// four ASCOM-common identification properties (`interfaceversion`,
+    /// `driverversion`, `driverinfo`, `supportedactions`) and assembles them
+    /// into a `DeviceApiVersion` record used by the equipment-compatibility
+    /// matrix UI. The function is allowed to succeed with partial data because:
+    ///
+    /// * `interface_version`, `driver_version`, `driver_info` are pre-tagged
+    ///   `.ok()` → `Option<T>`. Drivers are not required to expose every
+    ///   property (older Alpaca v1 conformance lacks `driverinfo`), and the UI
+    ///   already renders "Unknown" for missing values.
+    /// * `supported_actions` returns `Vec<String>` from the alpaca-client
+    ///   helper. Alpaca error 0x40C (`ActionNotImplemented`) and any HTTP/parse
+    ///   failure here means "this driver did not implement the optional
+    ///   ISupportedActions list" — `unwrap_or_default()` yields the correct
+    ///   empty-list semantics consumed by the action-picker UI.
+    /// * `interface_version.unwrap_or(1)` defaults to the ASCOM V1 baseline
+    ///   when the property is absent; every ASCOM-conforming Alpaca driver
+    ///   implements at least the V1 interface, so V1 is the safest assumption
+    ///   for capability gating.
+    ///
+    /// Connection failure (the device not being in the appropriate registry)
+    /// is still a hard `Err` via the `else { return Err(...) }` arms below —
+    /// the silent fallbacks only mask *optional-property* failures, not
+    /// device-absence.
     pub async fn query_alpaca_api_version(
         &self,
         device_id: &str,
@@ -139,6 +166,11 @@ impl DeviceManager {
                     let interface_version = camera.interface_version().await.ok();
                     let driver_version = camera.driver_version().await.ok();
                     let driver_info = camera.driver_info().await.ok();
+                    // Why (audit-rust §4.3): see function-header contract.
+                    // `supportedactions` → empty list when driver lacks
+                    // ISupportedActions (ASCOM-optional); `interface_version`
+                    // → V1 (ASCOM baseline) when driver omits the property.
+                    // This pattern repeats for every device-type arm below.
                     let supported_actions = camera.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_alpaca(
                         device_id.to_string(),

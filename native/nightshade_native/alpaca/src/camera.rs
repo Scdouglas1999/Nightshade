@@ -735,7 +735,11 @@ impl AlpacaCamera {
             // Why §5.13: a 406 Not Acceptable means the server rejected our
             // Accept header set. Per ASCOM, that should not happen for these
             // media types — propagate as a hard error so it is diagnosable.
-            let body = response.text().await.unwrap_or_default();
+            // The HTTP error body itself is best-effort diagnostic context; if
+            // reading it ALSO fails we propagate that reqwest error (audit-rust
+            // §4.3 — never coerce a body-read failure into an empty string,
+            // since downstream confusion masks the real transport bug).
+            let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
@@ -745,6 +749,13 @@ impl AlpacaCamera {
         // Why §5.13: parse `Content-Type` once. ImageBytes is signaled
         // server-side; the spec allows parameters (charset, etc.) so we match
         // by prefix, not equality.
+        //
+        // Why (audit-rust §4.3): an absent/non-UTF-8 Content-Type header falls
+        // through to the empty string, which fails the `starts_with("application/imagebytes")`
+        // check below and routes us to the JSON parser. That is the correct
+        // ASCOM-compatible fallback: pre-v3 Alpaca servers do not always set
+        // Content-Type on the imagearrayvariant endpoint and unconditionally
+        // emit JSON, so treating "header missing" as "JSON" matches the spec.
         let content_type = response
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
@@ -1061,6 +1072,12 @@ pub(crate) fn parse_image_array_json(
     // the array may be absent or junk when ErrorNumber != 0.
     if let Some(error_num) = json.get("ErrorNumber").and_then(|v| v.as_i64()) {
         if error_num != 0 {
+            // Why (audit-rust §4.3): the Alpaca spec requires ErrorMessage
+            // alongside a non-zero ErrorNumber, but some pre-v3 servers omit
+            // the message field. We already surface the *real* failure via
+            // `code: error_num`; the textual fallback is a cosmetic label for
+            // log/UI display and converting absence to a hard error here would
+            // mask the actual device error code we're trying to report.
             let error_msg = json
                 .get("ErrorMessage")
                 .and_then(|v| v.as_str())
@@ -1081,6 +1098,13 @@ pub(crate) fn parse_image_array_json(
         .ok_or_else(|| AlpacaError::ParseError("Missing or non-integer Type field".to_string()))?;
     let element_type = ImageArrayElementType::from_i64(element_type_raw);
     if matches!(element_type, ImageArrayElementType::Unknown) {
+        // Why (audit-rust §4.3): we're already returning a hard
+        // UnsupportedImageArray error; the `rank` field on this variant is a
+        // diagnostic-only side input. If Rank is also missing/malformed we
+        // report 0 to make that visible in the error payload — the real
+        // failure (`unrecognised Type`) is already encoded in `reason`, and
+        // converting Rank to `?` would hide the actual type-mismatch failure
+        // behind a separate "Missing Rank" error.
         return Err(AlpacaError::UnsupportedImageArray {
             rank: json.get("Rank").and_then(|v| v.as_i64()).unwrap_or(0),
             image_type: element_type_raw,

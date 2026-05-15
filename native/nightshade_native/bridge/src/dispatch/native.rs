@@ -97,6 +97,15 @@ impl DeviceManager {
                     let index = id_str
                         .parse::<usize>()
                         .map_err(|_| "Invalid gPhoto2 camera index")?;
+                    // Why (audit-rust §4.3): `decode_port_component` returns
+                    // None only when `encoded_port` is non-hex or odd length.
+                    // We deliberately accept legacy IDs that pre-date the
+                    // port-encoding scheme (per the comment above) by treating
+                    // a decode failure the same as an absent port — empty
+                    // string triggers libgphoto2's `gp_port_info_list_lookup`
+                    // auto-detection by USB-bus enumeration. The index is the
+                    // load-bearing identifier (and is validated by `?` above),
+                    // so port-detection fallback is the SDK-correct path.
                     let port = if let Some(encoded_port) = parts.get(3) {
                         nightshade_native::vendor::gphoto2::decode_port_component(encoded_port)
                             .unwrap_or_default()
@@ -274,6 +283,17 @@ impl DeviceManager {
                 let index = id_str
                     .parse::<usize>()
                     .map_err(|_| "Invalid gPhoto2 camera index")?;
+                // Why (audit-rust §4.3): the index (parts[2]) is the
+                // load-bearing identifier — libgphoto2 indexes its
+                // detect-list strictly by enumeration order, so a valid
+                // index suffices to open the camera. `model` (parts[3])
+                // is a display-only label; "Unknown Camera" is the
+                // safe cosmetic fallback for legacy IDs missing the
+                // sanitized model suffix. `port` (parts[4]) empty
+                // triggers gphoto2's USB-bus auto-detection by index,
+                // matching the legacy-ID path above. Hard-erroring on
+                // either of these would refuse to connect to cameras
+                // discovered before the multi-part ID scheme rolled out.
                 let model = parts.get(3).unwrap_or(&"Unknown Camera");
                 let port = parts.get(4).unwrap_or(&"");
                 Box::new(GPhoto2Camera::new(index, model, port))
