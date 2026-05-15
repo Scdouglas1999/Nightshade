@@ -1,4 +1,6 @@
 use std::env;
+#[cfg(target_os = "windows")]
+use std::path::Path;
 use std::path::PathBuf;
 
 fn main() {
@@ -12,6 +14,7 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/libraw/libraw_const.h");
     println!("cargo:rerun-if-changed=vendor/libraw/libraw_types.h");
     println!("cargo:rerun-if-changed=vendor/libraw/libraw_version.h");
+    println!("cargo:rerun-if-changed=build.rs");
 
     // Get the workspace root (where libraw.dll/.lib lives)
     // CARGO_MANIFEST_DIR is native/nightshade_native/imaging
@@ -58,9 +61,10 @@ fn main() {
 
         println!("cargo:rustc-link-search=native={}", search_dir.display());
         println!("cargo:rustc-link-lib=dylib=libraw");
+        let libraw_dll = search_dir.join("libraw.dll");
         println!(
             "cargo:rerun-if-changed={}",
-            search_dir.join("libraw.dll").display()
+            libraw_dll.display()
         );
         println!("cargo:rerun-if-env-changed=LIBRAW_DIR");
 
@@ -73,6 +77,41 @@ fn main() {
             println!("cargo:warning=Set LIBRAW_DIR environment variable or place libraw.lib in workspace root");
         } else {
             println!("cargo:rustc-env=LIBRAW_PATH={}", search_dir.display());
+        }
+
+        // Auto-deploy libraw.dll next to the test/binary outputs so that
+        // `cargo test --package nightshade_bridge` (and other workspace
+        // crates that link libraw transitively) finds the DLL without
+        // requiring a manual `scripts\copy_libraw.ps1` run.
+        //
+        // Windows resolves DLLs from the directory of the loading binary.
+        // Cargo places binaries here:
+        //   * Unit tests   -> target/<profile>/deps/<crate>-<hash>.exe
+        //   * Integration  -> target/<profile>/deps/<test>-<hash>.exe
+        //   * Examples     -> target/<profile>/examples/<name>.exe
+        //   * Main binary  -> target/<profile>/<name>.exe
+        //
+        // Errors are a feature: if the source DLL is missing we panic so
+        // a misconfigured checkout fails loudly at build time rather than
+        // surfacing as an opaque STATUS_DLL_NOT_FOUND at test runtime.
+        if !libraw_dll.exists() {
+            panic!(
+                "build.rs: libraw.dll not found at {}. \
+                 Run scripts\\copy_libraw.ps1 or set LIBRAW_DIR to point at \
+                 the directory containing libraw.dll/libraw.lib.",
+                libraw_dll.display()
+            );
+        }
+
+        let target_profile_dir = resolve_target_profile_dir()
+            .expect("build.rs: unable to locate cargo target/<profile> directory from OUT_DIR");
+
+        for dest_dir in [
+            target_profile_dir.clone(),
+            target_profile_dir.join("deps"),
+            target_profile_dir.join("examples"),
+        ] {
+            copy_dll_to(&libraw_dll, &dest_dir);
         }
     }
 
@@ -96,6 +135,107 @@ fn main() {
         // Homebrew paths
         println!("cargo:rustc-link-search=native=/usr/local/lib");
         println!("cargo:rustc-link-search=native=/opt/homebrew/lib");
+    }
+}
+
+/// Resolve the cargo `target/<profile>` directory from `OUT_DIR`.
+///
+/// `OUT_DIR` is of the form
+/// `<target_dir>/<profile>/build/<crate>-<hash>/out`
+/// (and gets an extra `<triple>` segment when `--target` is used).
+/// We walk up from `out` until we find an ancestor whose own parent is a
+/// directory named `build`; that ancestor's grandparent is the
+/// `<profile>` directory we want.
+///
+/// Why: hard-coding `target/debug` fails for release builds, `--target`
+/// triple builds, and workspaces that override `target-dir`. Walking up
+/// from `OUT_DIR` is the canonical way to find the profile dir.
+#[cfg(target_os = "windows")]
+fn resolve_target_profile_dir() -> Option<PathBuf> {
+    let out_dir = env::var_os("OUT_DIR")?;
+    let out_dir = PathBuf::from(out_dir);
+    // out_dir = .../target/<profile>/build/<crate>-<hash>/out
+    //                  ^^^^^^^^^^^^^^^^^ what we want is two parents above `build`
+    let build_dir = out_dir.parent()?.parent()?; // .../target/<profile>/build
+    if build_dir.file_name().and_then(|s| s.to_str()) != Some("build") {
+        return None;
+    }
+    Some(build_dir.parent()?.to_path_buf())
+}
+
+#[cfg(target_os = "windows")]
+fn copy_dll_to(source: &Path, dest_dir: &Path) {
+    // Why: cargo creates target/<profile>/ eagerly but `deps/` and
+    // `examples/` only appear once the corresponding artifacts are built.
+    // Pre-creating them here is harmless and makes the copy idempotent.
+    if let Err(err) = std::fs::create_dir_all(dest_dir) {
+        panic!(
+            "build.rs: failed to create directory {}: {}",
+            dest_dir.display(),
+            err
+        );
+    }
+    let dest_path = dest_dir.join(
+        source
+            .file_name()
+            .expect("build.rs: source DLL path has no file name"),
+    );
+
+    // Skip the copy if the destination already matches the source byte-for-byte.
+    // `cargo:rerun-if-changed` covers most cases, but build scripts re-execute
+    // whenever any cargo-tracked dependency changes, so this short-circuit
+    // avoids needless disk churn and avoids racing with a concurrently-running
+    // test binary that has the DLL memory-mapped.
+    if dlls_match(source, &dest_path) {
+        return;
+    }
+
+    if let Err(err) = std::fs::copy(source, &dest_path) {
+        // Errors are a feature: surface the failure rather than letting the
+        // test binary hit STATUS_DLL_NOT_FOUND at runtime. The one exception
+        // is ERROR_SHARING_VIOLATION (32) / ERROR_ACCESS_DENIED (5), which
+        // means the DLL is currently loaded by another process (e.g. a
+        // running test). In that case the existing copy is already correct
+        // because `dlls_match` short-circuited if it matched, so a mismatch
+        // here is a real problem — but if the on-disk file already exists
+        // we emit a warning instead of failing the build, since the next
+        // clean invocation will refresh it.
+        if dest_path.exists() {
+            println!(
+                "cargo:warning=build.rs: could not refresh {} ({}). \
+                 Existing copy left in place; run `cargo clean` if you \
+                 updated libraw.dll.",
+                dest_path.display(),
+                err
+            );
+        } else {
+            panic!(
+                "build.rs: failed to copy {} -> {}: {}",
+                source.display(),
+                dest_path.display(),
+                err
+            );
+        }
+    }
+}
+
+/// Returns true if the two paths exist and have identical length + mtime.
+///
+/// Why not byte-compare? libraw.dll is ~1 MiB and this runs on every
+/// build script invocation. Length + mtime is the same heuristic cargo
+/// itself uses for staleness tracking and is more than sufficient when
+/// the source is a tracked binary that only changes via git.
+#[cfg(target_os = "windows")]
+fn dlls_match(a: &Path, b: &Path) -> bool {
+    let (Ok(am), Ok(bm)) = (std::fs::metadata(a), std::fs::metadata(b)) else {
+        return false;
+    };
+    if am.len() != bm.len() {
+        return false;
+    }
+    match (am.modified(), bm.modified()) {
+        (Ok(at), Ok(bt)) => at == bt,
+        _ => false,
     }
 }
 
