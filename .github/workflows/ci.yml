@@ -56,8 +56,18 @@ jobs:
         # the absolute-zero policy above is later relaxed.
         run: melos run audit:placeholders
 
-      - name: Fail-Closed Policy Gate
+      - name: Fail-Closed Policy Gate (direct, with --min-files regression-pin)
+        # CQ-W8-CI-GATING: required check. Direct invocation pins
+        # --min-files 1337 so a scope regression (e.g., a glob change that
+        # excludes a package) trips the gate even if no new violations land.
         run: dart run tools/production/fail_closed_check.dart --min-files 1337
+
+      - name: Fail-Closed Policy Gate (melos wrapper)
+        # CQ-W8-CI-GATING: required check. Belt-and-braces invocation via
+        # melos so the documented developer-facing command
+        # (`melos run audit:fail-closed`) is exercised on every PR. If the
+        # two invocations diverge in flags, this step catches it.
+        run: melos run audit:fail-closed
 
       - name: Behavioral Audit Gate
         run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt --min-files 796
@@ -66,6 +76,10 @@ jobs:
         run: dart run tools/production/dependency_hygiene.dart
 
       - name: Analyze code (production gate)
+        # CQ-W8-CI-GATING: required check. analyzer_rollup is the
+        # `melos run analyze:production` zero-error gate (see melos.yaml).
+        # Equivalent to `flutter analyze` per-package with a hard production
+        # policy applied (docs/production-readiness/analyzer-policy.yaml).
         run: dart run tools/production/analyzer_rollup.dart --policy docs/production-readiness/analyzer-policy.yaml --critical-codes docs/production-readiness/critical-warning-codes.txt --report docs/production-readiness/analyzer-rollup.json
 
   launch-gate:
@@ -158,6 +172,23 @@ jobs:
         # (7,140 warnings per audit-rust §7) and would block all PRs.
         run: cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
 
+      - name: Run Rust clippy (undocumented_unsafe_blocks, warning-level)
+        # CQ-W8-CI-GATING: advisory gate. The vendor-SDK SAFETY sweep
+        # (audit-rust.md §3.2, tracked under CQ-W6-SAFETY-COMMENTS) is still
+        # in progress — ~444 unsafe blocks currently lack `// SAFETY:`
+        # comments. Running this lint at warning level surfaces them as
+        # GitHub annotations on every PR so the sweep stays visible without
+        # blocking merges. Promote to `-D clippy::undocumented_unsafe_blocks`
+        # once the SAFETY sweep finishes; see docs/ci-gates.md for the
+        # promotion checklist.
+        #
+        # `if: always()` so this advisory annotation still runs even when the
+        # preceding `-D warnings` step fails — the SAFETY sweep is the goal
+        # of this step, not gating PRs on the deny-warnings outcome.
+        if: always()
+        working-directory: native/nightshade_native
+        run: cargo clippy --all-features --workspace --all-targets -- -W clippy::undocumented_unsafe_blocks
+
   test-rust-windows:
     # Windows runs ONLY on:
     #   - push to main/master/develop
@@ -198,6 +229,15 @@ jobs:
       - name: Run Rust clippy (workspace, deny warnings + high-value lints)
         working-directory: native/nightshade_native
         run: cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
+
+      - name: Run Rust clippy (undocumented_unsafe_blocks, warning-level)
+        # CQ-W8-CI-GATING: advisory gate (Windows-only ASCOM unsafe blocks).
+        # Same rationale as the Linux job — see docs/ci-gates.md. Windows is
+        # where most ascom/ unsafe COM-calling lives, so this annotation is
+        # especially useful here.
+        if: always()
+        working-directory: native/nightshade_native
+        run: cargo clippy --all-features --workspace --all-targets -- -W clippy::undocumented_unsafe_blocks
 
   cargo-duplicates:
     # Surface multi-semver duplicates of the same crate. audit-rust.md §5.3
