@@ -20,6 +20,7 @@ import '../screens/transients/transients_screen.dart';
 import '../screens/planner/planner_screen.dart';
 import '../screens/scheduler/scheduler_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
+import '../screens/diagnostics/diagnostic_dump_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
 import 'page_transitions.dart';
 
@@ -241,6 +242,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             redirect: (context, state) => '/analytics?tab=diagnostics',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: DiagnosticsScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          // Bug-report bundle: zip up logs/profile/sequence/system info into
+          // one attachment. Lives at /diagnostics/dump (not under /settings)
+          // so support links can deep-link past the settings tree.
+          // See audit-observe.md §4c / CQ-W6-DIAG-DUMP.
+          GoRoute(
+            path: '/diagnostics/dump',
+            name: 'diagnostics-dump',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: DiagnosticDumpScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

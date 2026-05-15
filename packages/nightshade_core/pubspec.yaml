@@ -32,6 +32,11 @@ dependencies:
   sqlite3: ^2.4.0
   path_provider: ^2.1.2
   path: ^1.8.3
+  # Why direct dep: DiagnosticDumpService bundles logs/profile/sequence/system
+  # info into a single zip via package:archive (audit-observe §4c). Same minor
+  # series already used by nightshade_updater so transitive resolution is a
+  # no-op.
+  archive: ^3.4.10
   
   # Native bridge
   nightshade_bridge:

@@ -198,6 +198,7 @@ export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';
 export 'src/services/focus_model_service.dart';
 export 'src/services/logging_service.dart';
+export 'src/services/diagnostic_dump_service.dart';
 export 'src/services/error_service.dart';
 export 'src/services/flat_wizard_service.dart';
 export 'src/services/sky_brightness_tracker.dart';
