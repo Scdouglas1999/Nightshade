@@ -82,6 +82,8 @@ pub use windows::{
     // Device types
     AscomCamera,
     AscomCleanupGuard,
+    // Mockall seam for per-device wrapper unit tests
+    AscomConnectionBackend,
     AscomCoverCalibrator,
     // Device connection wrapper
     AscomDeviceConnection,
@@ -136,3 +138,9 @@ pub use windows::{
     WeatherStatus,
     WindStatus,
 };
+
+// Why: surface the generated mock only when the `mock` feature is on (or in
+// unit-test builds). Integration tests in `ascom/tests/` enable the feature
+// via dev-dependencies in `Cargo.toml` so they can name this type.
+#[cfg(all(windows, any(test, feature = "mock")))]
+pub use windows::MockAscomConnectionBackend;
