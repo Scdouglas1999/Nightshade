@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -99,8 +100,17 @@ class HygStarCatalog extends Catalog<Star> {
         if (star != null && (star.magnitude ?? 99) <= args.magnitudeLimit) {
           stars.add(star);
         }
-      } catch (_) {
-        // Skip malformed lines
+      } catch (e) {
+        // Why: HYG CSV contains ~120k rows; a single malformed line (truncated
+        // export, encoding glitch, unexpected NaN in a numeric column) must
+        // not abort the whole load — the catalog is still useful with one
+        // row missing. Log at FINE so a systemic format regression (e.g.
+        // upstream column reorder) shows up without spamming the user.
+        developer.log(
+          'HYG line parse failed; skipping: $e',
+          name: 'HygStarCatalog',
+          level: 500,
+        );
       }
     }
     

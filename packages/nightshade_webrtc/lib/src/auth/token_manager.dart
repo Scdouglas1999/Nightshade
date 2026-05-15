@@ -106,6 +106,12 @@ class TokenManager {
         );
         return pairingCode;
       } catch (_) {
+        // Why: pairing-code collision retry loop. createPairingSession
+        // throws when the random code already exists in the DB; we
+        // regenerate and retry up to _maxPairingCreationAttempts. Only
+        // the final attempt's exception is allowed to escape, so the
+        // operator sees a real "could not allocate a unique code" error
+        // rather than a transient collision being mis-reported.
         if (attempt == _maxPairingCreationAttempts - 1) {
           rethrow;
         }

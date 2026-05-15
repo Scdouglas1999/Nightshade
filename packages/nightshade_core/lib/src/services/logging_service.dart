@@ -122,8 +122,18 @@ class LoggingService {
       // Fall back to console-only logging
       try {
         _nativeInit();
-      } catch (_) {
-        // Tests may not have the Rust bridge initialized yet.
+      } catch (bridgeError) {
+        // Why: the LoggingService runs in test harnesses where the Rust
+        // bridge is not loaded — `_nativeInit` then throws because the FFI
+        // entry point is unbound. We MUST NOT throw here because this is
+        // the logger's own bootstrap; doing so would prevent any logging
+        // from working at all. Use dart:developer (not `log(...)`) to
+        // avoid recursion into the still-uninitialized service.
+        developer.log(
+          'Native logger init failed (likely a test without FFI): $bridgeError',
+          name: 'LoggingService',
+          level: 900,
+        );
       }
       _initialized = true;
       log(LogLevel.warning, 'File logging unavailable: $e',
@@ -228,6 +238,16 @@ class LoggingService {
       files.sort(); // Chronological order
       return files;
     } catch (e) {
+      // Why: log-directory enumeration can fail (read-only filesystem,
+      // permission denied, sandboxed mobile path not yet created). Callers
+      // (export UI, log viewer) treat `[]` as "no logs to show" which is
+      // the correct degraded UX. Logged via dart:developer (not this
+      // service) to avoid recursion when the failure IS the logger itself.
+      developer.log(
+        'getLogFiles failed: $e',
+        name: 'LoggingService',
+        level: 1000,
+      );
       return [];
     }
   }

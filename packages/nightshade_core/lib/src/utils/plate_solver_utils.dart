@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 
 /// Description of an ASTAP star catalog discovered on disk. Mirrors the
@@ -245,8 +246,17 @@ class PlateSolverUtils {
           }
         }
       }
-    } catch (e) {
-      // Path validation failed
+    } catch (e, stackTrace) {
+      // Why: path-validation probe — exists() may throw on permission errors,
+      // disconnected drives, or invalid path characters. Returning null causes
+      // the caller to fall back to the next candidate path, which is the
+      // intended degraded behaviour. Log so an operator chasing "ASTAP not
+      // found despite being installed" can see the actual filesystem error.
+      developer.log(
+        '_validateAstapPath failed for "$path": $e\n$stackTrace',
+        name: 'PlateSolverUtils',
+        level: 900,
+      );
       return null;
     }
 
@@ -350,8 +360,15 @@ class PlateSolverUtils {
           }
         }
       }
-    } catch (e) {
-      // Path validation failed
+    } catch (e, stackTrace) {
+      // Why: see _validateAstapPath above — generic path-validation probe.
+      // Returning null lets the caller continue checking other fallback
+      // paths. Log so a permission/IO error doesn't disappear silently.
+      developer.log(
+        '_validateExecutablePath failed for "$path" ($executableName): $e\n$stackTrace',
+        name: 'PlateSolverUtils',
+        level: 900,
+      );
       return null;
     }
 

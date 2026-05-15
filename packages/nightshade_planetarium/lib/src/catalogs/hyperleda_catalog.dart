@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -200,8 +201,15 @@ class HyperLedaCatalogLoader {
         // Add to spatial index
         final key = _gridKey(galaxy.ra, galaxy.dec);
         _spatialIndex!.putIfAbsent(key, () => _SpatialGridCell()).objects.add(galaxy);
-      } catch (_) {
-        // Skip malformed lines
+      } catch (e) {
+        // Why: HyperLEDA catalog can have malformed rows from upstream
+        // exports; a single bad line must not abort the load. Log at FINE
+        // so a systemic format regression surfaces in the dev console.
+        developer.log(
+          'HyperLEDA line $i parse failed; skipping: $e',
+          name: 'HyperLedaCatalog',
+          level: 500,
+        );
       }
     }
 

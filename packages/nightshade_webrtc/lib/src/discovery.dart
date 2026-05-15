@@ -82,7 +82,10 @@ class DiscoveryBroadcaster {
     try {
       socket.close();
     } catch (_) {
-      // Socket may already be closed by an earlier teardown — best-effort.
+      // Why: stop() is idempotent shutdown; the socket may already be closed
+      // by an earlier teardown or by the OS reclaiming a stale handle on
+      // sleep/wake. Surfacing the exception would mask the real shutdown
+      // outcome — best-effort close is the contract.
     }
   }
 }
@@ -141,8 +144,11 @@ class NightshadeDiscovery {
           _serverPort,
         );
       } catch (_) {
-        // Network may not be ready, firewall may be blocking — keep trying
-        // on the next tick rather than killing the loop.
+        // Why: periodic broadcaster tick — network may not be ready
+        // (interface coming up), firewall may be blocking, or address
+        // may be temporarily unreachable. Killing the periodic loop on
+        // any of these would silently disable discovery for the session;
+        // we want to keep retrying every tick until conditions recover.
       }
     }
 

@@ -508,7 +508,17 @@ class EnhancedNightshadeDiscovery {
 
       final info = jsonDecode(response.body) as Map<String, dynamic>;
       return _mergeServerInfo(server, info);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Why: best-effort enrichment of an already-discovered server. A failure
+      // here (network blip, auth rejection, malformed JSON) means we display
+      // the un-enriched server entry rather than hiding it — the discovery
+      // list stays useful. Log so that a systemic mismatch (e.g. version
+      // skew rejecting every /api/info) surfaces in the dev console.
+      developer.log(
+        'fetchServerInfo failed for ${server.host}:${server.webPort}: $e\n$stackTrace',
+        name: 'EnhancedDiscovery',
+        level: 900,
+      );
       return null;
     }
   }
@@ -562,7 +572,16 @@ class EnhancedNightshadeDiscovery {
           .timeout(timeout);
 
       return statusResponse.statusCode == 200;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Why: reachability probe — any exception (connection refused, DNS
+      // failure, timeout, TLS error) is by definition "not reachable" and
+      // the caller treats `false` accordingly. Log so an operator chasing
+      // "why doesn't my server show up" can see the actual cause.
+      developer.log(
+        'testServerConnection failed for $host:$port: $e\n$stackTrace',
+        name: 'EnhancedDiscovery',
+        level: 900,
+      );
       return false;
     }
   }
@@ -697,8 +716,16 @@ class EnhancedNightshadeDiscovery {
                 servers.add(enriched);
               }
             }
-          } catch (_) {
-            // Service resolution can fail for transient network reasons — skip this service
+          } catch (e, stackTrace) {
+            // Why: a single service-resolution failure during mDNS discovery
+            // must not abort the whole sweep — another service in the same
+            // broadcast may still resolve cleanly. Log at fine level so a
+            // systemic Bonjour failure is visible in the dev console.
+            developer.log(
+              'mDNS service resolution failed; skipping: $e\n$stackTrace',
+              name: 'EnhancedDiscovery',
+              level: 500,
+            );
           }
         }
       });
@@ -722,8 +749,16 @@ class EnhancedNightshadeDiscovery {
       if (discovery != null) {
         try {
           await stopDiscovery(discovery);
-        } catch (_) {
-          // Best-effort cleanup
+        } catch (e, stackTrace) {
+          // Why: cleanup in a finally block — the discovery sweep already
+          // completed (or timed out); failing to close the mDNS handle is
+          // non-fatal but should not propagate and mask the real outcome.
+          // Log so a leaking handle pattern would be visible.
+          developer.log(
+            'stopDiscovery cleanup failed: $e\n$stackTrace',
+            name: 'EnhancedDiscovery',
+            level: 500,
+          );
         }
       }
     }

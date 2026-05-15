@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 /// Utility class for parsing astronomical coordinates in various formats
 class CoordinateParser {
   /// Parse RA string to hours (decimal)
@@ -64,7 +66,17 @@ class CoordinateParser {
       if (seconds < 0 || seconds >= 60) return null;
 
       return hours + minutes / 60.0 + seconds / 3600.0;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Why: this is a user-input parser — `null` is the contract for any
+      // unparseable string (the UI binds the field to "invalid RA" feedback).
+      // We must not throw across the validator boundary. Log at FINE so a
+      // sudden flood of parse failures (e.g. a regex regression) is visible
+      // in the dev console without spamming the user-facing error pipeline.
+      developer.log(
+        'parseRa("$input") failed: $e\n$stackTrace',
+        name: 'CoordinateParser',
+        level: 500,
+      );
       return null;
     }
   }
@@ -115,7 +127,15 @@ class CoordinateParser {
 
       final result = degrees + minutes / 60.0 + seconds / 3600.0;
       return isNegative ? -result : result;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Why: user-input parser — see parseRa above. Returning `null` is the
+      // contract for "unparseable Dec string"; the UI binds invalid input to
+      // a validation message. Log at FINE for diagnostic visibility.
+      developer.log(
+        'parseDec("$input") failed: $e\n$stackTrace',
+        name: 'CoordinateParser',
+        level: 500,
+      );
       return null;
     }
   }

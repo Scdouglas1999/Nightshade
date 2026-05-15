@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -106,8 +107,17 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
         if (dso != null && (dso.magnitude == null || dso.magnitude! <= args.magnitudeLimit)) {
           objects.add(dso);
         }
-      } catch (_) {
-        // Skip malformed lines
+      } catch (e) {
+        // Why: OpenNGC CSV has 14k+ rows; a single malformed line (truncated
+        // export, missing field, locale-dependent decimal separator) must not
+        // abort the load — the rest of the catalog is still useful. Log at
+        // FINE so a systemic format regression is visible without spamming
+        // the user-facing pipeline.
+        developer.log(
+          'OpenNGC line parse failed; skipping: $e',
+          name: 'OpenNgcCatalog',
+          level: 500,
+        );
       }
     }
     

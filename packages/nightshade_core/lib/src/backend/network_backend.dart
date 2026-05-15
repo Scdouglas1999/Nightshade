@@ -543,8 +543,16 @@ class NetworkBackend implements NightshadeBackend {
           return dart_error.NightshadeError.fromString(fullMessage);
         }
       }
-    } catch (_) {
-      // JSON parsing failed, use fallback
+    } catch (e, stackTrace) {
+      // Why: the server may return a non-JSON body (HTML error page, plain
+      // text from a misbehaving proxy, empty body). The structured-error
+      // path is best-effort; the HTTP-status fallback below always produces
+      // a useful NightshadeError. Logging at FINE keeps the dev console
+      // signal-only when servers regularly return non-JSON 5xx pages.
+      debugPrint(
+        '[NetworkBackend] _parseErrorResponse JSON decode failed '
+        '(status=$statusCode endpoint=$endpoint): $e\n$stackTrace',
+      );
     }
 
     // Fallback: create error from HTTP status

@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -116,8 +117,15 @@ class GladePlusCatalogLoader {
 
         final key = _gridKey(galaxy.ra, galaxy.dec);
         _spatialIndex!.putIfAbsent(key, () => _SpatialGridCell()).objects.add(galaxy);
-      } catch (_) {
-        // Skip malformed lines
+      } catch (e) {
+        // Why: GLADE+ catalog has ~22M entries; a single malformed line must
+        // not abort the load. The rest of the catalog remains usable. Log
+        // at FINE so a systemic format regression is visible.
+        developer.log(
+          'GLADE+ line $i parse failed; skipping: $e',
+          name: 'GladePlusCatalog',
+          level: 500,
+        );
       }
     }
 

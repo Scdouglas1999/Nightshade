@@ -425,7 +425,16 @@ class SatelliteCatalog {
             debugPrint('[Satellite] Using stale cache for ${source.name} (${elements.length} TLEs)');
             return elements;
           }
-        } catch (_) {}
+        } catch (e) {
+          // Why: stale-cache last-resort path. The download already failed;
+          // if the cache file is also unreadable/corrupt we fall through to
+          // the `rethrow` below so the original download error reaches the
+          // caller (which is the actionable one). Logging here surfaces the
+          // cache corruption distinctly from the network failure.
+          debugPrint(
+            '[Satellite] Stale-cache fallback failed for ${source.name}: $e',
+          );
+        }
       }
       rethrow;
     }
