@@ -950,8 +950,12 @@ class _CenteringImageWidgetState extends State<_CenteringImageWidget> {
       codec.dispose();
       descriptor.dispose();
       buffer.dispose();
-    } catch (_) {
-      // Decode failed silently
+    } catch (e, st) {
+      // Why: preview-image decode is best-effort UI; the centering loop
+      // continues regardless. Logged so we can diagnose chronic decode
+      // failures (codec issues, malformed buffer) that would otherwise
+      // be invisible — the user just sees the spinner forever.
+      debugPrint('[CenteringDialog] preview decode failed: $e\n$st');
     }
   }
 

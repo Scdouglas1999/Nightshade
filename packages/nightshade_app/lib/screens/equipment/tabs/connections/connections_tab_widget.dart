@@ -219,7 +219,11 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
               'Found ${devices.length} device(s) at $host:$port');
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      // Why: user already sees the snackbar; capture the exception for
+      // the log so we can diagnose Alpaca discovery failures after the
+      // fact ("said connect failed but didn't say why").
+      debugPrint('[ConnectionsTab] Alpaca connect failed: $e\n$st');
       if (mounted) {
         context.showErrorSnackBar(
           'Could not connect to that Alpaca server.',
@@ -258,7 +262,11 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
               'Found ${devices.length} device(s) at $host:$port');
         }
       }
-    } catch (_) {
+    } catch (e, st) {
+      // Why: user already sees the snackbar; capture the exception for
+      // the log so we can diagnose INDI discovery failures after the
+      // fact ("said connect failed but didn't say why").
+      debugPrint('[ConnectionsTab] INDI connect failed: $e\n$st');
       if (mounted) {
         context.showErrorSnackBar(
           'Could not connect to that INDI server.',

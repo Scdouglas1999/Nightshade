@@ -295,6 +295,16 @@ class LoggingService {
       }
       return totalSize;
     } catch (e) {
+      // Why: log-directory stat can fail on read-only filesystems or when
+      // a log file is rotated mid-iteration. Returning 0 degrades the
+      // "log size" badge to "unknown"; the alternative — throwing —
+      // would break a purely informational UI. Logged via dart:developer
+      // (not this service) to avoid recursion.
+      developer.log(
+        'getLogSizeBytes failed: $e',
+        name: 'LoggingService',
+        level: 1000,
+      );
       return 0;
     }
   }
