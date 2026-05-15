@@ -206,7 +206,12 @@ struct QhySdk {
     is_qhyccd_cfw_plugged: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
 }
 
+// SAFETY: QhySdk holds a libloading::Library plus function pointers. The Library is OS-loaded
+// memory pinned for the program lifetime (stored in OnceLock); function pointers are POD. All
+// FFI calls go through `qhy_mutex()` so the underlying SDK never sees concurrent traffic.
 unsafe impl Send for QhySdk {}
+// SAFETY: Same justification as `Send` — every FFI call site holds `qhy_mutex()`, so shared
+// references to the function-pointer table cannot trigger concurrent SDK access.
 unsafe impl Sync for QhySdk {}
 
 static QHY_SDK: OnceLock<Option<QhySdk>> = OnceLock::new();
@@ -318,6 +323,12 @@ impl QhySdk {
         };
 
         for path in lib_paths {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; each `path`
+            // is a hard-coded string literal from `lib_paths` above (no user input). The
+            // subsequent `lib.get::<FnType>(symbol)` calls return libloading::Symbol values
+            // that deref to function pointers — the FFI signatures below mirror qhyccd.h
+            // exactly (vendor header) so the ABI is correct. `lib` is moved into the QhySdk
+            // struct to outlive the function pointers it backs.
             unsafe {
                 if let Ok(lib) = libloading::Library::new(path) {
                     tracing::info!("Loaded QHY SDK from: {}", path);
@@ -379,6 +390,9 @@ impl QhySdk {
     fn ensure_initialized() -> Result<(), NativeError> {
         if *SDK_INITIALIZED.get_or_init(|| {
             if let Some(sdk) = Self::get() {
+                // SAFETY: InitQHYCCDResource takes no arguments and returns a c_uint status.
+                // OnceLock::get_or_init guarantees this initializer runs at most once globally,
+                // so no concurrent SDK access can occur during initialization.
                 let result = unsafe { (sdk.init_sdk)() };
                 if result == 0 {
                     // QHYCCD_SUCCESS
@@ -533,7 +547,12 @@ pub struct QhyCamera {
     cooler_target_c: Option<f64>,
 }
 
+// SAFETY: QhyCamera contains a raw `QhyCamHandle` (`Option<*mut c_void>`). All accesses to the
+// handle go through `qhy_mutex()` (see every `unsafe { (sdk.*)(handle, ...) }` site in this
+// file), serializing FFI calls across threads.
 unsafe impl Send for QhyCamera {}
+// SAFETY: Same justification — shared references to QhyCamera never invoke the SDK without
+// taking `qhy_mutex()` first.
 unsafe impl Sync for QhyCamera {}
 
 impl QhyCamera {
@@ -577,6 +596,10 @@ impl QhyCamera {
         let mut pixel_h: c_double = 0.0;
         let mut bpp: c_uint = 0;
 
+        // SAFETY: load_camera_info is a private helper called from connect() and check_cfw_available
+        // contexts where qhy_mutex() is already held by the caller; `handle` came from a successful
+        // OpenQHYCCD/InitQHYCCD pair (verified above via self.handle.ok_or). All eight out-pointers
+        // are valid stack pointers to the SDK-expected types.
         let result = unsafe {
             (sdk.get_qhyccd_chip_info)(
                 handle,
@@ -600,18 +623,24 @@ impl QhyCamera {
         self.bits_per_pixel = bpp;
 
         // Check capabilities
+        // SAFETY: caller holds qhy_mutex(); `handle` validated above; IsQHYCCDControlAvailable
+        // takes the handle and a control-id integer with no out-pointers.
         self.has_cooler = unsafe {
             (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_COOLER as c_int)
         } == 0;
+        // SAFETY: caller holds qhy_mutex(); handle validated above; same FFI signature as above.
         self.has_st4_port = unsafe {
             (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_ST4PORT as c_int)
         } == 0;
+        // SAFETY: caller holds qhy_mutex(); handle validated above; same FFI signature as above.
         self.is_color =
             unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::CAM_IS_COLOR as c_int) }
                 == 0;
 
         // Detect bayer pattern for color cameras
         if self.is_color {
+            // SAFETY: caller holds qhy_mutex(); handle validated above; GetQHYCCDParam returns a
+            // c_double by value with no out-pointers.
             let bayer_val =
                 unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CAM_COLOR as c_int) } as i32;
             self.bayer_pattern = match bayer_val {
@@ -632,6 +661,8 @@ impl QhyCamera {
         // Acquire mutex before extracting handle to avoid Send issues
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
+        // SAFETY: qhy_mutex held just above; handle was validated via Option::ok_or; control
+        // discriminant fits in c_int. GetQHYCCDParam returns c_double by value, no out-pointers.
         Ok(unsafe { (sdk.get_qhyccd_param)(handle, control as c_int) })
     }
 
@@ -639,6 +670,8 @@ impl QhyCamera {
     fn get_control(&self, control: QhyControl) -> Result<f64, NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
+        // SAFETY: caller must hold qhy_mutex (documented in the function doc comment above);
+        // handle validated; control discriminant fits in c_int. Return by value.
         Ok(unsafe { (sdk.get_qhyccd_param)(handle, control as c_int) })
     }
 
@@ -652,6 +685,8 @@ impl QhyCamera {
         // Acquire mutex before extracting handle to avoid Send issues
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
+        // SAFETY: qhy_mutex held above; handle validated; control discriminant fits in c_int;
+        // value is pass-by-value c_double. SDK validates the value internally.
         let result = unsafe { (sdk.set_qhyccd_param)(handle, control as c_int, value) };
         check_qhy_error(result, "SetQHYCCDParam")
     }
@@ -660,6 +695,8 @@ impl QhyCamera {
     fn set_control(&mut self, control: QhyControl, value: f64) -> Result<(), NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
+        // SAFETY: caller must hold qhy_mutex (per the function doc above); handle validated;
+        // control discriminant fits in c_int; value is pass-by-value c_double.
         let result = unsafe { (sdk.set_qhyccd_param)(handle, control as c_int, value) };
         check_qhy_error(result, "SetQHYCCDParam")
     }
@@ -678,6 +715,8 @@ impl QhyCamera {
         let mut max_val: c_double = 0.0;
         let mut step: c_double = 0.0;
 
+        // SAFETY: qhy_mutex held above; handle validated; control discriminant fits in c_int;
+        // all three out-pointers are valid stack pointers to c_double.
         let result = unsafe {
             (sdk.get_qhyccd_param_min_max_step)(
                 handle,
@@ -701,6 +740,8 @@ impl QhyCamera {
         let mut max_val: c_double = 0.0;
         let mut step: c_double = 0.0;
 
+        // SAFETY: caller must hold qhy_mutex (per the function doc above); handle validated;
+        // control discriminant fits in c_int; all three out-pointers are valid stack pointers.
         let result = unsafe {
             (sdk.get_qhyccd_param_min_max_step)(
                 handle,
@@ -802,6 +843,9 @@ impl NativeDevice for QhyCamera {
         let id_cstring = CString::new(self.camera_id.clone())
             .map_err(|_| NativeError::InvalidDevice("Invalid camera ID".to_string()))?;
 
+        // SAFETY: qhy_mutex held above; id_cstring is a valid NUL-terminated CString that
+        // outlives the call (it lives until the end of this function). OpenQHYCCD returns a
+        // handle that we null-check immediately below.
         let handle = unsafe { (sdk.open_qhyccd)(id_cstring.as_ptr()) };
         if handle.is_null() {
             return Err(NativeError::InvalidDevice(
@@ -810,8 +854,12 @@ impl NativeDevice for QhyCamera {
         }
 
         // Set single frame mode
+        // SAFETY: qhy_mutex held; `handle` is the non-null pointer returned by OpenQHYCCD above;
+        // mode=0 (single frame) is a documented constant per qhyccd.h.
         let result = unsafe { (sdk.set_qhyccd_stream_mode)(handle, 0) }; // 0 = single frame
         if result != 0 {
+            // SAFETY: qhy_mutex held; handle was successfully opened above. CloseQHYCCD pairs
+            // with OpenQHYCCD to release the handle on the error path.
             unsafe { (sdk.close_qhyccd)(handle) };
             return Err(NativeError::SdkError(format!(
                 "Failed to set stream mode: {}",
@@ -820,8 +868,11 @@ impl NativeDevice for QhyCamera {
         }
 
         // Initialize the camera
+        // SAFETY: qhy_mutex held; handle was successfully opened and stream-mode set above.
         let result = unsafe { (sdk.init_qhyccd)(handle) };
         if result != 0 {
+            // SAFETY: qhy_mutex held; handle was successfully opened above. CloseQHYCCD pairs
+            // with OpenQHYCCD on the error path.
             unsafe { (sdk.close_qhyccd)(handle) };
             return Err(NativeError::SdkError(format!(
                 "Failed to init camera: {}",
@@ -835,8 +886,13 @@ impl NativeDevice for QhyCamera {
         self.load_camera_info()?;
 
         // Set default settings
+        // SAFETY: qhy_mutex held; handle valid (opened + initialized above); 16 is a documented
+        // bit-depth value per qhyccd.h.
         let _ = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) }; // 16-bit mode
+        // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
         let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
+        // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
+        // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
         let _ = unsafe {
             (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
         };
@@ -851,6 +907,9 @@ impl NativeDevice for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         if let Some(handle) = self.handle.take() {
             if let Some(sdk) = QhySdk::get() {
+                // SAFETY: qhy_mutex held above; `handle` was successfully opened during
+                // connect() and stored in self.handle (None case skipped via if-let).
+                // CloseQHYCCD pairs with OpenQHYCCD.
                 let result = unsafe { (sdk.close_qhyccd)(handle) };
                 check_qhy_error(result, "CloseQHYCCD")?;
             }
@@ -943,6 +1002,8 @@ impl NativeCamera for QhyCamera {
         }
 
         // Start exposure
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true (checked at entry). ExpQHYCCDSingleFrame takes only the handle.
         let result = unsafe { (sdk.exp_single_frame)(handle) };
         check_qhy_error(result, "ExpQHYCCDSingleFrame")?;
 
@@ -961,6 +1022,8 @@ impl NativeCamera for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true (checked at entry). CancelQHYCCDExposingAndReadout takes only the handle.
         let result = unsafe { (sdk.cancel_qhyccd_exposing_and_readout)(handle) };
         check_qhy_error(result, "CancelExposure")?;
 
@@ -986,6 +1049,8 @@ impl NativeCamera for QhyCamera {
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
         // Get required buffer size
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true. GetQHYCCDMemLength returns c_uint by value.
         let buffer_len = unsafe { (sdk.get_qhyccd_memory_length)(handle) } as usize;
         // Use pooled buffer for efficient memory reuse
         let mut pooled_buffer = global_u8_pool().get_buffer(buffer_len);
@@ -996,6 +1061,9 @@ impl NativeCamera for QhyCamera {
         let mut bpp: c_uint = 0;
         let mut channels: c_uint = 0;
 
+        // SAFETY: qhy_mutex held; handle valid; four out-pointers are valid stack pointers;
+        // pooled_buffer was just resized to buffer_len (the SDK's reported memory length above),
+        // so the SDK can safely write up to buffer_len bytes through as_mut_ptr().
         let result = unsafe {
             (sdk.get_qhyccd_single_frame)(
                 handle,
@@ -1154,12 +1222,17 @@ impl NativeCamera for QhyCamera {
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
         let bin = bin_x.max(bin_y) as c_uint;
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true. bin is pass-by-value c_uint and the SDK validates the value.
         let result = unsafe { (sdk.set_qhyccd_binmode)(handle, bin, bin) };
         check_qhy_error(result, "SetQHYCCDBinMode")?;
 
         // Update resolution for new binning
         let new_width = self.image_width / bin;
         let new_height = self.image_height / bin;
+        // SAFETY: qhy_mutex held; handle valid; new_width/new_height are derived from
+        // self.image_width/height (loaded by GetQHYCCDChipInfo at connect time) divided by the
+        // just-applied bin factor — both ≤ original sensor dimensions.
         let result = unsafe { (sdk.set_qhyccd_resolution)(handle, 0, 0, new_width, new_height) };
         check_qhy_error(result, "SetQHYCCDResolution")?;
 
@@ -1193,6 +1266,9 @@ impl NativeCamera for QhyCamera {
             )
         };
 
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true. x/y/width/height come from the user-supplied SubFrame or from sensor
+        // dimensions / current bin — both branches produce in-sensor coordinates the SDK clips.
         let result = unsafe { (sdk.set_qhyccd_resolution)(handle, x, y, width, height) };
         check_qhy_error(result, "SetQHYCCDResolution")
     }
@@ -1222,15 +1298,21 @@ impl NativeCamera for QhyCamera {
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
         let mut num_modes: c_uint = 0;
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true; &mut num_modes is a valid stack pointer to c_uint.
         let result = unsafe { (sdk.get_qhyccd_number_of_read_modes)(handle, &mut num_modes) };
         check_qhy_error(result, "GetQHYCCDNumberOfReadModes")?;
 
         let mut modes = Vec::new();
         for i in 0..num_modes {
             let mut name_buf = [0i8; 256];
+            // SAFETY: qhy_mutex held; handle valid; `i` is in `0..num_modes` reported by the
+            // SDK above so it is a valid read-mode index; name_buf is a 256-byte stack array.
             let result =
                 unsafe { (sdk.get_qhyccd_read_mode_name)(handle, i, name_buf.as_mut_ptr()) };
             if result == 0 {
+                // SAFETY: name_buf is 256 bytes; SDK guarantees NUL-termination on success
+                // (result == 0).
                 let name = unsafe { CStr::from_ptr(name_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -1260,6 +1342,9 @@ impl NativeCamera for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
+        // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
+        // was true. mode.index originated from a ReadoutMode this driver produced in
+        // get_readout_modes() above, so it is a valid SDK read-mode index.
         let result = unsafe { (sdk.set_qhyccd_read_mode)(handle, mode.index as c_uint) };
         check_qhy_error(result, "SetQHYCCDReadMode")
     }
@@ -1351,15 +1436,23 @@ pub fn is_sdk_available() -> bool {
 /// This is separated out to allow catch_unwind wrapping.
 fn discover_devices_internal(sdk: &QhySdk) -> Result<Vec<QhyCameraInfo>, NativeError> {
     // Scan for cameras
+    // SAFETY: This helper is invoked only from discover_devices() (and the catch_unwind path it
+    // dispatches), which acquires qhy_mutex() before calling. ScanQHYCCD takes no arguments and
+    // returns a c_uint count.
     let num_cameras = unsafe { (sdk.scan_qhyccd)() };
     tracing::info!("Found {} QHY cameras", num_cameras);
 
     let mut cameras = Vec::new();
     for i in 0..num_cameras {
         let mut id_buf = [0i8; 256];
+        // SAFETY: caller (discover_devices) holds qhy_mutex(); `i` is in `0..num_cameras` so
+        // ScanQHYCCD's reported index range; id_buf is a 256-byte stack array — qhyccd.h
+        // documents the ID as fitting within 32 bytes.
         let result = unsafe { (sdk.get_qhyccd_id)(i, id_buf.as_mut_ptr()) };
 
         if result == 0 {
+            // SAFETY: id_buf is 256 bytes; GetQHYCCDId guarantees NUL-termination on success
+            // (result == 0).
             let id = unsafe { CStr::from_ptr(id_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
@@ -1520,7 +1613,12 @@ pub struct QhyFilterWheel {
     filter_names: Vec<String>,
 }
 
+// SAFETY: QhyFilterWheel contains a raw `QhyCamHandle` (`Option<*mut c_void>`). Every FFI call
+// against the handle takes `qhy_mutex()` first (CFW is controlled through the camera SDK and
+// shares the same global mutex), so the handle is never accessed concurrently.
 unsafe impl Send for QhyFilterWheel {}
+// SAFETY: Same justification — shared references never invoke the SDK without taking
+// qhy_mutex() first.
 unsafe impl Sync for QhyFilterWheel {}
 
 impl QhyFilterWheel {
@@ -1545,6 +1643,8 @@ impl QhyFilterWheel {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
+        // SAFETY: caller (connect / move_to_position / get_position) holds qhy_mutex(); handle
+        // was validated via Option::ok_or; IsQHYCCDCFWPlugged takes only the handle.
         let result = unsafe { (sdk.is_qhyccd_cfw_plugged)(handle) };
         Ok(result == 0) // QHYCCD_SUCCESS = 0
     }
@@ -1554,6 +1654,8 @@ impl QhyFilterWheel {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
+        // SAFETY: caller (connect()) holds qhy_mutex(); handle validated above;
+        // CONTROL_CFWSLOTSNUM discriminant fits in c_int; GetQHYCCDParam returns c_double.
         let count =
             unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) };
 
@@ -1566,6 +1668,8 @@ impl QhyFilterWheel {
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
         // QHY returns position as ASCII value (48 = '0', 49 = '1', etc.)
+        // SAFETY: caller (get_position()) holds qhy_mutex(); handle validated above;
+        // CONTROL_CFWPORT discriminant fits in c_int.
         let pos = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int) };
 
         // Convert from ASCII to 0-indexed position
@@ -1581,6 +1685,9 @@ impl QhyFilterWheel {
         // QHY uses ASCII encoding (48 = '0', 49 = '1', etc.)
         let ascii_position = (position + 48) as f64;
 
+        // SAFETY: caller (move_to_position()) holds qhy_mutex(); handle validated above;
+        // CONTROL_CFWPORT discriminant fits in c_int; ascii_position is pass-by-value c_double.
+        // The `position` argument was bounds-checked in the caller against self.slot_count.
         let result = unsafe {
             (sdk.set_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int, ascii_position)
         };
@@ -1622,6 +1729,8 @@ impl NativeDevice for QhyFilterWheel {
         let camera_id_cstr = CString::new(self.camera_id.clone())
             .map_err(|_| NativeError::InvalidParameter("Invalid camera ID".into()))?;
 
+        // SAFETY: qhy_mutex held above; camera_id_cstr is a valid NUL-terminated CString that
+        // outlives the call. OpenQHYCCD returns a handle we null-check immediately below.
         let handle = unsafe { (sdk.open_qhyccd)(camera_id_cstr.as_ptr()) };
         if handle.is_null() {
             return Err(NativeError::SdkError(
@@ -1632,6 +1741,9 @@ impl NativeDevice for QhyFilterWheel {
         self.handle = Some(handle);
 
         // Set stream mode and init (required for CFW access)
+        // SAFETY: qhy_mutex held; `handle` is the non-null pointer returned by OpenQHYCCD above;
+        // mode=0 (single frame) is a documented constant per qhyccd.h; CloseQHYCCD pairs with
+        // OpenQHYCCD on the error path inside the block.
         unsafe {
             (sdk.set_qhyccd_stream_mode)(handle, 0); // Single frame mode
             let init_result = (sdk.init_qhyccd)(handle);
@@ -1646,6 +1758,8 @@ impl NativeDevice for QhyFilterWheel {
 
         // Check if CFW is available (mutex already held)
         if !self.check_cfw_available()? {
+            // SAFETY: qhy_mutex held; handle was successfully opened and initialized above.
+            // CloseQHYCCD pairs with OpenQHYCCD on this CFW-not-available error path.
             unsafe { (sdk.close_qhyccd)(handle) };
             self.handle = None;
             return Err(NativeError::DeviceNotFound(
@@ -1679,6 +1793,9 @@ impl NativeDevice for QhyFilterWheel {
         let _lock = qhy_mutex().lock().await;
         if let Some(handle) = self.handle.take() {
             if let Some(sdk) = QhySdk::get() {
+                // SAFETY: qhy_mutex held above; handle was successfully opened during connect()
+                // and stored in self.handle (None case skipped via if-let). CloseQHYCCD pairs
+                // with OpenQHYCCD.
                 unsafe { (sdk.close_qhyccd)(handle) };
             }
         }
@@ -1755,18 +1872,22 @@ impl NativeFilterWheel for QhyFilterWheel {
 /// Internal function to perform the actual CFW discovery.
 fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInfo>, NativeError> {
     // Scan for cameras
+    // SAFETY: caller (discover_filter_wheels) holds qhy_mutex(); ScanQHYCCD takes no args.
     let num_cameras = unsafe { (sdk.scan_qhyccd)() };
 
     let mut filter_wheels = Vec::new();
 
     for i in 0..num_cameras {
         let mut id_buf = [0i8; 256];
+        // SAFETY: caller holds qhy_mutex(); `i` is in `0..num_cameras`; id_buf is a 256-byte
+        // stack array.
         let result = unsafe { (sdk.get_qhyccd_id)(i, id_buf.as_mut_ptr()) };
 
         if result != 0 {
             continue;
         }
 
+        // SAFETY: id_buf is 256 bytes; GetQHYCCDId guaranteed NUL-termination on success.
         let camera_id = unsafe { CStr::from_ptr(id_buf.as_ptr()) }
             .to_string_lossy()
             .to_string();
@@ -1777,12 +1898,17 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
             Err(_) => continue,
         };
 
+        // SAFETY: caller holds qhy_mutex(); camera_id_cstr is a valid NUL-terminated CString
+        // that outlives the call; null-checked immediately below.
         let handle = unsafe { (sdk.open_qhyccd)(camera_id_cstr.as_ptr()) };
         if handle.is_null() {
             continue;
         }
 
         // Initialize camera to check CFW
+        // SAFETY: caller holds qhy_mutex(); `handle` is the non-null pointer returned by
+        // OpenQHYCCD above; mode=0 is single-frame per qhyccd.h; CloseQHYCCD pairs with
+        // OpenQHYCCD on the init-failed path within this block.
         unsafe {
             (sdk.set_qhyccd_stream_mode)(handle, 0);
             if (sdk.init_qhyccd)(handle) != 0 {
@@ -1792,10 +1918,13 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
         }
 
         // Check if CFW is plugged in
+        // SAFETY: caller holds qhy_mutex(); handle was opened and initialized above.
         let cfw_result = unsafe { (sdk.is_qhyccd_cfw_plugged)(handle) };
 
         if cfw_result == 0 {
             // CFW is available
+            // SAFETY: caller holds qhy_mutex(); handle was opened and initialized above;
+            // CONTROL_CFWSLOTSNUM discriminant fits in c_int.
             let slot_count = unsafe {
                 (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) as i32
             };
@@ -1818,6 +1947,8 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
         }
 
         // Close camera
+        // SAFETY: caller holds qhy_mutex(); handle was opened above. CloseQHYCCD pairs with
+        // OpenQHYCCD to release the SDK-owned handle at the end of the per-camera probe.
         unsafe { (sdk.close_qhyccd)(handle) };
     }
 
