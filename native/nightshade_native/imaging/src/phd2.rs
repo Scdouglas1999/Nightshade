@@ -412,10 +412,23 @@ impl Phd2Client {
 
     /// Get rolling guide statistics
     pub fn get_rolling_stats(&self) -> GuideStats {
-        self.rolling_stats
-            .lock()
-            .map(|mut s| s.get_stats())
-            .unwrap_or_default()
+        // Why: §audit-rust 4.3 — `std::sync::Mutex::lock()` only fails on
+        // *poison* (a previous holder panicked while the guard was live).
+        // The lock holders here (`add_frame`, `get_stats`, `reset`) are pure
+        // arithmetic — none can panic in production. If poison ever does
+        // occur the runtime is already in an unrecoverable state; returning
+        // default zeroed stats keeps the UI from crashing while the warning
+        // emitted at the poison site (reader thread) surfaces the cause.
+        match self.rolling_stats.lock() {
+            Ok(mut s) => s.get_stats(),
+            Err(poison) => {
+                tracing::error!(
+                    "PHD2: rolling_stats mutex poisoned: {} — returning zeroed GuideStats",
+                    poison
+                );
+                GuideStats::default()
+            }
+        }
     }
 
     /// Reset rolling guide statistics
@@ -427,10 +440,21 @@ impl Phd2Client {
 
     /// Get current connection state
     pub fn get_state(&self) -> Phd2State {
-        self.state
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or(Phd2State::Disconnected)
+        // Why: §audit-rust 4.3 — Mutex poison here would mean the reader
+        // thread crashed mid-update. The TCP connection is therefore
+        // effectively dead from our side regardless of the device's view;
+        // reporting `Disconnected` matches reality. We log so the operator
+        // can correlate the poison with whatever caused the reader panic.
+        match self.state.lock() {
+            Ok(s) => s.clone(),
+            Err(poison) => {
+                tracing::error!(
+                    "PHD2: state mutex poisoned: {} — reporting Disconnected",
+                    poison
+                );
+                Phd2State::Disconnected
+            }
+        }
     }
 
     /// Set event callback
@@ -806,6 +830,15 @@ impl Phd2Client {
             return Err(format!("PHD2 error: {}", error.message));
         }
 
+        // Why: §audit-rust 4.3 — per JSON-RPC 2.0, a response with no `error`
+        // is REQUIRED to contain `result`, but PHD2 RPC methods that semantically
+        // return void (`set_connected`, `loop`, `stop_capture`, etc.) ship
+        // `{"jsonrpc":"2.0","result":0,"id":N}` — or, on older builds, just
+        // omit `result`. Substituting `Null` here is the documented contract:
+        // void-returning callers ignore the value, value-returning callers
+        // immediately downcast (`.as_str()`/`.as_array()` etc.) and would
+        // already fail on `Null` with a clear "expected …" error rather than
+        // bubbling a confusing "missing result" message.
         Ok(resp.result.unwrap_or(serde_json::Value::Null))
     }
 
@@ -816,14 +849,21 @@ impl Phd2Client {
     /// Get PHD2 application state
     pub fn get_app_state(&mut self) -> Result<Phd2State, String> {
         let result = self.send_request("get_app_state", None)?;
-        let state_str = result.as_str().unwrap_or("Unknown");
+        let state_str = result
+            .as_str()
+            .ok_or_else(|| format!("get_app_state: expected string, got {}", result))?;
         Ok(parse_phd2_app_state(state_str))
     }
 
     /// Get connected equipment
     pub fn get_connected(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_connected", None)?;
-        Ok(result.as_bool().unwrap_or(false))
+        // §audit-rust 4.3 — previously `.as_bool().unwrap_or(false)` silently
+        // reported "not connected" whenever PHD2 returned a non-bool (e.g.
+        // protocol corruption, schema drift). Propagate the type mismatch.
+        result
+            .as_bool()
+            .ok_or_else(|| format!("get_connected: expected bool, got {}", result))
     }
 
     /// Connect PHD2 to equipment
@@ -907,10 +947,19 @@ impl Phd2Client {
         let result = self.send_request("get_lock_position", None)?;
         let arr = result
             .as_array()
-            .ok_or_else(|| "Invalid response".to_string())?;
+            .ok_or_else(|| format!("get_lock_position: expected array, got {}", result))?;
 
-        let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        // §audit-rust 4.3 — PHD2 contract: `[x, y]` floats. A missing element
+        // or non-numeric value means schema drift or no star locked; surface
+        // it instead of silently reporting "guide star at origin (0, 0)".
+        let x = arr
+            .first()
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| "get_lock_position: missing or non-numeric X".to_string())?;
+        let y = arr
+            .get(1)
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| "get_lock_position: missing or non-numeric Y".to_string())?;
 
         Ok((x, y))
     }
@@ -918,7 +967,15 @@ impl Phd2Client {
     /// Get exposure time
     pub fn get_exposure(&mut self) -> Result<u32, String> {
         let result = self.send_request("get_exposure", None)?;
-        Ok(result.as_u64().unwrap_or(0) as u32)
+        // §audit-rust 4.3 — PHD2 always returns the exposure as an unsigned
+        // integer (milliseconds). A non-integer or negative value is a
+        // protocol violation; surface it rather than silently reporting 0ms
+        // which the caller would interpret as "no exposure set".
+        let exposure = result
+            .as_u64()
+            .ok_or_else(|| format!("get_exposure: expected unsigned integer, got {}", result))?;
+        u32::try_from(exposure)
+            .map_err(|_| format!("get_exposure: value {} exceeds u32::MAX", exposure))
     }
 
     /// Set exposure time (milliseconds)
@@ -930,7 +987,13 @@ impl Phd2Client {
     /// Get pixel scale (arcsec/pixel)
     pub fn get_pixel_scale(&mut self) -> Result<f64, String> {
         let result = self.send_request("get_pixel_scale", None)?;
-        Ok(result.as_f64().unwrap_or(0.0))
+        // §audit-rust 4.3 — pixel scale of 0 is physically meaningless and
+        // would silently break every downstream RA/Dec-to-pixel conversion.
+        // Propagate the parse failure so the caller knows the value is
+        // unavailable (e.g. PHD2 has no profile loaded).
+        result
+            .as_f64()
+            .ok_or_else(|| format!("get_pixel_scale: expected number, got {}", result))
     }
 
     /// Get current star image (raw bytes only - deprecated, use get_star_image_data instead)
@@ -945,21 +1008,48 @@ impl Phd2Client {
         let params = serde_json::json!({ "size": size });
         let result = self.send_request("get_star_image", Some(params))?;
 
-        // Parse response fields
-        let frame = result.get("frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        // §audit-rust 4.3 — `frame`, `width`, and `height` are REQUIRED fields
+        // per the PHD2 `get_star_image` schema. A missing/non-integer value
+        // means the response is malformed (or PHD2 changed schema); previously
+        // we silently produced a 0x0 image with frame=0, which downstream star
+        // analysis would happily process and report bogus results.
+        let frame = result
+            .get("frame")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "get_star_image: missing or non-integer 'frame'".to_string())?
+            as u32;
 
-        let width = result.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let width = result
+            .get("width")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "get_star_image: missing or non-integer 'width'".to_string())?
+            as u32;
 
-        let height = result.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let height = result
+            .get("height")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "get_star_image: missing or non-integer 'height'".to_string())?
+            as u32;
 
-        // star_pos is [x, y] array
+        // star_pos is [x, y] array. PHD2 documents the field as optional
+        // when no star is locked (returned `null` / absent), so treating
+        // "no star_pos" as `(0.0, 0.0)` is the documented fallback. A
+        // present-but-malformed array, however, is a protocol violation
+        // and must surface — `.unwrap_or(0.0)` previously hid that.
         let star_pos = result.get("star_pos").and_then(|v| v.as_array());
         let (star_x, star_y) = match star_pos {
             Some(arr) => {
-                let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let x = arr.first().and_then(|v| v.as_f64()).ok_or_else(|| {
+                    "get_star_image: 'star_pos' present but X missing/non-numeric".to_string()
+                })?;
+                let y = arr.get(1).and_then(|v| v.as_f64()).ok_or_else(|| {
+                    "get_star_image: 'star_pos' present but Y missing/non-numeric".to_string()
+                })?;
                 (x, y)
             }
+            // Why: per PHD2 protocol, absent `star_pos` indicates no star is
+            // currently locked. The subframe pixels are still valid; (0, 0)
+            // is the canonical "unset" marker that callers already check for.
             None => (0.0, 0.0),
         };
 
@@ -991,10 +1081,19 @@ impl Phd2Client {
         let result = self.send_request("find_star", None)?;
         let arr = result
             .as_array()
-            .ok_or_else(|| "Invalid response".to_string())?;
+            .ok_or_else(|| format!("find_star: expected array, got {}", result))?;
 
-        let x = arr.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        // §audit-rust 4.3 — PHD2 contract: `[x, y]` floats of the chosen star.
+        // (0, 0) was indistinguishable from "no star found"; surface the parse
+        // failure so callers can fall back instead of slewing to the origin.
+        let x = arr
+            .first()
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| "find_star: missing or non-numeric X".to_string())?;
+        let y = arr
+            .get(1)
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| "find_star: missing or non-numeric Y".to_string())?;
 
         Ok((x, y))
     }
@@ -1049,6 +1148,11 @@ impl Phd2Client {
         let result = self.send_request("set_algo_param", Some(params))?;
 
         // Result should be 0 on success
+        // Why: §audit-rust 4.3 — `-1` is a deliberate sentinel meaning "couldn't
+        // even parse a status code". PHD2 returns `0` on success and a positive
+        // error code otherwise, so any non-zero value (including the sentinel)
+        // correctly triggers the error branch below. Replacing with `?` would
+        // strip the helpful "Failed to set parameter X" prefix.
         let code = result.as_i64().unwrap_or(-1);
         if code != 0 {
             return Err(format!(
@@ -1090,10 +1194,20 @@ impl Phd2Client {
         let result = self.send_request("get_camera_frame_size", None)?;
         let arr = result
             .as_array()
-            .ok_or_else(|| "Invalid response".to_string())?;
+            .ok_or_else(|| format!("get_camera_frame_size: expected array, got {}", result))?;
 
-        let width = arr.first().and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-        let height = arr.get(1).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        // §audit-rust 4.3 — width/height of 0 silently produced division-by-zero
+        // downstream in pixel-scale and binning logic. Surface the parse error.
+        let width = arr
+            .first()
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "get_camera_frame_size: missing or non-integer width".to_string())?
+            as u32;
+        let height = arr
+            .get(1)
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "get_camera_frame_size: missing or non-integer height".to_string())?
+            as u32;
 
         Ok((width, height))
     }
@@ -1101,7 +1215,12 @@ impl Phd2Client {
     /// Get guide output enabled status
     pub fn get_guide_output_enabled(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_guide_output_enabled", None)?;
-        Ok(result.as_bool().unwrap_or(false))
+        // §audit-rust 4.3 — see `get_connected`. A non-bool means protocol
+        // corruption; "guide output disabled" is the wrong default to assume
+        // because callers may rely on this to gate dither/pulse commands.
+        result
+            .as_bool()
+            .ok_or_else(|| format!("get_guide_output_enabled: expected bool, got {}", result))
     }
 
     /// Set guide output enabled status
@@ -1113,10 +1232,14 @@ impl Phd2Client {
     /// Get current profile name
     pub fn get_profile(&mut self) -> Result<String, String> {
         let result = self.send_request("get_profile", None)?;
+        // §audit-rust 4.3 — the previous `unwrap_or("Unknown")` papered over
+        // schema drift (the field used to be `name`; new builds may rename it).
+        // Surface the absence so we notice during dev rather than always
+        // displaying "Unknown" in the UI.
         let profile = result
             .get("name")
             .and_then(|v| v.as_str())
-            .unwrap_or("Unknown");
+            .ok_or_else(|| format!("get_profile: missing 'name' field in {}", result))?;
         Ok(profile.to_string())
     }
 }
@@ -1127,56 +1250,119 @@ impl Drop for Phd2Client {
     }
 }
 
-/// Parse a PHD2 event message
+/// Parse a PHD2 event message.
+///
+/// Returns `None` only when the event name is unknown OR a *critical* field
+/// is missing (e.g. `GuideStep` without `RADistanceRaw`/`DECDistanceRaw`).
+/// Critical-field absence is logged at `warn` level so schema drift surfaces
+/// in operator logs instead of producing zeroed-out guide frames that would
+/// silently degrade tracking accuracy.
 fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
     match msg.event.as_str() {
         "GuideStep" => {
             let extra = &msg.extra;
+
+            // Why: §audit-rust 4.3 — RA/Dec distance are the LOAD-BEARING
+            // values of every guide frame. Defaulting them to 0.0 used to
+            // mark every malformed/dropped event as "perfect guiding" and
+            // poisoned the rolling RMS. If either is missing or non-numeric
+            // we now drop the whole frame and log so we can detect drift.
+            let ra_distance = match extra.get("RADistanceRaw").and_then(|v| v.as_f64()) {
+                Some(v) => v,
+                None => {
+                    tracing::warn!(
+                        "PHD2: GuideStep missing RADistanceRaw — dropping frame ({})",
+                        msg.extra
+                    );
+                    return None;
+                }
+            };
+            let dec_distance = match extra.get("DECDistanceRaw").and_then(|v| v.as_f64()) {
+                Some(v) => v,
+                None => {
+                    tracing::warn!(
+                        "PHD2: GuideStep missing DECDistanceRaw — dropping frame ({})",
+                        msg.extra
+                    );
+                    return None;
+                }
+            };
+
+            // Why: §audit-rust 4.3 — `Frame` (sequence number) and
+            // `timestamp` may legitimately be absent in older PHD2 builds
+            // that predate Event-monitoring schema v1.7; the rolling-stats
+            // window keeps its own counter, so 0 here is a recoverable
+            // default rather than a silent error.
+            let frame = extra.get("Frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let timestamp = msg.timestamp.unwrap_or(0.0);
+
+            // Why: §audit-rust 4.3 — pulse durations and directions ARE
+            // absent in real PHD2 traffic when no correction was issued
+            // for the axis (zero-duration step). Defaulting to 0 ms and
+            // "" matches PHD2's own "no pulse" semantics; the UI checks
+            // duration > 0 before drawing the direction arrow.
+            let ra_duration = extra
+                .get("RADuration")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0) as i32;
+            let dec_duration = extra
+                .get("DECDuration")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0) as i32;
+            let ra_direction = extra
+                .get("RADirection")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let dec_direction = extra
+                .get("DECDirection")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            // Why: §audit-rust 4.3 — SNR, StarMass, StarX, StarY, AvgDist
+            // are PHD2 "optional" fields per the EventMonitoring wiki:
+            // they may be absent during calibration steps, settling, or
+            // very early frames before the rolling stats stabilise. 0.0
+            // is the documented "not yet measured" sentinel and the
+            // dashboard already filters frame_count < 5 before display.
+            let snr = extra.get("SNR").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let star_mass = extra
+                .get("StarMass")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let star_x = extra.get("StarX").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let star_y = extra.get("StarY").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let avg_dist = extra.get("AvgDist").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
             Some(Phd2Event::GuideStep(GuideFrame {
-                frame: extra.get("Frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                timestamp: msg.timestamp.unwrap_or(0.0),
-                ra_distance: extra
-                    .get("RADistanceRaw")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0),
-                dec_distance: extra
-                    .get("DECDistanceRaw")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0),
-                ra_duration: extra
-                    .get("RADuration")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as i32,
-                dec_duration: extra
-                    .get("DECDuration")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as i32,
-                ra_direction: extra
-                    .get("RADirection")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                dec_direction: extra
-                    .get("DECDirection")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                snr: extra.get("SNR").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                star_mass: extra
-                    .get("StarMass")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0),
-                star_x: extra.get("StarX").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                star_y: extra.get("StarY").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                avg_dist: extra.get("AvgDist").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                frame,
+                timestamp,
+                ra_distance,
+                dec_distance,
+                ra_duration,
+                dec_duration,
+                ra_direction,
+                dec_direction,
+                snr,
+                star_mass,
+                star_x,
+                star_y,
+                avg_dist,
             }))
         }
         "AppState" => {
-            let state_str = msg
-                .extra
-                .get("State")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            // Why: §audit-rust 4.3 — an `AppState` event with no `State`
+            // field is malformed; routing it through `parse_phd2_app_state`
+            // would yield `Phd2State::Unknown("")` and spam the warn log.
+            // Drop the event instead and log once with the offending blob.
+            let Some(state_str) = msg.extra.get("State").and_then(|v| v.as_str()) else {
+                tracing::warn!(
+                    "PHD2: AppState event missing 'State' field — dropping ({})",
+                    msg.extra
+                );
+                return None;
+            };
             Some(Phd2Event::StateChanged(parse_phd2_app_state(state_str)))
         }
         "StartCalibration" => Some(Phd2Event::StateChanged(Phd2State::Calibrating)),
@@ -1188,13 +1374,34 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "LoopingExposuresStopped" => Some(Phd2Event::StateChanged(Phd2State::Connected)),
         "StarLost" => Some(Phd2Event::StarLost),
         "StarSelected" => {
-            let x = msg.extra.get("X").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let y = msg.extra.get("Y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            // Why: §audit-rust 4.3 — `X` and `Y` are REQUIRED by the
+            // PHD2 protocol for `StarSelected`. (0,0) was indistinguishable
+            // from a valid lock at the origin; drop the malformed event.
+            let Some(x) = msg.extra.get("X").and_then(|v| v.as_f64()) else {
+                tracing::warn!(
+                    "PHD2: StarSelected event missing X — dropping ({})",
+                    msg.extra
+                );
+                return None;
+            };
+            let Some(y) = msg.extra.get("Y").and_then(|v| v.as_f64()) else {
+                tracing::warn!(
+                    "PHD2: StarSelected event missing Y — dropping ({})",
+                    msg.extra
+                );
+                return None;
+            };
             Some(Phd2Event::StarSelected { x, y })
         }
         "SettleBegin" => Some(Phd2Event::SettleBegin),
         "Settling" => Some(Phd2Event::StateChanged(Phd2State::Settling)),
         "SettleDone" => {
+            // Why: §audit-rust 4.3 — `TotalFrames`/`DroppedFrames` may
+            // legitimately be 0 when settling completes on the first
+            // frame; absence (`None`) is also documented as "no frames
+            // tracked", so 0 is the protocol-defined fallback rather than
+            // a swallowed parse error. Both branches collapse to identical
+            // UI semantics ("no drops").
             let total = msg
                 .extra
                 .get("TotalFrames")
@@ -1211,21 +1418,27 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             })
         }
         "Alert" => {
-            let message = msg
-                .extra
-                .get("Msg")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let alert_type = msg
-                .extra
-                .get("Type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            // Why: §audit-rust 4.3 — an Alert with no `Msg`/`Type` is
+            // useless to the operator; surface the malformed event in the
+            // log and drop it rather than synthesising an empty alert that
+            // would mask whatever PHD2 actually wanted to warn us about.
+            let Some(message) = msg.extra.get("Msg").and_then(|v| v.as_str()) else {
+                tracing::warn!(
+                    "PHD2: Alert event missing 'Msg' field — dropping ({})",
+                    msg.extra
+                );
+                return None;
+            };
+            let Some(alert_type) = msg.extra.get("Type").and_then(|v| v.as_str()) else {
+                tracing::warn!(
+                    "PHD2: Alert event missing 'Type' field — dropping ({})",
+                    msg.extra
+                );
+                return None;
+            };
             Some(Phd2Event::Alert {
-                message,
-                alert_type,
+                message: message.to_string(),
+                alert_type: alert_type.to_string(),
             })
         }
         _ => None,
@@ -1343,6 +1556,15 @@ pub fn is_phd2_installed() -> bool {
         }
 
         // PATH-based check for Linux/macOS.
+        // Why: §audit-rust 4.3 — `is_phd2_installed` returns `bool` and is a
+        // purely best-effort heuristic before the launcher tries fallbacks.
+        // If we cannot even spawn `sh` (sandboxed environment, missing
+        // /bin/sh on a stripped container, OS errno EPERM), treating that
+        // as "not installed via PATH" is the correct answer because we
+        // simultaneously couldn't run `phd2` from PATH either. The other
+        // (well-known-path) branches above already returned `true` early
+        // if PHD2 was found, so reaching this line means PATH is the only
+        // remaining option.
         Command::new("sh")
             .args(["-lc", "command -v phd2 >/dev/null 2>&1"])
             .output()

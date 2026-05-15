@@ -254,8 +254,26 @@ fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
             Ok(GlobalMinMax { min, max })
         }
         PixelType::U8 => {
-            let min = *image.data.iter().min().unwrap_or(&0) as f64;
-            let max = *image.data.iter().max().unwrap_or(&255) as f64;
+            // §audit-rust 4.3 — the other branches all reject empty data with
+            // a typed error; U8 used `unwrap_or(&0)`/`unwrap_or(&255)` which
+            // would silently produce a (0, 255) range for an empty image and
+            // then divide-by-zero downstream in the tile normalization. Match
+            // the sibling branches and fail closed.
+            if image.data.is_empty() {
+                return Err("Image data empty (U8 normalization)".to_string());
+            }
+            let min = *image
+                .data
+                .iter()
+                .min()
+                .expect("U8 min: data is non-empty (just checked)")
+                as f64;
+            let max = *image
+                .data
+                .iter()
+                .max()
+                .expect("U8 max: data is non-empty (just checked)")
+                as f64;
             Ok(GlobalMinMax { min, max })
         }
         PixelType::U32 => {

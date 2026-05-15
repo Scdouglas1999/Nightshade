@@ -779,7 +779,17 @@ pub fn calculate_display_histogram(image: &ImageData, logarithmic: bool) -> Vec<
             .map(|&count| if count > 0 { (count as f32).ln() } else { 0.0 })
             .collect()
     } else {
-        let max_val = *histogram.iter().max().unwrap_or(&1) as f32;
+        // Why: §audit-rust 4.3 — `calculate_histogram` always returns 256
+        // entries (we just asked for `bins=256`), so `.iter().max()` is
+        // `None` ONLY in the never-reached "0 bins requested" branch.
+        // Substituting `&1` is the documented "empty/all-zero histogram"
+        // divisor that yields a flat 0.0 display (no division by zero)
+        // rather than a NaN-filled output that the GPU shader would
+        // render as black. We also clamp the actual max to 1 for the same
+        // reason: an all-zero image (e.g. just-opened darks) used to
+        // produce NaN bars from a 0/0 division.
+        let max_raw = *histogram.iter().max().unwrap_or(&1);
+        let max_val = max_raw.max(1) as f32;
         histogram
             .par_iter()
             .map(|&count| count as f32 / max_val)
@@ -973,6 +983,14 @@ pub fn extract_top_star_crops(
     crop_size: u32,
 ) -> Vec<StarCropData> {
     // Sort stars by SNR (brightness) descending
+    // Why: §audit-rust 4.3 — `partial_cmp` returns `None` only when comparing
+    // against NaN. SNR is computed in `detect_stars` as a ratio of finite
+    // sums divided by a positive standard deviation, so NaN here would
+    // indicate a star-detection bug (zero pixel variance with non-zero flux,
+    // impossible by construction). Treating any NaN as `Equal` keeps the
+    // sort stable for those edge stars rather than panicking; if the bug
+    // ever materialises the NaN-SNR stars cluster together at their original
+    // positions, which is easy to spot in the UI/log.
     let mut sorted_stars: Vec<&DetectedStar> = stars.iter().collect();
     sorted_stars.sort_by(|a, b| {
         b.snr
