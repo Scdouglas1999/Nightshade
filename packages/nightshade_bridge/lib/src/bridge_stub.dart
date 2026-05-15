@@ -16,11 +16,11 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:xml/xml.dart' as xml;
 import 'alpaca_client.dart' as alpaca;
@@ -368,12 +368,14 @@ class NativeBridge {
 
       // Verify it's working
       final version = gen_api.apiGetVersion();
-      debugPrint('[Bridge] Native bridge v$version ready');
+      developer.log('[Bridge] Native bridge v$version ready',
+          name: 'NativeBridge', level: 800);
 
       // Mark as available for native discovery
       _nativeAvailable = true;
     } catch (e) {
-      debugPrint('[Bridge] RustLib initialization failed: $e');
+      developer.log('[Bridge] RustLib initialization failed: $e',
+          name: 'NativeBridge', level: 1000);
       // Mark as unavailable since RustLib couldn't initialize
       _nativeAvailable = false;
     }
@@ -393,10 +395,16 @@ class NativeBridge {
     ));
 
     if (_nativeAvailable) {
-      debugPrint('[Bridge] Loaded native library');
+      developer.log('[Bridge] Loaded native library',
+          name: 'NativeBridge', level: 800);
     } else {
-      debugPrint(
-          '[Bridge] Native bridge unavailable; running in fail-closed fallback mode');
+      // Why: warning-level — running without native bridge means hardware
+      // operations will fail closed, which is a degraded-but-running state
+      // operators must be able to spot in logs.
+      developer.log(
+          '[Bridge] Native bridge unavailable; running in fail-closed fallback mode',
+          name: 'NativeBridge',
+          level: 900);
     }
   }
 
@@ -582,11 +590,17 @@ class NativeBridge {
         // System search also failed
       }
 
-      debugPrint(
-          '[Bridge] Native library not found. Native-only operations will fail closed.');
+      // Why: warning-level — same fail-closed signal as the init path; this
+      // is the dlopen-side failure when the library couldn't be located on
+      // any search path.
+      developer.log(
+          '[Bridge] Native library not found. Native-only operations will fail closed.',
+          name: 'NativeBridge',
+          level: 900);
       return false;
     } catch (e) {
-      debugPrint('[Bridge] Error loading native library: $e');
+      developer.log('[Bridge] Error loading native library: $e',
+          name: 'NativeBridge', level: 1000);
       return false;
     }
   }
@@ -617,7 +631,8 @@ class NativeBridge {
           return version;
         }
       } catch (e) {
-        debugPrint('[Bridge] Failed to get native version: $e');
+        developer.log('[Bridge] Failed to get native version: $e',
+            name: 'NativeBridge', level: 900);
       }
       return '0.1.0';
     }
@@ -640,7 +655,8 @@ class NativeBridge {
       try {
         return gen_api.apiEventStream();
       } catch (e) {
-        debugPrint('[Bridge] Failed to get native event stream: $e');
+        developer.log('[Bridge] Failed to get native event stream: $e',
+            name: 'NativeBridge', level: 1000);
       }
     }
 
@@ -741,7 +757,8 @@ class NativeBridge {
         await socket.close();
       }
     } catch (e) {
-      debugPrint('[Discovery] INDI discovery failed at $host:$port: $e');
+      developer.log('[Discovery] INDI discovery failed at $host:$port: $e',
+          name: 'NativeBridge', level: 900);
       return [];
     }
   }
@@ -830,7 +847,8 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[Discovery] Error parsing INDI XML response: $e');
+      developer.log('[Discovery] Error parsing INDI XML response: $e',
+          name: 'NativeBridge', level: 900);
       // Try to extract device names even if full parsing fails
       // (these devices are skipped because type cannot be determined)
       // Regex fallback intentionally does not add devices - malformed XML
@@ -923,8 +941,10 @@ class NativeBridge {
           } catch (e) {
             if (!e.toString().contains('RustLib') &&
                 !e.toString().contains('not initialized')) {
-              debugPrint(
-                  '[Discovery] Native discovery error for ${dt.displayName}: $e');
+              developer.log(
+                  '[Discovery] Native discovery error for ${dt.displayName}: $e',
+                  name: 'NativeBridge',
+                  level: 900);
             }
           }
         }());
@@ -955,12 +975,15 @@ class NativeBridge {
             }
           }
         } catch (e) {
-          debugPrint(
-              '[Discovery] ASCOM fallback discovery failed for ${dt.displayName}: $e');
+          developer.log(
+              '[Discovery] ASCOM fallback discovery failed for ${dt.displayName}: $e',
+              name: 'NativeBridge',
+              level: 900);
         }
       }
     } else if (!Platform.isWindows && !_ascomNotWindowsWarned) {
-      debugPrint('[Discovery] ASCOM not available (non-Windows platform)');
+      developer.log('[Discovery] ASCOM not available (non-Windows platform)',
+          name: 'NativeBridge', level: 800);
       _ascomNotWindowsWarned = true;
     }
 
@@ -990,7 +1013,8 @@ class NativeBridge {
           }
         }
       } catch (e) {
-        debugPrint('[Discovery] Alpaca discovery failed: $e');
+        developer.log('[Discovery] Alpaca discovery failed: $e',
+            name: 'NativeBridge', level: 900);
       }
 
       // =======================================================================
@@ -1011,7 +1035,8 @@ class NativeBridge {
           ));
         }
       } catch (e) {
-        debugPrint('[Discovery] PHD2 discovery failed: $e');
+        developer.log('[Discovery] PHD2 discovery failed: $e',
+            name: 'NativeBridge', level: 900);
       }
     }
 
@@ -1037,9 +1062,11 @@ class NativeBridge {
       }
     }
     if (parts.isNotEmpty) {
-      debugPrint('[Discovery] Complete: ${parts.join(', ')}');
+      developer.log('[Discovery] Complete: ${parts.join(', ')}',
+          name: 'NativeBridge', level: 800);
     } else {
-      debugPrint('[Discovery] Complete: no devices found');
+      developer.log('[Discovery] Complete: no devices found',
+          name: 'NativeBridge', level: 800);
     }
   }
 
@@ -1104,7 +1131,8 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[Discovery] PHD2 network scan failed: $e');
+      developer.log('[Discovery] PHD2 network scan failed: $e',
+          name: 'NativeBridge', level: 900);
       // Continue with local instance if we found one
     }
 
@@ -1135,7 +1163,8 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      debugPrint('[Discovery] Failed to get network interfaces: $e');
+      developer.log('[Discovery] Failed to get network interfaces: $e',
+          name: 'NativeBridge', level: 900);
     }
 
     return subnets;
@@ -1505,8 +1534,10 @@ class NativeBridge {
     final resolvedDriverType =
         driverType ?? _inferDriverTypeFromDeviceId(deviceId);
     if (resolvedDriverType == null) {
-      debugPrint(
+      developer.log(
         '[Bridge] Connected device "$deviceId" has no inferable driver type; omitting from fallback connected-device metadata.',
+        name: 'NativeBridge',
+        level: 900,
       );
       _connectedDeviceInfo.remove(deviceId);
       return;
@@ -1570,12 +1601,15 @@ class NativeBridge {
 
     if (_nativeAvailable) {
       try {
-        debugPrint('[Bridge] Attempting native connection for $deviceId...');
+        developer.log('[Bridge] Attempting native connection for $deviceId...',
+            name: 'NativeBridge', level: 800);
         final genDeviceType = _toGenDeviceType(deviceType);
         await gen_api.apiConnectDevice(
             deviceType: genDeviceType, deviceId: deviceId);
-        debugPrint(
-            '[Bridge] ✓ Successfully connected to $deviceId via native bridge');
+        developer.log(
+            '[Bridge] ✓ Successfully connected to $deviceId via native bridge',
+            name: 'NativeBridge',
+            level: 800);
 
         _recordConnectedDevice(
           deviceType: deviceType,
@@ -1593,9 +1627,12 @@ class NativeBridge {
 
         return; // Success - native bridge handled it
       } catch (e, stackTrace) {
-        debugPrint('[Bridge] ✗ Native connection failed for $deviceId');
-        debugPrint('[Bridge] Error: $e');
-        debugPrint('[Bridge] Stack trace: $stackTrace');
+        developer.log(
+            '[Bridge] ✗ Native connection failed for $deviceId',
+            name: 'NativeBridge',
+            level: 1000,
+            error: e,
+            stackTrace: stackTrace);
 
         // If this device must use native bridge (was discovered by it),
         // don't fall back - throw the error
@@ -1604,8 +1641,10 @@ class NativeBridge {
               'Failed to connect to $deviceId via native bridge: $e');
         }
 
-        debugPrint(
-            '[Bridge] Device supports fallback - trying fallback methods...');
+        developer.log(
+            '[Bridge] Device supports fallback - trying fallback methods...',
+            name: 'NativeBridge',
+            level: 900);
         // Continue to fallback bridge methods below
       }
     } else if (shouldUseNativeOnly) {
@@ -1656,7 +1695,8 @@ class NativeBridge {
     );
 
     try {
-      debugPrint('[ASCOM] Connecting to device: $progId');
+      developer.log('[ASCOM] Connecting to device: $progId',
+          name: 'NativeBridge', level: 800);
       await client.connect();
 
       _ascomClients[deviceId] = client;
@@ -1674,7 +1714,8 @@ class NativeBridge {
         data: {'deviceType': deviceType.name, 'deviceId': deviceId},
       ));
 
-      debugPrint('[ASCOM] Connected to device: $progId');
+      developer.log('[ASCOM] Connected to device: $progId',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to ASCOM device: $e');
@@ -1730,7 +1771,8 @@ class NativeBridge {
     }
 
     try {
-      debugPrint('[Alpaca] Connecting to device: $deviceId');
+      developer.log('[Alpaca] Connecting to device: $deviceId',
+          name: 'NativeBridge', level: 800);
       await client.connect();
 
       _alpacaClients[deviceId] = client;
@@ -1751,7 +1793,8 @@ class NativeBridge {
         data: {'deviceType': deviceType.name, 'deviceId': deviceId},
       ));
 
-      debugPrint('[Alpaca] Connected to device: $deviceId');
+      developer.log('[Alpaca] Connected to device: $deviceId',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to Alpaca device: $e');
@@ -1773,7 +1816,8 @@ class NativeBridge {
         try {
           await client.disconnect();
         } catch (e) {
-          debugPrint('[Alpaca] Error disconnecting device: $e');
+          developer.log('[Alpaca] Error disconnecting device: $e',
+              name: 'NativeBridge', level: 1000);
         }
         client.dispose();
         _alpacaClients.remove(deviceId);
@@ -1788,7 +1832,8 @@ class NativeBridge {
         try {
           await client.disconnect();
         } catch (e) {
-          debugPrint('[ASCOM] Error disconnecting device: $e');
+          developer.log('[ASCOM] Error disconnecting device: $e',
+              name: 'NativeBridge', level: 1000);
         }
         client.dispose();
         _ascomClients.remove(deviceId);
@@ -1816,8 +1861,10 @@ class NativeBridge {
         return await gen_api.apiIsDeviceConnected(
             deviceType: _toGenDeviceType(deviceType), deviceId: deviceId);
       } catch (e) {
-        debugPrint(
-            '[Bridge] Warning: Failed to check device connection from native API: $e');
+        developer.log(
+            '[Bridge] Warning: Failed to check device connection from native API: $e',
+            name: 'NativeBridge',
+            level: 900);
         // Fall through to local tracking
       }
     }
@@ -1846,8 +1893,10 @@ class NativeBridge {
         }
         return nativeDevices;
       } catch (e) {
-        debugPrint(
-            '[Bridge] Warning: Failed to get connected devices from native API: $e');
+        developer.log(
+            '[Bridge] Warning: Failed to get connected devices from native API: $e',
+            name: 'NativeBridge',
+            level: 900);
         // Fall through to fallback implementation
       }
     }
@@ -1868,7 +1917,8 @@ class NativeBridge {
     try {
       return await gen_api.getCameraStatus(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error getting camera status from native: $e');
+      developer.log('[Bridge] Error getting camera status from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1886,7 +1936,8 @@ class NativeBridge {
         targetTemp: targetTemp,
       );
     } catch (e) {
-      debugPrint('[Bridge] Error setting camera cooler from native: $e');
+      developer.log('[Bridge] Error setting camera cooler from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1899,7 +1950,8 @@ class NativeBridge {
     try {
       await gen_api.setCameraGain(deviceId: deviceId, gain: gain);
     } catch (e) {
-      debugPrint('[Bridge] Error setting camera gain from native: $e');
+      developer.log('[Bridge] Error setting camera gain from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1912,7 +1964,8 @@ class NativeBridge {
     try {
       await gen_api.setCameraOffset(deviceId: deviceId, offset: offset);
     } catch (e) {
-      debugPrint('[Bridge] Error setting camera offset from native: $e');
+      developer.log('[Bridge] Error setting camera offset from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1927,7 +1980,8 @@ class NativeBridge {
       await gen_api.apiSetCameraBinning(
           deviceId: deviceId, binX: binX, binY: binY);
     } catch (e) {
-      debugPrint('[Bridge] Error setting camera binning from native: $e');
+      developer.log('[Bridge] Error setting camera binning from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1947,7 +2001,8 @@ class NativeBridge {
         modeIndex: modeIndex,
       );
     } catch (e) {
-      debugPrint('[Bridge] Error calling native setReadoutMode: $e');
+      developer.log('[Bridge] Error calling native setReadoutMode: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1974,7 +2029,8 @@ class NativeBridge {
         binY: binY,
       );
     } catch (e) {
-      debugPrint('[Bridge] Error calling native startExposure: $e');
+      developer.log('[Bridge] Error calling native startExposure: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1987,7 +2043,8 @@ class NativeBridge {
     try {
       await gen_api.apiCameraCancelExposure(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error calling native cancelExposure: $e');
+      developer.log('[Bridge] Error calling native cancelExposure: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -1995,19 +2052,29 @@ class NativeBridge {
   /// Get last captured image
   static Future<CapturedImageResult?> getLastImage(
       {required String deviceId}) async {
-    debugPrint(
-        '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable');
+    // Why: trace-level (debug 500) — these three lines are diagnostic only
+    // and were originally `debugPrint` for tracing the FRB getLastImage round
+    // trip. Promoted into the structured logger so they participate in level
+    // filtering / file rotation like the rest of the bridge.
+    developer.log(
+        '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable',
+        name: 'NativeBridge',
+        level: 500);
     if (!_nativeAvailable) {
       _nativeBridgeRequired('getLastImage');
     }
     try {
-      debugPrint('[Bridge] Calling crateApiApiGetLastImage...');
+      developer.log('[Bridge] Calling crateApiApiGetLastImage...',
+          name: 'NativeBridge', level: 500);
       final rustResult = await gen_api.apiGetLastImage(deviceId: deviceId);
-      debugPrint(
-          '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
+      developer.log(
+          '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}',
+          name: 'NativeBridge',
+          level: 500);
       return rustResult;
     } catch (e) {
-      debugPrint('[Bridge] Error calling native getLastImage: $e');
+      developer.log('[Bridge] Error calling native getLastImage: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2024,7 +2091,8 @@ class NativeBridge {
     try {
       return await gen_api.apiGetMountStatus(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error getting mount status from native: $e');
+      developer.log('[Bridge] Error getting mount status from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2039,7 +2107,8 @@ class NativeBridge {
       await gen_api.apiMountSlewToCoordinates(
           deviceId: deviceId, ra: ra, dec: dec);
     } catch (e) {
-      debugPrint('[Bridge] Error slewing mount via native: $e');
+      developer.log('[Bridge] Error slewing mount via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2053,7 +2122,8 @@ class NativeBridge {
       await gen_api.apiMountSyncToCoordinates(
           deviceId: deviceId, ra: ra, dec: dec);
     } catch (e) {
-      debugPrint('[Bridge] Error syncing mount via native: $e');
+      developer.log('[Bridge] Error syncing mount via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2066,7 +2136,8 @@ class NativeBridge {
     try {
       await gen_api.apiMountPark(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error parking mount via native: $e');
+      developer.log('[Bridge] Error parking mount via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2079,7 +2150,8 @@ class NativeBridge {
     try {
       await gen_api.apiMountUnpark(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error unparking mount via native: $e');
+      developer.log('[Bridge] Error unparking mount via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2093,7 +2165,8 @@ class NativeBridge {
       await gen_api.apiMountSetTracking(
           deviceId: deviceId, enabled: enabled ? 1 : 0);
     } catch (e) {
-      debugPrint('[Bridge] Error setting mount tracking via native: $e');
+      developer.log('[Bridge] Error setting mount tracking via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2111,7 +2184,8 @@ class NativeBridge {
         durationMs: durationMs,
       );
     } catch (e) {
-      debugPrint('[Bridge] Error pulse guiding mount via native: $e');
+      developer.log('[Bridge] Error pulse guiding mount via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2124,7 +2198,8 @@ class NativeBridge {
     try {
       await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
     } catch (e) {
-      debugPrint('[Bridge] Error setting tracking rate from native: $e');
+      developer.log('[Bridge] Error setting tracking rate from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2137,7 +2212,8 @@ class NativeBridge {
     try {
       return await gen_api.mountGetTrackingRate(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error getting tracking rate from native: $e');
+      developer.log('[Bridge] Error getting tracking rate from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2153,7 +2229,8 @@ class NativeBridge {
     try {
       await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
     } catch (e) {
-      debugPrint('[Bridge] Error moving axis from native: $e');
+      developer.log('[Bridge] Error moving axis from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2168,7 +2245,8 @@ class NativeBridge {
       await gen_api.mountSlewAltAz(
           deviceId: deviceId, altitude: altitude, azimuth: azimuth);
     } catch (e) {
-      debugPrint('[Bridge] Error slewing mount to alt/az: $e');
+      developer.log('[Bridge] Error slewing mount to alt/az: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2181,7 +2259,8 @@ class NativeBridge {
     try {
       await gen_api.mountFindHome(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error finding mount home: $e');
+      developer.log('[Bridge] Error finding mount home: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2194,7 +2273,8 @@ class NativeBridge {
     try {
       await gen_api.mountAbort(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error aborting mount motion: $e');
+      developer.log('[Bridge] Error aborting mount motion: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2211,7 +2291,8 @@ class NativeBridge {
     try {
       return await gen_api.apiGetFocuserStatus(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error getting focuser status from native: $e');
+      developer.log('[Bridge] Error getting focuser status from native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2224,7 +2305,8 @@ class NativeBridge {
     try {
       await gen_api.apiFocuserMoveTo(deviceId: deviceId, position: position);
     } catch (e) {
-      debugPrint('[Bridge] Error moving focuser via native: $e');
+      developer.log('[Bridge] Error moving focuser via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2237,7 +2319,8 @@ class NativeBridge {
     try {
       await gen_api.apiFocuserMoveRelative(deviceId: deviceId, delta: delta);
     } catch (e) {
-      debugPrint('[Bridge] Error moving focuser relative via native: $e');
+      developer.log('[Bridge] Error moving focuser relative via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2250,7 +2333,8 @@ class NativeBridge {
     try {
       await gen_api.apiFocuserHalt(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error halting focuser via native: $e');
+      developer.log('[Bridge] Error halting focuser via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -2267,7 +2351,10 @@ class NativeBridge {
     try {
       return await gen_api.apiGetFilterwheelStatus(deviceId: deviceId);
     } catch (e) {
-      debugPrint('[Bridge] Error getting filter wheel status from native: $e');
+      developer.log(
+          '[Bridge] Error getting filter wheel status from native: $e',
+          name: 'NativeBridge',
+          level: 1000);
       rethrow;
     }
   }
@@ -2282,7 +2369,10 @@ class NativeBridge {
       await gen_api.apiFilterwheelSetPosition(
           deviceId: deviceId, position: position);
     } catch (e) {
-      debugPrint('[Bridge] Error setting filter wheel position via native: $e');
+      developer.log(
+          '[Bridge] Error setting filter wheel position via native: $e',
+          name: 'NativeBridge',
+          level: 1000);
       rethrow;
     }
   }
@@ -2420,7 +2510,8 @@ class NativeBridge {
           config: config,
         );
       } catch (e) {
-        debugPrint('[Bridge] Error running autofocus via native: $e');
+        developer.log('[Bridge] Error running autofocus via native: $e',
+            name: 'NativeBridge', level: 1000);
         rethrow;
       }
     }
@@ -2434,7 +2525,8 @@ class NativeBridge {
         await gen_api.apiCancelAutofocus();
         return;
       } catch (e) {
-        debugPrint('[Bridge] Error cancelling autofocus via native: $e');
+        developer.log('[Bridge] Error cancelling autofocus via native: $e',
+            name: 'NativeBridge', level: 1000);
         rethrow;
       }
     }
@@ -2463,10 +2555,13 @@ class NativeBridge {
     // If PHD2 is not running and we're on localhost, try to launch it
     if (!phd2Running &&
         (targetHost == 'localhost' || targetHost == '127.0.0.1')) {
-      debugPrint(
-          'DEBUG: PHD2 not running on localhost. Platform.isWindows: ${Platform.isWindows}');
+      developer.log(
+          '[PHD2] not running on localhost. Platform.isWindows: ${Platform.isWindows}',
+          name: 'NativeBridge',
+          level: 800);
       if (Platform.isWindows) {
-        debugPrint('[PHD2] not running, attempting to launch...');
+        developer.log('[PHD2] not running, attempting to launch...',
+            name: 'NativeBridge', level: 800);
         try {
           // Common PHD2 installation paths on Windows
           final phd2Paths = [
@@ -2486,7 +2581,8 @@ class NativeBridge {
 
           if (phd2Path != null) {
             await Process.start(phd2Path, [], mode: ProcessStartMode.detached);
-            debugPrint('[PHD2] launched from: $phd2Path');
+            developer.log('[PHD2] launched from: $phd2Path',
+                name: 'NativeBridge', level: 800);
 
             // Wait for PHD2 to start and open its server
             for (int i = 0; i < 30; i++) {
@@ -2494,7 +2590,8 @@ class NativeBridge {
               if (await phd2.checkPhd2Running(
                   host: targetHost, port: targetPort)) {
                 phd2Running = true;
-                debugPrint('[PHD2] is now running');
+                developer.log('[PHD2] is now running',
+                    name: 'NativeBridge', level: 800);
                 break;
               }
             }
@@ -2508,12 +2605,15 @@ class NativeBridge {
                 'PHD2 not found. Please install PHD2 from https://openphdguiding.org/');
           }
         } catch (e) {
-          debugPrint('[PHD2] Failed to launch: $e');
+          developer.log('[PHD2] Failed to launch: $e',
+              name: 'NativeBridge', level: 1000);
           throw Exception('Could not launch PHD2: $e');
         }
       } else {
-        debugPrint(
-            'DEBUG: Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}');
+        developer.log(
+            '[PHD2] Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}',
+            name: 'NativeBridge',
+            level: 900);
         throw Exception(
             'PHD2 is not running. Platform: ${Platform.operatingSystem}. Please start PHD2 manually.');
       }
@@ -3093,9 +3193,11 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerSubscribeEvents();
       _sequencerEventsSubscribed = true;
-      debugPrint('[Bridge] Subscribed to sequencer events via native');
+      developer.log('[Bridge] Subscribed to sequencer events via native',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error subscribing to sequencer events: $e');
+      developer.log('[Bridge] Error subscribing to sequencer events: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3110,7 +3212,8 @@ class NativeBridge {
       await gen_api.apiSequencerLoadJson(json: json);
       _loadedSequenceJson = json;
     } catch (e) {
-      debugPrint('[Bridge] Error loading sequence via native: $e');
+      developer.log('[Bridge] Error loading sequence via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3139,10 +3242,13 @@ class NativeBridge {
         filterNames: filterNames,
         filterFocusOffsets: filterFocusOffsets,
       );
-      debugPrint(
-          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets');
+      developer.log(
+          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets',
+          name: 'NativeBridge',
+          level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error setting sequencer devices: $e');
+      developer.log('[Bridge] Error setting sequencer devices: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3155,9 +3261,11 @@ class NativeBridge {
 
     try {
       await gen_api.apiSequencerSetSafetyFailMode(mode: mode);
-      debugPrint('[Bridge] Set sequencer safety fail mode: $mode');
+      developer.log('[Bridge] Set sequencer safety fail mode: $mode',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error setting sequencer safety fail mode: $e');
+      developer.log('[Bridge] Error setting sequencer safety fail mode: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3170,9 +3278,11 @@ class NativeBridge {
 
     try {
       await gen_api.apiSequencerSetSavePath(path: path);
-      debugPrint('[Bridge] Set sequencer save path: ${path ?? "<none>"}');
+      developer.log('[Bridge] Set sequencer save path: ${path ?? "<none>"}',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error setting sequencer save path: $e');
+      developer.log('[Bridge] Error setting sequencer save path: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3197,10 +3307,13 @@ class NativeBridge {
         settleTimeout: settleTimeout,
         raOnly: raOnly,
       );
-      debugPrint(
-          '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly');
+      developer.log(
+          '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly',
+          name: 'NativeBridge',
+          level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error updating sequencer dither config: $e');
+      developer.log('[Bridge] Error updating sequencer dither config: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3219,10 +3332,13 @@ class NativeBridge {
         latitude: latitude,
         longitude: longitude,
       );
-      debugPrint(
-          '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude');
+      developer.log(
+          '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude',
+          name: 'NativeBridge',
+          level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error updating sequencer location: $e');
+      developer.log('[Bridge] Error updating sequencer location: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3236,9 +3352,11 @@ class NativeBridge {
 
     try {
       await gen_api.apiSequencerUpdateFilterOffsets(offsets: offsets);
-      debugPrint('[Bridge] Updated sequencer filter offsets: $offsets');
+      developer.log('[Bridge] Updated sequencer filter offsets: $offsets',
+          name: 'NativeBridge', level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error updating sequencer filter offsets: $e');
+      developer.log('[Bridge] Error updating sequencer filter offsets: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3256,7 +3374,8 @@ class NativeBridge {
       await gen_api.apiSequencerStart();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      debugPrint('[Bridge] Error starting sequence via native: $e');
+      developer.log('[Bridge] Error starting sequence via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3271,7 +3390,8 @@ class NativeBridge {
       await gen_api.apiSequencerPause();
       _sequencerState = SequencerState.paused;
     } catch (e) {
-      debugPrint('[Bridge] Error pausing sequence via native: $e');
+      developer.log('[Bridge] Error pausing sequence via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3286,7 +3406,8 @@ class NativeBridge {
       await gen_api.apiSequencerResume();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      debugPrint('[Bridge] Error resuming sequence via native: $e');
+      developer.log('[Bridge] Error resuming sequence via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3302,7 +3423,8 @@ class NativeBridge {
       _sequencerState = SequencerState.idle;
       _loadedSequenceJson = null;
     } catch (e) {
-      debugPrint('[Bridge] Error stopping sequence via native: $e');
+      developer.log('[Bridge] Error stopping sequence via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3316,7 +3438,8 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerSkip();
     } catch (e) {
-      debugPrint('[Bridge] Error skipping node via native: $e');
+      developer.log('[Bridge] Error skipping node via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3332,7 +3455,8 @@ class NativeBridge {
       _sequencerState = SequencerState.idle;
       _loadedSequenceJson = null;
     } catch (e) {
-      debugPrint('[Bridge] Error resetting sequencer via native: $e');
+      developer.log('[Bridge] Error resetting sequencer via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3367,10 +3491,13 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerSetSimulationMode(enabled: enabled);
       _simulationMode = enabled;
-      debugPrint(
-          '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}');
+      developer.log(
+          '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}',
+          name: 'NativeBridge',
+          level: 800);
     } catch (e) {
-      debugPrint('[Bridge] Error setting simulation mode via native: $e');
+      developer.log('[Bridge] Error setting simulation mode via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3398,7 +3525,8 @@ class NativeBridge {
         message: nativeState.message,
       );
     } catch (e) {
-      debugPrint('[Bridge] Error getting sequencer status via native: $e');
+      developer.log('[Bridge] Error getting sequencer status via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3416,7 +3544,8 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerSetCheckpointDir(path: path);
     } catch (e) {
-      debugPrint('[Bridge] Error setting checkpoint dir via native: $e');
+      developer.log('[Bridge] Error setting checkpoint dir via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3430,7 +3559,8 @@ class NativeBridge {
     try {
       return await gen_api.apiSequencerHasCheckpoint();
     } catch (e) {
-      debugPrint('[Bridge] Error checking checkpoint via native: $e');
+      developer.log('[Bridge] Error checking checkpoint via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3454,7 +3584,8 @@ class NativeBridge {
         ageSeconds: nativeInfo.ageSeconds.toInt(),
       );
     } catch (e) {
-      debugPrint('[Bridge] Error getting checkpoint info via native: $e');
+      developer.log('[Bridge] Error getting checkpoint info via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3469,7 +3600,8 @@ class NativeBridge {
       await gen_api.apiSequencerResumeFromCheckpoint();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      debugPrint('[Bridge] Error resuming from checkpoint via native: $e');
+      developer.log('[Bridge] Error resuming from checkpoint via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3483,7 +3615,8 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerClearCheckpoint();
     } catch (e) {
-      debugPrint('[Bridge] Error discarding checkpoint via native: $e');
+      developer.log('[Bridge] Error discarding checkpoint via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }
@@ -3497,7 +3630,8 @@ class NativeBridge {
     try {
       await gen_api.apiSequencerSaveCheckpoint();
     } catch (e) {
-      debugPrint('[Bridge] Error saving checkpoint via native: $e');
+      developer.log('[Bridge] Error saving checkpoint via native: $e',
+          name: 'NativeBridge', level: 1000);
       rethrow;
     }
   }

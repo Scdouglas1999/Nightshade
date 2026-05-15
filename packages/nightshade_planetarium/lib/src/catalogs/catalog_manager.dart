@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -300,7 +301,10 @@ class CatalogManager {
       await dir.create(recursive: true);
     }
     
-    debugPrint('[Catalog] initialized with directory: $catalogDirectory');
+    developer.log(
+        '[Catalog] initialized with directory: $catalogDirectory',
+        name: 'CatalogManager',
+        level: 800);
   }
   
   /// Get the catalog directory path
@@ -352,7 +356,8 @@ class CatalogManager {
         installedDate = DateTime.tryParse(metaJson['installedDate'] ?? '');
       } catch (e) {
         // Metadata corrupted or malformed - report as installed with defaults
-        debugPrint('[Catalog]: Failed to parse metadata: $e');
+        developer.log('[Catalog]: Failed to parse metadata: $e',
+            name: 'CatalogManager', level: 900);
       }
     }
     
@@ -398,7 +403,10 @@ class CatalogManager {
     required CatalogPackage package,
     void Function(DownloadProgress)? onProgress,
   }) async {
-    debugPrint('[Catalog] Starting download of ${source.name} from ${source.downloadUrl}');
+    developer.log(
+        '[Catalog] Starting download of ${source.name} from ${source.downloadUrl}',
+        name: 'CatalogManager',
+        level: 800);
     
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -419,16 +427,22 @@ class CatalogManager {
       final client = http.Client();
       
       try {
-        debugPrint('[Catalog] Sending HTTP GET request to ${source.downloadUrl}');
-        
+        developer.log(
+            '[Catalog] Sending HTTP GET request to ${source.downloadUrl}',
+            name: 'CatalogManager',
+            level: 800);
+
         final request = http.Request('GET', Uri.parse(source.downloadUrl));
         final streamedResponse = await client.send(request);
-        
-        debugPrint('[Catalog] Response status: ${streamedResponse.statusCode}');
-        
+
+        developer.log(
+            '[Catalog] Response status: ${streamedResponse.statusCode}',
+            name: 'CatalogManager',
+            level: 800);
+
         if (streamedResponse.statusCode != 200) {
           final errorMsg = 'HTTP ${streamedResponse.statusCode}: Failed to download from ${source.downloadUrl}';
-          debugPrint(errorMsg);
+          developer.log(errorMsg, name: 'CatalogManager', level: 1000);
           final error = DownloadProgress.error(source.name, errorMsg);
           _downloadController.add(error);
           onProgress?.call(error);
@@ -440,8 +454,11 @@ class CatalogManager {
         final file = File(filePath);
         final sink = file.openWrite();
         
-        debugPrint('[Catalog] Writing to $filePath, expected size: $contentLength bytes');
-        
+        developer.log(
+            '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+            name: 'CatalogManager',
+            level: 800);
+
         // Check if the download is gzip compressed
         final isGzipped = source.downloadUrl.endsWith('.gz');
         
@@ -466,14 +483,19 @@ class CatalogManager {
         // Decompress if needed
         Uint8List finalBytes;
         if (isGzipped) {
-          debugPrint('[Catalog] Decompressing gzip data...');
+          developer.log('[Catalog] Decompressing gzip data...',
+              name: 'CatalogManager', level: 800);
           try {
             finalBytes = Uint8List.fromList(
               gzip.decode(downloadedBytes)
             );
-            debugPrint('[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes');
+            developer.log(
+                '[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes',
+                name: 'CatalogManager',
+                level: 800);
           } catch (e) {
-            debugPrint('[Catalog] Gzip decompression failed: $e');
+            developer.log('[Catalog] Gzip decompression failed: $e',
+                name: 'CatalogManager', level: 900);
             // Try to use the data as-is (maybe it wasn't actually gzipped)
             finalBytes = Uint8List.fromList(downloadedBytes);
           }
@@ -485,20 +507,24 @@ class CatalogManager {
         sink.add(finalBytes);
         await sink.close();
         
-        debugPrint('[Catalog] Download complete: $bytesReceived bytes written to $filePath');
-        
+        developer.log(
+            '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
+            name: 'CatalogManager',
+            level: 800);
+
         // Verify file was written
         if (!await file.exists()) {
           throw Exception('File was not created after download');
         }
-        
+
         final fileSize = await file.length();
         if (fileSize == 0) {
           throw Exception('Downloaded file is empty');
         }
-        
-        debugPrint('[Catalog] File verified: $fileSize bytes');
-        
+
+        developer.log('[Catalog] File verified: $fileSize bytes',
+            name: 'CatalogManager', level: 800);
+
         // Count objects and save metadata
         final objectCount = await _countObjects(filePath);
         await _saveMetadata(type, source, package, objectCount);
@@ -506,8 +532,9 @@ class CatalogManager {
           stars: type == 'stars',
           dsos: type == 'dso',
         );
-        
-        debugPrint('[Catalog] Catalog saved with $objectCount objects');
+
+        developer.log('[Catalog] Catalog saved with $objectCount objects',
+            name: 'CatalogManager', level: 800);
         
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -519,16 +546,19 @@ class CatalogManager {
       }
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
-      debugPrint(errorMsg);
-      debugPrint('[Catalog] Stack trace: $stackTrace');
-      
+      developer.log(errorMsg,
+          name: 'CatalogManager',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace);
+
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
       onProgress?.call(error);
       return false;
     }
   }
-  
+
   Future<int> _countObjects(String filePath) async {
     try {
       final file = File(filePath);
@@ -536,7 +566,8 @@ class CatalogManager {
       // Subtract 1 for header row
       return lines.length - 1;
     } catch (e) {
-      debugPrint('[Catalog] Error counting objects: $e');
+      developer.log('[Catalog] Error counting objects: $e',
+          name: 'CatalogManager', level: 900);
       return 0;
     }
   }
@@ -587,7 +618,8 @@ class CatalogManager {
       
       return true;
     } catch (e) {
-      debugPrint('[Catalog] Import error: $e');
+      developer.log('[Catalog] Import error: $e',
+          name: 'CatalogManager', level: 1000);
       return false;
     }
   }
@@ -649,8 +681,12 @@ class CatalogManager {
     // Build the VizieR TAP URL based on the selected package tier
     final downloadUrl = buildGladePlusUrl(package);
 
-    debugPrint('[Catalog] Starting download of ${source.name} (${package.displayName} tier)');
-    debugPrint('[Catalog] VizieR TAP URL: $downloadUrl');
+    developer.log(
+        '[Catalog] Starting download of ${source.name} (${package.displayName} tier)',
+        name: 'CatalogManager',
+        level: 800);
+    developer.log('[Catalog] VizieR TAP URL: $downloadUrl',
+        name: 'CatalogManager', level: 800);
 
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -669,16 +705,20 @@ class CatalogManager {
       final client = http.Client();
 
       try {
-        debugPrint('[Catalog] Sending HTTP GET request to VizieR TAP...');
+        developer.log('[Catalog] Sending HTTP GET request to VizieR TAP...',
+            name: 'CatalogManager', level: 800);
 
         final request = http.Request('GET', Uri.parse(downloadUrl));
         final streamedResponse = await client.send(request);
 
-        debugPrint('[Catalog] Response status: ${streamedResponse.statusCode}');
+        developer.log(
+            '[Catalog] Response status: ${streamedResponse.statusCode}',
+            name: 'CatalogManager',
+            level: 800);
 
         if (streamedResponse.statusCode != 200) {
           final errorMsg = 'HTTP ${streamedResponse.statusCode}: Failed to download from VizieR TAP';
-          debugPrint(errorMsg);
+          developer.log(errorMsg, name: 'CatalogManager', level: 1000);
           final error = DownloadProgress.error(source.name, errorMsg);
           _downloadController.add(error);
           onProgress?.call(error);
@@ -690,7 +730,10 @@ class CatalogManager {
         final file = File(filePath);
         final sink = file.openWrite();
 
-        debugPrint('[Catalog] Writing to $filePath, expected size: $contentLength bytes');
+        developer.log(
+            '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+            name: 'CatalogManager',
+            level: 800);
 
         // VizieR TAP returns CSV directly (not gzipped)
         var bytesReceived = 0;
@@ -716,7 +759,10 @@ class CatalogManager {
         sink.add(finalBytes);
         await sink.close();
 
-        debugPrint('[Catalog] Download complete: $bytesReceived bytes written to $filePath');
+        developer.log(
+            '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
+            name: 'CatalogManager',
+            level: 800);
 
         if (!await file.exists()) {
           throw Exception('File was not created after download');
@@ -727,12 +773,16 @@ class CatalogManager {
           throw Exception('Downloaded file is empty');
         }
 
-        debugPrint('[Catalog] File verified: $fileSize bytes');
+        developer.log('[Catalog] File verified: $fileSize bytes',
+            name: 'CatalogManager', level: 800);
 
         final objectCount = await _countObjects(filePath);
         await _saveAnnotationMetadata(source, package, objectCount);
 
-        debugPrint('[Catalog] Annotation catalog saved with $objectCount objects');
+        developer.log(
+            '[Catalog] Annotation catalog saved with $objectCount objects',
+            name: 'CatalogManager',
+            level: 800);
 
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -744,8 +794,11 @@ class CatalogManager {
       }
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
-      debugPrint(errorMsg);
-      debugPrint('[Catalog] Stack trace: $stackTrace');
+      developer.log(errorMsg,
+          name: 'CatalogManager',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace);
 
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
@@ -784,7 +837,8 @@ class CatalogManager {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        debugPrint('[Catalog] Import source file not found: $sourcePath');
+        developer.log('[Catalog] Import source file not found: $sourcePath',
+            name: 'CatalogManager', level: 900);
         return false;
       }
 
@@ -797,10 +851,14 @@ class CatalogManager {
       final objectCount = await _countObjects(destPath);
       await _saveAnnotationMetadata(gladePlusCatalog, package, objectCount);
 
-      debugPrint('[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath');
+      developer.log(
+          '[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath',
+          name: 'CatalogManager',
+          level: 800);
       return true;
     } catch (e) {
-      debugPrint('[Catalog] Import annotation catalog error: $e');
+      developer.log('[Catalog] Import annotation catalog error: $e',
+          name: 'CatalogManager', level: 1000);
       return false;
     }
   }
@@ -877,7 +935,8 @@ class CatalogManager {
           size: d.sizeString,
         )));
       } catch (e) {
-        debugPrint('[Catalog] DSO search error: $e');
+        developer.log('[Catalog] DSO search error: $e',
+            name: 'CatalogManager', level: 900);
       }
     }
     
@@ -898,7 +957,8 @@ class CatalogManager {
           constellation: s.constellation,
         )));
       } catch (e) {
-        debugPrint('[Catalog] Star search error: $e');
+        developer.log('[Catalog] Star search error: $e',
+            name: 'CatalogManager', level: 900);
       }
     }
     
@@ -927,7 +987,8 @@ class CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      debugPrint('[Catalog] DSO searchNearby error: $e');
+      developer.log('[Catalog] DSO searchNearby error: $e',
+          name: 'CatalogManager', level: 900);
       return [];
     }
   }
@@ -954,7 +1015,8 @@ class CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      debugPrint('[Catalog] Star searchNearby error: $e');
+      developer.log('[Catalog] Star searchNearby error: $e',
+          name: 'CatalogManager', level: 900);
       return [];
     }
   }
@@ -1290,7 +1352,10 @@ class HygCatalogLoader {
     }
 
     if (malformedLines > 0) {
-      debugPrint('[Catalog] StarCatalogLoader: Skipped $malformedLines malformed lines');
+      developer.log(
+          '[Catalog] StarCatalogLoader: Skipped $malformedLines malformed lines',
+          name: 'CatalogManager',
+          level: 900);
     }
 
     _cachedData = stars;
@@ -1391,7 +1456,10 @@ class OpenNgcCatalogLoader {
     }
 
     if (malformedLines > 0) {
-      debugPrint('[Catalog] DSOCatalogLoader: Skipped $malformedLines malformed lines');
+      developer.log(
+          '[Catalog] DSOCatalogLoader: Skipped $malformedLines malformed lines',
+          name: 'CatalogManager',
+          level: 900);
     }
 
     _cachedData = dsos;
