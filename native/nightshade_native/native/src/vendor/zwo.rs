@@ -410,8 +410,10 @@ impl ZwoCamera {
     fn load_camera_info(&mut self) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
+        // SAFETY: ASICameraInfo is `#[repr(C)]` POD (only c_int/c_long/f64/f32/c_char arrays); zeroed is a valid initial state per ASI SDK contract before ASIGetCameraProperty writes into it.
         let mut info: ASICameraInfo = unsafe { std::mem::zeroed() };
         // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
+        // SAFETY: `&mut info` points to a fully-allocated ASICameraInfo on the stack; camera_id is the index validated against the SDK's ASIGetNumOfConnectedCameras() at construction time. zwo_camera_mutex is held by caller (sync helper) ensuring the non-thread-safe SDK is single-threaded.
         let result = unsafe { (sdk.get_camera_property)(&mut info, self.camera_id) };
         check_asi_error(result)?;
 
@@ -437,6 +439,7 @@ impl ZwoCamera {
         let _lock = zwo_camera_mutex().lock().await;
         let mut value: c_long = 0;
         let mut is_auto: ASIBool = ASI_FALSE;
+        // SAFETY: zwo_camera_mutex is held above guaranteeing single-threaded SDK access; `value` and `is_auto` are stack-allocated and outlive the call; camera_id was validated when the camera was opened.
         let result = unsafe {
             (sdk.get_control_value)(self.camera_id, control as c_int, &mut value, &mut is_auto)
         };
@@ -449,6 +452,7 @@ impl ZwoCamera {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let mut value: c_long = 0;
         let mut is_auto: ASIBool = ASI_FALSE;
+        // SAFETY: per function contract the caller already holds zwo_camera_mutex (called only from connect/get_status/download_image while lock is held). `value`/`is_auto` are valid stack pointers; camera_id was validated at open time.
         let result = unsafe {
             (sdk.get_control_value)(self.camera_id, control as c_int, &mut value, &mut is_auto)
         };
@@ -465,6 +469,7 @@ impl ZwoCamera {
     ) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_camera_mutex().lock().await;
+        // SAFETY: zwo_camera_mutex is held above; all arguments are pass-by-value primitives validated by ASI control range; camera_id is valid (camera was opened).
         let result = unsafe {
             (sdk.set_control_value)(
                 self.camera_id,
@@ -484,6 +489,7 @@ impl ZwoCamera {
         auto: bool,
     ) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        // SAFETY: caller-must-hold-mutex contract documented on the function. All args are pass-by-value primitives; camera_id is valid since this method is only called between connect()/disconnect() while the mutex is held.
         let result = unsafe {
             (sdk.set_control_value)(
                 self.camera_id,
@@ -505,12 +511,15 @@ impl ZwoCamera {
 
         // Get number of controls
         let mut num_controls: c_int = 0;
+        // SAFETY: zwo_camera_mutex is held (acquired above); `num_controls` is a valid stack pointer; camera_id is valid (camera opened during connect).
         let result = unsafe { (sdk.get_num_controls)(self.camera_id, &mut num_controls) };
         check_asi_error(result)?;
 
         // Search for the specific control
         for i in 0..num_controls {
+            // SAFETY: ASIControlCaps is `#[repr(C)]` POD; zeroed is a safe initial state per SDK contract.
             let mut caps: ASIControlCaps = unsafe { std::mem::zeroed() };
+            // SAFETY: zwo_camera_mutex held; `caps` is a valid stack pointer; `i` is bounded by num_controls returned by the SDK above; camera_id is valid.
             let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
             if result == 0 {
                 // Check if this is the control we're looking for
@@ -530,12 +539,15 @@ impl ZwoCamera {
 
         // Get number of controls
         let mut num_controls: c_int = 0;
+        // SAFETY: per function contract the caller already holds zwo_camera_mutex; `num_controls` is a valid stack pointer; camera_id is valid.
         let result = unsafe { (sdk.get_num_controls)(self.camera_id, &mut num_controls) };
         check_asi_error(result)?;
 
         // Search for the specific control
         for i in 0..num_controls {
+            // SAFETY: ASIControlCaps is `#[repr(C)]` POD; zeroed is a safe initial state.
             let mut caps: ASIControlCaps = unsafe { std::mem::zeroed() };
+            // SAFETY: caller-held mutex (function contract); `caps` is a valid stack pointer; `i` is bounded by num_controls; camera_id is valid.
             let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
             if result == 0 {
                 // Check if this is the control we're looking for
@@ -650,6 +662,7 @@ impl NativeDevice for ZwoCamera {
 
         // Open camera
         tracing::debug!("Opening camera ID {}", self.camera_id);
+        // SAFETY: zwo_camera_mutex is held (acquired in connect() before this point); camera_id is the index from discover_devices() which was validated against ASIGetNumOfConnectedCameras.
         let result = unsafe { (sdk.open_camera)(self.camera_id) };
         if result != 0 {
             tracing::error!(
@@ -666,12 +679,14 @@ impl NativeDevice for ZwoCamera {
         let cleanup_guard = CleanupGuard::new(|| {
             tracing::debug!("Cleaning up ZWO camera {} after failed connect", camera_id);
             if let Some(sdk) = AsiSdk::get() {
+                // SAFETY: Best-effort cleanup on error path; camera_id was successfully opened above (we only reach the guard after ASIOpenCamera succeeded). Cleanup runs on drop while the connect() lock is still held since the guard is dropped before connect() returns.
                 let _ = unsafe { (sdk.close_camera)(camera_id) };
             }
         });
 
         // Initialize camera
         tracing::debug!("Initializing camera ID {}", self.camera_id);
+        // SAFETY: zwo_camera_mutex held by connect(); camera_id was successfully opened by ASIOpenCamera above.
         let result = unsafe { (sdk.init_camera)(self.camera_id) };
         if result != 0 {
             tracing::error!(
@@ -691,6 +706,7 @@ impl NativeDevice for ZwoCamera {
                 info.max_width,
                 info.max_height
             );
+            // SAFETY: zwo_camera_mutex held by connect(); camera_id is open and initialized; width/height come from the SDK-reported ASICameraInfo and bin=1 is always valid.
             let result = unsafe {
                 (sdk.set_roi_format)(
                     self.camera_id,
@@ -733,6 +749,7 @@ impl NativeDevice for ZwoCamera {
         if self.connected {
             let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
             let _lock = zwo_camera_mutex().lock().await;
+            // SAFETY: zwo_camera_mutex acquired above; camera_id is valid because self.connected is true (only set after successful connect()).
             let result = unsafe { (sdk.close_camera)(self.camera_id) };
             check_asi_error(result)?;
             self.connected = false;
@@ -774,6 +791,7 @@ impl NativeCamera for ZwoCamera {
         let _lock = zwo_camera_mutex().lock().await;
 
         let mut exp_status: c_int = 0;
+        // SAFETY: zwo_camera_mutex held above; `exp_status` is a valid stack pointer; camera_id is valid (self.connected was checked).
         let result = unsafe { (sdk.get_exp_status)(self.camera_id, &mut exp_status) };
         check_asi_error(result)?;
 
@@ -864,6 +882,7 @@ impl NativeCamera for ZwoCamera {
         }
 
         // Start exposure (false = not dark frame)
+        // SAFETY: zwo_camera_mutex held by caller (start_exposure() acquires it before this point); camera_id is valid (connected=true checked earlier).
         let result = unsafe { (sdk.start_exposure)(self.camera_id, ASI_FALSE) };
         check_asi_error(result)?;
 
@@ -881,6 +900,7 @@ impl NativeCamera for ZwoCamera {
 
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_camera_mutex().lock().await;
+        // SAFETY: zwo_camera_mutex held above; camera_id is valid (connected=true checked earlier).
         let result = unsafe { (sdk.stop_exposure)(self.camera_id) };
         check_asi_error(result)?;
 
@@ -897,6 +917,7 @@ impl NativeCamera for ZwoCamera {
         let _lock = zwo_camera_mutex().lock().await;
 
         let mut status: c_int = 0;
+        // SAFETY: zwo_camera_mutex held above; `status` is a valid stack pointer; camera_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_exp_status)(self.camera_id, &mut status) };
         check_asi_error(result)?;
 
@@ -935,6 +956,7 @@ impl NativeCamera for ZwoCamera {
         let mut bin: c_int = 0;
         let mut img_type: c_int = 0;
 
+        // SAFETY: zwo_camera_mutex held above; all four out-pointers are valid stack pointers; camera_id is valid (connected=true checked).
         let result = unsafe {
             (sdk.get_roi_format)(
                 self.camera_id,
@@ -958,6 +980,7 @@ impl NativeCamera for ZwoCamera {
         let mut pooled_buffer = global_u8_pool().get_buffer(buffer_size);
         pooled_buffer.resize(buffer_size);
 
+        // SAFETY: zwo_camera_mutex held above; `pooled_buffer` was resized to exactly `buffer_size` bytes (computed via calculate_buffer_size_i32 from the SDK-reported ROI), and the SDK writes at most `buffer_size` bytes into the pointer. camera_id is valid (connected=true checked).
         let result = unsafe {
             (sdk.get_data_after_exp)(
                 self.camera_id,
@@ -1168,6 +1191,7 @@ impl NativeCamera for ZwoCamera {
         // Acquire mutex for SDK operation
         let _lock = zwo_camera_mutex().lock().await;
 
+        // SAFETY: zwo_camera_mutex held above; new_width/new_height derive from SDK-reported max_width/max_height divided by `bin` (clamped 1..=4); camera_id is valid (connected=true checked).
         let result = unsafe {
             (sdk.set_roi_format)(
                 self.camera_id,
@@ -1217,6 +1241,7 @@ impl NativeCamera for ZwoCamera {
         // Acquire mutex for SDK operations
         let _lock = zwo_camera_mutex().lock().await;
 
+        // SAFETY: zwo_camera_mutex held above; width/height derive from SubFrame supplied by caller (validated by upper layer) or SDK-reported max dimensions; camera_id is valid (connected=true checked).
         let result = unsafe {
             (sdk.set_roi_format)(
                 self.camera_id,
@@ -1228,6 +1253,7 @@ impl NativeCamera for ZwoCamera {
         };
         check_asi_error(result)?;
 
+        // SAFETY: zwo_camera_mutex still held; x/y are subframe coordinates from caller validated by upper layer; camera_id is valid.
         let result = unsafe { (sdk.set_start_pos)(self.camera_id, x, y) };
         check_asi_error(result)?;
 
@@ -1354,6 +1380,7 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
     let _lock = zwo_camera_mutex().lock().await;
 
     tracing::debug!("Discovering ZWO cameras via native ASI SDK...");
+    // SAFETY: zwo_camera_mutex held above; ASIGetNumOfConnectedCameras takes no arguments and only reads internal SDK state.
     let num_cameras = unsafe { (sdk.get_num_cameras)() };
     tracing::debug!("ASI SDK reports {} connected camera(s)", num_cameras);
 
@@ -1361,11 +1388,14 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
     let mut failed_count = 0;
 
     for i in 0..num_cameras {
+        // SAFETY: ASICameraInfo is `#[repr(C)]` POD; zeroed is a valid initial state before SDK populates it.
         let mut info: ASICameraInfo = unsafe { std::mem::zeroed() };
         // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
+        // SAFETY: zwo_camera_mutex held above; `i` is bounded by num_cameras returned by the SDK; `info` is a valid stack pointer.
         let result = unsafe { (sdk.get_camera_property)(&mut info, i) };
 
         if result == 0 {
+            // SAFETY: ASI SDK guarantees `info.name` is a NUL-terminated UTF-8 string within the 64-byte array; to_string_lossy handles any non-UTF8 bytes by replacing them.
             let name = unsafe {
                 CStr::from_ptr(info.name.as_ptr())
                     .to_string_lossy()
@@ -1633,6 +1663,7 @@ impl NativeDevice for ZwoFocuser {
         let _lock = zwo_eaf_mutex().lock().await;
 
         // Open focuser
+        // SAFETY: zwo_eaf_mutex held above; focuser_id comes from discover_focusers() via EAFGetID() so it's a valid SDK-issued identifier.
         let result = unsafe { (sdk.open)(self.focuser_id) };
         check_eaf_error(result)?;
 
@@ -1644,12 +1675,15 @@ impl NativeDevice for ZwoFocuser {
                 focuser_id
             );
             if let Some(sdk) = EafSdk::get() {
+                // SAFETY: best-effort cleanup; focuser_id was successfully opened above (guard only runs if we got past open). Mutex is still held from the connect() scope when this drops.
                 let _ = unsafe { (sdk.close)(focuser_id) };
             }
         });
 
         // Get properties
+        // SAFETY: EAFInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
         let mut info: EAFInfo = unsafe { std::mem::zeroed() };
+        // SAFETY: zwo_eaf_mutex held by connect(); `info` is a valid stack pointer; focuser_id was successfully opened above.
         let result = unsafe { (sdk.get_property)(self.focuser_id, &mut info) };
         check_eaf_error(result)?;
 
@@ -1694,6 +1728,7 @@ impl NativeDevice for ZwoFocuser {
 
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
+        // SAFETY: zwo_eaf_mutex held above; focuser_id is valid because self.connected is true (only set after successful connect()).
         let result = unsafe { (sdk.close)(self.focuser_id) };
         check_eaf_error(result)?;
 
@@ -1717,6 +1752,7 @@ impl NativeFocuser for ZwoFocuser {
         let target = position.clamp(0, self.max_position);
 
         tracing::debug!("Moving ZWO EAF to position {}", target);
+        // SAFETY: zwo_eaf_mutex held above; `target` is clamped to [0, max_position] by the caller; focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.move_to)(self.focuser_id, target) };
         check_eaf_error(result)
     }
@@ -1739,6 +1775,7 @@ impl NativeFocuser for ZwoFocuser {
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
         let mut position: c_int = 0;
+        // SAFETY: zwo_eaf_mutex held above; `position` is a valid stack pointer; focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_position)(self.focuser_id, &mut position) };
         check_eaf_error(result)?;
         Ok(position)
@@ -1753,6 +1790,7 @@ impl NativeFocuser for ZwoFocuser {
         let _lock = zwo_eaf_mutex().lock().await;
         let mut is_moving = false;
         let mut hand_control = false;
+        // SAFETY: zwo_eaf_mutex held above; both out-bool pointers point to valid stack bools (SDK writes 0 or 1); focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.is_moving)(self.focuser_id, &mut is_moving, &mut hand_control) };
         check_eaf_error(result)?;
         Ok(is_moving)
@@ -1766,6 +1804,7 @@ impl NativeFocuser for ZwoFocuser {
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
         tracing::debug!("Stopping ZWO EAF movement");
+        // SAFETY: zwo_eaf_mutex held above; focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.stop)(self.focuser_id) };
         check_eaf_error(result)
     }
@@ -1778,6 +1817,7 @@ impl NativeFocuser for ZwoFocuser {
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
         let mut temp: f32 = 0.0;
+        // SAFETY: zwo_eaf_mutex held above; `temp` is a valid stack pointer; focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_temp)(self.focuser_id, &mut temp) };
 
         // Temperature of -273 means invalid/unavailable
@@ -1900,6 +1940,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     let _lock = zwo_eaf_mutex().lock().await;
 
     tracing::debug!("Discovering ZWO EAF focusers via native SDK...");
+    // SAFETY: zwo_eaf_mutex held above; EAFGetNum takes no arguments and only reads internal SDK state.
     let num_focusers = unsafe { (sdk.get_num)() };
     tracing::info!("EAF SDK reports {} connected focuser(s)", num_focusers);
 
@@ -1907,14 +1948,19 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
 
     for i in 0..num_focusers {
         let mut id: c_int = 0;
+        // SAFETY: zwo_eaf_mutex held above; `i` is bounded by num_focusers; `id` is a valid stack pointer.
         let result = unsafe { (sdk.get_id)(i, &mut id) };
 
         if result == 0 {
             // Get focuser info
+            // SAFETY: zwo_eaf_mutex held above; `id` was just populated by EAFGetID, a valid SDK identifier.
             let result = unsafe { (sdk.open)(id) };
             if result == 0 {
+                // SAFETY: EAFInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
                 let mut info: EAFInfo = unsafe { std::mem::zeroed() };
+                // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
                 let _ = unsafe { (sdk.get_property)(id, &mut info) };
+                // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
                 let name = unsafe {
                     CStr::from_ptr(info.name.as_ptr())
                         .to_string_lossy()
@@ -1922,7 +1968,9 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
                 };
 
                 // Try to get serial number (must be done before close)
+                // SAFETY: EAFSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
                 let mut sn: EAFSerialNumber = unsafe { std::mem::zeroed() };
+                // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
                 let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
                     let sn_bytes: [u8; 8] = sn.id;
                     let sn_str = sn_bytes
@@ -1939,6 +1987,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
                     None
                 };
 
+                // SAFETY: mutex held; `id` was successfully opened above. EAFClose pairs with EAFOpen.
                 let _ = unsafe { (sdk.close)(id) };
 
                 tracing::info!(
@@ -2141,6 +2190,7 @@ impl NativeDevice for ZwoFilterWheel {
         let _lock = zwo_efw_mutex().lock().await;
 
         // Open filter wheel
+        // SAFETY: zwo_efw_mutex held above; filterwheel_id comes from discover_filter_wheels() via EFWGetID(), a valid SDK-issued identifier.
         let result = unsafe { (sdk.open)(self.filterwheel_id) };
         check_efw_error(result)?;
 
@@ -2152,12 +2202,15 @@ impl NativeDevice for ZwoFilterWheel {
                 filterwheel_id
             );
             if let Some(sdk) = EfwSdk::get() {
+                // SAFETY: best-effort cleanup; filterwheel_id was successfully opened above (guard only runs after open succeeded). Mutex still held when this drop runs in connect() scope.
                 let _ = unsafe { (sdk.close)(filterwheel_id) };
             }
         });
 
         // Get properties
+        // SAFETY: EFWInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
         let mut info: EFWInfo = unsafe { std::mem::zeroed() };
+        // SAFETY: zwo_efw_mutex held by connect(); `info` is a valid stack pointer; filterwheel_id was successfully opened above.
         let result = unsafe { (sdk.get_property)(self.filterwheel_id, &mut info) };
         check_efw_error(result)?;
 
@@ -2187,6 +2240,7 @@ impl NativeDevice for ZwoFilterWheel {
         {
             let _lock = zwo_efw_mutex().lock().await;
             let mut position: c_int = -999;
+            // SAFETY: zwo_efw_mutex held in this inner scope; `position` is a valid stack pointer; filterwheel_id is valid (already opened in this connect() above).
             let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
             tracing::info!(
                 "[ZWO EFW] Post-connect initial position read: hw_id={}, SDK result={}, position={}",
@@ -2216,6 +2270,7 @@ impl NativeDevice for ZwoFilterWheel {
 
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
+        // SAFETY: zwo_efw_mutex held above; filterwheel_id is valid because self.connected is true (only set after successful connect()).
         let result = unsafe { (sdk.close)(self.filterwheel_id) };
         check_efw_error(result)?;
 
@@ -2245,6 +2300,7 @@ impl NativeFilterWheel for ZwoFilterWheel {
 
         let _lock = zwo_efw_mutex().lock().await;
         tracing::debug!("Moving ZWO EFW to position {}", position);
+        // SAFETY: zwo_efw_mutex held above; `position` was bounds-checked against slot_count earlier in this function; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.set_position)(self.filterwheel_id, position) };
         check_efw_error(result)
     }
@@ -2257,6 +2313,7 @@ impl NativeFilterWheel for ZwoFilterWheel {
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
         let mut position: c_int = -999; // sentinel to detect if SDK writes
+        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
         tracing::info!(
             "[ZWO EFW] get_position(hw_id={}) => SDK result={}, position={}",
@@ -2276,6 +2333,7 @@ impl NativeFilterWheel for ZwoFilterWheel {
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
         let mut position: c_int = -999; // sentinel to detect if SDK writes
+        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
         tracing::info!(
             "[ZWO EFW] is_moving(hw_id={}) => SDK result={}, position={}",
@@ -2383,6 +2441,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     let _lock = zwo_efw_mutex().lock().await;
 
     tracing::debug!("Discovering ZWO EFW filter wheels via native SDK...");
+    // SAFETY: zwo_efw_mutex held above; EFWGetNum takes no arguments and only reads internal SDK state.
     let num_wheels = unsafe { (sdk.get_num)() };
     tracing::info!("EFW SDK reports {} connected filter wheel(s)", num_wheels);
 
@@ -2390,14 +2449,19 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
 
     for i in 0..num_wheels {
         let mut id: c_int = 0;
+        // SAFETY: zwo_efw_mutex held above; `i` is bounded by num_wheels; `id` is a valid stack pointer.
         let result = unsafe { (sdk.get_id)(i, &mut id) };
 
         if result == 0 {
             // Get filter wheel info
+            // SAFETY: mutex held; `id` was just populated by EFWGetID.
             let result = unsafe { (sdk.open)(id) };
             if result == 0 {
+                // SAFETY: EFWInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
                 let mut info: EFWInfo = unsafe { std::mem::zeroed() };
+                // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
                 let _ = unsafe { (sdk.get_property)(id, &mut info) };
+                // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
                 let name = unsafe {
                     CStr::from_ptr(info.name.as_ptr())
                         .to_string_lossy()
@@ -2406,7 +2470,9 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
                 let slot_count = info.slot_num;
 
                 // Try to get serial number (must be done before close)
+                // SAFETY: EFWSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
                 let mut sn: EFWSerialNumber = unsafe { std::mem::zeroed() };
+                // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
                 let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
                     let sn_bytes: [u8; 8] = sn.id;
                     let sn_str = sn_bytes
@@ -2423,6 +2489,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
                     None
                 };
 
+                // SAFETY: mutex held; `id` was successfully opened above. EFWClose pairs with EFWOpen.
                 let _ = unsafe { (sdk.close)(id) };
 
                 tracing::info!(

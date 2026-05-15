@@ -157,9 +157,11 @@ impl FliSdk {
             "libfli.so"
         };
 
+        // SAFETY: libloading::Library::new performs platform dynamic loading; the lib name is a compile-time constant (libfli.dll/dylib/so) and the resulting Library is returned to the caller — no transmute or memory access happens here.
         let library = unsafe { libloading::Library::new(lib_name) }
             .map_err(|e| NativeError::SdkError(format!("Failed to load FLI SDK: {}", e)))?;
 
+        // SAFETY: dereferencing each `library.get::<FnType>(symbol)` result with `*` is safe because libloading::Symbol derefs to the function-pointer type only after a successful name lookup; the FFI signatures match libfli.h exactly (verified against vendor header) so the function-pointer ABI is correct.
         unsafe {
             Ok(Self {
                 open: *library
@@ -405,6 +407,7 @@ async fn discover_devices_by_type(
     let mut devices = Vec::new();
 
     // Create device list
+    // SAFETY: fli_mutex held above ensuring single-threaded SDK access; FLICreateList takes a pass-by-value c_long with no pointer arguments.
     let result = unsafe { (sdk.create_list)(domain) };
     if result != 0 {
         return Ok(Vec::new());
@@ -416,6 +419,7 @@ async fn discover_devices_by_type(
     let mut name_buf = [0i8; 256];
 
     // Get first device
+    // SAFETY: fli_mutex held; all four out-pointers point to stack buffers (dev_domain c_long and 256-byte arrays); lengths are passed correctly so SDK can't overrun.
     let mut result = unsafe {
         (sdk.list_first)(
             &mut dev_domain,
@@ -427,9 +431,11 @@ async fn discover_devices_by_type(
     };
 
     while result == 0 {
+        // SAFETY: filename buffer is 256 bytes and FLI SDK guarantees NUL-termination within that buffer after a successful FLIListFirst/Next call (result == 0).
         let path = unsafe { CStr::from_ptr(filename.as_ptr()) }
             .to_string_lossy()
             .to_string();
+        // SAFETY: name_buf is 256 bytes and FLI SDK guarantees NUL-termination within after a successful list call.
         let name = unsafe { CStr::from_ptr(name_buf.as_ptr()) }
             .to_string_lossy()
             .to_string();
@@ -439,12 +445,15 @@ async fn discover_devices_by_type(
             let path_cstr = CString::new(path.clone()).unwrap();
             let mut dev: FliDev = FLI_INVALID_DEVICE;
 
+            // SAFETY: fli_mutex held; `dev` is a valid stack pointer; path_cstr is a valid NUL-terminated CString that outlives the call.
             if unsafe { (sdk.open)(&mut dev, path_cstr.as_ptr(), domain) } == 0 {
                 let mut serial_buf = [0i8; 64];
+                // SAFETY: fli_mutex held; `dev` was successfully opened; serial_buf is a 64-byte stack buffer and the length is passed truthfully so the SDK can't overrun.
                 let serial = if unsafe {
                     (sdk.get_serial_string)(dev, serial_buf.as_mut_ptr(), serial_buf.len())
                 } == 0
                 {
+                    // SAFETY: serial_buf is 64 bytes and SDK guarantees NUL-termination on success.
                     let s = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }
                         .to_string_lossy()
                         .to_string();
@@ -456,6 +465,7 @@ async fn discover_devices_by_type(
                 } else {
                     None
                 };
+                // SAFETY: fli_mutex held; `dev` was just successfully opened. FLIClose pairs with FLIOpen.
                 let _ = unsafe { (sdk.close)(dev) };
                 serial
             } else {
@@ -473,6 +483,7 @@ async fn discover_devices_by_type(
         });
 
         // Get next device
+        // SAFETY: fli_mutex held; same buffer-pointer invariants as FLIListFirst above.
         result = unsafe {
             (sdk.list_next)(
                 &mut dev_domain,
@@ -485,6 +496,7 @@ async fn discover_devices_by_type(
     }
 
     // Clean up
+    // SAFETY: fli_mutex held; FLIDeleteList takes no arguments and releases the SDK-internal list created by FLICreateList above.
     let _ = unsafe { (sdk.delete_list)() };
 
     Ok(devices)
@@ -500,7 +512,9 @@ pub fn get_sdk_status() -> (bool, String) {
     match get_sdk() {
         Ok(sdk) => {
             let mut version_buf = [0i8; 64];
+            // SAFETY: version_buf is a 64-byte stack array; the length is passed truthfully so the SDK can't overrun. FLIGetLibVersion has no device handle to validate.
             if unsafe { (sdk.get_lib_version)(version_buf.as_mut_ptr(), version_buf.len()) } == 0 {
+                // SAFETY: version_buf is 64 bytes; FLI SDK guarantees NUL-termination on success.
                 let version = unsafe { CStr::from_ptr(version_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -620,6 +634,7 @@ impl NativeDevice for FliCamera {
         })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_CAMERA;
 
+        // SAFETY: fli_mutex held above; `self.handle` is a valid pointer into Self (caller holds &mut self); path_cstr is a NUL-terminated CString that outlives the call.
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
         if result != 0 {
             tracing::error!(
@@ -634,7 +649,9 @@ impl NativeDevice for FliCamera {
 
         // Get model name
         let mut model_buf = [0i8; 128];
+        // SAFETY: fli_mutex held; self.handle was just successfully opened above; model_buf is a 128-byte stack array with truthful length passed to SDK.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
+            // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.
             self.name = unsafe { CStr::from_ptr(model_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
@@ -643,6 +660,7 @@ impl NativeDevice for FliCamera {
         // Get pixel size
         let mut pixel_x: c_double = 0.0;
         let mut pixel_y: c_double = 0.0;
+        // SAFETY: fli_mutex held; self.handle was successfully opened above; both out-pointers are valid stack pointers.
         let _ = unsafe { (sdk.get_pixel_size)(self.handle, &mut pixel_x, &mut pixel_y) };
 
         // Get visible area (the actual image area)
@@ -650,6 +668,7 @@ impl NativeDevice for FliCamera {
         let mut ul_y: c_long = 0;
         let mut lr_x: c_long = 0;
         let mut lr_y: c_long = 0;
+        // SAFETY: fli_mutex held; self.handle is open; all four out-pointers are valid stack pointers.
         let result = unsafe {
             (sdk.get_visible_area)(self.handle, &mut ul_x, &mut ul_y, &mut lr_x, &mut lr_y)
         };
@@ -690,9 +709,11 @@ impl NativeDevice for FliCamera {
         };
 
         // Set 16-bit mode
+        // SAFETY: fli_mutex held; self.handle is open; FLI_MODE_16BIT is a pass-by-value constant.
         let _ = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
 
         // Set full frame
+        // SAFETY: fli_mutex held; self.handle is open; ul_x/ul_y/lr_x/lr_y came from the SDK-reported visible area above so they are valid sensor coordinates.
         let result = unsafe { (sdk.set_image_area)(self.handle, ul_x, ul_y, lr_x, lr_y) };
         check_fli_error(result, "set image area")?;
 
@@ -720,9 +741,11 @@ impl NativeDevice for FliCamera {
         let _lock = fli_mutex().lock().await;
 
         // Cancel any exposure
+        // SAFETY: fli_mutex held; self.handle is valid because self.connected was true (only set after successful connect()).
         let _ = unsafe { (sdk.cancel_exposure)(self.handle) };
 
         // Close device
+        // SAFETY: fli_mutex held; self.handle was successfully opened during connect(). FLIClose pairs with FLIOpen.
         let result = unsafe { (sdk.close)(self.handle) };
         check_fli_error(result, "close camera")?;
 
@@ -755,6 +778,7 @@ impl NativeCamera for FliCamera {
         // Get temperature
         let sensor_temp = {
             let mut temp: c_double = 0.0;
+            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `temp` is a valid stack pointer.
             if unsafe { (sdk.get_temperature)(self.handle, &mut temp) } == 0 {
                 Some(temp)
             } else {
@@ -765,6 +789,7 @@ impl NativeCamera for FliCamera {
         // Get cooler power
         let cooler_power = {
             let mut power: c_double = 0.0;
+            // SAFETY: fli_mutex held; self.handle is valid (connected=true checked); `power` is a valid stack pointer.
             if unsafe { (sdk.get_cooler_power)(self.handle, &mut power) } == 0 {
                 Some(power)
             } else {
@@ -775,6 +800,7 @@ impl NativeCamera for FliCamera {
         // Get exposure remaining
         let exposure_remaining = if self.state == CameraState::Exposing {
             let mut timeleft: c_long = 0;
+            // SAFETY: fli_mutex held; self.handle is valid; `timeleft` is a valid stack pointer.
             if unsafe { (sdk.get_exposure_status)(self.handle, &mut timeleft) } == 0 {
                 Some(timeleft as f64 / 1000.0) // Convert from ms to seconds
             } else {
@@ -815,15 +841,18 @@ impl NativeCamera for FliCamera {
         let _lock = fli_mutex().lock().await;
 
         // Set frame type (normal mode by default - dark frames handled at higher level)
+        // SAFETY: fli_mutex held; self.handle is valid (connected=true checked at function start); frame type is a compile-time constant.
         let result = unsafe { (sdk.set_frame_type)(self.handle, FLI_FRAME_TYPE_NORMAL) };
         check_fli_error(result, "set frame type")?;
 
         // Set exposure time (in milliseconds)
         let exposure_ms = (params.duration_secs * 1000.0) as c_long;
+        // SAFETY: fli_mutex held; self.handle is valid; `exposure_ms` is a pass-by-value c_long.
         let result = unsafe { (sdk.set_exposure_time)(self.handle, exposure_ms) };
         check_fli_error(result, "set exposure time")?;
 
         // Start exposure
+        // SAFETY: fli_mutex held; self.handle is valid; FLIExposeFrame takes only the device handle.
         let result = unsafe { (sdk.expose_frame)(self.handle) };
         check_fli_error(result, "expose frame")?;
 
@@ -843,6 +872,7 @@ impl NativeCamera for FliCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked).
         let result = unsafe { (sdk.cancel_exposure)(self.handle) };
         check_fli_error(result, "cancel exposure")?;
 
@@ -862,6 +892,7 @@ impl NativeCamera for FliCamera {
 
         // Check device status
         let mut status: c_long = 0;
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `status` is a valid stack pointer.
         let result = unsafe { (sdk.get_device_status)(self.handle, &mut status) };
         check_fli_error(result, "get device status")?;
 
@@ -911,7 +942,9 @@ impl NativeCamera for FliCamera {
         // Read image row by row (FLI style)
         for row in 0..height {
             let row_offset = row * row_bytes;
+            // SAFETY: row_offset = row * row_bytes is strictly less than total_bytes = height * row_bytes (row < height), so the resulting pointer remains within byte_buffer's allocation (in-bounds, single allocated object); both row and row_bytes are usize derived from validated overflow-checked multiplications above.
             let row_ptr = unsafe { byte_buffer.as_mut_ptr().add(row_offset) };
+            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `row_ptr` points to `row_bytes` bytes inside byte_buffer (verified above); FLIGrabRow writes exactly `row_bytes` bytes per the libfli contract.
             let result = unsafe { (sdk.grab_row)(self.handle, row_ptr, row_bytes) };
             if result != 0 {
                 tracing::error!(
@@ -933,11 +966,13 @@ impl NativeCamera for FliCamera {
             .collect();
 
         // End exposure
+        // SAFETY: fli_mutex held above; self.handle is valid; FLIEndExposure takes only the handle.
         let _ = unsafe { (sdk.end_exposure)(self.handle) };
 
         // Get temperature for metadata
         let temperature = {
             let mut temp: c_double = 0.0;
+            // SAFETY: fli_mutex held; self.handle is valid; `temp` is a valid stack pointer.
             if unsafe { (sdk.get_temperature)(self.handle, &mut temp) } == 0 {
                 Some(temp)
             } else {
@@ -981,10 +1016,12 @@ impl NativeCamera for FliCamera {
         let _lock = fli_mutex().lock().await;
 
         if enabled {
+            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `target_temp` is a pass-by-value c_double.
             let result = unsafe { (sdk.set_temperature)(self.handle, target_temp) };
             check_fli_error(result, "set temperature")?;
         } else {
             // Set to a high temperature to effectively disable cooling
+            // SAFETY: fli_mutex held; self.handle is valid; literal 25.0 is a pass-by-value c_double.
             let result = unsafe { (sdk.set_temperature)(self.handle, 25.0) };
             check_fli_error(result, "set temperature")?;
         }
@@ -1006,6 +1043,7 @@ impl NativeCamera for FliCamera {
 
         let mut temp: c_double = 0.0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `temp` is a valid stack pointer.
         let result = unsafe { (sdk.get_temperature)(self.handle, &mut temp) };
         check_fli_error(result, "get temperature")?;
 
@@ -1024,6 +1062,7 @@ impl NativeCamera for FliCamera {
 
         let mut power: c_double = 0.0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `power` is a valid stack pointer.
         let result = unsafe { (sdk.get_cooler_power)(self.handle, &mut power) };
         check_fli_error(result, "get cooler power")?;
 
@@ -1058,9 +1097,11 @@ impl NativeCamera for FliCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); bin_x is a pass-by-value c_long bounded by max_bin_x=16 in capabilities.
         let result = unsafe { (sdk.set_hbin)(self.handle, bin_x as c_long) };
         check_fli_error(result, "set horizontal binning")?;
 
+        // SAFETY: fli_mutex held; self.handle is valid; bin_y is bounded by max_bin_y=16.
         let result = unsafe { (sdk.set_vbin)(self.handle, bin_y as c_long) };
         check_fli_error(result, "set vertical binning")?;
 
@@ -1098,6 +1139,7 @@ impl NativeCamera for FliCamera {
             ),
         };
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); the coordinates are computed from SDK-reported visible area bounds and the subframe parameters validated by upper layer.
         let result = unsafe {
             (sdk.set_image_area)(
                 self.handle,
@@ -1234,6 +1276,7 @@ impl NativeDevice for FliFocuser {
         })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_FOCUSER;
 
+        // SAFETY: fli_mutex held above; `self.handle` is a valid pointer into Self; path_cstr is a NUL-terminated CString that outlives the call.
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
         if result != 0 {
             tracing::error!(
@@ -1249,7 +1292,9 @@ impl NativeDevice for FliFocuser {
 
         // Get model name
         let mut model_buf = [0i8; 128];
+        // SAFETY: fli_mutex held; self.handle was just opened above; model_buf is a 128-byte stack array with truthful length.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
+            // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.
             self.name = unsafe { CStr::from_ptr(model_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
@@ -1257,6 +1302,7 @@ impl NativeDevice for FliFocuser {
 
         // Get max position
         let mut extent: c_long = 0;
+        // SAFETY: fli_mutex held; self.handle is open; `extent` is a valid stack pointer.
         if unsafe { (sdk.get_focuser_extent)(self.handle, &mut extent) } == 0 {
             self.max_position = extent as i32;
         }
@@ -1277,6 +1323,7 @@ impl NativeDevice for FliFocuser {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle was successfully opened during connect(). FLIClose pairs with FLIOpen.
         let result = unsafe { (sdk.close)(self.handle) };
         check_fli_error(result, "close focuser")?;
 
@@ -1301,6 +1348,7 @@ impl NativeFocuser for FliFocuser {
 
         let mut position: c_long = 0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `position` is a valid stack pointer.
         let result = unsafe { (sdk.get_stepper_position)(self.handle, &mut position) };
         check_fli_error(result, "get position")?;
 
@@ -1319,6 +1367,7 @@ impl NativeFocuser for FliFocuser {
 
         // Get current position
         let mut current: c_long = 0;
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `current` is a valid stack pointer.
         let result = unsafe { (sdk.get_stepper_position)(self.handle, &mut current) };
         check_fli_error(result, "get current position")?;
 
@@ -1326,6 +1375,7 @@ impl NativeFocuser for FliFocuser {
         let steps = position as c_long - current;
 
         // Move asynchronously
+        // SAFETY: fli_mutex held; self.handle is valid; `steps` is a delta computed from valid c_long values.
         let result = unsafe { (sdk.step_motor_async)(self.handle, steps) };
         check_fli_error(result, "move focuser")?;
 
@@ -1342,6 +1392,7 @@ impl NativeFocuser for FliFocuser {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `steps` is a pass-by-value c_long.
         let result = unsafe { (sdk.step_motor_async)(self.handle, steps as c_long) };
         check_fli_error(result, "move focuser relative")?;
 
@@ -1360,6 +1411,7 @@ impl NativeFocuser for FliFocuser {
 
         let mut steps_remaining: c_long = 0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `steps_remaining` is a valid stack pointer.
         let result = unsafe { (sdk.get_steps_remaining)(self.handle, &mut steps_remaining) };
         check_fli_error(result, "get steps remaining")?;
 
@@ -1377,6 +1429,7 @@ impl NativeFocuser for FliFocuser {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); 0 is a pass-by-value c_long that causes the motor to stop per libfli docs.
         let result = unsafe { (sdk.step_motor)(self.handle, 0) };
         check_fli_error(result, "halt focuser")?;
 
@@ -1404,6 +1457,7 @@ impl NativeFocuser for FliFocuser {
         let mut temp: c_double = 0.0;
 
         // FLI_TEMPERATURE_EXTERNAL = 0x0001
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); 0x0001 is the documented channel constant; `temp` is a valid stack pointer.
         if unsafe { (sdk.read_temperature)(self.handle, 0x0001, &mut temp) } == 0 {
             Ok(Some(temp))
         } else {
@@ -1489,6 +1543,7 @@ impl NativeDevice for FliFilterWheel {
         })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_FILTERWHEEL;
 
+        // SAFETY: fli_mutex held above; `self.handle` is a valid pointer into Self; path_cstr is a NUL-terminated CString that outlives the call.
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
         if result != 0 {
             tracing::error!(
@@ -1504,7 +1559,9 @@ impl NativeDevice for FliFilterWheel {
 
         // Get model name
         let mut model_buf = [0i8; 128];
+        // SAFETY: fli_mutex held; self.handle was just opened above; model_buf is a 128-byte stack array with truthful length.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
+            // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.
             self.name = unsafe { CStr::from_ptr(model_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
@@ -1512,6 +1569,7 @@ impl NativeDevice for FliFilterWheel {
 
         // Get filter count
         let mut count: c_long = 0;
+        // SAFETY: fli_mutex held; self.handle is open; `count` is a valid stack pointer.
         if unsafe { (sdk.get_filter_count)(self.handle, &mut count) } == 0 {
             self.filter_count = count as i32;
         }
@@ -1536,6 +1594,7 @@ impl NativeDevice for FliFilterWheel {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle was successfully opened during connect(). FLIClose pairs with FLIOpen.
         let result = unsafe { (sdk.close)(self.handle) };
         check_fli_error(result, "close filter wheel")?;
 
@@ -1560,6 +1619,7 @@ impl NativeFilterWheel for FliFilterWheel {
 
         let mut position: c_long = 0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `position` is a valid stack pointer.
         let result = unsafe { (sdk.get_filter_pos)(self.handle, &mut position) };
         check_fli_error(result, "get filter position")?;
 
@@ -1584,6 +1644,7 @@ impl NativeFilterWheel for FliFilterWheel {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `position` was bounds-checked against filter_count earlier in this function.
         let result = unsafe { (sdk.set_filter_pos)(self.handle, position as c_long) };
         check_fli_error(result, "set filter position")?;
 
@@ -1602,6 +1663,7 @@ impl NativeFilterWheel for FliFilterWheel {
 
         let mut status: c_long = 0;
 
+        // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `status` is a valid stack pointer.
         let result = unsafe { (sdk.get_device_status)(self.handle, &mut status) };
         check_fli_error(result, "get device status")?;
 
