@@ -168,12 +168,12 @@ void main() {
     final received = <NightshadeEvent>[];
     final sub = backend.eventStream.listen(received.add);
 
-    backend.emitEvent(NightshadeEvent(
+    backend.emitEvent(const NightshadeEvent(
       timestamp: 42,
       severity: EventSeverity.error,
       category: EventCategory.equipment,
       eventType: 'camera_fault',
-      data: const {'message': 'shutter stuck'},
+      data: {'message': 'shutter stuck'},
     ));
     // Wait one microtask so the broadcast controller delivers the event.
     await Future<void>.delayed(Duration.zero);
@@ -211,12 +211,12 @@ void main() {
     // never sees the event.
     final raw = MockBackend();
     expect(
-      () => raw.emitEvent(NightshadeEvent(
+      () => raw.emitEvent(const NightshadeEvent(
         timestamp: 0,
         severity: EventSeverity.info,
         category: EventCategory.system,
         eventType: 'noop',
-        data: const {},
+        data: {},
       )),
       throwsStateError,
     );

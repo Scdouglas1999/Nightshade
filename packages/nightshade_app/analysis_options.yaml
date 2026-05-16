@@ -1,3 +1,15 @@
 # Inherits from the workspace-root analysis_options.yaml which configures
 # flutter_lints 5.x rule overrides. Package-specific tweaks (if any) go below.
 include: ../../analysis_options.yaml
+
+# CQ-W13-CONST-CONSTRUCTORS:app (audit-dart §10 #3)
+# Slice 3 of the per-package rollout that began with nightshade_ui under
+# CQ-W11-CONST-CONSTRUCTORS:ui and continued with nightshade_bridge under
+# CQ-W12-CONST-CONSTRUCTORS:2. The workspace-root config disables these
+# two rules globally; nightshade_app enables them here. nightshade_app
+# contains no generated code (no *.g.dart or *.freezed.dart under lib/),
+# so the workspace-root analyzer.exclude block is sufficient.
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true

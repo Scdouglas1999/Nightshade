@@ -171,11 +171,11 @@ class SuggestionsScreen extends ConsumerWidget {
               // Transient alerts sidebar
               SizedBox(
                 width: sidebarWidth,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
+                child: const SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
                     vertical: NightshadeTokens.spaceLg,
                   ),
-                  child: const TransientAlertsPanel(),
+                  child: TransientAlertsPanel(),
                 ),
               ),
             ],
@@ -192,14 +192,14 @@ class SuggestionsScreen extends ConsumerWidget {
 
           content = CustomScrollView(
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
+              const SliverPadding(
+                padding: EdgeInsets.fromLTRB(
                   NightshadeTokens.space2xl,
                   NightshadeTokens.spaceLg,
                   NightshadeTokens.space2xl,
                   NightshadeTokens.spaceMd,
                 ),
-                sliver: const SliverToBoxAdapter(
+                sliver: SliverToBoxAdapter(
                   child: TransientAlertsPanel(),
                 ),
               ),
