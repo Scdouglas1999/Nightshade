@@ -64,7 +64,7 @@ class _AutofocusProgressOverlayState
       bottom: _offset.dy,
       child: GestureDetector(
         onPanUpdate: (details) {
-          final screenSize = MediaQuery.of(context).size;
+          final screenSize = MediaQuery.sizeOf(context);
           setState(() {
             _offset = Offset(
               (_offset.dx - details.delta.dx).clamp(0, screenSize.width - width),

@@ -164,7 +164,7 @@ class _TooltipOverlay extends StatelessWidget {
 
     final targetSize = renderBox.size;
     final targetPosition = renderBox.localToGlobal(Offset.zero);
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
 
     // Safety check for valid values
     if (targetSize.width.isNaN || targetSize.height.isNaN ||

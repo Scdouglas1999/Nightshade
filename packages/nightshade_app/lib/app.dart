@@ -45,7 +45,7 @@ class NightshadeApp extends ConsumerWidget {
     }
 
     // Auto-detect scale for high-DPI displays
-    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
 
     // On Linux with high-DPI displays, apply additional scaling
     // Linux Wayland/X11 doesn't always properly scale Flutter apps
@@ -168,6 +168,10 @@ class NightshadeApp extends ConsumerWidget {
 
             if (uiScaleFactor != 1.0 || textScaleFactor != 1.0) {
               // Apply combined text scaling from both UI scale and font size settings
+              // Why: copyWith requires the full MediaQueryData; granular
+              // accessors only return individual fields. This intentionally
+              // rebuilds on any MQ change so that nested widgets receive a
+              // correctly-merged inherited MediaQuery.
               scaledChild = MediaQuery(
                 data: MediaQuery.of(context).copyWith(
                   textScaler: TextScaler.linear(combinedTextScale),

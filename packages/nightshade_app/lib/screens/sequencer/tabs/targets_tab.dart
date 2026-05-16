@@ -566,7 +566,7 @@ class _TargetListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
-    final isVeryNarrow = MediaQuery.of(context).size.width < 360;
+    final isVeryNarrow = MediaQuery.sizeOf(context).width < 360;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

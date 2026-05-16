@@ -57,8 +57,8 @@ class _FramingCanvasState extends State<FramingCanvas> {
       onPanStart: (details) {
         _lastPosition = details.localPosition;
         final center = Offset(
-          MediaQuery.of(context).size.width / 2,
-          MediaQuery.of(context).size.height / 2,
+          MediaQuery.sizeOf(context).width / 2,
+          MediaQuery.sizeOf(context).height / 2,
         );
         final distance = (details.localPosition - center).distance;
 
@@ -78,8 +78,8 @@ class _FramingCanvasState extends State<FramingCanvas> {
       onPanUpdate: (details) {
         if (_isRotating) {
           final center = Offset(
-            MediaQuery.of(context).size.width / 2,
-            MediaQuery.of(context).size.height / 2,
+            MediaQuery.sizeOf(context).width / 2,
+            MediaQuery.sizeOf(context).height / 2,
           );
           final angle = math.atan2(
             details.localPosition.dx - center.dx,

@@ -632,7 +632,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       backgroundColor: colors.surfaceOverlay,
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.7,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.7,
       ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),

@@ -24,7 +24,7 @@ class MobileTopOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final time = ref.watch(observationTimeProvider);
     final lst = ref.watch(localSiderealTimeProvider);
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final isVeryNarrow = screenWidth < 360;
 
     return Container(

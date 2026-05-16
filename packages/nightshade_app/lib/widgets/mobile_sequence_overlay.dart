@@ -39,7 +39,7 @@ class MobileSequenceOverlay extends ConsumerWidget {
             const SequenceControls(),
 
             // Bottom padding for safe area
-            SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom + 8),
           ],
         ),
       ),

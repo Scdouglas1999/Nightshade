@@ -12,7 +12,7 @@ class WidgetPickerDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final layoutAsync = ref.watch(dashboardLayoutProvider);
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     // Responsive dialog width: 90% of screen on small screens, max 420px on larger
     final dialogWidth = screenSize.width < 500
         ? screenSize.width * 0.9

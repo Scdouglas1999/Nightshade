@@ -607,7 +607,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       child: Container(
         width: 600,
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
         ),
         decoration: BoxDecoration(
           color: colors.background,

@@ -87,7 +87,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           curve: Curves.easeInOut,
           width: _isCentering || _result != null ? 900 : 600,
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
           padding: const EdgeInsets.all(24),
           child: Column(

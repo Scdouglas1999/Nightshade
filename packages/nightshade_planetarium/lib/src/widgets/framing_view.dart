@@ -63,8 +63,8 @@ class _FramingViewState extends ConsumerState<FramingView> {
               onPanStart: (details) {
                 // Check if we're dragging the rotation handle
                 final center = Offset(
-                  MediaQuery.of(context).size.width / 2 + _pan.dx,
-                  MediaQuery.of(context).size.height / 2 + _pan.dy,
+                  MediaQuery.sizeOf(context).width / 2 + _pan.dx,
+                  MediaQuery.sizeOf(context).height / 2 + _pan.dy,
                 );
                 final fovSize = equipmentFOV.fov;
                 final fovH = fovSize != null ? fovSize.$2 * 50 * _zoom : 0.0;
@@ -80,8 +80,8 @@ class _FramingViewState extends ConsumerState<FramingView> {
                 if (_isRotatingFOV) {
                   // Calculate rotation from drag
                   final center = Offset(
-                    MediaQuery.of(context).size.width / 2 + _pan.dx,
-                    MediaQuery.of(context).size.height / 2 + _pan.dy,
+                    MediaQuery.sizeOf(context).width / 2 + _pan.dx,
+                    MediaQuery.sizeOf(context).height / 2 + _pan.dy,
                   );
                   final angle = math.atan2(
                     details.localPosition.dx - center.dx,

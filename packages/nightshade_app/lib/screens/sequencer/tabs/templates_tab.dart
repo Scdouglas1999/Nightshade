@@ -2510,7 +2510,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
   @override
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final isNarrow = screenWidth < 600;
 
     if (isMobile || isNarrow) {

@@ -530,7 +530,7 @@ class _OverlayPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     const promptWidth = 280.0;
     const promptHeight = 160.0;
     const padding = 16.0;

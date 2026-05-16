@@ -45,7 +45,7 @@ class _AnnotationOverlayWrapperState
   static const double _objectsPanelWidth = 280;
 
   Offset _computeTooltipPosition(Offset anchor, {bool preferRight = true}) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     final isPanelVisible = ref.read(annotationPanelVisibleProvider);
     final reservedRight = isPanelVisible ? _objectsPanelWidth : 0.0;
     final availableRight =
@@ -225,7 +225,7 @@ class _AnnotationOverlayWrapperState
     );
 
     // If the marker is off-screen, auto-pan to center it first
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     final isOffScreen = screenPosition.dx < 0 ||
         screenPosition.dy < 0 ||
         screenPosition.dx > screenSize.width ||

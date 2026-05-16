@@ -5,7 +5,7 @@ enum FormFactor { phone, tablet, desktop }
 
 /// Determines the form factor based on screen dimensions
 FormFactor getFormFactor(BuildContext context) {
-  final shortestSide = MediaQuery.of(context).size.shortestSide;
+  final shortestSide = MediaQuery.sizeOf(context).shortestSide;
   if (shortestSide < 600) return FormFactor.phone;
   if (shortestSide < 900) return FormFactor.tablet;
   return FormFactor.desktop;

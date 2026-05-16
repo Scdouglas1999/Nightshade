@@ -412,7 +412,7 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
     }
 
     final spotlightShape = _getSpotlightShape(targetRect);
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
 
     // Check if step is interactive (allows click-through)
     // Default to interactive when a target is available
@@ -1065,7 +1065,7 @@ class _TooltipWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     final screenWidth = screenSize.width;
 
     // Responsive sizing

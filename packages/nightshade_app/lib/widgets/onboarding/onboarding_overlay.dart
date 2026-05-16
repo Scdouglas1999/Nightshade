@@ -216,7 +216,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
 
     final step = activeSteps[notifier.currentStepIndex];
     final targetRect = _resolveTargetRect(step.targetKey());
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
 
     final isWelcome = notifier.currentStepIndex == 0;
     // The completion card is the last core step (index 6) when the

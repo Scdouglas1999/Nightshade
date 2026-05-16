@@ -124,7 +124,7 @@ class HistogramWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Use responsive width - smaller on narrow screens
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final histogramWidth = screenWidth < 400 ? 140.0 : 200.0;
 
     return Container(

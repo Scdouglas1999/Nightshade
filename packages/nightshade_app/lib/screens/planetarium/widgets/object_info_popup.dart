@@ -84,7 +84,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     const popupWidth = 300.0;
     const popupHeight = 400.0;
 

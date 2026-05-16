@@ -307,7 +307,7 @@ class LivePreviewArea extends ConsumerWidget {
                         colors: colors,
                         onPanToObject: (imagePoint) {
                           // Calculate pan delta to center the image point on screen
-                          final viewportSize = MediaQuery.of(context).size;
+                          final viewportSize = MediaQuery.sizeOf(context);
                           final screenCenter = Offset(
                             viewportSize.width / 2,
                             viewportSize.height / 2,

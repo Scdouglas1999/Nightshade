@@ -562,7 +562,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.sizeOf(context);
     final isSmallScreen = screenSize.width < 400;
 
     return AlertDialog(
