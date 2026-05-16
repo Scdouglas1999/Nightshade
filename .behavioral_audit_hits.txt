@@ -124,146 +124,155 @@ native/nightshade_native/alpaca/src/guard.rs:46:rust_let_underscore:            
 native/nightshade_native/alpaca/src/guard.rs:74:rust_let_underscore:                    let _ = mount.disconnect().await;
 native/nightshade_native/alpaca/src/safetymonitor.rs:293:unwrap_or_default:            driver_info: driver_info.unwrap_or_default(),
 native/nightshade_native/alpaca/src/telescope.rs:160:unwrap_or_literal:    // `.unwrap_or(false)` silently coerced both error and parse failures to
-native/nightshade_native/ascom/src/windows/connection.rs:1087:rust_let_underscore:///     let _ = device.disconnect();
-native/nightshade_native/ascom/src/windows/connection.rs:109:unwrap_or_default:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
-native/nightshade_native/ascom/src/windows/connection.rs:138:rust_let_underscore:        let _ = RegCloseKey(key);
-native/nightshade_native/ascom/src/windows/connection.rs:173:rust_let_underscore:    let _ = RegCloseKey(subkey);
-native/nightshade_native/ascom/src/windows/health.rs:123:unwrap_or_literal:            .unwrap_or(0);
-native/nightshade_native/ascom/src/windows/health.rs:63:unwrap_or_literal:            .unwrap_or(0);
-native/nightshade_native/ascom/src/windows/health.rs:74:unwrap_or_literal:            .unwrap_or(0);
-native/nightshade_native/ascom/src/windows/health.rs:91:unwrap_or_literal:            .unwrap_or(0);
-native/nightshade_native/ascom/src/windows/switch.rs:353:rust_drop_result:        let max_switch = self.max_switch().ok();
+native/nightshade_native/ascom/src/windows/connection.rs:1176:rust_let_underscore:///     let _ = device.disconnect();
+native/nightshade_native/ascom/src/windows/connection.rs:127:unwrap_or_default:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
+native/nightshade_native/ascom/src/windows/connection.rs:156:rust_let_underscore:        let _ = RegCloseKey(key);
+native/nightshade_native/ascom/src/windows/connection.rs:191:rust_let_underscore:    let _ = RegCloseKey(subkey);
+native/nightshade_native/ascom/src/windows/health.rs:105:unwrap_or_literal:            .unwrap_or(0);
+native/nightshade_native/ascom/src/windows/health.rs:137:unwrap_or_literal:            .unwrap_or(0);
+native/nightshade_native/ascom/src/windows/health.rs:5:unwrap_or_literal://! All `unwrap_or(0)` sites in this file follow a `SystemTime::now()
+native/nightshade_native/ascom/src/windows/health.rs:77:unwrap_or_literal:            .unwrap_or(0);
+native/nightshade_native/ascom/src/windows/health.rs:88:unwrap_or_literal:            .unwrap_or(0);
+native/nightshade_native/ascom/src/windows/switch.rs:376:rust_drop_result:        let max_switch = self.max_switch().ok();
 native/nightshade_native/ascom/src/windows/timeout.rs:53:rust_let_underscore:        let _ = TIMEOUT_CONFIG.set(std::sync::RwLock::new(config));
-native/nightshade_native/ascom/src/windows/variant.rs:288:rust_let_underscore:        let _ = SafeArrayUnaccessData(psa);
-native/nightshade_native/ascom/src/windows/variant.rs:329:rust_let_underscore:    let _ = SafeArrayUnaccessData(psa);
-native/nightshade_native/ascom/src/windows/variant.rs:468:rust_let_underscore:    let _ = SafeArrayUnaccessData(psa);
-native/nightshade_native/bridge/src/api/imaging.rs:1155:unwrap_or_literal:    let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
-native/nightshade_native/bridge/src/api/imaging.rs:1231:unwrap_or_literal:    let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
-native/nightshade_native/bridge/src/api/imaging.rs:171:unwrap_or_literal:        .unwrap_or(0);
-native/nightshade_native/bridge/src/api/imaging.rs:1814:unwrap_or_default:    let config = config.unwrap_or_default();
-native/nightshade_native/bridge/src/api/imaging.rs:1822:unwrap_or_literal:        min_hfr: config.min_hfr.unwrap_or(1.0),
-native/nightshade_native/bridge/src/api/imaging.rs:1823:unwrap_or_literal:        min_snr: config.min_snr.unwrap_or(5.0),
-native/nightshade_native/bridge/src/api/imaging.rs:1824:unwrap_or_literal:        max_sharpness: config.max_sharpness.unwrap_or(0.95),
-native/nightshade_native/bridge/src/api/imaging.rs:3602:unwrap_or_literal:        flags.get(&camera_id).copied().unwrap_or(false)
-native/nightshade_native/bridge/src/api/imaging.rs:3614:unwrap_or_literal:            .unwrap_or(0),
-native/nightshade_native/bridge/src/api/imaging.rs:3701:unwrap_or_literal:        .unwrap_or(0);
-native/nightshade_native/bridge/src/api/imaging.rs:3709:unwrap_or_literal:        flags.get(&camera_id).copied().unwrap_or(false)
-native/nightshade_native/bridge/src/api/imaging.rs:542:unwrap_or_literal:                let min_val = raw_data.iter().min().copied().unwrap_or(0);
-native/nightshade_native/bridge/src/api/imaging.rs:543:unwrap_or_literal:                let max_val = raw_data.iter().max().copied().unwrap_or(0);
-native/nightshade_native/bridge/src/api/imaging.rs:653:unwrap_or_literal:            let display_min = display_data_raw.iter().min().copied().unwrap_or(0);
-native/nightshade_native/bridge/src/api/imaging.rs:654:unwrap_or_literal:            let display_max = display_data_raw.iter().max().copied().unwrap_or(0);
+native/nightshade_native/ascom/src/windows/variant.rs:314:rust_let_underscore:        let _ = SafeArrayUnaccessData(psa);
+native/nightshade_native/ascom/src/windows/variant.rs:355:rust_let_underscore:    let _ = SafeArrayUnaccessData(psa);
+native/nightshade_native/ascom/src/windows/variant.rs:494:rust_let_underscore:    let _ = SafeArrayUnaccessData(psa);
+native/nightshade_native/bridge/src/api/imaging.rs:1182:unwrap_or_literal:    let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
+native/nightshade_native/bridge/src/api/imaging.rs:1258:unwrap_or_literal:    let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
+native/nightshade_native/bridge/src/api/imaging.rs:1841:unwrap_or_default:    let config = config.unwrap_or_default();
+native/nightshade_native/bridge/src/api/imaging.rs:1849:unwrap_or_literal:        min_hfr: config.min_hfr.unwrap_or(1.0),
+native/nightshade_native/bridge/src/api/imaging.rs:1850:unwrap_or_literal:        min_snr: config.min_snr.unwrap_or(5.0),
+native/nightshade_native/bridge/src/api/imaging.rs:1851:unwrap_or_literal:        max_sharpness: config.max_sharpness.unwrap_or(0.95),
+native/nightshade_native/bridge/src/api/imaging.rs:18:unwrap_or_literal:// 3. **Optional config defaults** — `config.min_hfr.unwrap_or(1.0)`,
+native/nightshade_native/bridge/src/api/imaging.rs:198:unwrap_or_literal:        .unwrap_or(0);
+native/nightshade_native/bridge/src/api/imaging.rs:19:unwrap_or_literal://    `config.min_snr.unwrap_or(5.0)`, `config.max_sharpness.unwrap_or(0.95)`,
+native/nightshade_native/bridge/src/api/imaging.rs:20:unwrap_or_literal://    `BITPIX.unwrap_or(16)`, `extension().unwrap_or("fits")`. These are the
+native/nightshade_native/bridge/src/api/imaging.rs:24:unwrap_or_literal:// 4. **`min().unwrap_or(0)` / `max().unwrap_or(0)`** — empty image stripe
+native/nightshade_native/bridge/src/api/imaging.rs:3629:unwrap_or_literal:        flags.get(&camera_id).copied().unwrap_or(false)
+native/nightshade_native/bridge/src/api/imaging.rs:3641:unwrap_or_literal:            .unwrap_or(0),
+native/nightshade_native/bridge/src/api/imaging.rs:3728:unwrap_or_literal:        .unwrap_or(0);
+native/nightshade_native/bridge/src/api/imaging.rs:3736:unwrap_or_literal:        flags.get(&camera_id).copied().unwrap_or(false)
+native/nightshade_native/bridge/src/api/imaging.rs:569:unwrap_or_literal:                let min_val = raw_data.iter().min().copied().unwrap_or(0);
+native/nightshade_native/bridge/src/api/imaging.rs:570:unwrap_or_literal:                let max_val = raw_data.iter().max().copied().unwrap_or(0);
+native/nightshade_native/bridge/src/api/imaging.rs:680:unwrap_or_literal:            let display_min = display_data_raw.iter().min().copied().unwrap_or(0);
+native/nightshade_native/bridge/src/api/imaging.rs:681:unwrap_or_literal:            let display_max = display_data_raw.iter().max().copied().unwrap_or(0);
 native/nightshade_native/bridge/src/api/init.rs:46:rust_let_underscore:    let _ = get_state();
 native/nightshade_native/bridge/src/api/init.rs:49:rust_let_underscore:    let _ = get_device_manager();
-native/nightshade_native/bridge/src/api/mod.rs:83:unwrap_or_default:        .unwrap_or_default()
-native/nightshade_native/bridge/src/api/phd2.rs:132:unwrap_or_literal:    let port = port.unwrap_or(4400);
-native/nightshade_native/bridge/src/api/phd2.rs:375:unwrap_or_literal:    let pixel_scale = client.get_pixel_scale().unwrap_or(0.0);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:208:unwrap_or_literal:    let gain_val = gain.unwrap_or(0);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:209:unwrap_or_literal:    let offset_val = offset.unwrap_or(0);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:210:unwrap_or_literal:    let solve_timeout_val = solve_timeout.unwrap_or(60.0);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:211:unwrap_or_literal:    let start_from_current_val = start_from_current.unwrap_or(true);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:212:unwrap_or_literal:    let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
-native/nightshade_native/bridge/src/api/polar_alignment.rs:347:rust_let_underscore:                let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:351:rust_let_underscore:                let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:360:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:566:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:570:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:591:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/mod.rs:88:unwrap_or_default:        .unwrap_or_default()
+native/nightshade_native/bridge/src/api/phd2.rs:135:unwrap_or_literal:    let port = port.unwrap_or(4400);
+native/nightshade_native/bridge/src/api/phd2.rs:382:unwrap_or_literal:    let pixel_scale = client.get_pixel_scale().unwrap_or(0.0);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:217:unwrap_or_literal:    let gain_val = gain.unwrap_or(0);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:218:unwrap_or_literal:    let offset_val = offset.unwrap_or(0);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:219:unwrap_or_literal:    let solve_timeout_val = solve_timeout.unwrap_or(60.0);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:220:unwrap_or_literal:    let start_from_current_val = start_from_current.unwrap_or(true);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:221:unwrap_or_literal:    let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
+native/nightshade_native/bridge/src/api/polar_alignment.rs:356:rust_let_underscore:                let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:360:rust_let_underscore:                let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:369:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:575:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:579:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:600:rust_let_underscore:                    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/bridge/src/api/sequencer.rs:715:simulated_runtime_path:        // Use NullDeviceOps for simulation
 native/nightshade_native/bridge/src/api/sequencer.rs:716:simulated_runtime_path:        executor.set_device_ops(std::sync::Arc::new(nightshade_sequencer::NullDeviceOps));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1005:rust_let_underscore:                let _ = Self::recv_with_timeout(drx, Timeouts::connection(), "disconnect").await;
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1044:unwrap_or_default:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1172:unwrap_or_default:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1181:rust_let_underscore:        let _ = self.get_capabilities().await?;
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1256:rust_let_underscore:                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1259:rust_let_underscore:                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1272:unwrap_or_literal:    /// as Err. The previous implementation called `cam.camera_x_size().unwrap_or(1)`
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1279:rust_let_underscore:                let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1304:rust_let_underscore:                let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1364:unimplemented_behavior:            Err("not implemented".to_string())
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1372:unimplemented_behavior:            Err("not implemented".to_string())
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1429:rust_let_underscore:                let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:172:rust_let_underscore:                            let _ = reply.send(cam.connect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:174:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:179:rust_let_underscore:                            let _ = reply.send(cam.setup_dialog().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:181:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:192:rust_let_underscore:                            let _ = reply.send(cam.disconnect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:194:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:203:unwrap_or_literal:                            let state = match full_status.state.unwrap_or(0) {
-native/nightshade_native/bridge/src/ascom_wrapper.rs:223:unwrap_or_literal:                                if full_status.thermal.can_set_temperature.unwrap_or(false) {
-native/nightshade_native/bridge/src/ascom_wrapper.rs:248:unwrap_or_literal:                                cooler_on: full_status.thermal.cooler_on.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:249:unwrap_or_literal:                                gain: full_status.exposure_settings.gain.unwrap_or(0),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:250:unwrap_or_literal:                                offset: full_status.exposure_settings.offset.unwrap_or(0),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:251:unwrap_or_literal:                                bin_x: full_status.exposure_settings.bin_x.unwrap_or(1),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:252:unwrap_or_literal:                                bin_y: full_status.exposure_settings.bin_y.unwrap_or(1),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:255:rust_let_underscore:                            let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:257:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:270:rust_let_underscore:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:277:rust_let_underscore:                                    let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:287:rust_let_underscore:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:294:rust_let_underscore:                                    let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:308:rust_let_underscore:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:324:unwrap_or_literal:                            let sensor_type = sensor_config.sensor_type.unwrap_or(0);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:341:unwrap_or_default:                            let readout_modes = cam.readout_modes().unwrap_or_default();
-native/nightshade_native/bridge/src/ascom_wrapper.rs:354:unwrap_or_literal:                                has_shutter: cam.has_shutter().unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:357:unwrap_or_literal:                                    .unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:359:unwrap_or_literal:                                can_bin: sensor_config.max_bin_x.unwrap_or(1) > 1,
-native/nightshade_native/bridge/src/ascom_wrapper.rs:360:unwrap_or_literal:                                max_bin_x: sensor_config.max_bin_x.unwrap_or(1),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:361:unwrap_or_literal:                                max_bin_y: sensor_config.max_bin_y.unwrap_or(1),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:362:unwrap_or_literal:                                can_abort_exposure: cam.can_abort_exposure().unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:363:unwrap_or_literal:                                can_stop_exposure: cam.can_stop_exposure().unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:373:rust_let_underscore:                            let _ = reply.send(Ok(caps));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:375:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:395:rust_let_underscore:                                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:399:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper.rs:405:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:419:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:421:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:429:rust_let_underscore:                                    let _ = reply.send(Ok(ready));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:433:rust_let_underscore:                                    let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper.rs:438:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:455:rust_let_underscore:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:466:rust_let_underscore:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:508:unwrap_or_literal:                                            exposure_time: last_exposure_duration.unwrap_or(0.0),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:529:rust_let_underscore:                                    let _ = reply.send(Ok(image_data));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:534:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper.rs:540:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:549:unwrap_or_literal:                                    let max_x = cam.camera_x_size().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:550:unwrap_or_literal:                                    let max_y = cam.camera_y_size().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:555:rust_let_underscore:                                        let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:565:rust_let_underscore:                                        let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:570:unwrap_or_literal:                                    let max_x = cam.camera_x_size().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:571:unwrap_or_literal:                                    let max_y = cam.camera_y_size().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:580:rust_let_underscore:                                    let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:584:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:590:unwrap_or_literal:                            let max_bin_x = cam.max_bin_x().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:591:unwrap_or_literal:                            let max_bin_y = cam.max_bin_y().unwrap_or(1);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:594:rust_let_underscore:                                let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:603:rust_let_underscore:                                let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:606:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:615:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:617:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:626:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:628:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:637:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:639:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:657:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:659:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:682:rust_let_underscore:                                    let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:686:rust_let_underscore:                                    let _ = reply.send(Ok(CameraConnectionHealth::Degraded));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:690:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:695:rust_let_underscore:                            let _ = reply.send(camera.interface_version());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:697:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:702:rust_let_underscore:                            let _ = reply.send(camera.driver_version());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:704:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:709:rust_let_underscore:                            let _ = reply.send(camera.driver_info());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:711:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:716:rust_let_underscore:                            let _ = reply.send(camera.supported_actions());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:718:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:732:rust_let_underscore:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:734:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:805:unwrap_or_literal:            pixel_size_x: caps.pixel_size_x.unwrap_or(0.0),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:806:unwrap_or_literal:            pixel_size_y: caps.pixel_size_y.unwrap_or(0.0),
-native/nightshade_native/bridge/src/ascom_wrapper.rs:996:comment_best_effort:            // Best-effort hardware disconnect so the COM device is not left
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1025:comment_best_effort:            // Best-effort hardware disconnect so the COM device is not left
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1034:rust_let_underscore:                let _ = Self::recv_with_timeout(drx, Timeouts::connection(), "disconnect").await;
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1073:unwrap_or_default:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1201:unwrap_or_default:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1210:rust_let_underscore:        let _ = self.get_capabilities().await?;
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1285:rust_let_underscore:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1288:rust_let_underscore:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1301:unwrap_or_literal:    /// as Err. The previous implementation called `cam.camera_x_size().unwrap_or(1)`
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1308:rust_let_underscore:                let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1333:rust_let_underscore:                let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1393:unimplemented_behavior:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:13:unwrap_or_literal://! * boolean Can*/Has* probes → `unwrap_or(false)` — "the driver did not
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1401:unimplemented_behavior:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1458:rust_let_underscore:                let _ = reply.send(Ok(status));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:16:unwrap_or_literal://!   `gain`, `offset`, `bin_x/y`) → `unwrap_or(1)` — the ASCOM minimum
+native/nightshade_native/bridge/src/ascom_wrapper.rs:19:unwrap_or_literal://! * `state` integer → `unwrap_or(0)` — `cameraIdle` (CameraStates enum).
+native/nightshade_native/bridge/src/ascom_wrapper.rs:201:rust_let_underscore:                            let _ = reply.send(cam.connect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:203:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:208:rust_let_underscore:                            let _ = reply.send(cam.setup_dialog().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:20:unwrap_or_literal://! * floats (`pixel_size_x/y`, exposure remaining) → `unwrap_or(0.0)` —
+native/nightshade_native/bridge/src/ascom_wrapper.rs:210:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:221:rust_let_underscore:                            let _ = reply.send(cam.disconnect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:223:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:232:unwrap_or_literal:                            let state = match full_status.state.unwrap_or(0) {
+native/nightshade_native/bridge/src/ascom_wrapper.rs:252:unwrap_or_literal:                                if full_status.thermal.can_set_temperature.unwrap_or(false) {
+native/nightshade_native/bridge/src/ascom_wrapper.rs:277:unwrap_or_literal:                                cooler_on: full_status.thermal.cooler_on.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:278:unwrap_or_literal:                                gain: full_status.exposure_settings.gain.unwrap_or(0),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:279:unwrap_or_literal:                                offset: full_status.exposure_settings.offset.unwrap_or(0),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:280:unwrap_or_literal:                                bin_x: full_status.exposure_settings.bin_x.unwrap_or(1),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:281:unwrap_or_literal:                                bin_y: full_status.exposure_settings.bin_y.unwrap_or(1),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:284:rust_let_underscore:                            let _ = reply.send(Ok(status));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:286:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:299:rust_let_underscore:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:306:rust_let_underscore:                                    let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:316:rust_let_underscore:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:323:rust_let_underscore:                                    let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:337:rust_let_underscore:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:353:unwrap_or_literal:                            let sensor_type = sensor_config.sensor_type.unwrap_or(0);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:370:unwrap_or_default:                            let readout_modes = cam.readout_modes().unwrap_or_default();
+native/nightshade_native/bridge/src/ascom_wrapper.rs:383:unwrap_or_literal:                                has_shutter: cam.has_shutter().unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:386:unwrap_or_literal:                                    .unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:388:unwrap_or_literal:                                can_bin: sensor_config.max_bin_x.unwrap_or(1) > 1,
+native/nightshade_native/bridge/src/ascom_wrapper.rs:389:unwrap_or_literal:                                max_bin_x: sensor_config.max_bin_x.unwrap_or(1),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:390:unwrap_or_literal:                                max_bin_y: sensor_config.max_bin_y.unwrap_or(1),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:391:unwrap_or_literal:                                can_abort_exposure: cam.can_abort_exposure().unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:392:unwrap_or_literal:                                can_stop_exposure: cam.can_stop_exposure().unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:402:rust_let_underscore:                            let _ = reply.send(Ok(caps));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:404:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:424:rust_let_underscore:                                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:428:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:434:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:448:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:450:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:458:rust_let_underscore:                                    let _ = reply.send(Ok(ready));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:462:rust_let_underscore:                                    let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper.rs:467:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:484:rust_let_underscore:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:495:rust_let_underscore:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:537:unwrap_or_literal:                                            exposure_time: last_exposure_duration.unwrap_or(0.0),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:558:rust_let_underscore:                                    let _ = reply.send(Ok(image_data));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:563:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:569:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:578:unwrap_or_literal:                                    let max_x = cam.camera_x_size().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:579:unwrap_or_literal:                                    let max_y = cam.camera_y_size().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:584:rust_let_underscore:                                        let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:594:rust_let_underscore:                                        let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:599:unwrap_or_literal:                                    let max_x = cam.camera_x_size().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:600:unwrap_or_literal:                                    let max_y = cam.camera_y_size().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:609:rust_let_underscore:                                    let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:613:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:619:unwrap_or_literal:                            let max_bin_x = cam.max_bin_x().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:620:unwrap_or_literal:                            let max_bin_y = cam.max_bin_y().unwrap_or(1);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:623:rust_let_underscore:                                let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:632:rust_let_underscore:                                let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:635:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:644:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:646:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:655:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:657:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:666:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:668:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:686:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:688:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:711:rust_let_underscore:                                    let _ = reply.send(Ok(status));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:715:rust_let_underscore:                                    let _ = reply.send(Ok(CameraConnectionHealth::Degraded));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:719:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:724:rust_let_underscore:                            let _ = reply.send(camera.interface_version());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:726:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:731:rust_let_underscore:                            let _ = reply.send(camera.driver_version());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:733:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:738:rust_let_underscore:                            let _ = reply.send(camera.driver_info());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:740:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:745:rust_let_underscore:                            let _ = reply.send(camera.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:747:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:761:rust_let_underscore:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:763:rust_let_underscore:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:834:unwrap_or_literal:            pixel_size_x: caps.pixel_size_x.unwrap_or(0.0),
+native/nightshade_native/bridge/src/ascom_wrapper.rs:835:unwrap_or_literal:            pixel_size_y: caps.pixel_size_y.unwrap_or(0.0),
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:100:rust_let_underscore:                        let _ = reply.send(cover_cal.calibrator_off());
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:103:rust_let_underscore:                        let _ = reply.send(cover_cal.cover_state());
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:106:rust_let_underscore:                        let _ = reply.send(cover_cal.calibrator_state());
@@ -314,124 +323,126 @@ native/nightshade_native/bridge/src/ascom_wrapper_filterwheel.rs:438:rust_let_un
 native/nightshade_native/bridge/src/ascom_wrapper_filterwheel.rs:55:rust_let_underscore:                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
 native/nightshade_native/bridge/src/ascom_wrapper_filterwheel.rs:62:rust_let_underscore:                    let _ =
 native/nightshade_native/bridge/src/ascom_wrapper_filterwheel.rs:72:rust_let_underscore:            let _ = init_tx.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:104:unwrap_or_literal:                                .unwrap_or(0);
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:114:unwrap_or_literal:                                .unwrap_or(0.0);
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:121:rust_let_underscore:                        let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:124:rust_let_underscore:                        let _ = reply.send(focuser.disconnect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:127:rust_let_underscore:                        let _ = reply.send(focuser.move_to(pos).map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:137:rust_let_underscore:                        let _ = reply.send(res.map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:140:rust_let_underscore:                        let _ = reply.send(focuser.position().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:143:rust_let_underscore:                        let _ = reply.send(focuser.is_moving().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:146:rust_let_underscore:                        let _ = reply.send(focuser.halt().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:152:rust_let_underscore:                        let _ = reply.send(res);
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:155:rust_let_underscore:                        let _ = reply.send(focuser.max_step().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:158:rust_let_underscore:                        let _ = reply.send(focuser.step_size().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:161:rust_let_underscore:                        let _ = reply.send(focuser.absolute().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:164:rust_let_underscore:                        let _ = reply.send(focuser.interface_version());
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:167:rust_let_underscore:                        let _ = reply.send(focuser.driver_version());
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:170:rust_let_underscore:                        let _ = reply.send(focuser.driver_info());
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:173:rust_let_underscore:                        let _ = reply.send(focuser.supported_actions());
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:473:rust_let_underscore:                    let _ = reply.send(Ok(info));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:476:rust_let_underscore:                    let _ = reply.send(Ok(1200));
-native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:479:rust_let_underscore:                    let _ = reply.send(Ok(2.5));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:113:unwrap_or_literal:                                .unwrap_or(0);
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:127:unwrap_or_literal:                                .unwrap_or(0.0);
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:134:rust_let_underscore:                        let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:137:rust_let_underscore:                        let _ = reply.send(focuser.disconnect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:140:rust_let_underscore:                        let _ = reply.send(focuser.move_to(pos).map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:150:rust_let_underscore:                        let _ = reply.send(res.map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:153:rust_let_underscore:                        let _ = reply.send(focuser.position().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:156:rust_let_underscore:                        let _ = reply.send(focuser.is_moving().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:159:rust_let_underscore:                        let _ = reply.send(focuser.halt().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:165:rust_let_underscore:                        let _ = reply.send(res);
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:168:rust_let_underscore:                        let _ = reply.send(focuser.max_step().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:171:rust_let_underscore:                        let _ = reply.send(focuser.step_size().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:174:rust_let_underscore:                        let _ = reply.send(focuser.absolute().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:177:rust_let_underscore:                        let _ = reply.send(focuser.interface_version());
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:180:rust_let_underscore:                        let _ = reply.send(focuser.driver_version());
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:183:rust_let_underscore:                        let _ = reply.send(focuser.driver_info());
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:186:rust_let_underscore:                        let _ = reply.send(focuser.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:486:rust_let_underscore:                    let _ = reply.send(Ok(info));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:489:rust_let_underscore:                    let _ = reply.send(Ok(1200));
+native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:492:rust_let_underscore:                    let _ = reply.send(Ok(2.5));
 native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:73:rust_let_underscore:                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
 native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:80:rust_let_underscore:                    let _ = init_tx.send(Err(format!("Failed to create ASCOM focuser: {}", e)));
 native/nightshade_native/bridge/src/ascom_wrapper_focuser.rs:87:rust_let_underscore:            let _ = init_tx.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:102:rust_let_underscore:                            let _ = reply.send(m.connect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:104:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:109:rust_let_underscore:                            let _ = reply.send(m.disconnect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:111:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:116:rust_let_underscore:                            let _ = reply.send(
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:121:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:128:rust_let_underscore:                                    let _ = reply.send(
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:133:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:137:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:142:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:149:rust_let_underscore:                                    let _ = reply.send(m.park().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:152:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:156:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:161:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:166:rust_let_underscore:                            let _ = reply.send(m.unpark().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:168:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:177:rust_let_underscore:                                    let _ = reply.send(Ok((ra, dec)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:180:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get RA: {}", e)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:183:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get DEC: {}", e)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:187:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:192:rust_let_underscore:                            let _ = reply.send(m.slewing().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:194:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:199:rust_let_underscore:                            let _ = reply.send(m.at_park().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:1000:rust_let_underscore:                    let _ = reply.send(Err("stop failed".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:1003:rust_let_underscore:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:116:rust_let_underscore:                            let _ = reply.send(m.connect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:118:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:11:unwrap_or_literal://! interpretation applies to `alignment_mode().map(...).unwrap_or(false)`
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:123:rust_let_underscore:                            let _ = reply.send(m.disconnect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:125:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:130:rust_let_underscore:                            let _ = reply.send(
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:135:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:142:rust_let_underscore:                                    let _ = reply.send(
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:147:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:151:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:156:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:163:rust_let_underscore:                                    let _ = reply.send(m.park().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:166:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:170:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:175:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:180:rust_let_underscore:                            let _ = reply.send(m.unpark().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:182:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:191:rust_let_underscore:                                    let _ = reply.send(Ok((ra, dec)));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:194:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get RA: {}", e)));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:197:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get DEC: {}", e)));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:201:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:206:rust_let_underscore:                            let _ = reply.send(m.can_park().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:206:rust_let_underscore:                            let _ = reply.send(m.slewing().map_err(|e| e.to_string()));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:208:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:216:unwrap_or_literal:                                can_slew: ascom_caps.can_slew.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:217:unwrap_or_literal:                                can_slew_async: ascom_caps.can_slew_async.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:218:unwrap_or_literal:                                can_sync: ascom_caps.can_sync.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:219:unwrap_or_literal:                                can_park: ascom_caps.can_park.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:220:unwrap_or_literal:                                can_unpark: ascom_caps.can_unpark.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:222:unwrap_or_literal:                                can_pulse_guide: ascom_caps.can_pulse_guide.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:223:unwrap_or_literal:                                can_set_tracking: ascom_caps.can_set_tracking.unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:224:unwrap_or_literal:                                can_find_home: m.can_find_home().unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:227:unwrap_or_literal:                                    .unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:230:unwrap_or_literal:                                    .unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:231:unwrap_or_literal:                                is_equatorial: m.alignment_mode().map(|m| m > 0).unwrap_or(false),
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:233:rust_let_underscore:                            let _ = reply.send(Ok(caps));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:235:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:240:rust_let_underscore:                            let _ = reply.send(m.abort_slew().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:242:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:247:rust_let_underscore:                            let _ = reply.send(m.set_tracking(enabled).map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:213:rust_let_underscore:                            let _ = reply.send(m.at_park().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:215:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:220:rust_let_underscore:                            let _ = reply.send(m.can_park().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:222:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:230:unwrap_or_literal:                                can_slew: ascom_caps.can_slew.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:231:unwrap_or_literal:                                can_slew_async: ascom_caps.can_slew_async.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:232:unwrap_or_literal:                                can_sync: ascom_caps.can_sync.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:233:unwrap_or_literal:                                can_park: ascom_caps.can_park.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:234:unwrap_or_literal:                                can_unpark: ascom_caps.can_unpark.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:236:unwrap_or_literal:                                can_pulse_guide: ascom_caps.can_pulse_guide.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:237:unwrap_or_literal:                                can_set_tracking: ascom_caps.can_set_tracking.unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:238:unwrap_or_literal:                                can_find_home: m.can_find_home().unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:241:unwrap_or_literal:                                    .unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:244:unwrap_or_literal:                                    .unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:245:unwrap_or_literal:                                is_equatorial: m.alignment_mode().map(|m| m > 0).unwrap_or(false),
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:247:rust_let_underscore:                            let _ = reply.send(Ok(caps));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:249:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:254:rust_let_underscore:                            let _ = reply.send(m.tracking().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:254:rust_let_underscore:                            let _ = reply.send(m.abort_slew().map_err(|e| e.to_string()));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:256:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:268:rust_let_underscore:                            let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:271:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:278:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:282:rust_let_underscore:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:286:rust_let_underscore:                                    let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:290:rust_let_underscore:                                    let _ = reply.send(Err(e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:294:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:303:rust_let_underscore:                                    let _ = reply.send(Ok((alt, az)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:306:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get Alt: {}", e)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:309:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get Az: {}", e)));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:313:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:318:rust_let_underscore:                            let _ = reply.send(m.sidereal_time().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:320:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:325:rust_let_underscore:                            let _ =
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:328:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:333:rust_let_underscore:                            let _ = reply.send(m.tracking_rate().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:335:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:340:rust_let_underscore:                            let _ = reply.send(m.move_axis(axis, rate).map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:261:rust_let_underscore:                            let _ = reply.send(m.set_tracking(enabled).map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:263:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:268:rust_let_underscore:                            let _ = reply.send(m.tracking().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:270:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:282:rust_let_underscore:                            let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:285:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:292:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:296:rust_let_underscore:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:300:rust_let_underscore:                                    let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:304:rust_let_underscore:                                    let _ = reply.send(Err(e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:308:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:317:rust_let_underscore:                                    let _ = reply.send(Ok((alt, az)));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:320:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get Alt: {}", e)));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:323:rust_let_underscore:                                    let _ = reply.send(Err(format!("Failed to get Az: {}", e)));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:327:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:332:rust_let_underscore:                            let _ = reply.send(m.sidereal_time().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:334:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:339:rust_let_underscore:                            let _ =
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:342:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:347:rust_let_underscore:                            let _ = reply.send(m.interface_version());
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:347:rust_let_underscore:                            let _ = reply.send(m.tracking_rate().map_err(|e| e.to_string()));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:349:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:354:rust_let_underscore:                            let _ = reply.send(m.driver_version());
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:354:rust_let_underscore:                            let _ = reply.send(m.move_axis(axis, rate).map_err(|e| e.to_string()));
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:356:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:361:rust_let_underscore:                            let _ = reply.send(m.driver_info());
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:361:rust_let_underscore:                            let _ = reply.send(m.interface_version());
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:363:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:368:rust_let_underscore:                            let _ = reply.send(m.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:368:rust_let_underscore:                            let _ = reply.send(m.driver_version());
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:370:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:375:rust_let_underscore:                            let _ = reply.send(m.abort_slew().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:375:rust_let_underscore:                            let _ = reply.send(m.driver_info());
 native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:377:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:382:rust_let_underscore:                            let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:385:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:392:rust_let_underscore:                                    let _ = reply.send(m.find_home().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:395:rust_let_underscore:                                    let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:399:rust_let_underscore:                                    let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:404:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:862:rust_let_underscore:                        let _ = reply.send(Ok(responses.coordinates));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:865:rust_let_underscore:                        let _ = reply.send(Ok(responses.alt_az));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:868:rust_let_underscore:                        let _ = reply.send(Ok(responses.tracking));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:871:rust_let_underscore:                        let _ = reply.send(Ok(responses.slewing));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:874:rust_let_underscore:                        let _ = reply.send(Ok(responses.parked));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:877:rust_let_underscore:                        let _ = reply.send(Ok(responses.side_of_pier));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:880:rust_let_underscore:                        let _ = reply.send(Ok(responses.sidereal_time));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:883:rust_let_underscore:                        let _ = reply.send(Ok(responses.can_park));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:886:rust_let_underscore:                        let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:943:rust_let_underscore:                    let _ = reply.send(Ok(caps));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:946:rust_let_underscore:                    let _ = reply.send(Ok(true));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:965:rust_let_underscore:                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:969:rust_let_underscore:                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:986:rust_let_underscore:                    let _ = reply.send(Err("stop failed".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:989:rust_let_underscore:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:382:rust_let_underscore:                            let _ = reply.send(m.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:384:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:389:rust_let_underscore:                            let _ = reply.send(m.abort_slew().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:391:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:396:rust_let_underscore:                            let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:399:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:406:rust_let_underscore:                                    let _ = reply.send(m.find_home().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:409:rust_let_underscore:                                    let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:413:rust_let_underscore:                                    let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:418:rust_let_underscore:                            let _ = reply.send(Err("Mount not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:5:unwrap_or_literal://! All `ascom_caps.can_*.unwrap_or(false)` and `m.can_*().unwrap_or(false)`
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:876:rust_let_underscore:                        let _ = reply.send(Ok(responses.coordinates));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:879:rust_let_underscore:                        let _ = reply.send(Ok(responses.alt_az));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:882:rust_let_underscore:                        let _ = reply.send(Ok(responses.tracking));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:885:rust_let_underscore:                        let _ = reply.send(Ok(responses.slewing));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:888:rust_let_underscore:                        let _ = reply.send(Ok(responses.parked));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:891:rust_let_underscore:                        let _ = reply.send(Ok(responses.side_of_pier));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:894:rust_let_underscore:                        let _ = reply.send(Ok(responses.sidereal_time));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:897:rust_let_underscore:                        let _ = reply.send(Ok(responses.can_park));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:900:rust_let_underscore:                        let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:957:rust_let_underscore:                    let _ = reply.send(Ok(caps));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:960:rust_let_underscore:                    let _ = reply.send(Ok(true));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:979:rust_let_underscore:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper_mount.rs:983:rust_let_underscore:                    let _ = reply.send(Ok(()));
 native/nightshade_native/bridge/src/ascom_wrapper_rotator.rs:33:rust_let_underscore:                let _ = init_tx.send(Err(format!("Failed to init COM: {}", error)));
 native/nightshade_native/bridge/src/ascom_wrapper_rotator.rs:40:rust_let_underscore:                    let _ = init_tx.send(Err(format!("Failed to create ASCOM rotator: {}", error)));
 native/nightshade_native/bridge/src/ascom_wrapper_rotator.rs:46:rust_let_underscore:            let _ = init_tx.send(Ok(()));
@@ -448,26 +459,26 @@ native/nightshade_native/bridge/src/ascom_wrapper_safetymonitor.rs:45:rust_let_u
 native/nightshade_native/bridge/src/ascom_wrapper_safetymonitor.rs:50:rust_let_underscore:                        let _ = reply.send(safety_monitor.connect());
 native/nightshade_native/bridge/src/ascom_wrapper_safetymonitor.rs:53:rust_let_underscore:                        let _ = reply.send(safety_monitor.disconnect());
 native/nightshade_native/bridge/src/ascom_wrapper_safetymonitor.rs:56:rust_let_underscore:                        let _ = reply.send(safety_monitor.is_safe());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:101:rust_let_underscore:                        let _ = reply.send(switch.get_switch_value(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:104:rust_let_underscore:                        let _ = reply.send(switch.set_switch_value(id, value));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:107:rust_let_underscore:                        let _ = reply.send(switch.min_switch_value(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:110:rust_let_underscore:                        let _ = reply.send(switch.max_switch_value(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:113:rust_let_underscore:                        let _ = reply.send(switch.can_write(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:116:rust_let_underscore:                        let _ = reply.send(switch.interface_version());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:119:rust_let_underscore:                        let _ = reply.send(switch.driver_version());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:122:rust_let_underscore:                        let _ = reply.send(switch.driver_info());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:125:rust_let_underscore:                        let _ = reply.send(switch.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:102:rust_let_underscore:                        let _ = reply.send(switch.get_switch_name(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:105:rust_let_underscore:                        let _ = reply.send(switch.get_switch_description(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:108:rust_let_underscore:                        let _ = reply.send(switch.get_switch_value(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:111:rust_let_underscore:                        let _ = reply.send(switch.set_switch_value(id, value));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:114:rust_let_underscore:                        let _ = reply.send(switch.min_switch_value(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:117:rust_let_underscore:                        let _ = reply.send(switch.max_switch_value(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:120:rust_let_underscore:                        let _ = reply.send(switch.can_write(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:123:rust_let_underscore:                        let _ = reply.send(switch.interface_version());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:126:rust_let_underscore:                        let _ = reply.send(switch.driver_version());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:129:rust_let_underscore:                        let _ = reply.send(switch.driver_info());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:132:rust_let_underscore:                        let _ = reply.send(switch.supported_actions());
 native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:58:rust_let_underscore:                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
 native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:65:rust_let_underscore:                    let _ = init_tx.send(Err(format!("Failed to create ASCOM switch: {}", e)));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:73:unwrap_or_literal:            let max_switch = switch.max_switch().unwrap_or(0);
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:75:rust_let_underscore:            let _ = init_tx.send(Ok((name, max_switch)));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:80:rust_let_underscore:                        let _ = reply.send(switch.connect());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:83:rust_let_underscore:                        let _ = reply.send(switch.disconnect());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:86:rust_let_underscore:                        let _ = reply.send(switch.max_switch());
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:89:rust_let_underscore:                        let _ = reply.send(switch.get_switch(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:92:rust_let_underscore:                        let _ = reply.send(switch.set_switch(id, state));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:95:rust_let_underscore:                        let _ = reply.send(switch.get_switch_name(id));
-native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:98:rust_let_underscore:                        let _ = reply.send(switch.get_switch_description(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:80:unwrap_or_literal:            let max_switch = switch.max_switch().unwrap_or(0);
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:82:rust_let_underscore:            let _ = init_tx.send(Ok((name, max_switch)));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:87:rust_let_underscore:                        let _ = reply.send(switch.connect());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:90:rust_let_underscore:                        let _ = reply.send(switch.disconnect());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:93:rust_let_underscore:                        let _ = reply.send(switch.max_switch());
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:96:rust_let_underscore:                        let _ = reply.send(switch.get_switch(id));
+native/nightshade_native/bridge/src/ascom_wrapper_switch.rs:99:rust_let_underscore:                        let _ = reply.send(switch.set_switch(id, state));
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:38:rust_let_underscore:                let _ = init_tx.send(Err(format!("Failed to init COM: {}", error)));
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:45:rust_let_underscore:                    let _ = init_tx.send(Err(format!(
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:54:rust_let_underscore:            let _ = init_tx.send(Ok(()));
@@ -483,12 +494,14 @@ native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:83:rust_let_undersc
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:86:rust_let_underscore:                        let _ = reply.send(weather.sky_quality());
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:89:rust_let_underscore:                        let _ = reply.send(weather.sky_temperature());
 native/nightshade_native/bridge/src/ascom_wrapper_weather.rs:92:rust_let_underscore:                        let _ = reply.send(weather.rain_rate());
-native/nightshade_native/bridge/src/builtin_guider.rs:325:rust_let_underscore:        let _ = handle.await;
-native/nightshade_native/bridge/src/builtin_guider.rs:342:unwrap_or_default:        .unwrap_or_default()
-native/nightshade_native/bridge/src/builtin_guider.rs:366:rust_let_underscore:    let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
-native/nightshade_native/bridge/src/builtin_guider.rs:625:unwrap_or_literal:            .unwrap_or(1)
-native/nightshade_native/bridge/src/builtin_guider.rs:664:unwrap_or_literal:    guard.last_status.snr = selected.as_ref().map(|star| star.snr).unwrap_or(0.0);
-native/nightshade_native/bridge/src/builtin_guider.rs:665:unwrap_or_literal:    guard.last_status.star_mass = selected.as_ref().map(|star| star.flux).unwrap_or(0.0);
+native/nightshade_native/bridge/src/builtin_guider.rs:14:unwrap_or_literal://! * `unwrap_or(1)` (frame width when image-format probe absent) — falls
+native/nightshade_native/bridge/src/builtin_guider.rs:343:rust_let_underscore:        let _ = handle.await;
+native/nightshade_native/bridge/src/builtin_guider.rs:360:unwrap_or_default:        .unwrap_or_default()
+native/nightshade_native/bridge/src/builtin_guider.rs:384:rust_let_underscore:    let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
+native/nightshade_native/bridge/src/builtin_guider.rs:643:unwrap_or_literal:            .unwrap_or(1)
+native/nightshade_native/bridge/src/builtin_guider.rs:682:unwrap_or_literal:    guard.last_status.snr = selected.as_ref().map(|star| star.snr).unwrap_or(0.0);
+native/nightshade_native/bridge/src/builtin_guider.rs:683:unwrap_or_literal:    guard.last_status.star_mass = selected.as_ref().map(|star| star.flux).unwrap_or(0.0);
+native/nightshade_native/bridge/src/builtin_guider.rs:9:unwrap_or_literal://! * `unwrap_or(0.0)` on selected star SNR/flux — when no star is currently
 native/nightshade_native/bridge/src/device_capabilities.rs:1008:rust_let_underscore:        let _ = init_com();
 native/nightshade_native/bridge/src/device_capabilities.rs:1022:unwrap_or_literal:            can_reverse: rotator.interface_version().unwrap_or(0) >= 3,
 native/nightshade_native/bridge/src/device_capabilities.rs:1025:unwrap_or_literal:            is_moving: rotator.is_moving().unwrap_or(false), // Why: IRotatorV3.IsMoving — "stationary" default; the polling loop will correct it on the next tick
@@ -605,16 +618,16 @@ native/nightshade_native/bridge/src/device_capabilities.rs:995:rust_let_undersco
 native/nightshade_native/bridge/src/device_guard.rs:489:rust_let_underscore:            let _ = tx.send(());
 native/nightshade_native/bridge/src/device_guard.rs:498:rust_let_underscore:            let _ = tx.send(());
 native/nightshade_native/bridge/src/device_guard.rs:89:comment_best_effort:            // Best-effort async disconnect in sync Drop
-native/nightshade_native/bridge/src/device_id.rs:1407:rust_let_underscore:        let _ = parse_device_id_cached("indi:testhost:7624:TestDevice").unwrap();
-native/nightshade_native/bridge/src/device_id.rs:1418:rust_let_underscore:        let _ = parse_device_id_cached("indi:testhost:7624:TestDevice").unwrap();
-native/nightshade_native/bridge/src/device_id.rs:1433:rust_let_underscore:        let _ = parse_device_id_cached(device_id).unwrap();
-native/nightshade_native/bridge/src/device_id.rs:1442:rust_let_underscore:        let _ = parse_device_id_cached(device_id).unwrap();
-native/nightshade_native/bridge/src/device_id.rs:1455:rust_let_underscore:        let _ = parse_device_id_cached("native:zwo:1").unwrap();
-native/nightshade_native/bridge/src/device_id.rs:1456:rust_let_underscore:        let _ = parse_device_id_cached("native:qhy:2").unwrap();
-native/nightshade_native/bridge/src/device_id.rs:631:rust_drop_result:            let device_index = idx_str.parse::<i32>().ok();
-native/nightshade_native/bridge/src/device_id.rs:668:rust_drop_result:                    let device_index = payload.parse::<i32>().ok();
-native/nightshade_native/bridge/src/device_id.rs:690:rust_drop_result:        let device_index = device_id_str.parse::<i32>().ok();
-native/nightshade_native/bridge/src/device_id.rs:720:unwrap_or_literal:            parts[1].parse().unwrap_or(0)
+native/nightshade_native/bridge/src/device_id.rs:1436:rust_let_underscore:        let _ = parse_device_id_cached("indi:testhost:7624:TestDevice").unwrap();
+native/nightshade_native/bridge/src/device_id.rs:1447:rust_let_underscore:        let _ = parse_device_id_cached("indi:testhost:7624:TestDevice").unwrap();
+native/nightshade_native/bridge/src/device_id.rs:1462:rust_let_underscore:        let _ = parse_device_id_cached(device_id).unwrap();
+native/nightshade_native/bridge/src/device_id.rs:1471:rust_let_underscore:        let _ = parse_device_id_cached(device_id).unwrap();
+native/nightshade_native/bridge/src/device_id.rs:1484:rust_let_underscore:        let _ = parse_device_id_cached("native:zwo:1").unwrap();
+native/nightshade_native/bridge/src/device_id.rs:1485:rust_let_underscore:        let _ = parse_device_id_cached("native:qhy:2").unwrap();
+native/nightshade_native/bridge/src/device_id.rs:646:rust_drop_result:            let device_index = idx_str.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_id.rs:683:rust_drop_result:                    let device_index = payload.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_id.rs:705:rust_drop_result:        let device_index = device_id_str.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_id.rs:740:unwrap_or_literal:            parts[1].parse().unwrap_or(0)
 native/nightshade_native/bridge/src/device_manager/connection.rs:250:rust_let_underscore:        let _ = self.stop_heartbeat(device_id).await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:271:rust_let_underscore:            let _ = crate::builtin_guider::disconnect().await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:278:rust_let_underscore:                    let _ = device.disconnect().await;
@@ -646,39 +659,42 @@ native/nightshade_native/bridge/src/device_manager/connection.rs:450:rust_let_un
 native/nightshade_native/bridge/src/device_manager/connection.rs:457:rust_let_underscore:                            let _ = sm.disconnect().await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:464:rust_let_underscore:                            let _ = s.disconnect().await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:471:rust_let_underscore:                            let _ = c.disconnect().await;
-native/nightshade_native/bridge/src/device_manager/heartbeat.rs:570:unwrap_or_literal:            let last_comm = device.last_successful_comm.unwrap_or(0);
-native/nightshade_native/bridge/src/device_manager/heartbeat.rs:603:unwrap_or_literal:            .unwrap_or(false)
-native/nightshade_native/bridge/src/device_manager/mod.rs:589:unwrap_or_literal:            .unwrap_or(false)
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1235:unwrap_or_literal:                        cam.set_cooler(enabled, target_temp.unwrap_or(-10.0)).await.map_err(|e| e.to_string())?;
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1280:unwrap_or_literal:                    return camera.set_cooler(enabled, target_temp.unwrap_or(-10.0)).await.map_err(|e| e.to_string());
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:263:rust_drop_result:                    let temp = camera.ccd_temperature().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:348:rust_let_underscore:                        let _ = camera.enable_blob().await;
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:375:rust_drop_result:                        let temp = camera.get_temperature().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:584:rust_drop_result:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:604:unwrap_or_literal:                            sensor_width: ascom_caps.as_ref().map(|c| c.max_width).unwrap_or(0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:605:unwrap_or_literal:                            sensor_height: ascom_caps.as_ref().map(|c| c.max_height).unwrap_or(0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:606:unwrap_or_literal:                            pixel_size_x: ascom_caps.as_ref().and_then(|c| c.pixel_size_x).unwrap_or(0.0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:607:unwrap_or_literal:                            pixel_size_y: ascom_caps.as_ref().and_then(|c| c.pixel_size_y).unwrap_or(0.0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:608:unwrap_or_literal:                            max_adu: ascom_caps.as_ref().map(|c| (1u32 << c.bit_depth) - 1).unwrap_or(65535),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:609:unwrap_or_literal:                            can_cool: ascom_caps.as_ref().map(|c| c.can_set_ccd_temperature).unwrap_or(false),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:632:rust_drop_result:                    let gain = camera.gain().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:633:rust_drop_result:                    let offset = camera.offset().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:648:unwrap_or_literal:                        cooler_on: status.cooler_on.unwrap_or(false),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:649:unwrap_or_literal:                        gain: gain.unwrap_or(0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:650:unwrap_or_literal:                        offset: offset.unwrap_or(0),
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:728:unwrap_or_literal:                    let cooler_on = cooler_state.unwrap_or(false);
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:822:unwrap_or_literal:                    let gain = gain_value.map(|v| v as i32).unwrap_or(0);
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:823:unwrap_or_literal:                    let offset = offset_value.map(|v| v as i32).unwrap_or(0);
-native/nightshade_native/bridge/src/device_manager/ops/cover.rs:475:unwrap_or_literal:                    brightness: status.brightness.unwrap_or(0),
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:287:unwrap_or_literal:                    if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN").await.unwrap_or(false) {
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:289:unwrap_or_literal:                    } else if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE").await.unwrap_or(false) {
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:590:unwrap_or_literal:                        .unwrap_or(false);
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:594:unwrap_or_literal:                        .unwrap_or(false)
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:598:unwrap_or_literal:                            .unwrap_or(false);
-native/nightshade_native/bridge/src/device_manager/ops/dome.rs:609:unwrap_or_literal:                    let is_slaved = autosync_enable.unwrap_or(false);
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1124:unwrap_or_literal:                    let can_set_tracking_rate = mount.can_set_tracking().await.unwrap_or(false);
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1564:rust_let_underscore:                                let _ = mount.move_east(false).await;
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1584:rust_let_underscore:                                let _ = mount.move_north(false).await;
+native/nightshade_native/bridge/src/device_manager/heartbeat.rs:575:unwrap_or_literal:            let last_comm = device.last_successful_comm.unwrap_or(0);
+native/nightshade_native/bridge/src/device_manager/heartbeat.rs:612:unwrap_or_literal:            .unwrap_or(false)
+native/nightshade_native/bridge/src/device_manager/mod.rs:596:unwrap_or_literal:            .unwrap_or(false)
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1257:unwrap_or_literal:                        cam.set_cooler(enabled, target_temp.unwrap_or(-10.0)).await.map_err(|e| e.to_string())?;
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:1302:unwrap_or_literal:                    return camera.set_cooler(enabled, target_temp.unwrap_or(-10.0)).await.map_err(|e| e.to_string());
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:22:unwrap_or_literal://! * `target_temp.unwrap_or(-10.0)` (set_cooler) — the historical Nightshade
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:285:rust_drop_result:                    let temp = camera.ccd_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:370:rust_let_underscore:                        let _ = camera.enable_blob().await;
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:397:rust_drop_result:                        let temp = camera.get_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:606:rust_drop_result:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:626:unwrap_or_literal:                            sensor_width: ascom_caps.as_ref().map(|c| c.max_width).unwrap_or(0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:627:unwrap_or_literal:                            sensor_height: ascom_caps.as_ref().map(|c| c.max_height).unwrap_or(0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:628:unwrap_or_literal:                            pixel_size_x: ascom_caps.as_ref().and_then(|c| c.pixel_size_x).unwrap_or(0.0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:629:unwrap_or_literal:                            pixel_size_y: ascom_caps.as_ref().and_then(|c| c.pixel_size_y).unwrap_or(0.0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:630:unwrap_or_literal:                            max_adu: ascom_caps.as_ref().map(|c| (1u32 << c.bit_depth) - 1).unwrap_or(65535),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:631:unwrap_or_literal:                            can_cool: ascom_caps.as_ref().map(|c| c.can_set_ccd_temperature).unwrap_or(false),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:654:rust_drop_result:                    let gain = camera.gain().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:655:rust_drop_result:                    let offset = camera.offset().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:670:unwrap_or_literal:                        cooler_on: status.cooler_on.unwrap_or(false),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:671:unwrap_or_literal:                        gain: gain.unwrap_or(0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:672:unwrap_or_literal:                        offset: offset.unwrap_or(0),
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:750:unwrap_or_literal:                    let cooler_on = cooler_state.unwrap_or(false);
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:844:unwrap_or_literal:                    let gain = gain_value.map(|v| v as i32).unwrap_or(0);
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:845:unwrap_or_literal:                    let offset = offset_value.map(|v| v as i32).unwrap_or(0);
+native/nightshade_native/bridge/src/device_manager/ops/cover.rs:491:unwrap_or_literal:                    brightness: status.brightness.unwrap_or(0),
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:297:unwrap_or_literal:                    if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN").await.unwrap_or(false) {
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:299:unwrap_or_literal:                    } else if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE").await.unwrap_or(false) {
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:600:unwrap_or_literal:                        .unwrap_or(false);
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:604:unwrap_or_literal:                        .unwrap_or(false)
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:608:unwrap_or_literal:                            .unwrap_or(false);
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:619:unwrap_or_literal:                    let is_slaved = autosync_enable.unwrap_or(false);
+native/nightshade_native/bridge/src/device_manager/ops/dome.rs:9:unwrap_or_literal://! Every `unwrap_or(false)` in this file probes an INDI / ASCOM optional
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1139:unwrap_or_literal:                    let can_set_tracking_rate = mount.can_set_tracking().await.unwrap_or(false);
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1579:rust_let_underscore:                                let _ = mount.move_east(false).await;
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1599:rust_let_underscore:                                let _ = mount.move_north(false).await;
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:18:unwrap_or_literal://! * `mount.can_set_tracking().await.unwrap_or(false)` — ASCOM optional
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:136:unwrap_or_literal:    /// * `interface_version.unwrap_or(1)` defaults to the ASCOM V1 baseline
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:166:rust_drop_result:                    let interface_version = camera.interface_version().await.ok();
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:167:rust_drop_result:                    let driver_version = camera.driver_version().await.ok();
@@ -774,53 +790,58 @@ native/nightshade_native/bridge/src/dispatch/indi.rs:151:unwrap_or_literal:     
 native/nightshade_native/bridge/src/dispatch/indi.rs:160:unwrap_or_literal:                .unwrap_or(false)
 native/nightshade_native/bridge/src/dispatch/native.rs:111:unwrap_or_default:                            .unwrap_or_default()
 native/nightshade_native/bridge/src/dispatch/native.rs:165:rust_let_underscore:                    let _ = old_fw.disconnect().await;
-native/nightshade_native/bridge/src/event.rs:824:unwrap_or_default:        .unwrap_or_default()
-native/nightshade_native/bridge/src/imaging_ops.rs:814:unwrap_or_default:                                .unwrap_or_default();
-native/nightshade_native/bridge/src/imaging_ops.rs:820:unwrap_or_literal:                                        header.get_float("EXPTIME").unwrap_or(0.0),
-native/nightshade_native/bridge/src/imaging_ops.rs:860:unwrap_or_default:                                            .unwrap_or_default()
-native/nightshade_native/bridge/src/imaging_ops.rs:864:unwrap_or_literal:                                    .unwrap_or(0),
-native/nightshade_native/bridge/src/lib.rs:174:rust_let_underscore:            let _ = RUNTIME_ERROR_MSG.set(error_msg.clone());
-native/nightshade_native/bridge/src/lib.rs:313:rust_drop_result:        LOG_DIR.set(log_path.clone()).ok();
-native/nightshade_native/bridge/src/lib.rs:320:rust_drop_result:        LOG_GUARD.set(guard).ok();
-native/nightshade_native/bridge/src/lib.rs:417:rust_drop_result:    writeln!(output, "=== Nightshade Log Export ===").ok();
-native/nightshade_native/bridge/src/lib.rs:418:rust_drop_result:    writeln!(output, "Exported: {}", chrono::Local::now().to_rfc3339()).ok();
-native/nightshade_native/bridge/src/lib.rs:419:rust_drop_result:    writeln!(output, "").ok();
-native/nightshade_native/bridge/src/lib.rs:426:rust_drop_result:        writeln!(output, "\n=== {} ===\n", log_file).ok();
-native/nightshade_native/bridge/src/lib.rs:428:rust_drop_result:            write!(output, "{}", content).ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1109:rust_drop_result:                        let sensor_type = camera.sensor_type().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1112:rust_drop_result:                            let offset_x = camera.bayer_offset_x().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1113:rust_drop_result:                            let offset_y = camera.bayer_offset_y().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1202:unwrap_or_literal:                        let color = bayer.unwrap_or(false);
-native/nightshade_native/bridge/src/real_device_ops.rs:1300:unwrap_or_literal:                if camera.gain_max().await.unwrap_or(0) > 0 {
-native/nightshade_native/bridge/src/real_device_ops.rs:1305:unwrap_or_literal:                if camera.offset_max().await.unwrap_or(0) > 0 {
-native/nightshade_native/bridge/src/real_device_ops.rs:1345:unwrap_or_literal:            let array_type = parsed.get("Type").and_then(|v| v.as_i64()).unwrap_or(1); // Default to Int32
-native/nightshade_native/bridge/src/real_device_ops.rs:1375:rust_drop_result:            let sensor_type_code = camera.sensor_type().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1388:rust_drop_result:                let offset_x = camera.bayer_offset_x().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1389:rust_drop_result:                let offset_y = camera.bayer_offset_y().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1780:rust_drop_result:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1832:rust_drop_result:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1872:rust_drop_result:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1911:rust_drop_result:            let temp = focuser.temperature().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1912:rust_drop_result:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1954:rust_drop_result:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2029:rust_drop_result:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2086:rust_drop_result:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2126:rust_drop_result:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2471:unwrap_or_default:                .unwrap_or_default()
-native/nightshade_native/bridge/src/real_device_ops.rs:2521:unwrap_or_literal:                hint_scale.unwrap_or(5.0), // 5 degree search radius default
-native/nightshade_native/bridge/src/real_device_ops.rs:2530:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/event.rs:822:unwrap_or_default:/// `duration_since(UNIX_EPOCH).unwrap_or_default()` — only fails if the
+native/nightshade_native/bridge/src/event.rs:833:unwrap_or_default:        .unwrap_or_default()
+native/nightshade_native/bridge/src/imaging_ops.rs:831:unwrap_or_default:                                .unwrap_or_default();
+native/nightshade_native/bridge/src/imaging_ops.rs:837:unwrap_or_literal:                                        header.get_float("EXPTIME").unwrap_or(0.0),
+native/nightshade_native/bridge/src/imaging_ops.rs:877:unwrap_or_default:                                            .unwrap_or_default()
+native/nightshade_native/bridge/src/imaging_ops.rs:881:unwrap_or_literal:                                    .unwrap_or(0),
+native/nightshade_native/bridge/src/lib.rs:183:rust_let_underscore:            let _ = RUNTIME_ERROR_MSG.set(error_msg.clone());
+native/nightshade_native/bridge/src/lib.rs:322:rust_drop_result:        LOG_DIR.set(log_path.clone()).ok();
+native/nightshade_native/bridge/src/lib.rs:329:rust_drop_result:        LOG_GUARD.set(guard).ok();
+native/nightshade_native/bridge/src/lib.rs:426:rust_drop_result:    writeln!(output, "=== Nightshade Log Export ===").ok();
+native/nightshade_native/bridge/src/lib.rs:427:rust_drop_result:    writeln!(output, "Exported: {}", chrono::Local::now().to_rfc3339()).ok();
+native/nightshade_native/bridge/src/lib.rs:428:rust_drop_result:    writeln!(output, "").ok();
+native/nightshade_native/bridge/src/lib.rs:435:rust_drop_result:        writeln!(output, "\n=== {} ===\n", log_file).ok();
+native/nightshade_native/bridge/src/lib.rs:437:rust_drop_result:            write!(output, "{}", content).ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1131:rust_drop_result:                        let sensor_type = camera.sensor_type().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1134:rust_drop_result:                            let offset_x = camera.bayer_offset_x().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1135:rust_drop_result:                            let offset_y = camera.bayer_offset_y().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1224:unwrap_or_literal:                        let color = bayer.unwrap_or(false);
+native/nightshade_native/bridge/src/real_device_ops.rs:1322:unwrap_or_literal:                if camera.gain_max().await.unwrap_or(0) > 0 {
+native/nightshade_native/bridge/src/real_device_ops.rs:1327:unwrap_or_literal:                if camera.offset_max().await.unwrap_or(0) > 0 {
+native/nightshade_native/bridge/src/real_device_ops.rs:1367:unwrap_or_literal:            let array_type = parsed.get("Type").and_then(|v| v.as_i64()).unwrap_or(1); // Default to Int32
+native/nightshade_native/bridge/src/real_device_ops.rs:1397:rust_drop_result:            let sensor_type_code = camera.sensor_type().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:13:unwrap_or_literal://! * `bayer.unwrap_or(false)` — when the camera SDK does not report a
+native/nightshade_native/bridge/src/real_device_ops.rs:1410:rust_drop_result:                let offset_x = camera.bayer_offset_x().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1411:rust_drop_result:                let offset_y = camera.bayer_offset_y().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1802:rust_drop_result:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1854:rust_drop_result:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1894:rust_drop_result:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1933:rust_drop_result:            let temp = focuser.temperature().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1934:rust_drop_result:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1976:rust_drop_result:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:19:unwrap_or_literal://! * `gain_max() / offset_max().unwrap_or(0)` — gate "supports gain/offset"
+native/nightshade_native/bridge/src/real_device_ops.rs:2051:rust_drop_result:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2108:rust_drop_result:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2148:rust_drop_result:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:22:unwrap_or_literal://! * `parsed.get("Type").unwrap_or(1)` — ASCOM ImageBytes "Int32" default
+native/nightshade_native/bridge/src/real_device_ops.rs:2493:unwrap_or_default:                .unwrap_or_default()
+native/nightshade_native/bridge/src/real_device_ops.rs:24:unwrap_or_literal://! * `hint_scale.unwrap_or(5.0)` — 5-degree pre-solve search radius is the
+native/nightshade_native/bridge/src/real_device_ops.rs:2543:unwrap_or_literal:                hint_scale.unwrap_or(5.0), // 5 degree search radius default
+native/nightshade_native/bridge/src/real_device_ops.rs:2552:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/bridge/src/sequencer_api.rs:133:simulated_runtime_path:        // Use NullDeviceOps for simulation
 native/nightshade_native/bridge/src/sequencer_api.rs:134:simulated_runtime_path:        exec.set_device_ops(std::sync::Arc::new(nightshade_sequencer::NullDeviceOps));
 native/nightshade_native/bridge/src/sequencer_api.rs:143:simulated_runtime_path:        tracing::info!("Sequencer simulation mode enabled with simulated devices");
 native/nightshade_native/bridge/src/sequencer_ops.rs:711:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/stacking_api.rs:303:unwrap_or_literal:        .unwrap_or(0)
+native/nightshade_native/bridge/src/stacking_api.rs:311:unwrap_or_literal:        .unwrap_or(0)
 native/nightshade_native/bridge/src/state.rs:152:rust_let_underscore:        let _ = init_profile_storage(storage_dir);
-native/nightshade_native/bridge/src/state.rs:212:unwrap_or_literal:            .unwrap_or(false)
-native/nightshade_native/bridge/src/unified_device_ops.rs:334:unwrap_or_literal:            gain.unwrap_or(0),
-native/nightshade_native/bridge/src/unified_device_ops.rs:335:unwrap_or_literal:            offset.unwrap_or(0),
-native/nightshade_native/bridge/src/unified_device_ops.rs:738:unwrap_or_literal:            .unwrap_or(-1);
-native/nightshade_native/bridge/src/unified_device_ops.rs:990:unwrap_or_literal:            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0)).await
-native/nightshade_native/bridge/src/unified_device_ops.rs:996:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/state.rs:221:unwrap_or_literal:            .unwrap_or(false)
+native/nightshade_native/bridge/src/unified_device_ops.rs:1014:unwrap_or_literal:            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0)).await
+native/nightshade_native/bridge/src/unified_device_ops.rs:1020:rust_let_underscore:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/unified_device_ops.rs:341:unwrap_or_literal:            gain.unwrap_or(0),
+native/nightshade_native/bridge/src/unified_device_ops.rs:342:unwrap_or_literal:            offset.unwrap_or(0),
+native/nightshade_native/bridge/src/unified_device_ops.rs:759:unwrap_or_literal:            .unwrap_or(-1);
 native/nightshade_native/bridge/src/util/supervisor.rs:269:rust_drop_result:            GLOBAL_WRITER.set(writer.clone()).ok();
 native/nightshade_native/imaging/src/buffer_pool.rs:580:rust_let_underscore:        let _ = GLOBAL_U8_POOL.set(BufferPool::new(config));
 native/nightshade_native/imaging/src/buffer_pool.rs:583:rust_let_underscore:        let _ = GLOBAL_U16_POOL.set(BufferPool::new(config));
@@ -862,34 +883,43 @@ native/nightshade_native/imaging/src/phd2.rs:1409:unwrap_or_literal:            
 native/nightshade_native/imaging/src/phd2.rs:1414:unwrap_or_literal:                .unwrap_or(0) as u32;
 native/nightshade_native/imaging/src/phd2.rs:1572:unwrap_or_literal:            .unwrap_or(false)
 native/nightshade_native/imaging/src/phd2.rs:861:unwrap_or_literal:        // §audit-rust 4.3 — previously `.as_bool().unwrap_or(false)` silently
-native/nightshade_native/imaging/src/platesolve.rs:1040:rust_let_underscore:        let _ = sender.send(result);
-native/nightshade_native/imaging/src/platesolve.rs:1297:unwrap_or_literal:        + parts.get(1).copied().unwrap_or(0.0) / 60.0
-native/nightshade_native/imaging/src/platesolve.rs:1298:unwrap_or_literal:        + parts.get(2).copied().unwrap_or(0.0) / 3600.0;
-native/nightshade_native/imaging/src/platesolve.rs:1692:unwrap_or_default:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
-native/nightshade_native/imaging/src/platesolve.rs:1716:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1745:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1773:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1799:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1822:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1842:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1855:rust_let_underscore:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1984:unwrap_or_literal:                .unwrap_or(0)
-native/nightshade_native/imaging/src/platesolve.rs:2005:rust_let_underscore:        let _ = std::fs::remove_dir_all(&temp);
-native/nightshade_native/imaging/src/platesolve.rs:2017:unwrap_or_literal:                .unwrap_or(0)
-native/nightshade_native/imaging/src/platesolve.rs:2027:rust_let_underscore:        let _ = std::fs::remove_dir_all(&temp);
-native/nightshade_native/imaging/src/platesolve.rs:329:unwrap_or_literal:                status: output.status.code().unwrap_or(-1),
-native/nightshade_native/imaging/src/platesolve.rs:722:unwrap_or_literal:    let crota = crota.unwrap_or(0.0);
-native/nightshade_native/imaging/src/raw.rs:482:unwrap_or_default:            user_sat: params.user_sat.unwrap_or_default(),
-native/nightshade_native/imaging/src/raw.rs:498:unwrap_or_default:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
-native/nightshade_native/imaging/src/raw.rs:842:rust_let_underscore:    let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/imaging/src/reader.rs:175:unwrap_or_literal:        let bzero = self.header.get_float("BZERO").unwrap_or(0.0);
-native/nightshade_native/imaging/src/reader.rs:176:unwrap_or_literal:        let bscale = self.header.get_float("BSCALE").unwrap_or(1.0);
-native/nightshade_native/imaging/src/reader.rs:395:rust_let_underscore:        let _ = fs::remove_file(&path);
-native/nightshade_native/imaging/src/reader.rs:417:rust_let_underscore:        let _ = fs::remove_file(&path);
-native/nightshade_native/imaging/src/reader.rs:444:rust_let_underscore:        let _ = fs::remove_file(&path);
-native/nightshade_native/imaging/src/reader.rs:62:unwrap_or_literal:            header.get_int("NAXIS3").unwrap_or(1) as u32
-native/nightshade_native/imaging/src/xisf.rs:294:unwrap_or_literal:        .unwrap_or(1);
-native/nightshade_native/imaging/src/xisf.rs:799:unwrap_or_literal:                .unwrap_or(false),
+native/nightshade_native/imaging/src/platesolve.rs:1059:rust_let_underscore:        let _ = sender.send(result);
+native/nightshade_native/imaging/src/platesolve.rs:1316:unwrap_or_literal:        + parts.get(1).copied().unwrap_or(0.0) / 60.0
+native/nightshade_native/imaging/src/platesolve.rs:1317:unwrap_or_literal:        + parts.get(2).copied().unwrap_or(0.0) / 3600.0;
+native/nightshade_native/imaging/src/platesolve.rs:13:unwrap_or_literal://! * `output.status.code().unwrap_or(-1)` — on POSIX a subprocess killed by
+native/nightshade_native/imaging/src/platesolve.rs:16:unwrap_or_literal://! * `crota.unwrap_or(0.0)` — `CROTA2` is optional in the FITS WCS standard;
+native/nightshade_native/imaging/src/platesolve.rs:1711:unwrap_or_default:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
+native/nightshade_native/imaging/src/platesolve.rs:1735:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1764:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1792:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1818:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1841:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1861:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1874:rust_let_underscore:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:19:unwrap_or_literal://! * `parts.get(N).copied().unwrap_or(0.0)` (sexagesimal parse) — missing
+native/nightshade_native/imaging/src/platesolve.rs:2003:unwrap_or_literal:                .unwrap_or(0)
+native/nightshade_native/imaging/src/platesolve.rs:2024:rust_let_underscore:        let _ = std::fs::remove_dir_all(&temp);
+native/nightshade_native/imaging/src/platesolve.rs:2036:unwrap_or_literal:                .unwrap_or(0)
+native/nightshade_native/imaging/src/platesolve.rs:2046:rust_let_underscore:        let _ = std::fs::remove_dir_all(&temp);
+native/nightshade_native/imaging/src/platesolve.rs:348:unwrap_or_literal:                status: output.status.code().unwrap_or(-1),
+native/nightshade_native/imaging/src/platesolve.rs:741:unwrap_or_literal:    let crota = crota.unwrap_or(0.0);
+native/nightshade_native/imaging/src/raw.rs:13:unwrap_or_default://! * The remaining sites (`user_sat.unwrap_or_default()`,
+native/nightshade_native/imaging/src/raw.rs:15:unwrap_or_default://!   `max_memory_mb.unwrap_or_default()`) are all paired with a
+native/nightshade_native/imaging/src/raw.rs:496:unwrap_or_default:            user_sat: params.user_sat.unwrap_or_default(),
+native/nightshade_native/imaging/src/raw.rs:512:unwrap_or_default:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
+native/nightshade_native/imaging/src/raw.rs:856:rust_let_underscore:    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/imaging/src/reader.rs:13:unwrap_or_literal://! * `NAXIS3.unwrap_or(1)` — `NAXIS3` (channel count) is only present for
+native/nightshade_native/imaging/src/reader.rs:16:unwrap_or_literal://! * `BZERO.unwrap_or(0.0)`, `BSCALE.unwrap_or(1.0)` — these are the
+native/nightshade_native/imaging/src/reader.rs:196:unwrap_or_literal:        let bzero = self.header.get_float("BZERO").unwrap_or(0.0);
+native/nightshade_native/imaging/src/reader.rs:197:unwrap_or_literal:        let bscale = self.header.get_float("BSCALE").unwrap_or(1.0);
+native/nightshade_native/imaging/src/reader.rs:416:rust_let_underscore:        let _ = fs::remove_file(&path);
+native/nightshade_native/imaging/src/reader.rs:438:rust_let_underscore:        let _ = fs::remove_file(&path);
+native/nightshade_native/imaging/src/reader.rs:465:rust_let_underscore:        let _ = fs::remove_file(&path);
+native/nightshade_native/imaging/src/reader.rs:83:unwrap_or_literal:            header.get_int("NAXIS3").unwrap_or(1) as u32
+native/nightshade_native/imaging/src/xisf.rs:12:unwrap_or_literal://! * `numberOfImages.unwrap_or(1)` — single image is the XISF spec default
+native/nightshade_native/imaging/src/xisf.rs:23:unwrap_or_literal://! * `boolean header attr.unwrap_or(false)` — XISF optional booleans
+native/nightshade_native/imaging/src/xisf.rs:312:unwrap_or_literal:        .unwrap_or(1);
+native/nightshade_native/imaging/src/xisf.rs:817:unwrap_or_literal:                .unwrap_or(false),
 native/nightshade_native/indi/src/autofocus.rs:169:rust_drop_result:        let current_temperature = self.focuser.get_temperature().await.ok();
 native/nightshade_native/indi/src/autofocus.rs:18:unwrap_or_literal://! 2. **`fwhm.unwrap_or(0.0)`** — diagnostic log of the optional FWHM
 native/nightshade_native/indi/src/autofocus.rs:23:unwrap_or_literal://! 3. **`min_by(...).unwrap_or(0.0)` and `.unwrap_or(1.0)`** — fallback
@@ -993,14 +1023,14 @@ native/nightshade_native/native/src/vendor/fujifilm.rs:1950:unwrap_or_literal:  
 native/nightshade_native/native/src/vendor/fujifilm.rs:1951:unwrap_or_literal:            let max = self.supported_isos.iter().max().copied().unwrap_or(12800);
 native/nightshade_native/native/src/vendor/fujifilm.rs:1980:rust_let_underscore:    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/native/src/vendor/fujifilm.rs:881:rust_let_underscore:    let _ = unsafe { (sdk.init)(std::ptr::null_mut()) };
-native/nightshade_native/native/src/vendor/gphoto2.rs:1024:unwrap_or_literal:                    .unwrap_or(0) as i32;
-native/nightshade_native/native/src/vendor/gphoto2.rs:1233:rust_let_underscore:            let _ = self.set_config_value_str("eosremoterelease", "None");
-native/nightshade_native/native/src/vendor/gphoto2.rs:1579:rust_let_underscore:                    let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);
-native/nightshade_native/native/src/vendor/gphoto2.rs:2054:rust_let_underscore:                        let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);
-native/nightshade_native/native/src/vendor/ioptron.rs:363:rust_let_underscore:        let _ = self.update_status();
-native/nightshade_native/native/src/vendor/ioptron.rs:379:rust_let_underscore:        let _ = self.send_command_no_response(commands::STOP_SLEW);
-native/nightshade_native/native/src/vendor/ioptron.rs:743:rust_let_underscore:                    let _ = port.flush();
-native/nightshade_native/native/src/vendor/ioptron.rs:89:unwrap_or_literal:        .unwrap_or(0);
+native/nightshade_native/native/src/vendor/gphoto2.rs:1077:unwrap_or_literal:                    .unwrap_or(0) as i32;
+native/nightshade_native/native/src/vendor/gphoto2.rs:1292:rust_let_underscore:            let _ = self.set_config_value_str("eosremoterelease", "None");
+native/nightshade_native/native/src/vendor/gphoto2.rs:1659:rust_let_underscore:                    let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);
+native/nightshade_native/native/src/vendor/gphoto2.rs:2147:rust_let_underscore:                        let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);
+native/nightshade_native/native/src/vendor/ioptron.rs:368:rust_let_underscore:        let _ = self.update_status();
+native/nightshade_native/native/src/vendor/ioptron.rs:384:rust_let_underscore:        let _ = self.send_command_no_response(commands::STOP_SLEW);
+native/nightshade_native/native/src/vendor/ioptron.rs:748:rust_let_underscore:                    let _ = port.flush();
+native/nightshade_native/native/src/vendor/ioptron.rs:94:unwrap_or_literal:        .unwrap_or(0);
 native/nightshade_native/native/src/vendor/lx200.rs:1225:rust_let_underscore:                        let _ = port.flush();
 native/nightshade_native/native/src/vendor/lx200.rs:1254:rust_let_underscore:                            let _ = port.flush();
 native/nightshade_native/native/src/vendor/lx200.rs:1300:rust_let_underscore:                        let _ = port.flush();
@@ -1008,20 +1038,22 @@ native/nightshade_native/native/src/vendor/lx200.rs:1350:rust_let_underscore:   
 native/nightshade_native/native/src/vendor/lx200.rs:654:rust_let_underscore:        let _ = self.send_command_no_response(commands::STOP_SLEW);
 native/nightshade_native/native/src/vendor/lx200.rs:746:rust_let_underscore:        let _ = self.send_command(commands::SYNC)?;
 native/nightshade_native/native/src/vendor/lx200.rs:845:comment_best_effort:            // Best-effort persist: a write failure logs but does not mask
-native/nightshade_native/native/src/vendor/player_one.rs:1029:unwrap_or_literal:            .unwrap_or(false)
-native/nightshade_native/native/src/vendor/player_one.rs:1072:unwrap_or_literal:            .unwrap_or(false)
-native/nightshade_native/native/src/vendor/player_one.rs:693:rust_let_underscore:            let _ = unsafe { (sdk.set_image_bin)(self.camera_id, 1) };
-native/nightshade_native/native/src/vendor/player_one.rs:695:rust_let_underscore:            let _ = unsafe { (sdk.set_image_start_pos)(self.camera_id, 0, 0) };
-native/nightshade_native/native/src/vendor/player_one.rs:697:rust_let_underscore:            let _ =
-native/nightshade_native/native/src/vendor/player_one.rs:766:unwrap_or_literal:            .unwrap_or(0.0);
-native/nightshade_native/native/src/vendor/player_one.rs:772:unwrap_or_literal:            .unwrap_or(false);
-native/nightshade_native/native/src/vendor/player_one.rs:797:rust_drop_result:            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
-native/nightshade_native/native/src/vendor/player_one.rs:829:unwrap_or_literal:            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0),
-native/nightshade_native/native/src/vendor/player_one.rs:830:unwrap_or_literal:            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0),
-native/nightshade_native/native/src/vendor/player_one.rs:968:unwrap_or_literal:        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0);
-native/nightshade_native/native/src/vendor/player_one.rs:969:unwrap_or_literal:        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0);
-native/nightshade_native/native/src/vendor/player_one.rs:970:rust_drop_result:        let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
-native/nightshade_native/native/src/vendor/player_one.rs:975:rust_drop_result:        let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();
+native/nightshade_native/native/src/vendor/player_one.rs:1051:unwrap_or_literal:            .unwrap_or(false)
+native/nightshade_native/native/src/vendor/player_one.rs:1094:unwrap_or_literal:            .unwrap_or(false)
+native/nightshade_native/native/src/vendor/player_one.rs:24:unwrap_or_literal://! * `get_control_int(GAIN/OFFSET).unwrap_or(0)` — gain/offset 0 is the
+native/nightshade_native/native/src/vendor/player_one.rs:31:unwrap_or_literal://! * `unwrap_or(false)` on cooler-supported boolean probes — undeclared
+native/nightshade_native/native/src/vendor/player_one.rs:715:rust_let_underscore:            let _ = unsafe { (sdk.set_image_bin)(self.camera_id, 1) };
+native/nightshade_native/native/src/vendor/player_one.rs:717:rust_let_underscore:            let _ = unsafe { (sdk.set_image_start_pos)(self.camera_id, 0, 0) };
+native/nightshade_native/native/src/vendor/player_one.rs:719:rust_let_underscore:            let _ =
+native/nightshade_native/native/src/vendor/player_one.rs:788:unwrap_or_literal:            .unwrap_or(0.0);
+native/nightshade_native/native/src/vendor/player_one.rs:794:unwrap_or_literal:            .unwrap_or(false);
+native/nightshade_native/native/src/vendor/player_one.rs:819:rust_drop_result:            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
+native/nightshade_native/native/src/vendor/player_one.rs:851:unwrap_or_literal:            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0),
+native/nightshade_native/native/src/vendor/player_one.rs:852:unwrap_or_literal:            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0),
+native/nightshade_native/native/src/vendor/player_one.rs:990:unwrap_or_literal:        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0);
+native/nightshade_native/native/src/vendor/player_one.rs:991:unwrap_or_literal:        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0);
+native/nightshade_native/native/src/vendor/player_one.rs:992:rust_drop_result:        let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
+native/nightshade_native/native/src/vendor/player_one.rs:997:rust_drop_result:        let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();
 native/nightshade_native/native/src/vendor/qhy.rs:1100:rust_drop_result:        let temperature = self.get_control(QhyControl::CONTROL_CURTEMP).ok();
 native/nightshade_native/native/src/vendor/qhy.rs:891:rust_let_underscore:        let _ = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) }; // 16-bit mode
 native/nightshade_native/native/src/vendor/qhy.rs:893:rust_let_underscore:        let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
@@ -1033,7 +1065,7 @@ native/nightshade_native/native/src/vendor/skywatcher.rs:437:rust_let_underscore
 native/nightshade_native/native/src/vendor/skywatcher.rs:794:rust_let_underscore:                        let _ = port.flush();
 native/nightshade_native/native/src/vendor/svbony.rs:1026:rust_let_underscore:        let _ = unsafe { (sdk.get_output_image_type)(self.camera_id, &mut img_type) };
 native/nightshade_native/native/src/vendor/svbony.rs:1056:rust_let_underscore:        let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
-native/nightshade_native/native/src/vendor/svbony.rs:1061:unwrap_or_literal:            .map(|chunk| u16::from_le_bytes([chunk[0], chunk.get(1).copied().unwrap_or(0)]))
+native/nightshade_native/native/src/vendor/svbony.rs:1066:unwrap_or_literal:            .map(|chunk| u16::from_le_bytes([chunk[0], chunk.get(1).copied().unwrap_or(0)]))
 native/nightshade_native/native/src/vendor/svbony.rs:717:rust_let_underscore:        let _ = unsafe { (sdk.get_camera_property_ex)(self.camera_id, &mut prop_ex) };
 native/nightshade_native/native/src/vendor/svbony.rs:798:rust_let_underscore:            let _ =
 native/nightshade_native/native/src/vendor/svbony.rs:835:rust_let_underscore:        let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
@@ -1147,9 +1179,9 @@ native/nightshade_native/sequencer/src/instructions.rs:858:rust_let_underscore: 
 native/nightshade_native/sequencer/src/instructions.rs:998:rust_let_underscore:                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1087:rust_let_underscore:    /// Replaces the previous `let _ = mount_park(...)` pattern: on error, log
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1129:rust_let_underscore:                    let _ = self
-native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1671:unwrap_or_literal:                ra_degrees: hint_ra.unwrap_or(0.0),
-native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1672:unwrap_or_literal:                dec_degrees: hint_dec.unwrap_or(0.0),
-native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1951:rust_let_underscore:        let _ = executor;
+native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1675:unwrap_or_literal:                ra_degrees: hint_ra.unwrap_or(0.0),
+native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1676:unwrap_or_literal:                dec_degrees: hint_dec.unwrap_or(0.0),
+native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1955:rust_let_underscore:        let _ = executor;
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:361:unwrap_or_literal:                        // Audit §1.20: previously `.unwrap_or(60.0)` — silently
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:877:unwrap_or_default:        let af_config = ctx.autofocus_config.clone().unwrap_or_default();
 native/nightshade_native/sequencer/src/node.rs:107:simulated_runtime_path:            device_ops: Arc::new(NullDeviceOps),
@@ -1158,17 +1190,20 @@ native/nightshade_native/sequencer/src/node.rs:1702:unwrap_or_literal:          
 native/nightshade_native/sequencer/src/node.rs:2728:rust_let_underscore:                    let _ = guard.current_target_name.clone();
 native/nightshade_native/sequencer/src/node.rs:2729:rust_let_underscore:                    let _ = guard.completed_exposures;
 native/nightshade_native/sequencer/src/node.rs:4:simulated_runtime_path:    device_ops::{NullDeviceOps, SharedDeviceOps},
-native/nightshade_native/sequencer/src/polar_align.rs:159:unwrap_or_literal:                        .unwrap_or(false)
-native/nightshade_native/sequencer/src/polar_align.rs:195:unwrap_or_literal:                config.binning.unwrap_or(1),
-native/nightshade_native/sequencer/src/polar_align.rs:196:unwrap_or_literal:                config.binning.unwrap_or(1),
-native/nightshade_native/sequencer/src/polar_align.rs:311:unwrap_or_literal:                        .unwrap_or(false)
-native/nightshade_native/sequencer/src/polar_align.rs:371:unwrap_or_literal:                config.binning.unwrap_or(1),
-native/nightshade_native/sequencer/src/polar_align.rs:372:unwrap_or_literal:                config.binning.unwrap_or(1),
+native/nightshade_native/sequencer/src/polar_align.rs:16:unwrap_or_literal://! * `config.binning.unwrap_or(1)` (four sites) — 1×1 binning is the
+native/nightshade_native/sequencer/src/polar_align.rs:177:unwrap_or_literal:                        .unwrap_or(false)
+native/nightshade_native/sequencer/src/polar_align.rs:213:unwrap_or_literal:                config.binning.unwrap_or(1),
+native/nightshade_native/sequencer/src/polar_align.rs:214:unwrap_or_literal:                config.binning.unwrap_or(1),
+native/nightshade_native/sequencer/src/polar_align.rs:329:unwrap_or_literal:                        .unwrap_or(false)
+native/nightshade_native/sequencer/src/polar_align.rs:389:unwrap_or_literal:                config.binning.unwrap_or(1),
+native/nightshade_native/sequencer/src/polar_align.rs:390:unwrap_or_literal:                config.binning.unwrap_or(1),
+native/nightshade_native/sequencer/src/polar_align.rs:9:unwrap_or_literal://! * `is_slewing().unwrap_or(false)` (two sites at lines ~159, ~311) —
 native/nightshade_native/sequencer/src/temperature_compensation.rs:236:rust_let_underscore:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
 native/nightshade_native/sequencer/src/temperature_compensation.rs:277:rust_let_underscore:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
 native/nightshade_native/updater/src/main.rs:218:rust_let_underscore:        let _ = rollback_in_place(&args.install_dir, &rollback_log);
 native/nightshade_native/updater/src/main.rs:258:rust_let_underscore:        // applied and verified — but log loudly. (§7A.11: no silent let _ = ...)
-native/nightshade_native/updater/src/main.rs:743:unwrap_or_literal:        .unwrap_or(0);
+native/nightshade_native/updater/src/main.rs:755:unwrap_or_literal:/// `duration_since(UNIX_EPOCH).unwrap_or(0)` — pre-1970 clock → epoch:0
+native/nightshade_native/updater/src/main.rs:763:unwrap_or_literal:        .unwrap_or(0);
 packages/nightshade_app/lib/models/command_action_result.dart:39:literal_null_coalesce:  bool get hasMessage => (message ?? '').trim().isNotEmpty;
 packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard.dart:526:literal_null_coalesce:        rotationDegrees: image.solvedRotation ?? 0.0,
 packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard.dart:544:literal_null_coalesce:      final zp = calibration.zeroPoint ?? 0.0;
