@@ -9,6 +9,195 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [Unreleased] — Code-Quality Hardening (2026-05-09 to 2026-05-16)
+
+A 14-wave code-quality cycle following the v2.5.0 release. ~84 commits drove
+five read-only audits (`docs/code-quality/audit-{arch,tests,rust,dart,observe}.md`)
+to closure. Wave breakdown is documented in
+`docs/code-quality/v2.5.x-roadmap.md`. Highlights:
+
+- The structured FFI error pipeline is no longer a placebo —
+  `NightshadeException._parseJson` actually decodes the Rust-side `ErrorInfo`
+  payload, and every typed `NightshadeError` variant survives across the
+  boundary with `device_id`, `error_code`, `is_recoverable`, and
+  `should_reconnect` intact.
+- All six previously-detached `tokio::spawn` tasks (sequencer execution,
+  event bridges, polar-alignment monitor, imaging worker loops) are now
+  panic-supervised — a crash in any one logs and either restarts the loop
+  or surfaces the failure instead of silently killing its feature.
+- The `bridge/src/api.rs` and `bridge/src/devices.rs` monoliths (18,624 LOC
+  combined) have been split into `bridge/src/api/` (37 files) and
+  `bridge/src/device_manager/` along their natural section boundaries.
+- The top-3 monolithic Dart screens
+  (`imaging_screen.dart` / `dashboard_screen.dart` / `planetarium_screen.dart`)
+  retain their entry classes but have widget tests for the first time, and the
+  shared `pumpAppScreen()` harness with `FakeNativeBridge` unlocks regression
+  coverage on 100k+ LOC of UI.
+
+### Architecture (W-DECOMP + W-RENAME)
+
+- Split `native/nightshade_native/bridge/src/api.rs` (9,770 LOC) into
+  `bridge/src/api/` (37 files) across three sub-PRs grouped by domain
+  (audit-arch §1.2 / audit-rust §9).
+- Split `native/nightshade_native/bridge/src/devices.rs` (8,854 LOC) into
+  `bridge/src/device_manager/` with per-device `ops/` modules
+  (audit-arch §1.2).
+- Split `native/nightshade_native/ascom/src/windows_impl.rs` (3,756 LOC)
+  into per-device modules under `ascom/src/windows/` (audit-arch §1.2).
+- Split `providers/equipment_provider.dart` (1,540 LOC, 11 notifiers)
+  into per-device-type files (audit-dart §1e, §10 #9).
+- Split `providers/sequence_provider.dart` (3,533 LOC): extract
+  `SequenceExecutor`, validation, defaults, and node-palette modules
+  (audit-arch §1.2 / audit-dart §1e).
+- Split `screens/equipment/tabs/connections_tab.dart` (2,723 LOC) into
+  per-device cards and fixed three `use_build_context_synchronously`
+  violations (audit-arch §1.2 / §8 #6).
+- Split `screens/framing/framing_screen.dart` (4,688 LOC) into canvas,
+  controls, painters, and overlay modules (audit-arch §1.2).
+- Resolved UI → bridge layering violation in
+  `nightshade_ui/.../polar_alignment_wizard.dart` (audit-arch §3.2 —
+  the audit's worst-finding layering bug).
+- Rename + collision resolution: framing `MosaicConfig/Panel` →
+  `FramingMosaic*`, planetarium duplicates → `PlanetariumMosaic*`,
+  core `CameraState` → `CameraStateSnapshot`, `FocusDataPoint` →
+  `FocusHistoryPoint`, plus `DeviceType` dedup, `ObserverLocation`
+  rename, `MobileNotificationService`, `queueProgressProvider`,
+  `AppSettingsState`, `sequenceTargetSearchProvider`. Each rename
+  removed a barrel `hide` clause (audit-arch §2.2).
+- `PlateSolveResult` consolidated to the FRB-canonical type; both
+  hand-written copies deleted (audit-arch §2.2 / audit-tests §2a).
+- `CapturedImage` and `EquipmentProfile` now alias-exported from the
+  `nightshade_core` barrel; 4 `src/` bypass imports removed
+  (audit-arch §3.2, §8 #13).
+
+### Test Infrastructure (W-TEST)
+
+- New `FakeNativeBridge` in `packages/nightshade_bridge/test/fakes/`
+  with controllable event streams + canned response maps
+  (audit-tests §6).
+- New `pumpAppScreen()` widget-test harness in
+  `packages/nightshade_app/test/harness/` wiring `FakeNativeBridge`,
+  in-memory drift DB, and `MockBackend` via `ProviderScope.overrides`
+  (audit-tests §6).
+- New `AscomConnectionBackend` trait with `mockall` scaffolding so the
+  3,756-LOC `ascom/windows_impl.rs` is testable for the first time
+  (audit-tests §6).
+- New `FakeNightshadeNetworkClient` and `NetworkBackend` unit tests
+  (audit-tests §6).
+- Smoke and behavior widget tests landed for `imaging_screen`,
+  `dashboard_screen`, `planetarium_screen`, and `settings_screen`
+  (audit-tests §1, rows 1–5).
+- Required CI gates promoted: `audit:placeholders --fail-on-new-highrisk`,
+  Windows-host `test-rust` job, `cargo` duplicate check, `pre-commit`
+  hooks for `dart format` + `cargo fmt`, `linguist-generated=true` for
+  generated files (audit-tests §7).
+- `libraw.dll` is auto-copied to `target/debug/deps` so
+  `cargo test --package nightshade_bridge` works out of the box
+  (audit-tests §1).
+- `flutter_lints` upgraded from `^3.0.1` to `^5.0.0` across all
+  packages; analyzer options tuned (audit-dart §10 #3).
+
+### Observability (W-CRIT + W-OBS)
+
+- Restored the structured FFI error pipeline: `_parseJson` now actually
+  `jsonDecode`s the Rust `ErrorInfo` payload instead of unconditionally
+  returning `null` (audit-observe §1a — the audit's CRITICAL finding).
+- Closed 13 fail-closed handler violations across the headless API
+  (auxiliary, flat_wizard, backup, mosaic, science, device handlers) —
+  no more `'status': 'failed'` with HTTP 200 or `e.toString()` leaks
+  (audit-observe §6a).
+- Resolved the `ffi_backend:2064` UnimplementedError for the all-sky
+  polar-alignment path (audit-observe §6a).
+- Bearer token in `main_headless.dart` startup banner is redacted in
+  log output (audit-observe §2e).
+- `LoggingService` migration: ~477 `print` / `debugPrint` sites
+  replaced across `apps/desktop/lib/main.dart` (134), `bridge_stub.dart`
+  (103), `catalog_manager.dart` (37), `network_backend.dart` (32),
+  `auto_save_service.dart` (21), and the residual long tail (~232
+  in the final sweep). `main.dart` was split into bootstrap +
+  `desktop_app_bootstrap.dart` + `desktop_logging_init.dart`
+  (audit-dart §10 #1 / audit-observe §2b).
+- 10+ Dart notifier/widget `dispose()` hooks now cancel held
+  `Timer` / `StreamSubscription` resources;
+  `SequenceExecutionNotifier` and 9 device notifiers in
+  `equipment_provider.dart` got explicit `dispose()` overrides
+  (audit-dart §1f, §2d, §2e).
+- 14 `Future`-holding Dart `catch (_)` swallows audited:
+  log via `dart:developer` or replaced with explicit `// Why:` rationale
+  (audit-observe §1c).
+- 5 long-running futures wrapped in supervised wrappers
+  (audit-observe §8c).
+- SQLite corruption recovery: Drift `integrity_check` +
+  backup-and-recreate path with UI marker for first-launch on a
+  corrupt `app_settings.db` (audit-observe §8b).
+- New operational `RUNBOOK.md` covering frozen startup, plate-solve
+  failures, OTA rollback, sequence-resume, and headless-unreachable
+  scenarios (audit-observe §9).
+- New diagnostic-dump service + screen bundles
+  logs / profile / sequence / system info into a single zip
+  (audit-observe §4c).
+- Behavioral markers (planetarium, ui, plugins, core, app, apps,
+  native crates) now registered + audited via a final residual sweep
+  (audit-observe §10).
+
+### Rust hardening (W-CRIT + W-OBS)
+
+- All 6 previously-detached `tokio::spawn` tasks
+  (`sequencer/executor.rs:658`, `bridge/api.rs:6489` + `:7755`,
+  `imaging_ops.rs:61` + `:627`, `bridge/devices.rs:7186`) are now
+  panic-supervised with logging + restart for the worker loops
+  (audit-rust §2.1).
+- `UNIFIED_IMAGE_STORAGE` is now LRU-bounded with eviction events;
+  `ALPACA_CLIENTS` lifecycle audited (audit-rust §3.5).
+- 288 `unwrap_or_*` silent-fallback sites swept across alpaca client +
+  telescope, phd2 + imaging processing + stats, device_capabilities
+  (80), alpaca devices + bridge dispatch (47), and indi + sequencer +
+  imaging residuals. Each remaining site now carries a `// Why:`
+  rationale or has been converted to `?` (audit-rust §4.3).
+- ~400 `// SAFETY:` comments added across `native/src/vendor/*.rs`
+  (qhy, atik, player_one, moravian, svbony, fujifilm, touptek);
+  `clippy::undocumented_unsafe_blocks` promoted to `-D warnings`
+  (audit-rust §3.2).
+- All `as` casts hardened at the Dart↔Rust FFI boundary
+  (audit-rust §1.4 / W11): new `safelyCast<T>` helper plus
+  vendor SDK + imaging buffer-math boundaries (W12), and the
+  remaining sequencer + indi + imaging tail (W13).
+- Cargo duplicate semvers unified: `windows-rs`, `base64`, and
+  `thiserror` versions consolidated (audit-rust §5).
+- `cargo clippy --all-features -- -D warnings` is green on Rust 1.91
+  (audit-rust §7).
+
+### Dart hygiene (W-HYG + later const-constructor waves)
+
+- Migrated 144 deprecated typedef callers
+  (`DriverBackend` → `DriverType`, `AvailableDevice` → `DeviceInfo`,
+  `NightshadeDeviceType` → `DeviceType`, `TargetGroupNode` →
+  `TargetHeaderNode`); deleted the typedef shims
+  (audit-arch §4 / audit-dart §4).
+- Riverpod aligned to `^2.5.1` across all 9 packages
+  (audit-dart §10 #4).
+- Confirmed-dead code deleted: `nightshade_exception.dart`,
+  `paginated_image_loader.dart`, `catalog_service.dart`, three
+  weather providers, `annotation_catalog_dialog.dart`,
+  duplicate `Phd2Status` / `SequencerStatus` core copies, 2 dead
+  `TutorialKeys`, `Plugin.initialize()/dispose()` deprecated methods
+  (audit-tests §2).
+- `prefer_const_constructors` enabled and fixed across
+  `nightshade_ui`, `nightshade_bridge`, `nightshade_plugins`,
+  `nightshade_updater`, and `nightshade_app`
+  (audit-dart §10 #3).
+- `MediaQuery.of(context)` replaced with granular
+  `.sizeOf` / `.orientationOf` accessors at 26 sites
+  (audit-dart §3a).
+- Fixed-height `ListView.builder` calls now carry `itemExtent`;
+  off-screen `Timer`s are paused (audit-dart §3c, §4.33).
+- `SequenceNode` hierarchy converted to a Dart 3 `sealed class` for
+  exhaustive switches across 12 downstream `is`-chain call sites
+  (audit-dart §6c).
+- `autoDispose` audit: applied to 14 page-scoped providers, with
+  documented keep-alive rationale for the 15th
+  (audit-dart §1b).
+
 ## [2.5.0] - 2026-05-11
 
 This is the v2.5.0 hardening release. The headline change is the merge of two

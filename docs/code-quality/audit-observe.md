@@ -7,6 +7,79 @@
 
 ---
 
+## Status (as of v2.5.x hardening, 2026-05-16)
+
+The original audit below is preserved verbatim for context. This banner
+tracks what landed in the v2.5.x code-quality hardening cycle
+(see `CHANGELOG.md` and `v2.5.x-roadmap.md`).
+
+### CRITICAL — Resolved
+
+- **§1a — `NightshadeException._parseJson` dead code.** Now actually
+  `jsonDecode`s the FFI `ErrorInfo` payload instead of unconditionally
+  returning `null`; every typed Rust error survives across the boundary
+  with `device_id`, `error_code`, `is_recoverable`, and
+  `should_reconnect` intact. Resolved via `CQ-W1-PARSEJSON`.
+- **§6a — 13 fail-closed handler violations**
+  (`handlers_e_tostring` + `handlers_status_failed_string` across
+  `auxiliary`, `flat_wizard`, `backup`, `mosaic`, `science`, `device`
+  handlers). Resolved via `CQ-W1-FAILCLOSED`. The all-sky polar-align
+  `ffi_backend:2064 UnimplementedError` fail-closed gap resolved via
+  `CQ-W9-FAIL-CLOSED-ALLSKY`.
+
+### HIGH — Resolved
+
+- **§9 — Operational runbook gap.** New `RUNBOOK.md` covering frozen
+  startup, plate-solve failures, OTA rollback, sequence-resume, and
+  headless-unreachable scenarios via `CQ-W6-RUNBOOK`.
+- **§2b — 477 `print` / `debugPrint` calls across 61 files.** Top-10
+  hot paths migrated to `LoggingService`: `apps/desktop/lib/main.dart`
+  (134) via `CQ-W2-PRINT`, `bridge_stub.dart` (103) +
+  `catalog_manager.dart` (37) via `CQ-W6-PRINT-FULL`,
+  `network_backend.dart` (32) + `auto_save_service.dart` (21) via
+  `CQ-W6-PRINT-FULL:core-services`, `quick_start_checker` + mobile
+  services via `CQ-W6-PRINT-FULL:quick-start-mobile`, and the
+  remaining ~232 sites via `CQ-W11-PRINT-FULL:final`.
+- **§1c — 15+ Dart `catch (_)` swallows** in `enhanced_discovery.dart`,
+  `plate_solver_utils.dart`, `coordinate_parser.dart`,
+  `network_backend.dart`, `star_catalog.dart`, `satellite_catalog.dart`,
+  `logging_service.dart`. Audited and either logged via
+  `dart:developer` or annotated with `// Why:` rationale via
+  `CQ-W6-CATCH-UNDERSCORE` and `:2`.
+
+### MED — Resolved
+
+- **§2e — Bearer token redaction.** `main_headless.dart` startup
+  banner now redacts the token to `<first-4>…<last-4>` via
+  `CQ-W1-TOKEN-REDACT`.
+- **§4c — Diagnostic dump.** New service + screen bundles logs +
+  active profile + sequence state + system info into a single zip
+  via `CQ-W6-DIAG-DUMP`.
+- **§8b — SQLite corruption recovery.** Drift `integrity_check` +
+  backup-and-recreate path with first-launch UI marker via
+  `CQ-W6-SQLITE-RECOVERY`.
+- **§8c — Background-service supervision.** 5 long-running futures
+  wrapped in supervised wrappers via `CQ-W6-SUPERVISION`.
+- **§10 — Behavioral markers** registered + audited across updater,
+  webrtc, planetarium, ui, plugins, core, app, apps, and native
+  crates via `CQ-W9-BEHAVIORAL-MARKERS`, `CQ-W10-BEHAVIORAL-MARKERS:A`,
+  `:B`, and `CQ-W11-BEHAVIORAL-MARKERS:C`.
+
+### Remaining (deferred to v2.6 or later)
+
+- **§3d — Localization.** 0 of 35 `NightshadeError` Display strings
+  localized; full i18n is v3.x scope.
+- **§4a / §4b — Telemetry / opt-in crash uploader.** Out-of-scope
+  per local-first ethos; the new diagnostic-dump screen and runbook
+  are the agreed substitute for v2.5.x.
+- **§6b — Missing fail-closed rules for scheduler / NINA import /
+  defect-map paths.** Tracked but not added in this cycle; existing
+  gate is operational and W1 closed the 13 known violations.
+- **§2d — Log-level discipline in vendor SDK modules** (`info!` →
+  `debug!` for routine I/O). Low priority.
+
+---
+
 ## 1. Error-handling consistency across the FFI boundary
 
 ### a) FFI error preservation — sampled paths

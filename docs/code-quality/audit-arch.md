@@ -8,6 +8,75 @@
 
 ---
 
+## Status (as of v2.5.x hardening, 2026-05-16)
+
+The original audit below is preserved verbatim for context. This banner
+tracks what landed in the v2.5.x code-quality hardening cycle
+(see `CHANGELOG.md` and `v2.5.x-roadmap.md`).
+
+### HIGH — Resolved
+
+- **§1.2 / §9 — `bridge/src/api.rs` (9,770 LOC) decomposition.** Split
+  into `bridge/src/api/` (37 files) across `CQ-W3-API-RS:GroupA`,
+  `:GroupB`, `:GroupC` plus `FRB-REGEN` and follow-on `:Fix` /
+  `:Fix2` commits.
+- **§1.2 — `bridge/src/devices.rs` (8,854 LOC) decomposition.** Split
+  into `bridge/src/device_manager/` with per-device `ops/` modules
+  via `CQ-W3-DEVICES-RS:Connection` and `:Ops`.
+- **§1.2 — `ascom/src/windows_impl.rs` (3,756 LOC) decomposition.**
+  Split into per-device modules via `CQ-W3-ASCOM`.
+- **§1.2 — `screens/framing/framing_screen.dart` (4,688 LOC)
+  decomposition.** Split into canvas + controls + painters + overlays
+  via `CQ-W3-FRAMING-SCREEN`.
+- **§1.2 — `providers/sequence_provider.dart` (3,533 LOC)
+  decomposition.** `SequenceExecutor`, validation, defaults, and
+  palette extracted via `CQ-W3-SEQ-PROVIDER`.
+- **§1.2 (row 75) / §8 #6 — `screens/equipment/tabs/connections_tab.dart`
+  (2,723 LOC) split** per `_*DeviceCard`; three
+  `use_build_context_synchronously` violations fixed via `CQ-W3-CONN-TAB`.
+- **§1.2 / §10 #9 — `equipment_provider.dart` (1,540 LOC, 11 notifiers)
+  split** per device type via `CQ-W3-EQUIP-PROV`.
+- **§3.2 — UI → bridge layering violation in
+  `nightshade_ui/.../polar_alignment_wizard.dart` (the audit's
+  worst-finding layering bug)** resolved via `CQ-W3-UI-VIOLATION`.
+- **§4 — Deprecated typedef migration** (`DriverBackend`,
+  `AvailableDevice`, `NightshadeDeviceType`, `TargetGroupNode`):
+  144 callers migrated, shims deleted via `CQ-W2-DEPRECATED`.
+
+### MED — Resolved
+
+- **§2.2 — Collision triage.** `MosaicConfig` / `MosaicPanel`
+  rename via `CQ-W4-MOSAIC`; `CameraState` rename via
+  `CQ-W4-CAMERASTATE`; `FocusDataPoint` and `PlateSolveResult` via
+  `CQ-W4-FOCUSDATA-PLATESOLVE:A` and `:B`; `DeviceType` dedup +
+  `ObserverLocation` + `MobileNotificationService` +
+  `queueProgressProvider` + `AppSettingsState` +
+  `sequenceTargetSearchProvider` via `CQ-W4-RENAME-MISC`.
+- **§3.2 / §8 #13 — `src/` bypass imports for
+  `CapturedImage` / `EquipmentProfile`.** Alias-exported from core
+  barrel via `CQ-W4-BARREL-EXPOSE`; 4 bypass imports removed.
+
+### Remaining (deferred to v2.6 or later)
+
+- **§1.2 — Remaining monolithic Dart screens** (`imaging_screen.dart`,
+  `dashboard_screen.dart`, `planetarium_screen.dart`,
+  `node_properties_panel.dart`, `settings_screen.dart`,
+  `templates_tab.dart`, `polar_alignment_screen.dart`). Entry classes
+  retain their LOC, but widget tests (smoke + behavior) landed via
+  W-TEST so future splits can be regression-checked. Decomposition is
+  in the v2.6 W-DECOMP scope.
+- **§1.2 — Remaining Rust monoliths** (`sequencer/instructions.rs`,
+  `real_device_ops.rs`, `sky_renderer.dart`, `indi/src/client.rs`).
+- **§1.2 — Deferred items** (`network_backend.dart`, `ffi_backend.dart`,
+  `device_service.dart`) — pending interface split first.
+- **§6 — Provider sprawl** (`science_provider.dart`,
+  `imaging_provider.dart`, `guiding_provider.dart`) — partial via
+  `CQ-W3-EQUIP-PROV`; remainder deferred.
+- **§7 — `nightshade_core` → `nightshade_data` + `nightshade_domain`
+  split** — architectural, scheduled for post-v2.7 review.
+
+---
+
 ## 1. Monolithic files
 
 ### 1.1 Top 25 largest source files (Dart + Rust)

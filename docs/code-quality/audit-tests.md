@@ -9,6 +9,77 @@
 
 ---
 
+## Status (as of v2.5.x hardening, 2026-05-16)
+
+The original audit below is preserved verbatim for context. This banner
+tracks what landed in the v2.5.x code-quality hardening cycle
+(see `CHANGELOG.md` and `v2.5.x-roadmap.md`).
+
+### HIGH — Resolved
+
+- **§1 / §6 — Test infrastructure.** New `FakeNativeBridge`
+  (`CQ-W5-FAKE-BRIDGE`), `pumpAppScreen()` widget harness with
+  `MockBackend` + `mock_database` (`CQ-W5-WIDGET-HARNESS`),
+  `FakeNetworkClient` + `NetworkBackend` tests (`CQ-W5-FAKE-NETBACKEND`),
+  and `AscomConnectionBackend` trait + mockall scaffolding
+  (`CQ-W5-FAKE-ASCOM`).
+- **§1 (top-10 untested rows 1, 3, 2, 5) — Widget test coverage** for
+  `imaging_screen` (`CQ-W5-WIDGET-TESTS-IMG`,
+  `CQ-W10-WIDGET-TESTS-IMG-DEEPER`),
+  `dashboard_screen` (`CQ-W5-WIDGET-TESTS-DASH`,
+  `CQ-W11-WIDGET-TESTS-DASH-DEEPER`),
+  `planetarium_screen` non-GPU paths (`CQ-W5-WIDGET-TESTS-PLAN`,
+  `CQ-W13-WIDGET-TESTS-PLAN-DEEPER`),
+  and `settings_screen` (`CQ-W5-WIDGET-TESTS-SETTINGS`,
+  `CQ-W12-WIDGET-TESTS-SETTINGS-DEEPER`).
+- **§7 — CI / pre-commit gaps.** Audit gates promoted to required CI
+  checks, Windows-host job added, `cargo` duplicate check, pre-commit
+  hooks (`dart format` + `cargo fmt`), and `linguist-generated=true`
+  for generated files — all via `CQ-W2-AUDIT-CI` and `CQ-W8-CI-GATING`.
+  `undocumented_unsafe_blocks` promoted to `-W warnings` at this stage
+  and to `-D warnings` later via `CQ-W10-UNSAFE-BLOCKS-PROMOTE`.
+- **§1 — `cargo test --package nightshade_bridge` reproducibility.**
+  `libraw.dll` auto-copied to `target/debug/deps` via
+  `CQ-W8-LIBRAW-AUTOCOPY`.
+
+### MED — Resolved
+
+- **§2a–§2e — Dead-code carryover.** Confirmed-dead files deleted via
+  `CQ-W2-DEAD-CORE` (covers `nightshade_exception.dart`,
+  `paginated_image_loader.dart`, `catalog_service.dart`, three
+  weather providers, `annotation_catalog_dialog.dart`,
+  `TutorialKeys.navSettings` + `navPolarAlignment`, duplicate
+  `Phd2Status` / `SequencerStatus` core copies).
+- **§3 — Deprecated `Plugin.initialize()` / `Plugin.dispose()`.**
+  Folded into `CQ-W2-DEAD-CORE`.
+- **§3 — Other deprecated typedefs** (`DriverBackend`,
+  `AvailableDevice`, `NightshadeDeviceType`, `TargetGroupNode` +
+  `Sequence.targetGroups`): 144 callers migrated, shims deleted via
+  `CQ-W2-DEPRECATED` (also tracked in audit-arch §4).
+- **§5 — Static-analysis debt.** `flutter_lints` upgraded `^3.0.1` →
+  `^5.0.0` via `CQ-W5-LINTS-UPGRADE`; analyzer-options tuned to
+  silence noisy rules. The 144 `deprecated_member_use_from_same_package`
+  warnings dominated by the typedef shims are now structurally gone.
+
+### Remaining (deferred to v2.6 or later)
+
+- **§4 — Generated-code policy.** The "keep committed" verdict was
+  accepted; FRB-`.gitignore` proposal explicitly rejected as too
+  risky on Windows. `linguist-generated=true` lands via
+  `CQ-W2-AUDIT-CI` to keep PR diffs reviewable.
+- **§1 — Headless API server (`headless_api_server.dart` + 14
+  handlers).** No widget-test analogue yet; this surface is tested
+  indirectly through the W1 fail-closed handler fixes
+  (`CQ-W1-FAILCLOSED`), but a dedicated harness is in v2.7 scope.
+- **§1 — ASCOM `windows_impl.rs` direct test coverage.** Trait
+  boundary + mockall scaffolding exist (`CQ-W5-FAKE-ASCOM`), but
+  per-device test bodies are deferred to v2.7.
+- **§8 row 12 — `override_on_non_overriding_member` (617) +
+  `super_formal_parameter_without_associated_named` (345)** triage —
+  pending; not blocking.
+
+---
+
 ## 1. Test Coverage by Package
 
 ### Dart packages (handwritten LOC only; generated `.g.dart` / `.freezed.dart` / `frb_generated*` excluded)

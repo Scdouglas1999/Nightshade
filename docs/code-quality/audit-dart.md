@@ -7,6 +7,84 @@
 
 ---
 
+## Status (as of v2.5.x hardening, 2026-05-16)
+
+The original audit below is preserved verbatim for context. This banner
+tracks what landed in the v2.5.x code-quality hardening cycle
+(see `CHANGELOG.md` and `v2.5.x-roadmap.md`).
+
+### CRITICAL — Resolved
+
+- **§1f — `StateNotifier` `dispose()` gaps.**
+  `SequenceExecutionNotifier`, 9 device notifiers in
+  `equipment_provider.dart`, and 10+ other notifier/widget dispose
+  hooks now cancel held `Timer` / `StreamSubscription` resources via
+  `CQ-W1-DISPOSE-DART`.
+- **§2d / §2e — `Future.delayed` + `setState` without `mounted`,
+  `setState` after `await` without `mounted`.** Folded into
+  `CQ-W1-DISPOSE-DART` for the audit's named site list.
+
+### HIGH — Resolved
+
+- **§4 / §10 #1 — 134 `print()` in `apps/desktop/lib/main.dart`** (plus
+  the headless / update-manager / framing_search shims) replaced with
+  `LoggingService`; `main.dart` split into bootstrap +
+  `desktop_app_bootstrap.dart` + `desktop_logging_init.dart` via
+  `CQ-W2-PRINT`.
+- **§4 / audit-arch §4 — 144 deprecated typedef migration.**
+  `DriverBackend` / `AvailableDevice` / `NightshadeDeviceType` /
+  `TargetGroupNode` callers migrated and shims deleted via
+  `CQ-W2-DEPRECATED`.
+- **§1e / audit-arch §1.2 — Provider sprawl in `equipment_provider.dart`
+  and `sequence_provider.dart`.** Split via `CQ-W3-EQUIP-PROV` and
+  `CQ-W3-SEQ-PROVIDER`.
+- **§10 #3 — `flutter_lints` upgrade.** `^3.0.1` → `^5.0.0` across all
+  packages via `CQ-W5-LINTS-UPGRADE`; analyzer-options tuned.
+  `prefer_const_constructors` enabled and fixed across
+  `nightshade_ui` (`CQ-W11-CONST-CONSTRUCTORS:ui`),
+  `nightshade_bridge` / `nightshade_plugins` / `nightshade_updater`
+  (`CQ-W12-CONST-CONSTRUCTORS:2`), and `nightshade_app`
+  (`CQ-W13-CONST-CONSTRUCTORS:app`).
+- **§10 #4 — Riverpod version drift.** All 9 packages aligned to
+  `^2.5.1` via `CQ-W2-RIVERPOD-PIN`.
+
+### MED — Resolved
+
+- **§3a — `MediaQuery.of(context)` rebuild surface.** 26 sites
+  converted to granular `.sizeOf` / `.orientationOf` accessors via
+  `CQ-W12-PERF-MEDIAQUERY`.
+- **§3c / row 4.33 — `ListView` without `itemExtent`, off-screen
+  `Timer`s.** Fixed-height `ListView.builder` now has `itemExtent`;
+  off-screen `Timer`s paused via `CQ-W12-PERF-LISTVIEW-TIMERS`.
+- **§6c — `SequenceNode` hierarchy sealing.** Converted to Dart 3
+  `sealed class`; 12 downstream `is`-chain switches now exhaustive
+  via `CQ-W13-SEQUENCE-NODE-SEALED`.
+- **§1b — `autoDispose` discipline.** Applied to 14 page-scoped
+  providers; the 15th has a documented keep-alive rationale via
+  `CQ-W13-AUTODISPOSE-AUDIT`.
+
+### Remaining (deferred to v2.6 or later)
+
+- **§2a / §9 — Remaining monolithic Dart screens** (`imaging_screen.dart`,
+  `dashboard_screen.dart`, `planetarium_screen.dart`,
+  `node_properties_panel.dart`, `settings_screen.dart`,
+  `framing_screen.dart`, `templates_tab.dart`,
+  `polar_alignment_screen.dart`). Widget tests landed via W-TEST so
+  future splits can be regression-checked; decomposition is in v2.6
+  W-DECOMP scope.
+- **§2b — `const` constructor sweep beyond enablement.** Per-screen
+  blanket-fix deliberately deferred to avoid massive diffs; lints
+  are now on so new code is checked.
+- **§5 — `unawaited(...)` audit beyond the lint-rule enablement.**
+- **§6a–§6d — Pattern matching / records / sealed-state-machine
+  adoption beyond `SequenceNode`.** `DeviceConnectionState` +
+  `XState` hierarchy sealing is gated on `equipment_provider.dart`
+  split (now landed) and will follow.
+- **§7 — Dependency hygiene (`build_resolvers` override, floating
+  `^` constraints, 63 packages with newer-incompatible versions).**
+
+---
+
 ## 1. Riverpod patterns
 
 ### a) Provider inventory (across `packages/` + `apps/`)

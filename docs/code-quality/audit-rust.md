@@ -7,6 +7,77 @@
 
 ---
 
+## Status (as of v2.5.x hardening, 2026-05-16)
+
+The original audit below is preserved verbatim for context. This banner
+tracks what landed in the v2.5.x code-quality hardening cycle
+(see `CHANGELOG.md` and `v2.5.x-roadmap.md`).
+
+### CRITICAL — Resolved
+
+- **§2.1 — 6 detached `tokio::spawn` tasks** (`sequencer/executor.rs:658`,
+  `bridge/api.rs:6489` + `:7755`, `imaging_ops.rs:61` + `:627`,
+  `bridge/devices.rs:7186`) now wrapped in panic-supervised wrappers
+  with logging + worker-loop restart via `CQ-W1-DISPOSE-RUST`.
+- **§3.5 — `UNIFIED_IMAGE_STORAGE` unbounded growth.** Now LRU-bounded
+  with eviction events; `ALPACA_CLIENTS` lifecycle audited via
+  `CQ-W1-UNIFIED-IMG`.
+
+### HIGH — Resolved
+
+- **§9 / §6.2 — `bridge/src/api.rs` (9,770 LOC) decomposition.** Split
+  along section banners into `bridge/src/api/` (37 files) across three
+  sub-PRs (`CQ-W3-API-RS:GroupA` / `:GroupB` / `:GroupC`) plus FRB
+  regen and follow-on `:Fix` / `:Fix2` commits. Cross-references
+  audit-arch §1.2.
+- **§4.3 — 288 silent `unwrap_or_*` fallbacks** swept across alpaca
+  client + telescope (`CQ-W6-UNWRAP-OR-SWEEP:alpaca`),
+  imaging (`:imaging`), bridge device_capabilities (`:bridge-caps`,
+  80 sites), alpaca devices + bridge dispatch
+  (`:alpaca-devices-dispatch`, 47 sites), residual indi + sequencer +
+  imaging (`:residual`), and a final residual pass
+  (`CQ-W10-UNWRAP-OR-FINAL`). Each remaining site now carries a
+  `// Why:` rationale or has been converted to `?`.
+- **§3.2 — Undocumented `unsafe` blocks (700+).** ~400 `// SAFETY:`
+  comments added across `native/src/vendor/*.rs`
+  (`CQ-W6-SAFETY-COMMENTS:vendor-top-2`, `:qhy-atik`, `:po-moravian`,
+  `:svbony-fujifilm-touptek`) and the residual sweep promoted
+  `clippy::undocumented_unsafe_blocks` to `-D warnings` via
+  `CQ-W10-UNSAFE-BLOCKS-PROMOTE`.
+- **§1.4 — `as`-cast audit (1,049 real `cast_*` lints) at FFI
+  boundaries.** Hardened across the Dart↔Rust FFI boundary with a new
+  `safelyCast<T>` helper (`CQ-W11-AS-CAST-AUDIT:ffi-boundary`),
+  vendor SDK + imaging buffer-math (`CQ-W12-AS-CAST-RUST:vendor-imaging`),
+  and the remaining sequencer + indi + imaging tail
+  (`CQ-W13-AS-CAST-RUST:sequencer-imaging-tail`).
+- **§7 — Clippy debt.** Rust 1.91 clippy churn fixed so
+  `cargo clippy --all-features -- -D warnings` is green via
+  `CQ-W9-CLIPPY-CHURN`.
+
+### MED — Resolved
+
+- **§5.3 — Duplicate cargo semvers.** `windows-rs`, `base64`, and
+  `thiserror` versions unified via `CQ-W7-CARGO-DUPLICATES`.
+
+### Remaining (deferred to v2.6 or later)
+
+- **§1.1 / §1.6 — `unwrap()` panic sites + `let _ =` discards** beyond
+  the swept `unwrap_or_*` surface — Mutex-poison `expect()` strategy
+  documented; `parking_lot::Mutex` migration is deferred.
+- **§2.2 — Locks held across `.await`** — `clippy::await_holding_lock`
+  promotion deferred.
+- **§4.1 / §4.2 — `with_context` adoption** beyond the swept surface —
+  follow-on after `api.rs` split stabilizes.
+- **§5.4 — `image 0.24 → 0.25`** — API-breaking; maintenance-window
+  scheduled.
+- **§6.1 — `bridge` `pub use ::*` flat namespace** — FRB-forced,
+  accepted.
+- **§6.3 — `native → imaging` dependency** — minor; deferred.
+- **§8.2 / §8.3 — `image.data.clone()` per-frame allocations + sync
+  I/O inside `async fn`** — opportunistic during W-DECOMP follow-ups.
+
+---
+
 ## 1. Idiomatic-Rust scan
 
 ### 1.1 `unwrap()` panic sites
