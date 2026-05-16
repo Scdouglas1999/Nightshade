@@ -669,6 +669,7 @@ mod tests {
     ///
     /// This uses an exact rotation matrix rather than a tangent-space
     /// linearization so the simulator faithfully exercises the algorithm.
+    #[allow(clippy::too_many_arguments)]
     fn simulate_tracking_drift(
         baseline_ra_deg: f64,
         baseline_dec_deg: f64,

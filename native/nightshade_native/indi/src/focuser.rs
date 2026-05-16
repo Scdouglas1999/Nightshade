@@ -252,8 +252,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_focuser_timeout_uses_config() {
-        let mut config = crate::IndiTimeoutConfig::default();
-        config.focuser_move_timeout_secs = 240; // Custom timeout
+        let config = crate::IndiTimeoutConfig {
+            focuser_move_timeout_secs: 240, // Custom timeout
+            ..Default::default()
+        };
 
         let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
             "localhost",

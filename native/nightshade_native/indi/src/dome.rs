@@ -447,8 +447,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_dome_timeout_uses_config() {
-        let mut config = crate::IndiTimeoutConfig::default();
-        config.dome_slew_timeout_secs = 600; // Custom timeout
+        let config = crate::IndiTimeoutConfig {
+            dome_slew_timeout_secs: 600, // Custom timeout
+            ..Default::default()
+        };
 
         let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
             "localhost",

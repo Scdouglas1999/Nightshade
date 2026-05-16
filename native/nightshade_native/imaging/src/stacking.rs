@@ -690,11 +690,11 @@ mod tests {
         let mut data = vec![bg; w * h];
 
         // Add simple deterministic noise for realistic background statistics
-        for i in 0..data.len() {
+        for (i, pixel) in data.iter_mut().enumerate() {
             // Noise with ~30 ADU standard deviation using simple LCG
             let n = ((i as u64).wrapping_mul(1103515245).wrapping_add(12345) >> 16) & 0xFF;
             let noise = (n as i32 - 128) / 4; // range roughly [-32, 32]
-            data[i] = (bg as i32 + noise).clamp(0, 65535) as u16;
+            *pixel = (bg as i32 + noise).clamp(0, 65535) as u16;
         }
 
         for &(sx, sy, brightness) in star_positions {

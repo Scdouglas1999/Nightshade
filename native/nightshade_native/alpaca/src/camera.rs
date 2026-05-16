@@ -1983,6 +1983,7 @@ mod image_bytes_tests {
 
     /// Build a synthetic ImageBytes payload from a header description plus
     /// raw pixel bytes. Returns the wire bytes a server would emit.
+    #[allow(clippy::too_many_arguments)]
     fn build_payload(
         error_number: i32,
         data_start: i32,

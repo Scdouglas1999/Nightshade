@@ -1608,7 +1608,7 @@ mod tests {
     };
     use crate::{write_fits, FitsHeader, ImageData};
     use std::io::Write;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     /// Build a single FITS-style WCS card line, padded to the column layout
     /// `parse_wcs_file_inner` expects: keyword in cols 0..8, `=` at col 8,
@@ -1672,7 +1672,7 @@ mod tests {
         ImageData::from_u16(width, height, 1, &pixels)
     }
 
-    fn write_test_fits(path: &PathBuf, rotation_deg: f64) {
+    fn write_test_fits(path: &Path, rotation_deg: f64) {
         let image = synthetic_star_field(rotation_deg);
         let mut header = FitsHeader::new();
         header.set_float("RA", 150.0);

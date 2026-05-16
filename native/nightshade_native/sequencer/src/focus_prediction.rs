@@ -374,7 +374,7 @@ mod tests {
         // Focus moves 100 steps per degree C
         for i in 0..10 {
             let temp = 10.0 + i as f64;
-            let pos = 10000 + (i * 100) as i32;
+            let pos = 10000 + (i * 100);
             engine.add_datapoint(FocusDataPoint {
                 timestamp_secs: i as i64,
                 temperature_celsius: temp,

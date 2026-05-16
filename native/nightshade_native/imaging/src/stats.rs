@@ -1098,15 +1098,17 @@ mod tests {
         let sigma = 2.5_f64;
         let image = render_gaussian_u16(64, 64, 32.0, 32.0, sigma);
 
-        let mut config = StarDetectionConfig::default();
         // Reduce min_area: the synthetic Gaussian on a 64×64 grid still has
         // many pixels above background but we want the HFR computation to
         // dominate the assertion, not detection thresholds.
-        config.min_area = 5;
-        config.min_hfr = 0.5;
-        config.min_snr = 1.0;
-        config.max_sharpness = 1.0;
-        config.hfr_radius = 16;
+        let config = StarDetectionConfig {
+            min_area: 5,
+            min_hfr: 0.5,
+            min_snr: 1.0,
+            max_sharpness: 1.0,
+            hfr_radius: 16,
+            ..Default::default()
+        };
 
         let stars = detect_stars(&image, &config);
         assert!(
@@ -1147,12 +1149,14 @@ mod tests {
         let alpha = (target_fwhm / 2.0) / (2.0_f64.powf(1.0 / beta) - 1.0).sqrt();
         let image = render_moffat_u16(64, 64, 32.0, 32.0, alpha, beta);
 
-        let mut config = StarDetectionConfig::default();
-        config.min_area = 5;
-        config.min_hfr = 0.5;
-        config.min_snr = 1.0;
-        config.max_sharpness = 1.0;
-        config.hfr_radius = 24;
+        let config = StarDetectionConfig {
+            min_area: 5,
+            min_hfr: 0.5,
+            min_snr: 1.0,
+            max_sharpness: 1.0,
+            hfr_radius: 24,
+            ..Default::default()
+        };
 
         let stars = detect_stars(&image, &config);
         assert!(!stars.is_empty(), "expected detection on Moffat-2 PSF");

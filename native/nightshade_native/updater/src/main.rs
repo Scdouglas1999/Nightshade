@@ -1078,6 +1078,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&lock_path)
             .unwrap();
         first.try_lock_exclusive().unwrap();
@@ -1086,6 +1087,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&lock_path)
             .unwrap();
         let res = second.try_lock_exclusive();

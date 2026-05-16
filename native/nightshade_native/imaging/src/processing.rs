@@ -579,7 +579,7 @@ mod tests {
         let mut data = Vec::with_capacity((w * h * 2) as usize);
         for _y in 0..h {
             for x in 0..w {
-                let v = ((x as u32 * 65535) / (w - 1)) as u16;
+                let v = ((x * 65535) / (w - 1)) as u16;
                 data.extend_from_slice(&v.to_le_bytes());
             }
         }

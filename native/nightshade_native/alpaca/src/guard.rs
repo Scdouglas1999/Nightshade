@@ -368,8 +368,6 @@ impl Drop for TelescopeOperationGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: These tests would require a mock Alpaca server to run.
     // They are here as documentation of intended behavior.
 

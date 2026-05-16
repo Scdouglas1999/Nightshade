@@ -110,11 +110,11 @@ pub async fn api_invalidate_discovery_cache() {
 pub mod init;
 pub mod event_stream;
 pub mod discovery;
-pub mod connection;
-pub mod heartbeat;
-pub mod api_version;
+pub(crate) mod connection;
+pub(crate) mod heartbeat;
+pub(crate) mod api_version;
 pub mod session;
-pub mod storage;
+pub(crate) mod storage;
 pub mod diagnostics;
 pub mod plate_solve;
 pub mod phd2;

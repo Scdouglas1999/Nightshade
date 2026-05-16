@@ -3054,7 +3054,7 @@ mod tests {
 
         let time_since = client.time_since_last_keepalive_response_ms();
         assert!(
-            time_since >= 9900 && time_since <= 11000,
+            (9900..=11000).contains(&time_since),
             "Expected time since last response to be ~10000ms, got {}",
             time_since
         );

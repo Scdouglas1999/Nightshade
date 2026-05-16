@@ -2006,7 +2006,7 @@ mod tests {
     fn test_quality_score_no_data() {
         let score = calculate_quality_score(None, None, 5000.0, 800.0);
         assert!(
-            score >= 0.0 && score <= 100.0,
+            (0.0..=100.0).contains(&score),
             "Score should be in valid range even with no HFR/star data"
         );
     }
@@ -2153,7 +2153,7 @@ mod tests {
         // Test with zero values
         let score = calculate_quality_score(Some(0.0), Some(0), 0.0, 0.0);
         assert!(
-            score >= 0.0 && score <= 100.0,
+            (0.0..=100.0).contains(&score),
             "Score should be valid even with zeros"
         );
 
@@ -2294,10 +2294,10 @@ mod tests {
         bytes.extend_from_slice(&buf);
         // Pad header to 2880-byte boundary
         let pad = (2880 - (bytes.len() % 2880)) % 2880;
-        bytes.extend(std::iter::repeat(b' ').take(pad));
+        bytes.extend(std::iter::repeat_n(b' ', pad));
         bytes.extend_from_slice(data);
         let pad = (2880 - (bytes.len() % 2880)) % 2880;
-        bytes.extend(std::iter::repeat(0u8).take(pad));
+        bytes.extend(std::iter::repeat_n(0u8, pad));
         bytes
     }
 

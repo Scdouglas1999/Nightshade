@@ -244,10 +244,10 @@ mod tests {
     fn test_hour_angle_normalization() {
         // Test that hour angle is normalized to -12 to +12 range
         let ha = hour_angle(0.0, 15.0);
-        assert!(ha >= -12.0 && ha <= 12.0);
+        assert!((-12.0..=12.0).contains(&ha));
 
         let ha2 = hour_angle(20.0, 5.0);
-        assert!(ha2 >= -12.0 && ha2 <= 12.0);
+        assert!((-12.0..=12.0).contains(&ha2));
     }
 
     #[test]
@@ -319,7 +319,7 @@ mod tests {
         let alt = calculate_altitude(12.0, 45.0, 45.0, 0.0, test_time);
 
         // Altitude should be reasonable (between 0 and 90 degrees)
-        assert!(alt >= 0.0 && alt <= 90.0);
+        assert!((0.0..=90.0).contains(&alt));
     }
 
     #[test]

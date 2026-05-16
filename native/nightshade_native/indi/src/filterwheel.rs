@@ -169,8 +169,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_filterwheel_timeout_uses_config() {
-        let mut config = crate::IndiTimeoutConfig::default();
-        config.filter_change_timeout_secs = 120; // Custom timeout
+        let config = crate::IndiTimeoutConfig {
+            filter_change_timeout_secs: 120, // Custom timeout
+            ..Default::default()
+        };
 
         let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
             "localhost",

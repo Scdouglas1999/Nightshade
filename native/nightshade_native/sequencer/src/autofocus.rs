@@ -573,7 +573,7 @@ mod tests {
         let engine = VCurveAutofocus::new(config);
 
         // Generate perfect parabola: HFR = 0.001 * (x - 5000)^2 + 2.0
-        let positions = vec![4500, 4700, 4900, 5000, 5100, 5300, 5500];
+        let positions = [4500, 4700, 4900, 5000, 5100, 5300, 5500];
         let points: Vec<FocusDataPoint> = positions
             .iter()
             .map(|&pos| {

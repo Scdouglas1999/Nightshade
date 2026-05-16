@@ -1817,14 +1817,16 @@ mod tests {
             .push(crate::meridian::PierSide::Unknown);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
-        let mut config = MeridianFlipConfig::default();
         // Disable optional steps to keep the test simple.
-        config.pause_guiding = false;
-        config.auto_center = false;
-        config.refocus_after = false;
-        config.resume_guiding = false;
-        config.settle_time = 0.0;
-        config.max_retries = 0;
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
 
         let mut executor = MeridianFlipExecutor::new(config, ops);
         let ctx = make_ctx(&state);
@@ -1851,13 +1853,15 @@ mod tests {
         ]);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
-        let mut config = MeridianFlipConfig::default();
-        config.pause_guiding = false;
-        config.auto_center = false;
-        config.refocus_after = false;
-        config.resume_guiding = false;
-        config.settle_time = 5.0; // Long enough for cancellation to land mid-settle.
-        config.max_retries = 0;
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 5.0, // Long enough for cancellation to land mid-settle.
+            max_retries: 0,
+            ..Default::default()
+        };
 
         let mut executor = MeridianFlipExecutor::new(config, ops);
         let mut ctx = make_ctx(&state);
@@ -1973,14 +1977,16 @@ mod tests {
         *state.coordinates.lock().unwrap() = (0.0, 0.0); // way off target (10,45)
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
-        let mut config = MeridianFlipConfig::default();
-        config.pause_guiding = false;
-        config.auto_center = false;
-        config.refocus_after = false;
-        config.resume_guiding = false;
-        config.settle_time = 0.0;
-        config.max_retries = 2;
-        config.retry_delays_secs = vec![]; // CONFIG ERROR
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 2,
+            retry_delays_secs: vec![], // CONFIG ERROR
+            ..Default::default()
+        };
 
         let mut executor = MeridianFlipExecutor::new(config, ops);
         let ctx = make_ctx(&state);
@@ -2015,16 +2021,18 @@ mod tests {
             .store(SAFETY_ACTION_RETRY_COUNT as i32 + 5, Ordering::Relaxed);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
-        let mut config = MeridianFlipConfig::default();
-        config.pause_guiding = false;
-        config.auto_center = false;
-        config.refocus_after = false;
-        config.resume_guiding = false;
-        config.settle_time = 0.0;
-        config.max_retries = 0;
-        config.failure_action = FlipFailureAction::AbortAndPark;
-        // Provide retry_delays_secs to satisfy §1.20.
-        config.retry_delays_secs = vec![0.01];
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            failure_action: FlipFailureAction::AbortAndPark,
+            // Provide retry_delays_secs to satisfy §1.20.
+            retry_delays_secs: vec![0.01],
+            ..Default::default()
+        };
 
         let mut executor = MeridianFlipExecutor::new(config, ops);
         let ctx = make_ctx(&state);

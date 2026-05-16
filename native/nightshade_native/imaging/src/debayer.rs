@@ -738,7 +738,7 @@ mod tests {
             BayerPattern::RGGB,
             DebayerAlgorithm::Bilinear,
         );
-        let idx = ((1 * 4) + 2) * 3;
+        let idx = (4 + 2) * 3;
         assert_eq!(rgb[idx], 1000);
         assert_eq!(rgb[idx + 1], 500);
         assert_eq!(rgb[idx + 2], 100);
