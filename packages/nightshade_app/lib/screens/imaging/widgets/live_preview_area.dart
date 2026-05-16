@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/preview_transform.dart';
+import '../../../widgets/catalog_overlay_widget.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
@@ -323,6 +324,25 @@ class LivePreviewArea extends ConsumerWidget {
                       ),
                     ),
 
+                  // Catalog overlay (F5-CATALOG-OVERLAY): live projection of
+                  // Messier / NGC / IC / bright stars from the planetarium
+                  // catalog through the solved WCS. Independent of the
+                  // existing annotation pipeline.
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: CatalogOverlayWidget(
+                        wcs: _solvedWcsFromImage(
+                          wcs: currentFrameWcs,
+                          width: currentImage.width,
+                          height: currentImage.height,
+                        ),
+                        zoomLevel: zoomLevel,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                      ),
+                    ),
+
                   // Custom user-drawn annotations (circles, arrows, text)
                   if (currentImage != null)
                     Positioned.fill(
@@ -553,6 +573,8 @@ class LivePreviewArea extends ConsumerWidget {
                                                 isActive: showStarOverlay,
                                                 onTap: onToggleStarOverlay,
                                               ),
+                                              CatalogOverlayToolbarButton(
+                                                  colors: colors),
                                               Consumer(
                                                 builder: (context, ref, _) {
                                                   final isPanelVisible = ref.watch(
@@ -709,6 +731,7 @@ class LivePreviewArea extends ConsumerWidget {
                                       isActive: showStarOverlay,
                                       onTap: onToggleStarOverlay,
                                     ),
+                                    CatalogOverlayToolbarButton(colors: colors),
                                     Consumer(
                                       builder: (context, ref, _) {
                                         final isPanelVisible = ref.watch(
@@ -1231,5 +1254,88 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
         oldDelegate.showCompass != showCompass ||
         oldDelegate.showScaleBar != showScaleBar ||
         oldDelegate.zoomLevel != zoomLevel;
+  }
+}
+
+/// Translate the database WCS row + image dimensions into the form the
+/// catalog overlay expects. Returns null when the row is missing or the
+/// frame wasn't plate-solved — the overlay widget renders an explanatory
+/// banner in that case (per the project's "errors are a feature" rule).
+SolvedWcs? _solvedWcsFromImage({
+  required CapturedImageWcsData? wcs,
+  required int width,
+  required int height,
+}) {
+  if (wcs == null || !wcs.isPlateSolved) return null;
+  final ra = wcs.solvedRaHours;
+  final dec = wcs.solvedDecDegrees;
+  final rot = wcs.solvedRotationDegrees;
+  final scale = wcs.solvedPixelScaleArcsecPerPixel;
+  if (ra == null || dec == null || rot == null || scale == null) {
+    return null;
+  }
+  return SolvedWcs(
+    raHours: ra,
+    decDegrees: dec,
+    rotationDeg: rot,
+    pixelScaleArcsec: scale,
+    imageWidth: width,
+    imageHeight: height,
+  );
+}
+
+/// Toolbar button for the catalog overlay. Tapping toggles the overlay
+/// on/off; the dropdown caret to the right opens the magnitude / kind
+/// popover. Kept as a top-level widget so both desktop and mobile
+/// toolbar layouts can drop it in without duplicating state plumbing.
+class CatalogOverlayToolbarButton extends ConsumerWidget {
+  final NightshadeColors colors;
+  const CatalogOverlayToolbarButton({super.key, required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(catalogOverlayEnabledProvider);
+    final magnitudeLimit = ref.watch(catalogOverlayMagnitudeLimitProvider);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OverlayIconButton(
+          icon: LucideIcons.target,
+          tooltip:
+              'Catalog overlay [Mag ≤ ${magnitudeLimit.toStringAsFixed(0)}]',
+          colors: colors,
+          isActive: enabled,
+          onTap: () => ref
+              .read(catalogOverlayEnabledProvider.notifier)
+              .state = !enabled,
+        ),
+        // Why a separate dropdown trigger: a tap on the main icon must
+        // toggle visibility (matches user expectation from the other
+        // overlay buttons); the dropdown holds the configuration so it
+        // doesn't accidentally fire when the user just wanted to flip
+        // the overlay off.
+        PopupMenuButton<String>(
+          tooltip: 'Catalog overlay settings',
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 6),
+          onSelected: (_) {},
+          itemBuilder: (context) => [
+            PopupMenuItem<String>(
+              enabled: false,
+              padding: EdgeInsets.zero,
+              child: CatalogOverlayPopover(colors: colors),
+            ),
+          ],
+          icon: Icon(
+            LucideIcons.chevronDown,
+            color: colors.textMuted,
+            size: 14,
+          ),
+          splashRadius: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+        ),
+      ],
+    );
   }
 }
