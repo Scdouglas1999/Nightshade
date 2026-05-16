@@ -138,7 +138,12 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
-                        return mount.sync_to_coordinates(ra, dec).await.map_err(|e| e.to_string());
+                        return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
+                            format!(
+                                "Failed to sync ASCOM mount {} to RA={:.4} Dec={:.4}: {}",
+                                device_id, ra, dec, e
+                            )
+                        });
                     }
                 }
                 Err("ASCOM mount not connected".to_string())
@@ -158,7 +163,12 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
-                        return mount.sync_to_coordinates(ra, dec).await.map_err(|e| e.to_string());
+                        return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
+                            format!(
+                                "Failed to sync INDI mount {} to RA={:.4} Dec={:.4}: {}",
+                                device_name, ra, dec, e
+                            )
+                        });
                     }
                     return Err(format!("INDI client not connected for {}", server_key));
                 }
@@ -167,7 +177,12 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
-                    return mount.sync_to_coordinates(ra, dec).await.map_err(|e| e.to_string());
+                    return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
+                        format!(
+                            "Failed to sync native mount {} to RA={:.4} Dec={:.4}: {}",
+                            device_id, ra, dec, e
+                        )
+                    });
                 }
                 Err("Native mount not connected".to_string())
             }
@@ -191,7 +206,9 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
-                        return mount.park().await.map_err(|e| e.to_string());
+                        return mount.park().await.map_err(|e| {
+                            format!("Failed to park ASCOM mount {}: {}", device_id, e)
+                        });
                     }
                 }
                 Err("ASCOM mount not connected".to_string())
@@ -211,7 +228,9 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
-                        return mount.park().await.map_err(|e| e.to_string());
+                        return mount.park().await.map_err(|e| {
+                            format!("Failed to park INDI mount {}: {}", device_name, e)
+                        });
                     }
                     return Err(format!("INDI client not connected for {}", server_key));
                 }
@@ -220,7 +239,9 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
-                    return mount.park().await.map_err(|e| e.to_string());
+                    return mount.park().await.map_err(|e| {
+                        format!("Failed to park native mount {}: {}", device_id, e)
+                    });
                 }
                 Err("Native mount not connected".to_string())
             }
@@ -588,7 +609,9 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
-                        return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                        return mount.set_tracking(enabled).await.map_err(|e| {
+                            format!("Failed to set ASCOM mount {} tracking={}: {}", device_id, enabled, e)
+                        });
                     }
                 }
                 Err("ASCOM mount not connected".to_string())
@@ -596,14 +619,18 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
-                    return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                    return mount.set_tracking(enabled).await.map_err(|e| {
+                        format!("Failed to set native mount {} tracking={}: {}", device_id, enabled, e)
+                    });
                 }
                 Err("Native mount not connected".to_string())
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
-                    return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                    return mount.set_tracking(enabled).await.map_err(|e| {
+                        format!("Failed to set Alpaca mount {} tracking={}: {}", device_id, enabled, e)
+                    });
                 }
                 Err(format!("Alpaca mount {} not connected", device_id))
             }
@@ -615,7 +642,9 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
-                        return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                        return mount.set_tracking(enabled).await.map_err(|e| {
+                            format!("Failed to set INDI mount {} tracking={}: {}", device_name, enabled, e)
+                        });
                     }
                     return Err(format!("INDI client not connected for {}", server_key));
                 }

@@ -180,7 +180,8 @@ fn run() -> Result<()> {
 
     // Step 1: Wait for parent process to exit.
     println!("\nWaiting for Nightshade to exit...");
-    wait_for_process_exit(args.parent_pid, Duration::from_secs(30))?;
+    wait_for_process_exit(args.parent_pid, Duration::from_secs(30))
+        .with_context(|| format!("Failed waiting for parent process {} to exit", args.parent_pid))?;
     println!("Parent process has exited.");
 
     // Why: even after WaitForSingleObject returns, Windows may still hold file
@@ -240,7 +241,8 @@ fn run() -> Result<()> {
     println!("Update applied and verified.");
 
     // Step 5: success cleanup. Discard `.nightshade-bak` files and rollback log.
-    cleanup_success(&args.install_dir, &rollback_log, &rollback_log_path)?;
+    cleanup_success(&args.install_dir, &rollback_log, &rollback_log_path)
+        .context("Failed during post-update cleanup of backup files")?;
 
     // Step 6: write post-install hashes for boot-time re-verification (§7A.3).
     let post_install_path = args.install_dir.join(POST_INSTALL_HASH_FILE);
@@ -262,7 +264,12 @@ fn run() -> Result<()> {
     // Step 8: optionally launch the new version.
     if args.launch_after {
         println!("\nLaunching updated Nightshade...");
-        launch_app(&args.install_dir)?;
+        launch_app(&args.install_dir).with_context(|| {
+            format!(
+                "Failed to launch updated Nightshade from {:?}",
+                args.install_dir
+            )
+        })?;
     }
 
     println!("\nUpdate complete!");
@@ -389,11 +396,15 @@ fn apply_update(
     rollback_log: &mut RollbackLog,
 ) -> Result<()> {
     for entry in walkdir::WalkDir::new(staging_dir) {
-        let entry = entry.context("Failed to read staging entry")?;
+        let entry = entry
+            .with_context(|| format!("Failed to walk staging directory {:?}", staging_dir))?;
         let src_path = entry.path();
-        let relative = src_path
-            .strip_prefix(staging_dir)
-            .context("Failed to compute staging relative path")?;
+        let relative = src_path.strip_prefix(staging_dir).with_context(|| {
+            format!(
+                "Failed to compute relative path of {:?} under staging {:?}",
+                src_path, staging_dir
+            )
+        })?;
 
         if relative.as_os_str().is_empty() {
             continue;
@@ -412,7 +423,8 @@ fn apply_update(
                 rollback_log.created_dirs.push(rel_posix.clone());
             }
         } else if entry.file_type().is_file() {
-            apply_file(src_path, &dst_path, &rel_posix, rollback_log)?;
+            apply_file(src_path, &dst_path, &rel_posix, rollback_log)
+                .with_context(|| format!("Failed to apply staged file {:?}", relative))?;
             println!("  Updated: {:?}", relative);
         }
     }
@@ -818,11 +830,14 @@ fn verify_against_manifest(install_dir: &Path, expected: &ExpectedHashes) -> Res
 }
 
 fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = File::open(path)?;
+    let mut file = File::open(path)
+        .with_context(|| format!("Failed to open {:?} for SHA-256 hashing", path))?;
     let mut hasher = Sha256::new();
     let mut buf = [0u8; 64 * 1024];
     loop {
-        let n = file.read(&mut buf)?;
+        let n = file
+            .read(&mut buf)
+            .with_context(|| format!("Failed to read {:?} during SHA-256 hashing", path))?;
         if n == 0 {
             break;
         }

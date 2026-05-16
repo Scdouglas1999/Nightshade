@@ -44,7 +44,9 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.open_shutter().await.map_err(|e| e.to_string());
+                        return dome_guard.open_shutter().await.map_err(|e| {
+                            format!("Failed to open ASCOM dome shutter on {}: {}", device_id, e)
+                        });
                     }
                     Err(format!("ASCOM dome {} not found", device_id))
                 }
@@ -101,7 +103,9 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.close_shutter().await.map_err(|e| e.to_string());
+                        return dome_guard.close_shutter().await.map_err(|e| {
+                            format!("Failed to close ASCOM dome shutter on {}: {}", device_id, e)
+                        });
                     }
                     Err(format!("ASCOM dome {} not found", device_id))
                 }
@@ -163,7 +167,12 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION", azimuth).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION", azimuth)
+                        .await
+                        .map_err(|e| {
+                            format!("Failed to slew INDI dome {} to azimuth {:.2}: {}", device_name, azimuth, e)
+                        });
                 }
                 Err("INDI dome not connected".to_string())
             }
@@ -183,7 +192,9 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.slew_to_azimuth(azimuth).await.map_err(|e| e.to_string());
+                    return dome.slew_to_azimuth(azimuth).await.map_err(|e| {
+                        format!("Failed to slew native dome {} to azimuth {:.2}: {}", device_id, azimuth, e)
+                    });
                 }
                 Err("Native dome not connected".to_string())
             }

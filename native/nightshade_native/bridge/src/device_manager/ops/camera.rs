@@ -101,7 +101,9 @@ impl DeviceManager {
                         };
                         tracing::info!("DeviceManager: Calling AscomCameraWrapper.start_exposure()");
                         let mut camera = camera.write().await;
-                        return camera.start_exposure(params).await.map_err(|e| e.to_string());
+                        return camera.start_exposure(params).await.map_err(|e| {
+                            format!("Failed to start ASCOM camera exposure on {}: {}", device_id, e)
+                        });
                     }
                 }
                 Err(format!("ASCOM camera {} not found", device_id))
@@ -170,7 +172,9 @@ impl DeviceManager {
                         subframe: None,
                         readout_mode: None,
                     };
-                    return camera.start_exposure(params).await.map_err(|e| e.to_string());
+                    return camera.start_exposure(params).await.map_err(|e| {
+                        format!("Failed to start native SDK camera exposure on {}: {}", device_id, e)
+                    });
                 }
                 Err(format!("Native SDK camera {} not found", device_id))
             }
@@ -266,7 +270,9 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera.download_image().await.map_err(|e| e.to_string());
+                        return camera.download_image().await.map_err(|e| {
+                            format!("Failed to download image from ASCOM camera {}: {}", device_id, e)
+                        });
                     }
                 }
                 Err(format!("ASCOM camera {} not found", device_id))
@@ -275,7 +281,9 @@ impl DeviceManager {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
                     // Use the new download_image_data method
-                    let (width, height, pixels) = camera.download_image_data().await?;
+                    let (width, height, pixels) = camera.download_image_data().await.map_err(|e| {
+                        format!("Failed to download image from Alpaca camera {}: {}", device_id, e)
+                    })?;
 
                     // Get camera metadata
                     let gain = match camera.gain().await {
@@ -927,7 +935,9 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera.set_gain(gain).await.map_err(|e| e.to_string());
+                        return camera.set_gain(gain).await.map_err(|e| {
+                            format!("Failed to set ASCOM camera {} gain to {}: {}", device_id, gain, e)
+                        });
                     }
                 }
                 Err(format!("ASCOM camera {} not found", device_id))
@@ -942,7 +952,9 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.set_gain(gain).await.map_err(|e| e.to_string());
+                    return camera.set_gain(gain).await.map_err(|e| {
+                        format!("Failed to set native SDK camera {} gain to {}: {}", device_id, gain, e)
+                    });
                 }
                 Err(format!("Native SDK camera {} not found", device_id))
             }
@@ -1278,7 +1290,13 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(cam) = cameras.get(device_id) {
                         let mut cam = cam.write().await;
-                        cam.set_cooler(enabled, target_temp.unwrap_or(-10.0)).await.map_err(|e| e.to_string())?;
+                        let target = target_temp.unwrap_or(-10.0);
+                        cam.set_cooler(enabled, target).await.map_err(|e| {
+                            format!(
+                                "Failed to set ASCOM camera {} cooler (enabled={}, target={}C): {}",
+                                device_id, enabled, target, e
+                            )
+                        })?;
                         return Ok(());
                     }
                 }

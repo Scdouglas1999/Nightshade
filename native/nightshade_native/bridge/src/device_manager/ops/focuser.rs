@@ -29,7 +29,9 @@ impl DeviceManager {
                     let focusers = self.ascom_focusers.read().await;
                     if let Some(focuser) = focusers.get(device_id) {
                         let mut focuser = focuser.write().await;
-                        return focuser.move_to(position).await.map_err(|e| e.to_string());
+                        return focuser.move_to(position).await.map_err(|e| {
+                            format!("Failed to move ASCOM focuser {} to position {}: {}", device_id, position, e)
+                        });
                     }
                 }
                 Err("ASCOM focuser not connected".to_string())
@@ -37,7 +39,9 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_focusers = self.native_focusers.write().await;
                 if let Some(focuser) = native_focusers.get_mut(device_id) {
-                    return focuser.move_to(position).await.map_err(|e| e.to_string());
+                    return focuser.move_to(position).await.map_err(|e| {
+                        format!("Failed to move native focuser {} to position {}: {}", device_id, position, e)
+                    });
                 }
                 Err("Native focuser not connected".to_string())
             }
@@ -47,7 +51,9 @@ impl DeviceManager {
                     return focuser
                         .move_to_typed(position)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(|e| {
+                            format!("Failed to move Alpaca focuser {} to position {}: {}", device_id, position, e)
+                        });
                 }
                 Err("Alpaca focuser not connected".to_string())
             }
@@ -63,7 +69,9 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let focuser = nightshade_indi::IndiFocuser::new(client.clone(), &device_name);
-                        return focuser.move_to(position).await.map_err(|e| e.to_string());
+                        return focuser.move_to(position).await.map_err(|e| {
+                            format!("Failed to move INDI focuser {} to position {}: {}", device_name, position, e)
+                        });
                     }
                     return Err(format!("INDI client not connected for {}", server_key));
                 }

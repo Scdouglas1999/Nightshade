@@ -43,7 +43,9 @@ impl DeviceManager {
                     let wheels = self.ascom_filter_wheels.read().await;
                     if let Some(wheel) = wheels.get(device_id) {
                         let mut wheel = wheel.write().await;
-                        return wheel.move_to_position(position).await.map_err(|e| e.to_string());
+                        return wheel.move_to_position(position).await.map_err(|e| {
+                            format!("Failed to move ASCOM filter wheel {} to slot {}: {}", device_id, position, e)
+                        });
                     }
                 }
                 Err("ASCOM filter wheel not connected".to_string())
@@ -51,7 +53,9 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_filter_wheels = self.native_filter_wheels.write().await;
                 if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
-                    return wheel.move_to_position(position).await.map_err(|e| e.to_string());
+                    return wheel.move_to_position(position).await.map_err(|e| {
+                        format!("Failed to move native filter wheel {} to slot {}: {}", device_id, position, e)
+                    });
                 }
                 Err("Native filter wheel not connected".to_string())
             }
@@ -75,7 +79,9 @@ impl DeviceManager {
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
                     // INDI filter slots are 1-based
-                    return locked.set_number(&device_name, "FILTER_SLOT", "FILTER_SLOT_VALUE", position as f64).await.map_err(|e| e.to_string());
+                    return locked.set_number(&device_name, "FILTER_SLOT", "FILTER_SLOT_VALUE", position as f64).await.map_err(|e| {
+                        format!("Failed to set INDI filter wheel {} to slot {}: {}", device_name, position, e)
+                    });
                 }
                 Err("INDI filter wheel not connected".to_string())
             }
