@@ -137,281 +137,280 @@ class SequenceExecutor {
     return null;
   }
 
-  /// Convert a Dart node to native config format
+  /// Convert a Dart node to native config format.
+  ///
+  /// `SequenceNode` is sealed: every subtype must appear below or the
+  /// compiler will reject the switch. Adding a new node type forces this
+  /// site to be updated.
   Map<String, dynamic> _nodeToConfig(SequenceNode node) {
-    if (node is ExposureNode) {
-      final defaults = _ref.read(sequencerDefaultsProvider);
-      // Auto-populate filter_index from profile if not set
-      final filterIndex = node.filterIndex ?? _lookupFilterIndex(node.filter);
-      return {
-        'type': 'TakeExposure',
-        'duration_secs': node.durationSecs,
-        'count': node.count,
-        'filter': node.filter,
-        'filter_index': filterIndex,
-        'gain': node.gain,
-        'offset': node.offset,
-        'binning': _binningToString(node.binning),
-        'dither_every': node.ditherEvery,
-        'dither_pixels': defaults.ditherPixels,
-        'dither_settle_pixels': defaults.ditherSettlePixels,
-        'dither_settle_time': defaults.ditherSettleTime,
-        'dither_settle_timeout': defaults.ditherSettleTimeout,
-        'dither_ra_only': defaults.ditherRaOnly,
-        'save_to': null,
-      };
-    } else if (node is SlewNode) {
-      return {
-        'type': 'SlewToTarget',
-        'use_target_coords': node.useTargetCoords,
-        'custom_ra': node.customRa,
-        'custom_dec': node.customDec,
-      };
-    } else if (node is CenterNode) {
-      return {
-        'type': 'CenterTarget',
-        'use_target_coords': node.useTargetCoords,
-        'accuracy_arcsec': node.accuracyArcsec,
-        'max_attempts': node.maxAttempts,
-        'exposure_duration': 3.0, // Default exposure for centering
-        'filter': null,
-      };
-    } else if (node is AutofocusNode) {
-      return {
-        'type': 'Autofocus',
-        'method': _autofocusMethodToString(node.method),
-        'step_size': node.stepSize,
-        'steps_out': node.stepsOut,
-        'exposure_duration': node.exposureDuration,
-        'filter': null,
-        'binning': 'One',
-      };
-    } else if (node is DitherNode) {
-      return {
-        'type': 'Dither',
-        'pixels': node.pixels,
-        'settle_pixels': node.settlePixels,
-        'settle_time': node.settleTime,
-        'settle_timeout': node.settleTimeout,
-        'ra_only': node.raOnly,
-      };
-    } else if (node is StartGuidingNode) {
-      return {
-        'type': 'StartGuiding',
-        'settle_pixels': node.settlePixels,
-        'settle_time': node.settleTime,
-        'settle_timeout': node.settleTimeout,
-        'auto_select_star': node.autoSelectStar,
-      };
-    } else if (node is StopGuidingNode) {
-      return {'type': 'StopGuiding'};
-    } else if (node is FilterChangeNode) {
-      // Auto-populate filter_index from profile if not set
-      final filterIndex =
-          node.filterPosition ?? _lookupFilterIndex(node.filterName);
-      return {
-        'type': 'ChangeFilter',
-        'filter_name': node.filterName,
-        'filter_index': filterIndex,
-      };
-    } else if (node is CoolCameraNode) {
-      return {
-        'type': 'CoolCamera',
-        'target_temp': node.targetTemp,
-        'duration_mins': node.durationMins,
-      };
-    } else if (node is WarmCameraNode) {
-      return {
-        'type': 'WarmCamera',
-        'rate_per_min': node.ratePerMin,
-        'target_temp': node.targetTemp,
-      };
-    } else if (node is RotatorNode) {
-      return {
-        'type': 'MoveRotator',
-        'target_angle': node.targetAngle,
-        'relative': node.relative,
-      };
-    } else if (node is ParkNode) {
-      return {'type': 'Park'};
-    } else if (node is UnparkNode) {
-      return {'type': 'Unpark'};
-    } else if (node is WaitTimeNode) {
-      return {
-        'type': 'WaitForTime',
-        'wait_until': node.waitUntil?.millisecondsSinceEpoch,
-        'wait_for_twilight': node.waitForTwilight != null
-            ? _twilightToString(node.waitForTwilight!)
-            : null,
-      };
-    } else if (node is DelayNode) {
-      return {
-        'type': 'Delay',
-        'seconds': node.seconds,
-      };
-    } else if (node is NotificationNode) {
-      return {
-        'type': 'Notification',
-        'title': node.title,
-        'message': node.message,
-        'level': _notificationLevelToString(node.level),
-      };
-    } else if (node is ScriptNode) {
-      return {
-        'type': 'RunScript',
-        'script_path': node.scriptPath,
-        'arguments': node.arguments,
-        'timeout_secs': node.timeoutSecs,
-      };
-    } else if (node is TargetHeaderNode) {
-      return {
-        'type': 'TargetHeader',
-        'target_name': node.targetName,
-        'ra_hours': node.raHours,
-        'dec_degrees': node.decDegrees,
-        'rotation': node.rotation,
-        'min_altitude': node.minAltitude,
-        'max_altitude': node.maxAltitude,
-        'priority': node.priority,
-        'start_after': node.startAfter?.millisecondsSinceEpoch,
-        'end_before': node.endBefore?.millisecondsSinceEpoch,
-        'mosaic_panel': node.mosaicPanel?.toJson(),
-      };
-    } else if (node is InstructionSetNode) {
-      // InstructionSet maps to a Loop with count=1 on the backend
-      return {
-        'type': 'Loop',
-        'iterations': 1,
-        'condition': 'Count',
-        'condition_value': 1,
-      };
-    } else if (node is LoopNode) {
-      dynamic conditionValue;
-      switch (node.conditionType) {
-        case LoopConditionType.count:
-          conditionValue = node.repeatCount;
-          break;
-        case LoopConditionType.untilTime:
-          conditionValue = node.repeatUntil?.millisecondsSinceEpoch;
-          break;
-        case LoopConditionType.untilAltitude:
-        case LoopConditionType.altitudeAbove:
-          conditionValue = node.repeatUntilAltitude;
-          break;
-        case LoopConditionType.integrationTime:
-          conditionValue = node.repeatCount;
-          break;
-        case LoopConditionType.forever:
-        case LoopConditionType.whileDark:
-          conditionValue = null;
-          break;
-      }
-      return {
-        'type': 'Loop',
-        'iterations': node.repeatCount,
-        'condition': _loopConditionToString(node.conditionType),
-        'condition_value': conditionValue,
-      };
-    } else if (node is ParallelNode) {
-      return {
-        'type': 'Parallel',
-        'required_successes': node.requiredSuccesses,
-      };
-    } else if (node is ConditionalNode) {
-      dynamic conditionValue;
-      switch (node.conditionType) {
-        case ConditionalType.always:
-        case ConditionalType.weatherSafe:
-        case ConditionalType.safetyMonitorSafe:
-          conditionValue = null;
-          break;
-        case ConditionalType.altitudeAbove:
-        case ConditionalType.guidingRmsBelow:
-        case ConditionalType.hfrBelow:
-        case ConditionalType.moonSeparationAbove:
-          conditionValue = node.thresholdValue;
-          break;
-        case ConditionalType.timeAfter:
-          conditionValue = node.thresholdTime?.millisecondsSinceEpoch;
-          break;
-      }
-      return {
-        'type': 'Conditional',
-        'condition': {
-          'type': _conditionalTypeToString(node.conditionType),
-          'value': conditionValue,
-        },
-      };
-    } else if (node is RecoveryNode) {
-      return {
-        'type': 'Recovery',
-        'trigger': null,
-        'recovery_action': _recoveryActionToString(node.recoveryAction),
-        'max_retries': node.maxRetries,
-      };
-    } else if (node is MeridianFlipNode) {
-      return {
-        'type': 'MeridianFlip',
-        'minutes_past_meridian': node.minutesPastMeridian,
-        'pause_guiding': node.pauseGuiding,
-        'auto_center': node.autoCenter,
-        'settle_time': node.settleTime,
-      };
-    } else if (node is OpenDomeNode) {
-      return {
-        'type': 'OpenDome',
-        'shutter_only': node.shutterOnly,
-      };
-    } else if (node is CloseDomeNode) {
-      return {
-        'type': 'CloseDome',
-        'shutter_only': node.shutterOnly,
-      };
-    } else if (node is ParkDomeNode) {
-      return {
-        'type': 'ParkDome',
-        'shutter_only': node.shutterOnly,
-      };
-    } else if (node is PolarAlignmentNode) {
-      return {
-        'type': 'PolarAlignment',
-        'step_size': node.rotationStep,
-        'exposure_time': node.exposureDuration,
-        'solve_timeout': 60.0, // Default timeout
-        'manual_rotation': node.manualSlew,
-        'rotate_east': node.isNorth, // Use isNorth as direction hint
-        'gain': node.gain,
-        'offset': node.offset,
-        'binning': node.binning,
-      };
-    } else if (node is OpenCoverNode) {
-      return {
-        'type': 'OpenCover',
-        'timeout_secs': node.timeoutSecs,
-      };
-    } else if (node is CloseCoverNode) {
-      return {
-        'type': 'CloseCover',
-        'timeout_secs': node.timeoutSecs,
-      };
-    } else if (node is CalibratorOnNode) {
-      return {
-        'type': 'CalibratorOn',
-        'brightness': node.brightness,
-        'timeout_secs': node.timeoutSecs,
-      };
-    } else if (node is CalibratorOffNode) {
-      return {
-        'type': 'CalibratorOff',
-        'timeout_secs': node.timeoutSecs,
-      };
+    switch (node) {
+      case ExposureNode n:
+        final defaults = _ref.read(sequencerDefaultsProvider);
+        // Auto-populate filter_index from profile if not set
+        final filterIndex = n.filterIndex ?? _lookupFilterIndex(n.filter);
+        return {
+          'type': 'TakeExposure',
+          'duration_secs': n.durationSecs,
+          'count': n.count,
+          'filter': n.filter,
+          'filter_index': filterIndex,
+          'gain': n.gain,
+          'offset': n.offset,
+          'binning': _binningToString(n.binning),
+          'dither_every': n.ditherEvery,
+          'dither_pixels': defaults.ditherPixels,
+          'dither_settle_pixels': defaults.ditherSettlePixels,
+          'dither_settle_time': defaults.ditherSettleTime,
+          'dither_settle_timeout': defaults.ditherSettleTimeout,
+          'dither_ra_only': defaults.ditherRaOnly,
+          'save_to': null,
+        };
+      case SlewNode n:
+        return {
+          'type': 'SlewToTarget',
+          'use_target_coords': n.useTargetCoords,
+          'custom_ra': n.customRa,
+          'custom_dec': n.customDec,
+        };
+      case CenterNode n:
+        return {
+          'type': 'CenterTarget',
+          'use_target_coords': n.useTargetCoords,
+          'accuracy_arcsec': n.accuracyArcsec,
+          'max_attempts': n.maxAttempts,
+          'exposure_duration': 3.0, // Default exposure for centering
+          'filter': null,
+        };
+      case AutofocusNode n:
+        return {
+          'type': 'Autofocus',
+          'method': _autofocusMethodToString(n.method),
+          'step_size': n.stepSize,
+          'steps_out': n.stepsOut,
+          'exposure_duration': n.exposureDuration,
+          'filter': null,
+          'binning': 'One',
+        };
+      case DitherNode n:
+        return {
+          'type': 'Dither',
+          'pixels': n.pixels,
+          'settle_pixels': n.settlePixels,
+          'settle_time': n.settleTime,
+          'settle_timeout': n.settleTimeout,
+          'ra_only': n.raOnly,
+        };
+      case StartGuidingNode n:
+        return {
+          'type': 'StartGuiding',
+          'settle_pixels': n.settlePixels,
+          'settle_time': n.settleTime,
+          'settle_timeout': n.settleTimeout,
+          'auto_select_star': n.autoSelectStar,
+        };
+      case StopGuidingNode _:
+        return {'type': 'StopGuiding'};
+      case FilterChangeNode n:
+        // Auto-populate filter_index from profile if not set
+        final filterIndex =
+            n.filterPosition ?? _lookupFilterIndex(n.filterName);
+        return {
+          'type': 'ChangeFilter',
+          'filter_name': n.filterName,
+          'filter_index': filterIndex,
+        };
+      case CoolCameraNode n:
+        return {
+          'type': 'CoolCamera',
+          'target_temp': n.targetTemp,
+          'duration_mins': n.durationMins,
+        };
+      case WarmCameraNode n:
+        return {
+          'type': 'WarmCamera',
+          'rate_per_min': n.ratePerMin,
+          'target_temp': n.targetTemp,
+        };
+      case RotatorNode n:
+        return {
+          'type': 'MoveRotator',
+          'target_angle': n.targetAngle,
+          'relative': n.relative,
+        };
+      case ParkNode _:
+        return {'type': 'Park'};
+      case UnparkNode _:
+        return {'type': 'Unpark'};
+      case WaitTimeNode n:
+        return {
+          'type': 'WaitForTime',
+          'wait_until': n.waitUntil?.millisecondsSinceEpoch,
+          'wait_for_twilight': n.waitForTwilight != null
+              ? _twilightToString(n.waitForTwilight!)
+              : null,
+        };
+      case DelayNode n:
+        return {
+          'type': 'Delay',
+          'seconds': n.seconds,
+        };
+      case NotificationNode n:
+        return {
+          'type': 'Notification',
+          'title': n.title,
+          'message': n.message,
+          'level': _notificationLevelToString(n.level),
+        };
+      case ScriptNode n:
+        return {
+          'type': 'RunScript',
+          'script_path': n.scriptPath,
+          'arguments': n.arguments,
+          'timeout_secs': n.timeoutSecs,
+        };
+      case TargetHeaderNode n:
+        return {
+          'type': 'TargetHeader',
+          'target_name': n.targetName,
+          'ra_hours': n.raHours,
+          'dec_degrees': n.decDegrees,
+          'rotation': n.rotation,
+          'min_altitude': n.minAltitude,
+          'max_altitude': n.maxAltitude,
+          'priority': n.priority,
+          'start_after': n.startAfter?.millisecondsSinceEpoch,
+          'end_before': n.endBefore?.millisecondsSinceEpoch,
+          'mosaic_panel': n.mosaicPanel?.toJson(),
+        };
+      case InstructionSetNode _:
+        // InstructionSet maps to a Loop with count=1 on the backend
+        return {
+          'type': 'Loop',
+          'iterations': 1,
+          'condition': 'Count',
+          'condition_value': 1,
+        };
+      case LoopNode n:
+        dynamic conditionValue;
+        switch (n.conditionType) {
+          case LoopConditionType.count:
+            conditionValue = n.repeatCount;
+            break;
+          case LoopConditionType.untilTime:
+            conditionValue = n.repeatUntil?.millisecondsSinceEpoch;
+            break;
+          case LoopConditionType.untilAltitude:
+          case LoopConditionType.altitudeAbove:
+            conditionValue = n.repeatUntilAltitude;
+            break;
+          case LoopConditionType.integrationTime:
+            conditionValue = n.repeatCount;
+            break;
+          case LoopConditionType.forever:
+          case LoopConditionType.whileDark:
+            conditionValue = null;
+            break;
+        }
+        return {
+          'type': 'Loop',
+          'iterations': n.repeatCount,
+          'condition': _loopConditionToString(n.conditionType),
+          'condition_value': conditionValue,
+        };
+      case ParallelNode n:
+        return {
+          'type': 'Parallel',
+          'required_successes': n.requiredSuccesses,
+        };
+      case ConditionalNode n:
+        dynamic conditionValue;
+        switch (n.conditionType) {
+          case ConditionalType.always:
+          case ConditionalType.weatherSafe:
+          case ConditionalType.safetyMonitorSafe:
+            conditionValue = null;
+            break;
+          case ConditionalType.altitudeAbove:
+          case ConditionalType.guidingRmsBelow:
+          case ConditionalType.hfrBelow:
+          case ConditionalType.moonSeparationAbove:
+            conditionValue = n.thresholdValue;
+            break;
+          case ConditionalType.timeAfter:
+            conditionValue = n.thresholdTime?.millisecondsSinceEpoch;
+            break;
+        }
+        return {
+          'type': 'Conditional',
+          'condition': {
+            'type': _conditionalTypeToString(n.conditionType),
+            'value': conditionValue,
+          },
+        };
+      case RecoveryNode n:
+        return {
+          'type': 'Recovery',
+          'trigger': null,
+          'recovery_action': _recoveryActionToString(n.recoveryAction),
+          'max_retries': n.maxRetries,
+        };
+      case MeridianFlipNode n:
+        return {
+          'type': 'MeridianFlip',
+          'minutes_past_meridian': n.minutesPastMeridian,
+          'pause_guiding': n.pauseGuiding,
+          'auto_center': n.autoCenter,
+          'settle_time': n.settleTime,
+        };
+      case OpenDomeNode n:
+        return {
+          'type': 'OpenDome',
+          'shutter_only': n.shutterOnly,
+        };
+      case CloseDomeNode n:
+        return {
+          'type': 'CloseDome',
+          'shutter_only': n.shutterOnly,
+        };
+      case ParkDomeNode n:
+        return {
+          'type': 'ParkDome',
+          'shutter_only': n.shutterOnly,
+        };
+      case PolarAlignmentNode n:
+        return {
+          'type': 'PolarAlignment',
+          'step_size': n.rotationStep,
+          'exposure_time': n.exposureDuration,
+          'solve_timeout': 60.0, // Default timeout
+          'manual_rotation': n.manualSlew,
+          'rotate_east': n.isNorth, // Use isNorth as direction hint
+          'gain': n.gain,
+          'offset': n.offset,
+          'binning': n.binning,
+        };
+      case OpenCoverNode n:
+        return {
+          'type': 'OpenCover',
+          'timeout_secs': n.timeoutSecs,
+        };
+      case CloseCoverNode n:
+        return {
+          'type': 'CloseCover',
+          'timeout_secs': n.timeoutSecs,
+        };
+      case CalibratorOnNode n:
+        return {
+          'type': 'CalibratorOn',
+          'brightness': n.brightness,
+          'timeout_secs': n.timeoutSecs,
+        };
+      case CalibratorOffNode n:
+        return {
+          'type': 'CalibratorOff',
+          'timeout_secs': n.timeoutSecs,
+        };
     }
-
-    throw StateError(
-      'Unrecognized sequence node type "${node.runtimeType}" (name="${node.name}", id="${node.id}"). '
-      'This node cannot be converted to a native executor config. '
-      'Ensure all node types are handled in _nodeToConfig().',
-    );
   }
 
   String _binningToString(BinningMode binning) {

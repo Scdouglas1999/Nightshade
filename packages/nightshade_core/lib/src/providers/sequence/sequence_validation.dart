@@ -124,11 +124,46 @@ List<SequenceValidationIssue> validateSequence(Sequence sequence) {
 /// True for node types that own a child list (Target/Loop/Parallel/Conditional/
 /// Recovery/InstructionSet). Used by [validateSequence] to flag empty
 /// containers and by editor logic that decides where to attach new nodes.
+///
+/// `SequenceNode` is sealed, so every concrete subtype must be classified
+/// below. Adding a new node type will produce a compile-time error here
+/// instead of silently defaulting to "not a container".
 bool isContainerNode(SequenceNode node) {
-  return node is TargetHeaderNode ||
-      node is LoopNode ||
-      node is ParallelNode ||
-      node is ConditionalNode ||
-      node is RecoveryNode ||
-      node is InstructionSetNode;
+  return switch (node) {
+    TargetHeaderNode _ ||
+    LoopNode _ ||
+    ParallelNode _ ||
+    ConditionalNode _ ||
+    RecoveryNode _ ||
+    InstructionSetNode _ =>
+      true,
+    // Leaf nodes (instructions / triggers) do not own children
+    ExposureNode _ ||
+    SlewNode _ ||
+    CenterNode _ ||
+    AutofocusNode _ ||
+    DitherNode _ ||
+    StartGuidingNode _ ||
+    StopGuidingNode _ ||
+    FilterChangeNode _ ||
+    CoolCameraNode _ ||
+    WarmCameraNode _ ||
+    RotatorNode _ ||
+    ParkNode _ ||
+    UnparkNode _ ||
+    WaitTimeNode _ ||
+    DelayNode _ ||
+    NotificationNode _ ||
+    ScriptNode _ ||
+    MeridianFlipNode _ ||
+    OpenDomeNode _ ||
+    CloseDomeNode _ ||
+    ParkDomeNode _ ||
+    PolarAlignmentNode _ ||
+    OpenCoverNode _ ||
+    CloseCoverNode _ ||
+    CalibratorOnNode _ ||
+    CalibratorOffNode _ =>
+      false,
+  };
 }

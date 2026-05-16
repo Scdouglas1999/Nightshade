@@ -448,14 +448,47 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
-  /// Check if a node type can have children
+  /// Check if a node type can have children.
+  ///
+  /// `SequenceNode` is sealed, so every concrete subtype must be classified
+  /// below — a new node type will produce a compile-time error here.
   bool _canHaveChildren(SequenceNode node) {
-    return node is TargetHeaderNode ||
-        node is LoopNode ||
-        node is InstructionSetNode ||
-        node is ParallelNode ||
-        node is ConditionalNode ||
-        node is RecoveryNode;
+    return switch (node) {
+      TargetHeaderNode _ ||
+      LoopNode _ ||
+      InstructionSetNode _ ||
+      ParallelNode _ ||
+      ConditionalNode _ ||
+      RecoveryNode _ =>
+        true,
+      ExposureNode _ ||
+      SlewNode _ ||
+      CenterNode _ ||
+      AutofocusNode _ ||
+      DitherNode _ ||
+      StartGuidingNode _ ||
+      StopGuidingNode _ ||
+      FilterChangeNode _ ||
+      CoolCameraNode _ ||
+      WarmCameraNode _ ||
+      RotatorNode _ ||
+      ParkNode _ ||
+      UnparkNode _ ||
+      WaitTimeNode _ ||
+      DelayNode _ ||
+      NotificationNode _ ||
+      ScriptNode _ ||
+      MeridianFlipNode _ ||
+      OpenDomeNode _ ||
+      CloseDomeNode _ ||
+      ParkDomeNode _ ||
+      PolarAlignmentNode _ ||
+      OpenCoverNode _ ||
+      CloseCoverNode _ ||
+      CalibratorOnNode _ ||
+      CalibratorOffNode _ =>
+        false,
+    };
   }
 
   /// Deserialize a single node from snippet JSON data

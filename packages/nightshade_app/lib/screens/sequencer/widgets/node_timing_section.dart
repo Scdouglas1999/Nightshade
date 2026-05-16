@@ -26,28 +26,48 @@ String formatDurationNice(Duration duration) {
 }
 
 /// Checks if a node type has a meaningful duration that should be displayed.
+///
+/// `SequenceNode` is sealed: the switch is exhaustive, so adding a new node
+/// type forces a decision here at compile time rather than silently
+/// defaulting to "no duration".
 bool hasMeaningfulDuration(SequenceNode node) {
-  return node is ExposureNode ||
-      node is AutofocusNode ||
-      node is DelayNode ||
-      node is WaitTimeNode ||
-      node is SlewNode ||
-      node is CenterNode ||
-      node is MeridianFlipNode ||
-      node is DitherNode ||
-      node is FilterChangeNode ||
-      node is RotatorNode ||
-      node is ParkNode ||
-      node is UnparkNode ||
-      node is CoolCameraNode ||
-      node is WarmCameraNode ||
-      node is StartGuidingNode ||
-      node is StopGuidingNode ||
-      node is OpenDomeNode ||
-      node is CloseDomeNode ||
-      node is ParkDomeNode ||
-      node is PolarAlignmentNode ||
-      node is ScriptNode;
+  return switch (node) {
+    ExposureNode _ ||
+    AutofocusNode _ ||
+    DelayNode _ ||
+    WaitTimeNode _ ||
+    SlewNode _ ||
+    CenterNode _ ||
+    MeridianFlipNode _ ||
+    DitherNode _ ||
+    FilterChangeNode _ ||
+    RotatorNode _ ||
+    ParkNode _ ||
+    UnparkNode _ ||
+    CoolCameraNode _ ||
+    WarmCameraNode _ ||
+    StartGuidingNode _ ||
+    StopGuidingNode _ ||
+    OpenDomeNode _ ||
+    CloseDomeNode _ ||
+    ParkDomeNode _ ||
+    PolarAlignmentNode _ ||
+    ScriptNode _ =>
+      true,
+    // Container/notification/cover/calibrator nodes have no intrinsic duration
+    TargetHeaderNode _ ||
+    InstructionSetNode _ ||
+    LoopNode _ ||
+    ParallelNode _ ||
+    ConditionalNode _ ||
+    RecoveryNode _ ||
+    NotificationNode _ ||
+    OpenCoverNode _ ||
+    CloseCoverNode _ ||
+    CalibratorOnNode _ ||
+    CalibratorOffNode _ =>
+      false,
+  };
 }
 
 /// Widget that displays timing information for a sequence node.
