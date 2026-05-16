@@ -628,6 +628,11 @@ impl SequenceExecutor {
                 NodeType::Loop(config) => {
                     let child_multiplier = match config.condition {
                         crate::LoopCondition::Count => {
+                            // Why (audit-rust §4.3): `config.iterations` is Option<u32>;
+                            // `LoopCondition::Count` REQUIRES iterations to be Some at
+                            // construction time (enforced by `node.rs:1697` and the UI), so
+                            // None is unreachable. `1` ensures the totals-rollup is at least
+                            // self-consistent if a future refactor breaks the invariant.
                             multiplier.saturating_mul(config.iterations.unwrap_or(1) as u64)
                         }
                         _ => {
@@ -843,6 +848,10 @@ impl SequenceExecutor {
                     })
                     .collect()
             })
+            // Why (audit-rust §4.3): `self.sequence` is `Option<Sequence>`; None means no
+            // sequence has been loaded yet (executor in initial state). An empty metadata
+            // HashMap is the correct sentinel — there are simply no TakeExposure nodes to
+            // index, so the trigger-action-context cannot reference any.
             .unwrap_or_default();
 
         let trigger_manager = self.trigger_manager.clone();
@@ -975,6 +984,10 @@ impl SequenceExecutor {
                                         m.clone()
                                     }
                                 })
+                                // Why (audit-rust §4.3): node-progress message string is
+                                // observability/diagnostic only; the load-bearing identity is
+                                // the node-id passed alongside. "Unknown" is the documented
+                                // UI fallback for the optional name field.
                                 .unwrap_or_else(|| "Unknown".to_string());
                             tracing::info!(
                                 "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",
@@ -1682,6 +1695,11 @@ impl SequenceExecutor {
                                     let trigger_name = manager
                                         .get_trigger(&trigger_id)
                                         .map(|t| t.name.clone())
+                                        // Why (audit-rust §4.3): `get_trigger` returns Option;
+                                        // None would only occur if a trigger fired and was
+                                        // simultaneously removed via the same manager — race
+                                        // tolerated for diagnostic naming. Using the id as the
+                                        // display name preserves traceability.
                                         .unwrap_or_else(|| trigger_id.clone());
                                     (trigger_id, trigger_name, action)
                                 })
@@ -1857,6 +1875,13 @@ impl SequenceExecutor {
                                                     ),
                                                 );
                                                 let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                // Why (audit-rust §4.3): autofocus result's
+                                                // `message` is Option<String> — only populated
+                                                // when the focus pipeline reports a specific
+                                                // diagnostic. The generic fallback message is
+                                                // surfaced to the user when no specific signal
+                                                // came back; the failure itself is already
+                                                // encoded in `af_result.success = false`.
                                                 message: af_result.message.unwrap_or_else(|| {
                                                     "Autofocus trigger failed; sequence paused for intervention".to_string()
                                                 }),
@@ -1916,6 +1941,11 @@ impl SequenceExecutor {
                                         (
                                             ts.current_target_name
                                                 .clone()
+                                                // Why (audit-rust §4.3): target name is a
+                                                // display/log label; the load-bearing trigger
+                                                // outputs are `target_ra` and `target_dec`
+                                                // which propagate as Option below and gate
+                                                // the meridian-flip-context construction.
                                                 .unwrap_or_else(|| "Unknown".to_string()),
                                             ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
                                             ts.target_dec,
@@ -2179,6 +2209,12 @@ impl SequenceExecutor {
                                             let _ = event_tx_clone2.send(ExecutorEvent::Error {
                                                 message: format!(
                                                     "DriftLimit recenter failed: {}",
+                                                    // Why (audit-rust §4.3): recenter-result
+                                                    // message is Option<String>; the failure
+                                                    // is already encoded in `result.success`
+                                                    // (we are in the `false` branch). Empty
+                                                    // string for the diagnostic suffix is
+                                                    // safe — the prefix conveys the failure.
                                                     result.message.unwrap_or_default()
                                                 ),
                                             });
@@ -2456,6 +2492,10 @@ impl SequenceExecutor {
         self.checkpoint_manager
             .as_ref()
             .map(|m| m.has_recoverable_checkpoint())
+            // Why (audit-rust §4.3): `checkpoint_manager` is `Option<Arc<CheckpointManager>>`
+            // — None means `set_checkpoint_dir` has not been called, so checkpoint recovery
+            // is disabled for this executor instance. No manager = no recoverable
+            // checkpoint, which is the correct sentinel.
             .unwrap_or(false)
     }
 

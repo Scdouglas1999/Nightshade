@@ -5,6 +5,19 @@
 //! - Dust cap control (CAP_PARK, DUSTCAP_CONTROL)
 //! - Flat light control (FLAT_LIGHT_CONTROL)
 //! - Brightness control (FLAT_LIGHT_INTENSITY, LIGHTBOX_BRIGHTNESS)
+//!
+//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//!
+//! `IndiClient::get_switch` returns `Result<Option<bool>, IndiError>`; an
+//! `Err`/`None` means the INDI background reader has not yet streamed the
+//! property/element pair, the driver does not implement that alternative
+//! (e.g. `DUSTCAP_CONTROL` on a panel that only supports `CAP_PARK`), or the
+//! pair has not been defined by the device. The probe loop tries every known
+//! INDI cover/calibrator vocabulary in turn and falls back to
+//! `IndiCoverState::Unknown` / `IndiCalibratorState::Unknown` when nothing
+//! resolves — `unwrap_or(false)` here is the semantically-correct
+//! "skip-this-alternative" signal, matching the precedent in
+//! `bridge/src/dispatch/indi.rs:148`.
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
@@ -197,10 +210,12 @@ impl IndiCoverCalibrator {
         let is_parked = client
             .get_switch(&self.device_name, "CAP_PARK", "PARK")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_unparked = client
             .get_switch(&self.device_name, "CAP_PARK", "UNPARK")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         // Check if property is busy (moving)
@@ -219,10 +234,12 @@ impl IndiCoverCalibrator {
         let is_closed = client
             .get_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_open = client
             .get_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         if client
@@ -367,10 +384,12 @@ impl IndiCoverCalibrator {
         let is_on = client
             .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
         let is_off = client
             .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
             .unwrap_or(false);
 
         // Check if property is busy (stabilizing)

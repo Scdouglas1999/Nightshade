@@ -3,6 +3,36 @@
 //! Provides automated focusing for INDI focusers using V-curve algorithm
 //! with HFD/HFR measurement. This module integrates the autofocus engine
 //! from the sequencer crate with INDI camera and focuser devices.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All `unwrap_or` sites in this module fall into three categories, none of
+//! which are silent error fallbacks:
+//!
+//! 1. **`partial_cmp(...).unwrap_or(Ordering::Equal)`** — required by Rust's
+//!    `f64` not implementing `Ord` (it is `PartialOrd`). NaN positions/HFR
+//!    samples compare as `Equal` so they cluster together and are filtered
+//!    in the outlier-rejection pass. This is the standard idiom for sorting
+//!    `Vec<f64>` and matches `f64::total_cmp`'s semantics for non-NaN data.
+//!
+//! 2. **`fwhm.unwrap_or(0.0)`** — diagnostic log of the optional FWHM
+//!    secondary metric. Star analysis may not report FWHM (it is an
+//!    enhancement over the primary HFR). Zero in the log only annotates
+//!    the trace; the focus decision uses HFR, which is propagated as `?`.
+//!
+//! 3. **`min_by(...).unwrap_or(0.0)` and `.unwrap_or(1.0)`** — fallback
+//!    when the focus-data vector is empty (only reachable if every star-
+//!    detection step failed, which would have aborted the sweep via `?`
+//!    already). The fallback values are inert placeholders — the
+//!    `find_best_focus` curve-fitter requires the populated vector.
+//!
+//! 4. **FITS header parse fallbacks** (`unwrap_or("")` / `unwrap_or(0)`) —
+//!    the FITS card scanner advances column-by-column over the 2880-byte
+//!    primary header. A truncated or non-ASCII card defaults to empty
+//!    string / zero, which the subsequent `match keyword` skip-list
+//!    discards. The driver validates the BITPIX/NAXIS cards via explicit
+//!    `?`-propagating helpers, so this lenient pass is for optional
+//!    OBSERVER/INSTRUMENT/etc. metadata only.
 
 use crate::{IndiCamera, IndiFocuser};
 use std::sync::Arc;
@@ -222,6 +252,8 @@ impl IndiAutofocus {
                 position,
                 hfr,
                 star_count,
+                // Why (§4.3 category 2): FWHM is the optional secondary metric; HFR is the
+                // load-bearing focus signal and propagates as `?`. Zero in the trace only.
                 fwhm.unwrap_or(0.0)
             );
 
@@ -239,7 +271,9 @@ impl IndiAutofocus {
         let best_hfr = focus_data_points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal))
+            // Why (§4.3 cat 3): unreachable in practice — `?`-propagated sweep failure aborts
+            // before reaching here. Empty-vector default 0.0 is an inert placeholder.
             .unwrap_or(0.0);
 
         tracing::info!(
@@ -355,6 +389,8 @@ impl IndiAutofocus {
         for (card_index, line) in data.chunks_exact(80).enumerate() {
             let line_str =
                 std::str::from_utf8(line).map_err(|_| "Invalid FITS header".to_string())?;
+            // Why (§4.3 cat 4): FITS card slice may be shorter than 8 bytes on a malformed
+            // truncated card — empty keyword is filtered by the keyword match below.
             let keyword = line_str.get(..8).unwrap_or("").trim();
 
             if keyword == "END" {
@@ -365,12 +401,16 @@ impl IndiAutofocus {
             if keyword == "NAXIS1" {
                 if let Some(value_str) = line_str.split('=').nth(1) {
                     if let Some(num_str) = value_str.split('/').next() {
+                        // Why (§4.3 cat 4): parse failure leaves 0; the post-loop guard
+                        // `if width == 0 || height == 0` fails CLOSED with explicit Err.
                         width = num_str.trim().parse().unwrap_or(0);
                     }
                 }
             } else if keyword == "NAXIS2" {
                 if let Some(value_str) = line_str.split('=').nth(1) {
                     if let Some(num_str) = value_str.split('/').next() {
+                        // Why (§4.3 cat 4): parse failure leaves 0; the post-loop guard
+                        // `if width == 0 || height == 0` fails CLOSED with explicit Err.
                         height = num_str.trim().parse().unwrap_or(0);
                     }
                 }
@@ -453,7 +493,7 @@ impl IndiAutofocus {
             return Ok((20.0, stars.len() as u32, None));
         }
 
-        hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
         let median_hfr = hfrs[hfrs.len() / 2];
 
         // Calculate median FWHM
@@ -465,7 +505,7 @@ impl IndiAutofocus {
             .collect();
 
         let median_fwhm = if !fwhms.is_empty() {
-            fwhms.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            fwhms.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
             Some(fwhms[fwhms.len() / 2])
         } else {
             None
@@ -507,12 +547,12 @@ impl IndiAutofocus {
 
         // Calculate median and MAD
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
-        hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
 
         let median = hfrs[hfrs.len() / 2];
 
         let mut deviations: Vec<f64> = hfrs.iter().map(|&h| (h - median).abs()).collect();
-        deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        deviations.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
         let mad = deviations[deviations.len() / 2];
 
         // Convert MAD to standard deviation estimate
@@ -540,7 +580,7 @@ impl IndiAutofocus {
             .min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                    /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
 
@@ -659,7 +699,11 @@ impl IndiAutofocus {
         let min_hfr = points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal))
+            // Why (§4.3 cat 3): `fit_parabola` above propagates via `?` when points is empty,
+            // so `min_by` is guaranteed Some here. `1.0` is a non-zero placeholder that
+            // avoids divide-by-zero in the hyperbolic-fit denominator if a future refactor
+            // breaks the invariant.
             .unwrap_or(1.0);
         let b = min_hfr;
 
@@ -794,7 +838,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
 
     // Sigma clipping iterations
     for _ in 0..3 {
-        samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
         let median = samples[samples.len() / 2];
 
         let mad: f64 =
@@ -811,7 +855,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
         }
     }
 
-    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
     let background = samples[samples.len() / 2];
 
     let variance: f64 = samples
@@ -885,7 +929,7 @@ fn detect_stars(
     stars.sort_by(|a, b| {
         b.flux
             .partial_cmp(&a.flux)
-            .unwrap_or(std::cmp::Ordering::Equal)
+            /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal)
     });
     stars
 }

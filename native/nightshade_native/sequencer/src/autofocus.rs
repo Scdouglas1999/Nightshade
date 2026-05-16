@@ -5,6 +5,18 @@
 //! - Backlash compensation
 //! - Temperature-based focus prediction integration
 //! - Robust error handling and outlier rejection
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All `unwrap_or` sites here are one of:
+//! - `partial_cmp(...).unwrap_or(Ordering::Equal)` — `f64` is `PartialOrd`,
+//!   so NaN samples cluster as `Equal` in sort-by; the outlier-rejection
+//!   stage filters them.
+//! - `min_by(...).unwrap_or(intersection)` — `intersection` is the linear-
+//!   regression projection; if no data points exist on a branch the linear
+//!   projection is the correct extrapolation target.
+//! - `min_by(...).unwrap_or(Ordering::Equal)` — partial_cmp idiom inside
+//!   selection. Same f64-NaN rationale.
 
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +150,7 @@ impl VCurveAutofocus {
         let best_hfr = filtered_points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal))
             .ok_or_else(|| "No valid HFR values found".to_string())?;
 
         Ok(AutofocusResult {
@@ -162,12 +174,12 @@ impl VCurveAutofocus {
         // for outlier rejection — unlike mean+stdev, it does not get
         // inflated by the very outliers we are trying to detect.
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
-        hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal));
 
         let median = hfrs[hfrs.len() / 2];
 
         let mut deviations: Vec<f64> = hfrs.iter().map(|&h| (h - median).abs()).collect();
-        deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        deviations.sort_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal));
         let mad = deviations[deviations.len() / 2];
 
         // 1.4826 is the consistency constant that scales MAD to match the
@@ -222,10 +234,14 @@ impl VCurveAutofocus {
             let min_position = sorted
                 .first()
                 .map(|p| p.position as f64)
+                // Why (§4.3): empty branch → use the linear-regression intersection as the
+                // extrapolation target. See module-level policy.
                 .unwrap_or(intersection);
             let max_position = sorted
                 .last()
                 .map(|p| p.position as f64)
+                // Why (§4.3): empty branch → use the linear-regression intersection as the
+                // extrapolation target. See module-level policy.
                 .unwrap_or(intersection);
             if !(min_position..=max_position).contains(&intersection) {
                 continue;
@@ -267,7 +283,7 @@ impl VCurveAutofocus {
             .min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                    /* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
         Ok((min_point.position, 0.0))
@@ -382,7 +398,7 @@ impl VCurveAutofocus {
         let min_hfr = points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal))
             .ok_or_else(|| "No valid HFR values found for hyperbolic fit".to_string())?;
         let b = min_hfr;
         let mut prev_mean_residual: Option<f64> = None;

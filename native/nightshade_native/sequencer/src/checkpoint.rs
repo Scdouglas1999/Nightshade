@@ -526,6 +526,11 @@ impl CheckpointManager {
 
     fn cached_checkpoint_info(&self) -> Result<Option<CheckpointInfo>, String> {
         let (primary_mtime, backup_mtime) = self.checkpoint_signature()?;
+        // Why (audit-rust §4.3): `std::sync::Mutex::lock()` only returns Err when poisoned by
+        // a prior panic in the holder. `e.into_inner()` retrieves the still-valid guard;
+        // the checkpoint cache is a write-through cache of `build_checkpoint_info` and any
+        // stale state will be invalidated by the mtime check on the next line. This is the
+        // canonical "unpoisonable cache" idiom — equivalent to switching to parking_lot.
         let mut cache = self.info_cache.lock().unwrap_or_else(|e| e.into_inner());
 
         if let Some(cached) = &*cache {
@@ -544,6 +549,7 @@ impl CheckpointManager {
     }
 
     fn invalidate_info_cache(&self) {
+        // Why (audit-rust §4.3): unpoisonable-cache idiom; see `cached_checkpoint_info`.
         *self.info_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
@@ -551,6 +557,11 @@ impl CheckpointManager {
     pub fn has_recoverable_checkpoint(&self) -> bool {
         self.cached_checkpoint_info()
             .map(|info| info.is_some_and(|checkpoint| checkpoint.can_resume))
+            // Why (audit-rust §4.3): boolean probe used to gate UI-side "resume" affordance.
+            // `Err` from `cached_checkpoint_info` (e.g. corrupted JSON on disk) maps to
+            // `false` here, which is the correct fail-CLOSED behavior — a non-readable
+            // checkpoint MUST NOT be presented as resumable. The actual recovery path
+            // (`load_checkpoint`) propagates errors via `?`.
             .unwrap_or(false)
     }
 

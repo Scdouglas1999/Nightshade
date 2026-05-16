@@ -1,6 +1,18 @@
 //! INDI Dome wrapper
 //!
 //! Provides high-level dome control via INDI protocol.
+//!
+//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//!
+//! `IndiClient::get_switch` returns `Result<Option<bool>, IndiError>`. An
+//! `Err`/`None` here means the INDI driver has not yet streamed the
+//! property/element pair — e.g. `DOME_AUTOSYNC` is optional and many
+//! observatory domes do not support it. The caller (`get_shutter_status`,
+//! `at_home`, `is_parked`, `is_slaved`) treats absent property as the
+//! "false/Unknown" sentinel, which is the semantically-correct mapping for
+//! these read-side observers. Hardware *commands* are issued through
+//! `set_switch` / `set_number`, which return `IndiResult` and propagate
+//! errors normally — silent fallback here applies only to status probes.
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
@@ -219,12 +231,14 @@ impl IndiDome {
         let is_open = client
             .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns Unknown.
             .unwrap_or(false);
 
         // Check if shutter is closed
         let is_closed = client
             .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns Unknown.
             .unwrap_or(false);
 
         // Determine state based on property state and switch values
@@ -311,6 +325,7 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_GOTO", "DOME_HOME")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 
@@ -320,6 +335,7 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_PARK", "PARK")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 
@@ -357,6 +373,7 @@ impl IndiDome {
         client
             .get_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false.
             .unwrap_or(false)
     }
 

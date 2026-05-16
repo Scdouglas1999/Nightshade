@@ -1,6 +1,18 @@
 //! INDI Camera wrapper
 //!
 //! Provides high-level camera control via INDI protocol.
+//!
+//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//!
+//! Each `get_switch(...).unwrap_or(false)` in this module is reading an
+//! optional INDI CCD switch (`CCD_COOLER`, `CCD_FRAME_TYPE`) where `None`
+//! means the property has not yet been streamed by the background reader
+//! OR the driver does not implement that frame-type alternative (e.g.
+//! Bias-less cameras). The wrappers fall through to a documented sentinel:
+//! `is_cooler_on` → `false`, `get_frame_type` → `CcdFrameType::Light`
+//! (the safe ASCOM-equivalent default). Exposure-state probes return
+//! "not exposing" if the property is absent, which is correct because the
+//! driver cannot be holding state we did not see streamed.
 
 use crate::client::IndiClient;
 use crate::error::{IndiError, IndiResult};
@@ -249,6 +261,7 @@ impl IndiCamera {
         client
             .get_switch(&self.device_name, CCD_COOLER, "COOLER_ON")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
     }
 
@@ -434,18 +447,21 @@ impl IndiCamera {
         if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_BIAS")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Bias
         } else if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_DARK")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Dark
         } else if client
             .get_switch(&self.device_name, CCD_FRAME_TYPE, "FRAME_FLAT")
             .await
+            // Why: see module-level §4.3 policy — INDI switch absent → status probe returns false / Light.
             .unwrap_or(false)
         {
             CcdFrameType::Flat

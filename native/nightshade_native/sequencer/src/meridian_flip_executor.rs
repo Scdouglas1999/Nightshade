@@ -872,11 +872,15 @@ impl MeridianFlipExecutor {
         // supply one, fall back to AutofocusConfig::default(), which now (audit
         // §1.7) carries every engine-tunable field. Previously hardcoded to
         // steps_out=7 / step_size=100 / exposure=3.0 ignoring user config.
+        // Why (audit-rust §4.3): documented constructor-default contract on
+        // Option<AutofocusConfig> — None means "use defaults".
         let af_config = ctx.autofocus_config.clone().unwrap_or_default();
 
         // Determine the effective cancellation token for autofocus. Prefer the
         // shared sequence token so a Stop command propagates; fall back to the
         // executor's internal abort flag.
+        // Why (audit-rust §4.3): Option<CancellationToken> override — None means
+        // "use the executor's own abort flag", documented in the field doc.
         let cancel_token = ctx
             .cancellation_token
             .clone()
@@ -925,6 +929,9 @@ impl MeridianFlipExecutor {
                 Ok(())
             }
             crate::NodeStatus::Failure => {
+                // Why (audit-rust §4.3): autofocus result `message: Option<String>` —
+                // failure is already encoded in `NodeStatus::Failure`. Generic message
+                // when no specific diagnostic was attached.
                 let error = result
                     .message
                     .unwrap_or_else(|| "Unknown autofocus error".to_string());
@@ -1006,6 +1013,13 @@ impl MeridianFlipExecutor {
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
 
+        // Why (audit-rust §4.3): get_observer_location() returns None when no location
+        // has been configured in the user profile. The fallback (longitude=0, Greenwich)
+        // logs a WARN to the trace; meridian flips computed with longitude=0 will be off
+        // by up-to-12 hours of meridian time but the flip itself is a *post-meridian*
+        // pier-side recovery — the user-visible "flip needed" indicator is gated by the
+        // mount's pier-side property, not this LST calculation. The warning surfaces the
+        // missing-location config in the log so operators know to fix it.
         let longitude_deg = self
             .device_ops
             .get_observer_location()

@@ -271,6 +271,9 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
     // BSCALE/BZERO is the "physical" value; storing the original BSCALE/BZERO in the
     // returned header would cause a subsequent write_fits to apply a second scaling pass
     // (audit §6.3 — CRITICAL data corruption).
+    // Why (audit-rust §4.3): per FITS standard 4.4.2.5, BZERO and BSCALE are OPTIONAL
+    // header cards; when absent the convention is BZERO=0.0, BSCALE=1.0 (the identity
+    // transform). These are documented defaults, not silent error fallbacks.
     let bzero = header.get_float("BZERO").unwrap_or(0.0);
     let bscale = header.get_float("BSCALE").unwrap_or(1.0);
 
@@ -993,6 +996,8 @@ pub fn effective_bayer_pattern(
 pub fn read_bayer_geometry(header: &FitsHeader) -> Option<BayerGeometry> {
     let pat_str = header.get_string("BAYERPAT")?;
     let source = BayerPattern::from_str(pat_str.trim())?;
+    // Why (audit-rust §4.3): per the doc-comment above, XBAYROFF/YBAYROFF default to 0
+    // (no Bayer-pattern shift) — documented convention.
     let x_offset = header.get_int("XBAYROFF").unwrap_or(0);
     let y_offset = header.get_int("YBAYROFF").unwrap_or(0);
     let effective = effective_bayer_pattern(source, x_offset, y_offset);
@@ -1347,6 +1352,10 @@ pub fn validate_image(
             }
 
             // Check for extremely low signal
+            // Why (audit-rust §4.3): max() of an empty pixel iterator → 0; an empty pixel
+            // vec is impossible (we are inside the `pixels.len() > 0`-guarded branch and
+            // both prior `all_zero`/`all_saturated` iterators have already inspected it).
+            // Zero is the inert placeholder for the unreachable empty case.
             let max_value = pixels.iter().copied().max().unwrap_or(0);
             if max_value < 100 {
                 validation.add_warning(format!(

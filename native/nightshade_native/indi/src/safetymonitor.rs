@@ -9,6 +9,19 @@
 //! - AUX devices with safety switches
 //!
 //! This wrapper provides a unified interface that can work with any of these.
+//!
+//! # `unwrap_or(false)` policy (audit-rust §4.3) — fail-CLOSED
+//!
+//! Every `unwrap_or(false)` in this module evaluates a per-parameter weather
+//! alert probe (`get_light_state(...).map(|s| s == 3)`). `Err`/`None` means
+//! the INDI driver has not declared / has not yet streamed that specific
+//! parameter (e.g. an indoor weather station with no rain sensor will not
+//! publish `WEATHER_RAIN`). Treating "alert absent" as `false` for the
+//! `has_*_alert` aggregate is **safe by construction** because the caller
+//! `is_safe()` (line 124) **fails CLOSED with `Ok(false)`** when no
+//! safety indicators resolve at all — i.e. an entirely-silent driver
+//! produces *unsafe*, never *safe*. This matches the
+//! `bridge/src/dispatch/alpaca.rs` `IsSafe` propagation precedent.
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
@@ -103,18 +116,21 @@ impl IndiSafetyMonitor {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
             .await
             .map(|s| s == 3) // Alert state
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false);
 
         let has_wind_alert = client
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false);
 
         let has_cloud_alert = client
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false);
 
         if has_rain_alert || has_wind_alert || has_cloud_alert {
@@ -246,6 +262,7 @@ impl IndiSafetyMonitor {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
             .await
             .map(|s| s == 3) // Alert state
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
     }
 
@@ -256,6 +273,7 @@ impl IndiSafetyMonitor {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
     }
 
@@ -266,6 +284,7 @@ impl IndiSafetyMonitor {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
     }
 
@@ -276,6 +295,7 @@ impl IndiSafetyMonitor {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_HUMIDITY")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
     }
 }

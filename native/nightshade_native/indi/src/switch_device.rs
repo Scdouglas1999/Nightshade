@@ -122,6 +122,12 @@ impl IndiSwitchDevice {
                 let state = client
                     .get_switch(&self.device_name, &prop.name, element)
                     .await
+                    // Why (audit-rust §4.3): enumeration over every switch element of
+                    // every published property. None means the element exists in the
+                    // device definition but its current value has not been streamed yet
+                    // by the background reader. `false` is the correct UI/discovery
+                    // sentinel — the element will appear as off and refresh on the
+                    // next `defSwitchVector`. Matches `bridge/src/dispatch/indi.rs:148`.
                     .unwrap_or(false);
 
                 switches.push(IndiSwitchInfo {

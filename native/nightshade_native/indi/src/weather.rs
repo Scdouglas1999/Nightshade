@@ -11,6 +11,17 @@
 //! WEATHER_WIND_SPEED, WEATHER_WIND_GUST, WEATHER_WIND_DIRECTION,
 //! WEATHER_CLOUD_COVER, WEATHER_RAIN_RATE, WEATHER_DEWPOINT,
 //! WEATHER_SKY_QUALITY, WEATHER_SKY_TEMPERATURE, WEATHER_SKY_BRIGHTNESS
+//!
+//! # `unwrap_or(false)` policy (audit-rust §4.3)
+//!
+//! Each `has_*_alert` probe (`get_light_state(...).map(|s| s == 3)`) returns
+//! `false` when the INDI driver does not publish that specific weather
+//! parameter — e.g. a temperature/humidity-only station omits
+//! `WEATHER_RAIN`. The aggregate caller does NOT use these directly to gate
+//! exposure starts; safety-gating goes through the
+//! `IndiSafetyMonitor::is_safe` path (see `safetymonitor.rs`), which fails
+//! CLOSED on the empty-indicator case. These probes are observability /
+//! UI signals only and "alert absent" is the correct default.
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
@@ -281,6 +292,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -291,6 +303,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -301,6 +314,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 
@@ -311,6 +325,7 @@ impl IndiWeather {
             .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_HUMIDITY")
             .await
             .map(|s| s == 3)
+            // Why: see module-level §4.3 policy — parameter not published → no alert (observability only).
             .unwrap_or(false)
     }
 

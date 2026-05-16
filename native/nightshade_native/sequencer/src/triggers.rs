@@ -13,6 +13,9 @@ fn build_utc_naive_time_or_fallback(
     minute: u32,
     fallback: (u32, u32, u32),
 ) -> chrono::NaiveDateTime {
+    // Why (audit-rust §4.3): same pattern as instructions.rs equivalent — invalid (h,m,s)
+    // tuple falls through to the documented `fallback`; if `fallback` itself is invalid,
+    // midnight is the safe last-resort representable time for the same calendar date.
     date.and_hms_opt(hour, minute, 0)
         .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
         .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
@@ -278,6 +281,11 @@ impl Trigger {
                                         state
                                             .current_hour_angle
                                             .map(|v| format!("{:.2}", v))
+                                            // Why (audit-rust §4.3, §1.21): hour-angle is
+                                            // Option<f64>; None means the mount has not yet
+                                            // reported coordinates. "n/a" is the documented
+                                            // diagnostic substitute (never 0.0, which would
+                                            // mask missing data).
                                             .unwrap_or_else(|| "n/a".into())
                                     );
                                     return false;
@@ -290,6 +298,7 @@ impl Trigger {
                                     state
                                         .current_hour_angle
                                         .map(|v| format!("{:.2}", v))
+                                        // Why (audit-rust §4.3, §1.21): see equivalent above.
                                         .unwrap_or_else(|| "n/a".into())
                                 );
                             } else {
@@ -305,6 +314,7 @@ impl Trigger {
                                 state
                                     .current_hour_angle
                                     .map(|v| format!("{:.2}", v))
+                                    // Why (audit-rust §4.3, §1.21): see equivalent above.
                                     .unwrap_or_else(|| "n/a".into()),
                                 state.pier_side
                             );

@@ -153,6 +153,9 @@ pub async fn perform_polar_alignment(
                         .device_ops
                         .mount_is_slewing(mount_id)
                         .await
+                        // Why (audit-rust §4.3): see flat_wizard.rs equivalent — Err treated
+                        // as "not slewing" so the loop exits and slew_timeout deadline
+                        // catches stuck mounts. The deadline is the load-bearing guard.
                         .unwrap_or(false)
                     {
                         break;
@@ -186,6 +189,9 @@ pub async fn perform_polar_alignment(
                 config.exposure_time,
                 None, // Filter
                 None, // FrameType
+                // Why (audit-rust §4.3): `binning: Option<u32>` — None means "use 1x1
+                // native resolution" for plate-solving the polar alignment frame
+                // (documented constructor default).
                 config.binning.unwrap_or(1),
                 config.binning.unwrap_or(1),
             )
@@ -359,6 +365,9 @@ pub async fn perform_polar_alignment(
                 config.exposure_time,
                 None,
                 None,
+                // Why (audit-rust §4.3): `binning: Option<u32>` — None means "use 1x1
+                // native resolution" for plate-solving the polar alignment frame
+                // (documented constructor default).
                 config.binning.unwrap_or(1),
                 config.binning.unwrap_or(1),
             )
@@ -663,6 +672,9 @@ pub fn prepare_image_for_display(
 
     let (display_data, width, height, color_type) = if is_color {
         // Color camera: debayer then stretch
+        // Why (audit-rust §4.3): `bayer_pattern: Option<BayerPattern>` — documented in the
+        // doc-comment above as "defaults to RGGB" (the most common OSC sensor layout —
+        // QHY/ZWO/Atik OSC cameras all use RGGB). User-overridable per camera.
         let pattern = bayer_pattern.unwrap_or(BayerPattern::RGGB);
 
         // Debayer the raw data to get RGB image

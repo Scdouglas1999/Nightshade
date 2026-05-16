@@ -367,6 +367,11 @@ fn debayer_vng(pixels: &[u16], width: u32, height: u32, pattern: BayerPattern) -
 
                     // Calculate gradients in 8 directions
                     let gradients = calculate_gradients(pixels, w, x, y);
+                    // Why (audit-rust §4.3): `calculate_gradients` always returns an 8-element
+                    // array of u16 gradients (per direction); .min() is therefore guaranteed
+                    // Some. Zero is the inert placeholder if a future refactor returned
+                    // empty — a zero threshold means "no smooth direction qualifies", which
+                    // is the safe debayer-fallback path.
                     let min_g = gradients.iter().copied().min().unwrap_or(0);
                     // Threshold = 1.5 * min_gradient (Chang/Cok VNG criterion):
                     // directions whose gradient is at or below this are

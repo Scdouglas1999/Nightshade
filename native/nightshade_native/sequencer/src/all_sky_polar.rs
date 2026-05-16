@@ -192,6 +192,11 @@ where
 
     let threshold_arcsec = config.acceptance_threshold_arcsec;
     let cadence = Duration::from_secs_f64(config.iteration_cadence_secs.max(0.5));
+    // Why (audit-rust §4.3): `config.binning` is `Option<u32>` — user-supplied override.
+    // `None` means "use the all-sky polar default (2x2 binning)", which is the
+    // optimal trade-off between SNR and resolution for plate-solving the polar
+    // refinement frame. This is documented constructor-default behavior, not a
+    // silent error fallback.
     let binning = config.binning.unwrap_or(2);
 
     // Baseline frame: the first solved frame anchors the drift baseline. We

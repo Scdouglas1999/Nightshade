@@ -415,6 +415,11 @@ async fn position_for_flats(
                         .device_ops
                         .mount_is_slewing(mount_id)
                         .await
+                        // Why (audit-rust §4.3): `mount_is_slewing` returns Result<bool>; an
+                        // Err transient (e.g. driver mid-reconnect) is treated as "not slewing"
+                        // so the loop exits and the next iteration's slew-timeout guard catches
+                        // a stuck mount — the slew_timeout deadline at the bottom of the loop
+                        // is the load-bearing safety check, not this probe.
                         .unwrap_or(false)
                     {
                         break;
@@ -492,6 +497,11 @@ async fn position_for_flats(
                         .device_ops
                         .mount_is_slewing(mount_id)
                         .await
+                        // Why (audit-rust §4.3): `mount_is_slewing` returns Result<bool>; an
+                        // Err transient (e.g. driver mid-reconnect) is treated as "not slewing"
+                        // so the loop exits and the next iteration's slew-timeout guard catches
+                        // a stuck mount — the slew_timeout deadline at the bottom of the loop
+                        // is the load-bearing safety check, not this probe.
                         .unwrap_or(false)
                     {
                         break;

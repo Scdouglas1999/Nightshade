@@ -115,6 +115,9 @@ impl FocusPredictionEngine {
                 .map(|point: &FocusDataPoint| {
                     point.timestamp_secs == self.data_points[idx].timestamp_secs
                 })
+                // Why (audit-rust §4.3): `retained.last()` is None on the first iteration
+                // (empty Vec). "No prior point" → not a duplicate → `false` is the correct
+                // dedup-test answer.
                 .unwrap_or(false)
             {
                 continue;
@@ -149,6 +152,8 @@ impl FocusPredictionEngine {
             if let Some(best) = points.iter().min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
+                    // Why (audit-rust §4.3): f64 PartialOrd — NaN HFR samples cluster as
+                    // Equal; outlier-rejection at the linear-regression layer drops them.
                     .unwrap_or(std::cmp::Ordering::Equal)
             }) {
                 best_points.push(best);

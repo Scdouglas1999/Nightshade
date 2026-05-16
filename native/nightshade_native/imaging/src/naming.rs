@@ -16,6 +16,19 @@
 //! - $CAMERA - Camera name
 //! - $TELESCOPE - Telescope name
 //! - $SEQUENCE - Sequence name
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Every `unwrap_or` site here substitutes a documented per-token default
+//! for missing metadata on the `NamingContext`. The contract is:
+//! a sequence may run without a target name, without a filter wheel,
+//! without a configured telescope alias, etc. — and the filename pattern
+//! must still produce a valid path. The defaults below are the user-facing
+//! convention enshrined in the naming UI: "Unknown" / "NoFilter" / "0" /
+//! "Camera" / "Telescope" / "Sequence" / current local date. These are NOT
+//! silent error fallbacks; the captured-image metadata is independently
+//! persisted to the database via `image_metadata` (drift schema v14),
+//! which preserves the structured per-field state regardless of filename.
 
 use chrono::{DateTime, Local, Utc};
 use std::collections::HashMap;
@@ -405,6 +418,9 @@ impl FrameCounter {
 
     /// Get current frame number without incrementing
     pub fn current(&self, key: &str) -> u32 {
+        // Why (audit-rust §4.3): no entry for key → counter has never been incremented →
+        // current() returns 0 — the documented zero-base convention. This is read-only
+        // and pairs with `next()` which inserts-or-increments.
         *self.counters.get(key).unwrap_or(&0)
     }
 
@@ -480,6 +496,10 @@ pub fn scan_for_next_frame_number(
     test_context.frame_number = Some(0);
 
     let test_path = pattern.generate(&test_context);
+    // Why (audit-rust §4.3): `Path::parent()` returns None only for the empty path or
+    // root. If `pattern.generate` produced a parent-less path (e.g. on a misconfigured
+    // pattern with no directory tokens), scanning the original base_dir is the
+    // semantically-correct fallback — we want to count siblings of the test path.
     let parent = test_path.parent().unwrap_or(base_dir);
 
     // If directory doesn't exist, start at 1

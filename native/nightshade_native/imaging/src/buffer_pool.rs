@@ -314,6 +314,12 @@ where
     /// A PooledBuffer that can be used like a Vec<T> and returns to pool on drop
     pub fn get_buffer(&self, min_size: usize) -> PooledBuffer<T> {
         let (buffer, bucket_size, was_hit) = {
+            // Why (audit-rust §4.3): unpoisonable-Mutex idiom — `std::sync::Mutex::lock`
+            // only returns Err when a prior holder panicked while holding the guard;
+            // `e.into_inner()` retrieves the still-valid guard. The buffer-pool inner
+            // state is a HashMap+Vec<Vec<T>> with no invariants that a panicked
+            // allocator could leave inconsistent (allocations are wrapped in
+            // catch_unwind by Rust's own runtime). Equivalent to parking_lot::Mutex.
             let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             let bucket_size = inner.find_bucket_size(min_size);
 
@@ -376,6 +382,7 @@ where
 
     /// Get the current number of buffers in the pool
     pub fn pool_size(&self) -> usize {
+        // Why (audit-rust §4.3): unpoisonable-Mutex idiom; see get_buffer above.
         let inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.total_pool_size()
     }
@@ -487,6 +494,7 @@ impl<T: Default + Clone> Drop for PooledBuffer<T> {
             // Try to return to pool
             if let Some(pool) = self.pool.upgrade() {
                 let returned = {
+                    // Why (audit-rust §4.3): unpoisonable-Mutex idiom; see get_buffer above.
                     let mut inner = pool.lock().unwrap_or_else(|e| e.into_inner());
                     inner.return_buffer(buffer, self.bucket_size)
                 };

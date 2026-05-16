@@ -1694,6 +1694,11 @@ impl RuntimeNode {
         // (UntilTime, AltitudeBelow, WhileDark, etc.) terminate via runtime
         // checks inside the loop body, so the bound stays effectively infinite.
         let max_iterations = match config.condition {
+            // Why (audit-rust §4.3): `iterations: Option<u32>` — semantically REQUIRED
+            // when condition == Count, optional otherwise. UI builder enforces this; the
+            // `unwrap_or(1)` is a safety floor to prevent an infinite loop on a
+            // legacy/corrupt sequence file where Count was selected without iterations.
+            // A single execution is the safest interpretation of "Count with no count".
             LoopCondition::Count => config.iterations.unwrap_or(1),
             _ => u32::MAX,
         };
@@ -1836,6 +1841,10 @@ impl RuntimeNode {
             return NodeStatus::Success;
         }
 
+        // Why (audit-rust §4.3): `required_successes: Option<u32>` — the documented
+        // semantics on the config field are "None means all children must succeed",
+        // which matches the parallel-AND default. `total_children` is the documented
+        // default value for this case.
         let required = config.required_successes.unwrap_or(total_children);
         let node_id = self.id().clone();
 

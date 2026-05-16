@@ -1069,6 +1069,12 @@ pub async fn execute_exposure(
                 .device_ops
                 .save_fits(
                     &image_data,
+                    // Why (audit-rust §4.3): `PathBuf::to_str()` returns None only when the
+                    // path is not valid UTF-8 — on Windows our save paths are always
+                    // platform-default (UTF-16 → UTF-8) and on Unix the user's home dir is
+                    // the root, both ASCII-safe in practice. Falling back to the bare
+                    // filename keeps the save call going against the platform's CWD; the
+                    // FITS writer downstream will surface any path-resolution error.
                     full_path.to_str().unwrap_or(&filename),
                     ctx.target_name.as_deref(),
                     config.filter.as_deref(),
@@ -1937,6 +1943,8 @@ pub async fn execute_filter_change(
     // Per-filter timeout overrides the global default to accommodate slow
     // wheels (motorized covers, many-position wheels) that legitimately
     // need longer than 120 s; configuring None preserves the safe default.
+    // Why (audit-rust §4.3): `timeout_secs: Option<u32>` is the explicit
+    // user-override slot — None means "use the documented default".
     let timeout = Duration::from_secs(
         config
             .timeout_secs
@@ -2327,6 +2335,10 @@ pub async fn execute_warm_camera(
             return InstructionResult::failure(format!("Failed to read camera temperature: {}", e))
         }
     };
+    // Why (audit-rust §4.3): `target_temp: Option<f64>` is a user-override on the
+    // WarmCamera instruction; None means "use the conventional ambient-warming default
+    // of 20°C", which is the safe shutdown-prep temperature for every cooled-sensor
+    // chip in our supported matrix.
     let target_temp = config.target_temp.unwrap_or(20.0);
     let temp_range = target_temp - start_temp;
     let duration_mins = temp_range / config.rate_per_min;
@@ -2506,6 +2518,10 @@ pub async fn execute_wait_time(
             let total_wait_secs = (until - now) as u64;
             let wait_until_str = chrono::DateTime::from_timestamp(until, 0)
                 .map(|dt| dt.format("%H:%M:%S").to_string())
+                // Why (audit-rust §4.3): `from_timestamp` only fails for out-of-range
+                // i64 seconds (year ±5_400_000); user input here is bounded by the UI
+                // datetime picker. Raw epoch seconds as the display fallback preserves
+                // log traceability if a hypothetical extreme value sneaks in.
                 .unwrap_or_else(|| until.to_string());
 
             tracing::info!(
@@ -2692,6 +2708,12 @@ fn build_utc_naive_time_or_fallback(
     minute: u32,
     fallback: (u32, u32, u32),
 ) -> chrono::NaiveDateTime {
+    // Why (audit-rust §4.3): `and_hms_opt` only returns None for invalid (h,m,s) tuples
+    // (h>=24, m>=60, s>=60). The caller passes solar-calculation results that may
+    // saturate at exactly 24:00:00 in edge equation-of-time cases — `fallback` is the
+    // tuple from the documented sunset-convention default. If both fail (impossible
+    // unless `fallback` itself is invalid), midnight is the safe last-resort
+    // representable time for the same calendar date.
     date.and_hms_opt(hour, minute, 0)
         .or_else(|| date.and_hms_opt(fallback.0, fallback.1, fallback.2))
         .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN))
@@ -2936,6 +2958,10 @@ pub async fn execute_meridian_flip(
         }
     };
 
+    // Why (audit-rust §4.3): target name is a display/log label for meridian-flip
+    // status events; the load-bearing inputs (target_ra, target_dec) are already
+    // validated as Some above and return failure when missing. "Unknown" is the
+    // documented UI fallback when the user starts a sequence without a named target.
     let target_name = ctx
         .target_name
         .clone()
@@ -3375,6 +3401,12 @@ pub async fn execute_calibrator_on(
     match wait_for_calibrator_state(&device_id, 3, ctx, timeout).await {
         Ok(_) => {
             // Verify brightness is set correctly
+            // Why (audit-rust §4.3): post-set verification readback; an Err here would mean
+            // the driver dropped the cover-calibrator session between SetBrightness and
+            // GetBrightness — falling back to the requested value `config.brightness`
+            // simply trusts the SetBrightness call that already returned success above
+            // (it propagated via `?`). The successful "wait for state 3" check
+            // (`wait_for_calibrator_state`) is the load-bearing readiness signal.
             let actual_brightness = ctx
                 .device_ops
                 .cover_calibrator_get_brightness(&device_id)

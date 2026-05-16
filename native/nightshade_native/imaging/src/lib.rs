@@ -859,6 +859,11 @@ pub fn write_jpeg(path: &std::path::Path, image: &ImageData, quality: u8) -> Res
 
 /// Read an image file (auto-detect format)
 pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
+    // Why (audit-rust §4.3): path with no extension OR with a non-UTF-8 extension
+    // returns empty string; `ImageFormat::from_extension("")` returns None and the
+    // ?-propagating ok_or_else fails CLOSED with "Unsupported file extension:" on the
+    // next line. Silent fallback to empty is the correct funneling into the error
+    // path.
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     let format = ImageFormat::from_extension(ext)

@@ -148,6 +148,10 @@ impl fmt::Display for IndiError {
                 let state_info = last_state
                     .as_ref()
                     .map(|s| format!(" (last state: {})", s))
+                    // Why (audit-rust §4.3): `last_state` is an Option<&str>; None means the
+                    // timeout fired before any state transition was observed. The diagnostic
+                    // message simply omits the parenthetical state; the load-bearing error
+                    // is the timeout itself, already encoded in the variant.
                     .unwrap_or_default();
                 write!(
                     f,
