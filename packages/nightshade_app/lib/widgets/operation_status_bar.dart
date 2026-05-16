@@ -21,14 +21,18 @@ class OperationStatusBar extends ConsumerStatefulWidget {
 }
 
 class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _slideController;
   late Animation<double> _slideAnimation;
   Timer? _elapsedTimer;
+  // Tracks whether build() decided the timer should be running, so we can
+  // restart on resume without depending on operation provider state.
+  bool _timerShouldRun = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _slideController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -40,13 +44,31 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_timerShouldRun &&
+          (_elapsedTimer == null || !_elapsedTimer!.isActive)) {
+        _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (mounted) setState(() {});
+        });
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _elapsedTimer?.cancel();
+      _elapsedTimer = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _slideController.dispose();
     _elapsedTimer?.cancel();
     super.dispose();
   }
 
   void _startElapsedTimer() {
+    _timerShouldRun = true;
     _elapsedTimer?.cancel();
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
@@ -54,6 +76,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
   }
 
   void _stopElapsedTimer() {
+    _timerShouldRun = false;
     _elapsedTimer?.cancel();
     _elapsedTimer = null;
   }

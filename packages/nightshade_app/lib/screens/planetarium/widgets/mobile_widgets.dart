@@ -1187,6 +1187,8 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      // MobileSearchResultTile: 36 icon + 12*2 padding + 8 bottom margin = 68.
+      itemExtent: 68,
       itemCount: searchState.results.length,
       itemBuilder: (context, index) {
         final obj = searchState.results[index];

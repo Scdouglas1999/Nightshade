@@ -147,6 +147,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                 )
               : ListView.builder(
                   scrollDirection: Axis.horizontal,
+                  // Fixed-width thumbnails (100w + 8 right padding = 108).
+                  itemExtent: 108,
                   itemCount: filteredImages.length,
                   itemBuilder: (context, index) {
                     final image = filteredImages[index];

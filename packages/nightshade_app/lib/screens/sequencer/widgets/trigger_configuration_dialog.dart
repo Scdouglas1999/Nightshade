@@ -184,6 +184,8 @@ class _TriggerConfigurationDialogState
             )
           : ListView.builder(
               padding: const EdgeInsets.all(24),
+              // ListTile w/ subtitle (~72) + 12 bottom margin = 84.
+              itemExtent: 84,
               itemCount: _triggers.length,
               itemBuilder: (context, index) {
                 final trigger = _triggers[index];

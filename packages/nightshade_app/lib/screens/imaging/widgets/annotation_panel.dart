@@ -675,6 +675,9 @@ class _AnnotationObjectsPanelState
                 ? _buildEmptyState(annotation)
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 4),
+                    // AnnotationObjectListItem fixed height: 28 icon +
+                    // 8*2 vertical padding + 1 bottom border = 45.
+                    itemExtent: 45,
                     itemCount: filteredObjects.length,
                     itemBuilder: (context, index) {
                       final object = filteredObjects[index];
@@ -1961,6 +1964,9 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 4),
+                  // AnnotationObjectListItem fixed height: 28 icon +
+                  // 8*2 vertical padding + 1 bottom border = 45.
+                  itemExtent: 45,
                   itemCount: filteredObjects.length,
                   itemBuilder: (context, index) {
                     final object = filteredObjects[index];

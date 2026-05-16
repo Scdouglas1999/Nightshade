@@ -48,14 +48,36 @@ class RadarTimelineScrubber extends ConsumerStatefulWidget {
 }
 
 class _RadarTimelineScrubberState
-    extends ConsumerState<RadarTimelineScrubber> {
+    extends ConsumerState<RadarTimelineScrubber>
+    with WidgetsBindingObserver {
   Timer? _animationTimer;
   bool _isDragging = false;
+  // Records whether playback was active so we can resume after a hidden
+  // window comes back without forcing the user to re-press play (§4.33).
+  bool _wasPlayingBeforePause = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _updateAnimationTimer();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_wasPlayingBeforePause) {
+        _wasPlayingBeforePause = false;
+        _updateAnimationTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (_animationTimer != null && _animationTimer!.isActive) {
+        _wasPlayingBeforePause = true;
+        _animationTimer?.cancel();
+        _animationTimer = null;
+      }
+    }
   }
 
   @override
@@ -69,6 +91,7 @@ class _RadarTimelineScrubberState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animationTimer?.cancel();
     super.dispose();
   }

@@ -1003,6 +1003,8 @@ class FramingMosaicSection extends ConsumerWidget {
                   SizedBox(
                     height: 100,
                     child: ListView.builder(
+                      // Fixed-height panel rows: 20 box + 4*2 vertical padding = 28.
+                      itemExtent: 28,
                       itemCount: framingState.mosaicPanels.length,
                       itemBuilder: (context, index) {
                         final panel = framingState.mosaicPanels[index];

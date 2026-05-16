@@ -32,23 +32,44 @@ class SchedulerTabContent extends ConsumerStatefulWidget {
       _SchedulerTabContentState();
 }
 
-class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent> {
+class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
+    with WidgetsBindingObserver {
   // Drives the countdown text to next-evaluation; rebuilds once per second
-  // when running.
+  // when running. Suspended when the app is backgrounded so a hidden
+  // scheduler tab doesn't repaint every second (§4.33).
   Timer? _countdownTimer;
   int _editingTargetId = 0; // 0 means no editor open
 
   @override
   void initState() {
     super.initState();
-    _countdownTimer =
-        Timer.periodic(const Duration(seconds: 1), (_) {
+    WidgetsBinding.instance.addObserver(this);
+    _startCountdownTimer();
+  }
+
+  void _startCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_countdownTimer == null || !_countdownTimer!.isActive) {
+        _startCountdownTimer();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _countdownTimer?.cancel();
+      _countdownTimer = null;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     super.dispose();
   }

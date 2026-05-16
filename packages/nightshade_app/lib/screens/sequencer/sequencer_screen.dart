@@ -1709,6 +1709,8 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 6),
+              // _RailDraggable is a fixed 36h tile + 3+3 vertical margin = 42.
+              itemExtent: 42,
               itemCount: flat.length,
               itemBuilder: (context, index) {
                 final entry = flat[index];
