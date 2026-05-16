@@ -37,6 +37,10 @@ pub(super) const DISPID_PROPERTYPUT: i32 = -3;
 
 /// Create a VARIANT with a boolean value
 pub(super) fn variant_bool(value: bool) -> VARIANT {
+    // SAFETY: VARIANT::default() zero-initializes the union; the `Anonymous.Anonymous`
+    // tagged-union path is the documented access pattern in the `windows` crate VARIANT
+    // bindings, and writing `vt` then the corresponding union field is the standard
+    // VARIANT initialization sequence. No raw pointers escape the function.
     unsafe {
         let mut var = VARIANT::default();
         (*var.Anonymous.Anonymous).vt = VT_BOOL;
@@ -51,6 +55,9 @@ pub(super) fn variant_bool(value: bool) -> VARIANT {
 
 /// Create a VARIANT with a double value
 pub(super) fn variant_f64(value: f64) -> VARIANT {
+    // SAFETY: same VARIANT-union initialization pattern as `variant_bool`; VARIANT::default()
+    // produces a zeroed union, and we set `vt` (VT_R8) consistently with the corresponding
+    // `dblVal` write so the tag/field relationship is valid before the VARIANT is observed.
     unsafe {
         let mut var = VARIANT::default();
         (*var.Anonymous.Anonymous).vt = VT_R8;
@@ -61,6 +68,9 @@ pub(super) fn variant_f64(value: f64) -> VARIANT {
 
 /// Create a VARIANT with an i32 value
 pub(super) fn variant_i32(value: i32) -> VARIANT {
+    // SAFETY: same VARIANT-union initialization pattern as `variant_bool`/`variant_f64`;
+    // VARIANT::default() zero-initializes the union, then we set `vt = VT_I4` and `lVal`
+    // in matching positions, so the consumer sees a well-formed VT_I4 VARIANT.
     unsafe {
         let mut var = VARIANT::default();
         (*var.Anonymous.Anonymous).vt = VT_I4;
@@ -71,6 +81,9 @@ pub(super) fn variant_i32(value: i32) -> VARIANT {
 
 /// Extract boolean from VARIANT
 pub(super) fn variant_to_bool(var: &VARIANT) -> Option<bool> {
+    // SAFETY: `var` is a `&VARIANT` (borrowed, well-aligned). We gate the union field
+    // access on `vt == VT_BOOL`, which is the canonical COM rule for reading the
+    // `boolVal` variant arm; if the tag doesn't match we return None without dereferencing.
     unsafe {
         if (*var.Anonymous.Anonymous).vt == VT_BOOL {
             Some((*var.Anonymous.Anonymous).Anonymous.boolVal.0 != 0)
@@ -82,6 +95,9 @@ pub(super) fn variant_to_bool(var: &VARIANT) -> Option<bool> {
 
 /// Extract f64 from VARIANT
 pub(super) fn variant_to_f64(var: &VARIANT) -> Option<f64> {
+    // SAFETY: `var` is a borrowed VARIANT (well-aligned). Each union-field access is gated
+    // on the matching `vt` discriminant (VT_R8 / VT_I4 / VT_I2 / VT_UI2) before dereferencing
+    // the corresponding union arm, per COM VARIANT tag-then-field semantics.
     unsafe {
         let vt = (*var.Anonymous.Anonymous).vt;
         if vt == VT_R8 {
@@ -102,6 +118,9 @@ pub(super) fn variant_to_f64(var: &VARIANT) -> Option<f64> {
 /// Extract i32 from VARIANT, handling all common COM integer types.
 /// ASCOM drivers may return VT_I2 (Short), VT_I4 (Int), VT_UI2, or VT_R8.
 pub(super) fn variant_to_i32(var: &VARIANT) -> Option<i32> {
+    // SAFETY: `var` is borrowed (well-aligned). Each union-field access is gated on the
+    // matching `vt` discriminant (VT_I4 / VT_I2 / VT_UI2 / VT_R8) before reading the
+    // corresponding union arm, per COM VARIANT tag-then-field semantics.
     unsafe {
         let vt = (*var.Anonymous.Anonymous).vt;
         if vt == VT_I4 {
@@ -121,6 +140,9 @@ pub(super) fn variant_to_i32(var: &VARIANT) -> Option<i32> {
 
 /// Extract string from VARIANT
 pub(super) fn variant_to_string(var: &VARIANT) -> Option<String> {
+    // SAFETY: `var` is borrowed (well-aligned). The `bstrVal` union arm is only read after
+    // confirming `vt == VT_BSTR`. `BSTR::to_string()` from the `windows` crate handles
+    // null/empty BSTRs safely, and we guard the empty case explicitly to avoid that path.
     unsafe {
         if (*var.Anonymous.Anonymous).vt == VT_BSTR {
             let bstr = &(*var.Anonymous.Anonymous).Anonymous.bstrVal;
@@ -138,6 +160,10 @@ pub(super) fn variant_to_string(var: &VARIANT) -> Option<String> {
 /// Extract string array from VARIANT (for ASCOM SupportedActions, etc.)
 #[allow(dead_code)]
 pub(super) fn variant_to_string_array(var: &VARIANT) -> Option<Vec<String>> {
+    // SAFETY: `extract_safearray_string` is `unsafe fn` because it dereferences the
+    // SAFEARRAY pointer from inside the VARIANT; we pass an in-scope borrowed VARIANT
+    // and the callee validates the variant tag, array dimensions, and bounds before
+    // any dereference. Errors propagate via `Result`.
     unsafe { extract_safearray_string(var).ok() }
 }
 

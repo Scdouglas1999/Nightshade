@@ -341,6 +341,11 @@ fn persist_rollback_log(path: &Path, log: &RollbackLog) -> Result<()> {
 fn wait_for_process_exit(pid: u32, timeout: Duration) -> Result<()> {
     #[cfg(windows)]
     {
+        // SAFETY: `OpenProcess` and `WaitForSingleObject` are pure Win32 syscalls with
+        // value-typed arguments (PID, access mask, timeout ms). The HANDLE returned by
+        // `OpenProcess` is a Win32 owned handle that goes out of scope at the end of
+        // this `unsafe` block; the `windows` crate's HANDLE wrapper drops/closes it.
+        // We never dereference any pointer arguments.
         unsafe {
             let handle = OpenProcess(PROCESS_SYNCHRONIZE, false, pid);
             if let Ok(handle) = handle {
@@ -588,6 +593,10 @@ fn schedule_replace_on_reboot(from: &Path, to: &Path) -> Result<()> {
 
     let from_w = to_wide(from);
     let to_w = to_wide(to);
+    // SAFETY: `MoveFileExW` is a Win32 file syscall. Both `from_w` / `to_w` are
+    // locally-owned NUL-terminated UTF-16 vectors that outlive the call; their
+    // `as_ptr()` is wrapped in PCWSTR. The third arg is a value-typed flag. No
+    // pointer ownership is transferred to the kernel.
     unsafe {
         MoveFileExW(
             PCWSTR(from_w.as_ptr()),

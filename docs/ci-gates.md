@@ -30,7 +30,7 @@ step exits non-zero, the job fails, the check shows red on the PR, and the
 | Launch-gate behavioral | `launch-gate` → "Runtime Behavioral Gate" | Mirror of the behavioral audit, run in the dedicated launch-gate job. | Same as Behavioral audit above. |
 | Dart tests | `test-dart` → "Run Dart tests" | All `flutter test` packages green. | `melos run test` |
 | Rust tests (Linux) | `test-rust` → "Run Rust tests" | `cargo test --all-features --workspace` green. Runs on every PR. | `cd native/nightshade_native && cargo test --all-features --workspace` |
-| Rust clippy (workspace, deny warnings) | `test-rust` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | `cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock` clean. Promotes `result_unit_err` (audit-rust §7) and `await_holding_lock` (audit-rust §2.2) to errors. | `cd native/nightshade_native && cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock` |
+| Rust clippy (workspace, deny warnings) | `test-rust` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | `cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` clean. Promotes `result_unit_err` (audit-rust §7), `await_holding_lock` (audit-rust §2.2), and `undocumented_unsafe_blocks` (audit-rust §3.2, promoted under `[CQ-W10-UNSAFE-BLOCKS-PROMOTE]`) to errors. | `cd native/nightshade_native && cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks` |
 | Rust tests (Windows) | `test-rust-windows` → "Run Rust tests" | `cargo test --workspace` on `windows-latest`. Runs on push to main/develop, nightly, or PRs labeled `ci:windows-rust`. Gates the Windows-only `ascom/` crate. | (Windows only) `cd native/nightshade_native && cargo test --all-features --workspace` |
 | Rust clippy (Windows) | `test-rust-windows` → "Run Rust clippy (workspace, deny warnings + high-value lints)" | Same as the Linux clippy gate but on Windows so `ascom/windows_impl.rs` is exercised. | (Windows only) Same command as Linux clippy. |
 | Dart format | `format-check` → "Check Dart formatting" | `dart format --set-exit-if-changed` clean on every package. | `melos run format -- --set-exit-if-changed` |
@@ -49,23 +49,40 @@ visible on every PR.
 | Step | Where | Why advisory |
 |------|-------|--------------|
 | `cargo-duplicates` | `cargo-duplicates` job | audit-rust §5.3 documents the bloater crates being tracked under W-OBS / windows-upgrade. Annotated as a build warning until those land. Promote to `exit 1` once the deny.toml skip list is empty. |
-| Rust clippy `undocumented_unsafe_blocks` | `test-rust` / `test-rust-windows` → "Run Rust clippy (undocumented_unsafe_blocks, warning-level)" | CQ-W6-SAFETY-COMMENTS sweep is in progress — ~444 unsafe blocks still need `// SAFETY:` comments. Annotated as warnings so the sweep stays visible. See the **promotion checklist** below. |
 | Codecov upload (forked PR) | `coverage` step | `continue-on-error` only when the PR is from a fork without the `CODECOV_TOKEN` secret. Native-repo PRs still gate. |
 
 ---
 
-## Promotion checklist: `undocumented_unsafe_blocks` → deny
+## `undocumented_unsafe_blocks` — promoted to `-D`
 
-The vendor-SDK SAFETY sweep is tracked under `[CQ-W6-SAFETY-COMMENTS]`. Promote
-the lint from `-W` to `-D` once **all** of the following are true:
+**Status:** promoted from `-W` (advisory) to `-D` (deny) under
+`[CQ-W10-UNSAFE-BLOCKS-PROMOTE]` on top of HEAD `2a17c1b` (the residual
+non-vendor SAFETY sweep landed in the same wave). The advisory step has been
+removed and the lint is now folded into the main
+`-D warnings -D clippy::result_unit_err -D clippy::await_holding_lock
+-D clippy::undocumented_unsafe_blocks` invocation on both the Linux and
+Windows clippy jobs — see the "Required gates" table above.
 
-1. `cargo clippy --all-features --workspace -- -W clippy::undocumented_unsafe_blocks 2>&1 | grep -c undocumented` reports zero matches both on Linux and Windows runners.
-2. `docs/code-quality/audit-rust.md` §3.2 is marked closed.
-3. A grace period of one nightly run is observed clean.
+Coverage notes:
 
-When ready, change the two `-W clippy::undocumented_unsafe_blocks` invocations
-in `.github/workflows/ci.yml` to `-D clippy::undocumented_unsafe_blocks`,
-remove the `if: always()` on those steps, and delete this checklist section.
+- The vendor-SDK sweep landed under `[CQ-W6-SAFETY-COMMENTS]` across 8
+  camera vendors (ZWO, FLI, QHY, PlayerOne, Atik, Moravian, SVBony, Fujifilm,
+  Touptek) and the SDK loader macro.
+- The residual sweep under `[CQ-W10-UNSAFE-DOC-RESIDUAL]` documented the
+  remaining non-vendor sites in ASCOM Windows COM helpers (variant, connection,
+  switch, camera, cover_calibrator), the imaging mmap reader, gphoto2,
+  updater Win32 helpers, and the ZWO test example.
+- `bridge/src/frb_generated.rs` is auto-generated by
+  `flutter_rust_bridge_codegen` and cannot carry hand-edited `// SAFETY:`
+  comments (any edit would be overwritten on the next codegen run). The
+  `mod frb_generated;` declaration in `bridge/src/lib.rs` therefore carries a
+  module-level `#[allow(clippy::undocumented_unsafe_blocks)]` with a comment
+  explaining the FRB-internal ownership boundary; every hand-written unsafe
+  block in the crate still trips the deny gate.
+
+If this lint ever needs to be relaxed again (e.g., a new auto-generated module
+arrives without SAFETY comments), prefer scoping the `#[allow]` to that
+specific module rather than reverting the workspace-level `-D`.
 
 ---
 
@@ -108,9 +125,10 @@ ships before v2.5.0):
 | Analyzer rollup (production) | RED in local repro because the rollup needs `melos bootstrap` first. CI is green-on-bootstrap. | N/A — environment issue, not a gate-logic issue. |
 
 None of the new gates added under `[CQ-W8-CI-GATING]` themselves introduce
-new red checks — every red row above predates this commit. The advisory
-`undocumented_unsafe_blocks` step is intentionally warning-only and does not
-fail.
+new red checks — every red row above predates this commit. The
+`undocumented_unsafe_blocks` lint was advisory at the time of CQ-W8 and has
+since been promoted to `-D` under `[CQ-W10-UNSAFE-BLOCKS-PROMOTE]`; it is now
+enforced as part of the workspace clippy gate.
 
 When clearing a red gate, also delete its row from this section (and the
 launch-gate column should follow automatically because both jobs share the

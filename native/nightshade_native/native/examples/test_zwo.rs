@@ -7,6 +7,11 @@ async fn main() {
     // Try explicit load to debug
     let path = "C:\\Users\\scdou\\Documents\\Nightshade2\\SDKs\\ZWO\\ASI_Camera_SDK\\ASI_Windows_SDK_V1.40\\ASI SDK\\lib\\x64\\ASICamera2.dll";
     println!("Attempting to load from: {}", path);
+    // SAFETY: `libloading::Library::new` is unsafe because the dynamic linker may run
+    // arbitrary initializer code in the loaded library. This is a developer test-only
+    // example binary used to debug ZWO SDK loading on a known dev machine; the path is
+    // a hard-coded local install location, and we immediately drop the loaded library
+    // without resolving any symbols.
     unsafe {
         match libloading::Library::new(path) {
             Ok(_) => println!("Successfully loaded library directly!"),

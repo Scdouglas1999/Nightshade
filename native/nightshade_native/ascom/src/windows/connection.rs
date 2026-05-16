@@ -27,6 +27,10 @@ use super::variant::{
 
 /// Initialize COM for the current thread
 pub fn init_com() -> Result<(), String> {
+    // SAFETY: `CoInitializeEx` is the canonical Windows COM thread-initialization call.
+    // No pointer arguments are passed (first arg is `None`); apartment selection is a
+    // value-typed `COINIT_*` flag. Result is checked and converted to a `Result`.
+    // Pairs with `uninit_com` / `CoUninitialize` on the same thread.
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED)
             .map_err(|e| format!("Failed to initialize COM: {}", e))
@@ -35,6 +39,9 @@ pub fn init_com() -> Result<(), String> {
 
 /// Uninitialize COM for the current thread
 pub fn uninit_com() {
+    // SAFETY: `CoUninitialize` takes no arguments and reverses a prior successful
+    // `CoInitializeEx` on the same thread. Caller invariant: must be invoked on the
+    // STA worker thread that previously called `init_com`.
     unsafe {
         CoUninitialize();
     }
@@ -68,6 +75,12 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
 fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
     let mut devices = Vec::new();
 
+    // SAFETY: All Win32 registry APIs (`RegOpenKeyExW`, `RegEnumKeyExW`, `RegCloseKey`)
+    // are invoked with locally-owned, well-aligned arguments: `reg_path_wide` is a
+    // NUL-terminated UTF-16 vector owned by this stack frame, `name_buffer` is a
+    // 256-element `[u16]` stack array, and `key` is a stack-allocated `HKEY`. The
+    // returned `key` is closed on every path before this scope ends. `get_driver_description`
+    // is itself an `unsafe fn` that documents its own preconditions.
     unsafe {
         let mut key: HKEY = HKEY::default();
         let reg_path_wide: Vec<u16> = reg_path.encode_utf16().chain(std::iter::once(0)).collect();
@@ -250,6 +263,11 @@ pub struct AscomDeviceConnection {
 impl AscomDeviceConnection {
     /// Create a new ASCOM device connection
     pub fn new(prog_id: &str) -> Result<Self, String> {
+        // SAFETY: `CLSIDFromProgID` and `CoCreateInstance` are standard Windows COM
+        // constructors. `prog_id_wide` is a locally-owned NUL-terminated UTF-16 buffer
+        // that outlives the FFI call. CoCreateInstance returns an `IDispatch` whose
+        // lifetime is managed by the `windows` crate's `Drop` impl, and apartment
+        // requirements are honored by the caller (this runs on the STA worker thread).
         unsafe {
             let prog_id_wide: Vec<u16> = prog_id.encode_utf16().chain(std::iter::once(0)).collect();
 
@@ -319,6 +337,10 @@ impl AscomDeviceConnection {
     }
 
     pub(super) fn get_dispid(&self, name: &str) -> Result<i32, String> {
+        // SAFETY: `IDispatch::GetIDsOfNames` is invoked with: a zeroed reserved GUID,
+        // a locally-owned NUL-terminated UTF-16 buffer (`name_wide`) wrapped in a stack
+        // `[PCWSTR; 1]`, a count matching the array length, the locale id 0, and a stack
+        // `i32` out-parameter. All pointer arguments outlive the call.
         unsafe {
             let name_wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
             let names = [PCWSTR::from_raw(name_wide.as_ptr())];
@@ -333,6 +355,11 @@ impl AscomDeviceConnection {
     }
 
     pub fn get_string_property(&self, name: &str) -> Result<String, String> {
+        // SAFETY: `IDispatch::Invoke` for DISPATCH_PROPERTYGET takes an empty DISPPARAMS
+        // (no in/named args), a zeroed reserved GUID, and a stack-allocated VARIANT
+        // out-pointer. All pointers (DISPID is by-value) point to stack locals owned by
+        // this scope. `variant_to_string` then reads the result VARIANT under its own
+        // `vt`-guarded access (see variant.rs). Caller invariant: COM apartment thread.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
@@ -357,6 +384,10 @@ impl AscomDeviceConnection {
 
     /// Get a string array property (for SupportedActions, etc.)
     pub fn get_string_array_property(&self, name: &str) -> Result<Vec<String>, String> {
+        // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_string_property` — empty
+        // DISPPARAMS, stack VARIANT out-pointer, zeroed reserved GUID. Result is then
+        // passed by reference to `extract_safearray_string` (an `unsafe fn` whose own
+        // preconditions are documented in variant.rs). Caller invariant: STA thread.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
@@ -381,6 +412,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn get_bool_property(&self, name: &str) -> Result<bool, String> {
+        // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_string_property` — empty
+        // DISPPARAMS, stack VARIANT out-pointer, zeroed reserved GUID. `variant_to_bool`
+        // performs its own `vt == VT_BOOL` guard before reading the union arm.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
@@ -404,6 +438,10 @@ impl AscomDeviceConnection {
     }
 
     pub fn set_bool_property(&self, name: &str, value: bool) -> Result<(), String> {
+        // SAFETY: DISPATCH_PROPERTYPUT shape: DISPPARAMS points at a single stack-owned
+        // VT_BOOL VARIANT (`arg`) and a single stack-owned named-arg DISPID
+        // (`dispid_named`); both outlive the call. `cArgs`/`cNamedArgs` match the array
+        // lengths exactly. Caller invariant: STA thread.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_bool(value);
@@ -434,6 +472,8 @@ impl AscomDeviceConnection {
     }
 
     pub fn get_double_property(&self, name: &str) -> Result<f64, String> {
+        // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_string_property`; the result
+        // VARIANT is read by `variant_to_f64` under its own `vt`-guarded access.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
@@ -457,6 +497,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn set_double_property(&self, name: &str, value: f64) -> Result<(), String> {
+        // SAFETY: Same DISPATCH_PROPERTYPUT pattern as `set_bool_property` — one stack
+        // VT_R8 VARIANT (`arg`) and one stack named-arg DISPID. `cArgs`/`cNamedArgs`
+        // match the actual array lengths; both pointers outlive the FFI call.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_f64(value);
@@ -487,6 +530,10 @@ impl AscomDeviceConnection {
     }
 
     pub fn get_int_property(&self, name: &str) -> Result<i32, String> {
+        // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_string_property`. The
+        // subsequent read of `result.Anonymous.Anonymous.vt` for logging is a borrow of
+        // the same stack VARIANT and is well-aligned; `variant_to_i32` performs the
+        // typed extraction under its own `vt`-guarded match.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
@@ -517,6 +564,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn set_int_property(&self, name: &str, value: i32) -> Result<(), String> {
+        // SAFETY: Same DISPATCH_PROPERTYPUT pattern as `set_bool_property`/`set_double_property`
+        // — single stack VT_I4 VARIANT and single stack named-arg DISPID, with matching
+        // `cArgs`/`cNamedArgs`. All pointers point to locals owned by this scope.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_i32(value);
@@ -547,6 +597,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn call_method(&self, name: &str) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with no arguments — DISPPARAMS::default() is the
+        // documented zero-args shape (rgvarg null, cArgs 0). EXCEPINFO out-pointer
+        // is a stack local that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let params = DISPPARAMS::default();
@@ -579,6 +632,10 @@ impl AscomDeviceConnection {
     }
 
     pub fn call_method_2_double(&self, name: &str, arg1: f64, arg2: f64) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two positional args — DISPPARAMS::rgvarg points
+        // into the stack array `args[2]` (whose length matches `cArgs = 2`), and there
+        // are no named args (`rgdispidNamedArgs` null, `cNamedArgs` 0). EXCEPINFO is a
+        // stack out-pointer. All pointers outlive the FFI call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -620,6 +677,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn call_method_1_double(&self, name: &str, arg: f64) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with one positional arg — DISPPARAMS::rgvarg points
+        // into the 1-element stack array `args` (matching `cArgs = 1`), no named args.
+        // EXCEPINFO is a stack out-pointer that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_f64(arg)];
@@ -658,6 +718,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn call_method_1_int(&self, name: &str, arg: i32) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with one positional VT_I4 arg — same shape as
+        // `call_method_1_double` but with an i32-typed VARIANT. `cArgs = 1` matches the
+        // 1-element stack array; EXCEPINFO is a stack out-pointer.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_i32(arg)];
@@ -698,6 +761,10 @@ impl AscomDeviceConnection {
     /// Call a method with one integer argument that returns a boolean
     /// Used for ASCOM methods like CanMoveAxis(TelescopeAxes) -> Boolean
     pub fn call_method_1_int_return_bool(&self, name: &str, arg: i32) -> Result<bool, String> {
+        // SAFETY: DISPATCH_METHOD with one VT_I4 arg and a result VARIANT — `args` is a
+        // 1-element stack array (matching `cArgs = 1`); `result_var` and `excep_info`
+        // are stack VARIANT/EXCEPINFO out-pointers. All pointers outlive the call.
+        // `variant_to_bool` reads the result under its own `vt`-guarded match.
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut args = [variant_i32(arg)];
@@ -739,6 +806,9 @@ impl AscomDeviceConnection {
     }
 
     pub fn call_method_2_int(&self, name: &str, arg1: i32, arg2: i32) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two VT_I4 positional args — `cArgs = 2` matches
+        // the 2-element stack array `args`; no named args. EXCEPINFO is a stack
+        // out-pointer that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -784,6 +854,9 @@ impl AscomDeviceConnection {
         arg1: f64,
         arg2: bool,
     ) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two positional args (VT_BOOL then VT_R8) —
+        // `cArgs = 2` matches the 2-element stack array `args`; no named args; EXCEPINFO
+        // is a stack out-pointer that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -825,6 +898,9 @@ impl AscomDeviceConnection {
 
     /// Call a method with an int and a double argument (e.g., MoveAxis)
     pub fn call_method_int_double(&self, name: &str, arg1: i32, arg2: f64) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two positional args (VT_R8 then VT_I4) — `cArgs
+        // = 2` matches the 2-element stack array `args`; no named args; EXCEPINFO is a
+        // stack out-pointer that outlives the call.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -866,6 +942,9 @@ impl AscomDeviceConnection {
 
     /// Call a parameterless method (e.g., SetupDialog) on the COM object
     pub fn call_method_0(&self, name: &str) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with zero args — DISPPARAMS uses null `rgvarg` and
+        // null `rgdispidNamedArgs` paired with `cArgs = 0`, `cNamedArgs = 0`, which is
+        // the documented zero-arg shape. EXCEPINFO is a stack out-pointer.
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -994,6 +1073,11 @@ impl Drop for AscomDeviceConnection {
 // that worker via mpsc, and `Drop` is a no-op so it is safe to be released on
 // any thread.
 unsafe impl Send for AscomDeviceConnection {}
+// SAFETY: Same justification as the `Send` impl above — the wrapper struct's
+// thread affinity is enforced by the per-device STA worker pattern in
+// `ascom_wrapper*.rs`; concurrent immutable references never reach the
+// underlying IDispatch because every call is funneled through an mpsc channel
+// onto the apartment thread.
 unsafe impl Sync for AscomDeviceConnection {}
 
 // ============================================================================

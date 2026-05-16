@@ -297,6 +297,16 @@ macro_rules! load_vendor_sdk {
                 let result = (|| -> Result<Self, $crate::vendor::sdk_loader::VendorLoadError> {
                     Ok(Self {
                         $(
+                            // SAFETY: `resolve_symbol::<F>` is `unsafe` because
+                            // the caller asserts that the symbol's ABI matches
+                            // the supplied `F = unsafe extern $abi fn (...)`.
+                            // The macro caller (vendor SDK declaration site —
+                            // e.g. zwo.rs, fli.rs) hand-derives each signature
+                            // from the vendor C header, and any mismatch will
+                            // fail at the first FFI call. `library` outlives the
+                            // returned function pointer because it is stored in
+                            // the same `Self { _library: library }` struct that
+                            // owns the resolved symbol.
                             $field: unsafe {
                                 $crate::vendor::sdk_loader::resolve_symbol::<
                                     unsafe extern $abi fn ( $($arg_ty),* ) $(-> $ret_ty)?

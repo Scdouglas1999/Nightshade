@@ -324,6 +324,12 @@ impl GPhoto2Sdk {
 
         for path in &lib_paths {
             tracing::debug!("Trying to load libgphoto2 from: {}", path);
+            // SAFETY: `libloading::Library::new(path)` is unsafe because the dynamic
+            // linker may execute initializer code from the loaded shared object. The
+            // candidate paths come from a hard-coded list of standard libgphoto2
+            // install locations (no caller-supplied input), and each resolved symbol
+            // signature below is hand-derived from the libgphoto2 C headers, so the
+            // function-pointer ABI matches what we cast it to.
             unsafe {
                 match libloading::Library::new(path) {
                     Ok(lib) => {
@@ -334,6 +340,13 @@ impl GPhoto2Sdk {
                             name: &[u8],
                             name_str: &str,
                         ) -> Option<T> {
+                            // SAFETY: `Library::get::<T>(name)` is unsafe because the
+                            // caller asserts the symbol's foreign signature matches `T`.
+                            // Every call site below passes the libgphoto2 C-header-derived
+                            // function-pointer type as `T`, and the returned symbol is
+                            // immediately copied out by `*sym` (the underlying `lib` is
+                            // retained by the enclosing match arm so the function pointer
+                            // remains valid for the SDK's lifetime).
                             match unsafe { lib.get::<T>(name) } {
                                 Ok(sym) => Some(*sym),
                                 Err(e) => {
@@ -548,6 +561,12 @@ pub fn detect_gphoto2_cameras() -> Vec<DetectedGPhoto2Camera> {
         None => return Vec::new(),
     };
 
+    // SAFETY: gphoto2_mutex is implicitly held because `detect_gphoto2_cameras` runs
+    // on the discovery code path that serializes SDK access (libgphoto2 is not
+    // thread-safe). All `gp_*` calls are paired with their explicit free/unref calls
+    // before this block exits — `context_unref` matches `context_new`, `list_free`
+    // matches `list_new`. Out-pointers (`list`) and the stack-owned `count` are valid
+    // local addresses for the duration of the call.
     unsafe {
         let context = (sdk.context_new)();
         if context.is_null() {
@@ -757,9 +776,14 @@ impl std::fmt::Debug for GPhoto2Camera {
     }
 }
 
-// Safety: GPhoto2Camera is Send+Sync because all gphoto2 SDK calls are protected
+// SAFETY: GPhoto2Camera is Send+Sync because all gphoto2 SDK calls are protected
 // by the gphoto2_mutex, ensuring only one thread accesses the camera at a time.
+// The raw `gp_camera` / `gp_context` pointers stored in this struct are only
+// dereferenced inside lock-held `unsafe` blocks in the impls below.
 unsafe impl Send for GPhoto2Camera {}
+// SAFETY: Same justification as the `Send` impl above — gphoto2_mutex serializes all
+// SDK access, so concurrent `&GPhoto2Camera` references never reach libgphoto2 at the
+// same time.
 unsafe impl Sync for GPhoto2Camera {}
 
 impl GPhoto2Camera {
@@ -840,6 +864,13 @@ impl GPhoto2Camera {
     fn get_config_value_str(&self, name: &str) -> Result<String, NativeError> {
         let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
+        // SAFETY: caller holds gphoto2_mutex (documented in the doc-comment above and
+        // checked by all call sites). `self.gp_camera`/`self.gp_context` are non-null
+        // valid pointers obtained from `camera_new`/`context_new` while connected.
+        // `root` is a stack out-pointer; `widget_free(root)` runs on every exit path.
+        // `CStr::from_ptr(value_ptr)` is gated on a successful (`ret >= GP_OK`) widget
+        // read and a non-null `value_ptr`, so the pointer is a NUL-terminated C string
+        // borrowed from libgphoto2 internals.
         unsafe {
             let mut root: *mut CameraWidget = std::ptr::null_mut();
             let ret = (sdk.camera_get_config)(self.gp_camera, &mut root, self.gp_context);
@@ -886,6 +917,12 @@ impl GPhoto2Camera {
     fn set_config_value_str(&self, name: &str, value: &str) -> Result<(), NativeError> {
         let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
+        // SAFETY: caller holds gphoto2_mutex (per doc-comment). `self.gp_camera` /
+        // `self.gp_context` are valid non-null pointers post-connect. `root` is a stack
+        // out-pointer; `widget_free(root)` is called on every exit path. `c_name` /
+        // `c_value` are CString owners that outlive their `.as_ptr()` use inside the
+        // block. `widget_set_value` followed by `camera_set_config` is the libgphoto2
+        // configured-write sequence.
         unsafe {
             let mut root: *mut CameraWidget = std::ptr::null_mut();
             let ret = (sdk.camera_get_config)(self.gp_camera, &mut root, self.gp_context);
@@ -931,6 +968,11 @@ impl GPhoto2Camera {
     fn get_config_choices(&self, name: &str) -> Result<Vec<String>, NativeError> {
         let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
+        // SAFETY: caller holds gphoto2_mutex (per doc-comment). `gp_camera`/`gp_context`
+        // are valid non-null post-connect; `root` is a stack out-pointer freed on
+        // every exit path. Each `widget_get_choice` call's out-pointer (`choice_ptr`)
+        // is only dereferenced via `CStr::from_ptr` after the return code is checked
+        // and non-null guard passes; the choice C-string is owned by the widget tree.
         unsafe {
             let mut root: *mut CameraWidget = std::ptr::null_mut();
             let ret = (sdk.camera_get_config)(self.gp_camera, &mut root, self.gp_context);
@@ -974,6 +1016,10 @@ impl GPhoto2Camera {
         let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
         // Query camera abilities to determine supported operations
+        // SAFETY: caller holds gphoto2_mutex (per doc-comment on populate_camera_info).
+        // `gp_camera` is valid non-null post-connect; `abilities` is a stack-allocated
+        // POD struct (`#[derive(Default)]`) whose address is passed as the out-pointer
+        // — libgphoto2 fills the struct by value, no internal pointers retained.
         unsafe {
             let mut abilities: CameraAbilities = CameraAbilities::default();
             let ret = (sdk.camera_get_abilities)(self.gp_camera, &mut abilities);
@@ -1165,6 +1211,9 @@ impl GPhoto2Camera {
 
         let mut file_path = CameraFilePath::default();
 
+        // SAFETY: caller holds gphoto2_mutex (per doc-comment). `gp_camera` and
+        // `gp_context` are valid non-null pointers post-connect. `file_path` is a stack
+        // POD that libgphoto2 fills in-place with the folder/name buffers.
         unsafe {
             let ret = (sdk.camera_capture)(
                 self.gp_camera,
@@ -1206,6 +1255,9 @@ impl GPhoto2Camera {
         }
 
         // Trigger capture (opens shutter, does not wait for completion)
+        // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context` are valid
+        // non-null pointers post-connect; `camera_trigger_capture` takes them by-value
+        // and returns a result code we check.
         unsafe {
             let ret = (sdk.camera_trigger_capture)(self.gp_camera, self.gp_context);
             check_gp_error(ret, "trigger_capture (bulb start)")?;
@@ -1242,6 +1294,10 @@ impl GPhoto2Camera {
 
         // Approach 3: Generic - send a second trigger to stop
         let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        // SAFETY: caller holds gphoto2_mutex (per do_bulb_stop's doc-comment).
+        // `gp_camera`/`gp_context` are valid non-null. `event_type`/`event_data` are
+        // stack out-pointers filled by libgphoto2. We do NOT dereference `event_data`
+        // here (it would require a tag-typed cast); only `event_type` is read after.
         unsafe {
             // Wait for file-added event which signals the capture completed
             let mut event_type: c_int = 0;
@@ -1279,6 +1335,13 @@ impl GPhoto2Camera {
         let c_name = CString::new(name_str.as_str())
             .map_err(|_| NativeError::SdkError("gPhoto2: Invalid file name".to_string()))?;
 
+        // SAFETY: caller holds gphoto2_mutex (per download_from_camera's doc-comment).
+        // `gp_camera`/`gp_context` are valid non-null post-connect. `gp_file` is a
+        // stack out-pointer paired with `file_free` on every exit path. `c_folder`/
+        // `c_name` are CString owners that outlive their `.as_ptr()` use. The
+        // `data_ptr` / `data_size` out-pointers are read only after checking the
+        // return code and non-null guard; the slice we build is immediately copied
+        // into a Vec before `file_free` invalidates the underlying buffer.
         unsafe {
             // Create a CameraFile to receive the data
             let mut gp_file: *mut CameraFile = std::ptr::null_mut();
@@ -1517,6 +1580,11 @@ impl NativeDevice for GPhoto2Camera {
             }
         }
 
+        // SAFETY: caller holds gphoto2_mutex (this method is invoked from `connect`,
+        // which acquires the lock). All `gp_*` allocations are paired with their
+        // corresponding free/unref on every error path; on success the resources are
+        // stored in `self.gp_camera` / `self.gp_context` and live until `disconnect`.
+        // Out-pointer (`camera`) is a stack local.
         unsafe {
             // Create context
             let context = (sdk.context_new)();
@@ -1574,6 +1642,11 @@ impl NativeDevice for GPhoto2Camera {
             let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
             let _lock = gphoto2_mutex().lock().await;
 
+            // SAFETY: `_lock` (gphoto2_mutex guard) is held for the entire block. Each
+            // raw pointer is non-null-checked before use and set to null after free so
+            // a subsequent drop does not double-free. `camera_exit`+`camera_free` is
+            // the libgphoto2-documented teardown sequence; `context_unref` releases
+            // the context refcount.
             unsafe {
                 if !self.gp_camera.is_null() {
                     let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);
@@ -1841,6 +1914,13 @@ impl NativeCamera for GPhoto2Camera {
                         ));
                     }
 
+                    // SAFETY: caller holds gphoto2_mutex (acquired in the outer
+                    // method that contains this loop). `gp_camera`/`gp_context` are
+                    // valid non-null. `event_data` is libgphoto2-owned and only
+                    // dereferenced after both (a) `event_type == 2` confirms it is a
+                    // GP_EVENT_FILE_ADDED payload (i.e. `*CameraFilePath`) and (b)
+                    // the non-null guard passes; the borrow is then cloned into
+                    // `self.last_capture_path` before the next loop iteration.
                     unsafe {
                         let mut event_type: c_int = 0;
                         let mut event_data: *mut c_void = std::ptr::null_mut();
@@ -2049,6 +2129,12 @@ impl Drop for GPhoto2Camera {
         // Ensure camera resources are cleaned up
         if self.connected {
             if let Some(sdk) = GPhoto2Sdk::get() {
+                // SAFETY: Drop is best-effort cleanup. We do NOT acquire gphoto2_mutex
+                // here because (a) Drop cannot await, and (b) Drop only runs when the
+                // last owner is releasing the camera, so no other thread should be
+                // touching `gp_camera`/`gp_context`. Each pointer is non-null-checked
+                // before its corresponding free/unref. This is the same defensive
+                // teardown pattern used by other vendor Drop impls.
                 unsafe {
                     if !self.gp_camera.is_null() {
                         let _ = (sdk.camera_exit)(self.gp_camera, self.gp_context);

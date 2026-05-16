@@ -27,6 +27,12 @@ impl MappedFitsReader {
     /// Open a FITS file with memory mapping
     pub fn open(path: &Path) -> Result<Self, FitsError> {
         let file = File::open(path)?;
+        // SAFETY: `Mmap::map` is `unsafe` because callers must ensure the mapped file is
+        // not concurrently modified by another process (which could violate the
+        // immutable-byte-slice invariant the `Mmap` exposes). FITS captures we open here
+        // are produced and finalized by the capture path before being read, and this
+        // reader takes a `&Path` for read-only access — no writer holds the file. The
+        // returned `Mmap` is owned by `Self` and stays alive for the reader's lifetime.
         let mmap = unsafe { Mmap::map(&file)? };
 
         // Parse header to get dimensions

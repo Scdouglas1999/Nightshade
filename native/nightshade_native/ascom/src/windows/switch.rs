@@ -62,6 +62,10 @@ impl AscomSwitch {
     }
 
     pub fn get_switch(&self, id: i32) -> Result<bool, String> {
+        // SAFETY: DISPATCH_METHOD with one VT_I4 positional arg and a result VARIANT —
+        // `args` is a 1-element stack array matching `cArgs = 1`, no named args.
+        // `result` is a stack VARIANT out-pointer. `variant_to_bool` reads it under its
+        // own `vt`-guarded match. Caller invariant: STA worker thread.
         unsafe {
             let dispid = self.device.get_dispid("GetSwitch")?;
             let mut args = [variant_i32(id)];
@@ -93,6 +97,9 @@ impl AscomSwitch {
     }
 
     pub fn set_switch(&mut self, id: i32, state: bool) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two positional args (VT_BOOL then VT_I4) —
+        // `cArgs = 2` matches the 2-element stack array, no named args. All pointers
+        // outlive the FFI call. Caller invariant: STA worker thread.
         unsafe {
             let dispid = self.device.get_dispid("SetSwitch")?;
             let mut args = [variant_bool(state), variant_i32(id)];
@@ -123,6 +130,9 @@ impl AscomSwitch {
     }
 
     pub fn get_switch_name(&self, id: i32) -> Result<String, String> {
+        // SAFETY: DISPATCH_METHOD with one VT_I4 positional arg and a result VARIANT —
+        // same shape as `get_switch`. `variant_to_string` reads the result under its
+        // own `vt == VT_BSTR` guard.
         unsafe {
             let dispid = self.device.get_dispid("GetSwitchName")?;
             let mut args = [variant_i32(id)];
@@ -155,6 +165,9 @@ impl AscomSwitch {
     }
 
     pub fn get_switch_description(&self, id: i32) -> Result<String, String> {
+        // SAFETY: Same single-VT_I4-arg-with-string-result shape as `get_switch_name`;
+        // `cArgs = 1` matches the 1-element stack args array; result VARIANT is read
+        // through `variant_to_string`'s VT_BSTR-guarded path.
         unsafe {
             let dispid = self.device.get_dispid("GetSwitchDescription")?;
             let mut args = [variant_i32(id)];
@@ -187,6 +200,9 @@ impl AscomSwitch {
     }
 
     pub fn get_switch_value(&self, id: i32) -> Result<f64, String> {
+        // SAFETY: Same single-VT_I4-arg pattern; result VARIANT is consumed by
+        // `variant_to_f64` whose match handles each numeric `vt` tag. Pointers point
+        // at stack locals; STA invariant enforced by worker-thread wrapper.
         unsafe {
             let dispid = self.device.get_dispid("GetSwitchValue")?;
             let mut args = [variant_i32(id)];
@@ -219,6 +235,9 @@ impl AscomSwitch {
     }
 
     pub fn set_switch_value(&mut self, id: i32, value: f64) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with two positional args (VT_R8 then VT_I4) —
+        // `cArgs = 2` matches the 2-element stack array; no named args; no result var.
+        // Caller invariant: STA worker thread.
         unsafe {
             let dispid = self.device.get_dispid("SetSwitchValue")?;
             let mut args = [variant_f64(value), variant_i32(id)];
@@ -249,6 +268,7 @@ impl AscomSwitch {
     }
 
     pub fn min_switch_value(&self, id: i32) -> Result<f64, String> {
+        // SAFETY: Single-VT_I4-arg with result VARIANT — same shape as `get_switch_value`.
         unsafe {
             let dispid = self.device.get_dispid("MinSwitchValue")?;
             let mut args = [variant_i32(id)];
@@ -281,6 +301,7 @@ impl AscomSwitch {
     }
 
     pub fn max_switch_value(&self, id: i32) -> Result<f64, String> {
+        // SAFETY: Single-VT_I4-arg with result VARIANT — same shape as `get_switch_value`.
         unsafe {
             let dispid = self.device.get_dispid("MaxSwitchValue")?;
             let mut args = [variant_i32(id)];
@@ -313,6 +334,8 @@ impl AscomSwitch {
     }
 
     pub fn can_write(&self, id: i32) -> Result<bool, String> {
+        // SAFETY: Single-VT_I4-arg with result VARIANT consumed by `variant_to_bool` —
+        // same shape as `get_switch`.
         unsafe {
             let dispid = self.device.get_dispid("CanWrite")?;
             let mut args = [variant_i32(id)];

@@ -87,6 +87,10 @@ impl AscomCoverCalibrator {
     }
 
     pub fn calibrator_on(&mut self, brightness: i32) -> Result<(), String> {
+        // SAFETY: DISPATCH_METHOD with one VT_I4 positional arg — `args` is a 1-element
+        // stack array matching `cArgs = 1`, no named args (`rgdispidNamedArgs` null,
+        // `cNamedArgs = 0`). Caller invariant: STA worker thread (enforced by the
+        // device's worker-thread wrapper).
         unsafe {
             let dispid = self.device.get_dispid("CalibratorOn")?;
             let mut args = [variant_i32(brightness)];

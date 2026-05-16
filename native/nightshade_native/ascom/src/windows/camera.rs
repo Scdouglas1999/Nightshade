@@ -186,6 +186,10 @@ impl AscomCamera {
     /// Returns (pixel_data, dim1_size, dim2_size)
     /// Extracts the SAFEARRAY from the ASCOM ImageArray property
     pub fn image_array(&self) -> Result<(Vec<i32>, usize, usize), String> {
+        // SAFETY: DISPATCH_PROPERTYGET on the camera's `ImageArray` property —
+        // empty DISPPARAMS, stack VARIANT out-pointer, zeroed reserved GUID. The
+        // SAFEARRAY extraction in `extract_safearray_i32` validates dims/bounds
+        // before any pointer read. Caller invariant: STA worker thread.
         unsafe {
             let dispid = self.device.get_dispid("ImageArray")?;
             let mut result = VARIANT::default();
