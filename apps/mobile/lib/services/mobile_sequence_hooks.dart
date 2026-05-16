@@ -4,7 +4,10 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/nightshade_app.dart' show iosBackgroundBannerProvider;
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'foreground_service.dart';
+import 'mobile_event_notifier.dart';
+import 'mobile_preferences.dart';
 import 'notification_service.dart';
 import 'power_service.dart';
 
@@ -17,6 +20,8 @@ class MobileSequenceHooks {
   final MobileNotificationService _notificationService = MobileNotificationService();
   final PowerService _powerService = PowerService();
   StreamSubscription<Map<String, dynamic>>? _pushNotificationSubscription;
+  MobileEventNotifier? _eventNotifier;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   MobileSequenceHooks(this._ref);
 
@@ -43,8 +48,46 @@ class MobileSequenceHooks {
       (previous, next) => _handleProgressUpdate(previous, next),
     );
 
+    // Build the mobile-direct event notifier and (re)subscribe whenever the
+    // backend changes — the FfiBackend stream and the NetworkBackend stream
+    // are different controllers, so a reconnect (or a `disconnect` followed
+    // by `connect`) needs a fresh subscription.
+    await _setupEventNotifier();
+    _backendSubscription = _ref.listen<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        _setupEventNotifier();
+        _setupPushNotificationListener();
+      },
+    );
+
     // Listen for push notifications from the desktop via NetworkBackend
     _setupPushNotificationListener();
+  }
+
+  /// (Re)build the mobile-direct critical-event subscriber.
+  ///
+  /// The notifier reads the current backend's `eventStream` so it must be
+  /// rebuilt whenever the backend instance changes. We load the user's
+  /// per-category mute preferences synchronously from SharedPreferences;
+  /// this completes in microseconds because SharedPreferences is cached
+  /// in-process after the first access (which the app's main() already
+  /// performed for the immersive-mode toggle).
+  Future<void> _setupEventNotifier() async {
+    await _eventNotifier?.stop();
+    final backend = _ref.read(backendProvider);
+    if (backend is DisconnectedBackend) {
+      _eventNotifier = null;
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final notifier = MobileEventNotifier(
+      eventStream: backend.eventStream,
+      preferences: MobilePreferences(prefs),
+      notificationService: _notificationService,
+    );
+    notifier.start();
+    _eventNotifier = notifier;
   }
 
   /// Subscribe to push notifications from the desktop server.
@@ -53,6 +96,7 @@ class MobileSequenceHooks {
   /// a remote desktop). Push notifications are displayed as local notifications.
   void _setupPushNotificationListener() {
     _pushNotificationSubscription?.cancel();
+    _pushNotificationSubscription = null;
     final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
       _pushNotificationSubscription =
@@ -62,6 +106,12 @@ class MobileSequenceHooks {
           name: 'MobileSequenceHooks',
           level: 800,
         );
+        // Inform the mobile-direct notifier so it can suppress a duplicate
+        // for the same eventType within its dedupe window.
+        final eventType = data['eventType'] as String?;
+        if (eventType != null) {
+          _eventNotifier?.recordPushReceived(eventType);
+        }
         _notificationService.notifyPush(data);
       }, onError: (error) {
         // Caught + degraded: stream errors mean we miss push notifications
@@ -272,6 +322,10 @@ class MobileSequenceHooks {
   Future<void> dispose() async {
     await _pushNotificationSubscription?.cancel();
     _pushNotificationSubscription = null;
+    _backendSubscription?.close();
+    _backendSubscription = null;
+    await _eventNotifier?.stop();
+    _eventNotifier = null;
     await _powerService.dispose();
   }
 }

@@ -9,7 +9,35 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// via the GoRouter instance it owns (audit §3.8).
 typedef NotificationNavigator = void Function(String location);
 
-class MobileNotificationService {
+/// Surface area of [MobileNotificationService] consumed by mobile-side
+/// subscribers (battery, foreground service, mobile-direct event notifier).
+///
+/// Extracted so unit tests can supply a recording double without touching
+/// the flutter_local_notifications plugin (which has no in-test host
+/// implementation). Production code continues to use the singleton
+/// [MobileNotificationService] directly; the abstraction exists purely for
+/// dependency injection at test boundaries.
+abstract class MobileNotificationSink {
+  Future<void> notifySequenceComplete(String targetName, int imageCount);
+  Future<void> notifySequenceFailed(String targetName, String errorMessage);
+  Future<void> notifyMeridianFlip(String targetName, DateTime flipTime);
+  Future<void> notifyLowDiskSpace(double remainingGB);
+  Future<void> notifyLowBattery(int percentage);
+  Future<void> notifySafety({
+    required String title,
+    required String body,
+    String? eventType,
+  });
+  Future<void> notifyMountParked(String reason);
+  Future<void> notifyGuidingLost(String reason);
+  Future<void> notifyExposureFailed(String errorMessage);
+  Future<void> notifyAutofocusFailed();
+  Future<void> notifyEquipmentDisconnected(String deviceType, String deviceId);
+  Future<void> notifyTargetCompleted(String targetName);
+  Future<void> notifyPush(Map<String, dynamic> data);
+}
+
+class MobileNotificationService implements MobileNotificationSink {
   static final MobileNotificationService _instance =
       MobileNotificationService._internal();
   factory MobileNotificationService() => _instance;
@@ -22,12 +50,21 @@ class MobileNotificationService {
   /// Installed by the app at startup — see [setNavigator].
   NotificationNavigator? _navigator;
 
-  // Notification IDs
+  // Reserved notification IDs (stable across app launches so a re-fire of
+  // the same kind of event replaces the prior notification instead of
+  // stacking).
   static const int _sequenceCompleteId = 100;
   static const int _sequenceFailedId = 101;
   static const int _meridianFlipId = 102;
   static const int _lowDiskSpaceId = 103;
   static const int _lowBatteryId = 104;
+  static const int _safetyId = 105;
+  static const int _guidingLostId = 106;
+  static const int _exposureFailedId = 107;
+  static const int _autofocusFailedId = 108;
+  static const int _equipmentDisconnectedId = 109;
+  static const int _targetCompletedId = 110;
+  static const int _mountParkedId = 111;
 
   /// Auto-incrementing ID for push notifications from the desktop
   int _nextPushNotificationId = 200;
@@ -115,6 +152,18 @@ class MobileNotificationService {
       enableVibration: true,
     );
 
+    // Critical/safety events get a dedicated channel so users can grant it
+    // bypass-Do-Not-Disturb access while leaving info channels muted.
+    const criticalChannel = AndroidNotificationChannel(
+      'nightshade_critical',
+      'Critical Alerts',
+      description:
+          'Safety, guiding loss, and equipment failures during a running sequence',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+
     final androidImplementation =
         _notifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -123,6 +172,7 @@ class MobileNotificationService {
     await androidImplementation?.createNotificationChannel(warningChannel);
     await androidImplementation?.createNotificationChannel(infoChannel);
     await androidImplementation?.createNotificationChannel(pushChannel);
+    await androidImplementation?.createNotificationChannel(criticalChannel);
   }
 
   /// Register a callback the service uses to deep-link into the app when
@@ -161,15 +211,10 @@ class MobileNotificationService {
 
   /// Map a notification [payload] to a go_router location.
   ///
-  /// Payload format follows the conventions used elsewhere in the service:
-  ///   `image_ready:<imageId>`           -> `/imaging/preview/<imageId>`
-  ///   `sequence_complete:<target>`      -> `/sequencer`
-  ///   `sequence_failed:<target>`        -> `/sequencer`
-  ///   `meridian_flip:<target>`          -> `/sequencer`
-  ///   `low_battery:<percent>`           -> `/dashboard`
-  ///   `low_disk_space`                  -> `/dashboard`
-  ///   `push:<eventType>`                -> `/dashboard` (desktop pushes
-  ///                                        without an obvious target)
+  /// Payload format follows the convention `type[:arg]`. Each route below is
+  /// chosen so a tap lands on the screen most relevant to the firing event:
+  /// safety/guiding goes to the dashboard summary, exposure failure goes to
+  /// the imaging viewport, etc.
   String? _routeForPayload(String payload) {
     final colon = payload.indexOf(':');
     final type = colon == -1 ? payload : payload.substring(0, colon);
@@ -182,7 +227,18 @@ class MobileNotificationService {
       case 'sequence_complete':
       case 'sequence_failed':
       case 'meridian_flip':
+      case 'target_completed':
+      case 'autofocus_failed':
         return '/sequencer';
+      case 'exposure_failed':
+        return '/imaging';
+      case 'guiding_lost':
+        return '/guiding';
+      case 'safety':
+      case 'mount_parked':
+        return '/weather';
+      case 'equipment_disconnected':
+        return '/equipment';
       case 'low_battery':
       case 'low_disk_space':
         return '/dashboard';
@@ -193,6 +249,7 @@ class MobileNotificationService {
     }
   }
 
+  @override
   Future<void> notifySequenceComplete(String targetName, int imageCount) async {
     if (!enableSequenceNotifications) return;
 
@@ -222,6 +279,7 @@ class MobileNotificationService {
     );
   }
 
+  @override
   Future<void> notifySequenceFailed(
       String targetName, String errorMessage) async {
     if (!enableSequenceNotifications) return;
@@ -252,6 +310,7 @@ class MobileNotificationService {
     );
   }
 
+  @override
   Future<void> notifyMeridianFlip(String targetName, DateTime flipTime) async {
     if (!enableMeridianFlipNotifications) return;
 
@@ -282,6 +341,7 @@ class MobileNotificationService {
     );
   }
 
+  @override
   Future<void> notifyLowDiskSpace(double remainingGB) async {
     if (!enableWarningNotifications) return;
 
@@ -311,6 +371,7 @@ class MobileNotificationService {
     );
   }
 
+  @override
   Future<void> notifyLowBattery(int percentage) async {
     if (!enableWarningNotifications) return;
 
@@ -351,10 +412,228 @@ class MobileNotificationService {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Critical-event notifications (added v2.5 polish)
+  //
+  // These are the events that can occur silently in the middle of an
+  // unattended sequence. Until v2.5.0-hardening, the mobile app only fired
+  // notifications for sequence-state transitions (complete/failed) and
+  // power events — it relied on the desktop's PushNotificationService to
+  // surface safety / guiding / equipment failures. That made notifications
+  // dependent on a feature config and a healthy desktop-side process; the
+  // mobile companion now drives them directly from the WS event stream so
+  // the user is paged even if push is disabled on the desktop.
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<void> notifySafety({
+    required String title,
+    required String body,
+    String? eventType,
+  }) async {
+    await _notifications.show(
+      _safetyId,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_critical',
+          'Critical Alerts',
+          channelDescription:
+              'Safety, guiding loss, and equipment failures during a running sequence',
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+          category: AndroidNotificationCategory.alarm,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.critical,
+        ),
+      ),
+      payload: eventType == 'mount_parked' ? 'mount_parked' : 'safety',
+    );
+  }
+
+  @override
+  Future<void> notifyMountParked(String reason) async {
+    await _notifications.show(
+      _mountParkedId,
+      'Mount Parked',
+      'Mount has been parked: $reason',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_critical',
+          'Critical Alerts',
+          channelDescription:
+              'Safety, guiding loss, and equipment failures during a running sequence',
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.critical,
+        ),
+      ),
+      payload: 'mount_parked',
+    );
+  }
+
+  @override
+  Future<void> notifyGuidingLost(String reason) async {
+    await _notifications.show(
+      _guidingLostId,
+      'Guiding Lost',
+      reason,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_critical',
+          'Critical Alerts',
+          channelDescription:
+              'Safety, guiding loss, and equipment failures during a running sequence',
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.critical,
+        ),
+      ),
+      payload: 'guiding_lost',
+    );
+  }
+
+  @override
+  Future<void> notifyExposureFailed(String errorMessage) async {
+    await _notifications.show(
+      _exposureFailedId,
+      'Exposure Failed',
+      errorMessage,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_warnings',
+          'Warnings',
+          channelDescription:
+              'Important warnings about battery, disk space, etc.',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'exposure_failed',
+    );
+  }
+
+  @override
+  Future<void> notifyAutofocusFailed() async {
+    await _notifications.show(
+      _autofocusFailedId,
+      'Autofocus Failed',
+      'Autofocus did not complete successfully.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_warnings',
+          'Warnings',
+          channelDescription:
+              'Important warnings about battery, disk space, etc.',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'autofocus_failed',
+    );
+  }
+
+  @override
+  Future<void> notifyEquipmentDisconnected(
+      String deviceType, String deviceId) async {
+    await _notifications.show(
+      _equipmentDisconnectedId,
+      'Device Disconnected',
+      '$deviceType disconnected: $deviceId',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_critical',
+          'Critical Alerts',
+          channelDescription:
+              'Safety, guiding loss, and equipment failures during a running sequence',
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: true,
+          enableVibration: true,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          interruptionLevel: InterruptionLevel.critical,
+        ),
+      ),
+      payload: 'equipment_disconnected:$deviceType',
+    );
+  }
+
+  @override
+  Future<void> notifyTargetCompleted(String targetName) async {
+    await _notifications.show(
+      _targetCompletedId,
+      'Target Complete',
+      'Finished imaging target: $targetName',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nightshade_info',
+          'Information',
+          channelDescription: 'General information like meridian flips',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+          playSound: false,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'target_completed:$targetName',
+    );
+  }
+
   /// Display a push notification received from the desktop via WebSocket.
   ///
   /// The [data] map should contain 'title', 'body', and 'priority' fields
   /// as sent by PushNotificationService.toJson().
+  @override
   Future<void> notifyPush(Map<String, dynamic> data) async {
     final title = data['title'] as String? ?? 'Nightshade';
     final body = data['body'] as String? ?? '';
