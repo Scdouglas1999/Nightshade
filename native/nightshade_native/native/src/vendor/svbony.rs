@@ -279,9 +279,11 @@ impl SvbonySdk {
             "libSVBCameraSDK.so"
         };
 
+        // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is a compile-time string constant naming the vendor SDK shared library (SVBCameraSDK.dll/dylib/so). Errors (missing file, invalid format) are propagated via the map_err arm rather than UB.
         let library = unsafe { libloading::Library::new(lib_name) }
             .map_err(|e| NativeError::SdkError(format!("Failed to load SVBony SDK: {}", e)))?;
 
+        // SAFETY: each `library.get::<FnType>(b"symbol\0")` returns a `Symbol` that we immediately deref with `*` to copy out a function pointer; the C ABI signatures declared above (SvbGetNumOfConnectedCameras, SvbGetCameraInfo, ...) are from the vendor's SVBCameraSDK.h header so the function-pointer ABI matches. The loaded `library` is moved into the returned SvbonySdk so the function pointers remain valid for the program's lifetime (SDK is stored in a `static OnceLock`).
         unsafe {
             Ok(Self {
                 get_num_of_connected_cameras: *library
@@ -425,16 +427,21 @@ pub async fn discover_devices() -> Result<Vec<SvbonyDiscoveryInfo>, NativeError>
     // Acquire mutex for SDK discovery operations
     let _lock = svbony_mutex().lock().await;
 
+    // SAFETY: svbony_mutex held above (SVBony SDK is not thread-safe per module header); SVBGetNumOfConnectedCameras takes no arguments and returns a plain c_int count.
     let count = unsafe { (sdk.get_num_of_connected_cameras)() };
 
     let mut devices = Vec::new();
     for i in 0..count {
+        // SAFETY: SvbCameraInfo is `#[repr(C)]` and contains only POD fields (c_char arrays, c_int) — all valid bit-patterns. Zero-initialization is the well-defined empty state before the SDK overwrites it.
         let mut info: SvbCameraInfo = unsafe { std::mem::zeroed() };
+        // SAFETY: svbony_mutex held; `&mut info` is a valid stack out-pointer to a `#[repr(C)]` SvbCameraInfo; `i` is in [0, count) per the loop bound, which is the contract for SVBGetCameraInfo's index parameter.
         let result = unsafe { (sdk.get_camera_info)(&mut info, i) };
         if SvbError::from_i32(result) == SvbError::Success {
+            // SAFETY: SVBGetCameraInfo populated `info.friendly_name` as a NUL-terminated C string inside a [c_char; 32] buffer per SVBCameraSDK.h; the pointer is valid for the duration of this `info` stack value and CStr::from_ptr reads up to the NUL.
             let name = unsafe { CStr::from_ptr(info.friendly_name.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
+            // SAFETY: SVBGetCameraInfo populated `info.camera_sn` as a NUL-terminated C string inside a [c_char; 32] buffer per SVBCameraSDK.h; the pointer is valid for the duration of this `info` stack value and CStr::from_ptr reads up to the NUL.
             let serial = unsafe { CStr::from_ptr(info.camera_sn.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
@@ -463,6 +470,7 @@ pub fn is_sdk_available() -> bool {
 pub fn get_sdk_status() -> (bool, String) {
     match get_sdk() {
         Ok(sdk) => {
+            // SAFETY: SVBGetSDKVersion returns a pointer to a static, NUL-terminated C string baked into the SDK shared library (per SVBCameraSDK.h); the SDK library is owned by SDK::OnceLock so the pointer is valid for the program's lifetime. We explicitly null-check before reading.
             let version = unsafe {
                 let ptr = (sdk.get_sdk_version)();
                 if ptr.is_null() {
@@ -537,6 +545,7 @@ impl SvbonyCamera {
         let sdk = get_sdk()?;
         let mut value: c_long = 0;
         let mut is_auto: c_int = 0;
+        // SAFETY: per function contract (sync variant) the caller holds svbony_mutex; `self.camera_id` was validated by SVBOpenCamera in `connect`; `&mut value` and `&mut is_auto` are valid stack out-pointers to POD types; `control_type as c_int` enumerates a SvbControlType discriminant per SVBCameraSDK.h.
         let result = unsafe {
             (sdk.get_control_value)(
                 self.camera_id,
@@ -563,6 +572,7 @@ impl SvbonyCamera {
         let _lock = svbony_mutex().lock().await;
         let mut value: c_long = 0;
         let mut is_auto: c_int = 0;
+        // SAFETY: svbony_mutex held above (single-threaded SDK access); `self.camera_id` was validated by SVBOpenCamera in `connect`; `&mut value` and `&mut is_auto` are valid stack out-pointers to POD types; `control_type as c_int` enumerates a SvbControlType discriminant per SVBCameraSDK.h.
         let result = unsafe {
             (sdk.get_control_value)(
                 self.camera_id,
@@ -587,6 +597,7 @@ impl SvbonyCamera {
             return Err(NativeError::NotConnected);
         }
         let sdk = get_sdk()?;
+        // SAFETY: per function contract (sync variant) the caller holds svbony_mutex; `self.camera_id` is the camera ID validated by SVBOpenCamera in `connect`; SVBSetControlValue takes all-POD arguments (c_int/c_long/c_int) with no out-pointers.
         let result = unsafe {
             (sdk.set_control_value)(self.camera_id, control_type as c_int, value as c_long, 0)
         };
@@ -607,6 +618,7 @@ impl SvbonyCamera {
         }
         let sdk = get_sdk()?;
         let _lock = svbony_mutex().lock().await;
+        // SAFETY: svbony_mutex held above (single-threaded SDK access); `self.camera_id` is the camera ID validated by SVBOpenCamera in `connect`; SVBSetControlValue takes all-POD arguments (c_int/c_long/c_int) with no out-pointers.
         let result = unsafe {
             (sdk.set_control_value)(self.camera_id, control_type as c_int, value as c_long, 0)
         };
@@ -629,6 +641,7 @@ impl SvbonyCamera {
 
         // Get number of controls
         let mut num_controls: c_int = 0;
+        // SAFETY: svbony_mutex held above; `self.camera_id` validated by SVBOpenCamera; `&mut num_controls` is a valid stack out-pointer to a c_int.
         let result = unsafe { (sdk.get_num_of_controls)(self.camera_id, &mut num_controls) };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get num of controls"));
@@ -636,7 +649,9 @@ impl SvbonyCamera {
 
         // Search for the specific control
         for i in 0..num_controls {
+            // SAFETY: SvbControlCaps is `#[repr(C)]` POD (c_char arrays, c_int, c_long) — all valid bit-patterns. Zero-init is the well-defined empty state before SVBGetControlCaps overwrites it.
             let mut caps: SvbControlCaps = unsafe { std::mem::zeroed() };
+            // SAFETY: svbony_mutex held above; `self.camera_id` validated; `i` is in [0, num_controls) per the loop bound (which is the contract for SVBGetControlCaps's index parameter); `&mut caps` is a valid stack out-pointer to a `#[repr(C)]` SvbControlCaps.
             let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
             if SvbError::from_i32(result) == SvbError::Success
                 && caps.control_type == target_type as c_int
@@ -678,21 +693,27 @@ impl NativeDevice for SvbonyCamera {
         let _lock = svbony_mutex().lock().await;
 
         // Open camera
+        // SAFETY: svbony_mutex held above; `self.camera_id` was supplied by SvbonyCamera::new (originating from SvbCameraInfo populated by SVBGetCameraInfo during discover_devices); SVBOpenCamera is the contractual handle-acquisition entry point.
         let result = unsafe { (sdk.open_camera)(self.camera_id) };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("open camera"));
         }
 
         // Get camera properties
+        // SAFETY: SvbCameraProperty is `#[repr(C)]` POD (c_long/c_int arrays, f64, f32) — all valid bit-patterns. Zero-init is the well-defined empty state before the SDK overwrites it.
         let mut prop: SvbCameraProperty = unsafe { std::mem::zeroed() };
+        // SAFETY: svbony_mutex held; `self.camera_id` valid (just opened above); `&mut prop` is a valid stack out-pointer to a `#[repr(C)]` SvbCameraProperty.
         let result = unsafe { (sdk.get_camera_property)(self.camera_id, &mut prop) };
         if SvbError::from_i32(result) != SvbError::Success {
+            // SAFETY: svbony_mutex held; `self.camera_id` is the just-opened camera being torn down on error path. SVBCloseCamera is the contractual release entry point.
             unsafe { (sdk.close_camera)(self.camera_id) };
             return Err(SvbError::from_i32(result).to_native_error("get camera property"));
         }
 
         // Get extended properties
+        // SAFETY: SvbCameraPropertyEx is `#[repr(C)]` POD (c_int and c_int arrays) — all valid bit-patterns. Zero-init is the well-defined empty state.
         let mut prop_ex: SvbCameraPropertyEx = unsafe { std::mem::zeroed() };
+        // SAFETY: svbony_mutex held; `self.camera_id` valid; `&mut prop_ex` is a valid stack out-pointer to a `#[repr(C)]` SvbCameraPropertyEx. Failure is tolerated (older firmware may not support EX) — caller logs nothing and falls through with zeroed defaults.
         let _ = unsafe { (sdk.get_camera_property_ex)(self.camera_id, &mut prop_ex) };
 
         // Determine max binning
@@ -744,15 +765,21 @@ impl NativeDevice for SvbonyCamera {
         };
 
         // Get camera name from info
+        // SAFETY: SvbCameraInfo is `#[repr(C)]` POD; zero-init is the well-defined empty state.
         let mut info: SvbCameraInfo = unsafe { std::mem::zeroed() };
+        // SAFETY: svbony_mutex held; `&mut info` is a valid stack out-pointer; index 0 is a probe to verify the SDK is responsive before iterating.
         if unsafe { (sdk.get_camera_info)(&mut info, 0) } == 0 {
             // Find our camera by ID
+            // SAFETY: svbony_mutex held; SVBGetNumOfConnectedCameras takes no arguments and returns a plain c_int count.
             let count = unsafe { (sdk.get_num_of_connected_cameras)() };
             for i in 0..count {
+                // SAFETY: SvbCameraInfo is `#[repr(C)]` POD; zero-init is the well-defined empty state.
                 let mut check_info: SvbCameraInfo = unsafe { std::mem::zeroed() };
+                // SAFETY: svbony_mutex held; `i` is in [0, count) per the loop bound (which is the contract for SVBGetCameraInfo's index parameter); `&mut check_info` is a valid stack out-pointer to a `#[repr(C)]` SvbCameraInfo.
                 if unsafe { (sdk.get_camera_info)(&mut check_info, i) } == 0
                     && check_info.camera_id == self.camera_id
                 {
+                    // SAFETY: SVBGetCameraInfo populated `check_info.friendly_name` as a NUL-terminated C string inside a [c_char; 32] buffer per SVBCameraSDK.h; the pointer is valid for the duration of this stack `check_info` value.
                     self.name = unsafe { CStr::from_ptr(check_info.friendly_name.as_ptr()) }
                         .to_string_lossy()
                         .to_string();
@@ -762,10 +789,12 @@ impl NativeDevice for SvbonyCamera {
         }
 
         // Set default image type (16-bit RAW)
+        // SAFETY: svbony_mutex held; `self.camera_id` valid (just opened above); `SvbImgType::Raw16 as c_int` is a stable discriminant from SVBCameraSDK.h enum SVB_IMG_TYPE.
         let result =
             unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw16 as c_int) };
         if SvbError::from_i32(result) != SvbError::Success {
             tracing::warn!("Could not set 16-bit output, trying 8-bit");
+            // SAFETY: svbony_mutex held; `self.camera_id` valid; `SvbImgType::Raw8 as c_int` is a stable discriminant from SVBCameraSDK.h. Fallback path when Raw16 is unsupported by this model.
             let _ =
                 unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw8 as c_int) };
         }
@@ -802,9 +831,11 @@ impl NativeDevice for SvbonyCamera {
         let _lock = svbony_mutex().lock().await;
 
         // Stop any ongoing capture
+        // SAFETY: svbony_mutex held above (in disconnect()); `self.camera_id` valid until we close below; SVBStopVideoCapture takes a single c_int and is idempotent per SDK docs.
         let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
 
         // Close camera
+        // SAFETY: svbony_mutex held above; `self.camera_id` valid (handle was opened in connect()). SVBCloseCamera is the contractual release for SVBOpenCamera.
         let result = unsafe { (sdk.close_camera)(self.camera_id) };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("close camera"));
@@ -905,6 +936,7 @@ impl NativeCamera for SvbonyCamera {
         self.set_control_value(SvbControlType::Exposure, exposure_us)?;
 
         // Start video capture mode (SVBony uses video mode for exposures)
+        // SAFETY: svbony_mutex held above (in start_exposure()); `self.camera_id` validated by SVBOpenCamera in connect(); SVBStartVideoCapture takes a single c_int and is the contractual entry point to begin capture per SVBCameraSDK.h.
         let result = unsafe { (sdk.start_video_capture)(self.camera_id) };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("start exposure"));
@@ -927,6 +959,7 @@ impl NativeCamera for SvbonyCamera {
         // Acquire mutex for SDK operations
         let _lock = svbony_mutex().lock().await;
 
+        // SAFETY: svbony_mutex held above (in abort_exposure()); `self.camera_id` validated by SVBOpenCamera in connect(); SVBStopVideoCapture takes a single c_int and is idempotent.
         let result = unsafe { (sdk.stop_video_capture)(self.camera_id) };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("abort exposure"));
@@ -972,6 +1005,7 @@ impl NativeCamera for SvbonyCamera {
         let mut width: c_int = 0;
         let mut height: c_int = 0;
         let mut bin: c_int = 0;
+        // SAFETY: svbony_mutex held above (in download_image()); `self.camera_id` validated; all five `&mut` out-pointers reference distinct c_int stack locals, matching SVBGetROIFormat's signature.
         let result = unsafe {
             (sdk.get_roi_format)(
                 self.camera_id,
@@ -988,6 +1022,7 @@ impl NativeCamera for SvbonyCamera {
 
         // Get current image type
         let mut img_type: c_int = 0;
+        // SAFETY: svbony_mutex held; `self.camera_id` validated; `&mut img_type` is a valid stack out-pointer to a c_int.
         let _ = unsafe { (sdk.get_output_image_type)(self.camera_id, &mut img_type) };
 
         // Calculate buffer size (assume 16-bit for safety) with overflow protection
@@ -1001,6 +1036,7 @@ impl NativeCamera for SvbonyCamera {
 
         // Get image data with timeout
         self.state = CameraState::Downloading;
+        // SAFETY: svbony_mutex held above; `self.camera_id` validated; `self.image_buffer.as_mut_ptr()` points to at least `buffer_size` bytes (resized above via `image_buffer.resize(buffer_size, 0)`), which is what we pass as the third argument so SVBGetVideoData will not write past the allocation. The 5000 ms timeout is documented as block-with-deadline behavior in SVBCameraSDK.h.
         let result = unsafe {
             (sdk.get_video_data)(
                 self.camera_id,
@@ -1016,6 +1052,7 @@ impl NativeCamera for SvbonyCamera {
         }
 
         // Stop video capture
+        // SAFETY: svbony_mutex held; `self.camera_id` valid; SVBStopVideoCapture is idempotent and takes a single c_int.
         let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
 
         // Convert to u16 data
@@ -1160,6 +1197,7 @@ impl NativeCamera for SvbonyCamera {
         // Acquire mutex for SDK operations
         let _lock = svbony_mutex().lock().await;
 
+        // SAFETY: svbony_mutex held above (in set_binning()); `self.camera_id` validated; all six arguments are POD c_int (no out-pointers). `width`/`height` were computed from sensor_info divided by `bin` which is ≥ 1 (bin_x.min(bin_y)) and clamped by capabilities.max_bin_x, so dimensions stay within the sensor.
         let result = unsafe {
             (sdk.set_roi_format)(
                 self.camera_id,
@@ -1208,6 +1246,7 @@ impl NativeCamera for SvbonyCamera {
         // Acquire mutex for SDK operations
         let _lock = svbony_mutex().lock().await;
 
+        // SAFETY: svbony_mutex held above (in set_subframe()); `self.camera_id` validated; all six arguments are POD c_int (no out-pointers). `start_x/start_y/width/height` come from either the caller-supplied SubFrame (validated by upstream subframe logic) or default to full-sensor dimensions scaled by current binning, so the SDK clamps to sensor bounds.
         let result = unsafe {
             (sdk.set_roi_format)(
                 self.camera_id,

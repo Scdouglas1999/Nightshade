@@ -179,7 +179,9 @@ struct TouptekSdk {
     snap: OgmacamSnap,
 }
 
+// SAFETY: TouptekSdk owns a `libloading::Library` plus a set of plain function pointers (no interior mutability). The function pointers come from a single shared library and only point to compiled code, so sending the struct between threads is sound. All actual calls into these pointers are serialized by `touptek_mutex()` plus the per-camera `Mutex<HandleWrapper>` so the Send marker reflects the real synchronization discipline.
 unsafe impl Send for TouptekSdk {}
+// SAFETY: &TouptekSdk only exposes immutable function pointers; the loaded Library is read-only after construction. All FFI calls that mutate camera state go through &TouptekSdk and are wrapped in `touptek_mutex()` lock sections, so concurrent &-access never races on shared state.
 unsafe impl Sync for TouptekSdk {}
 
 /// Supported Touptek white-label brands and their SDK details.
@@ -210,6 +212,7 @@ const TOUPTEK_BRANDS: &[(&str, &str, &str)] = &[
 
 impl TouptekSdk {
     fn load(dll_name: &str, func_prefix: &str) -> Result<Self, NativeError> {
+        // SAFETY: libloading::Library::new performs platform dynamic loading; `dll_name` comes from the compile-time TOUPTEK_BRANDS constant array of vendor SDK shared library filenames (ogmacam.dll/toupcam.dll/altaircam.dll/mallincam.dll). Errors (missing file / invalid format) are propagated as NativeError::SdkError rather than UB.
         let library = unsafe { Library::new(dll_name) }
             .map_err(|e| NativeError::SdkError(format!("Failed to load {}: {}", dll_name, e)))?;
 
@@ -220,6 +223,7 @@ impl TouptekSdk {
             name.into_bytes()
         };
 
+        // SAFETY: each `library.get::<FnType>(&sym(...))` returns a `Symbol` that we immediately deref with `*` to copy out the function pointer. `sym()` always emits a NUL-terminated byte string (push('\0') is unconditional) satisfying libloading's contract. The C ABI signatures declared above (OgmacamEnumV2, OgmacamOpenByIndex, ...) use `extern "system"` and match the Touptek/Ogmacam SDK header convention. The loaded `library` is moved into the returned TouptekSdk so the function pointers remain valid for the cached SDK's lifetime (stored in `static SDKS: OnceLock<Mutex<HashMap<...>>>`).
         unsafe {
             Ok(Self {
                 enum_v2: *library.get::<OgmacamEnumV2>(&sym("EnumV2")).map_err(|e| {
@@ -368,7 +372,9 @@ pub struct TouptekDeviceInfo {
 
 fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<TouptekDeviceInfo> {
     let mut devices = Vec::new();
+    // SAFETY: OgmacamDeviceV2 is `#[repr(C)]` containing only [u16; 64] arrays plus a `*const OgmacamModelV2` raw pointer — all valid bit-patterns for `std::mem::zeroed()` (NULL is the well-defined zero state for the raw pointer and is null-checked below before any deref). Pre-allocating OGMACAM_MAX (128) entries matches the SDK's documented enumeration cap.
     let mut arr: Vec<OgmacamDeviceV2> = vec![unsafe { std::mem::zeroed() }; OGMACAM_MAX];
+    // SAFETY: caller (discover_devices / discover_devices_for_brand) holds touptek_mutex; `arr.as_mut_ptr()` points to a contiguous buffer of OGMACAM_MAX `#[repr(C)]` OgmacamDeviceV2 entries; OgmacamEnumV2 fills at most OGMACAM_MAX entries and returns the count, per the SDK header.
     let count = unsafe { (sdk.enum_v2)(arr.as_mut_ptr()) };
 
     for i in 0..count as usize {
@@ -381,6 +387,7 @@ fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<Toupte
             String::from_utf16_lossy(&dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)]);
 
         let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
+            // SAFETY: `dev.model` was just verified non-null on the line above; it points to a `#[repr(C)]` OgmacamModelV2 owned by the SDK shared library (string tables live in the .rdata segment) so the pointer remains valid for the lifetime of the loaded library — which is held by the cached TouptekSdk in `static SDKS`. We borrow a shared reference (no mutation), which is sound for the borrow scope.
             let model = unsafe { &*dev.model };
             let res = model.res[0];
             (
@@ -463,6 +470,7 @@ pub async fn discover_devices_for_brand(
 // ============================================================================
 
 struct HandleWrapper(HOgmacam);
+// SAFETY: HOgmacam is a `*mut c_void` opaque camera handle returned by Ogmacam_OpenByIndex. The struct is always wrapped in `Mutex<HandleWrapper>` in TouptekCamera; the pointer is never dereferenced or modified outside `touptek_mutex().lock().await` + `handle.lock().unwrap()` sections (see all call sites in this module — every SDK call captures the handle value while both locks are held). Marking Send is therefore equivalent to a hand-serialized capability. Sync is intentionally NOT implemented (see comment block below).
 unsafe impl Send for HandleWrapper {}
 // Note: Sync is intentionally omitted. HandleWrapper contains a raw pointer
 // (*mut c_void) that is not safe to share via &-references across threads. The Mutex<HandleWrapper>
@@ -587,6 +595,7 @@ impl NativeDevice for TouptekCamera {
             })?;
 
             let handle = with_sdk(&brand, |sdk| {
+                // SAFETY: caller (connect) holds touptek_mutex above (line 575); `device_index` was just validated via `enumerate_brand_devices_from_sdk(...).nth(device_index)` returning Some, so the SDK still considers this index valid; OgmacamOpenByIndex takes a single c_uint and returns NULL on failure (null-checked immediately below).
                 let h = unsafe { (sdk.open_by_index)(device_index as c_uint) };
                 if h.is_null() {
                     tracing::error!(
@@ -614,7 +623,9 @@ impl NativeDevice for TouptekCamera {
                 with_sdk(&brand, |sdk| {
                     let mut sn_buf = [0i8; 64];
                     let mut serial = None;
+                    // SAFETY: touptek_mutex held above (in connect's outer scope); `handle_val` was just opened above (null-checked) and the per-camera `handle` mutex is held briefly during the load (handle.lock().unwrap_or_else); `sn_buf.as_mut_ptr()` points to a stack [i8; 64] buffer — Ogmacam_get_SerialNumber writes at most 64 bytes of a NUL-terminated ASCII serial per the SDK header.
                     if unsafe { (sdk.get_serial_number)(handle_val, sn_buf.as_mut_ptr()) } >= 0 {
+                        // SAFETY: Ogmacam_get_SerialNumber populated `sn_buf` as a NUL-terminated C string above (return ≥ 0 confirms success); `sn_buf.as_ptr()` is valid for the duration of this stack [i8; 64] buffer and CStr::from_ptr reads up to the NUL.
                         let sn = unsafe { CStr::from_ptr(sn_buf.as_ptr()) }
                             .to_string_lossy()
                             .to_string();
@@ -625,11 +636,13 @@ impl NativeDevice for TouptekCamera {
 
                     let mut width: c_int = 0;
                     let mut height: c_int = 0;
+                    // SAFETY: touptek_mutex held; `handle_val` valid (just opened); `&mut width` and `&mut height` are valid stack out-pointers to distinct c_int locals.
                     let _ = unsafe { (sdk.get_size)(handle_val, &mut width, &mut height) };
 
                     let mut gain_min: u16 = 100;
                     let mut gain_max: u16 = 10000;
                     let mut gain_def: u16 = 100;
+                    // SAFETY: touptek_mutex held; `handle_val` valid; the three `&mut u16` out-pointers reference distinct stack locals; Ogmacam_get_ExpoAGainRange writes (min, max, def) values per the SDK header.
                     let _ = unsafe {
                         (sdk.get_expo_again_range)(
                             handle_val,
@@ -691,7 +704,9 @@ impl NativeDevice for TouptekCamera {
             let _lock = touptek_mutex().lock().await;
             let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
             with_sdk(&brand, |sdk| {
+                // SAFETY: touptek_mutex held above (in connect's set-bit-depth section); `handle_val` was just re-loaded from `self.handle` after a fresh mutex acquisition; Ogmacam_put_Option takes (handle, c_uint, c_int) POD per the SDK header. OGMACAM_OPTION_RAW=0x04 with value 1 enables raw output (see SDK constants).
                 let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_RAW, 1) };
+                // SAFETY: touptek_mutex held; `handle_val` valid; OGMACAM_OPTION_BITDEPTH=0x04 with value 1 selects 16-bit output per the SDK header. Ogmacam_put_Option takes POD arguments only (no out-pointers).
                 let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_BITDEPTH, 1) }; // 1 = 16-bit
                 Ok(())
             })?;
@@ -724,7 +739,9 @@ impl NativeDevice for TouptekCamera {
 
         // Stop any capture and close camera
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in disconnect, line 721); `handle` was just loaded from `self.handle` under its own Mutex; Ogmacam_Stop is idempotent and takes only the handle per the SDK header. Failure is intentionally swallowed because we close immediately after regardless.
             let _ = unsafe { (sdk.stop)(handle) };
+            // SAFETY: touptek_mutex held; `handle` valid (connected==true was checked at function top); Ogmacam_Close is the contractual release for Ogmacam_OpenByIndex per the SDK header and takes only the handle.
             unsafe { (sdk.close)(handle) };
             Ok(())
         })?;
@@ -768,6 +785,7 @@ impl NativeCamera for TouptekCamera {
         // Get current temperature
         let current_temp = with_sdk(&brand, |sdk| {
             let mut temp: i16 = 0;
+            // SAFETY: touptek_mutex held above (in get_status); `handle` was just loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid Ogmacam_OpenByIndex handle; `&mut temp` is a valid stack out-pointer to i16. Ogmacam_get_Temperature writes temperature in 0.1°C units per the SDK header.
             if unsafe { (sdk.get_temperature)(handle, &mut temp) } >= 0 {
                 Ok(temp as f64 / 10.0)
             } else {
@@ -834,6 +852,7 @@ impl NativeCamera for TouptekCamera {
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
             let exposure_us = (params.duration_secs * 1_000_000.0) as c_uint;
+            // SAFETY: touptek_mutex held above (in start_exposure); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid Ogmacam_OpenByIndex handle. Ogmacam_put_ExpoTime takes (handle, c_uint microseconds) POD per the SDK header.
             let result = unsafe { (sdk.put_expo_time)(handle, exposure_us) };
             if result < 0 {
                 tracing::error!(
@@ -846,6 +865,7 @@ impl NativeCamera for TouptekCamera {
                 )));
             }
 
+            // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_Snap takes (handle, c_uint resolution_index) — index 0 is the default full-frame resolution per the SDK header. POD arguments only.
             let result = unsafe { (sdk.snap)(handle, 0) };
             if result < 0 {
                 tracing::error!(
@@ -883,6 +903,7 @@ impl NativeCamera for TouptekCamera {
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in abort_exposure); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; Ogmacam_Stop takes only the handle and aborts ongoing capture per the SDK header.
             let result = unsafe { (sdk.stop)(handle) };
             if result < 0 {
                 tracing::error!(
@@ -923,11 +944,13 @@ impl NativeCamera for TouptekCamera {
         let buffer_size = width * height * bytes_per_pixel;
 
         let mut buffer = vec![0u8; buffer_size];
+        // SAFETY: OgmacamFrameInfoV3 is `#[repr(C)]` and contains only POD fields (c_uint, u64, u16) — all valid bit-patterns. Zero-init is the well-defined empty state before Ogmacam_PullImageV3 overwrites it.
         let mut info: OgmacamFrameInfoV3 = unsafe { std::mem::zeroed() };
 
         // Pull the image
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in download_image); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; `buffer.as_mut_ptr() as *mut c_void` points to a Vec<u8> of exactly `width * height * 2` bytes (just allocated above) matching the 16-bit data the SDK will write; `&mut info` is a valid stack out-pointer to a `#[repr(C)]` OgmacamFrameInfoV3. The `bStill=1, bits=16, row_pitch=0` argument tuple matches the SDK contract for full-frame 16-bit still images.
             let result = unsafe {
                 (sdk.pull_image_v3)(
                     handle,
@@ -1012,6 +1035,7 @@ impl NativeCamera for TouptekCamera {
         // Enable/disable TEC
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in set_cooler); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle. Ogmacam_put_Option takes (handle, c_uint option_id, c_int value) POD — OGMACAM_OPTION_TEC=0x08 with 0/1 toggles the thermoelectric cooler per the SDK header.
             let result = unsafe {
                 (sdk.put_option)(handle, OGMACAM_OPTION_TEC, if enabled { 1 } else { 0 })
             };
@@ -1033,6 +1057,7 @@ impl NativeCamera for TouptekCamera {
             // Set target temperature (in 0.1 degrees Celsius)
             if enabled {
                 let temp = (target_temp * 10.0) as i16;
+                // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_put_Temperature takes (handle, i16 in 0.1°C units) POD per the SDK header. Range clamping is the SDK's responsibility.
                 let result = unsafe { (sdk.put_temperature)(handle, temp) };
                 if result < 0 {
                     tracing::error!(
@@ -1068,6 +1093,7 @@ impl NativeCamera for TouptekCamera {
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
             let mut temp: i16 = 0;
+            // SAFETY: touptek_mutex held above (in get_temperature trait method); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; `&mut temp` is a valid stack out-pointer to i16. Ogmacam_get_Temperature writes the sensor reading in 0.1°C units per the SDK header.
             let result = unsafe { (sdk.get_temperature)(handle, &mut temp) };
             if result < 0 {
                 tracing::error!(
@@ -1114,6 +1140,7 @@ impl NativeCamera for TouptekCamera {
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in set_gain); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle. Ogmacam_put_ExpoAGain takes (handle, u16 gain) POD per the SDK header. SDK clamps to its supported range.
             let result = unsafe { (sdk.put_expo_again)(handle, gain as u16) };
             if result < 0 {
                 tracing::error!(
@@ -1160,6 +1187,7 @@ impl NativeCamera for TouptekCamera {
         let max_bx = self.capabilities.max_bin_x;
         let max_by = self.capabilities.max_bin_y;
         with_sdk(&brand, |sdk| {
+            // SAFETY: touptek_mutex held above (in set_binning); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; Ogmacam_put_Option takes (handle, c_uint option_id, c_int value) POD — OGMACAM_OPTION_BINNING=0x01 with the symmetric bin factor per the SDK header. `bin_mode` is already validated (≤ capabilities.max_bin_x).
             let result = unsafe { (sdk.put_option)(handle, OGMACAM_OPTION_BINNING, bin_mode) };
             if result < 0 {
                 tracing::error!(
@@ -1205,6 +1233,7 @@ impl NativeCamera for TouptekCamera {
             let sw = sf.width;
             let sh = sf.height;
             with_sdk(&brand, |sdk| {
+                // SAFETY: touptek_mutex held above (in set_subframe); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; Ogmacam_put_Roi takes (handle, c_uint x, c_uint y, c_uint width, c_uint height) POD per the SDK header. The caller-supplied SubFrame values are validated by the SDK against sensor bounds (returns < 0 on out-of-range).
                 let result = unsafe { (sdk.put_roi)(handle, sx, sy, sw, sh) };
                 if result < 0 {
                     tracing::error!(
@@ -1221,6 +1250,7 @@ impl NativeCamera for TouptekCamera {
         } else {
             // Reset to full frame
             with_sdk(&brand, |sdk| {
+                // SAFETY: touptek_mutex held above (in set_subframe full-frame reset branch); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; (0, 0, sensor_w, sensor_h) is the full sensor area from SensorInfo populated by connect() via get_size, so it is within the SDK's accepted range.
                 let result = unsafe { (sdk.put_roi)(handle, 0, 0, sensor_w, sensor_h) };
                 if result < 0 {
                     tracing::error!(
