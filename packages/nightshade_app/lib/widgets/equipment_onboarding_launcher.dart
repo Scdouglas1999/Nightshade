@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+
+import '../router/app_router.dart';
 
 /// Wraps the app shell and routes a brand-new user (no profiles, no
 /// onboarding completion record) into `/onboarding` on first launch.
@@ -59,7 +60,12 @@ class _EquipmentOnboardingLauncherState
     // Only auto-launch if the user is still parked on the default
     // dashboard route — otherwise they navigated somewhere themselves
     // and we shouldn't yank them away.
-    final router = GoRouter.of(context);
+    //
+    // Why ref.read(appRouterProvider) instead of GoRouter.of(context):
+    // this widget sits above MaterialApp.router in the widget tree, so
+    // there is no GoRouter ancestor and GoRouter.of returns null. The
+    // provider exposes the same singleton instance directly.
+    final router = ref.read(appRouterProvider);
     final currentLocation =
         router.routerDelegate.currentConfiguration.uri.toString();
     if (currentLocation == '/' || currentLocation == '/dashboard') {
