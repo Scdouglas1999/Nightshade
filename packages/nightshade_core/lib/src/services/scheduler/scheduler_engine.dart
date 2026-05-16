@@ -294,7 +294,7 @@ class SchedulerEngine {
         chosenTargetId: null,
         chosenTargetName: null,
         score: 0,
-        reasoning: ['No candidate targets available'],
+        reasoning: const ['No candidate targets available'],
         scoredCandidates: const [],
         rejected: const [],
         evaluatedAt: now,

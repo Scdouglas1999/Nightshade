@@ -63,7 +63,7 @@ void main() {
           targetName: 'M31',
           raHours: 0.7,
           decDegrees: 41.3,
-          childIds: ['exposure1'],
+          childIds: const ['exposure1'],
         );
 
         final sequence = createSequence(
@@ -99,7 +99,7 @@ void main() {
           targetName: 'M31',
           raHours: 0.7,
           decDegrees: 41.3,
-          childIds: ['af1'],
+          childIds: const ['af1'],
         );
 
         final sequence = createSequence(
@@ -130,7 +130,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['dither1'],
+          childIds: const ['dither1'],
         );
 
         final sequence = createSequence(
@@ -161,7 +161,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['dither1'],
+          childIds: const ['dither1'],
         );
 
         final sequence = createSequence(
@@ -192,7 +192,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['delay1'],
+          childIds: const ['delay1'],
         );
 
         final sequence = createSequence(
@@ -221,7 +221,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['slew1'],
+          childIds: const ['slew1'],
         );
 
         final sequence = createSequence(
@@ -258,7 +258,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['exposure1', 'delay1'],
+          childIds: const ['exposure1', 'delay1'],
         );
 
         final sequence = createSequence(
@@ -301,7 +301,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['exposure1', 'exposure2'],
+          childIds: const ['exposure1', 'exposure2'],
         );
 
         final sequence = createSequence(
@@ -336,7 +336,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['wait1'],
+          childIds: const ['wait1'],
         );
 
         final sequence = createSequence(
@@ -367,7 +367,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['cool1'],
+          childIds: const ['cool1'],
         );
 
         final sequence = createSequence(
@@ -398,7 +398,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['flip1'],
+          childIds: const ['flip1'],
         );
 
         final sequence = createSequence(
@@ -429,7 +429,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['guide1'],
+          childIds: const ['guide1'],
         );
 
         final sequence = createSequence(
@@ -459,7 +459,7 @@ void main() {
           name: 'Loop 3x',
           conditionType: LoopConditionType.count,
           repeatCount: 3,
-          childIds: ['exposure1'],
+          childIds: const ['exposure1'],
         );
         final targetNode = TargetHeaderNode(
           id: 'target1',
@@ -467,7 +467,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['loop1'],
+          childIds: const ['loop1'],
         );
 
         final sequence = createSequence(
@@ -503,7 +503,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['notify1'],
+          childIds: const ['notify1'],
         );
 
         final sequence = createSequence(
@@ -886,7 +886,7 @@ void main() {
           targetName: 'M31',
           raHours: 0.7,
           decDegrees: 41.3,
-          childIds: ['exposure1'],
+          childIds: const ['exposure1'],
         );
 
         final sequence = createSequence(
@@ -928,7 +928,7 @@ void main() {
           targetName: 'Test',
           raHours: 12.0,
           decDegrees: 45.0,
-          childIds: ['exposure1'],
+          childIds: const ['exposure1'],
         );
 
         final sequence = createSequence(

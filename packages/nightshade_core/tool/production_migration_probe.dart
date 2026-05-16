@@ -39,7 +39,7 @@ void main() {
     final sourcePath = databaseArg?.trim();
     if (sourcePath == null || sourcePath.isEmpty) {
       await _writeReport(
-        _ProbeReport(
+        const _ProbeReport(
           artifactProvided: false,
           sourcePath: null,
           sourceExists: false,

@@ -374,40 +374,40 @@ void main() {
 
   group('Star model', () {
     test('getStarColor returns blue for negative color index', () {
-      final star = Star(
+      const star = Star(
         id: 'test',
         name: 'Blue Star',
-        coordinates: const CelestialCoordinate(ra: 0, dec: 0),
+        coordinates: CelestialCoordinate(ra: 0, dec: 0),
         colorIndex: -0.5,
       );
       expect(star.getStarColor(), 0xFFAABBFF);
     });
 
     test('getStarColor returns white for near-zero color index', () {
-      final star = Star(
+      const star = Star(
         id: 'test',
         name: 'White Star',
-        coordinates: const CelestialCoordinate(ra: 0, dec: 0),
+        coordinates: CelestialCoordinate(ra: 0, dec: 0),
         colorIndex: 0.15,
       );
       expect(star.getStarColor(), 0xFFFFFFFF);
     });
 
     test('getStarColor returns red-orange for high color index', () {
-      final star = Star(
+      const star = Star(
         id: 'test',
         name: 'Red Star',
-        coordinates: const CelestialCoordinate(ra: 0, dec: 0),
+        coordinates: CelestialCoordinate(ra: 0, dec: 0),
         colorIndex: 1.8,
       );
       expect(star.getStarColor(), 0xFFFF6030);
     });
 
     test('getStarColor returns white for null color index', () {
-      final star = Star(
+      const star = Star(
         id: 'test',
         name: 'Unknown Star',
-        coordinates: const CelestialCoordinate(ra: 0, dec: 0),
+        coordinates: CelestialCoordinate(ra: 0, dec: 0),
         colorIndex: null,
       );
       expect(star.getStarColor(), 0xFFFFFFFF);

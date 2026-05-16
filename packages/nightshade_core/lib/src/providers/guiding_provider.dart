@@ -47,7 +47,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   int _frameCount = 0;
 
   GuideStatsNotifier(this.ref)
-      : super(Phd2GuideStats(
+      : super(const Phd2GuideStats(
           rmsRa: 0,
           rmsDec: 0,
           rmsTotal: 0,
@@ -124,7 +124,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
     _rmsRaCalculator.clear();
     _rmsDecCalculator.clear();
     _frameCount = 0;
-    state = Phd2GuideStats(
+    state = const Phd2GuideStats(
       rmsRa: 0,
       rmsDec: 0,
       rmsTotal: 0,

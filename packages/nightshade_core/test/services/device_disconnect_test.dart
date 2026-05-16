@@ -75,7 +75,7 @@ void main() {
       ));
 
       // Wait for event processing
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       // Verify camera is now disconnected
       expect(
@@ -108,7 +108,7 @@ void main() {
       ));
 
       // Wait for event processing
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       // Verify mount is now disconnected
       expect(
@@ -141,7 +141,7 @@ void main() {
       ));
 
       // Wait for event processing
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       // Verify focuser is now disconnected
       expect(
@@ -171,7 +171,7 @@ void main() {
       cameraNotifier.setConnected();
 
       // Set communication timestamp to 31 seconds ago (past the 30 second threshold)
-      final oldTimestamp = DateTime.now().subtract(Duration(seconds: 31));
+      final oldTimestamp = DateTime.now().subtract(const Duration(seconds: 31));
       final oldState = container.read(cameraStateProvider).copyWith(
         lastSuccessfulCommunication: oldTimestamp,
       );
@@ -345,7 +345,7 @@ void main() {
       )).thenAnswer((_) async {});
       when(() => mockBackend.discoverDevices(any())).thenAnswer(
         (_) async => [
-          DeviceInfo(
+          const DeviceInfo(
             id: 'camera-1',
             name: 'Test Camera',
             deviceType: DeviceType.camera,

@@ -82,7 +82,7 @@ void main() {
       when(() => mockBackend.connectDevice(DeviceType.camera, deviceId))
           .thenAnswer((_) async {});
       when(() => mockBackend.getCameraStatus(deviceId)).thenAnswer(
-        (_) async => CameraStatus(
+        (_) async => const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -10.0,
@@ -183,7 +183,7 @@ void main() {
       when(() => mockBackend.connectDevice(DeviceType.mount, deviceId))
           .thenAnswer((_) async {});
       when(() => mockBackend.getMountStatus(deviceId)).thenAnswer(
-        (_) async => MountStatus(
+        (_) async => const MountStatus(
           connected: true,
           tracking: true,
           slewing: false,
@@ -598,7 +598,7 @@ void main() {
 
       // Return temperature data on every status poll
       when(() => mockBackend.getCameraStatus(deviceId)).thenAnswer(
-        (_) async => CameraStatus(
+        (_) async => const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -12.0,
@@ -647,7 +647,7 @@ void main() {
             intervalMs: any(named: 'intervalMs'),
           )).thenAnswer((_) async {});
       when(() => mockBackend.getCameraStatus(deviceId)).thenAnswer(
-        (_) async => CameraStatus(
+        (_) async => const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -10.0,
@@ -709,7 +709,7 @@ void main() {
       when(() => mockBackend.getCameraStatus(firstDeviceId))
           .thenAnswer((_) => firstPoll.future);
       when(() => mockBackend.getCameraStatus(secondDeviceId)).thenAnswer(
-        (_) async => CameraStatus(
+        (_) async => const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -5.0,
@@ -737,7 +737,7 @@ void main() {
       await service.connectCamera(secondDeviceId);
 
       firstPoll.complete(
-        CameraStatus(
+        const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -20.0,
@@ -1043,7 +1043,7 @@ void main() {
         if (callCount == 1) {
           throw Exception('Transient USB error');
         }
-        return CameraStatus(
+        return const CameraStatus(
           connected: true,
           state: device_types.CameraState.idle,
           sensorTemp: -10.0,

@@ -141,7 +141,7 @@ class TargetProgressService {
   Future<_CaptureAggregates> _captureAggregatesForTarget(int targetId) async {
     final now = _now();
     final windowStart = _nightStart(now).subtract(
-      Duration(days: TargetProgress.etaWindowNights),
+      const Duration(days: TargetProgress.etaWindowNights),
     );
     // Drift stores DateTimeColumn as Unix seconds (see e.g.
     // IntegrationGoalService which divides millis by 1000), so the

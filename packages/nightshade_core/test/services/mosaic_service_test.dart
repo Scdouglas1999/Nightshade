@@ -11,7 +11,7 @@ void main() {
 
   group('MosaicService - Panel Generation', () {
     test('generates correct number of panels for simple 3x3 grid', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -26,7 +26,7 @@ void main() {
     });
 
     test('generates panels with correct indices and positions', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -56,7 +56,7 @@ void main() {
     });
 
     test('generates single panel correctly', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -75,7 +75,7 @@ void main() {
     });
 
     test('handles large mosaic configurations', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 30.0,
@@ -90,7 +90,7 @@ void main() {
     });
 
     test('respects overlap percentage in panel calculations', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -114,7 +114,7 @@ void main() {
     });
 
     test('applies rotation to panel layout', () {
-      final configNoRotation = MosaicConfig(
+      const configNoRotation = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -124,7 +124,7 @@ void main() {
         panelsVertical: 1,
       );
 
-      final configWithRotation = MosaicConfig(
+      const configWithRotation = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -146,7 +146,7 @@ void main() {
     });
 
     test('normalizes RA hours when mosaic spans across 0h', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 23.98,
         centerDec: 10.0,
         panelWidthArcmin: 120.0,
@@ -167,7 +167,7 @@ void main() {
 
   group('MosaicService - Area Calculation', () {
     test('calculates correct area for simple grid', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -183,7 +183,7 @@ void main() {
     });
 
     test('calculates correct area for rectangular panels', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 90.0,
@@ -201,7 +201,7 @@ void main() {
 
   group('MosaicService - Time Estimation', () {
     test('estimates correct time for simple mosaic', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -210,7 +210,7 @@ void main() {
         panelsVertical: 2,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
@@ -222,7 +222,7 @@ void main() {
     });
 
     test('respects custom overhead', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -231,7 +231,7 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
@@ -249,7 +249,7 @@ void main() {
 
   group('MosaicService - Validation', () {
     test('validates correct configuration', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -265,7 +265,7 @@ void main() {
     });
 
     test('rejects invalid RA', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 25.0, // Invalid: must be < 24
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -282,7 +282,7 @@ void main() {
     });
 
     test('rejects invalid declination', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 95.0, // Invalid: must be <= 90
         panelWidthArcmin: 60.0,
@@ -298,7 +298,7 @@ void main() {
     });
 
     test('rejects invalid panel dimensions', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: -10.0, // Invalid: must be positive
@@ -314,7 +314,7 @@ void main() {
     });
 
     test('rejects invalid grid size', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -330,7 +330,7 @@ void main() {
     });
 
     test('warns about low overlap', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -348,7 +348,7 @@ void main() {
     });
 
     test('warns about high overlap', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -366,7 +366,7 @@ void main() {
     });
 
     test('warns about large mosaics', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -383,7 +383,7 @@ void main() {
     });
 
     test('warns about polar regions', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 85.0, // Near north celestial pole
         panelWidthArcmin: 60.0,
@@ -402,7 +402,7 @@ void main() {
 
   group('MosaicService - Sequence Generation', () {
     test('generates sequence with correct number of target groups', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -411,7 +411,7 @@ void main() {
         panelsVertical: 2,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
@@ -428,7 +428,7 @@ void main() {
     });
 
     test('generates sequence with slew and center nodes', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -437,7 +437,7 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
@@ -456,7 +456,7 @@ void main() {
     });
 
     test('generates sequence with correct loop configuration', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -465,7 +465,7 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 20,
       );
@@ -483,7 +483,7 @@ void main() {
     });
 
     test('includes autofocus when enabled', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -492,12 +492,12 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         autofocusPerPanel: true,
       );
 
@@ -513,7 +513,7 @@ void main() {
     });
 
     test('respects autofocus interval', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -522,12 +522,12 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         autofocusPerPanel: true,
         autofocusInterval: 1, // Every other panel
       );
@@ -544,7 +544,7 @@ void main() {
     });
 
     test('includes dither when enabled', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -553,12 +553,12 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         ditherBetweenExposures: true,
         ditherPixels: 5.0,
       );
@@ -576,7 +576,7 @@ void main() {
     });
 
     test('omits center when disabled', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -585,12 +585,12 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         centerAfterSlew: false,
       );
 
@@ -606,7 +606,7 @@ void main() {
     });
 
     test('applies altitude constraints to target groups', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -615,12 +615,12 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 10,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         minAltitude: 30.0,
         maxAltitude: 70.0,
       );
@@ -638,7 +638,7 @@ void main() {
     });
 
     test('sets correct exposure parameters', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -647,7 +647,7 @@ void main() {
         panelsVertical: 1,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 120.0,
         exposuresPerPanel: 10,
         filterName: 'Ha',
@@ -674,7 +674,7 @@ void main() {
 
   group('MosaicService - Serpentine Ordering', () {
     test('applies serpentine ordering correctly', () {
-      final config = MosaicConfig(
+      const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 60.0,
@@ -683,12 +683,12 @@ void main() {
         panelsVertical: 2,
       );
 
-      final exposure = MosaicExposureSettings(
+      const exposure = MosaicExposureSettings(
         exposureSeconds: 60.0,
         exposuresPerPanel: 1,
       );
 
-      final options = MosaicSequenceOptions(
+      const options = MosaicSequenceOptions(
         serpentineOrdering: true,
       );
 

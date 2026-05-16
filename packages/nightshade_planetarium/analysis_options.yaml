@@ -1,3 +1,22 @@
 # Inherits from the workspace-root analysis_options.yaml which configures
 # flutter_lints 5.x rule overrides.
 include: ../../analysis_options.yaml
+
+analyzer:
+  # CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
+  # Generated code (freezed *.freezed.dart, json_serializable *.g.dart) is
+  # already excluded at workspace-root, but pin it again here to make the
+  # intent explicit on this package's heavier widget surface.
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+# CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
+# Slice 4 of the per-package rollout. Planetarium was originally the heaviest
+# offender (~2,101 findings predicted in the W5 lint upgrade audit). The
+# W-DECOMP screen splits already added a large amount of `const` so the
+# remaining count is much smaller — `dart fix` mops up the tail here.
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true

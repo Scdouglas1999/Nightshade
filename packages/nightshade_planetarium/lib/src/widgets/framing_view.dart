@@ -183,13 +183,13 @@ class _FramingViewState extends ConsumerState<FramingView> {
 
   Widget _buildBackground() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.5,
           colors: [
-            const Color(0xFF15151F),
-            const Color(0xFF0A0A12),
+            Color(0xFF15151F),
+            Color(0xFF0A0A12),
           ],
         ),
       ),

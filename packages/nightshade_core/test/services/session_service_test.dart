@@ -169,7 +169,7 @@ void main() {
 
     test('updateSessionProgress triggers checkpoint after image threshold',
         () async {
-      final config = SessionCheckpointConfig(
+      const config = SessionCheckpointConfig(
         checkpointImageInterval: 3,
         checkpointTimeInterval:
             Duration(hours: 1), // Long time to avoid time-based trigger
@@ -217,9 +217,9 @@ void main() {
     test('checkpoint configuration can be updated', () async {
       expect(sessionService.config.checkpointImageInterval, equals(5));
       expect(sessionService.config.checkpointTimeInterval,
-          equals(Duration(minutes: 5)));
+          equals(const Duration(minutes: 5)));
 
-      final newConfig = SessionCheckpointConfig(
+      const newConfig = SessionCheckpointConfig(
         checkpointImageInterval: 10,
         checkpointTimeInterval: Duration(minutes: 10),
         enabled: true,
@@ -228,7 +228,7 @@ void main() {
 
       expect(sessionService.config.checkpointImageInterval, equals(10));
       expect(sessionService.config.checkpointTimeInterval,
-          equals(Duration(minutes: 10)));
+          equals(const Duration(minutes: 10)));
     });
   });
 
@@ -400,7 +400,7 @@ void main() {
       await sessionService.startSession(name: 'Test Session');
       await sessionService.endSession();
 
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       expect(statusEvents.length, greaterThanOrEqualTo(2));
       expect(statusEvents.any((s) => s.contains('started')), isTrue);
@@ -487,7 +487,7 @@ void main() {
   group('SessionRecoveryInfo', () {
     test('calculates duration correctly', () {
       final startTime =
-          DateTime.now().subtract(Duration(hours: 2, minutes: 30));
+          DateTime.now().subtract(const Duration(hours: 2, minutes: 30));
       final recoveryInfo = SessionRecoveryInfo(
         sessionId: 1,
         startTime: startTime,

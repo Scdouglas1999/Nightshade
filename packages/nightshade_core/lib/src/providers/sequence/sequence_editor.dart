@@ -495,7 +495,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   SequenceNode _deserializeSnippetNode(Map<String, dynamic> json) {
     final rawType = json['nodeType'] as String?;
     if (rawType == null || rawType.trim().isEmpty) {
-      throw FormatException('Snippet node missing nodeType');
+      throw const FormatException('Snippet node missing nodeType');
     }
 
     final nodeType = rawType.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');

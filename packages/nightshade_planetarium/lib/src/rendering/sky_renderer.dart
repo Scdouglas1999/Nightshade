@@ -4339,7 +4339,7 @@ class SkyCanvasPainter extends CustomPainter {
 
       // Background for better readability
       final bgRect = Rect.fromCenter(
-        center: offset + Offset(0, 35),
+        center: offset + const Offset(0, 35),
         width: textPainter.width + 8,
         height: textPainter.height + 4,
       );

@@ -860,13 +860,13 @@ class _FOVOverlayPainter extends CustomPainter {
       ..strokeWidth = 1;
 
     canvas.drawLine(
-      Offset(-15, 0),
-      Offset(15, 0),
+      const Offset(-15, 0),
+      const Offset(15, 0),
       crosshairPaint,
     );
     canvas.drawLine(
-      Offset(0, -15),
-      Offset(0, 15),
+      const Offset(0, -15),
+      const Offset(0, 15),
       crosshairPaint,
     );
 

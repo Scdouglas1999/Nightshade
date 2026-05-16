@@ -53,7 +53,7 @@ class AavsoExportService {
     final observerCode =
         await _settingsDao.getSetting('science.aavso.observer_code');
     if (observerCode == null || observerCode.trim().isEmpty) {
-      throw AavsoExportError(
+      throw const AavsoExportError(
         'AAVSO observer code is not set. '
         'Please set your observer code in Settings > Science before exporting.',
       );
@@ -234,7 +234,7 @@ class AavsoExportService {
     // Validate we produced at least one data line (header is 6 lines)
     final lineCount = content.split('\n').where((l) => l.trim().isNotEmpty).length;
     if (lineCount <= 6) {
-      throw AavsoExportError(
+      throw const AavsoExportError(
         'No exportable measurements found. All target measurements lack '
         'differential magnitude values.',
       );

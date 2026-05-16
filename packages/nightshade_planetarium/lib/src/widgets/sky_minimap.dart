@@ -238,8 +238,8 @@ class _SkyMinimapPainter extends CustomPainter {
     final crossPaint = Paint()
       ..color = Colors.blue.shade300
       ..strokeWidth = 1;
-    canvas.drawLine(Offset(-4, 0), Offset(4, 0), crossPaint);
-    canvas.drawLine(Offset(0, -4), Offset(0, 4), crossPaint);
+    canvas.drawLine(const Offset(-4, 0), const Offset(4, 0), crossPaint);
+    canvas.drawLine(const Offset(0, -4), const Offset(0, 4), crossPaint);
 
     canvas.restore();
 

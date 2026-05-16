@@ -793,7 +793,7 @@ class ScienceProcessingService {
           x: star.x,
           y: star.y,
           flux: star.flux,
-          differentialMagnitude: drift.Value<double?>(null),
+          differentialMagnitude: const drift.Value<double?>(null),
           standardMagnitude: drift.Value(compStandardMag),
           snr: drift.Value(star.snr),
           uncertainty: drift.Value<double?>(

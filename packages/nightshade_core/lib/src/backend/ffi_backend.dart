@@ -1488,7 +1488,7 @@ class FfiBackend implements NightshadeBackend {
     }
 
     // Unknown shape; fall back to zero progress.
-    return SequencerStatus(
+    return const SequencerStatus(
       state: 'unknown',
       currentNodeId: null,
       currentNodeName: null,
@@ -2204,7 +2204,7 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
+      throw const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
         message: 'Database not available in FFI backend',
       );
@@ -2248,7 +2248,7 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
+      throw const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
         message: 'Database not available in FFI backend',
       );
@@ -2292,7 +2292,7 @@ class FfiBackend implements NightshadeBackend {
   Future<void> downloadImage(int imageId, String localPath,
       {void Function(double)? onProgress}) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
+      throw const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
         message: 'Database not available in FFI backend',
       );
@@ -2714,7 +2714,7 @@ class FfiBackend implements NightshadeBackend {
         category: dart_error.BackendErrorCategory.imaging,
         message: 'Camera error: $message',
       ),
-      noImageAvailable: () => dart_error.NightshadeError(
+      noImageAvailable: () => const dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.imaging,
         message: 'No image available',
       ),

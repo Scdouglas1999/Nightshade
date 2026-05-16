@@ -5,22 +5,22 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 void main() {
   test('fovFilteredStarsProvider excludes stars outside viewport', () async {
     final stars = [
-      Star(
+      const Star(
         id: 'in',
         name: 'In View',
-        coordinates: const CelestialCoordinate(ra: 0.1, dec: 0.0),
+        coordinates: CelestialCoordinate(ra: 0.1, dec: 0.0),
         magnitude: 2.0,
       ),
-      Star(
+      const Star(
         id: 'far_ra',
         name: 'Far RA',
-        coordinates: const CelestialCoordinate(ra: 5.0, dec: 0.0),
+        coordinates: CelestialCoordinate(ra: 5.0, dec: 0.0),
         magnitude: 2.0,
       ),
-      Star(
+      const Star(
         id: 'far_dec',
         name: 'Far Dec',
-        coordinates: const CelestialCoordinate(ra: 0.1, dec: 30.0),
+        coordinates: CelestialCoordinate(ra: 0.1, dec: 30.0),
         magnitude: 2.0,
       ),
     ];
@@ -46,24 +46,24 @@ void main() {
 
   test('fovFilteredDsosProvider excludes DSOs outside viewport', () async {
     final dsos = [
-      DeepSkyObject(
+      const DeepSkyObject(
         id: 'in',
         name: 'In View',
-        coordinates: const CelestialCoordinate(ra: 0.1, dec: 0.0),
+        coordinates: CelestialCoordinate(ra: 0.1, dec: 0.0),
         type: DsoType.galaxy,
         magnitude: 9.0,
       ),
-      DeepSkyObject(
+      const DeepSkyObject(
         id: 'far_ra',
         name: 'Far RA',
-        coordinates: const CelestialCoordinate(ra: 5.0, dec: 0.0),
+        coordinates: CelestialCoordinate(ra: 5.0, dec: 0.0),
         type: DsoType.galaxy,
         magnitude: 9.0,
       ),
-      DeepSkyObject(
+      const DeepSkyObject(
         id: 'far_dec',
         name: 'Far Dec',
-        coordinates: const CelestialCoordinate(ra: 0.1, dec: 30.0),
+        coordinates: CelestialCoordinate(ra: 0.1, dec: 30.0),
         type: DsoType.galaxy,
         magnitude: 9.0,
       ),

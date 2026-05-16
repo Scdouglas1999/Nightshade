@@ -155,7 +155,7 @@ void registerMocktailFallbackValues() {
     binningY: 1,
     frameType: FrameType.light,
   ));
-  registerFallbackValue(DeviceInfo(
+  registerFallbackValue(const DeviceInfo(
     id: 'fallback',
     name: 'Fallback',
     deviceType: DeviceType.camera,

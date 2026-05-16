@@ -1403,10 +1403,10 @@ class _AirmassChartPainter extends CustomPainter {
 
       // Label "best" below marker
       final bestLabel = TextPainter(
-        text: TextSpan(
+        text: const TextSpan(
           text: 'best',
           style: TextStyle(
-            color: const Color(0xFF4CAF50),
+            color: Color(0xFF4CAF50),
             fontSize: 8,
             fontWeight: FontWeight.w600,
           ),

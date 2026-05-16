@@ -48,8 +48,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
     state = UnifiedDiscoveryState(
       backendStates: initialStates,
-      rawDevices: [],
-      groupedDevices: [],
+      rawDevices: const [],
+      groupedDevices: const [],
     );
 
     // Discover from all backends in parallel

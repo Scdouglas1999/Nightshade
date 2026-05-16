@@ -143,7 +143,7 @@ void main() {
       });
 
       final service = NotificationService.testing(
-        settingsReader: () => AppSettingsState(
+        settingsReader: () => const AppSettingsState(
           notificationsEnabled: true,
           discordWebhook: 'https://example.com/webhook',
         ),
@@ -461,7 +461,7 @@ void main() {
           nodeType: 'logic',
           specificType: 'recovery',
           name: 'Recovery',
-          properties: Value('{"recoveryAction":"retry"}'),
+          properties: const Value('{"recoveryAction":"retry"}'),
           recoveryConfig: const Value('{"targetNodeId":"child"}'),
         ),
       );
@@ -472,7 +472,7 @@ void main() {
           nodeType: 'instruction',
           specificType: 'exposure',
           name: 'Exposure',
-          properties: Value('{"count":1,"durationSecs":60.0}'),
+          properties: const Value('{"count":1,"durationSecs":60.0}'),
           parentNodeId: const Value('root'),
           orderIndex: const Value(0),
         ),

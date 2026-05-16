@@ -199,7 +199,7 @@ CREATE TABLE captured_images (
       await db.into(db.equipmentProfiles).insert(
             EquipmentProfilesCompanion.insert(
               name: 'Profile A',
-              isActive: Value(true),
+              isActive: const Value(true),
             ),
           );
 
@@ -207,7 +207,7 @@ CREATE TABLE captured_images (
         db.into(db.equipmentProfiles).insert(
               EquipmentProfilesCompanion.insert(
                 name: 'Profile B',
-                isActive: Value(true),
+                isActive: const Value(true),
               ),
             ),
         throwsA(isA<SqliteException>()),

@@ -259,7 +259,7 @@ void main() {
         when(() => mockHttpClient.get(any()))
             .thenAnswer((_) async => http.Response(responseBody, 200));
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova}, // Only novae
           enabledSources: {TransientSource.aavso},
         );
@@ -281,7 +281,7 @@ void main() {
         when(() => mockHttpClient.get(any()))
             .thenAnswer((_) async => http.Response(responseBody, 200));
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           magnitudeThreshold: 12.0, // Only brighter than 12
           enabledSources: {TransientSource.aavso},
         );
@@ -305,7 +305,7 @@ void main() {
             .thenAnswer((_) async => http.Response(responseBody, 200));
 
         // Settings that disable AAVSO
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           enabledSources: {TransientSource.tns}, // Only TNS, not AAVSO
         );
 
@@ -355,7 +355,7 @@ void main() {
           priority: 3,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.aavso},
           magnitudeThreshold: 15.0,
@@ -378,7 +378,7 @@ void main() {
           priority: 5,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova, TransientType.supernova}, // Not variableStar
           enabledSources: {TransientSource.aavso},
         );
@@ -399,7 +399,7 @@ void main() {
           priority: 3,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.tns}, // AAVSO not enabled
         );
@@ -421,7 +421,7 @@ void main() {
           priority: 3,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.aavso},
           magnitudeThreshold: 15.0, // Only alerts brighter than 15
@@ -444,7 +444,7 @@ void main() {
           priority: 3,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.aavso},
           magnitudeThreshold: 15.0,
@@ -470,7 +470,7 @@ void main() {
           priority: 2,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.aavso},
           magnitudeThreshold: 15.0,
@@ -496,7 +496,7 @@ void main() {
           priority: 3,
         );
 
-        final settings = TransientAlertSettings(
+        const settings = TransientAlertSettings(
           typesToMonitor: {TransientType.nova},
           enabledSources: {TransientSource.aavso},
           magnitudeThreshold: 15.0,

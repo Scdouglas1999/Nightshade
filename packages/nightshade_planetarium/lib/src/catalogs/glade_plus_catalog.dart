@@ -24,7 +24,7 @@ class GladePlusData {
   factory GladePlusData.fromCsvLine(String line) {
     final parts = _parseCsvLine(line);
     if (parts.length < 5) {
-      throw FormatException('Invalid GLADE+ line: insufficient columns');
+      throw const FormatException('Invalid GLADE+ line: insufficient columns');
     }
 
     final ra = double.tryParse(parts[0]) ?? 0.0;

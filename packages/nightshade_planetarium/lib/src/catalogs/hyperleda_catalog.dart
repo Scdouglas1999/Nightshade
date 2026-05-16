@@ -36,7 +36,7 @@ class HyperLedaData {
   factory HyperLedaData.fromCsvLine(String line) {
     final parts = _parseCsvLine(line);
     if (parts.length < 11) {
-      throw FormatException('Invalid HyperLEDA line: insufficient columns');
+      throw const FormatException('Invalid HyperLEDA line: insufficient columns');
     }
 
     return HyperLedaData(

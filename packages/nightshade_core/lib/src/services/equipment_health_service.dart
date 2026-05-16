@@ -77,7 +77,7 @@ class EquipmentHealthService {
     if (recentHfr > 0 && recentHfr > baselineHfr * 1.15) {
       score -= 14;
       insights.add(
-        EquipmentHealthInsight(
+        const EquipmentHealthInsight(
           title: 'Focus quality drift',
           message:
               'Recent median HFR is elevated versus the longer-term baseline. Inspect focus repeatability and thermal drift compensation.',

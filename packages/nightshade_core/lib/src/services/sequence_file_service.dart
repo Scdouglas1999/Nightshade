@@ -116,7 +116,7 @@ class SequenceFileService {
   void _validateSequenceJson(Map<String, dynamic> json) {
     // 'nodes' is required and must be a map
     if (!json.containsKey('nodes')) {
-      throw FormatException(
+      throw const FormatException(
         'Sequence file missing required field "nodes"',
       );
     }
@@ -425,7 +425,7 @@ class SequenceFileService {
   SequenceNode _jsonToNode(Map<String, dynamic> json, {String? fallbackId}) {
     final rawType = json['nodeType'] as String?;
     if (rawType == null || rawType.trim().isEmpty) {
-      throw FormatException('Sequence node missing nodeType');
+      throw const FormatException('Sequence node missing nodeType');
     }
 
     final nodeType = _normalizeNodeType(rawType);
@@ -444,7 +444,7 @@ class SequenceFileService {
         final raHours = json['raHours'] as num?;
         final decDegrees = json['decDegrees'] as num?;
         if (targetName == null || raHours == null || decDegrees == null) {
-          throw FormatException('Target node missing required fields');
+          throw const FormatException('Target node missing required fields');
         }
         return TargetHeaderNode(
           id: id,

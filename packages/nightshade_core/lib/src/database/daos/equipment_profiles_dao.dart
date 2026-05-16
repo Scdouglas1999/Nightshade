@@ -139,9 +139,9 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
         const EquipmentProfilesCompanion(isDefault: Value(false)),
       );
       await (update(equipmentProfiles)..where((p) => p.id.equals(profileId)))
-          .write(EquipmentProfilesCompanion(
-        isDefault: const Value(true),
-        isActive: const Value.absent(),
+          .write(const EquipmentProfilesCompanion(
+        isDefault: Value(true),
+        isActive: Value.absent(),
       ));
 
       if (makeActive) {

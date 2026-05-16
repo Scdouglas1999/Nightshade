@@ -737,9 +737,9 @@ class ImagingService {
       filePath: drift.Value(filePath),
       fileName: drift.Value(path.basename(filePath)),
       fileFormat: const drift.Value('fits'),
-      fileSize: drift.Value(null), // Will be updated after file is written
+      fileSize: const drift.Value(null), // Will be updated after file is written
       sessionId: drift.Value(sessionId),
-      targetId: drift.Value(null), // Link to target if available
+      targetId: const drift.Value(null), // Link to target if available
       frameType: drift.Value(exposureSettings.frameType.name),
       exposureDuration: drift.Value(exposureSettings.exposureTime),
       gain: drift.Value(exposureSettings.gain),

@@ -49,7 +49,7 @@ class Constellations {
   // Major constellations with stick figure lines
   static final List<ConstellationData> _constellations = [
     // Orion
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ori',
       name: 'Orion',
       center: CelestialCoordinate(ra: 5.5, dec: 0),
@@ -95,7 +95,7 @@ class Constellations {
     ),
     
     // Ursa Major (Big Dipper)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'UMa',
       name: 'Ursa Major',
       center: CelestialCoordinate(ra: 11.0, dec: 55),
@@ -148,7 +148,7 @@ class Constellations {
     ),
     
     // Cassiopeia
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cas',
       name: 'Cassiopeia',
       center: CelestialCoordinate(ra: 1.0, dec: 60),
@@ -181,7 +181,7 @@ class Constellations {
     ),
     
     // Cygnus (Northern Cross)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cyg',
       name: 'Cygnus',
       center: CelestialCoordinate(ra: 20.5, dec: 40),
@@ -210,7 +210,7 @@ class Constellations {
     ),
     
     // Leo
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Leo',
       name: 'Leo',
       center: CelestialCoordinate(ra: 10.7, dec: 15),
@@ -252,7 +252,7 @@ class Constellations {
     ),
     
     // Scorpius
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Sco',
       name: 'Scorpius',
       center: CelestialCoordinate(ra: 16.9, dec: -30),
@@ -285,7 +285,7 @@ class Constellations {
     ),
     
     // Gemini
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Gem',
       name: 'Gemini',
       center: CelestialCoordinate(ra: 7.1, dec: 25),
@@ -320,7 +320,7 @@ class Constellations {
     ),
     
     // Pegasus (Great Square)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Peg',
       name: 'Pegasus',
       center: CelestialCoordinate(ra: 22.7, dec: 20),
@@ -359,7 +359,7 @@ class Constellations {
     ),
     
     // Andromeda
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'And',
       name: 'Andromeda',
       center: CelestialCoordinate(ra: 0.8, dec: 38),
@@ -379,7 +379,7 @@ class Constellations {
     ),
     
     // Taurus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Tau',
       name: 'Taurus',
       center: CelestialCoordinate(ra: 4.5, dec: 17),
@@ -412,7 +412,7 @@ class Constellations {
     ),
     
     // Canis Major
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'CMa',
       name: 'Canis Major',
       center: CelestialCoordinate(ra: 6.8, dec: -22),
@@ -441,7 +441,7 @@ class Constellations {
     ),
     
     // Lyra
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lyr',
       name: 'Lyra',
       center: CelestialCoordinate(ra: 18.8, dec: 36),
@@ -472,7 +472,7 @@ class Constellations {
     ),
     
     // Aquila
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Aql',
       name: 'Aquila',
       center: CelestialCoordinate(ra: 19.7, dec: 3),
@@ -501,7 +501,7 @@ class Constellations {
     ),
     
     // Crux (Southern Cross)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cru',
       name: 'Crux',
       center: CelestialCoordinate(ra: 12.5, dec: -60),
@@ -524,7 +524,7 @@ class Constellations {
     ),
     
     // Perseus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Per',
       name: 'Perseus',
       center: CelestialCoordinate(ra: 3.4, dec: 42),
@@ -551,7 +551,7 @@ class Constellations {
     ),
     
     // Bootes
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Boo',
       name: 'Bootes',
       center: CelestialCoordinate(ra: 14.7, dec: 30),
@@ -587,7 +587,7 @@ class Constellations {
     ),
     
     // Virgo
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Vir',
       name: 'Virgo',
       center: CelestialCoordinate(ra: 13.0, dec: -4),
@@ -613,7 +613,7 @@ class Constellations {
     ),
 
     // Ursa Minor (Little Dipper)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'UMi',
       name: 'Ursa Minor',
       center: CelestialCoordinate(ra: 15.0, dec: 75),
@@ -649,7 +649,7 @@ class Constellations {
     ),
 
     // Draco
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Dra',
       name: 'Draco',
       center: CelestialCoordinate(ra: 15.0, dec: 65),
@@ -693,7 +693,7 @@ class Constellations {
     ),
 
     // Cepheus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cep',
       name: 'Cepheus',
       center: CelestialCoordinate(ra: 22.0, dec: 65),
@@ -728,7 +728,7 @@ class Constellations {
     ),
 
     // Sagittarius
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Sgr',
       name: 'Sagittarius',
       center: CelestialCoordinate(ra: 19.0, dec: -28),
@@ -781,7 +781,7 @@ class Constellations {
     ),
 
     // Capricornus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cap',
       name: 'Capricornus',
       center: CelestialCoordinate(ra: 21.0, dec: -18),
@@ -822,7 +822,7 @@ class Constellations {
     ),
 
     // Aquarius
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Aqr',
       name: 'Aquarius',
       center: CelestialCoordinate(ra: 22.3, dec: -10),
@@ -858,7 +858,7 @@ class Constellations {
     ),
 
     // Pisces
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Psc',
       name: 'Pisces',
       center: CelestialCoordinate(ra: 0.5, dec: 12),
@@ -900,7 +900,7 @@ class Constellations {
     ),
 
     // Aries
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ari',
       name: 'Aries',
       center: CelestialCoordinate(ra: 2.5, dec: 22),
@@ -924,7 +924,7 @@ class Constellations {
     ),
 
     // Cancer
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cnc',
       name: 'Cancer',
       center: CelestialCoordinate(ra: 8.7, dec: 20),
@@ -951,7 +951,7 @@ class Constellations {
     ),
 
     // Libra
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lib',
       name: 'Libra',
       center: CelestialCoordinate(ra: 15.2, dec: -16),
@@ -978,7 +978,7 @@ class Constellations {
     ),
 
     // Ophiuchus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Oph',
       name: 'Ophiuchus',
       center: CelestialCoordinate(ra: 17.3, dec: -4),
@@ -1014,7 +1014,7 @@ class Constellations {
     ),
 
     // Serpens (Caput + Cauda as one)
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ser',
       name: 'Serpens',
       center: CelestialCoordinate(ra: 16.0, dec: 6),
@@ -1050,7 +1050,7 @@ class Constellations {
     ),
 
     // Hercules
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Her',
       name: 'Hercules',
       center: CelestialCoordinate(ra: 17.4, dec: 27),
@@ -1095,7 +1095,7 @@ class Constellations {
     ),
 
     // Auriga
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Aur',
       name: 'Auriga',
       center: CelestialCoordinate(ra: 6.0, dec: 42),
@@ -1132,7 +1132,7 @@ class Constellations {
     ),
 
     // Canis Minor
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'CMi',
       name: 'Canis Minor',
       center: CelestialCoordinate(ra: 7.6, dec: 6),
@@ -1147,7 +1147,7 @@ class Constellations {
     ),
 
     // Corvus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Crv',
       name: 'Corvus',
       center: CelestialCoordinate(ra: 12.3, dec: -18),
@@ -1177,7 +1177,7 @@ class Constellations {
     ),
 
     // Crater
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Crt',
       name: 'Crater',
       center: CelestialCoordinate(ra: 11.3, dec: -15),
@@ -1203,7 +1203,7 @@ class Constellations {
     ),
 
     // Centaurus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cen',
       name: 'Centaurus',
       center: CelestialCoordinate(ra: 13.5, dec: -47),
@@ -1239,7 +1239,7 @@ class Constellations {
     ),
 
     // Lupus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lup',
       name: 'Lupus',
       center: CelestialCoordinate(ra: 15.3, dec: -42),
@@ -1268,7 +1268,7 @@ class Constellations {
     ),
 
     // Corona Borealis
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'CrB',
       name: 'Corona Borealis',
       center: CelestialCoordinate(ra: 15.9, dec: 30),
@@ -1303,7 +1303,7 @@ class Constellations {
     ),
 
     // Coma Berenices
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Com',
       name: 'Coma Berenices',
       center: CelestialCoordinate(ra: 12.8, dec: 23),
@@ -1321,7 +1321,7 @@ class Constellations {
     ),
 
     // Canes Venatici
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'CVn',
       name: 'Canes Venatici',
       center: CelestialCoordinate(ra: 13.1, dec: 40),
@@ -1336,7 +1336,7 @@ class Constellations {
     ),
 
     // Triangulum
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Tri',
       name: 'Triangulum',
       center: CelestialCoordinate(ra: 2.2, dec: 32),
@@ -1358,7 +1358,7 @@ class Constellations {
     ),
 
     // Sagitta
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Sge',
       name: 'Sagitta',
       center: CelestialCoordinate(ra: 19.8, dec: 18.5),
@@ -1380,7 +1380,7 @@ class Constellations {
     ),
 
     // Vulpecula
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Vul',
       name: 'Vulpecula',
       center: CelestialCoordinate(ra: 20.2, dec: 25),
@@ -1394,7 +1394,7 @@ class Constellations {
     ),
 
     // Delphinus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Del',
       name: 'Delphinus',
       center: CelestialCoordinate(ra: 20.7, dec: 13),
@@ -1425,7 +1425,7 @@ class Constellations {
     ),
 
     // Equuleus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Equ',
       name: 'Equuleus',
       center: CelestialCoordinate(ra: 21.2, dec: 8),
@@ -1443,7 +1443,7 @@ class Constellations {
     ),
 
     // Lacerta
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lac',
       name: 'Lacerta',
       center: CelestialCoordinate(ra: 22.5, dec: 45),
@@ -1468,7 +1468,7 @@ class Constellations {
     ),
 
     // Eridanus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Eri',
       name: 'Eridanus',
       center: CelestialCoordinate(ra: 3.3, dec: -29),
@@ -1501,7 +1501,7 @@ class Constellations {
     ),
 
     // Fornax
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'For',
       name: 'Fornax',
       center: CelestialCoordinate(ra: 2.8, dec: -30),
@@ -1519,7 +1519,7 @@ class Constellations {
     ),
 
     // Sculptor
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Scl',
       name: 'Sculptor',
       center: CelestialCoordinate(ra: 0.5, dec: -32),
@@ -1540,7 +1540,7 @@ class Constellations {
     ),
 
     // Cetus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cet',
       name: 'Cetus',
       center: CelestialCoordinate(ra: 1.7, dec: -10),
@@ -1572,7 +1572,7 @@ class Constellations {
     ),
 
     // Phoenix
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Phe',
       name: 'Phoenix',
       center: CelestialCoordinate(ra: 0.9, dec: -48),
@@ -1598,7 +1598,7 @@ class Constellations {
     ),
 
     // Grus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Gru',
       name: 'Grus',
       center: CelestialCoordinate(ra: 22.5, dec: -45),
@@ -1624,7 +1624,7 @@ class Constellations {
     ),
 
     // Pavo
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Pav',
       name: 'Pavo',
       center: CelestialCoordinate(ra: 19.6, dec: -63),
@@ -1650,7 +1650,7 @@ class Constellations {
     ),
 
     // Tucana
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Tuc',
       name: 'Tucana',
       center: CelestialCoordinate(ra: 23.8, dec: -65),
@@ -1671,7 +1671,7 @@ class Constellations {
     ),
 
     // Indus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ind',
       name: 'Indus',
       center: CelestialCoordinate(ra: 21.5, dec: -55),
@@ -1692,7 +1692,7 @@ class Constellations {
     ),
 
     // Microscopium
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Mic',
       name: 'Microscopium',
       center: CelestialCoordinate(ra: 21.0, dec: -36),
@@ -1709,7 +1709,7 @@ class Constellations {
     ),
 
     // Piscis Austrinus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'PsA',
       name: 'Piscis Austrinus',
       center: CelestialCoordinate(ra: 22.3, dec: -31),
@@ -1735,7 +1735,7 @@ class Constellations {
     ),
 
     // Ara
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ara',
       name: 'Ara',
       center: CelestialCoordinate(ra: 17.3, dec: -53),
@@ -1764,7 +1764,7 @@ class Constellations {
     ),
 
     // Corona Australis
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'CrA',
       name: 'Corona Australis',
       center: CelestialCoordinate(ra: 18.6, dec: -40),
@@ -1790,7 +1790,7 @@ class Constellations {
     ),
 
     // Telescopium
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Tel',
       name: 'Telescopium',
       center: CelestialCoordinate(ra: 18.3, dec: -50),
@@ -1807,7 +1807,7 @@ class Constellations {
     ),
 
     // Norma
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Nor',
       name: 'Norma',
       center: CelestialCoordinate(ra: 16.0, dec: -50),
@@ -1828,7 +1828,7 @@ class Constellations {
     ),
 
     // Circinus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cir',
       name: 'Circinus',
       center: CelestialCoordinate(ra: 14.6, dec: -63),
@@ -1845,7 +1845,7 @@ class Constellations {
     ),
 
     // Triangulum Australe
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'TrA',
       name: 'Triangulum Australe',
       center: CelestialCoordinate(ra: 16.1, dec: -65),
@@ -1867,7 +1867,7 @@ class Constellations {
     ),
 
     // Musca
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Mus',
       name: 'Musca',
       center: CelestialCoordinate(ra: 12.5, dec: -70),
@@ -1892,7 +1892,7 @@ class Constellations {
     ),
 
     // Chamaeleon
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cha',
       name: 'Chamaeleon',
       center: CelestialCoordinate(ra: 10.7, dec: -79),
@@ -1917,7 +1917,7 @@ class Constellations {
     ),
 
     // Volans
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Vol',
       name: 'Volans',
       center: CelestialCoordinate(ra: 7.8, dec: -69),
@@ -1942,7 +1942,7 @@ class Constellations {
     ),
 
     // Pictor
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Pic',
       name: 'Pictor',
       center: CelestialCoordinate(ra: 5.7, dec: -53),
@@ -1959,7 +1959,7 @@ class Constellations {
     ),
 
     // Dorado
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Dor',
       name: 'Dorado',
       center: CelestialCoordinate(ra: 5.2, dec: -60),
@@ -1980,7 +1980,7 @@ class Constellations {
     ),
 
     // Reticulum
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ret',
       name: 'Reticulum',
       center: CelestialCoordinate(ra: 3.9, dec: -60),
@@ -2005,7 +2005,7 @@ class Constellations {
     ),
 
     // Horologium
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Hor',
       name: 'Horologium',
       center: CelestialCoordinate(ra: 3.3, dec: -53),
@@ -2022,7 +2022,7 @@ class Constellations {
     ),
 
     // Caelum
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cae',
       name: 'Caelum',
       center: CelestialCoordinate(ra: 4.7, dec: -38),
@@ -2039,7 +2039,7 @@ class Constellations {
     ),
 
     // Columba
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Col',
       name: 'Columba',
       center: CelestialCoordinate(ra: 5.9, dec: -35),
@@ -2066,7 +2066,7 @@ class Constellations {
     ),
 
     // Lepus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lep',
       name: 'Lepus',
       center: CelestialCoordinate(ra: 5.5, dec: -19),
@@ -2101,7 +2101,7 @@ class Constellations {
     ),
 
     // Monoceros
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Mon',
       name: 'Monoceros',
       center: CelestialCoordinate(ra: 7.2, dec: -3),
@@ -2122,7 +2122,7 @@ class Constellations {
     ),
 
     // Hydra
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Hya',
       name: 'Hydra',
       center: CelestialCoordinate(ra: 10.2, dec: -20),
@@ -2166,7 +2166,7 @@ class Constellations {
     ),
 
     // Sextans
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Sex',
       name: 'Sextans',
       center: CelestialCoordinate(ra: 10.3, dec: -2),
@@ -2183,7 +2183,7 @@ class Constellations {
     ),
 
     // Antlia
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Ant',
       name: 'Antlia',
       center: CelestialCoordinate(ra: 10.3, dec: -34),
@@ -2200,7 +2200,7 @@ class Constellations {
     ),
 
     // Pyxis
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Pyx',
       name: 'Pyxis',
       center: CelestialCoordinate(ra: 8.9, dec: -27),
@@ -2217,7 +2217,7 @@ class Constellations {
     ),
 
     // Puppis
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Pup',
       name: 'Puppis',
       center: CelestialCoordinate(ra: 7.3, dec: -32),
@@ -2243,7 +2243,7 @@ class Constellations {
     ),
 
     // Vela
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Vel',
       name: 'Vela',
       center: CelestialCoordinate(ra: 9.4, dec: -47),
@@ -2271,7 +2271,7 @@ class Constellations {
     ),
 
     // Carina
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Car',
       name: 'Carina',
       center: CelestialCoordinate(ra: 8.7, dec: -63),
@@ -2307,7 +2307,7 @@ class Constellations {
     ),
 
     // Octans
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Oct',
       name: 'Octans',
       center: CelestialCoordinate(ra: 22.0, dec: -82),
@@ -2328,7 +2328,7 @@ class Constellations {
     ),
 
     // Mensa
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Men',
       name: 'Mensa',
       center: CelestialCoordinate(ra: 5.4, dec: -77),
@@ -2349,7 +2349,7 @@ class Constellations {
     ),
 
     // Hydrus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Hyi',
       name: 'Hydrus',
       center: CelestialCoordinate(ra: 2.3, dec: -72),
@@ -2370,7 +2370,7 @@ class Constellations {
     ),
 
     // Apus
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Aps',
       name: 'Apus',
       center: CelestialCoordinate(ra: 16.0, dec: -75),
@@ -2391,7 +2391,7 @@ class Constellations {
     ),
 
     // Scutum
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Sct',
       name: 'Scutum',
       center: CelestialCoordinate(ra: 18.7, dec: -10),
@@ -2412,7 +2412,7 @@ class Constellations {
     ),
 
     // Camelopardalis
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Cam',
       name: 'Camelopardalis',
       center: CelestialCoordinate(ra: 6.1, dec: 69),
@@ -2433,7 +2433,7 @@ class Constellations {
     ),
 
     // Lynx
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'Lyn',
       name: 'Lynx',
       center: CelestialCoordinate(ra: 8.0, dec: 48),
@@ -2458,7 +2458,7 @@ class Constellations {
     ),
 
     // Leo Minor
-    ConstellationData(
+    const ConstellationData(
       abbreviation: 'LMi',
       name: 'Leo Minor',
       center: CelestialCoordinate(ra: 10.2, dec: 33),
@@ -2556,478 +2556,478 @@ class ConstellationBoundaries {
   // These are simplified versions with key vertices along the boundary.
   static final Map<String, List<BoundaryVertex>> _boundaries = {
     'And': [
-      BoundaryVertex(23.5583, 53.1681), BoundaryVertex(23.6675, 46.5314),
-      BoundaryVertex(23.5000, 43.9581), BoundaryVertex(23.5000, 36.7500),
-      BoundaryVertex(1.5667, 36.7500), BoundaryVertex(1.6833, 36.2500),
-      BoundaryVertex(2.0583, 33.2500), BoundaryVertex(2.3917, 33.2500),
-      BoundaryVertex(2.5750, 37.2500), BoundaryVertex(1.3333, 48.0000),
-      BoundaryVertex(0.1417, 48.0000), BoundaryVertex(0.0000, 48.0000),
-      BoundaryVertex(23.5583, 48.0000), BoundaryVertex(23.5583, 53.1681),
+      const BoundaryVertex(23.5583, 53.1681), const BoundaryVertex(23.6675, 46.5314),
+      const BoundaryVertex(23.5000, 43.9581), const BoundaryVertex(23.5000, 36.7500),
+      const BoundaryVertex(1.5667, 36.7500), const BoundaryVertex(1.6833, 36.2500),
+      const BoundaryVertex(2.0583, 33.2500), const BoundaryVertex(2.3917, 33.2500),
+      const BoundaryVertex(2.5750, 37.2500), const BoundaryVertex(1.3333, 48.0000),
+      const BoundaryVertex(0.1417, 48.0000), const BoundaryVertex(0.0000, 48.0000),
+      const BoundaryVertex(23.5583, 48.0000), const BoundaryVertex(23.5583, 53.1681),
     ],
     'Ant': [
-      BoundaryVertex(9.4500, -24.5000), BoundaryVertex(11.0583, -24.5000),
-      BoundaryVertex(11.0583, -35.5833), BoundaryVertex(9.4500, -35.5833),
-      BoundaryVertex(9.4500, -24.5000),
+      const BoundaryVertex(9.4500, -24.5000), const BoundaryVertex(11.0583, -24.5000),
+      const BoundaryVertex(11.0583, -35.5833), const BoundaryVertex(9.4500, -35.5833),
+      const BoundaryVertex(9.4500, -24.5000),
     ],
     'Aps': [
-      BoundaryVertex(13.8333, -67.5000), BoundaryVertex(18.4583, -67.5000),
-      BoundaryVertex(18.4583, -75.0000), BoundaryVertex(16.4167, -75.0000),
-      BoundaryVertex(13.8333, -75.0000), BoundaryVertex(13.8333, -83.1200),
-      BoundaryVertex(14.1667, -83.1200), BoundaryVertex(18.0000, -82.0000),
-      BoundaryVertex(18.4583, -75.0000), BoundaryVertex(13.8333, -67.5000),
+      const BoundaryVertex(13.8333, -67.5000), const BoundaryVertex(18.4583, -67.5000),
+      const BoundaryVertex(18.4583, -75.0000), const BoundaryVertex(16.4167, -75.0000),
+      const BoundaryVertex(13.8333, -75.0000), const BoundaryVertex(13.8333, -83.1200),
+      const BoundaryVertex(14.1667, -83.1200), const BoundaryVertex(18.0000, -82.0000),
+      const BoundaryVertex(18.4583, -75.0000), const BoundaryVertex(13.8333, -67.5000),
     ],
     'Aqr': [
-      BoundaryVertex(20.6417, 2.0000), BoundaryVertex(20.8750, -2.0000),
-      BoundaryVertex(21.0417, -2.0000), BoundaryVertex(22.8583, -2.0000),
-      BoundaryVertex(23.8333, -6.0000), BoundaryVertex(23.8333, -24.8250),
-      BoundaryVertex(22.0000, -24.8250), BoundaryVertex(20.6417, -24.8250),
-      BoundaryVertex(20.6417, 2.0000),
+      const BoundaryVertex(20.6417, 2.0000), const BoundaryVertex(20.8750, -2.0000),
+      const BoundaryVertex(21.0417, -2.0000), const BoundaryVertex(22.8583, -2.0000),
+      const BoundaryVertex(23.8333, -6.0000), const BoundaryVertex(23.8333, -24.8250),
+      const BoundaryVertex(22.0000, -24.8250), const BoundaryVertex(20.6417, -24.8250),
+      const BoundaryVertex(20.6417, 2.0000),
     ],
     'Aql': [
-      BoundaryVertex(18.5833, 18.0000), BoundaryVertex(20.6417, 18.0000),
-      BoundaryVertex(20.6417, 2.0000), BoundaryVertex(20.0000, -2.0000),
-      BoundaryVertex(18.5833, -12.0333), BoundaryVertex(18.2417, -12.0333),
-      BoundaryVertex(18.5833, 0.0000), BoundaryVertex(18.5833, 18.0000),
+      const BoundaryVertex(18.5833, 18.0000), const BoundaryVertex(20.6417, 18.0000),
+      const BoundaryVertex(20.6417, 2.0000), const BoundaryVertex(20.0000, -2.0000),
+      const BoundaryVertex(18.5833, -12.0333), const BoundaryVertex(18.2417, -12.0333),
+      const BoundaryVertex(18.5833, 0.0000), const BoundaryVertex(18.5833, 18.0000),
     ],
     'Ara': [
-      BoundaryVertex(16.5833, -45.5000), BoundaryVertex(18.0417, -45.5000),
-      BoundaryVertex(18.0417, -56.5000), BoundaryVertex(17.5000, -60.0000),
-      BoundaryVertex(16.5833, -60.0000), BoundaryVertex(16.5833, -56.5000),
-      BoundaryVertex(16.5833, -45.5000),
+      const BoundaryVertex(16.5833, -45.5000), const BoundaryVertex(18.0417, -45.5000),
+      const BoundaryVertex(18.0417, -56.5000), const BoundaryVertex(17.5000, -60.0000),
+      const BoundaryVertex(16.5833, -60.0000), const BoundaryVertex(16.5833, -56.5000),
+      const BoundaryVertex(16.5833, -45.5000),
     ],
     'Ari': [
-      BoundaryVertex(1.4667, 10.0000), BoundaryVertex(3.5000, 10.0000),
-      BoundaryVertex(3.5000, 31.2222), BoundaryVertex(1.4667, 31.2222),
-      BoundaryVertex(1.4667, 10.0000),
+      const BoundaryVertex(1.4667, 10.0000), const BoundaryVertex(3.5000, 10.0000),
+      const BoundaryVertex(3.5000, 31.2222), const BoundaryVertex(1.4667, 31.2222),
+      const BoundaryVertex(1.4667, 10.0000),
     ],
     'Aur': [
-      BoundaryVertex(4.9667, 56.1667), BoundaryVertex(7.0333, 56.1667),
-      BoundaryVertex(7.0333, 44.5000), BoundaryVertex(6.1083, 28.0000),
-      BoundaryVertex(4.9667, 28.0000), BoundaryVertex(4.9667, 36.7500),
-      BoundaryVertex(4.9667, 56.1667),
+      const BoundaryVertex(4.9667, 56.1667), const BoundaryVertex(7.0333, 56.1667),
+      const BoundaryVertex(7.0333, 44.5000), const BoundaryVertex(6.1083, 28.0000),
+      const BoundaryVertex(4.9667, 28.0000), const BoundaryVertex(4.9667, 36.7500),
+      const BoundaryVertex(4.9667, 56.1667),
     ],
     'Boo': [
-      BoundaryVertex(13.5000, 8.0000), BoundaryVertex(15.7500, 8.0000),
-      BoundaryVertex(15.7500, 25.5000), BoundaryVertex(15.4917, 40.0000),
-      BoundaryVertex(15.0750, 52.5000), BoundaryVertex(13.5000, 52.5000),
-      BoundaryVertex(13.5000, 8.0000),
+      const BoundaryVertex(13.5000, 8.0000), const BoundaryVertex(15.7500, 8.0000),
+      const BoundaryVertex(15.7500, 25.5000), const BoundaryVertex(15.4917, 40.0000),
+      const BoundaryVertex(15.0750, 52.5000), const BoundaryVertex(13.5000, 52.5000),
+      const BoundaryVertex(13.5000, 8.0000),
     ],
     'Cae': [
-      BoundaryVertex(4.5167, -27.0000), BoundaryVertex(5.0583, -27.0000),
-      BoundaryVertex(5.0583, -49.0000), BoundaryVertex(4.5167, -49.0000),
-      BoundaryVertex(4.5167, -27.0000),
+      const BoundaryVertex(4.5167, -27.0000), const BoundaryVertex(5.0583, -27.0000),
+      const BoundaryVertex(5.0583, -49.0000), const BoundaryVertex(4.5167, -49.0000),
+      const BoundaryVertex(4.5167, -27.0000),
     ],
     'Cam': [
-      BoundaryVertex(3.1583, 53.0000), BoundaryVertex(7.0000, 53.0000),
-      BoundaryVertex(7.0000, 60.0000), BoundaryVertex(8.4167, 60.0000),
-      BoundaryVertex(8.4167, 68.0000), BoundaryVertex(5.0000, 77.0000),
-      BoundaryVertex(3.1583, 77.0000), BoundaryVertex(3.1583, 53.0000),
+      const BoundaryVertex(3.1583, 53.0000), const BoundaryVertex(7.0000, 53.0000),
+      const BoundaryVertex(7.0000, 60.0000), const BoundaryVertex(8.4167, 60.0000),
+      const BoundaryVertex(8.4167, 68.0000), const BoundaryVertex(5.0000, 77.0000),
+      const BoundaryVertex(3.1583, 77.0000), const BoundaryVertex(3.1583, 53.0000),
     ],
     'Cnc': [
-      BoundaryVertex(7.8917, 7.0000), BoundaryVertex(9.3583, 7.0000),
-      BoundaryVertex(9.3583, 33.1417), BoundaryVertex(7.8917, 33.1417),
-      BoundaryVertex(7.8917, 7.0000),
+      const BoundaryVertex(7.8917, 7.0000), const BoundaryVertex(9.3583, 7.0000),
+      const BoundaryVertex(9.3583, 33.1417), const BoundaryVertex(7.8917, 33.1417),
+      const BoundaryVertex(7.8917, 7.0000),
     ],
     'CVn': [
-      BoundaryVertex(12.0583, 28.0000), BoundaryVertex(14.0750, 28.0000),
-      BoundaryVertex(14.0750, 52.3611), BoundaryVertex(12.0583, 52.3611),
-      BoundaryVertex(12.0583, 28.0000),
+      const BoundaryVertex(12.0583, 28.0000), const BoundaryVertex(14.0750, 28.0000),
+      const BoundaryVertex(14.0750, 52.3611), const BoundaryVertex(12.0583, 52.3611),
+      const BoundaryVertex(12.0583, 28.0000),
     ],
     'CMa': [
-      BoundaryVertex(6.0000, -11.0000), BoundaryVertex(7.3667, -11.0000),
-      BoundaryVertex(7.3667, -33.2500), BoundaryVertex(6.0000, -33.2500),
-      BoundaryVertex(6.0000, -11.0000),
+      const BoundaryVertex(6.0000, -11.0000), const BoundaryVertex(7.3667, -11.0000),
+      const BoundaryVertex(7.3667, -33.2500), const BoundaryVertex(6.0000, -33.2500),
+      const BoundaryVertex(6.0000, -11.0000),
     ],
     'CMi': [
-      BoundaryVertex(7.0583, 0.0000), BoundaryVertex(8.1750, 0.0000),
-      BoundaryVertex(8.1750, 13.2222), BoundaryVertex(7.0583, 13.2222),
-      BoundaryVertex(7.0583, 0.0000),
+      const BoundaryVertex(7.0583, 0.0000), const BoundaryVertex(8.1750, 0.0000),
+      const BoundaryVertex(8.1750, 13.2222), const BoundaryVertex(7.0583, 13.2222),
+      const BoundaryVertex(7.0583, 0.0000),
     ],
     'Cap': [
-      BoundaryVertex(20.0667, -8.0000), BoundaryVertex(21.6667, -8.0000),
-      BoundaryVertex(21.6667, -28.0000), BoundaryVertex(20.0667, -28.0000),
-      BoundaryVertex(20.0667, -8.0000),
+      const BoundaryVertex(20.0667, -8.0000), const BoundaryVertex(21.6667, -8.0000),
+      const BoundaryVertex(21.6667, -28.0000), const BoundaryVertex(20.0667, -28.0000),
+      const BoundaryVertex(20.0667, -8.0000),
     ],
     'Car': [
-      BoundaryVertex(6.0250, -51.0000), BoundaryVertex(11.2500, -51.0000),
-      BoundaryVertex(11.2500, -64.0000), BoundaryVertex(9.0333, -75.0000),
-      BoundaryVertex(6.0250, -75.0000), BoundaryVertex(6.0250, -51.0000),
+      const BoundaryVertex(6.0250, -51.0000), const BoundaryVertex(11.2500, -51.0000),
+      const BoundaryVertex(11.2500, -64.0000), const BoundaryVertex(9.0333, -75.0000),
+      const BoundaryVertex(6.0250, -75.0000), const BoundaryVertex(6.0250, -51.0000),
     ],
     'Cas': [
-      BoundaryVertex(22.5667, 46.0000), BoundaryVertex(3.4167, 46.0000),
-      BoundaryVertex(3.4167, 52.0000), BoundaryVertex(3.1583, 59.0000),
-      BoundaryVertex(0.0000, 59.0000), BoundaryVertex(23.5833, 59.0000),
-      BoundaryVertex(22.8667, 68.0000), BoundaryVertex(0.3333, 68.0000),
-      BoundaryVertex(0.0000, 59.0000), BoundaryVertex(22.5667, 46.0000),
+      const BoundaryVertex(22.5667, 46.0000), const BoundaryVertex(3.4167, 46.0000),
+      const BoundaryVertex(3.4167, 52.0000), const BoundaryVertex(3.1583, 59.0000),
+      const BoundaryVertex(0.0000, 59.0000), const BoundaryVertex(23.5833, 59.0000),
+      const BoundaryVertex(22.8667, 68.0000), const BoundaryVertex(0.3333, 68.0000),
+      const BoundaryVertex(0.0000, 59.0000), const BoundaryVertex(22.5667, 46.0000),
     ],
     'Cen': [
-      BoundaryVertex(11.0500, -35.0000), BoundaryVertex(15.1667, -35.0000),
-      BoundaryVertex(15.1667, -55.0000), BoundaryVertex(14.9167, -64.0000),
-      BoundaryVertex(11.8333, -64.0000), BoundaryVertex(11.0500, -55.0000),
-      BoundaryVertex(11.0500, -35.0000),
+      const BoundaryVertex(11.0500, -35.0000), const BoundaryVertex(15.1667, -35.0000),
+      const BoundaryVertex(15.1667, -55.0000), const BoundaryVertex(14.9167, -64.0000),
+      const BoundaryVertex(11.8333, -64.0000), const BoundaryVertex(11.0500, -55.0000),
+      const BoundaryVertex(11.0500, -35.0000),
     ],
     'Cep': [
-      BoundaryVertex(20.1667, 61.0000), BoundaryVertex(8.0000, 61.0000),
-      BoundaryVertex(8.0000, 68.0000), BoundaryVertex(6.1000, 75.5000),
-      BoundaryVertex(0.0000, 80.0000), BoundaryVertex(20.1667, 80.0000),
-      BoundaryVertex(23.5833, 75.0000), BoundaryVertex(22.8667, 68.0000),
-      BoundaryVertex(20.1667, 61.0000),
+      const BoundaryVertex(20.1667, 61.0000), const BoundaryVertex(8.0000, 61.0000),
+      const BoundaryVertex(8.0000, 68.0000), const BoundaryVertex(6.1000, 75.5000),
+      const BoundaryVertex(0.0000, 80.0000), const BoundaryVertex(20.1667, 80.0000),
+      const BoundaryVertex(23.5833, 75.0000), const BoundaryVertex(22.8667, 68.0000),
+      const BoundaryVertex(20.1667, 61.0000),
     ],
     'Cet': [
-      BoundaryVertex(23.8333, -6.0000), BoundaryVertex(1.4667, -6.0000),
-      BoundaryVertex(1.4667, 10.0000), BoundaryVertex(3.3667, 10.0000),
-      BoundaryVertex(3.3667, -0.5000), BoundaryVertex(2.7333, -0.5000),
-      BoundaryVertex(2.1000, -24.8333), BoundaryVertex(23.8333, -24.8333),
-      BoundaryVertex(23.8333, -6.0000),
+      const BoundaryVertex(23.8333, -6.0000), const BoundaryVertex(1.4667, -6.0000),
+      const BoundaryVertex(1.4667, 10.0000), const BoundaryVertex(3.3667, 10.0000),
+      const BoundaryVertex(3.3667, -0.5000), const BoundaryVertex(2.7333, -0.5000),
+      const BoundaryVertex(2.1000, -24.8333), const BoundaryVertex(23.8333, -24.8333),
+      const BoundaryVertex(23.8333, -6.0000),
     ],
     'Cha': [
-      BoundaryVertex(7.6667, -75.0000), BoundaryVertex(13.8333, -75.0000),
-      BoundaryVertex(13.8333, -83.1200), BoundaryVertex(7.6667, -83.1200),
-      BoundaryVertex(7.6667, -75.0000),
+      const BoundaryVertex(7.6667, -75.0000), const BoundaryVertex(13.8333, -75.0000),
+      const BoundaryVertex(13.8333, -83.1200), const BoundaryVertex(7.6667, -83.1200),
+      const BoundaryVertex(7.6667, -75.0000),
     ],
     'Cir': [
-      BoundaryVertex(13.5000, -55.0000), BoundaryVertex(15.5833, -55.0000),
-      BoundaryVertex(15.5833, -67.5000), BoundaryVertex(13.5000, -67.5000),
-      BoundaryVertex(13.5000, -55.0000),
+      const BoundaryVertex(13.5000, -55.0000), const BoundaryVertex(15.5833, -55.0000),
+      const BoundaryVertex(15.5833, -67.5000), const BoundaryVertex(13.5000, -67.5000),
+      const BoundaryVertex(13.5000, -55.0000),
     ],
     'Col': [
-      BoundaryVertex(5.0583, -27.0000), BoundaryVertex(6.5833, -27.0000),
-      BoundaryVertex(6.5833, -43.0000), BoundaryVertex(5.0583, -43.0000),
-      BoundaryVertex(5.0583, -27.0000),
+      const BoundaryVertex(5.0583, -27.0000), const BoundaryVertex(6.5833, -27.0000),
+      const BoundaryVertex(6.5833, -43.0000), const BoundaryVertex(5.0583, -43.0000),
+      const BoundaryVertex(5.0583, -27.0000),
     ],
     'Com': [
-      BoundaryVertex(11.8667, 14.0000), BoundaryVertex(13.5000, 14.0000),
-      BoundaryVertex(13.5000, 28.0000), BoundaryVertex(11.8667, 33.3056),
-      BoundaryVertex(11.8667, 14.0000),
+      const BoundaryVertex(11.8667, 14.0000), const BoundaryVertex(13.5000, 14.0000),
+      const BoundaryVertex(13.5000, 28.0000), const BoundaryVertex(11.8667, 33.3056),
+      const BoundaryVertex(11.8667, 14.0000),
     ],
     'CrA': [
-      BoundaryVertex(17.5000, -37.0000), BoundaryVertex(19.1833, -37.0000),
-      BoundaryVertex(19.1833, -45.5000), BoundaryVertex(17.5000, -45.5000),
-      BoundaryVertex(17.5000, -37.0000),
+      const BoundaryVertex(17.5000, -37.0000), const BoundaryVertex(19.1833, -37.0000),
+      const BoundaryVertex(19.1833, -45.5000), const BoundaryVertex(17.5000, -45.5000),
+      const BoundaryVertex(17.5000, -37.0000),
     ],
     'CrB': [
-      BoundaryVertex(15.2333, 26.0000), BoundaryVertex(16.3667, 26.0000),
-      BoundaryVertex(16.3667, 39.7167), BoundaryVertex(15.2333, 39.7167),
-      BoundaryVertex(15.2333, 26.0000),
+      const BoundaryVertex(15.2333, 26.0000), const BoundaryVertex(16.3667, 26.0000),
+      const BoundaryVertex(16.3667, 39.7167), const BoundaryVertex(15.2333, 39.7167),
+      const BoundaryVertex(15.2333, 26.0000),
     ],
     'Crv': [
-      BoundaryVertex(11.8333, -11.0000), BoundaryVertex(12.5833, -11.0000),
-      BoundaryVertex(12.5833, -24.5000), BoundaryVertex(11.8333, -24.5000),
-      BoundaryVertex(11.8333, -11.0000),
+      const BoundaryVertex(11.8333, -11.0000), const BoundaryVertex(12.5833, -11.0000),
+      const BoundaryVertex(12.5833, -24.5000), const BoundaryVertex(11.8333, -24.5000),
+      const BoundaryVertex(11.8333, -11.0000),
     ],
     'Crt': [
-      BoundaryVertex(10.7500, -6.6667), BoundaryVertex(11.8333, -6.6667),
-      BoundaryVertex(11.8333, -24.5000), BoundaryVertex(10.7500, -24.5000),
-      BoundaryVertex(10.7500, -6.6667),
+      const BoundaryVertex(10.7500, -6.6667), const BoundaryVertex(11.8333, -6.6667),
+      const BoundaryVertex(11.8333, -24.5000), const BoundaryVertex(10.7500, -24.5000),
+      const BoundaryVertex(10.7500, -6.6667),
     ],
     'Cru': [
-      BoundaryVertex(11.8333, -55.6833), BoundaryVertex(12.7917, -55.6833),
-      BoundaryVertex(12.7917, -64.0000), BoundaryVertex(11.8333, -64.0000),
-      BoundaryVertex(11.8333, -55.6833),
+      const BoundaryVertex(11.8333, -55.6833), const BoundaryVertex(12.7917, -55.6833),
+      const BoundaryVertex(12.7917, -64.0000), const BoundaryVertex(11.8333, -64.0000),
+      const BoundaryVertex(11.8333, -55.6833),
     ],
     'Cyg': [
-      BoundaryVertex(19.1083, 28.0000), BoundaryVertex(21.7333, 28.0000),
-      BoundaryVertex(21.7333, 44.0000), BoundaryVertex(21.1000, 47.0000),
-      BoundaryVertex(21.1000, 55.0000), BoundaryVertex(19.4000, 61.0000),
-      BoundaryVertex(19.1083, 55.0000), BoundaryVertex(19.1083, 28.0000),
+      const BoundaryVertex(19.1083, 28.0000), const BoundaryVertex(21.7333, 28.0000),
+      const BoundaryVertex(21.7333, 44.0000), const BoundaryVertex(21.1000, 47.0000),
+      const BoundaryVertex(21.1000, 55.0000), const BoundaryVertex(19.4000, 61.0000),
+      const BoundaryVertex(19.1083, 55.0000), const BoundaryVertex(19.1083, 28.0000),
     ],
     'Del': [
-      BoundaryVertex(20.1417, 2.0000), BoundaryVertex(21.0833, 2.0000),
-      BoundaryVertex(21.0833, 21.0000), BoundaryVertex(20.1417, 21.0000),
-      BoundaryVertex(20.1417, 2.0000),
+      const BoundaryVertex(20.1417, 2.0000), const BoundaryVertex(21.0833, 2.0000),
+      const BoundaryVertex(21.0833, 21.0000), const BoundaryVertex(20.1417, 21.0000),
+      const BoundaryVertex(20.1417, 2.0000),
     ],
     'Dor': [
-      BoundaryVertex(3.8667, -49.0000), BoundaryVertex(6.5833, -49.0000),
-      BoundaryVertex(6.5833, -69.0000), BoundaryVertex(4.4500, -69.0000),
-      BoundaryVertex(3.8667, -57.0000), BoundaryVertex(3.8667, -49.0000),
+      const BoundaryVertex(3.8667, -49.0000), const BoundaryVertex(6.5833, -49.0000),
+      const BoundaryVertex(6.5833, -69.0000), const BoundaryVertex(4.4500, -69.0000),
+      const BoundaryVertex(3.8667, -57.0000), const BoundaryVertex(3.8667, -49.0000),
     ],
     'Dra': [
-      BoundaryVertex(9.0333, 54.0000), BoundaryVertex(14.0000, 54.0000),
-      BoundaryVertex(15.0750, 54.0000), BoundaryVertex(15.6667, 60.0000),
-      BoundaryVertex(17.5000, 55.0000), BoundaryVertex(18.4583, 50.0000),
-      BoundaryVertex(20.1667, 61.0000), BoundaryVertex(20.1667, 73.5000),
-      BoundaryVertex(15.6667, 80.0000), BoundaryVertex(9.0333, 73.5000),
-      BoundaryVertex(9.0333, 54.0000),
+      const BoundaryVertex(9.0333, 54.0000), const BoundaryVertex(14.0000, 54.0000),
+      const BoundaryVertex(15.0750, 54.0000), const BoundaryVertex(15.6667, 60.0000),
+      const BoundaryVertex(17.5000, 55.0000), const BoundaryVertex(18.4583, 50.0000),
+      const BoundaryVertex(20.1667, 61.0000), const BoundaryVertex(20.1667, 73.5000),
+      const BoundaryVertex(15.6667, 80.0000), const BoundaryVertex(9.0333, 73.5000),
+      const BoundaryVertex(9.0333, 54.0000),
     ],
     'Equ': [
-      BoundaryVertex(20.8750, 2.0000), BoundaryVertex(21.4583, 2.0000),
-      BoundaryVertex(21.4583, 13.0000), BoundaryVertex(20.8750, 13.0000),
-      BoundaryVertex(20.8750, 2.0000),
+      const BoundaryVertex(20.8750, 2.0000), const BoundaryVertex(21.4583, 2.0000),
+      const BoundaryVertex(21.4583, 13.0000), const BoundaryVertex(20.8750, 13.0000),
+      const BoundaryVertex(20.8750, 2.0000),
     ],
     'Eri': [
-      BoundaryVertex(1.3917, -57.5000), BoundaryVertex(5.1333, -11.0000),
-      BoundaryVertex(3.7500, -11.0000), BoundaryVertex(3.3667, -0.5000),
-      BoundaryVertex(2.1000, -24.8333), BoundaryVertex(1.3917, -39.5833),
-      BoundaryVertex(1.3917, -57.5000),
+      const BoundaryVertex(1.3917, -57.5000), const BoundaryVertex(5.1333, -11.0000),
+      const BoundaryVertex(3.7500, -11.0000), const BoundaryVertex(3.3667, -0.5000),
+      const BoundaryVertex(2.1000, -24.8333), const BoundaryVertex(1.3917, -39.5833),
+      const BoundaryVertex(1.3917, -57.5000),
     ],
     'For': [
-      BoundaryVertex(1.7667, -24.0000), BoundaryVertex(3.8667, -24.0000),
-      BoundaryVertex(3.8667, -39.5833), BoundaryVertex(1.7667, -39.5833),
-      BoundaryVertex(1.7667, -24.0000),
+      const BoundaryVertex(1.7667, -24.0000), const BoundaryVertex(3.8667, -24.0000),
+      const BoundaryVertex(3.8667, -39.5833), const BoundaryVertex(1.7667, -39.5833),
+      const BoundaryVertex(1.7667, -24.0000),
     ],
     'Gem': [
-      BoundaryVertex(6.0000, 10.0000), BoundaryVertex(8.1250, 10.0000),
-      BoundaryVertex(8.1250, 33.5000), BoundaryVertex(6.0000, 35.0000),
-      BoundaryVertex(6.0000, 10.0000),
+      const BoundaryVertex(6.0000, 10.0000), const BoundaryVertex(8.1250, 10.0000),
+      const BoundaryVertex(8.1250, 33.5000), const BoundaryVertex(6.0000, 35.0000),
+      const BoundaryVertex(6.0000, 10.0000),
     ],
     'Gru': [
-      BoundaryVertex(21.3333, -37.0000), BoundaryVertex(23.4500, -37.0000),
-      BoundaryVertex(23.4500, -57.0000), BoundaryVertex(21.3333, -57.0000),
-      BoundaryVertex(21.3333, -37.0000),
+      const BoundaryVertex(21.3333, -37.0000), const BoundaryVertex(23.4500, -37.0000),
+      const BoundaryVertex(23.4500, -57.0000), const BoundaryVertex(21.3333, -57.0000),
+      const BoundaryVertex(21.3333, -37.0000),
     ],
     'Her': [
-      BoundaryVertex(15.8167, 4.0000), BoundaryVertex(18.5833, 4.0000),
-      BoundaryVertex(18.5833, 28.5000), BoundaryVertex(18.0000, 30.0000),
-      BoundaryVertex(17.5000, 37.0000), BoundaryVertex(17.5000, 51.0000),
-      BoundaryVertex(15.8167, 51.0000), BoundaryVertex(15.8167, 4.0000),
+      const BoundaryVertex(15.8167, 4.0000), const BoundaryVertex(18.5833, 4.0000),
+      const BoundaryVertex(18.5833, 28.5000), const BoundaryVertex(18.0000, 30.0000),
+      const BoundaryVertex(17.5000, 37.0000), const BoundaryVertex(17.5000, 51.0000),
+      const BoundaryVertex(15.8167, 51.0000), const BoundaryVertex(15.8167, 4.0000),
     ],
     'Hor': [
-      BoundaryVertex(2.3667, -40.0000), BoundaryVertex(4.3333, -40.0000),
-      BoundaryVertex(4.3333, -67.0000), BoundaryVertex(2.3667, -67.0000),
-      BoundaryVertex(2.3667, -40.0000),
+      const BoundaryVertex(2.3667, -40.0000), const BoundaryVertex(4.3333, -40.0000),
+      const BoundaryVertex(4.3333, -67.0000), const BoundaryVertex(2.3667, -67.0000),
+      const BoundaryVertex(2.3667, -40.0000),
     ],
     'Hya': [
-      BoundaryVertex(8.1083, -7.0000), BoundaryVertex(14.5250, -7.0000),
-      BoundaryVertex(14.5250, -35.0000), BoundaryVertex(8.1083, -35.0000),
-      BoundaryVertex(8.1083, -7.0000),
+      const BoundaryVertex(8.1083, -7.0000), const BoundaryVertex(14.5250, -7.0000),
+      const BoundaryVertex(14.5250, -35.0000), const BoundaryVertex(8.1083, -35.0000),
+      const BoundaryVertex(8.1083, -7.0000),
     ],
     'Hyi': [
-      BoundaryVertex(23.3333, -58.0000), BoundaryVertex(4.3667, -58.0000),
-      BoundaryVertex(4.3667, -82.0000), BoundaryVertex(0.0000, -82.0000),
-      BoundaryVertex(23.3333, -75.0000), BoundaryVertex(23.3333, -58.0000),
+      const BoundaryVertex(23.3333, -58.0000), const BoundaryVertex(4.3667, -58.0000),
+      const BoundaryVertex(4.3667, -82.0000), const BoundaryVertex(0.0000, -82.0000),
+      const BoundaryVertex(23.3333, -75.0000), const BoundaryVertex(23.3333, -58.0000),
     ],
     'Ind': [
-      BoundaryVertex(20.2833, -45.0000), BoundaryVertex(21.3333, -45.0000),
-      BoundaryVertex(23.4500, -45.0000), BoundaryVertex(23.4500, -57.0000),
-      BoundaryVertex(21.3333, -57.0000), BoundaryVertex(20.2833, -57.0000),
-      BoundaryVertex(20.2833, -75.0000), BoundaryVertex(20.2833, -45.0000),
+      const BoundaryVertex(20.2833, -45.0000), const BoundaryVertex(21.3333, -45.0000),
+      const BoundaryVertex(23.4500, -45.0000), const BoundaryVertex(23.4500, -57.0000),
+      const BoundaryVertex(21.3333, -57.0000), const BoundaryVertex(20.2833, -57.0000),
+      const BoundaryVertex(20.2833, -75.0000), const BoundaryVertex(20.2833, -45.0000),
     ],
     'Lac': [
-      BoundaryVertex(22.0000, 35.0000), BoundaryVertex(22.8667, 35.0000),
-      BoundaryVertex(22.8667, 56.0000), BoundaryVertex(22.0000, 56.0000),
-      BoundaryVertex(22.0000, 35.0000),
+      const BoundaryVertex(22.0000, 35.0000), const BoundaryVertex(22.8667, 35.0000),
+      const BoundaryVertex(22.8667, 56.0000), const BoundaryVertex(22.0000, 56.0000),
+      const BoundaryVertex(22.0000, 35.0000),
     ],
     'Leo': [
-      BoundaryVertex(9.3583, 7.0000), BoundaryVertex(11.8667, 7.0000),
-      BoundaryVertex(11.8667, 33.3056), BoundaryVertex(9.3583, 33.3056),
-      BoundaryVertex(9.3583, 7.0000),
+      const BoundaryVertex(9.3583, 7.0000), const BoundaryVertex(11.8667, 7.0000),
+      const BoundaryVertex(11.8667, 33.3056), const BoundaryVertex(9.3583, 33.3056),
+      const BoundaryVertex(9.3583, 7.0000),
     ],
     'LMi': [
-      BoundaryVertex(9.3583, 33.3056), BoundaryVertex(11.0667, 33.3056),
-      BoundaryVertex(11.0667, 42.0000), BoundaryVertex(9.3583, 42.0000),
-      BoundaryVertex(9.3583, 33.3056),
+      const BoundaryVertex(9.3583, 33.3056), const BoundaryVertex(11.0667, 33.3056),
+      const BoundaryVertex(11.0667, 42.0000), const BoundaryVertex(9.3583, 42.0000),
+      const BoundaryVertex(9.3583, 33.3056),
     ],
     'Lep': [
-      BoundaryVertex(4.9250, -11.0000), BoundaryVertex(6.2083, -11.0000),
-      BoundaryVertex(6.2083, -27.2833), BoundaryVertex(4.9250, -27.2833),
-      BoundaryVertex(4.9250, -11.0000),
+      const BoundaryVertex(4.9250, -11.0000), const BoundaryVertex(6.2083, -11.0000),
+      const BoundaryVertex(6.2083, -27.2833), const BoundaryVertex(4.9250, -27.2833),
+      const BoundaryVertex(4.9250, -11.0000),
     ],
     'Lib': [
-      BoundaryVertex(14.3583, -0.5000), BoundaryVertex(16.0250, -0.5000),
-      BoundaryVertex(16.0250, -30.0000), BoundaryVertex(14.3583, -30.0000),
-      BoundaryVertex(14.3583, -0.5000),
+      const BoundaryVertex(14.3583, -0.5000), const BoundaryVertex(16.0250, -0.5000),
+      const BoundaryVertex(16.0250, -30.0000), const BoundaryVertex(14.3583, -30.0000),
+      const BoundaryVertex(14.3583, -0.5000),
     ],
     'Lup': [
-      BoundaryVertex(14.1667, -33.0000), BoundaryVertex(16.5833, -33.0000),
-      BoundaryVertex(16.5833, -55.0000), BoundaryVertex(14.1667, -55.0000),
-      BoundaryVertex(14.1667, -33.0000),
+      const BoundaryVertex(14.1667, -33.0000), const BoundaryVertex(16.5833, -33.0000),
+      const BoundaryVertex(16.5833, -55.0000), const BoundaryVertex(14.1667, -55.0000),
+      const BoundaryVertex(14.1667, -33.0000),
     ],
     'Lyn': [
-      BoundaryVertex(6.3083, 42.0000), BoundaryVertex(9.3583, 42.0000),
-      BoundaryVertex(9.3583, 59.0000), BoundaryVertex(6.3083, 59.0000),
-      BoundaryVertex(6.3083, 42.0000),
+      const BoundaryVertex(6.3083, 42.0000), const BoundaryVertex(9.3583, 42.0000),
+      const BoundaryVertex(9.3583, 59.0000), const BoundaryVertex(6.3083, 59.0000),
+      const BoundaryVertex(6.3083, 42.0000),
     ],
     'Lyr': [
-      BoundaryVertex(18.3083, 26.0000), BoundaryVertex(19.4000, 26.0000),
-      BoundaryVertex(19.4000, 47.7139), BoundaryVertex(18.3083, 47.7139),
-      BoundaryVertex(18.3083, 26.0000),
+      const BoundaryVertex(18.3083, 26.0000), const BoundaryVertex(19.4000, 26.0000),
+      const BoundaryVertex(19.4000, 47.7139), const BoundaryVertex(18.3083, 47.7139),
+      const BoundaryVertex(18.3083, 26.0000),
     ],
     'Men': [
-      BoundaryVertex(3.5000, -70.0000), BoundaryVertex(7.6667, -70.0000),
-      BoundaryVertex(7.6667, -85.2611), BoundaryVertex(3.5000, -85.2611),
-      BoundaryVertex(3.5000, -70.0000),
+      const BoundaryVertex(3.5000, -70.0000), const BoundaryVertex(7.6667, -70.0000),
+      const BoundaryVertex(7.6667, -85.2611), const BoundaryVertex(3.5000, -85.2611),
+      const BoundaryVertex(3.5000, -70.0000),
     ],
     'Mic': [
-      BoundaryVertex(20.4583, -27.0000), BoundaryVertex(21.4667, -27.0000),
-      BoundaryVertex(21.4667, -45.0000), BoundaryVertex(20.4583, -45.0000),
-      BoundaryVertex(20.4583, -27.0000),
+      const BoundaryVertex(20.4583, -27.0000), const BoundaryVertex(21.4667, -27.0000),
+      const BoundaryVertex(21.4667, -45.0000), const BoundaryVertex(20.4583, -45.0000),
+      const BoundaryVertex(20.4583, -27.0000),
     ],
     'Mon': [
-      BoundaryVertex(5.8333, -11.0000), BoundaryVertex(8.0833, -11.0000),
-      BoundaryVertex(8.0833, 12.0000), BoundaryVertex(5.8333, 12.0000),
-      BoundaryVertex(5.8333, -11.0000),
+      const BoundaryVertex(5.8333, -11.0000), const BoundaryVertex(8.0833, -11.0000),
+      const BoundaryVertex(8.0833, 12.0000), const BoundaryVertex(5.8333, 12.0000),
+      const BoundaryVertex(5.8333, -11.0000),
     ],
     'Mus': [
-      BoundaryVertex(11.3000, -64.0000), BoundaryVertex(13.8333, -64.0000),
-      BoundaryVertex(13.8333, -75.0000), BoundaryVertex(11.3000, -75.0000),
-      BoundaryVertex(11.3000, -64.0000),
+      const BoundaryVertex(11.3000, -64.0000), const BoundaryVertex(13.8333, -64.0000),
+      const BoundaryVertex(13.8333, -75.0000), const BoundaryVertex(11.3000, -75.0000),
+      const BoundaryVertex(11.3000, -64.0000),
     ],
     'Nor': [
-      BoundaryVertex(15.7333, -42.0000), BoundaryVertex(16.5833, -42.0000),
-      BoundaryVertex(16.5833, -55.0000), BoundaryVertex(15.7333, -55.0000),
-      BoundaryVertex(15.7333, -42.0000),
+      const BoundaryVertex(15.7333, -42.0000), const BoundaryVertex(16.5833, -42.0000),
+      const BoundaryVertex(16.5833, -55.0000), const BoundaryVertex(15.7333, -55.0000),
+      const BoundaryVertex(15.7333, -42.0000),
     ],
     'Oct': [
-      BoundaryVertex(0.0000, -82.0000), BoundaryVertex(24.0000, -82.0000),
-      BoundaryVertex(24.0000, -90.0000), BoundaryVertex(0.0000, -90.0000),
-      BoundaryVertex(0.0000, -82.0000),
+      const BoundaryVertex(0.0000, -82.0000), const BoundaryVertex(24.0000, -82.0000),
+      const BoundaryVertex(24.0000, -90.0000), const BoundaryVertex(0.0000, -90.0000),
+      const BoundaryVertex(0.0000, -82.0000),
     ],
     'Oph': [
-      BoundaryVertex(16.0250, -8.0000), BoundaryVertex(18.0333, -8.0000),
-      BoundaryVertex(18.0333, 2.5000), BoundaryVertex(17.8333, 4.0000),
-      BoundaryVertex(17.5000, 10.0000), BoundaryVertex(17.5000, 14.0000),
-      BoundaryVertex(16.5333, 14.0000), BoundaryVertex(16.0250, -8.0000),
+      const BoundaryVertex(16.0250, -8.0000), const BoundaryVertex(18.0333, -8.0000),
+      const BoundaryVertex(18.0333, 2.5000), const BoundaryVertex(17.8333, 4.0000),
+      const BoundaryVertex(17.5000, 10.0000), const BoundaryVertex(17.5000, 14.0000),
+      const BoundaryVertex(16.5333, 14.0000), const BoundaryVertex(16.0250, -8.0000),
     ],
     'Ori': [
-      BoundaryVertex(4.5000, -11.0000), BoundaryVertex(6.4000, -11.0000),
-      BoundaryVertex(6.4000, 22.8750), BoundaryVertex(4.5000, 22.8750),
-      BoundaryVertex(4.5000, -11.0000),
+      const BoundaryVertex(4.5000, -11.0000), const BoundaryVertex(6.4000, -11.0000),
+      const BoundaryVertex(6.4000, 22.8750), const BoundaryVertex(4.5000, 22.8750),
+      const BoundaryVertex(4.5000, -11.0000),
     ],
     'Pav': [
-      BoundaryVertex(18.1667, -57.0000), BoundaryVertex(21.4667, -57.0000),
-      BoundaryVertex(21.4667, -75.0000), BoundaryVertex(18.1667, -75.0000),
-      BoundaryVertex(18.1667, -57.0000),
+      const BoundaryVertex(18.1667, -57.0000), const BoundaryVertex(21.4667, -57.0000),
+      const BoundaryVertex(21.4667, -75.0000), const BoundaryVertex(18.1667, -75.0000),
+      const BoundaryVertex(18.1667, -57.0000),
     ],
     'Peg': [
-      BoundaryVertex(21.1250, 2.0000), BoundaryVertex(0.1417, 2.0000),
-      BoundaryVertex(0.1417, 36.7500), BoundaryVertex(23.5000, 36.7500),
-      BoundaryVertex(23.5000, 28.0000), BoundaryVertex(21.7333, 28.0000),
-      BoundaryVertex(21.1250, 2.0000),
+      const BoundaryVertex(21.1250, 2.0000), const BoundaryVertex(0.1417, 2.0000),
+      const BoundaryVertex(0.1417, 36.7500), const BoundaryVertex(23.5000, 36.7500),
+      const BoundaryVertex(23.5000, 28.0000), const BoundaryVertex(21.7333, 28.0000),
+      const BoundaryVertex(21.1250, 2.0000),
     ],
     'Per': [
-      BoundaryVertex(1.6583, 24.0000), BoundaryVertex(4.5000, 24.0000),
-      BoundaryVertex(4.5000, 35.0000), BoundaryVertex(4.5000, 59.0000),
-      BoundaryVertex(1.6583, 59.0000), BoundaryVertex(1.6583, 24.0000),
+      const BoundaryVertex(1.6583, 24.0000), const BoundaryVertex(4.5000, 24.0000),
+      const BoundaryVertex(4.5000, 35.0000), const BoundaryVertex(4.5000, 59.0000),
+      const BoundaryVertex(1.6583, 59.0000), const BoundaryVertex(1.6583, 24.0000),
     ],
     'Phe': [
-      BoundaryVertex(23.4500, -40.0000), BoundaryVertex(2.1667, -40.0000),
-      BoundaryVertex(2.1667, -57.0000), BoundaryVertex(23.4500, -57.0000),
-      BoundaryVertex(23.4500, -40.0000),
+      const BoundaryVertex(23.4500, -40.0000), const BoundaryVertex(2.1667, -40.0000),
+      const BoundaryVertex(2.1667, -57.0000), const BoundaryVertex(23.4500, -57.0000),
+      const BoundaryVertex(23.4500, -40.0000),
     ],
     'Pic': [
-      BoundaryVertex(4.5333, -43.0000), BoundaryVertex(6.8500, -43.0000),
-      BoundaryVertex(6.8500, -64.0000), BoundaryVertex(4.5333, -64.0000),
-      BoundaryVertex(4.5333, -43.0000),
+      const BoundaryVertex(4.5333, -43.0000), const BoundaryVertex(6.8500, -43.0000),
+      const BoundaryVertex(6.8500, -64.0000), const BoundaryVertex(4.5333, -64.0000),
+      const BoundaryVertex(4.5333, -43.0000),
     ],
     'Psc': [
-      BoundaryVertex(22.8583, -2.0000), BoundaryVertex(2.0583, -2.0000),
-      BoundaryVertex(2.0583, 33.2500), BoundaryVertex(0.1417, 33.2500),
-      BoundaryVertex(0.1417, 2.0000), BoundaryVertex(23.8333, 2.0000),
-      BoundaryVertex(22.8583, -2.0000),
+      const BoundaryVertex(22.8583, -2.0000), const BoundaryVertex(2.0583, -2.0000),
+      const BoundaryVertex(2.0583, 33.2500), const BoundaryVertex(0.1417, 33.2500),
+      const BoundaryVertex(0.1417, 2.0000), const BoundaryVertex(23.8333, 2.0000),
+      const BoundaryVertex(22.8583, -2.0000),
     ],
     'PsA': [
-      BoundaryVertex(21.4500, -25.0000), BoundaryVertex(23.0583, -25.0000),
-      BoundaryVertex(23.0583, -37.0000), BoundaryVertex(21.4500, -37.0000),
-      BoundaryVertex(21.4500, -25.0000),
+      const BoundaryVertex(21.4500, -25.0000), const BoundaryVertex(23.0583, -25.0000),
+      const BoundaryVertex(23.0583, -37.0000), const BoundaryVertex(21.4500, -37.0000),
+      const BoundaryVertex(21.4500, -25.0000),
     ],
     'Pup': [
-      BoundaryVertex(6.0250, -37.0000), BoundaryVertex(8.4583, -37.0000),
-      BoundaryVertex(8.4583, -51.0000), BoundaryVertex(6.0250, -51.0000),
-      BoundaryVertex(6.0250, -37.0000),
+      const BoundaryVertex(6.0250, -37.0000), const BoundaryVertex(8.4583, -37.0000),
+      const BoundaryVertex(8.4583, -51.0000), const BoundaryVertex(6.0250, -51.0000),
+      const BoundaryVertex(6.0250, -37.0000),
     ],
     'Pyx': [
-      BoundaryVertex(8.4583, -17.0000), BoundaryVertex(9.4500, -17.0000),
-      BoundaryVertex(9.4500, -37.0000), BoundaryVertex(8.4583, -37.0000),
-      BoundaryVertex(8.4583, -17.0000),
+      const BoundaryVertex(8.4583, -17.0000), const BoundaryVertex(9.4500, -17.0000),
+      const BoundaryVertex(9.4500, -37.0000), const BoundaryVertex(8.4583, -37.0000),
+      const BoundaryVertex(8.4583, -17.0000),
     ],
     'Ret': [
-      BoundaryVertex(3.3333, -53.0000), BoundaryVertex(4.6000, -53.0000),
-      BoundaryVertex(4.6000, -67.0000), BoundaryVertex(3.3333, -67.0000),
-      BoundaryVertex(3.3333, -53.0000),
+      const BoundaryVertex(3.3333, -53.0000), const BoundaryVertex(4.6000, -53.0000),
+      const BoundaryVertex(4.6000, -67.0000), const BoundaryVertex(3.3333, -67.0000),
+      const BoundaryVertex(3.3333, -53.0000),
     ],
     'Sge': [
-      BoundaryVertex(19.0417, 16.0000), BoundaryVertex(20.1417, 16.0000),
-      BoundaryVertex(20.1417, 21.0000), BoundaryVertex(19.0417, 21.0000),
-      BoundaryVertex(19.0417, 16.0000),
+      const BoundaryVertex(19.0417, 16.0000), const BoundaryVertex(20.1417, 16.0000),
+      const BoundaryVertex(20.1417, 21.0000), const BoundaryVertex(19.0417, 21.0000),
+      const BoundaryVertex(19.0417, 16.0000),
     ],
     'Sgr': [
-      BoundaryVertex(17.7500, -12.0333), BoundaryVertex(20.4583, -12.0333),
-      BoundaryVertex(20.4583, -27.0000), BoundaryVertex(20.0667, -27.0000),
-      BoundaryVertex(20.0667, -37.0000), BoundaryVertex(18.7500, -45.5000),
-      BoundaryVertex(17.7500, -45.5000), BoundaryVertex(17.7500, -12.0333),
+      const BoundaryVertex(17.7500, -12.0333), const BoundaryVertex(20.4583, -12.0333),
+      const BoundaryVertex(20.4583, -27.0000), const BoundaryVertex(20.0667, -27.0000),
+      const BoundaryVertex(20.0667, -37.0000), const BoundaryVertex(18.7500, -45.5000),
+      const BoundaryVertex(17.7500, -45.5000), const BoundaryVertex(17.7500, -12.0333),
     ],
     'Sco': [
-      BoundaryVertex(15.7500, -8.0000), BoundaryVertex(17.8333, -8.0000),
-      BoundaryVertex(17.8333, -30.0000), BoundaryVertex(17.5000, -37.0000),
-      BoundaryVertex(16.5833, -45.5000), BoundaryVertex(15.7500, -45.5000),
-      BoundaryVertex(15.7500, -8.0000),
+      const BoundaryVertex(15.7500, -8.0000), const BoundaryVertex(17.8333, -8.0000),
+      const BoundaryVertex(17.8333, -30.0000), const BoundaryVertex(17.5000, -37.0000),
+      const BoundaryVertex(16.5833, -45.5000), const BoundaryVertex(15.7500, -45.5000),
+      const BoundaryVertex(15.7500, -8.0000),
     ],
     'Scl': [
-      BoundaryVertex(23.0583, -25.0000), BoundaryVertex(1.6583, -25.0000),
-      BoundaryVertex(1.6583, -39.5833), BoundaryVertex(23.0583, -39.5833),
-      BoundaryVertex(23.0583, -25.0000),
+      const BoundaryVertex(23.0583, -25.0000), const BoundaryVertex(1.6583, -25.0000),
+      const BoundaryVertex(1.6583, -39.5833), const BoundaryVertex(23.0583, -39.5833),
+      const BoundaryVertex(23.0583, -25.0000),
     ],
     'Sct': [
-      BoundaryVertex(18.2417, -4.0000), BoundaryVertex(18.9917, -4.0000),
-      BoundaryVertex(18.9917, -16.0000), BoundaryVertex(18.2417, -16.0000),
-      BoundaryVertex(18.2417, -4.0000),
+      const BoundaryVertex(18.2417, -4.0000), const BoundaryVertex(18.9917, -4.0000),
+      const BoundaryVertex(18.9917, -16.0000), const BoundaryVertex(18.2417, -16.0000),
+      const BoundaryVertex(18.2417, -4.0000),
     ],
     'Ser': [
       // Serpens Caput
-      BoundaryVertex(15.0000, 0.0000), BoundaryVertex(16.0833, 0.0000),
-      BoundaryVertex(16.0833, 25.5000), BoundaryVertex(15.0000, 25.5000),
-      BoundaryVertex(15.0000, 0.0000),
+      const BoundaryVertex(15.0000, 0.0000), const BoundaryVertex(16.0833, 0.0000),
+      const BoundaryVertex(16.0833, 25.5000), const BoundaryVertex(15.0000, 25.5000),
+      const BoundaryVertex(15.0000, 0.0000),
     ],
     'Sex': [
-      BoundaryVertex(9.8750, -11.0000), BoundaryVertex(10.5167, -11.0000),
-      BoundaryVertex(10.5167, 6.4333), BoundaryVertex(9.8750, 6.4333),
-      BoundaryVertex(9.8750, -11.0000),
+      const BoundaryVertex(9.8750, -11.0000), const BoundaryVertex(10.5167, -11.0000),
+      const BoundaryVertex(10.5167, 6.4333), const BoundaryVertex(9.8750, 6.4333),
+      const BoundaryVertex(9.8750, -11.0000),
     ],
     'Tau': [
-      BoundaryVertex(3.3667, 0.0000), BoundaryVertex(5.9833, 0.0000),
-      BoundaryVertex(5.9833, 31.1000), BoundaryVertex(3.3667, 31.1000),
-      BoundaryVertex(3.3667, 0.0000),
+      const BoundaryVertex(3.3667, 0.0000), const BoundaryVertex(5.9833, 0.0000),
+      const BoundaryVertex(5.9833, 31.1000), const BoundaryVertex(3.3667, 31.1000),
+      const BoundaryVertex(3.3667, 0.0000),
     ],
     'Tel': [
-      BoundaryVertex(18.1667, -45.5000), BoundaryVertex(20.2833, -45.5000),
-      BoundaryVertex(20.2833, -57.0000), BoundaryVertex(18.1667, -57.0000),
-      BoundaryVertex(18.1667, -45.5000),
+      const BoundaryVertex(18.1667, -45.5000), const BoundaryVertex(20.2833, -45.5000),
+      const BoundaryVertex(20.2833, -57.0000), const BoundaryVertex(18.1667, -57.0000),
+      const BoundaryVertex(18.1667, -45.5000),
     ],
     'Tri': [
-      BoundaryVertex(1.5583, 25.5000), BoundaryVertex(2.5417, 25.5000),
-      BoundaryVertex(2.5417, 37.3472), BoundaryVertex(1.5583, 37.3472),
-      BoundaryVertex(1.5583, 25.5000),
+      const BoundaryVertex(1.5583, 25.5000), const BoundaryVertex(2.5417, 25.5000),
+      const BoundaryVertex(2.5417, 37.3472), const BoundaryVertex(1.5583, 37.3472),
+      const BoundaryVertex(1.5583, 25.5000),
     ],
     'TrA': [
-      BoundaryVertex(14.9167, -60.0000), BoundaryVertex(17.0000, -60.0000),
-      BoundaryVertex(17.0000, -70.0000), BoundaryVertex(14.9167, -70.0000),
-      BoundaryVertex(14.9167, -60.0000),
+      const BoundaryVertex(14.9167, -60.0000), const BoundaryVertex(17.0000, -60.0000),
+      const BoundaryVertex(17.0000, -70.0000), const BoundaryVertex(14.9167, -70.0000),
+      const BoundaryVertex(14.9167, -60.0000),
     ],
     'Tuc': [
-      BoundaryVertex(22.1667, -57.0000), BoundaryVertex(1.3250, -57.0000),
-      BoundaryVertex(1.3250, -75.0000), BoundaryVertex(23.3333, -75.0000),
-      BoundaryVertex(22.1667, -67.0000), BoundaryVertex(22.1667, -57.0000),
+      const BoundaryVertex(22.1667, -57.0000), const BoundaryVertex(1.3250, -57.0000),
+      const BoundaryVertex(1.3250, -75.0000), const BoundaryVertex(23.3333, -75.0000),
+      const BoundaryVertex(22.1667, -67.0000), const BoundaryVertex(22.1667, -57.0000),
     ],
     'UMa': [
-      BoundaryVertex(8.0833, 28.5000), BoundaryVertex(14.5000, 28.5000),
-      BoundaryVertex(14.5000, 47.0000), BoundaryVertex(14.0333, 54.0000),
-      BoundaryVertex(9.0333, 73.0000), BoundaryVertex(8.0833, 73.0000),
-      BoundaryVertex(8.0833, 28.5000),
+      const BoundaryVertex(8.0833, 28.5000), const BoundaryVertex(14.5000, 28.5000),
+      const BoundaryVertex(14.5000, 47.0000), const BoundaryVertex(14.0333, 54.0000),
+      const BoundaryVertex(9.0333, 73.0000), const BoundaryVertex(8.0833, 73.0000),
+      const BoundaryVertex(8.0833, 28.5000),
     ],
     'UMi': [
-      BoundaryVertex(0.0000, 66.0000), BoundaryVertex(24.0000, 66.0000),
-      BoundaryVertex(24.0000, 90.0000), BoundaryVertex(0.0000, 90.0000),
-      BoundaryVertex(0.0000, 66.0000),
+      const BoundaryVertex(0.0000, 66.0000), const BoundaryVertex(24.0000, 66.0000),
+      const BoundaryVertex(24.0000, 90.0000), const BoundaryVertex(0.0000, 90.0000),
+      const BoundaryVertex(0.0000, 66.0000),
     ],
     'Vel': [
-      BoundaryVertex(8.0583, -37.0000), BoundaryVertex(11.0583, -37.0000),
-      BoundaryVertex(11.0583, -57.0000), BoundaryVertex(8.0583, -57.0000),
-      BoundaryVertex(8.0583, -37.0000),
+      const BoundaryVertex(8.0583, -37.0000), const BoundaryVertex(11.0583, -37.0000),
+      const BoundaryVertex(11.0583, -57.0000), const BoundaryVertex(8.0583, -57.0000),
+      const BoundaryVertex(8.0583, -37.0000),
     ],
     'Vir': [
-      BoundaryVertex(11.8333, 0.0000), BoundaryVertex(15.0000, 0.0000),
-      BoundaryVertex(15.0000, 14.0000), BoundaryVertex(14.0333, 14.0000),
-      BoundaryVertex(12.0583, 14.0000), BoundaryVertex(11.8333, 0.0000),
+      const BoundaryVertex(11.8333, 0.0000), const BoundaryVertex(15.0000, 0.0000),
+      const BoundaryVertex(15.0000, 14.0000), const BoundaryVertex(14.0333, 14.0000),
+      const BoundaryVertex(12.0583, 14.0000), const BoundaryVertex(11.8333, 0.0000),
     ],
     'Vol': [
-      BoundaryVertex(6.5833, -64.0000), BoundaryVertex(9.0333, -64.0000),
-      BoundaryVertex(9.0333, -75.0000), BoundaryVertex(6.5833, -75.0000),
-      BoundaryVertex(6.5833, -64.0000),
+      const BoundaryVertex(6.5833, -64.0000), const BoundaryVertex(9.0333, -64.0000),
+      const BoundaryVertex(9.0333, -75.0000), const BoundaryVertex(6.5833, -75.0000),
+      const BoundaryVertex(6.5833, -64.0000),
     ],
     'Vul': [
-      BoundaryVertex(19.2167, 19.1667), BoundaryVertex(21.4500, 19.1667),
-      BoundaryVertex(21.4500, 29.5000), BoundaryVertex(19.2167, 29.5000),
-      BoundaryVertex(19.2167, 19.1667),
+      const BoundaryVertex(19.2167, 19.1667), const BoundaryVertex(21.4500, 19.1667),
+      const BoundaryVertex(21.4500, 29.5000), const BoundaryVertex(19.2167, 29.5000),
+      const BoundaryVertex(19.2167, 19.1667),
     ],
   };
 }

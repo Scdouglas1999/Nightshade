@@ -1,3 +1,23 @@
 # Inherits from the workspace-root analysis_options.yaml which configures
 # flutter_lints 5.x rule overrides.
 include: ../../analysis_options.yaml
+
+analyzer:
+  # CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
+  # Generated code (Drift DAOs *.g.dart, freezed *.freezed.dart) is already
+  # excluded at workspace-root, but pin it again here to make the intent
+  # explicit and to keep the rules from accidentally applying to
+  # regenerated DAOs / freezed unions.
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.mocks.dart"
+
+# CQ-W14-CONST-CONSTRUCTORS:4 (audit-dart §10 #3)
+# Slice 4 of the per-package rollout (after :ui, :2 = bridge+plugins+updater,
+# :app). The workspace-root config disables these two rules globally;
+# nightshade_core enables them here, with generated paths excluded above.
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true

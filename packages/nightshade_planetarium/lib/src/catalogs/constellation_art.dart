@@ -81,7 +81,7 @@ class ConstellationArt {
         ArtMoveTo(_c(5.67, 10.5)),
         ArtQuadTo(_c(5.85, 11.5), _c(5.67, 12.0)),
         ArtQuadTo(_c(5.50, 11.5), _c(5.67, 10.5)),
-        ArtClose(),
+        const ArtClose(),
         // Torso: shoulders → belt → hips
         ArtMoveTo(_c(5.42, 6.35)),   // Bellatrix (left shoulder)
         ArtLineTo(_c(5.92, 7.41)),    // Betelgeuse (right shoulder)
@@ -91,7 +91,7 @@ class ConstellationArt {
         ArtLineTo(_c(5.48, -4.5)),    // left hip
         ArtLineTo(_c(5.53, -0.30)),   // Mintaka (left belt)
         ArtLineTo(_c(5.42, 5.0)),     // left armpit
-        ArtClose(),
+        const ArtClose(),
         // Left leg (Mintaka side → Rigel)
         ArtMoveTo(_c(5.48, -4.5)),
         ArtLineTo(_c(5.30, -5.5)),
@@ -99,7 +99,7 @@ class ConstellationArt {
         ArtLineTo(_c(5.15, -8.50)),
         ArtLineTo(_c(5.20, -5.2)),
         ArtLineTo(_c(5.38, -4.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right leg (Alnitak side → Saiph)
         ArtMoveTo(_c(5.80, -4.5)),
         ArtLineTo(_c(5.88, -5.5)),
@@ -107,7 +107,7 @@ class ConstellationArt {
         ArtLineTo(_c(5.72, -9.97)),
         ArtLineTo(_c(5.75, -5.2)),
         ArtLineTo(_c(5.68, -4.5)),
-        ArtClose(),
+        const ArtClose(),
         // Raised arm (club, from Betelgeuse up and right)
         ArtMoveTo(_c(5.92, 7.41)),    // Betelgeuse
         ArtLineTo(_c(6.05, 9.0)),
@@ -117,7 +117,7 @@ class ConstellationArt {
         ArtLineTo(_c(6.05, 14.5)),
         ArtLineTo(_c(5.92, 9.5)),
         ArtLineTo(_c(5.85, 7.8)),
-        ArtClose(),
+        const ArtClose(),
         // Shield arm (from Bellatrix outward)
         ArtMoveTo(_c(5.42, 6.35)),    // Bellatrix
         ArtLineTo(_c(5.20, 7.0)),
@@ -128,7 +128,7 @@ class ConstellationArt {
         ArtLineTo(_c(5.10, 2.0)),
         ArtLineTo(_c(5.18, 5.0)),
         ArtLineTo(_c(5.32, 6.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -161,7 +161,7 @@ class ConstellationArt {
         ArtLineTo(_c(12.26, 58.5)),   // above Megrez
         ArtLineTo(_c(11.40, 62.5)),   // back to top of body
         ArtLineTo(_c(11.06, 63.0)),   // near Dubhe
-        ArtClose(),
+        const ArtClose(),
         // Front legs
         ArtMoveTo(_c(10.80, 53.0)),
         ArtLineTo(_c(10.60, 50.0)),
@@ -169,14 +169,14 @@ class ConstellationArt {
         ArtLineTo(_c(10.60, 48.0)),
         ArtLineTo(_c(10.80, 50.5)),
         ArtLineTo(_c(11.00, 52.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(11.20, 52.0)),
         ArtLineTo(_c(11.10, 49.5)),
         ArtLineTo(_c(10.90, 48.0)),
         ArtLineTo(_c(11.10, 47.5)),
         ArtLineTo(_c(11.30, 50.0)),
         ArtLineTo(_c(11.50, 51.5)),
-        ArtClose(),
+        const ArtClose(),
         // Hind legs
         ArtMoveTo(_c(12.00, 52.5)),
         ArtLineTo(_c(11.90, 49.5)),
@@ -184,19 +184,19 @@ class ConstellationArt {
         ArtLineTo(_c(11.90, 47.5)),
         ArtLineTo(_c(12.10, 50.0)),
         ArtLineTo(_c(12.20, 52.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(12.40, 53.0)),
         ArtLineTo(_c(12.40, 50.0)),
         ArtLineTo(_c(12.20, 48.5)),
         ArtLineTo(_c(12.40, 48.0)),
         ArtLineTo(_c(12.60, 50.5)),
         ArtLineTo(_c(12.60, 53.0)),
-        ArtClose(),
+        const ArtClose(),
         // Ear
         ArtMoveTo(_c(10.50, 63.0)),
         ArtLineTo(_c(10.35, 64.0)),
         ArtLineTo(_c(10.55, 63.8)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -216,12 +216,12 @@ class ConstellationArt {
         ArtLineTo(_c(0.85, 58.0)),
         ArtLineTo(_c(0.85, 55.5)),    // waist
         ArtLineTo(_c(0.68, 55.0)),
-        ArtClose(),
+        const ArtClose(),
         // Head
         ArtMoveTo(_c(0.92, 62.5)),
         ArtQuadTo(_c(1.05, 63.5), _c(0.95, 64.0)),
         ArtQuadTo(_c(0.82, 63.5), _c(0.92, 62.5)),
-        ArtClose(),
+        const ArtClose(),
         // Left arm (toward Caph, raised)
         ArtMoveTo(_c(0.68, 58.0)),
         ArtLineTo(_c(0.40, 59.0)),
@@ -229,7 +229,7 @@ class ConstellationArt {
         ArtLineTo(_c(0.10, 60.0)),
         ArtLineTo(_c(0.35, 59.7)),
         ArtLineTo(_c(0.60, 58.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right arm (toward Ruchbah/Segin, raised)
         ArtMoveTo(_c(1.10, 61.5)),
         ArtLineTo(_c(1.43, 60.24)),   // Ruchbah
@@ -237,13 +237,13 @@ class ConstellationArt {
         ArtLineTo(_c(2.00, 64.0)),
         ArtLineTo(_c(1.50, 61.0)),
         ArtLineTo(_c(1.15, 62.0)),
-        ArtClose(),
+        const ArtClose(),
         // Throne seat (below Schedar)
         ArtMoveTo(_c(0.50, 55.0)),
         ArtLineTo(_c(0.50, 54.0)),
         ArtLineTo(_c(1.10, 54.0)),
         ArtLineTo(_c(1.10, 55.0)),
-        ArtClose(),
+        const ArtClose(),
         // Legs
         ArtMoveTo(_c(0.68, 55.0)),
         ArtLineTo(_c(0.55, 53.5)),
@@ -251,14 +251,14 @@ class ConstellationArt {
         ArtLineTo(_c(0.60, 51.8)),
         ArtLineTo(_c(0.68, 53.5)),
         ArtLineTo(_c(0.75, 55.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(0.85, 55.0)),
         ArtLineTo(_c(0.90, 53.5)),
         ArtLineTo(_c(0.95, 52.0)),
         ArtLineTo(_c(1.05, 51.8)),
         ArtLineTo(_c(1.00, 53.5)),
         ArtLineTo(_c(0.92, 55.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -280,7 +280,7 @@ class ConstellationArt {
         ArtLineTo(_c(10.50, 22.0)),
         ArtQuadTo(_c(10.30, 17.0), _c(10.40, 13.0)),
         ArtLineTo(_c(10.14, 11.97)),  // back to Regulus
-        ArtClose(),
+        const ArtClose(),
         // Body (from mane to Denebola)
         ArtMoveTo(_c(10.28, 26.01)),  // Zosma (start of back)
         ArtLineTo(_c(10.70, 26.0)),   // inner mane edge
@@ -292,7 +292,7 @@ class ConstellationArt {
         ArtLineTo(_c(11.00, 12.0)),
         ArtLineTo(_c(10.50, 11.5)),
         ArtLineTo(_c(10.14, 11.97)),  // Regulus
-        ArtClose(),
+        const ArtClose(),
         // Front legs
         ArtMoveTo(_c(10.30, 12.5)),
         ArtLineTo(_c(10.20, 9.5)),
@@ -300,7 +300,7 @@ class ConstellationArt {
         ArtLineTo(_c(10.20, 7.8)),
         ArtLineTo(_c(10.35, 9.5)),
         ArtLineTo(_c(10.45, 11.5)),
-        ArtClose(),
+        const ArtClose(),
         // Hind legs
         ArtMoveTo(_c(11.20, 12.5)),
         ArtLineTo(_c(11.15, 9.5)),
@@ -308,12 +308,12 @@ class ConstellationArt {
         ArtLineTo(_c(11.15, 7.8)),
         ArtLineTo(_c(11.30, 9.5)),
         ArtLineTo(_c(11.40, 12.0)),
-        ArtClose(),
+        const ArtClose(),
         // Tail tuft
         ArtMoveTo(_c(11.82, 14.57)),
         ArtQuadTo(_c(12.10, 15.5), _c(12.20, 15.0)),
         ArtQuadTo(_c(12.15, 14.0), _c(12.00, 14.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -330,19 +330,19 @@ class ConstellationArt {
         ArtMoveTo(_c(15.90, -20.0)),
         ArtQuadTo(_c(15.70, -18.0), _c(15.50, -19.0)),
         ArtQuadTo(_c(15.65, -21.0), _c(15.90, -20.0)),
-        ArtClose(),
+        const ArtClose(),
         // Right pincer
         ArtMoveTo(_c(16.15, -20.0)),
         ArtQuadTo(_c(16.35, -18.0), _c(16.55, -19.0)),
         ArtQuadTo(_c(16.40, -21.0), _c(16.15, -20.0)),
-        ArtClose(),
+        const ArtClose(),
         // Head (connects pincers)
         ArtMoveTo(_c(15.90, -21.5)),
         ArtLineTo(_c(16.01, -22.62)),  // Dschubba
         ArtLineTo(_c(16.15, -21.5)),
         ArtLineTo(_c(16.15, -20.0)),
         ArtLineTo(_c(15.90, -20.0)),
-        ArtClose(),
+        const ArtClose(),
         // Body (Dschubba to Antares to tail)
         ArtMoveTo(_c(15.90, -22.5)),
         ArtLineTo(_c(16.01, -22.62)),  // Dschubba
@@ -363,39 +363,39 @@ class ConstellationArt {
         ArtLineTo(_c(16.30, -23.5)),
         ArtLineTo(_c(16.10, -22.8)),
         ArtLineTo(_c(15.90, -22.5)),
-        ArtClose(),
+        const ArtClose(),
         // Legs (3 pairs along body)
         ArtMoveTo(_c(16.30, -24.5)),
         ArtLineTo(_c(16.05, -25.5)),
         ArtLineTo(_c(16.10, -26.0)),
         ArtLineTo(_c(16.35, -25.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(16.50, -27.5)),
         ArtLineTo(_c(16.25, -28.5)),
         ArtLineTo(_c(16.30, -29.0)),
         ArtLineTo(_c(16.55, -28.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(16.70, -30.5)),
         ArtLineTo(_c(16.45, -31.5)),
         ArtLineTo(_c(16.50, -32.0)),
         ArtLineTo(_c(16.75, -31.0)),
-        ArtClose(),
+        const ArtClose(),
         // Right-side legs
         ArtMoveTo(_c(16.40, -24.0)),
         ArtLineTo(_c(16.65, -25.0)),
         ArtLineTo(_c(16.60, -25.5)),
         ArtLineTo(_c(16.35, -24.5)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(16.60, -27.0)),
         ArtLineTo(_c(16.85, -28.0)),
         ArtLineTo(_c(16.80, -28.5)),
         ArtLineTo(_c(16.55, -27.5)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(16.80, -30.0)),
         ArtLineTo(_c(17.05, -31.0)),
         ArtLineTo(_c(17.00, -31.5)),
         ArtLineTo(_c(16.75, -30.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -416,7 +416,7 @@ class ConstellationArt {
         ArtLineTo(_c(19.45, 27.5)),
         ArtQuadTo(_c(19.75, 31.0), _c(20.05, 36.0)),
         ArtQuadTo(_c(20.30, 40.0), _c(20.60, 45.0)),
-        ArtClose(),
+        const ArtClose(),
         // Left wing (toward Gienah Cygni)
         ArtMoveTo(_c(20.37, 41.0)),   // above Sadr
         ArtQuadTo(_c(20.00, 43.0), _c(19.75, 45.13)),  // Gienah Cygni
@@ -424,7 +424,7 @@ class ConstellationArt {
         ArtLineTo(_c(19.30, 45.5)),
         ArtQuadTo(_c(19.60, 44.0), _c(20.00, 41.5)),
         ArtLineTo(_c(20.25, 40.0)),
-        ArtClose(),
+        const ArtClose(),
         // Right wing (toward Fawaris / delta Cyg)
         ArtMoveTo(_c(20.50, 41.0)),
         ArtQuadTo(_c(20.80, 37.0), _c(21.22, 30.23)),  // Fawaris
@@ -432,12 +432,12 @@ class ConstellationArt {
         ArtLineTo(_c(21.55, 28.8)),
         ArtQuadTo(_c(21.00, 33.0), _c(20.70, 38.0)),
         ArtLineTo(_c(20.50, 40.0)),
-        ArtClose(),
+        const ArtClose(),
         // Tail fan (around Deneb)
         ArtMoveTo(_c(20.55, 45.5)),
         ArtQuadTo(_c(20.60, 47.0), _c(20.69, 47.5)),
         ArtQuadTo(_c(20.80, 47.0), _c(20.75, 45.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -455,7 +455,7 @@ class ConstellationArt {
         ArtMoveTo(_c(7.52, 33.0)),
         ArtQuadTo(_c(7.65, 34.0), _c(7.58, 34.5)),
         ArtQuadTo(_c(7.50, 34.0), _c(7.52, 33.0)),
-        ArtClose(),
+        const ArtClose(),
         // Torso
         ArtMoveTo(_c(7.50, 32.5)),
         ArtLineTo(_c(7.65, 32.5)),
@@ -466,13 +466,13 @@ class ConstellationArt {
         ArtLineTo(_c(7.00, 20.3)),
         ArtLineTo(_c(7.45, 25.0)),
         ArtLineTo(_c(7.50, 32.5)),
-        ArtClose(),
+        const ArtClose(),
         // Pollux figure (right twin)
         // Head
         ArtMoveTo(_c(7.70, 29.0)),
         ArtQuadTo(_c(7.82, 30.0), _c(7.76, 30.5)),
         ArtQuadTo(_c(7.68, 30.0), _c(7.70, 29.0)),
-        ArtClose(),
+        const ArtClose(),
         // Torso
         ArtMoveTo(_c(7.68, 28.5)),
         ArtLineTo(_c(7.83, 28.5)),
@@ -483,13 +483,13 @@ class ConstellationArt {
         ArtLineTo(_c(7.12, 16.3)),
         ArtLineTo(_c(7.45, 22.0)),
         ArtLineTo(_c(7.68, 28.5)),
-        ArtClose(),
+        const ArtClose(),
         // Joined hands (between twins at shoulder height)
         ArtMoveTo(_c(7.60, 28.0)),
         ArtLineTo(_c(7.68, 28.0)),
         ArtLineTo(_c(7.68, 28.5)),
         ArtLineTo(_c(7.60, 28.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -512,7 +512,7 @@ class ConstellationArt {
         // Shoulders back down
         ArtLineTo(_c(18.20, -23.0)),
         ArtLineTo(_c(18.23, -25.42)),  // Kaus Borealis
-        ArtClose(),
+        const ArtClose(),
         // Bow arm (extended left)
         ArtMoveTo(_c(18.20, -23.0)),
         ArtLineTo(_c(17.80, -22.0)),
@@ -520,13 +520,13 @@ class ConstellationArt {
         ArtLineTo(_c(17.45, -21.5)),
         ArtLineTo(_c(17.75, -22.5)),
         ArtLineTo(_c(18.15, -23.5)),
-        ArtClose(),
+        const ArtClose(),
         // Bow arc
         ArtMoveTo(_c(17.50, -21.0)),
         ArtQuadTo(_c(17.30, -24.0), _c(17.50, -27.0)),
         ArtLineTo(_c(17.55, -27.0)),
         ArtQuadTo(_c(17.35, -24.0), _c(17.55, -21.0)),
-        ArtClose(),
+        const ArtClose(),
         // Horse body (lower, following teapot outline)
         ArtMoveTo(_c(18.23, -25.42)),  // Kaus Borealis
         ArtLineTo(_c(18.35, -29.83)),  // Kaus Media
@@ -534,7 +534,7 @@ class ConstellationArt {
         ArtLineTo(_c(19.04, -29.88)),  // Ascella
         ArtLineTo(_c(18.92, -26.30)),  // Nunki
         ArtLineTo(_c(18.70, -25.5)),
-        ArtClose(),
+        const ArtClose(),
         // Hind legs
         ArtMoveTo(_c(18.90, -30.0)),
         ArtLineTo(_c(19.10, -33.0)),
@@ -542,7 +542,7 @@ class ConstellationArt {
         ArtLineTo(_c(19.30, -35.2)),
         ArtLineTo(_c(19.20, -33.0)),
         ArtLineTo(_c(19.00, -30.5)),
-        ArtClose(),
+        const ArtClose(),
         // Front legs
         ArtMoveTo(_c(18.40, -34.38)),
         ArtLineTo(_c(18.30, -36.5)),
@@ -550,7 +550,7 @@ class ConstellationArt {
         ArtLineTo(_c(18.30, -38.2)),
         ArtLineTo(_c(18.40, -36.5)),
         ArtLineTo(_c(18.50, -34.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -570,26 +570,26 @@ class ConstellationArt {
         ArtLineTo(_c(4.60, 14.0)),
         ArtLineTo(_c(4.33, 15.63)),
         ArtLineTo(_c(4.00, 12.5)),
-        ArtClose(),
+        const ArtClose(),
         // Broad head
         ArtMoveTo(_c(4.00, 12.0)),
         ArtLineTo(_c(4.80, 17.5)),
         ArtLineTo(_c(5.00, 19.0)),
         ArtLineTo(_c(4.80, 19.5)),
         ArtLineTo(_c(3.80, 13.0)),
-        ArtClose(),
+        const ArtClose(),
         // Left horn (to Elnath)
         ArtMoveTo(_c(4.80, 19.5)),
         ArtQuadTo(_c(5.10, 24.0), _c(5.44, 28.61)),   // Elnath
         ArtLineTo(_c(5.50, 29.0)),
         ArtQuadTo(_c(5.15, 24.5), _c(4.90, 19.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right horn (to Zeta Tau)
         ArtMoveTo(_c(5.00, 19.0)),
         ArtQuadTo(_c(5.30, 20.0), _c(5.63, 21.14)),   // Zeta Tau
         ArtLineTo(_c(5.70, 21.5)),
         ArtQuadTo(_c(5.35, 20.5), _c(5.10, 19.0)),
-        ArtClose(),
+        const ArtClose(),
         // Neck/shoulder (trails off to the right)
         ArtMoveTo(_c(3.80, 13.0)),
         ArtLineTo(_c(3.50, 11.0)),
@@ -597,7 +597,7 @@ class ConstellationArt {
         ArtLineTo(_c(3.70, 8.0)),
         ArtQuadTo(_c(3.60, 9.5), _c(3.70, 11.5)),
         ArtLineTo(_c(4.00, 12.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -616,12 +616,12 @@ class ConstellationArt {
         ArtQuadTo(_c(6.85, -13.0), _c(6.90, -14.5)),
         ArtLineTo(_c(6.85, -16.0)),
         ArtLineTo(_c(6.65, -16.0)),
-        ArtClose(),
+        const ArtClose(),
         // Ear
         ArtMoveTo(_c(6.60, -13.0)),
         ArtLineTo(_c(6.50, -11.5)),
         ArtLineTo(_c(6.55, -12.0)),
-        ArtClose(),
+        const ArtClose(),
         // Body
         ArtMoveTo(_c(6.65, -16.0)),
         ArtLineTo(_c(6.38, -17.96)),   // Mirzam (chest)
@@ -632,7 +632,7 @@ class ConstellationArt {
         ArtLineTo(_c(7.00, -22.0)),
         ArtLineTo(_c(6.85, -18.0)),
         ArtLineTo(_c(6.85, -16.0)),
-        ArtClose(),
+        const ArtClose(),
         // Front legs
         ArtMoveTo(_c(6.40, -21.0)),
         ArtLineTo(_c(6.25, -24.0)),
@@ -640,7 +640,7 @@ class ConstellationArt {
         ArtLineTo(_c(6.30, -26.2)),
         ArtLineTo(_c(6.35, -24.0)),
         ArtLineTo(_c(6.50, -21.5)),
-        ArtClose(),
+        const ArtClose(),
         // Hind leg
         ArtMoveTo(_c(6.98, -28.97)),
         ArtLineTo(_c(6.80, -31.0)),
@@ -648,13 +648,13 @@ class ConstellationArt {
         ArtLineTo(_c(6.55, -32.8)),
         ArtLineTo(_c(6.75, -31.0)),
         ArtLineTo(_c(6.90, -29.5)),
-        ArtClose(),
+        const ArtClose(),
         // Tail (upward from Wezen)
         ArtMoveTo(_c(7.14, -26.39)),
         ArtQuadTo(_c(7.30, -24.0), _c(7.40, -22.5)),
         ArtLineTo(_c(7.35, -22.0)),
         ArtQuadTo(_c(7.25, -23.5), _c(7.10, -25.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -676,31 +676,31 @@ class ConstellationArt {
         ArtQuadTo(_c(19.10, 32.0), _c(19.10, 35.0)),
         ArtLineTo(_c(19.00, 37.5)),
         ArtLineTo(_c(18.62, 38.78)),   // back to Vega
-        ArtClose(),
+        const ArtClose(),
         // Left string
         ArtMoveTo(_c(18.55, 37.0)),
         ArtLineTo(_c(18.60, 33.5)),
         ArtLineTo(_c(18.62, 33.5)),
         ArtLineTo(_c(18.57, 37.0)),
-        ArtClose(),
+        const ArtClose(),
         // Center string
         ArtMoveTo(_c(18.75, 37.5)),
         ArtLineTo(_c(18.80, 33.0)),
         ArtLineTo(_c(18.82, 33.0)),
         ArtLineTo(_c(18.77, 37.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right string
         ArtMoveTo(_c(18.95, 37.0)),
         ArtLineTo(_c(18.93, 33.5)),
         ArtLineTo(_c(18.95, 33.5)),
         ArtLineTo(_c(18.97, 37.0)),
-        ArtClose(),
+        const ArtClose(),
         // Crossbar
         ArtMoveTo(_c(18.50, 35.5)),
         ArtLineTo(_c(19.05, 35.5)),
         ArtLineTo(_c(19.05, 35.8)),
         ArtLineTo(_c(18.50, 35.8)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -722,32 +722,32 @@ class ConstellationArt {
         ArtLineTo(_c(19.70, 6.5)),
         ArtLineTo(_c(19.65, 8.5)),
         ArtLineTo(_c(19.70, 10.5)),
-        ArtClose(),
+        const ArtClose(),
         // Head
         ArtMoveTo(_c(19.77, 10.61)),
         ArtQuadTo(_c(19.82, 12.0), _c(19.80, 12.5)),
         ArtQuadTo(_c(19.72, 12.0), _c(19.70, 10.5)),
-        ArtClose(),
+        const ArtClose(),
         // Left wing (toward Delta Aql)
         ArtMoveTo(_c(19.70, 9.5)),
         ArtQuadTo(_c(19.40, 11.0), _c(19.10, 13.86)),  // Delta Aql
         ArtLineTo(_c(18.80, 15.0)),
         ArtLineTo(_c(18.75, 14.5)),
         ArtQuadTo(_c(19.05, 13.0), _c(19.55, 9.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right wing (toward Theta Aql)
         ArtMoveTo(_c(20.00, 7.0)),
         ArtQuadTo(_c(20.10, 4.0), _c(20.19, -0.82)),   // Theta Aql
         ArtLineTo(_c(20.40, -2.0)),
         ArtLineTo(_c(20.45, -1.5)),
         ArtQuadTo(_c(20.25, 2.0), _c(20.10, 6.5)),
-        ArtClose(),
+        const ArtClose(),
         // Tail feathers
         ArtMoveTo(_c(19.90, 5.0)),
         ArtLineTo(_c(20.05, 3.5)),
         ArtLineTo(_c(20.10, 4.0)),
         ArtLineTo(_c(19.95, 5.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -765,7 +765,7 @@ class ConstellationArt {
         ArtLineTo(_c(23.06, 28.08)),   // Scheat
         ArtLineTo(_c(23.08, 15.21)),   // Markab
         ArtLineTo(_c(0.22, 15.18)),    // Algenib
-        ArtClose(),
+        const ArtClose(),
         // Neck (from Scheat toward Enif)
         ArtMoveTo(_c(23.06, 28.08)),   // Scheat
         ArtLineTo(_c(22.80, 27.0)),
@@ -778,12 +778,12 @@ class ConstellationArt {
         ArtQuadTo(_c(21.85, 19.0), _c(22.00, 25.0)),
         ArtLineTo(_c(22.70, 27.0)),
         ArtLineTo(_c(22.95, 28.0)),
-        ArtClose(),
+        const ArtClose(),
         // Wing (above square, from Scheat-Alpheratz edge)
         ArtMoveTo(_c(23.50, 28.5)),
         ArtQuadTo(_c(23.80, 33.0), _c(0.00, 35.0)),
         ArtQuadTo(_c(0.10, 33.0), _c(23.60, 29.0)),
-        ArtClose(),
+        const ArtClose(),
         // Front legs (below Markab)
         ArtMoveTo(_c(23.08, 15.21)),
         ArtLineTo(_c(23.15, 12.0)),
@@ -791,7 +791,7 @@ class ConstellationArt {
         ArtLineTo(_c(23.30, 10.0)),
         ArtLineTo(_c(23.25, 12.0)),
         ArtLineTo(_c(23.20, 15.0)),
-        ArtClose(),
+        const ArtClose(),
         // Hind legs (below Algenib)
         ArtMoveTo(_c(0.22, 15.18)),
         ArtLineTo(_c(0.28, 12.0)),
@@ -799,7 +799,7 @@ class ConstellationArt {
         ArtLineTo(_c(0.42, 10.0)),
         ArtLineTo(_c(0.38, 12.0)),
         ArtLineTo(_c(0.32, 15.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -819,12 +819,12 @@ class ConstellationArt {
         ArtLineTo(_c(2.07, 41.0)),     // below Almach
         ArtLineTo(_c(2.07, 43.5)),     // above Almach
         ArtLineTo(_c(1.16, 36.8)),     // above Mirach
-        ArtClose(),
+        const ArtClose(),
         // Head (near Almach)
         ArtMoveTo(_c(2.00, 43.5)),
         ArtQuadTo(_c(2.15, 44.5), _c(2.07, 45.0)),
         ArtQuadTo(_c(1.95, 44.5), _c(2.00, 43.5)),
-        ArtClose(),
+        const ArtClose(),
         // Left arm (from near Mirach, stretched out)
         ArtMoveTo(_c(1.05, 36.5)),
         ArtLineTo(_c(0.80, 38.0)),
@@ -832,7 +832,7 @@ class ConstellationArt {
         ArtLineTo(_c(0.45, 39.0)),
         ArtLineTo(_c(0.75, 37.5)),
         ArtLineTo(_c(1.00, 35.8)),
-        ArtClose(),
+        const ArtClose(),
         // Right arm (from near Almach, stretched out)
         ArtMoveTo(_c(2.00, 43.0)),
         ArtLineTo(_c(2.30, 44.5)),
@@ -840,7 +840,7 @@ class ConstellationArt {
         ArtLineTo(_c(2.65, 45.0)),
         ArtLineTo(_c(2.35, 44.0)),
         ArtLineTo(_c(2.07, 42.5)),
-        ArtClose(),
+        const ArtClose(),
         // Skirt/legs (flowing down from Alpheratz area)
         ArtMoveTo(_c(0.14, 28.0)),
         ArtLineTo(_c(0.00, 26.0)),
@@ -851,7 +851,7 @@ class ConstellationArt {
         ArtLineTo(_c(0.35, 24.5)),
         ArtLineTo(_c(0.30, 26.0)),
         ArtLineTo(_c(0.14, 28.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -874,12 +874,12 @@ class ConstellationArt {
         ArtLineTo(_c(3.25, 46.0)),
         ArtLineTo(_c(3.08, 47.5)),     // left arm
         ArtLineTo(_c(3.30, 50.0)),
-        ArtClose(),
+        const ArtClose(),
         // Head
         ArtMoveTo(_c(3.35, 50.5)),
         ArtQuadTo(_c(3.48, 51.5), _c(3.41, 52.0)),
         ArtQuadTo(_c(3.32, 51.5), _c(3.35, 50.5)),
-        ArtClose(),
+        const ArtClose(),
         // Arm holding Medusa head (toward Algol)
         ArtMoveTo(_c(3.25, 46.0)),
         ArtLineTo(_c(3.14, 43.0)),
@@ -887,13 +887,13 @@ class ConstellationArt {
         ArtLineTo(_c(3.05, 40.5)),
         ArtLineTo(_c(3.05, 43.0)),
         ArtLineTo(_c(3.15, 46.0)),
-        ArtClose(),
+        const ArtClose(),
         // Medusa head (circle around Algol)
         ArtMoveTo(_c(3.05, 41.0)),
         ArtQuadTo(_c(2.95, 40.0), _c(3.14, 39.5)),
         ArtQuadTo(_c(3.30, 40.0), _c(3.20, 41.0)),
         ArtQuadTo(_c(3.15, 41.5), _c(3.05, 41.0)),
-        ArtClose(),
+        const ArtClose(),
         // Sword arm (from Gamma Per outward)
         ArtMoveTo(_c(3.72, 47.79)),
         ArtLineTo(_c(3.90, 48.5)),
@@ -901,7 +901,7 @@ class ConstellationArt {
         ArtLineTo(_c(4.12, 48.5)),
         ArtLineTo(_c(3.92, 48.0)),
         ArtLineTo(_c(3.75, 47.5)),
-        ArtClose(),
+        const ArtClose(),
         // Legs
         ArtMoveTo(_c(3.35, 43.0)),
         ArtLineTo(_c(3.25, 40.0)),
@@ -909,14 +909,14 @@ class ConstellationArt {
         ArtLineTo(_c(3.25, 37.8)),
         ArtLineTo(_c(3.35, 40.0)),
         ArtLineTo(_c(3.45, 43.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(3.45, 43.0)),
         ArtLineTo(_c(3.55, 40.0)),
         ArtLineTo(_c(3.65, 38.0)),
         ArtLineTo(_c(3.75, 37.8)),
         ArtLineTo(_c(3.65, 40.0)),
         ArtLineTo(_c(3.55, 43.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -936,12 +936,12 @@ class ConstellationArt {
         ArtLineTo(_c(15.03, 40.39)),   // Nekkar (top/head)
         ArtLineTo(_c(14.75, 27.07)),   // Delta Boo (right-top)
         ArtLineTo(_c(14.26, 19.18)),   // back to Arcturus
-        ArtClose(),
+        const ArtClose(),
         // Head
         ArtMoveTo(_c(14.95, 40.5)),
         ArtQuadTo(_c(15.10, 42.0), _c(15.03, 42.5)),
         ArtQuadTo(_c(14.95, 42.0), _c(14.95, 40.5)),
-        ArtClose(),
+        const ArtClose(),
         // Staff (from left hand downward)
         ArtMoveTo(_c(13.85, 18.0)),
         ArtLineTo(_c(13.70, 15.0)),
@@ -949,21 +949,21 @@ class ConstellationArt {
         ArtLineTo(_c(13.65, 11.8)),
         ArtLineTo(_c(13.75, 15.0)),
         ArtLineTo(_c(13.91, 18.0)),
-        ArtClose(),
+        const ArtClose(),
         // Left arm
         ArtMoveTo(_c(14.10, 27.0)),
         ArtLineTo(_c(13.70, 28.0)),
         ArtLineTo(_c(13.50, 28.0)),
         ArtLineTo(_c(13.65, 27.5)),
         ArtLineTo(_c(14.00, 26.5)),
-        ArtClose(),
+        const ArtClose(),
         // Right arm
         ArtMoveTo(_c(14.70, 28.0)),
         ArtLineTo(_c(15.10, 29.0)),
         ArtLineTo(_c(15.30, 29.0)),
         ArtLineTo(_c(15.15, 28.5)),
         ArtLineTo(_c(14.80, 27.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -984,12 +984,12 @@ class ConstellationArt {
         ArtLineTo(_c(12.50, -5.0)),    // other hip
         ArtLineTo(_c(12.55, -1.0)),
         ArtLineTo(_c(12.70, 3.0)),
-        ArtClose(),
+        const ArtClose(),
         // Head
         ArtMoveTo(_c(12.75, 5.5)),
         ArtQuadTo(_c(12.90, 6.5), _c(12.80, 7.0)),
         ArtQuadTo(_c(12.70, 6.5), _c(12.75, 5.5)),
-        ArtClose(),
+        const ArtClose(),
         // Arm holding wheat (toward Spica)
         ArtMoveTo(_c(12.80, 0.0)),
         ArtLineTo(_c(13.10, -4.0)),
@@ -998,7 +998,7 @@ class ConstellationArt {
         ArtLineTo(_c(13.52, -11.0)),
         ArtLineTo(_c(13.20, -4.0)),
         ArtLineTo(_c(12.90, 0.0)),
-        ArtClose(),
+        const ArtClose(),
         // Wheat sheaf (rays around Spica)
         ArtMoveTo(_c(13.42, -11.16)),
         ArtLineTo(_c(13.30, -12.5)),
@@ -1007,7 +1007,7 @@ class ConstellationArt {
         ArtLineTo(_c(13.55, -12.5)),
         ArtLineTo(_c(13.50, -12.8)),
         ArtLineTo(_c(13.42, -11.16)),
-        ArtClose(),
+        const ArtClose(),
         // Flowing skirt (legs)
         ArtMoveTo(_c(12.50, -5.0)),
         ArtLineTo(_c(12.30, -8.0)),
@@ -1015,14 +1015,14 @@ class ConstellationArt {
         ArtLineTo(_c(12.30, -10.2)),
         ArtLineTo(_c(12.45, -8.0)),
         ArtLineTo(_c(12.65, -5.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(13.00, -5.0)),
         ArtLineTo(_c(13.10, -8.0)),
         ArtLineTo(_c(13.20, -10.0)),
         ArtLineTo(_c(13.10, -10.2)),
         ArtLineTo(_c(13.00, -8.0)),
         ArtLineTo(_c(12.85, -5.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1042,19 +1042,19 @@ class ConstellationArt {
         ArtLineTo(_c(16.29, 75.76)),   // Epsilon UMi
         ArtLineTo(_c(15.73, 77.79)),   // Zeta UMi
         ArtLineTo(_c(14.85, 75.5)),
-        ArtClose(),
+        const ArtClose(),
         // Tail (handle to Polaris)
         ArtMoveTo(_c(16.29, 76.5)),
         ArtLineTo(_c(17.54, 86.59)),   // Yildun
         ArtQuadTo(_c(5.0, 88.0), _c(2.53, 89.26)),  // Polaris
         ArtQuadTo(_c(5.0, 89.0), _c(17.54, 87.5)),
         ArtLineTo(_c(16.29, 77.0)),
-        ArtClose(),
+        const ArtClose(),
         // Ear
         ArtMoveTo(_c(14.50, 75.0)),
         ArtLineTo(_c(14.30, 76.0)),
         ArtLineTo(_c(14.50, 75.8)),
-        ArtClose(),
+        const ArtClose(),
         // Front legs
         ArtMoveTo(_c(14.85, 74.16)),
         ArtLineTo(_c(14.70, 72.5)),
@@ -1062,7 +1062,7 @@ class ConstellationArt {
         ArtLineTo(_c(14.75, 71.3)),
         ArtLineTo(_c(14.85, 72.5)),
         ArtLineTo(_c(15.00, 73.5)),
-        ArtClose(),
+        const ArtClose(),
         // Hind legs
         ArtMoveTo(_c(15.80, 72.5)),
         ArtLineTo(_c(15.90, 71.0)),
@@ -1070,7 +1070,7 @@ class ConstellationArt {
         ArtLineTo(_c(16.15, 69.8)),
         ArtLineTo(_c(16.05, 71.0)),
         ArtLineTo(_c(15.95, 72.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1090,7 +1090,7 @@ class ConstellationArt {
         ArtLineTo(_c(17.65, 51.0)),
         ArtLineTo(_c(17.51, 51.49)),   // Rastaban
         ArtLineTo(_c(17.30, 52.0)),
-        ArtClose(),
+        const ArtClose(),
         // Body (sinuous path through constellation)
         ArtMoveTo(_c(17.35, 53.5)),
         ArtQuadTo(_c(17.20, 54.5), _c(17.15, 54.47)),
@@ -1109,7 +1109,7 @@ class ConstellationArt {
         ArtQuadTo(_c(16.90, 59.0), _c(17.25, 55.5)),
         ArtQuadTo(_c(17.30, 54.0), _c(17.45, 53.5)),
         ArtLineTo(_c(17.35, 53.5)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1128,12 +1128,12 @@ class ConstellationArt {
         ArtLineTo(_c(16.36, 19.15)),   // Eta Her
         ArtLineTo(_c(17.25, 24.84)),   // Pi Her
         ArtLineTo(_c(16.69, 31.60)),   // Epsilon Her
-        ArtClose(),
+        const ArtClose(),
         // Head (below keystone since Hercules is upside-down)
         ArtMoveTo(_c(16.10, 14.5)),
         ArtQuadTo(_c(16.25, 13.0), _c(16.15, 12.5)),
         ArtQuadTo(_c(16.05, 13.0), _c(16.10, 14.5)),
-        ArtClose(),
+        const ArtClose(),
         // Leg down to Kornephoros
         ArtMoveTo(_c(16.50, 21.49)),
         ArtLineTo(_c(16.35, 18.0)),
@@ -1141,13 +1141,13 @@ class ConstellationArt {
         ArtLineTo(_c(16.05, 14.0)),
         ArtLineTo(_c(16.25, 18.0)),
         ArtLineTo(_c(16.36, 19.15)),
-        ArtClose(),
+        const ArtClose(),
         // Other leg (from Eta Her)
         ArtMoveTo(_c(16.36, 19.15)),
         ArtLineTo(_c(17.24, 14.39)),   // Sarin
         ArtLineTo(_c(17.30, 14.5)),
         ArtLineTo(_c(16.50, 19.5)),
-        ArtClose(),
+        const ArtClose(),
         // Arm to Rasalgethi
         ArtMoveTo(_c(16.69, 31.60)),
         ArtLineTo(_c(17.00, 34.0)),
@@ -1155,13 +1155,13 @@ class ConstellationArt {
         ArtLineTo(_c(17.45, 37.5)),
         ArtLineTo(_c(17.05, 34.5)),
         ArtLineTo(_c(16.75, 31.8)),
-        ArtClose(),
+        const ArtClose(),
         // Arm from Pi Her (with club)
         ArtMoveTo(_c(17.25, 24.84)),
         ArtLineTo(_c(17.58, 12.56)),   // toward Rasalhague
         ArtLineTo(_c(17.65, 12.5)),
         ArtLineTo(_c(17.35, 25.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1181,18 +1181,18 @@ class ConstellationArt {
         ArtLineTo(_c(5.44, 28.61)),    // Elnath
         ArtLineTo(_c(5.03, 33.17)),    // Iota Aur
         ArtLineTo(_c(5.11, 41.23)),    // Almaaz
-        ArtClose(),
+        const ArtClose(),
         // Head (above Capella)
         ArtMoveTo(_c(5.22, 47.0)),
         ArtQuadTo(_c(5.35, 48.5), _c(5.28, 49.0)),
         ArtQuadTo(_c(5.18, 48.5), _c(5.22, 47.0)),
-        ArtClose(),
+        const ArtClose(),
         // Goat kids (small figure near Almaaz — the charioteer traditionally holds baby goats)
         ArtMoveTo(_c(5.00, 42.0)),
         ArtQuadTo(_c(4.85, 42.5), _c(4.85, 43.0)),
         ArtQuadTo(_c(4.95, 43.5), _c(5.05, 43.0)),
         ArtQuadTo(_c(5.05, 42.5), _c(5.00, 42.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1213,7 +1213,7 @@ class ConstellationArt {
         ArtLineTo(_c(12.58, -57.5)),
         ArtLineTo(_c(12.52, -60.5)),   // center
         ArtLineTo(_c(12.50, -62.5)),
-        ArtClose(),
+        const ArtClose(),
         // Horizontal beam
         ArtMoveTo(_c(12.25, -58.75)),  // Imai (left)
         ArtLineTo(_c(12.30, -59.3)),
@@ -1222,35 +1222,35 @@ class ConstellationArt {
         ArtLineTo(_c(12.75, -60.2)),
         ArtLineTo(_c(12.52, -60.2)),   // center
         ArtLineTo(_c(12.30, -59.8)),
-        ArtClose(),
+        const ArtClose(),
         // Flared tips (top)
         ArtMoveTo(_c(12.45, -57.3)),
         ArtLineTo(_c(12.40, -56.5)),
         ArtLineTo(_c(12.52, -57.11)),
         ArtLineTo(_c(12.65, -56.5)),
         ArtLineTo(_c(12.58, -57.3)),
-        ArtClose(),
+        const ArtClose(),
         // Flared tips (bottom)
         ArtMoveTo(_c(12.38, -62.8)),
         ArtLineTo(_c(12.35, -63.5)),
         ArtLineTo(_c(12.44, -63.10)),
         ArtLineTo(_c(12.55, -63.5)),
         ArtLineTo(_c(12.50, -62.8)),
-        ArtClose(),
+        const ArtClose(),
         // Flared tips (left)
         ArtMoveTo(_c(12.28, -59.0)),
         ArtLineTo(_c(12.15, -58.5)),
         ArtLineTo(_c(12.25, -58.75)),
         ArtLineTo(_c(12.15, -59.3)),
         ArtLineTo(_c(12.28, -59.6)),
-        ArtClose(),
+        const ArtClose(),
         // Flared tips (right)
         ArtMoveTo(_c(12.77, -59.4)),
         ArtLineTo(_c(12.90, -59.0)),
         ArtLineTo(_c(12.80, -59.69)),
         ArtLineTo(_c(12.90, -60.2)),
         ArtLineTo(_c(12.77, -60.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1268,7 +1268,7 @@ class ConstellationArt {
         ArtLineTo(_c(22.83, 66.20)),   // Delta Cep
         ArtLineTo(_c(23.19, 75.39)),   // Iota Cep
         ArtLineTo(_c(23.66, 77.63)),   // Errai
-        ArtClose(),
+        const ArtClose(),
         // Crown (above Errai)
         ArtMoveTo(_c(23.50, 78.0)),
         ArtLineTo(_c(23.45, 79.5)),
@@ -1277,7 +1277,7 @@ class ConstellationArt {
         ArtLineTo(_c(23.75, 80.0)),
         ArtLineTo(_c(23.85, 79.5)),
         ArtLineTo(_c(23.80, 78.0)),
-        ArtClose(),
+        const ArtClose(),
         // Scepter (from Alderamin outward)
         ArtMoveTo(_c(21.31, 62.59)),
         ArtLineTo(_c(21.00, 61.0)),
@@ -1285,7 +1285,7 @@ class ConstellationArt {
         ArtLineTo(_c(20.85, 59.5)),
         ArtLineTo(_c(21.05, 60.5)),
         ArtLineTo(_c(21.25, 62.0)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
 
@@ -1305,7 +1305,7 @@ class ConstellationArt {
         ArtQuadTo(_c(16.00, 30.0), _c(16.02, 29.85)),   // Delta CrB
         ArtQuadTo(_c(16.00, 28.0), _c(15.99, 26.88)),   // Gamma CrB
         ArtLineTo(_c(15.58, 26.71)),   // back to Alphecca
-        ArtClose(),
+        const ArtClose(),
         // Inner arc (thinner, to give crown depth)
         ArtMoveTo(_c(15.63, 27.5)),
         ArtQuadTo(_c(15.55, 28.5), _c(15.55, 29.5)),
@@ -1313,20 +1313,20 @@ class ConstellationArt {
         ArtQuadTo(_c(15.85, 30.5), _c(15.90, 29.8)),
         ArtQuadTo(_c(15.92, 28.5), _c(15.90, 27.5)),
         ArtLineTo(_c(15.63, 27.5)),
-        ArtClose(),
+        const ArtClose(),
         // Jewel points (three small triangles on top)
         ArtMoveTo(_c(15.55, 29.5)),
         ArtLineTo(_c(15.50, 30.5)),
         ArtLineTo(_c(15.58, 30.0)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(15.75, 30.8)),
         ArtLineTo(_c(15.75, 31.8)),
         ArtLineTo(_c(15.80, 31.2)),
-        ArtClose(),
+        const ArtClose(),
         ArtMoveTo(_c(15.90, 29.8)),
         ArtLineTo(_c(15.95, 30.8)),
         ArtLineTo(_c(15.98, 30.2)),
-        ArtClose(),
+        const ArtClose(),
       ],
     ),
   ];
