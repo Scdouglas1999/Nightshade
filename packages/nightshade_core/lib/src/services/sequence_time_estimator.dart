@@ -411,137 +411,125 @@ class SequenceTimeEstimator {
     DateTime currentTime,
     _LocationContext? locationContext,
   ) {
-    if (node is ExposureNode) {
-      // Exposure time + download overhead for each frame
-      final totalSecs =
-          node.count * node.durationSecs + node.count * _downloadOverheadSecs;
-      return Duration(milliseconds: (totalSecs * 1000).round());
+    // Exhaustive switch over the sealed SequenceNode hierarchy. A new node
+    // subtype will fail to compile here rather than silently fall through to
+    // a zero-duration default and mis-estimate sequence timing.
+    return switch (node) {
+      ExposureNode() => Duration(
+          milliseconds:
+              ((node.count * node.durationSecs + node.count * _downloadOverheadSecs) *
+                      1000)
+                  .round(),
+        ),
+      AutofocusNode() => Duration(
+          milliseconds: (((node.stepsOut * 2 + 1) *
+                      node.exposuresPerPoint *
+                      node.exposureDuration) *
+                  1000)
+              .round(),
+        ),
+      DitherNode() => Duration(
+          milliseconds:
+              (((node.settleTime > 0 ? node.settleTime : _ditherDurationSecs)) *
+                      1000)
+                  .round(),
+        ),
+      DelayNode() => Duration(milliseconds: (node.seconds * 1000).round()),
+      WaitTimeNode() =>
+        _estimateWaitTimeDuration(node, currentTime, locationContext),
+      SlewNode() => const Duration(seconds: 30),
+      CenterNode() => () {
+          // Centering involves multiple plate solves and slews. Estimate:
+          // maxAttempts iterations of (expose + solve + slew). In practice,
+          // usually succeeds in 1-3 attempts.
+          final estimatedAttempts = (node.maxAttempts / 2).ceil();
+          const secsPerAttempt = 10.0 + _slewDurationSecs / 2;
+          final totalSecs = estimatedAttempts * secsPerAttempt;
+          return Duration(milliseconds: (totalSecs * 1000).round());
+        }(),
+      MeridianFlipNode() => () {
+          // Flip includes: stop guiding, slew, recenter, restart guiding.
+          double totalSecs = _meridianFlipDurationSecs;
+          if (node.autoCenter) {
+            totalSecs += _centerDurationSecs;
+          }
+          totalSecs += node.settleTime;
+          return Duration(milliseconds: (totalSecs * 1000).round());
+        }(),
+      FilterChangeNode() => const Duration(seconds: 10),
+      RotatorNode() => const Duration(seconds: 15),
+      ParkNode() || UnparkNode() => const Duration(seconds: 30),
+      CoolCameraNode() =>
+        Duration(minutes: (node.durationMins ?? _defaultCoolingMins).round()),
+      WarmCameraNode() => () {
+          // Estimate warming time using a typical 30 C delta (e.g., -10 to +20)
+          // at the configured rate.
+          const deltaTemp = 30.0;
+          final mins = deltaTemp / node.ratePerMin;
+          return Duration(minutes: mins.round());
+        }(),
+      StartGuidingNode() =>
+        Duration(milliseconds: (node.settleTimeout * 1000).round()),
+      StopGuidingNode() => const Duration(seconds: 2),
+      OpenDomeNode() ||
+      CloseDomeNode() ||
+      ParkDomeNode() =>
+        const Duration(seconds: 60),
+      // Mechanical cover and calibrator toggles are quick — ~5 seconds covers
+      // both the dust cover motion and the EL panel power cycle.
+      OpenCoverNode() ||
+      CloseCoverNode() ||
+      CalibratorOnNode() ||
+      CalibratorOffNode() =>
+        const Duration(seconds: 5),
+      PolarAlignmentNode() => const Duration(minutes: 5),
+      ScriptNode() =>
+        Duration(seconds: node.timeoutSecs ?? _defaultScriptTimeoutSecs),
+      NotificationNode() => Duration.zero,
+      // Container nodes (TargetHeaderNode, LoopNode, ParallelNode,
+      // ConditionalNode, RecoveryNode, InstructionSetNode) have no intrinsic
+      // duration — their cost is the sum of their children, handled by the
+      // recursive walk in `_processNode`.
+      TargetHeaderNode() ||
+      LoopNode() ||
+      ParallelNode() ||
+      ConditionalNode() ||
+      RecoveryNode() ||
+      InstructionSetNode() =>
+        Duration.zero,
+    };
+  }
+
+  /// Helper for [_estimateNodeDuration] that resolves a [WaitTimeNode] to a
+  /// concrete duration, supporting both absolute wait-until timestamps and
+  /// twilight-relative waits when a location context is available.
+  Duration _estimateWaitTimeDuration(
+    WaitTimeNode node,
+    DateTime currentTime,
+    _LocationContext? locationContext,
+  ) {
+    if (node.waitUntil != null) {
+      final waitDuration = node.waitUntil!.difference(currentTime);
+      if (waitDuration.isNegative) {
+        return Duration.zero;
+      }
+      return waitDuration;
     }
 
-    if (node is AutofocusNode) {
-      // Estimate based on number of samples and exposure duration
-      // Default: stepsOut * 2 + 1 data points, each with exposuresPerPoint exposures
-      final dataPoints = node.stepsOut * 2 + 1;
-      final totalExposures = dataPoints * node.exposuresPerPoint;
-      final totalSecs = totalExposures * node.exposureDuration;
-      return Duration(milliseconds: (totalSecs * 1000).round());
-    }
-
-    if (node is DitherNode) {
-      // Use settle time if specified, otherwise default
-      final secs = node.settleTime > 0 ? node.settleTime : _ditherDurationSecs;
-      return Duration(milliseconds: (secs * 1000).round());
-    }
-
-    if (node is DelayNode) {
-      return Duration(milliseconds: (node.seconds * 1000).round());
-    }
-
-    if (node is WaitTimeNode) {
-      if (node.waitUntil != null) {
-        final waitDuration = node.waitUntil!.difference(currentTime);
+    if (node.waitForTwilight != null && locationContext != null) {
+      final twilightTime = _calculateTwilightWaitTime(
+        currentTime,
+        node.waitForTwilight!,
+        locationContext,
+      );
+      if (twilightTime != null) {
+        final waitDuration = twilightTime.difference(currentTime);
         if (waitDuration.isNegative) {
           return Duration.zero;
         }
         return waitDuration;
       }
-
-      // Handle waitForTwilight by calculating twilight time
-      if (node.waitForTwilight != null && locationContext != null) {
-        final twilightTime = _calculateTwilightWaitTime(
-          currentTime,
-          node.waitForTwilight!,
-          locationContext,
-        );
-        if (twilightTime != null) {
-          final waitDuration = twilightTime.difference(currentTime);
-          if (waitDuration.isNegative) {
-            // Twilight already passed - no wait needed
-            return Duration.zero;
-          }
-          return waitDuration;
-        }
-      }
-      return Duration.zero;
     }
-
-    if (node is SlewNode) {
-      return const Duration(seconds: 30);
-    }
-
-    if (node is CenterNode) {
-      // Centering involves multiple plate solves and slews
-      // Estimate: maxAttempts iterations of (expose + solve + slew)
-      // In practice, usually succeeds in 1-3 attempts
-      final estimatedAttempts = (node.maxAttempts / 2).ceil();
-      final secsPerAttempt =
-          10.0 + _slewDurationSecs / 2; // solve + partial slew
-      final totalSecs = estimatedAttempts * secsPerAttempt;
-      return Duration(milliseconds: (totalSecs * 1000).round());
-    }
-
-    if (node is MeridianFlipNode) {
-      // Flip includes: stop guiding, slew, recenter, restart guiding
-      double totalSecs = _meridianFlipDurationSecs;
-      if (node.autoCenter) {
-        totalSecs += _centerDurationSecs;
-      }
-      totalSecs += node.settleTime;
-      return Duration(milliseconds: (totalSecs * 1000).round());
-    }
-
-    if (node is FilterChangeNode) {
-      return const Duration(seconds: 10);
-    }
-
-    if (node is RotatorNode) {
-      return const Duration(seconds: 15);
-    }
-
-    if (node is ParkNode || node is UnparkNode) {
-      return const Duration(seconds: 30);
-    }
-
-    if (node is CoolCameraNode) {
-      final mins = node.durationMins ?? _defaultCoolingMins;
-      return Duration(minutes: mins.round());
-    }
-
-    if (node is WarmCameraNode) {
-      // Estimate warming time based on typical delta and rate
-      // Assume 30C delta (e.g., -10C to +20C) at given rate
-      final deltaTemp = 30.0;
-      final mins = deltaTemp / node.ratePerMin;
-      return Duration(minutes: mins.round());
-    }
-
-    if (node is StartGuidingNode) {
-      return Duration(milliseconds: (node.settleTimeout * 1000).round());
-    }
-
-    if (node is StopGuidingNode) {
-      return const Duration(seconds: 2);
-    }
-
-    if (node is OpenDomeNode || node is CloseDomeNode || node is ParkDomeNode) {
-      return const Duration(seconds: 60);
-    }
-
-    if (node is PolarAlignmentNode) {
-      // 3 plate solves + user adjustment time
-      return const Duration(minutes: 5);
-    }
-
-    if (node is ScriptNode) {
-      return Duration(seconds: node.timeoutSecs ?? _defaultScriptTimeoutSecs);
-    }
-
-    if (node is NotificationNode) {
-      return Duration.zero; // Notifications are instantaneous
-    }
-
-    // Container nodes (TargetHeaderNode, LoopNode, ParallelNode, etc.)
-    // have their duration determined by children, not intrinsically
     return Duration.zero;
   }
 

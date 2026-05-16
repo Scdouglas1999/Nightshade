@@ -233,7 +233,7 @@ class SequenceFileService {
   }
 
   Map<String, dynamic> _nodeToJson(SequenceNode node) {
-    final base = {
+    final base = <String, dynamic>{
       'id': node.id,
       'nodeType': node.nodeType,
       'name': node.name,
@@ -243,182 +243,172 @@ class SequenceFileService {
       'isEnabled': node.isEnabled,
     };
 
-    // Add type-specific properties
-    if (node is TargetHeaderNode) {
-      base.addAll({
-        'targetName': node.targetName,
-        'raHours': node.raHours,
-        'decDegrees': node.decDegrees,
-        'rotation': node.rotation,
-        'priority': node.priority,
-        'minAltitude': node.minAltitude,
-        'maxAltitude': node.maxAltitude,
-        'startAfter': node.startAfter?.toIso8601String(),
-        'endBefore': node.endBefore?.toIso8601String(),
-        'mosaicPanel': node.mosaicPanel?.toJson(),
-      });
-    } else if (node is LoopNode) {
-      base.addAll({
-        'conditionType': node.conditionType.name,
-        'repeatCount': node.repeatCount,
-        'repeatUntil': node.repeatUntil?.toIso8601String(),
-        'repeatUntilAltitude': node.repeatUntilAltitude,
-        'integrationTimeTarget': node.integrationTimeTarget,
-        'maxSafetyIterations': node.maxSafetyIterations,
-      });
-    } else if (node is ParallelNode) {
-      base.addAll({
-        'requiredSuccesses': node.requiredSuccesses,
-      });
-    } else if (node is ConditionalNode) {
-      base.addAll({
-        'conditionType': node.conditionType.name,
-        'thresholdValue': node.thresholdValue,
-        'thresholdTime': node.thresholdTime?.toIso8601String(),
-      });
-    } else if (node is RecoveryNode) {
-      base.addAll({
-        'recoveryAction': node.recoveryAction.name,
-        'maxRetries': node.maxRetries,
-        'triggerType': node.triggerType?.name,
-        'triggerThreshold': node.triggerThreshold,
-        'hfrThresholdPercent': node.hfrThresholdPercent,
-        'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
-      });
-    } else if (node is SlewNode) {
-      base.addAll({
-        'useTargetCoords': node.useTargetCoords,
-        'customRa': node.customRa,
-        'customDec': node.customDec,
-      });
-    } else if (node is CenterNode) {
-      base.addAll({
-        'useTargetCoords': node.useTargetCoords,
-        'customRa': node.customRa,
-        'customDec': node.customDec,
-        'accuracyArcsec': node.accuracyArcsec,
-        'maxAttempts': node.maxAttempts,
-        'exposureDuration': node.exposureDuration,
-        'filter': node.filter,
-      });
-    } else if (node is ExposureNode) {
-      base.addAll({
-        'durationSecs': node.durationSecs,
-        'count': node.count,
-        'frameType': node.frameType.name,
-        'filter': node.filter,
-        'filterIndex': node.filterIndex,
-        'gain': node.gain,
-        'offset': node.offset,
-        'binning': node.binning.name,
-        'ditherEvery': node.ditherEvery,
-      });
-    } else if (node is AutofocusNode) {
-      base.addAll({
-        'method': node.method.name,
-        'stepSize': node.stepSize,
-        'stepsOut': node.stepsOut,
-        'exposuresPerPoint': node.exposuresPerPoint,
-        'exposureDuration': node.exposureDuration,
-        'useSettingsDefaults': node.useSettingsDefaults,
-        'maxDurationSecs': node.maxDurationSecs,
-      });
-    } else if (node is DitherNode) {
-      base.addAll({
-        'pixels': node.pixels,
-        'settlePixels': node.settlePixels,
-        'settleTime': node.settleTime,
-        'settleTimeout': node.settleTimeout,
-        'raOnly': node.raOnly,
-      });
-    } else if (node is StartGuidingNode) {
-      base.addAll({
-        'settlePixels': node.settlePixels,
-        'settleTime': node.settleTime,
-        'settleTimeout': node.settleTimeout,
-        'autoSelectStar': node.autoSelectStar,
-      });
-    } else if (node is FilterChangeNode) {
-      base.addAll({
-        'filterName': node.filterName,
-        'filterPosition': node.filterPosition,
-      });
-    } else if (node is CoolCameraNode) {
-      base.addAll({
-        'targetTemp': node.targetTemp,
-        'durationMins': node.durationMins,
-      });
-    } else if (node is WarmCameraNode) {
-      base.addAll({
-        'ratePerMin': node.ratePerMin,
-        'targetTemp': node.targetTemp,
-      });
-    } else if (node is RotatorNode) {
-      base.addAll({
-        'targetAngle': node.targetAngle,
-        'relative': node.relative,
-      });
-    } else if (node is WaitTimeNode) {
-      base.addAll({
-        'waitUntil': node.waitUntil?.toIso8601String(),
-        'waitForTwilight': node.waitForTwilight?.name,
-      });
-    } else if (node is DelayNode) {
-      base.addAll({
-        'seconds': node.seconds,
-      });
-    } else if (node is NotificationNode) {
-      base.addAll({
-        'title': node.title,
-        'message': node.message,
-        'level': node.level.name,
-      });
-    } else if (node is ScriptNode) {
-      base.addAll({
-        'scriptPath': node.scriptPath,
-        'arguments': node.arguments,
-        'timeoutSecs': node.timeoutSecs,
-      });
-    } else if (node is MeridianFlipNode) {
-      base.addAll({
-        'triggerMethod': node.triggerMethod.name,
-        'minutesPastMeridian': node.minutesPastMeridian,
-        'minutesBeforeLimit': node.minutesBeforeLimit,
-        'hourAngleThreshold': node.hourAngleThreshold,
-        'pauseGuiding': node.pauseGuiding,
-        'autoCenter': node.autoCenter,
-        'refocusAfter': node.refocusAfter,
-        'settleTime': node.settleTime,
-        'resumeGuiding': node.resumeGuiding,
-        'maxRetries': node.maxRetries,
-        'failureAction': node.failureAction.name,
-      });
-    } else if (node is OpenDomeNode) {
-      base.addAll({
-        'shutterOnly': node.shutterOnly,
-      });
-    } else if (node is CloseDomeNode) {
-      base.addAll({
-        'shutterOnly': node.shutterOnly,
-      });
-    } else if (node is ParkDomeNode) {
-      base.addAll({
-        'shutterOnly': node.shutterOnly,
-      });
-    } else if (node is PolarAlignmentNode) {
-      base.addAll({
-        'exposureDuration': node.exposureDuration,
-        'binning': node.binning,
-        'startAltitude': node.startAltitude,
-        'rotationStep': node.rotationStep,
-        'gain': node.gain,
-        'offset': node.offset,
-        'startFromCurrent': node.startFromCurrent,
-        'isNorth': node.isNorth,
-        'manualSlew': node.manualSlew,
-      });
-    }
+    // Exhaustive switch over the sealed SequenceNode hierarchy so new node
+    // subtypes fail to compile here rather than silently exporting without
+    // their type-specific properties (which would corrupt the JSON schema).
+    final extras = switch (node) {
+      TargetHeaderNode() => <String, dynamic>{
+          'targetName': node.targetName,
+          'raHours': node.raHours,
+          'decDegrees': node.decDegrees,
+          'rotation': node.rotation,
+          'priority': node.priority,
+          'minAltitude': node.minAltitude,
+          'maxAltitude': node.maxAltitude,
+          'startAfter': node.startAfter?.toIso8601String(),
+          'endBefore': node.endBefore?.toIso8601String(),
+          'mosaicPanel': node.mosaicPanel?.toJson(),
+        },
+      LoopNode() => <String, dynamic>{
+          'conditionType': node.conditionType.name,
+          'repeatCount': node.repeatCount,
+          'repeatUntil': node.repeatUntil?.toIso8601String(),
+          'repeatUntilAltitude': node.repeatUntilAltitude,
+          'integrationTimeTarget': node.integrationTimeTarget,
+          'maxSafetyIterations': node.maxSafetyIterations,
+        },
+      ParallelNode() => <String, dynamic>{
+          'requiredSuccesses': node.requiredSuccesses,
+        },
+      ConditionalNode() => <String, dynamic>{
+          'conditionType': node.conditionType.name,
+          'thresholdValue': node.thresholdValue,
+          'thresholdTime': node.thresholdTime?.toIso8601String(),
+        },
+      RecoveryNode() => <String, dynamic>{
+          'recoveryAction': node.recoveryAction.name,
+          'maxRetries': node.maxRetries,
+          'triggerType': node.triggerType?.name,
+          'triggerThreshold': node.triggerThreshold,
+          'hfrThresholdPercent': node.hfrThresholdPercent,
+          'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
+        },
+      SlewNode() => <String, dynamic>{
+          'useTargetCoords': node.useTargetCoords,
+          'customRa': node.customRa,
+          'customDec': node.customDec,
+        },
+      CenterNode() => <String, dynamic>{
+          'useTargetCoords': node.useTargetCoords,
+          'customRa': node.customRa,
+          'customDec': node.customDec,
+          'accuracyArcsec': node.accuracyArcsec,
+          'maxAttempts': node.maxAttempts,
+          'exposureDuration': node.exposureDuration,
+          'filter': node.filter,
+        },
+      ExposureNode() => <String, dynamic>{
+          'durationSecs': node.durationSecs,
+          'count': node.count,
+          'frameType': node.frameType.name,
+          'filter': node.filter,
+          'filterIndex': node.filterIndex,
+          'gain': node.gain,
+          'offset': node.offset,
+          'binning': node.binning.name,
+          'ditherEvery': node.ditherEvery,
+        },
+      AutofocusNode() => <String, dynamic>{
+          'method': node.method.name,
+          'stepSize': node.stepSize,
+          'stepsOut': node.stepsOut,
+          'exposuresPerPoint': node.exposuresPerPoint,
+          'exposureDuration': node.exposureDuration,
+          'useSettingsDefaults': node.useSettingsDefaults,
+          'maxDurationSecs': node.maxDurationSecs,
+        },
+      DitherNode() => <String, dynamic>{
+          'pixels': node.pixels,
+          'settlePixels': node.settlePixels,
+          'settleTime': node.settleTime,
+          'settleTimeout': node.settleTimeout,
+          'raOnly': node.raOnly,
+        },
+      StartGuidingNode() => <String, dynamic>{
+          'settlePixels': node.settlePixels,
+          'settleTime': node.settleTime,
+          'settleTimeout': node.settleTimeout,
+          'autoSelectStar': node.autoSelectStar,
+        },
+      FilterChangeNode() => <String, dynamic>{
+          'filterName': node.filterName,
+          'filterPosition': node.filterPosition,
+        },
+      CoolCameraNode() => <String, dynamic>{
+          'targetTemp': node.targetTemp,
+          'durationMins': node.durationMins,
+        },
+      WarmCameraNode() => <String, dynamic>{
+          'ratePerMin': node.ratePerMin,
+          'targetTemp': node.targetTemp,
+        },
+      RotatorNode() => <String, dynamic>{
+          'targetAngle': node.targetAngle,
+          'relative': node.relative,
+        },
+      WaitTimeNode() => <String, dynamic>{
+          'waitUntil': node.waitUntil?.toIso8601String(),
+          'waitForTwilight': node.waitForTwilight?.name,
+        },
+      DelayNode() => <String, dynamic>{
+          'seconds': node.seconds,
+        },
+      NotificationNode() => <String, dynamic>{
+          'title': node.title,
+          'message': node.message,
+          'level': node.level.name,
+        },
+      ScriptNode() => <String, dynamic>{
+          'scriptPath': node.scriptPath,
+          'arguments': node.arguments,
+          'timeoutSecs': node.timeoutSecs,
+        },
+      MeridianFlipNode() => <String, dynamic>{
+          'triggerMethod': node.triggerMethod.name,
+          'minutesPastMeridian': node.minutesPastMeridian,
+          'minutesBeforeLimit': node.minutesBeforeLimit,
+          'hourAngleThreshold': node.hourAngleThreshold,
+          'pauseGuiding': node.pauseGuiding,
+          'autoCenter': node.autoCenter,
+          'refocusAfter': node.refocusAfter,
+          'settleTime': node.settleTime,
+          'resumeGuiding': node.resumeGuiding,
+          'maxRetries': node.maxRetries,
+          'failureAction': node.failureAction.name,
+        },
+      OpenDomeNode() => <String, dynamic>{
+          'shutterOnly': node.shutterOnly,
+        },
+      CloseDomeNode() => <String, dynamic>{
+          'shutterOnly': node.shutterOnly,
+        },
+      ParkDomeNode() => <String, dynamic>{
+          'shutterOnly': node.shutterOnly,
+        },
+      PolarAlignmentNode() => <String, dynamic>{
+          'exposureDuration': node.exposureDuration,
+          'binning': node.binning,
+          'startAltitude': node.startAltitude,
+          'rotationStep': node.rotationStep,
+          'gain': node.gain,
+          'offset': node.offset,
+          'startFromCurrent': node.startFromCurrent,
+          'isNorth': node.isNorth,
+          'manualSlew': node.manualSlew,
+        },
+      // Side-effect-only nodes have no type-specific fields beyond the base.
+      InstructionSetNode() ||
+      StopGuidingNode() ||
+      ParkNode() ||
+      UnparkNode() ||
+      OpenCoverNode() ||
+      CloseCoverNode() ||
+      CalibratorOnNode() ||
+      CalibratorOffNode() =>
+        const <String, dynamic>{},
+    };
 
+    base.addAll(extras);
     return base;
   }
 
