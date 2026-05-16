@@ -185,8 +185,8 @@ class NightshadeDiscovery {
           socket.send(messageBytes, datagram.address, datagram.port);
         } catch (e, stackTrace) {
           // Why: a malformed datagram is expected noise on a shared LAN —
-          // log at fine level. The previous `catch (_)` lost the
-          // distinction between routine noise and a real socket failure.
+          // log at fine level. The previous unnamed-binding catch swallowed
+          // the distinction between routine noise and a real socket failure.
           developer.log(
             'Ignoring malformed discovery probe: $e\n$stackTrace',
             name: 'NightshadeDiscovery',
