@@ -12,6 +12,7 @@ import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 import 'package:nightshade_app/widgets/database_recovery_launcher.dart';
 import 'package:nightshade_app/widgets/first_night_wizard_launcher.dart';
+import 'package:nightshade_app/widgets/equipment_onboarding_launcher.dart';
 import 'package:nightshade_app/widgets/onboarding/onboarding_launcher.dart';
 
 class NightshadeApp extends ConsumerWidget {
@@ -192,10 +193,18 @@ class NightshadeApp extends ConsumerWidget {
             // for what looks like a fresh install. It sits inside
             // ScaledConfigProvider so the dialog inherits the app's scale
             // and theme.
+            // EquipmentOnboardingLauncher sits outermost (after database
+            // recovery) so a brand-new install — zero profiles, no
+            // onboarding completion record — gets routed to the
+            // equipment wizard before any tutorial overlay or first-
+            // night dialog can fire. Tutorials only make sense once
+            // there's a profile to use them with.
             Widget result = ScaledConfigProvider(
               child: DatabaseRecoveryLauncher(
-                child: OnboardingTourLauncher(
-                  child: FirstNightWizardLauncher(child: scaledChild),
+                child: EquipmentOnboardingLauncher(
+                  child: OnboardingTourLauncher(
+                    child: FirstNightWizardLauncher(child: scaledChild),
+                  ),
                 ),
               ),
             );

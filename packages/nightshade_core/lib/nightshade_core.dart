@@ -63,6 +63,7 @@ export 'src/models/polar_alignment_config.dart';
 export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
+export 'src/models/onboarding/onboarding_state.dart';
 export 'src/models/science/science_models.dart';
 export 'src/models/defect_map.dart';
 export 'src/models/plate_solver.dart';
@@ -151,6 +152,7 @@ export 'src/providers/period_analysis_provider.dart';
 export 'src/providers/photometric_transform_provider.dart';
 export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
+export 'src/providers/onboarding_provider.dart';
 export 'src/providers/disk_space_provider.dart';
 
 // Backend interface

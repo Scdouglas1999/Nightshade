@@ -22,6 +22,7 @@ import '../screens/scheduler/scheduler_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/diagnostics/diagnostic_dump_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
+import '../screens/onboarding/onboarding_screen.dart';
 import 'page_transitions.dart';
 
 /// Builder for the phone-tailored dashboard route (audit §3.5).
@@ -55,6 +56,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/mobile-dashboard',
         name: 'mobile-dashboard',
         builder: (context, state) => mobileDashboardBuilder(context),
+      ),
+      // First-run equipment onboarding wizard. Sits outside the AppShell
+      // so the new user is not distracted by the side-nav while they
+      // configure their first profile. `EquipmentOnboardingLauncher`
+      // routes here automatically when there are no profiles yet.
+      GoRoute(
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
