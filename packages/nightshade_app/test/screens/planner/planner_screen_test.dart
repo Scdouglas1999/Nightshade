@@ -215,4 +215,122 @@ void main() {
     );
     expect(selectedProgress, findsOneWidget);
   });
+
+  // ===========================================================================
+  // CQ-W14-WIDGET-TESTS-MORE-SCREENS: behavior tests beyond initial selection.
+  // ===========================================================================
+
+  testWidgets(
+      'tapping_Target_Queue_tab_switches_selection_away_from_Recommendation: '
+      'verifies setState pathway flips _currentSubTab when a sibling tab is '
+      'tapped', (tester) async {
+    // The initial-selection tests cover where the screen lands at first
+    // pump; this one covers the *user gesture* path through
+    // SubTabButton.onTap → setState. A regression that left
+    // SubTabButton.isSelected wired correctly but broke the tap callback
+    // (e.g. by routing the tap through a stale closure) would still pass
+    // the static "?tab=" tests but silently freeze the user on whichever
+    // tab they landed on.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Pre-condition: Recommendation selected by default.
+    final selectedRec = find.byWidgetPredicate(
+      (widget) =>
+          widget is SubTabButton &&
+          widget.label == 'Recommendation' &&
+          widget.isSelected,
+    );
+    expect(selectedRec, findsOneWidget,
+        reason: 'Sanity: Recommendation must be selected by default.');
+
+    // Tap Target Queue. find.text matches the SubTabButton label text.
+    await tester.tap(find.text('Target Queue'));
+    // 200 ms covers the setState rebuild and any selection-state animation
+    // on the SubTabButton; the strip itself does not run a long animation.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Post-condition: Target Queue is selected; Recommendation is not.
+    final selectedQueue = find.byWidgetPredicate(
+      (widget) =>
+          widget is SubTabButton &&
+          widget.label == 'Target Queue' &&
+          widget.isSelected,
+    );
+    expect(selectedQueue, findsOneWidget,
+        reason:
+            'Tapping the Target Queue tab must mark it as selected; if the '
+            'tap callback or setState pathway is broken the strip would '
+            'continue to show Recommendation as selected.');
+
+    final selectedRecAfterTap = find.byWidgetPredicate(
+      (widget) =>
+          widget is SubTabButton &&
+          widget.label == 'Recommendation' &&
+          widget.isSelected,
+    );
+    expect(selectedRecAfterTap, findsNothing,
+        reason:
+            'Only one tab may be selected at a time; if Recommendation is '
+            'still selected after the tap, the tab strip lost its mutual '
+            'exclusion guard.');
+  });
+
+  testWidgets(
+      'tapping_Progress_tab_switches_selection: completes the round-trip '
+      'across all three planner tabs', (tester) async {
+    // Companion to the Target Queue tap test — covers the third tab and
+    // proves the tap callback works for every entry, not just the middle
+    // one. A regression that only wired up two of three tabs (e.g. a
+    // missing index in the asMap().entries.map() loop) would pass the
+    // Target Queue test but fail here.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Tap Progress (the third tab).
+    await tester.tap(find.text('Progress'));
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final selectedProgress = find.byWidgetPredicate(
+      (widget) =>
+          widget is SubTabButton &&
+          widget.label == 'Progress' &&
+          widget.isSelected,
+    );
+    expect(selectedProgress, findsOneWidget,
+        reason:
+            'Tapping Progress must mark it as selected; if the third entry '
+            'in the tabs loop lost its onTap, the user gets stuck on '
+            'Recommendation.');
+  });
 }
