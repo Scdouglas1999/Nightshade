@@ -854,7 +854,11 @@ pub(crate) fn generate_simulated_image(
     u32,
 ) {
     let mut rng = rand::thread_rng();
-    let pixel_count = (width * height) as usize;
+    // Why: simulation code; width/height are u32 inputs from a controlled test path
+    // (`generate_simulated_exposure_data` is only invoked with small fake-camera sizes
+    // <= ~16M pixels). Promote to u64 anyway for overflow safety.
+    let pixel_count = usize::try_from((width as u64).saturating_mul(height as u64))
+        .unwrap_or(usize::MAX);
 
     // Create raw 16-bit image data
     let mut raw_data: Vec<u16> = vec![0u16; pixel_count];
@@ -1660,6 +1664,9 @@ pub async fn api_compute_last_capture_quality_maps(
         .await?
         .ok_or(NightshadeError::NoImageAvailable)?;
 
+    // Why: raw_info.width/height are u32; widening to usize via `as` is value-preserving
+    // on every Tier 1 target. raw_info.data is Vec<u16>; widening u16 -> f64 is lossless
+    // (53-bit mantissa easily holds 16-bit values).
     let width = raw_info.width as usize;
     let height = raw_info.height as usize;
     let linear_data = raw_info
@@ -1678,6 +1685,8 @@ pub async fn api_compute_last_capture_quality_maps(
         high_clip_adu,
         "live",
     )?;
+    // Why: as_millis() returns u128; we clamp to u32::MAX first then cast, so the
+    // value cannot exceed u32::MAX. u128 -> u32 with clamped value is safe.
     result.frame.processing_ms = started.elapsed().as_millis().min(u32::MAX as u128) as u32;
     Ok(result)
 }
@@ -2461,7 +2470,8 @@ pub async fn api_save_fits_file(
         header.set_string("FILTER", &filter);
     }
 
-    // Camera settings
+    // Camera settings.
+    // Why: gain/offset/bin_{x,y} are i32; widening to i64 (sign-extended) is always safe.
     if let Some(gain) = header_data.gain {
         header.set_int("GAIN", gain as i64);
     }
@@ -2623,7 +2633,8 @@ pub async fn api_save_fits_from_last_capture(
         header.set_string("FILTER", &filter);
     }
 
-    // Camera settings
+    // Camera settings.
+    // Why: gain/offset/bin_{x,y} are i32; widening to i64 (sign-extended) is always safe.
     if let Some(gain) = header_data.gain {
         header.set_int("GAIN", gain as i64);
     }

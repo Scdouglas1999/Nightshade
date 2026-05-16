@@ -550,8 +550,12 @@ impl NativeDevice for MoravianCamera {
                 can_subframe: has_subframe != 0,
                 has_shutter: has_shutter != 0,
                 has_guider_port: has_guide != 0,
-                max_bin_x: max_bin_x as i32,
-                max_bin_y: max_bin_y as i32,
+                // Why: Cardinal (u32) -> i32. Moravian's max binning is hardware-bounded
+                // to <= 16; any value approaching i32::MAX indicates SDK corruption. We
+                // saturate via try_into.unwrap_or(i32::MAX) so callers see a defensible
+                // upper bound rather than a wrapped negative.
+                max_bin_x: i32::try_from(max_bin_x).unwrap_or(i32::MAX),
+                max_bin_y: i32::try_from(max_bin_y).unwrap_or(i32::MAX),
                 supports_readout_modes: true, // Moravian supports readout modes
             };
 
@@ -809,30 +813,104 @@ impl NativeCamera for MoravianCamera {
 
         self.state = CameraState::Downloading;
 
-        // Calculate image dimensions
+        // Calculate image dimensions.
+        // Why: SubFrame.start_x/start_y are u32; the Moravian SDK consumes i32 (c_int).
+        // We surface a u32 > i32::MAX as InvalidParameter rather than wrap into a
+        // negative ROI origin.
         let (x, y, width, height) = if let Some(ref sf) = self.subframe {
-            (sf.start_x as i32, sf.start_y as i32, sf.width, sf.height)
+            let sx = i32::try_from(sf.start_x).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe start_x exceeds i32: {}",
+                    sf.start_x
+                ))
+            })?;
+            let sy = i32::try_from(sf.start_y).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe start_y exceeds i32: {}",
+                    sf.start_y
+                ))
+            })?;
+            (sx, sy, sf.width, sf.height)
         } else {
             (0, 0, self.sensor_info.width, self.sensor_info.height)
         };
 
-        let binned_width = width / self.current_bin_x as u32;
-        let binned_height = height / self.current_bin_y as u32;
-        let buffer_size = (binned_width * binned_height) as usize;
+        // Why: current_bin_x is i32 stored from validated set_binning(); we must convert
+        // to u32 for the division. A negative bin or zero would cause divide-by-zero or
+        // wrap, so we reject explicitly.
+        let bin_x_u32 = u32::try_from(self.current_bin_x).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "Moravian current_bin_x not representable as u32: {}",
+                self.current_bin_x
+            ))
+        })?;
+        let bin_y_u32 = u32::try_from(self.current_bin_y).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "Moravian current_bin_y not representable as u32: {}",
+                self.current_bin_y
+            ))
+        })?;
+        if bin_x_u32 == 0 || bin_y_u32 == 0 {
+            return Err(NativeError::InvalidParameter(
+                "Moravian binning must be >= 1".into(),
+            ));
+        }
+        let binned_width = width / bin_x_u32;
+        let binned_height = height / bin_y_u32;
+        // Why: buffer_size is in *pixels* (u16 each), and `buffer_size * 2` is bytes.
+        // For a 32K x 32K mono camera this is 2 GB — fits in u64 but not in c_uint
+        // (Cardinal = u32). Promote to u64 for the byte count and refuse to call the
+        // SDK if it would not fit in Cardinal.
+        let buffer_size_u64 = u64::from(binned_width)
+            .checked_mul(u64::from(binned_height))
+            .ok_or_else(|| {
+                NativeError::SdkError(format!(
+                    "Moravian buffer dimensions overflow u64: {}x{}",
+                    binned_width, binned_height
+                ))
+            })?;
+        let byte_count_u64 = buffer_size_u64.checked_mul(2).ok_or_else(|| {
+            NativeError::SdkError("Moravian byte count overflow u64".into())
+        })?;
+        let buffer_size = usize::try_from(buffer_size_u64).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Moravian buffer pixel count {} does not fit in usize",
+                buffer_size_u64
+            ))
+        })?;
+        let byte_count_cardinal = Cardinal::try_from(byte_count_u64).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Moravian byte count {} exceeds SDK Cardinal limit ({})",
+                byte_count_u64,
+                Cardinal::MAX
+            ))
+        })?;
+        let binned_width_i32 = i32::try_from(binned_width).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Moravian binned width {} does not fit in i32",
+                binned_width
+            ))
+        })?;
+        let binned_height_i32 = i32::try_from(binned_height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Moravian binned height {} does not fit in i32",
+                binned_height
+            ))
+        })?;
 
         // Allocate buffer
         let mut data: Vec<u16> = vec![0u16; buffer_size];
 
         // Download image
-        // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); `data` was `vec![0u16; buffer_size]` where buffer_size = binned_width * binned_height, so `buffer_size * 2` bytes is the exact length we pass — the SDK cannot overrun; `data.as_mut_ptr() as *mut c_void` provides a valid non-null buffer pointer.
+        // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); `data` was `vec![0u16; buffer_size]` where buffer_size = binned_width * binned_height, so `byte_count_cardinal = buffer_size * 2` bytes is the exact length we pass — the SDK cannot overrun; `data.as_mut_ptr() as *mut c_void` provides a valid non-null buffer pointer.
         let result = unsafe {
             (sdk.get_image_16b)(
                 handle,
                 x,
                 y,
-                binned_width as i32,
-                binned_height as i32,
-                (buffer_size * 2) as Cardinal,
+                binned_width_i32,
+                binned_height_i32,
+                byte_count_cardinal,
                 data.as_mut_ptr() as *mut c_void,
             )
         };
@@ -1089,11 +1167,34 @@ impl NativeCamera for MoravianCamera {
                 return Err(NativeError::NotSupported);
             }
 
-            // Validate subframe bounds with SDK
-            let mut x = sf.start_x as Integer;
-            let mut y = sf.start_y as Integer;
-            let mut w = sf.width as Integer;
-            let mut d = sf.height as Integer;
+            // Validate subframe bounds with SDK.
+            // Why: SubFrame fields are u32 sensor coordinates; Integer (c_int = i32) is
+            // what AdjustSubFrame expects. A u32 > i32::MAX would wrap to a negative
+            // coordinate and bypass the SDK's bounds check. Surface as error instead.
+            let mut x = Integer::try_from(sf.start_x).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe start_x exceeds Integer: {}",
+                    sf.start_x
+                ))
+            })?;
+            let mut y = Integer::try_from(sf.start_y).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe start_y exceeds Integer: {}",
+                    sf.start_y
+                ))
+            })?;
+            let mut w = Integer::try_from(sf.width).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe width exceeds Integer: {}",
+                    sf.width
+                ))
+            })?;
+            let mut d = Integer::try_from(sf.height).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "Moravian subframe height exceeds Integer: {}",
+                    sf.height
+                ))
+            })?;
 
             // SAFETY: moravian_mutex held above; self.connected and capabilities.can_subframe were checked at entry so the handle is open and supports subframes; all four out-pointers are valid stack POD Integer references that the SDK clamps in-place to valid sensor bounds.
             if unsafe { (sdk.adjust_subframe)(handle, &mut x, &mut y, &mut w, &mut d) } == 0 {
@@ -1109,7 +1210,10 @@ impl NativeCamera for MoravianCamera {
                 )));
             }
 
-            // Store adjusted subframe
+            // Store adjusted subframe.
+            // Why: AdjustSubFrame clamps x/y/w/d to the sensor's valid bounds (all non-negative
+            // and <= sensor_width/height which are u32). Sign loss is impossible by SDK
+            // contract; widening to u32 is value-preserving for the clamped range.
             self.subframe = Some(SubFrame {
                 start_x: x as u32,
                 start_y: y as u32,
@@ -1171,6 +1275,9 @@ impl NativeCamera for MoravianCamera {
                 modes.push(ReadoutMode {
                     name: format!("Mode {}", i),
                     description,
+                    // Why: `i` iterates `0..num_modes` where num_modes is a Cardinal (u32).
+                    // Moravian readout modes are tiny (<= 4 known modes across all G4/G2
+                    // SKUs), so `as i32` is widening with verified non-negative range.
                     index: i as i32,
                     gain_min: None,
                     gain_max: None,

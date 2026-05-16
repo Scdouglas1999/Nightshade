@@ -706,9 +706,25 @@ impl NativeDevice for AtikCamera {
         };
 
         // Set sensor info
+        // Why: `props.pixels_x` / `props.pixels_y` are `c_int` (i32) populated by ArtemisProperties.
+        // A negative value would be a malformed SDK response, not a real sensor; we surface
+        // it as an SdkError rather than silently re-interpreting the bit pattern via `as u32`.
+        let pixels_x_u32 = u32::try_from(props.pixels_x).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Atik reported invalid sensor width: pixels_x={}",
+                props.pixels_x
+            ))
+        })?;
+        let pixels_y_u32 = u32::try_from(props.pixels_y).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Atik reported invalid sensor height: pixels_y={}",
+                props.pixels_y
+            ))
+        })?;
         self.sensor_info = SensorInfo {
-            width: props.pixels_x as u32,
-            height: props.pixels_y as u32,
+            width: pixels_x_u32,
+            height: pixels_y_u32,
+            // Why: pixel_microns_{x,y} are c_float; widening f32 -> f64 is lossless.
             pixel_size_x: props.pixel_microns_x as f64,
             pixel_size_y: props.pixel_microns_y as f64,
             max_adu: 65535,
@@ -1039,7 +1055,18 @@ impl NativeCamera for AtikCamera {
         }
 
         // Copy image data (16-bit, little-endian on the wire).
-        let pixel_count = (w as usize) * (h as usize);
+        // Why: `w` / `h` are c_int (i32). A negative value here means ArtemisGetImageData
+        // returned success but populated junk dimensions — fail fast instead of casting a
+        // negative i32 to a giant usize (which would later trip pool allocation).
+        let w_usize = usize::try_from(w).map_err(|_| {
+            NativeError::SdkError(format!("Atik returned non-positive image width: {}", w))
+        })?;
+        let h_usize = usize::try_from(h).map_err(|_| {
+            NativeError::SdkError(format!("Atik returned non-positive image height: {}", h))
+        })?;
+        let pixel_count = w_usize
+            .checked_mul(h_usize)
+            .ok_or_else(|| NativeError::SdkError("Atik image dimensions overflow usize".into()))?;
         let byte_count = pixel_count
             .checked_mul(2)
             .ok_or_else(|| NativeError::SdkError("Atik image dimensions overflow usize".into()))?;
@@ -1087,9 +1114,22 @@ impl NativeCamera for AtikCamera {
 
         self.state = CameraState::Idle;
 
+        // Why: w/h were validated non-negative via the TryFrom::<i32> -> usize above; that
+        // checks i32 < 0 which is the only path producing a wrap. usize -> u32 needs a second
+        // check because on 64-bit hosts usize is wider than u32; we surface overflow rather
+        // than truncating an absurd dimension. Real Atik sensors top out under 16k pixels.
+        let width_u32 = u32::try_from(w_usize).map_err(|_| {
+            NativeError::SdkError(format!("Atik image width does not fit in u32: {}", w_usize))
+        })?;
+        let height_u32 = u32::try_from(h_usize).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Atik image height does not fit in u32: {}",
+                h_usize
+            ))
+        })?;
         Ok(ImageData {
-            width: w as u32,
-            height: h as u32,
+            width: width_u32,
+            height: height_u32,
             data,
             bits_per_pixel: self.sensor_info.bit_depth,
             bayer_pattern: self.sensor_info.bayer_pattern,
@@ -1302,19 +1342,69 @@ impl NativeCamera for AtikCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
+        // Why: SubFrame fields are u32 (sensor coordinates) and we need c_int (i32) for the
+        // Atik SDK. A u32 > i32::MAX would mean the caller asked for a subframe larger than
+        // 2 GPixels in one dimension; reject it instead of wrapping into a negative c_int.
+        // current_bin_{x,y} are i32 validated at set_binning() >= 1.
         let (x, y, w, h) = match &subframe {
             Some(sf) => (
-                sf.start_x as c_int,
-                sf.start_y as c_int,
-                sf.width as c_int,
-                sf.height as c_int,
+                c_int::try_from(sf.start_x).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik subframe start_x exceeds i32: {}",
+                        sf.start_x
+                    ))
+                })?,
+                c_int::try_from(sf.start_y).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik subframe start_y exceeds i32: {}",
+                        sf.start_y
+                    ))
+                })?,
+                c_int::try_from(sf.width).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik subframe width exceeds i32: {}",
+                        sf.width
+                    ))
+                })?,
+                c_int::try_from(sf.height).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik subframe height exceeds i32: {}",
+                        sf.height
+                    ))
+                })?,
             ),
-            None => (
-                0,
-                0,
-                (self.sensor_info.width / self.current_bin_x as u32) as c_int,
-                (self.sensor_info.height / self.current_bin_y as u32) as c_int,
-            ),
+            None => {
+                // Why: bin >= 1 per set_binning() guard; sensor_info.width/height are u32. We
+                // try_into u32 first (current_bin_x is i32, so a corrupt negative bin would
+                // wrap), then convert the binned dim back to c_int.
+                let bin_x_u32 = u32::try_from(self.current_bin_x).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik current_bin_x not representable as u32: {}",
+                        self.current_bin_x
+                    ))
+                })?;
+                let bin_y_u32 = u32::try_from(self.current_bin_y).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "Atik current_bin_y not representable as u32: {}",
+                        self.current_bin_y
+                    ))
+                })?;
+                let binned_w = self.sensor_info.width / bin_x_u32.max(1);
+                let binned_h = self.sensor_info.height / bin_y_u32.max(1);
+                let w_ci = c_int::try_from(binned_w).map_err(|_| {
+                    NativeError::SdkError(format!(
+                        "Atik binned width does not fit in c_int: {}",
+                        binned_w
+                    ))
+                })?;
+                let h_ci = c_int::try_from(binned_h).map_err(|_| {
+                    NativeError::SdkError(format!(
+                        "Atik binned height does not fit in c_int: {}",
+                        binned_h
+                    ))
+                })?;
+                (0, 0, w_ci, h_ci)
+            }
         };
 
         // SAFETY: atik_mutex held; self.connected was true (checked at entry); handle is valid;

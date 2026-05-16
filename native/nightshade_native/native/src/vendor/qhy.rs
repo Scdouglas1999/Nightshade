@@ -641,6 +641,10 @@ impl QhyCamera {
         if self.is_color {
             // SAFETY: caller holds qhy_mutex(); handle validated above; GetQHYCCDParam returns a
             // c_double by value with no out-pointers.
+            // Why: GetQHYCCDParam returns c_double encoding a small integer Bayer code
+            // (1..=4). The match below treats anything outside that range as None, so
+            // a saturating truncation here is sound: we only need the value to compare
+            // against 1-4. `as i32` on a finite f64 in that range is well-defined.
             let bayer_val =
                 unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CAM_COLOR as c_int) } as i32;
             self.bayer_pattern = match bayer_val {
@@ -1048,9 +1052,11 @@ impl NativeCamera for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
-        // Get required buffer size
+        // Get required buffer size.
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
         // was true. GetQHYCCDMemLength returns c_uint by value.
+        // Why: c_uint (u32) -> usize is widening on every Tier 1 target (32- or 64-bit usize
+        // each holds u32::MAX), so this is always safe.
         let buffer_len = unsafe { (sdk.get_qhyccd_memory_length)(handle) } as usize;
         // Use pooled buffer for efficient memory reuse
         let mut pooled_buffer = global_u8_pool().get_buffer(buffer_len);
@@ -1076,8 +1082,38 @@ impl NativeCamera for QhyCamera {
         };
         check_qhy_error(result, "GetQHYCCDSingleFrame")?;
 
-        // Trim buffer to actual size
-        let actual_size = (width * height * (bpp / 8) * channels.max(1)) as usize;
+        // Trim buffer to actual size.
+        // Why: width/height/bpp/channels are c_uint (u32). On a hypothetical 32K x 32K
+        // 16bpp 3-channel sensor we'd hit ~6.4 GB, overflowing u32 silently. Promote to
+        // u64 before multiplying and surface overflow as an SdkError. This also rejects
+        // pathological bpp=0 returns (channels.max(1) preserves the original guard).
+        let width_u64 = u64::from(width);
+        let height_u64 = u64::from(height);
+        let bpp_bytes_u64 = u64::from(bpp / 8);
+        let channels_u64 = u64::from(channels.max(1));
+        let actual_size_u64 = width_u64
+            .checked_mul(height_u64)
+            .and_then(|p| p.checked_mul(bpp_bytes_u64))
+            .and_then(|p| p.checked_mul(channels_u64))
+            .ok_or_else(|| {
+                NativeError::SdkError(format!(
+                    "QHY frame size overflow: {}x{} bpp={} channels={}",
+                    width, height, bpp, channels
+                ))
+            })?;
+        let actual_size = usize::try_from(actual_size_u64).map_err(|_| {
+            NativeError::SdkError(format!(
+                "QHY frame size {} does not fit in usize",
+                actual_size_u64
+            ))
+        })?;
+        if actual_size > pooled_buffer.len() {
+            return Err(NativeError::SdkError(format!(
+                "QHY reported frame larger than allocated buffer: {} > {}",
+                actual_size,
+                pooled_buffer.len()
+            )));
+        }
         pooled_buffer.truncate(actual_size);
 
         // Why: GetQHYCCDSingleFrame writes raw sensor bytes into the SDK-owned byte buffer
@@ -1196,6 +1232,9 @@ impl NativeCamera for QhyCamera {
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
+        // Why: QHY gain is a small non-negative integer (0..=~1000 across all current
+        // models; range-clamped by SDK). f64 -> i32 with saturation is well-defined for
+        // finite values, and only the integer portion is meaningful for a gain step.
         Ok(self.get_control_async(QhyControl::CONTROL_GAIN).await? as i32)
     }
 
@@ -1207,6 +1246,8 @@ impl NativeCamera for QhyCamera {
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
+        // Why: QHY offset is a small non-negative integer (0..=~1000) clamped by the SDK.
+        // f64 -> i32 with saturation is well-defined for finite values in this range.
         Ok(self.get_control_async(QhyControl::CONTROL_OFFSET).await? as i32)
     }
 
@@ -1221,7 +1262,22 @@ impl NativeCamera for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
-        let bin = bin_x.max(bin_y) as c_uint;
+        // Why: bin must be >= 1 (you cannot bin by zero or a negative factor). We use
+        // try_from to surface a caller error rather than silently wrapping a negative i32
+        // into a giant c_uint that would underflow image_width/bin on the next line.
+        let bin_max = bin_x.max(bin_y);
+        if bin_max < 1 {
+            return Err(NativeError::InvalidParameter(format!(
+                "QHY binning must be >= 1, got bin_x={} bin_y={}",
+                bin_x, bin_y
+            )));
+        }
+        let bin = c_uint::try_from(bin_max).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "QHY binning does not fit in c_uint: {}",
+                bin_max
+            ))
+        })?;
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
         // was true. bin is pass-by-value c_uint and the SDK validates the value.
         let result = unsafe { (sdk.set_qhyccd_binmode)(handle, bin, bin) };
@@ -1236,7 +1292,12 @@ impl NativeCamera for QhyCamera {
         let result = unsafe { (sdk.set_qhyccd_resolution)(handle, 0, 0, new_width, new_height) };
         check_qhy_error(result, "SetQHYCCDResolution")?;
 
-        self.current_bin = bin as i32;
+        // Why: bin was already validated >= 1 above; c_uint -> i32 only fails when value
+        // exceeds i32::MAX. A bin > 2^31 is meaningless physically, but propagate the error
+        // rather than wrap.
+        self.current_bin = i32::try_from(bin).map_err(|_| {
+            NativeError::InvalidParameter(format!("QHY bin {} does not fit in i32", bin))
+        })?;
         Ok(())
     }
 
@@ -1258,11 +1319,20 @@ impl NativeCamera for QhyCamera {
         let (x, y, width, height) = if let Some(sf) = subframe {
             (sf.start_x, sf.start_y, sf.width, sf.height)
         } else {
+            // Why: current_bin is i32 validated >= 1 inside set_binning(). A corrupt
+            // negative value would wrap to a giant u32 here and crash the division below
+            // with image_width/0. Fail loudly instead.
+            let bin_u32 = u32::try_from(self.current_bin.max(1)).map_err(|_| {
+                NativeError::InvalidParameter(format!(
+                    "QHY current_bin not representable as u32: {}",
+                    self.current_bin
+                ))
+            })?;
             (
                 0,
                 0,
-                self.image_width / self.current_bin as u32,
-                self.image_height / self.current_bin as u32,
+                self.image_width / bin_u32,
+                self.image_height / bin_u32,
             )
         };
 
@@ -1317,6 +1387,10 @@ impl NativeCamera for QhyCamera {
                     .to_string_lossy()
                     .to_string();
                 modes.push(ReadoutMode {
+                    // Why: `i` ranges over `0..num_modes` where num_modes is a c_uint
+                    // populated by GetQHYCCDNumberOfReadModes. QHY cameras advertise a
+                    // small handful of readout modes (<= 8 across all known SKUs), so
+                    // i fits trivially in i32 and `as i32` is well-defined.
                     index: i as i32,
                     name,
                     description: "QHY Readout Mode".to_string(),
@@ -1381,6 +1455,8 @@ impl NativeCamera for QhyCamera {
         let (min, max, _step) = self
             .get_control_range_async(QhyControl::CONTROL_GAIN)
             .await?;
+        // Why: gain min/max are small non-negative integers in practice (<= ~1000),
+        // returned as f64 by QHY's range API. f64 -> i32 with saturation is sound here.
         Ok((min as i32, max as i32))
     }
 
@@ -1392,6 +1468,8 @@ impl NativeCamera for QhyCamera {
         let (min, max, _step) = self
             .get_control_range_async(QhyControl::CONTROL_OFFSET)
             .await?;
+        // Why: offset min/max are small non-negative integers (<= ~1000) returned as
+        // f64 by QHY's range API. f64 -> i32 with saturation is sound here.
         Ok((min as i32, max as i32))
     }
 }
@@ -1659,6 +1737,8 @@ impl QhyFilterWheel {
         let count =
             unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) };
 
+        // Why: slot count is a small non-negative integer encoded in f64 (filter wheels
+        // top out at <= 16 positions). f64 -> i32 saturating cast is safe here.
         Ok(count as i32)
     }
 
@@ -1672,7 +1752,9 @@ impl QhyFilterWheel {
         // CONTROL_CFWPORT discriminant fits in c_int.
         let pos = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int) };
 
-        // Convert from ASCII to 0-indexed position
+        // Convert from ASCII to 0-indexed position.
+        // Why: QHY filter-wheel positions are returned as ASCII codes ('0'..) encoded
+        // in f64. ASCII range 48..=63 fits trivially in i32 with no precision loss.
         let position = (pos as i32) - 48;
         Ok(position.max(0)) // Ensure non-negative
     }
@@ -1864,6 +1946,9 @@ impl NativeFilterWheel for QhyFilterWheel {
                 self.slot_count - 1
             )));
         }
+        // Why: bounds checked `0 <= position < self.slot_count` above; position is i32,
+        // self.filter_names is a Vec sized to slot_count, so `as usize` is widening with
+        // verified non-negative value.
         self.filter_names[position as usize] = name;
         Ok(())
     }
@@ -1925,6 +2010,8 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
             // CFW is available
             // SAFETY: caller holds qhy_mutex(); handle was opened and initialized above;
             // CONTROL_CFWSLOTSNUM discriminant fits in c_int.
+            // Why: GetQHYCCDParam returns c_double; slot count is a small non-negative
+            // integer (CFW max ~16). f64 -> i32 saturating cast is safe for this range.
             let slot_count = unsafe {
                 (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) as i32
             };

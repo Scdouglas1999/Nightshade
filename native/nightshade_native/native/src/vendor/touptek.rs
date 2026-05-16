@@ -377,6 +377,8 @@ fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<Toupte
     // SAFETY: caller (discover_devices / discover_devices_for_brand) holds touptek_mutex; `arr.as_mut_ptr()` points to a contiguous buffer of OGMACAM_MAX `#[repr(C)]` OgmacamDeviceV2 entries; OgmacamEnumV2 fills at most OGMACAM_MAX entries and returns the count, per the SDK header.
     let count = unsafe { (sdk.enum_v2)(arr.as_mut_ptr()) };
 
+    // Why: count is c_uint (u32) returned by OgmacamEnumV2; widening u32 -> usize is
+    // value-preserving on every Tier 1 target.
     for i in 0..count as usize {
         let dev = &arr[i];
 
@@ -651,6 +653,8 @@ impl NativeDevice for TouptekCamera {
                             &mut gain_def,
                         )
                     };
+                    // Why: gain_def is u16 (gain steps, 100..=10000 per Touptek SDK).
+                    // u16 -> i32 is widening and value-preserving.
                     self.current_gain = gain_def as i32;
                     Ok(serial)
                 })?
@@ -937,11 +941,22 @@ impl NativeCamera for TouptekCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Calculate buffer size
+        // Calculate buffer size.
+        // Why: sensor_info.width/height are u32; widening to usize via `as` is value
+        // -preserving on every Tier 1 target. Use checked_mul to surface overflow rather
+        // than silently allocate a wrapped tiny buffer (which would underflow on SDK write).
         let width = self.sensor_info.width as usize;
         let height = self.sensor_info.height as usize;
-        let bytes_per_pixel = 2; // 16-bit
-        let buffer_size = width * height * bytes_per_pixel;
+        let bytes_per_pixel: usize = 2; // 16-bit
+        let buffer_size = width
+            .checked_mul(height)
+            .and_then(|p| p.checked_mul(bytes_per_pixel))
+            .ok_or_else(|| {
+                NativeError::SdkError(format!(
+                    "Touptek buffer size overflow: {}x{} bytes_per_pixel={}",
+                    width, height, bytes_per_pixel
+                ))
+            })?;
 
         let mut buffer = vec![0u8; buffer_size];
         // SAFETY: OgmacamFrameInfoV3 is `#[repr(C)]` and contains only POD fields (c_uint, u64, u16) — all valid bit-patterns. Zero-init is the well-defined empty state before Ogmacam_PullImageV3 overwrites it.
@@ -1054,7 +1069,11 @@ impl NativeCamera for TouptekCamera {
                 )));
             }
 
-            // Set target temperature (in 0.1 degrees Celsius)
+            // Set target temperature (in 0.1 degrees Celsius).
+            // Why: target_temp is f64 Celsius typically in [-50.0, 50.0]; * 10 fits in
+            // i16's range [-32768, 32767] with plenty of room. f64 -> i16 saturating
+            // truncation is well-defined for finite values; NaN saturates to 0 which the
+            // SDK rejects.
             if enabled {
                 let temp = (target_temp * 10.0) as i16;
                 // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_put_Temperature takes (handle, i16 in 0.1°C units) POD per the SDK header. Range clamping is the SDK's responsibility.
@@ -1131,6 +1150,16 @@ impl NativeCamera for TouptekCamera {
             return Err(NativeError::NotConnected);
         }
 
+        // Why: Touptek gain is a u16 (range 100..=10000 per the SDK header). A negative
+        // i32 or one > u16::MAX is a caller bug, so we surface InvalidParameter rather
+        // than silently truncate to a wrap-around gain that could destroy a frame.
+        let gain_u16 = u16::try_from(gain).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "Touptek gain {} out of u16 range (100..=10000 nominal)",
+                gain
+            ))
+        })?;
+
         let brand = self.brand.clone();
 
         // Acquire global SDK mutex for thread safety
@@ -1141,7 +1170,7 @@ impl NativeCamera for TouptekCamera {
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
             // SAFETY: touptek_mutex held above (in set_gain); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle. Ogmacam_put_ExpoAGain takes (handle, u16 gain) POD per the SDK header. SDK clamps to its supported range.
-            let result = unsafe { (sdk.put_expo_again)(handle, gain as u16) };
+            let result = unsafe { (sdk.put_expo_again)(handle, gain_u16) };
             if result < 0 {
                 tracing::error!(
                     "Touptek put_ExpoAGain() failed for camera '{}'. Requested gain: {}, error code: {}",

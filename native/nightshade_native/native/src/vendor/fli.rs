@@ -38,6 +38,22 @@ const FLI_MODE_16BIT: c_long = 1;
 // Camera status
 const FLI_CAMERA_DATA_READY: c_long = 0x80000000u32 as c_long;
 
+/// Convert a c_long returned by libfli into i32, surfacing SDK corruption as
+/// `NativeError::SdkError` rather than wrapping. On Windows (LLP64) c_long is
+/// already i32 and the cast is identity; on LP64 *nix this trims to i32 and
+/// rejects values outside i32's range.
+#[inline]
+fn fli_c_long_to_i32(value: c_long, what: &str) -> Result<i32, NativeError> {
+    // Why: when c_long == i32 this is identity. When c_long == i64 (LP64), we
+    // need a real range check. Round-trip through i64 to handle both shapes via
+    // a single i64::try_from / i32::try_from pair without triggering useless
+    // -conversion lints on either platform.
+    let widened: i64 = value as i64;
+    i32::try_from(widened).map_err(|_| {
+        NativeError::SdkError(format!("FLI {} out of i32 range: {}", what, value))
+    })
+}
+
 // =============================================================================
 // SDK Function Pointers
 // =============================================================================
@@ -674,13 +690,32 @@ impl NativeDevice for FliCamera {
         };
         check_fli_error(result, "get visible area")?;
 
-        self.visible_ul_x = ul_x as i32;
-        self.visible_ul_y = ul_y as i32;
-        self.visible_lr_x = lr_x as i32;
-        self.visible_lr_y = lr_y as i32;
+        // Why: FLIGetVisibleArea returns c_long (i32 on Windows MSVC LLP64, i64 on most
+        // *nix LP64). FLI hardware tops out around 8192x8192 pixels so the values are
+        // tiny. We use a helper to validate fit in i32 on platforms where c_long is wider
+        // (no-op clamp on Windows where c_long == i32).
+        self.visible_ul_x = fli_c_long_to_i32(ul_x, "ul_x")?;
+        self.visible_ul_y = fli_c_long_to_i32(ul_y, "ul_y")?;
+        self.visible_lr_x = fli_c_long_to_i32(lr_x, "lr_x")?;
+        self.visible_lr_y = fli_c_long_to_i32(lr_y, "lr_y")?;
 
-        let width = (lr_x - ul_x) as u32;
-        let height = (lr_y - ul_y) as u32;
+        // Why: lr >= ul is guaranteed by FLI's visible-area contract (lower-right is
+        // strictly bottom-right of upper-left). Subtract first, then convert via try_into
+        // to fail closed if the SDK ever returns an inverted rectangle.
+        let raw_width = lr_x - ul_x;
+        let raw_height = lr_y - ul_y;
+        let width = u32::try_from(raw_width).map_err(|_| {
+            NativeError::SdkError(format!(
+                "FLI visible-area width is negative or > u32::MAX: {}",
+                raw_width
+            ))
+        })?;
+        let height = u32::try_from(raw_height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "FLI visible-area height is negative or > u32::MAX: {}",
+                raw_height
+            ))
+        })?;
 
         // Set sensor info
         self.sensor_info = SensorInfo {
@@ -912,17 +947,47 @@ impl NativeCamera for FliCamera {
 
         self.state = CameraState::Downloading;
 
-        // Calculate image dimensions based on subframe and binning
+        // Calculate image dimensions based on subframe and binning.
+        // Why: current_bin_{x,y} are i32; a negative or zero value would divide-by-zero
+        // or wrap to a giant usize. Reject explicitly. SubFrame.width/height are u32
+        // sensor coords and widening to usize is value-preserving on every Tier 1 target.
+        let bin_x_usize = usize::try_from(self.current_bin_x).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "FLI current_bin_x not representable as usize: {}",
+                self.current_bin_x
+            ))
+        })?;
+        let bin_y_usize = usize::try_from(self.current_bin_y).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "FLI current_bin_y not representable as usize: {}",
+                self.current_bin_y
+            ))
+        })?;
+        if bin_x_usize == 0 || bin_y_usize == 0 {
+            return Err(NativeError::InvalidParameter(
+                "FLI binning must be >= 1".into(),
+            ));
+        }
         let (width, height) = if let Some(sf) = &self.subframe {
+            // Why: sf.width/height are u32 sensor dims (<= 16k on FLI hardware); widening
+            // to usize via `as` is always safe.
             (
-                sf.width as usize / self.current_bin_x as usize,
-                sf.height as usize / self.current_bin_y as usize,
+                sf.width as usize / bin_x_usize,
+                sf.height as usize / bin_y_usize,
             )
         } else {
-            (
-                (self.visible_lr_x - self.visible_ul_x) as usize / self.current_bin_x as usize,
-                (self.visible_lr_y - self.visible_ul_y) as usize / self.current_bin_y as usize,
-            )
+            // Why: visible_lr_x/y >= visible_ul_x/y by the SDK contract enforced at
+            // connect (FLIGetVisibleArea returns lower-right strictly bottom-right).
+            // Both deltas are non-negative i32 values within sensor bounds.
+            let dx = self.visible_lr_x - self.visible_ul_x;
+            let dy = self.visible_lr_y - self.visible_ul_y;
+            let dx_usize = usize::try_from(dx).map_err(|_| {
+                NativeError::SdkError(format!("FLI visible width is negative: {}", dx))
+            })?;
+            let dy_usize = usize::try_from(dy).map_err(|_| {
+                NativeError::SdkError(format!("FLI visible height is negative: {}", dy))
+            })?;
+            (dx_usize / bin_x_usize, dy_usize / bin_y_usize)
         };
 
         // Allocate raw byte buffer (16-bit = 2 bytes per pixel).
@@ -995,9 +1060,21 @@ impl NativeCamera for FliCamera {
 
         self.state = CameraState::Idle;
 
+        // Why: width/height were derived from validated non-negative values divided by
+        // bins >= 1, so they are sensor-bounded. On 64-bit hosts usize is wider than u32;
+        // surface overflow rather than truncate if dimensions ever exceed u32::MAX.
+        let width_u32 = u32::try_from(width).map_err(|_| {
+            NativeError::SdkError(format!("FLI image width does not fit in u32: {}", width))
+        })?;
+        let height_u32 = u32::try_from(height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "FLI image height does not fit in u32: {}",
+                height
+            ))
+        })?;
         Ok(ImageData {
-            width: width as u32,
-            height: height as u32,
+            width: width_u32,
+            height: height_u32,
             data,
             bits_per_pixel: self.sensor_info.bit_depth,
             bayer_pattern: self.sensor_info.bayer_pattern,
@@ -1124,13 +1201,49 @@ impl NativeCamera for FliCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
+        // Why: SubFrame.start_x/y/width/height are u32. We convert to i32 with overflow
+        // detection (a u32 > i32::MAX would wrap to negative) and add to the validated
+        // visible-area origin with checked_add so the sum cannot overflow i32 either.
         let (ul_x, ul_y, lr_x, lr_y) = match &subframe {
-            Some(sf) => (
-                self.visible_ul_x + sf.start_x as i32,
-                self.visible_ul_y + sf.start_y as i32,
-                self.visible_ul_x + sf.start_x as i32 + sf.width as i32,
-                self.visible_ul_y + sf.start_y as i32 + sf.height as i32,
-            ),
+            Some(sf) => {
+                let sx = i32::try_from(sf.start_x).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "FLI subframe start_x exceeds i32: {}",
+                        sf.start_x
+                    ))
+                })?;
+                let sy = i32::try_from(sf.start_y).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "FLI subframe start_y exceeds i32: {}",
+                        sf.start_y
+                    ))
+                })?;
+                let sw = i32::try_from(sf.width).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "FLI subframe width exceeds i32: {}",
+                        sf.width
+                    ))
+                })?;
+                let sh = i32::try_from(sf.height).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "FLI subframe height exceeds i32: {}",
+                        sf.height
+                    ))
+                })?;
+                let ul_x = self.visible_ul_x.checked_add(sx).ok_or_else(|| {
+                    NativeError::InvalidParameter("FLI subframe ul_x overflows i32".into())
+                })?;
+                let ul_y = self.visible_ul_y.checked_add(sy).ok_or_else(|| {
+                    NativeError::InvalidParameter("FLI subframe ul_y overflows i32".into())
+                })?;
+                let lr_x = ul_x.checked_add(sw).ok_or_else(|| {
+                    NativeError::InvalidParameter("FLI subframe lr_x overflows i32".into())
+                })?;
+                let lr_y = ul_y.checked_add(sh).ok_or_else(|| {
+                    NativeError::InvalidParameter("FLI subframe lr_y overflows i32".into())
+                })?;
+                (ul_x, ul_y, lr_x, lr_y)
+            }
             None => (
                 self.visible_ul_x,
                 self.visible_ul_y,
@@ -1304,7 +1417,9 @@ impl NativeDevice for FliFocuser {
         let mut extent: c_long = 0;
         // SAFETY: fli_mutex held; self.handle is open; `extent` is a valid stack pointer.
         if unsafe { (sdk.get_focuser_extent)(self.handle, &mut extent) } == 0 {
-            self.max_position = extent as i32;
+            // Why: focuser extent is a small positive integer (FLI focusers top out near
+            // 7000 steps); SDK returns c_long. Use helper so an absurd value fails loud.
+            self.max_position = fli_c_long_to_i32(extent, "focuser extent")?;
         }
 
         self.connected = true;
@@ -1352,7 +1467,9 @@ impl NativeFocuser for FliFocuser {
         let result = unsafe { (sdk.get_stepper_position)(self.handle, &mut position) };
         check_fli_error(result, "get position")?;
 
-        Ok(position as i32)
+        // Why: focuser position is a small positive integer (max_position <= ~7000); SDK
+        // returns c_long. Use helper to fail closed on any out-of-range value.
+        fli_c_long_to_i32(position, "focuser position")
     }
 
     async fn move_to(&mut self, position: i32) -> Result<(), NativeError> {
@@ -1571,7 +1688,9 @@ impl NativeDevice for FliFilterWheel {
         let mut count: c_long = 0;
         // SAFETY: fli_mutex held; self.handle is open; `count` is a valid stack pointer.
         if unsafe { (sdk.get_filter_count)(self.handle, &mut count) } == 0 {
-            self.filter_count = count as i32;
+            // Why: filter count is a small positive integer (<= ~16 across all FLI CFW
+            // models); SDK returns c_long. Use helper to fail closed on absurd values.
+            self.filter_count = fli_c_long_to_i32(count, "filter count")?;
         }
 
         self.connected = true;
@@ -1623,7 +1742,9 @@ impl NativeFilterWheel for FliFilterWheel {
         let result = unsafe { (sdk.get_filter_pos)(self.handle, &mut position) };
         check_fli_error(result, "get filter position")?;
 
-        Ok(position as i32)
+        // Why: filter wheel position is a small non-negative integer (<= filter_count <= ~16);
+        // SDK returns c_long. Use helper to fail closed on absurd values.
+        fli_c_long_to_i32(position, "filter position")
     }
 
     async fn move_to_position(&mut self, position: i32) -> Result<(), NativeError> {

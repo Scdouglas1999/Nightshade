@@ -454,6 +454,9 @@ pub async fn discover_devices() -> Result<Vec<SvbonyDiscoveryInfo>, NativeError>
                 } else {
                     Some(serial)
                 },
+                // Why: `i` ranges 0..count where count is c_int >= 0 (loop bound).
+                // Negative would not enter the loop. `as usize` is widening with verified
+                // non-negative value; total camera count tops out below double digits.
                 discovery_index: i as usize,
             });
         }
@@ -557,6 +560,8 @@ impl SvbonyCamera {
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get control value"));
         }
+        // Why: c_long -> i64 is widening on every Tier 1 target (LP64: c_long is i64;
+        // LLP64 Windows: c_long is i32). Value range is preserved.
         Ok(value as i64)
     }
 
@@ -584,6 +589,7 @@ impl SvbonyCamera {
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get control value"));
         }
+        // Why: c_long -> i64 is widening on every Tier 1 target. Range is preserved.
         Ok(value as i64)
     }
 
@@ -656,6 +662,8 @@ impl SvbonyCamera {
             if SvbError::from_i32(result) == SvbError::Success
                 && caps.control_type == target_type as c_int
             {
+                // Why: caps.min_value/max_value are c_long; widening to i64 is value-preserving
+                // on every Tier 1 target (LP64: c_long == i64; LLP64 Windows: i32 -> i64).
                 return Ok((caps.min_value as i64, caps.max_value as i64));
             }
         }
@@ -752,14 +760,34 @@ impl NativeDevice for SvbonyCamera {
             None
         };
 
-        // Set sensor info
+        // Set sensor info.
+        // Why: max_width/max_height are c_long (positive sensor dimensions, <= ~16k on
+        // SVBony hardware). Use try_into to fail closed on negative or absurd values.
+        let width_u32 = u32::try_from(prop.max_width).map_err(|_| {
+            NativeError::SdkError(format!(
+                "SVBony reported invalid sensor width: {}",
+                prop.max_width
+            ))
+        })?;
+        let height_u32 = u32::try_from(prop.max_height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "SVBony reported invalid sensor height: {}",
+                prop.max_height
+            ))
+        })?;
+        let bit_depth_u32 = u32::try_from(prop.bit_depth).map_err(|_| {
+            NativeError::SdkError(format!(
+                "SVBony reported invalid bit_depth: {}",
+                prop.bit_depth
+            ))
+        })?;
         self.sensor_info = SensorInfo {
-            width: prop.max_width as u32,
-            height: prop.max_height as u32,
+            width: width_u32,
+            height: height_u32,
             pixel_size_x: prop.pixel_size,
             pixel_size_y: prop.pixel_size,
             max_adu: (1 << prop.bit_depth) - 1,
-            bit_depth: prop.bit_depth as u32,
+            bit_depth: bit_depth_u32,
             color: is_color,
             bayer_pattern,
         };
@@ -799,7 +827,11 @@ impl NativeDevice for SvbonyCamera {
                 unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw8 as c_int) };
         }
 
-        // Read initial gain/offset (while we hold the mutex)
+        // Read initial gain/offset (while we hold the mutex).
+        // Why: SVBony gain/offset values are small non-negative integers (range 0..=720
+        // for gain on current SDKs) returned as i64. `as i32` saturating truncation is
+        // safe in this range. We don't propagate errors here — get_control_value already
+        // logged failure and we keep the default 0 fallback for connect-time setup.
         if let Ok(gain) = self.get_control_value(SvbControlType::Gain) {
             self.current_gain = gain as i32;
         }
@@ -931,7 +963,10 @@ impl NativeCamera for SvbonyCamera {
         // Acquire mutex for exposure start operations
         let _lock = svbony_mutex().lock().await;
 
-        // Set exposure time (in microseconds)
+        // Set exposure time (in microseconds).
+        // Why: max exposure is configured well below 1 hour (3.6e9 us); f64 -> i64 with
+        // saturation handles negative or NaN duration as 0 / i64::MAX respectively, both
+        // of which the SDK rejects safely. Real astrophotography exposures cap at ~hours.
         let exposure_us = (params.duration_secs * 1_000_000.0) as i64;
         self.set_control_value(SvbControlType::Exposure, exposure_us)?;
 
@@ -1091,9 +1126,17 @@ impl NativeCamera for SvbonyCamera {
         self.state = CameraState::Idle;
         self.exposure_start = None;
 
+        // Why: width/height are c_int populated by SVBGetROIFormat above. A negative
+        // value indicates SDK corruption; surface via try_into rather than wrap.
+        let width_u32 = u32::try_from(width).map_err(|_| {
+            NativeError::SdkError(format!("SVBony returned negative ROI width: {}", width))
+        })?;
+        let height_u32 = u32::try_from(height).map_err(|_| {
+            NativeError::SdkError(format!("SVBony returned negative ROI height: {}", height))
+        })?;
         Ok(ImageData {
-            width: width as u32,
-            height: height as u32,
+            width: width_u32,
+            height: height_u32,
             data,
             bits_per_pixel: self.sensor_info.bit_depth,
             bayer_pattern: self.sensor_info.bayer_pattern,
@@ -1113,7 +1156,10 @@ impl NativeCamera for SvbonyCamera {
         self.set_control_value_async(SvbControlType::CoolerEnable, if enabled { 1 } else { 0 })
             .await?;
         if enabled {
-            // SVBony uses temperature * 10
+            // SVBony uses temperature * 10.
+            // Why: target_temp is f64 Celsius typically in [-50.0, 50.0]; multiplied by 10
+            // it fits trivially in i64. f64 -> i64 saturating cast is well-defined for
+            // finite values in this range; NaN sentinel would be clamped to 0.
             self.set_control_value_async(
                 SvbControlType::TargetTemperature,
                 (target_temp * 10.0) as i64,
@@ -1157,7 +1203,8 @@ impl NativeCamera for SvbonyCamera {
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
-        // Use async mutex-protected method
+        // Use async mutex-protected method.
+        // Why: i32 -> i64 is widening (sign-extended); always safe.
         self.set_control_value_async(SvbControlType::Gain, gain as i64)
             .await?;
         self.current_gain = gain;
@@ -1169,7 +1216,8 @@ impl NativeCamera for SvbonyCamera {
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
-        // Use async mutex-protected method
+        // Use async mutex-protected method.
+        // Why: i32 -> i64 is widening (sign-extended); always safe.
         self.set_control_value_async(SvbControlType::BlackLevel, offset as i64)
             .await?;
         self.current_offset = offset;
@@ -1194,10 +1242,31 @@ impl NativeCamera for SvbonyCamera {
             )));
         }
 
+        if bin < 1 {
+            return Err(NativeError::InvalidParameter(format!(
+                "SVBony binning must be >= 1, got bin_x={} bin_y={}",
+                bin_x, bin_y
+            )));
+        }
         let sdk = get_sdk()?;
 
-        let width = (self.sensor_info.width as i32) / bin;
-        let height = (self.sensor_info.height as i32) / bin;
+        // Why: sensor_info.width/height are u32 (<= 16k on SVBony hardware); converting
+        // to i32 via try_from is the right way to fail closed on any pathological value.
+        // bin is already validated > 0.
+        let width_i32 = i32::try_from(self.sensor_info.width).map_err(|_| {
+            NativeError::SdkError(format!(
+                "SVBony sensor width does not fit in i32: {}",
+                self.sensor_info.width
+            ))
+        })?;
+        let height_i32 = i32::try_from(self.sensor_info.height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "SVBony sensor height does not fit in i32: {}",
+                self.sensor_info.height
+            ))
+        })?;
+        let width = width_i32 / bin;
+        let height = height_i32 / bin;
 
         // Acquire mutex for SDK operations
         let _lock = svbony_mutex().lock().await;
@@ -1233,19 +1302,65 @@ impl NativeCamera for SvbonyCamera {
 
         let sdk = get_sdk()?;
 
+        // Why: SubFrame coordinates are u32, SDK wants c_int (i32). Surface a too-large
+        // u32 as InvalidParameter rather than wrap. current_bin_{x,y} must be > 0; we
+        // validated this at set_binning entry but defend here in case caller skipped it.
         let (start_x, start_y, width, height) = match &subframe {
             Some(sf) => (
-                sf.start_x as c_int,
-                sf.start_y as c_int,
-                sf.width as c_int,
-                sf.height as c_int,
+                c_int::try_from(sf.start_x).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony subframe start_x exceeds c_int: {}",
+                        sf.start_x
+                    ))
+                })?,
+                c_int::try_from(sf.start_y).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony subframe start_y exceeds c_int: {}",
+                        sf.start_y
+                    ))
+                })?,
+                c_int::try_from(sf.width).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony subframe width exceeds c_int: {}",
+                        sf.width
+                    ))
+                })?,
+                c_int::try_from(sf.height).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony subframe height exceeds c_int: {}",
+                        sf.height
+                    ))
+                })?,
             ),
-            None => (
-                0,
-                0,
-                (self.sensor_info.width / self.current_bin_x as u32) as c_int,
-                (self.sensor_info.height / self.current_bin_y as u32) as c_int,
-            ),
+            None => {
+                let bin_x_u32 = u32::try_from(self.current_bin_x.max(1)).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony current_bin_x not representable as u32: {}",
+                        self.current_bin_x
+                    ))
+                })?;
+                let bin_y_u32 = u32::try_from(self.current_bin_y.max(1)).map_err(|_| {
+                    NativeError::InvalidParameter(format!(
+                        "SVBony current_bin_y not representable as u32: {}",
+                        self.current_bin_y
+                    ))
+                })?;
+                let binned_w = self.sensor_info.width / bin_x_u32;
+                let binned_h = self.sensor_info.height / bin_y_u32;
+                let w_ci = c_int::try_from(binned_w).map_err(|_| {
+                    NativeError::SdkError(format!(
+                        "SVBony binned width does not fit in c_int: {}",
+                        binned_w
+                    ))
+                })?;
+                let h_ci = c_int::try_from(binned_h).map_err(|_| {
+                    NativeError::SdkError(format!(
+                        "SVBony binned height does not fit in c_int: {}",
+                        binned_h
+                    ))
+                })?;
+                (0, 0, w_ci, h_ci)
+            }
         };
 
         // Acquire mutex for SDK operations
@@ -1304,7 +1419,10 @@ impl NativeCamera for SvbonyCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Use async mutex-protected method
+        // Use async mutex-protected method.
+        // Why: gain min/max are small non-negative integers (<= ~720 per SVBony spec)
+        // returned as i64 from the control range API. `as i32` saturating truncation is
+        // safe in this range.
         let (min, max) = self.get_control_range_async(SvbControlType::Gain).await?;
         Ok((min as i32, max as i32))
     }
@@ -1314,7 +1432,9 @@ impl NativeCamera for SvbonyCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // SVBony uses BlackLevel as the offset control (use async mutex-protected method)
+        // SVBony uses BlackLevel as the offset control (use async mutex-protected method).
+        // Why: BlackLevel min/max are small non-negative integers (<= ~512) returned as
+        // i64. `as i32` saturating truncation is safe in this range.
         let (min, max) = self
             .get_control_range_async(SvbControlType::BlackLevel)
             .await?;

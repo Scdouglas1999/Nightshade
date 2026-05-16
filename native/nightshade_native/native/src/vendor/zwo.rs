@@ -607,10 +607,13 @@ impl ZwoCamera {
             Ok(result) => result,
             Err(_elapsed) => {
                 tracing::error!("ZWO image download timed out after {:?}", timeout_duration);
+                // Why: current_width/height are i32 dimensions set from validated SDK ROI;
+                // bin-divided sensor sizes are always non-negative. We treat any negative
+                // sentinel as 0 in the diagnostic message rather than wrapping to giant u32.
                 Err(NativeError::download_timeout(
                     timeout_duration,
-                    self.current_width as u32,
-                    self.current_height as u32,
+                    u32::try_from(self.current_width).unwrap_or(0),
+                    u32::try_from(self.current_height).unwrap_or(0),
                 ))
             }
         }
@@ -990,7 +993,9 @@ impl NativeCamera for ZwoCamera {
         };
         check_asi_error(result)?;
 
-        // Convert to u16 if needed
+        // Convert to u16 if needed.
+        // Why: 8-bit pixel `x: u8` widened to u16 then multiplied by 256 is the standard
+        // 8-bit to 16-bit promotion; u8 -> u16 is always lossless.
         let data: Vec<u16> = if bytes_per_pixel == 2 {
             pooled_buffer
                 .chunks_exact(2)
@@ -1000,7 +1005,9 @@ impl NativeCamera for ZwoCamera {
             pooled_buffer.iter().map(|&x| (x as u16) * 256).collect()
         };
 
-        // DIAGNOSTIC: Log data statistics to debug mid-gray image issue
+        // DIAGNOSTIC: Log data statistics to debug mid-gray image issue.
+        // Why: data is Vec<u16>; u16 -> u64 is widening (always safe). data.len() is usize;
+        // usize -> u64 is widening on all Tier 1 targets (usize <= u64).
         if !data.is_empty() {
             let min_val = data.iter().min().copied().expect("non-empty data");
             let max_val = data.iter().max().copied().expect("non-empty data");
@@ -1042,9 +1049,18 @@ impl NativeCamera for ZwoCamera {
             vendor_data.anti_dew_heater = Some(heater != 0);
         }
 
+        // Why: width/height came from ASIGetROIFormat (c_int) which the ZWO SDK guarantees
+        // non-negative for connected cameras with a valid ROI. Surface SDK corruption
+        // (negative value) via try_into rather than wrap into a giant u32.
+        let width_u32 = u32::try_from(width).map_err(|_| {
+            NativeError::SdkError(format!("ZWO returned negative ROI width: {}", width))
+        })?;
+        let height_u32 = u32::try_from(height).map_err(|_| {
+            NativeError::SdkError(format!("ZWO returned negative ROI height: {}", height))
+        })?;
         Ok(ImageData {
-            width: width as u32,
-            height: height as u32,
+            width: width_u32,
+            height: height_u32,
             data,
             bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
             bayer_pattern: self
@@ -1267,13 +1283,20 @@ impl NativeCamera for ZwoCamera {
 
     fn get_sensor_info(&self) -> SensorInfo {
         if let Some(info) = &self.camera_info {
+            // Why: max_width/max_height are c_long sensor dimensions populated by
+            // ASIGetCameraProperty; ZWO cameras top out under 10k pixels per dim. A
+            // negative value would be SDK corruption — saturate to 0 so the caller
+            // sees a degenerate sensor and can refuse to capture. We can't propagate
+            // an error from this synchronous accessor; the alternative is a default
+            // sensor or a wrap, both worse.
+            // Same reasoning for bit_depth (c_int, range 8..=16 in practice).
             SensorInfo {
-                width: info.max_width as u32,
-                height: info.max_height as u32,
+                width: u32::try_from(info.max_width).unwrap_or(0),
+                height: u32::try_from(info.max_height).unwrap_or(0),
                 pixel_size_x: info.pixel_size,
                 pixel_size_y: info.pixel_size,
                 max_adu: (1u32 << info.bit_depth) - 1,
-                bit_depth: info.bit_depth as u32,
+                bit_depth: u32::try_from(info.bit_depth).unwrap_or(0),
                 color: info.is_color_cam != 0,
                 bayer_pattern: if info.is_color_cam != 0 {
                     Some(match info.bayer_pattern {
@@ -1406,6 +1429,9 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
             cameras.push(ZwoDiscoveryInfo {
                 camera_id: i,
                 name,
+                // Why: `i` ranges 0..num_cameras (c_int) and is non-negative by loop
+                // bound; ZWO advertises a small camera count (<= ~10). `as usize` is
+                // widening with verified non-negative value.
                 discovery_index: i as usize,
             });
         } else {
@@ -2000,6 +2026,8 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
                     focuser_id: id,
                     name,
                     serial_number,
+                    // Why: `i` is the loop index (c_int, 0..count) — non-negative by
+                    // construction. `as usize` is widening with verified non-negative.
                     discovery_index: i as usize,
                 });
             }
@@ -2370,6 +2398,8 @@ impl NativeFilterWheel for ZwoFilterWheel {
             )));
         }
 
+        // Why: bounds checked `0 <= position < self.slot_count` above; position is i32.
+        // `as usize` is widening with verified non-negative value.
         self.filter_names[position as usize] = name;
         Ok(())
     }
@@ -2504,6 +2534,8 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
                     name,
                     slot_count,
                     serial_number,
+                    // Why: `i` is loop index (c_int, 0..count) — non-negative by
+                    // construction. `as usize` is widening with verified non-negative.
                     discovery_index: i as usize,
                 });
             }

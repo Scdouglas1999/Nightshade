@@ -652,10 +652,13 @@ impl PlayerOneCamera {
                     "Player One image download timed out after {:?}",
                     timeout_duration
                 );
+                // Why: current_width/height are i32 dimensions set from validated SDK ROI;
+                // they are always non-negative for a connected camera. Use try_into with a
+                // 0 fallback for the diagnostic message (we already failed; don't compound).
                 Err(NativeError::download_timeout(
                     timeout_duration,
-                    self.current_width as u32,
-                    self.current_height as u32,
+                    u32::try_from(self.current_width).unwrap_or(0),
+                    u32::try_from(self.current_height).unwrap_or(0),
                 ))
             }
         }
@@ -969,6 +972,8 @@ impl NativeCamera for PlayerOneCamera {
         check_poa_error(result, "GetImageData")?;
 
         // Convert to u16
+        // Why: 8-bit -> 16-bit promotion (u8 -> u16 is always lossless; * 256 stays
+        // within u16 because the max product is 255 * 256 = 65280 < u16::MAX).
         let data: Vec<u16> = if bytes_per_pixel == 2 {
             pooled_buffer
                 .chunks_exact(2)
@@ -1008,9 +1013,20 @@ impl NativeCamera for PlayerOneCamera {
         }
         vendor_features.fan_power = fan_power;
 
+        // Why: width/height came from POAGetImageSize (c_int) and are non-negative for
+        // a connected camera with valid ROI; surface SDK corruption via try_into.
+        let width_u32 = u32::try_from(width).map_err(|_| {
+            NativeError::SdkError(format!("Player One returned negative ROI width: {}", width))
+        })?;
+        let height_u32 = u32::try_from(height).map_err(|_| {
+            NativeError::SdkError(format!(
+                "Player One returned negative ROI height: {}",
+                height
+            ))
+        })?;
         Ok(ImageData {
-            width: width as u32,
-            height: height as u32,
+            width: width_u32,
+            height: height_u32,
             data,
             bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
             bayer_pattern: self
@@ -1210,13 +1226,17 @@ impl NativeCamera for PlayerOneCamera {
 
     fn get_sensor_info(&self) -> SensorInfo {
         if let Some(info) = &self.camera_info {
+            // Why: max_width/max_height/bit_depth are c_int sensor properties populated
+            // by POAGetCameraProperties. They are always non-negative for a connected
+            // camera, but we saturate to 0 on negative as defense-in-depth (this
+            // synchronous accessor can't surface an error).
             SensorInfo {
-                width: info.max_width as u32,
-                height: info.max_height as u32,
+                width: u32::try_from(info.max_width).unwrap_or(0),
+                height: u32::try_from(info.max_height).unwrap_or(0),
                 pixel_size_x: info.pixel_size,
                 pixel_size_y: info.pixel_size,
                 max_adu: (1u32 << info.bit_depth) - 1,
-                bit_depth: info.bit_depth as u32,
+                bit_depth: u32::try_from(info.bit_depth).unwrap_or(0),
                 color: info.is_color_camera != 0,
                 bayer_pattern: if info.is_color_camera != 0 {
                     Some(match info.bayer_pattern {

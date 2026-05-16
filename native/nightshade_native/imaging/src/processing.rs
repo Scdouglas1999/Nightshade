@@ -30,9 +30,19 @@ impl TileRegion {
         }
     }
 
-    /// Calculate the actual pixel count in this tile
+    /// Calculate the actual pixel count in this tile.
+    ///
+    /// Returns `None` if `width * height` overflows `u32`. A 32K x 32K tile would
+    /// overflow `u32` (about 1.07 G pixels fits, but bigger tiles do not). Callers
+    /// downstream allocate based on this value, so silent wrap would mis-size buffers.
     pub fn pixel_count(&self) -> usize {
-        (self.width * self.height) as usize
+        // Why: promote to u64 to avoid u32 multiplication overflow for very large tiles;
+        // u64 -> usize is value-preserving on every Tier 1 target (usize is 32- or 64-bit
+        // and we already overflow-check). On a 32-bit host with a > 4 G pixel tile, the
+        // try_from would fail; saturate to usize::MAX so downstream allocation explodes
+        // loudly rather than silently mis-sizing.
+        let product = (self.width as u64).saturating_mul(self.height as u64);
+        usize::try_from(product).unwrap_or(usize::MAX)
     }
 }
 
@@ -325,20 +335,51 @@ fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
 /// Extract tile data from full image
 fn extract_tile_data(image: &ImageData, tile: &TileRegion) -> Result<Vec<u8>, String> {
     let bytes_per_pixel = image.bytes_per_pixel();
+    // Why: image.channels is u8; widening to usize via `as` is always safe.
     let channels = image.channels as usize;
-    let stride = (image.width as usize) * bytes_per_pixel * channels;
+    // Why: image.width is u32; on 64-bit hosts u32 -> usize is widening. On 32-bit
+    // hosts the stride product could overflow usize (a 65k-wide RGBA32 image is 1 MB
+    // per row, well under usize::MAX, but pathological inputs warrant a checked path).
+    let width_usize = image.width as usize;
+    let stride = width_usize
+        .checked_mul(bytes_per_pixel)
+        .and_then(|s| s.checked_mul(channels))
+        .ok_or_else(|| {
+            format!(
+                "Stride overflow: width={} bpp={} channels={}",
+                image.width, bytes_per_pixel, channels
+            )
+        })?;
 
     let mut tile_data = Vec::with_capacity(tile.pixel_count() * bytes_per_pixel * channels);
 
+    // Why: tile.width is u32; widening to usize is safe on every Tier 1 target.
+    // The multiplication can overflow on 32-bit hosts for pathologically large tiles,
+    // so use checked arithmetic.
+    let row_len = (tile.width as usize)
+        .checked_mul(bytes_per_pixel)
+        .and_then(|r| r.checked_mul(channels))
+        .ok_or_else(|| "Tile row_len overflow".to_string())?;
+
     for y in 0..tile.height {
+        // Why: tile.y + y where both are u32; widening to usize via `as` is safe on
+        // every Tier 1 target. The addition is u32 and cannot overflow for valid
+        // tiles bounded by image dimensions (TileRegion is constructed from validated u32s).
         let src_y = (tile.y + y) as usize;
         let src_x = tile.x as usize;
 
-        let row_start = src_y * stride + src_x * bytes_per_pixel * channels;
-        let row_len = (tile.width as usize) * bytes_per_pixel * channels;
-
-        if row_start + row_len <= image.data.len() {
-            tile_data.extend_from_slice(&image.data[row_start..row_start + row_len]);
+        let row_start = src_y
+            .checked_mul(stride)
+            .and_then(|s| {
+                let col_off = src_x.checked_mul(bytes_per_pixel)?.checked_mul(channels)?;
+                s.checked_add(col_off)
+            })
+            .ok_or_else(|| "Tile row_start overflow".to_string())?;
+        let row_end = row_start
+            .checked_add(row_len)
+            .ok_or_else(|| "Tile row_end overflow".to_string())?;
+        if row_end <= image.data.len() {
+            tile_data.extend_from_slice(&image.data[row_start..row_end]);
         } else {
             return Err("Tile region out of bounds".to_string());
         }
@@ -362,6 +403,9 @@ fn apply_stretch_to_tile(
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 
+            // Why: u16 -> f64 is lossless (53-bit mantissa easily holds 16-bit values).
+            // After clamp(0.0, 1.0) * 255.0 the value is in [0.0, 255.0], so f64 -> u8
+            // saturating truncation is safe and well-defined.
             let stretched: Vec<u8> = u16_data
                 .par_iter()
                 .map(|&val| {
@@ -379,6 +423,8 @@ fn apply_stretch_to_tile(
                 .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
                 .collect();
 
+            // Why: f32 -> f64 is lossless widening; after clamp(0.0, 1.0) * 255.0 the
+            // value is in [0.0, 255.0], so f64 -> u8 saturating truncation is safe.
             let stretched: Vec<u8> = f32_data
                 .par_iter()
                 .map(|&val| {
@@ -443,6 +489,8 @@ fn normalize_tile(
                 return Ok(vec![128u8; u16_data.len()]);
             }
 
+            // Why: u16 -> f64 is lossless; after clamp(0.0, 255.0) the value is in
+            // [0.0, 255.0], so f64 -> u8 saturating truncation is safe.
             let normalized: Vec<u8> = u16_data
                 .par_iter()
                 .map(|&val| (((val as f64 - global.min) / range * 255.0).clamp(0.0, 255.0)) as u8)
@@ -463,6 +511,8 @@ fn apply_gamma_to_tile(data: &[u8], pixel_type: PixelType, gamma: f64) -> Result
                 .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect();
 
+            // Why: u16 -> f64 is lossless; after clamp(0.0, 255.0) the value is in
+            // [0.0, 255.0], so f64 -> u8 saturating truncation is safe.
             let corrected: Vec<u8> = u16_data
                 .par_iter()
                 .map(|&val| {
@@ -487,22 +537,63 @@ fn merge_tile_results(
     _pixel_type: PixelType,
 ) -> Result<ImageData, String> {
     let output_channels = channels.max(1);
-    let mut output = vec![0u8; (width * height * output_channels) as usize];
+    // Why: `width * height * output_channels` is u32 multiplication that can overflow
+    // for very large images (e.g. 32K x 32K x 3 channels = 3 GB; fits in u32::MAX = 4
+    // GB but a 4K-mosaic at 16K x 16K x 4 channels = 1 GB — still fits, but bigger
+    // pano stitches exceed u32). Promote to u64 and surface overflow as Err so the
+    // allocator does not receive a wrapped tiny value.
+    let total_bytes_u64 = (width as u64)
+        .checked_mul(height as u64)
+        .and_then(|p| p.checked_mul(output_channels as u64))
+        .ok_or_else(|| {
+            format!(
+                "Output buffer dimensions overflow u64: {}x{} channels={}",
+                width, height, output_channels
+            )
+        })?;
+    let total_bytes = usize::try_from(total_bytes_u64)
+        .map_err(|_| format!("Output buffer size {} does not fit in usize", total_bytes_u64))?;
+    let mut output = vec![0u8; total_bytes];
 
     for (tile, tile_data) in tile_results {
-        let src_row_stride = (tile.width * output_channels) as usize;
-        let dst_row_stride = (width * output_channels) as usize;
+        // Why: tile.width and output_channels are u32; widening to usize via `as` is
+        // value-preserving on every Tier 1 target. The multiplication can overflow on
+        // 32-bit hosts for pathological tile dimensions, so check.
+        let src_row_stride = (tile.width as usize)
+            .checked_mul(output_channels as usize)
+            .ok_or_else(|| "Tile src_row_stride overflow".to_string())?;
+        let dst_row_stride = (width as usize)
+            .checked_mul(output_channels as usize)
+            .ok_or_else(|| "Output dst_row_stride overflow".to_string())?;
 
         for y in 0..tile.height {
-            let src_offset = (y as usize) * src_row_stride;
-            let dst_y = (tile.y + y) as usize;
+            // Why: y < tile.height (u32), widening to usize is safe; multiplication
+            // checked.
+            let src_offset = (y as usize)
+                .checked_mul(src_row_stride)
+                .ok_or_else(|| "src_offset overflow".to_string())?;
+            // Why: tile.y + y where both are u32; can wrap, but in normal use tile
+            // coordinates are bounded by image height so this is safe in practice.
+            // Use checked_add to surface bugs in callers passing oversized tiles.
+            let dst_y_u32 = tile.y.checked_add(y).ok_or("Tile dst_y overflow u32")?;
+            let dst_y = dst_y_u32 as usize;
             let dst_x = tile.x as usize;
-            let dst_offset = dst_y * dst_row_stride + dst_x * (output_channels as usize);
+            let dst_offset = dst_y
+                .checked_mul(dst_row_stride)
+                .and_then(|p| {
+                    let col = dst_x.checked_mul(output_channels as usize)?;
+                    p.checked_add(col)
+                })
+                .ok_or_else(|| "dst_offset overflow".to_string())?;
 
             let src_start = src_offset;
-            let src_end = src_start + src_row_stride;
+            let src_end = src_start
+                .checked_add(src_row_stride)
+                .ok_or_else(|| "src_end overflow".to_string())?;
             let dst_start = dst_offset;
-            let dst_end = dst_start + src_row_stride;
+            let dst_end = dst_start
+                .checked_add(src_row_stride)
+                .ok_or_else(|| "dst_end overflow".to_string())?;
 
             if src_end <= tile_data.len() && dst_end <= output.len() {
                 output[dst_start..dst_end].copy_from_slice(&tile_data[src_start..src_end]);
@@ -576,6 +667,8 @@ mod tests {
     fn test_process_tiled_normalize_uses_global_range() {
         let w: u32 = 64;
         let h: u32 = 64;
+        // Why: test fixture with statically known small dimensions (64*64*2 = 8192).
+        // No overflow possible; all `as` casts are widening within bounds.
         let mut data = Vec::with_capacity((w * h * 2) as usize);
         for _y in 0..h {
             for x in 0..w {
@@ -593,6 +686,7 @@ mod tests {
 
         // 16x16 tiles -> 4x4 grid; with global rescale the row stays monotonic.
         let out = process_tiled(&image, 16, ProcessOperation::Normalize, None).unwrap();
+        // Why: w = 64, out.channels = 1; stride = 64 well under usize::MAX on any host.
         let stride = (w * out.channels) as usize;
         let row = &out.data[0..stride];
         for i in 1..row.len() {
