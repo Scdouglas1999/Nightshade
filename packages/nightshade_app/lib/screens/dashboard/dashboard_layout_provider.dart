@@ -171,6 +171,14 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
   }
 }
 
+// Why keep-alive (not autoDispose): the dashboard layout is a user
+// preference persisted to the settings DAO; the async build() reads from
+// SQLite and migrates v2 -> v3 layouts. Disposing on navigation would force
+// every revisit (which happens on every app launch and tab switch) to
+// re-run that I/O + migration, causing a visible flash of the default
+// layout while loading. Memory cost is trivial (a single DashboardLayout
+// value object), and writes flow through this notifier so a single
+// authoritative copy is correct (audit-dart §1b).
 final dashboardLayoutProvider =
     AsyncNotifierProvider<DashboardLayoutNotifier, DashboardLayout>(() {
   return DashboardLayoutNotifier();

@@ -7,7 +7,13 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Provider for target altitude data
-final targetAltitudeProvider = FutureProvider.family<TargetAltitudeInfo?, TargetHeaderNode>((ref, target) async {
+// autoDispose: this is a .family provider keyed by TargetHeaderNode — without
+// autoDispose each unique target hovered would leave a permanent
+// FutureProvider instance in the container, growing memory unboundedly.
+// Tooltip lifetime is the natural scope for these computations
+// (audit-dart §1b).
+final targetAltitudeProvider = FutureProvider.autoDispose
+    .family<TargetAltitudeInfo?, TargetHeaderNode>((ref, target) async {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
   if (settings == null) return null;
 

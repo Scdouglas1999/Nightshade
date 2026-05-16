@@ -15,10 +15,18 @@ import 'visual_timeline.dart';
 
 /// Provider to track when a node is being dragged globally
 /// This allows all drop zones to become visible when any drag starts
-final isDraggingNodeProvider = StateProvider<bool>((ref) => false);
+// autoDispose: drag state is transient UI — every drag begins from `false`
+// and is reset by the matching onDragEnd/Cancel. Disposing on screen
+// teardown ensures a stale `true` from an interrupted drag cannot leak
+// into the next sequencer session (audit-dart §1b).
+final isDraggingNodeProvider =
+    StateProvider.autoDispose<bool>((ref) => false);
 
 /// Provider for "follow execution" toggle — auto-scrolls tree to current node
-final followExecutionProvider = StateProvider<bool>((ref) => true);
+// autoDispose: tab/screen-scoped toggle; default (on) is the right initial
+// state on each visit to the sequencer (audit-dart §1b).
+final followExecutionProvider =
+    StateProvider.autoDispose<bool>((ref) => true);
 
 /// GlobalKey registry for auto-scroll: maps node IDs to their GlobalKeys.
 /// Populated by _NodeTreeView when building, used by auto-scroll logic.

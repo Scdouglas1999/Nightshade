@@ -10,7 +10,11 @@ import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../widgets/quick_start_wizard_dialog.dart';
 
 /// Provider for templates list - loads from database with built-in fallbacks
-final sequenceTemplatesProvider = FutureProvider<List<Sequence>>((ref) async {
+// autoDispose: list is only consumed by TemplatesTab; refetching the DB on
+// revisit is cheap and reflects any templates the user just saved or
+// imported elsewhere (audit-dart §1b).
+final sequenceTemplatesProvider =
+    FutureProvider.autoDispose<List<Sequence>>((ref) async {
   final repository = ref.watch(sequenceRepositoryProvider);
 
   // Load templates from database
@@ -2263,10 +2267,14 @@ Map<String, SequenceNode> _createRemoteObservatoryNodes() {
 }
 
 /// Search provider for templates
-final templateSearchProvider = StateProvider<String>((ref) => '');
+// autoDispose: filter input is tab-scoped (audit-dart §1b).
+final templateSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Selected template category
-final templateCategoryProvider = StateProvider<String?>((ref) => null);
+// autoDispose: category filter is tab-scoped; default (All / null) is
+// appropriate on each visit (audit-dart §1b).
+final templateCategoryProvider =
+    StateProvider.autoDispose<String?>((ref) => null);
 
 const _templateCategoryOptions = <MapEntry<String?, String>>[
   MapEntry<String?, String>(null, 'All'),

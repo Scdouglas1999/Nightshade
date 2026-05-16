@@ -9,19 +9,27 @@ import '../sequencer_screen.dart';
 import '../../../utils/snackbar_helper.dart';
 
 /// Provider for sequences list - loads from database
-final savedSequencesProvider = FutureProvider<List<Sequence>>((ref) async {
+// autoDispose: list is only consumed by SequenceLibraryTab; refetching the
+// DB on revisit is cheap and ensures we never show stale entries after the
+// user edited a sequence elsewhere (audit-dart §1b).
+final savedSequencesProvider =
+    FutureProvider.autoDispose<List<Sequence>>((ref) async {
   final repository = ref.watch(sequenceRepositoryProvider);
   return await repository.loadAllSequences();
 });
 
 /// Search provider for sequences
-final sequenceSearchProvider = StateProvider<String>((ref) => '');
+// autoDispose: filter input is tab-scoped; clearing it on revisit matches
+// user expectation (audit-dart §1b).
+final sequenceSearchProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Sort order for sequences
 enum SequenceSortOrder { name, dateModified, dateCreated, nodeCount }
 
 /// Provider for sort order
-final sequenceSortOrderProvider = StateProvider<SequenceSortOrder>(
+// autoDispose: tab-scoped preference; default (dateModified) is appropriate
+// on each visit (audit-dart §1b).
+final sequenceSortOrderProvider = StateProvider.autoDispose<SequenceSortOrder>(
   (ref) => SequenceSortOrder.dateModified,
 );
 

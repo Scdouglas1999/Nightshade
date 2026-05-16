@@ -22,7 +22,12 @@ class AssignAction {
 }
 
 /// Provider to track when the last scan occurred
-final lastScanTimeProvider = StateProvider<DateTime?>((ref) => null);
+// autoDispose: the "last scan: N seconds ago" label is only meaningful while
+// the Equipment screen is mounted. Resetting on screen teardown avoids
+// stale "last scan: 6 hours ago" strings from a previous session
+// (audit-dart §1b).
+final lastScanTimeProvider =
+    StateProvider.autoDispose<DateTime?>((ref) => null);
 
 /// A collapsible panel at the bottom of the equipment screen for discovering devices.
 /// Shows available backends, discovered devices grouped by type, and connection controls.

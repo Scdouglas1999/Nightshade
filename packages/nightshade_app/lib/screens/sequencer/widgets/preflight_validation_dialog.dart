@@ -57,7 +57,12 @@ class ValidationResult {
 }
 
 /// Provider for sequence validation
-final sequenceValidationProvider = Provider<SequenceValidator>((ref) {
+// autoDispose: the validator is a stateless service used only inside the
+// preflight dialog. Disposing it when the dialog closes is correct; it is
+// reconstructed cheaply (a single ctor) the next time preflight runs
+// (audit-dart §1b).
+final sequenceValidationProvider =
+    Provider.autoDispose<SequenceValidator>((ref) {
   return SequenceValidator(ref);
 });
 
