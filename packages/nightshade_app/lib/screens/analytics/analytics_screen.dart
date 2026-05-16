@@ -17,6 +17,7 @@ import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import '../diagnostics/diagnostics_screen.dart';
+import '../sequencer/widgets/session_report_dialog.dart';
 import 'widgets/science_export_hub.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
@@ -923,6 +924,13 @@ class _SessionDetailDialog extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  // View the rich Feature-A session report.
+                  IconButton(
+                    icon: const Icon(LucideIcons.fileBarChart, size: 18),
+                    onPressed: () =>
+                        SessionReportDialog.show(context, session.id),
+                    tooltip: 'Session Report',
                   ),
                   // Export buttons
                   IconButton(

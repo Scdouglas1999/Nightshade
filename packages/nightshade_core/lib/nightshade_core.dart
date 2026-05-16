@@ -66,6 +66,7 @@ export 'src/models/optical_config.dart';
 export 'src/models/science/science_models.dart';
 export 'src/models/defect_map.dart';
 export 'src/models/plate_solver.dart';
+export 'src/models/session_report.dart';
 
 // Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
 export 'src/models/scheduler/integration_goal.dart';
@@ -97,6 +98,7 @@ export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
 export 'src/providers/sequence_stats_provider.dart';
+export 'src/providers/session_report_provider.dart';
 export 'src/providers/import_provider.dart';
 export 'src/providers/session_provider.dart';
 // Hide settings_provider's legacy HorizonProfile so the scheduler's
@@ -209,6 +211,7 @@ export 'src/services/auto_save_service.dart';
 export 'src/services/notification_service.dart';
 export 'src/services/push_notification_service.dart';
 export 'src/services/session_export_service.dart';
+export 'src/services/session_report_service.dart';
 export 'src/services/mosaic_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';

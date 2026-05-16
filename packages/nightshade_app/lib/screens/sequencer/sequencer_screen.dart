@@ -17,6 +17,7 @@ import 'widgets/snippet_palette.dart';
 import 'widgets/sequence_tree.dart';
 import 'widgets/node_properties_panel.dart';
 import 'widgets/sequence_progress_bar.dart';
+import 'widgets/session_report_dialog.dart';
 import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'tabs/history_tab.dart';
@@ -79,6 +80,34 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       if (_tabController.index != next) {
         _tabController.animateTo(next);
       }
+    });
+
+    // Auto-open the end-of-session report dialog (Feature A) when the
+    // execution state transitions out of running/paused into one of the
+    // terminal states. We snapshot the bound session id BEFORE the state
+    // notifier may clear it so a freshly-completed session still resolves.
+    ref.listenManual<SequenceExecutionState>(sequenceExecutionStateProvider,
+        (prev, next) {
+      if (!mounted) return;
+      if (prev == null) return;
+      final wasActive = prev == SequenceExecutionState.running ||
+          prev == SequenceExecutionState.paused;
+      final isTerminal = next == SequenceExecutionState.completed ||
+          next == SequenceExecutionState.failed;
+      // Treat "idle after running" as a stop/abort terminal transition so
+      // the report still opens for stopped runs — the executor sets state
+      // to idle on Stop/Stopped events.
+      final stoppedTerminal =
+          wasActive && next == SequenceExecutionState.idle;
+      if (!isTerminal && !stoppedTerminal) return;
+      final sessionId = ref.read(sessionStateProvider).dbSessionId;
+      if (sessionId == null) return;
+      // Schedule the open after the current frame so the executor finishes
+      // its state-update path before we push a new route.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        SessionReportDialog.show(context, sessionId);
+      });
     });
 
     // Create a default sequence if none exists
