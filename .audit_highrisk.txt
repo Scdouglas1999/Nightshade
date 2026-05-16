@@ -1,184 +1,176 @@
-apps/desktop/lib/headless_api_server.dart:2148:        } catch (_) {}
-native/nightshade_native/alpaca/src/camera.rs:716:            let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:355:        .unwrap_or_default()
-native/nightshade_native/alpaca/src/client.rs:592:                    let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:664:                    let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:722:                    let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:773:            let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:810:            let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:864:            let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:918:            let body = response.text().await.unwrap_or_default();
-native/nightshade_native/alpaca/src/client.rs:962:            let body = response.text().await.unwrap_or_default();
+apps/desktop/lib/headless_api_server.dart:2373:        } catch (_) {}
+native/nightshade_native/alpaca/src/client.rs:421:        .unwrap_or_default()
 native/nightshade_native/alpaca/src/guard.rs:216:/// mount.disconnect().await.ok();
-native/nightshade_native/alpaca/src/safetymonitor.rs:284:            driver_info: driver_info.unwrap_or_default(),
-native/nightshade_native/ascom/src/windows_impl.rs:3629:        let max_switch = self.max_switch().ok();
-native/nightshade_native/ascom/src/windows_impl.rs:428:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
-native/nightshade_native/bridge/src/api.rs:4959:    let config = config.unwrap_or_default();
-native/nightshade_native/bridge/src/api.rs:95:        .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1044:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1172:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1364:            Err("not implemented".to_string())
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1372:            Err("not implemented".to_string())
-native/nightshade_native/bridge/src/ascom_wrapper.rs:341:                            let readout_modes = cam.readout_modes().unwrap_or_default();
-native/nightshade_native/bridge/src/builtin_guider.rs:342:        .unwrap_or_default()
-native/nightshade_native/bridge/src/device_capabilities.rs:1061:            let description = switch.get_switch_description(i).unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:1287:                let gain_range = camera.get_gain_range().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:1288:                let offset_range = camera.get_offset_range().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:1289:                let readout_modes = camera.get_readout_modes().await.unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:1290:                let status = camera.get_status().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:1332:                let tracking = mount.get_tracking().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:1360:                let position = focuser.get_position().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:1383:                let names = fw.get_filter_names().await.unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:1414:                let azimuth = dome.get_azimuth().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:477:            telescope.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:518:            camera.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:541:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:550:            let names = fw.names().await.unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:551:            let offsets = fw.focus_offsets().await.unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:562:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:584:            rotator.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:618:            dome.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:657:            cc.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:702:            weather.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:717:            safety.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:735:                let description = switch.get_switch_description(i).await.unwrap_or_default();
-native/nightshade_native/bridge/src/device_capabilities.rs:766:            switch.disconnect().await.ok();
-native/nightshade_native/bridge/src/device_capabilities.rs:908:        let names = fw.names().unwrap_or_default();
-native/nightshade_native/bridge/src/device_id.rs:631:            let device_index = idx_str.parse::<i32>().ok();
-native/nightshade_native/bridge/src/device_id.rs:668:                    let device_index = payload.parse::<i32>().ok();
-native/nightshade_native/bridge/src/device_id.rs:690:        let device_index = device_id_str.parse::<i32>().ok();
-native/nightshade_native/bridge/src/devices.rs:1296:                            .unwrap_or_default()
-native/nightshade_native/bridge/src/devices.rs:1817:                    let interface_version = camera.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1818:                    let driver_version = camera.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1819:                    let driver_info = camera.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1820:                    let supported_actions = camera.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1835:                    let interface_version = mount.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1836:                    let driver_version = mount.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1837:                    let driver_info = mount.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1838:                    let supported_actions = mount.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1853:                    let interface_version = focuser.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1854:                    let driver_version = focuser.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1855:                    let driver_info = focuser.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1856:                    let supported_actions = focuser.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1871:                    let interface_version = fw.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1872:                    let driver_version = fw.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1873:                    let driver_info = fw.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1874:                    let supported_actions = fw.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1889:                    let interface_version = rotator.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1890:                    let driver_version = rotator.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1891:                    let driver_info = rotator.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1892:                    let supported_actions = rotator.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1907:                    let interface_version = dome.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1908:                    let driver_version = dome.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1909:                    let driver_info = dome.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1910:                    let supported_actions = dome.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1925:                    let interface_version = monitor.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1926:                    let driver_version = monitor.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1927:                    let driver_info = monitor.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1928:                    let supported_actions = monitor.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1943:                    let interface_version = switch.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1944:                    let driver_version = switch.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1945:                    let driver_info = switch.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1946:                    let supported_actions = switch.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1961:                    let interface_version = cover.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1962:                    let driver_version = cover.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1963:                    let driver_info = cover.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1964:                    let supported_actions = cover.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:1982:                    let interface_version = obs.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1983:                    let driver_version = obs.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1984:                    let driver_info = obs.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:1985:                    let supported_actions = obs.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2132:                    let interface_version = camera_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2133:                    let driver_version = camera_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2134:                    let driver_info = camera_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2136:                        camera_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2152:                    let interface_version = mount_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2153:                    let driver_version = mount_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2154:                    let driver_info = mount_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2156:                        mount_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2172:                    let interface_version = focuser_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2173:                    let driver_version = focuser_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2174:                    let driver_info = focuser_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2176:                        focuser_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2192:                    let interface_version = fw_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2193:                    let driver_version = fw_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2194:                    let driver_info = fw_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2195:                    let supported_actions = fw_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2211:                    let interface_version = dome_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2212:                    let driver_version = dome_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2213:                    let driver_info = dome_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2215:                        dome_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2231:                    let interface_version = switch_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2232:                    let driver_version = switch_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2233:                    let driver_info = switch_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2235:                        switch_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2251:                    let interface_version = cover_guard.interface_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2252:                    let driver_version = cover_guard.driver_version().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2253:                    let driver_info = cover_guard.driver_info().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2255:                        cover_guard.supported_actions().await.unwrap_or_default();
-native/nightshade_native/bridge/src/devices.rs:2753:                    let temp = camera.ccd_temperature().await.ok();
-native/nightshade_native/bridge/src/devices.rs:2865:                        let temp = camera.get_temperature().await.ok();
-native/nightshade_native/bridge/src/devices.rs:3074:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
-native/nightshade_native/bridge/src/devices.rs:3122:                    let gain = camera.gain().await.ok();
-native/nightshade_native/bridge/src/devices.rs:3123:                    let offset = camera.offset().await.ok();
-native/nightshade_native/bridge/src/event.rs:824:        .unwrap_or_default()
-native/nightshade_native/bridge/src/imaging_ops.rs:784:                                .unwrap_or_default();
-native/nightshade_native/bridge/src/imaging_ops.rs:830:                                            .unwrap_or_default()
-native/nightshade_native/bridge/src/lib.rs:311:        LOG_DIR.set(log_path.clone()).ok();
-native/nightshade_native/bridge/src/lib.rs:318:        LOG_GUARD.set(guard).ok();
-native/nightshade_native/bridge/src/lib.rs:415:    writeln!(output, "=== Nightshade Log Export ===").ok();
-native/nightshade_native/bridge/src/lib.rs:416:    writeln!(output, "Exported: {}", chrono::Local::now().to_rfc3339()).ok();
-native/nightshade_native/bridge/src/lib.rs:417:    writeln!(output, "").ok();
-native/nightshade_native/bridge/src/lib.rs:424:        writeln!(output, "\n=== {} ===\n", log_file).ok();
-native/nightshade_native/bridge/src/lib.rs:426:            write!(output, "{}", content).ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1109:                        let sensor_type = camera.sensor_type().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1112:                            let offset_x = camera.bayer_offset_x().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1113:                            let offset_y = camera.bayer_offset_y().ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1375:            let sensor_type_code = camera.sensor_type().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1388:                let offset_x = camera.bayer_offset_x().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1389:                let offset_y = camera.bayer_offset_y().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1780:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1832:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1872:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1911:            let temp = focuser.temperature().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1912:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:1954:            focuser.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2029:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2086:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2126:            fw.disconnect().await.ok();
-native/nightshade_native/bridge/src/real_device_ops.rs:2471:                .unwrap_or_default()
-native/nightshade_native/imaging/src/phd2.rs:418:            .unwrap_or_default()
-native/nightshade_native/imaging/src/platesolve.rs:1479:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
-native/nightshade_native/imaging/src/raw.rs:482:            user_sat: params.user_sat.unwrap_or_default(),
-native/nightshade_native/imaging/src/raw.rs:498:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
-native/nightshade_native/indi/src/autofocus.rs:139:        let current_temperature = self.focuser.get_temperature().await.ok();
-native/nightshade_native/indi/src/client.rs:1010:                                            group: get_attribute(e, "group").unwrap_or_default(),
-native/nightshade_native/indi/src/client.rs:1196:                    let text = e.unescape().unwrap_or_default().to_string();
-native/nightshade_native/indi/src/error.rs:151:                    .unwrap_or_default();
-native/nightshade_native/native/src/vendor/player_one.rs:770:            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
-native/nightshade_native/native/src/vendor/player_one.rs:938:        let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
-native/nightshade_native/native/src/vendor/player_one.rs:943:        let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();
-native/nightshade_native/native/src/vendor/qhy.rs:1027:        let temperature = self.get_control(QhyControl::CONTROL_CURTEMP).ok();
-native/nightshade_native/native/src/vendor/qhy.rs:890:            .ok();
-native/nightshade_native/native/src/vendor/zwo.rs:1097:            .ok();
-native/nightshade_native/native/src/vendor/zwo.rs:876:            .ok();
-native/nightshade_native/sequencer/src/executor.rs:2124:                                                result.message.unwrap_or_default()
-native/nightshade_native/sequencer/src/executor.rs:2148:                                    "Trigger '{}' uses RecoveryAction::CustomBranch which is not implemented; pausing sequence",
-native/nightshade_native/sequencer/src/executor.rs:2157:                                        "Trigger '{}' configured with RecoveryAction::CustomBranch — this variant is not implemented. \
-native/nightshade_native/sequencer/src/executor.rs:850:            .unwrap_or_default();
-native/nightshade_native/sequencer/src/meridian_flip_executor.rs:862:        let af_config = ctx.autofocus_config.clone().unwrap_or_default();
-native/nightshade_native/sequencer/src/triggers.rs:270:                                        state.current_hour_angle.unwrap_or_default()
-native/nightshade_native/sequencer/src/triggers.rs:277:                                    state.current_hour_angle.unwrap_or_default()
-native/nightshade_native/sequencer/src/triggers.rs:286:                                state.current_hour_angle.unwrap_or_default(),
-packages/nightshade_core/lib/src/services/device_service.dart:1010:        } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1128:    } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1167:          } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1175:          } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1195:          } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1203:          } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1226:        } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:1328:        } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:169:      } catch (_) {}
-packages/nightshade_core/lib/src/services/device_service.dart:194:      } catch (_) {}
-packages/nightshade_planetarium/lib/src/catalogs/satellite_catalog.dart:428:        } catch (_) {}
+native/nightshade_native/alpaca/src/safetymonitor.rs:293:            driver_info: driver_info.unwrap_or_default(),
+native/nightshade_native/ascom/src/windows/connection.rs:134:            let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
+native/nightshade_native/ascom/src/windows/switch.rs:376:        let max_switch = self.max_switch().ok();
+native/nightshade_native/bridge/src/api/imaging.rs:1867:    let config = config.unwrap_or_default();
+native/nightshade_native/bridge/src/api/mod.rs:88:        .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1097:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1225:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1417:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1425:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:394:                            let readout_modes = cam.readout_modes().unwrap_or_default();
+native/nightshade_native/bridge/src/builtin_guider.rs:379:        .unwrap_or_default()
+native/nightshade_native/bridge/src/device_capabilities.rs:1006:        let names = fw.names().unwrap_or_default();
+native/nightshade_native/bridge/src/device_capabilities.rs:1182:            let description = switch.get_switch_description(i).unwrap_or_default(); // Why: ISwitchV2.GetSwitchDescription(i) — empty OK; UI hides empty descriptions
+native/nightshade_native/bridge/src/device_capabilities.rs:1421:                let gain_range = camera.get_gain_range().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:1422:                let offset_range = camera.get_offset_range().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:1427:                let readout_modes = camera.get_readout_modes().await.unwrap_or_default();
+native/nightshade_native/bridge/src/device_capabilities.rs:1428:                let status = camera.get_status().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:1470:                let tracking = mount.get_tracking().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:1498:                let position = focuser.get_position().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:1529:                let names = fw.get_filter_names().await.unwrap_or_default();
+native/nightshade_native/bridge/src/device_capabilities.rs:1561:                let azimuth = dome.get_azimuth().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:510:            telescope.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:571:            camera.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:597:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:609:            let names = fw.names().await.unwrap_or_default();
+native/nightshade_native/bridge/src/device_capabilities.rs:613:            let offsets = fw.focus_offsets().await.unwrap_or_default();
+native/nightshade_native/bridge/src/device_capabilities.rs:624:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:646:            rotator.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:684:            dome.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:727:            cc.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:772:            weather.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:791:            safety.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_capabilities.rs:816:                let description = switch.get_switch_description(i).await.unwrap_or_default(); // Why: ISwitchV2.GetSwitchDescription(i) — empty string OK; UI hides empty descriptions
+native/nightshade_native/bridge/src/device_capabilities.rs:847:            switch.disconnect().await.ok();
+native/nightshade_native/bridge/src/device_id.rs:650:            let device_index = idx_str.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_id.rs:687:                    let device_index = payload.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_id.rs:709:        let device_index = device_id_str.parse::<i32>().ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:309:                    let temp = camera.ccd_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:421:                        let temp = camera.get_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:630:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:678:                    let gain = camera.gain().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:679:                    let offset = camera.offset().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:166:                    let interface_version = camera.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:167:                    let driver_version = camera.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:168:                    let driver_info = camera.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:174:                    let supported_actions = camera.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:189:                    let interface_version = mount.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:190:                    let driver_version = mount.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:191:                    let driver_info = mount.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:192:                    let supported_actions = mount.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:207:                    let interface_version = focuser.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:208:                    let driver_version = focuser.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:209:                    let driver_info = focuser.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:210:                    let supported_actions = focuser.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:225:                    let interface_version = fw.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:226:                    let driver_version = fw.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:227:                    let driver_info = fw.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:228:                    let supported_actions = fw.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:243:                    let interface_version = rotator.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:244:                    let driver_version = rotator.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:245:                    let driver_info = rotator.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:246:                    let supported_actions = rotator.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:261:                    let interface_version = dome.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:262:                    let driver_version = dome.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:263:                    let driver_info = dome.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:264:                    let supported_actions = dome.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:279:                    let interface_version = monitor.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:280:                    let driver_version = monitor.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:281:                    let driver_info = monitor.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:282:                    let supported_actions = monitor.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:297:                    let interface_version = switch.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:298:                    let driver_version = switch.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:299:                    let driver_info = switch.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:300:                    let supported_actions = switch.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:315:                    let interface_version = cover.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:316:                    let driver_version = cover.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:317:                    let driver_info = cover.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:318:                    let supported_actions = cover.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:336:                    let interface_version = obs.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:337:                    let driver_version = obs.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:338:                    let driver_info = obs.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/alpaca.rs:339:                    let supported_actions = obs.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:219:                    let interface_version = camera_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:220:                    let driver_version = camera_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:221:                    let driver_info = camera_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:229:                        camera_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:245:                    let interface_version = mount_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:246:                    let driver_version = mount_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:247:                    let driver_info = mount_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:249:                        mount_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:265:                    let interface_version = focuser_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:266:                    let driver_version = focuser_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:267:                    let driver_info = focuser_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:269:                        focuser_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:285:                    let interface_version = fw_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:286:                    let driver_version = fw_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:287:                    let driver_info = fw_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:288:                    let supported_actions = fw_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:304:                    let interface_version = dome_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:305:                    let driver_version = dome_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:306:                    let driver_info = dome_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:308:                        dome_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:324:                    let interface_version = switch_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:325:                    let driver_version = switch_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:326:                    let driver_info = switch_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:328:                        switch_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:344:                    let interface_version = cover_guard.interface_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:345:                    let driver_version = cover_guard.driver_version().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:346:                    let driver_info = cover_guard.driver_info().await.ok();
+native/nightshade_native/bridge/src/dispatch/ascom.rs:348:                        cover_guard.supported_actions().await.unwrap_or_default();
+native/nightshade_native/bridge/src/dispatch/native.rs:111:                            .unwrap_or_default()
+native/nightshade_native/bridge/src/event.rs:822:/// `duration_since(UNIX_EPOCH).unwrap_or_default()` — only fails if the
+native/nightshade_native/bridge/src/event.rs:833:        .unwrap_or_default()
+native/nightshade_native/bridge/src/imaging_ops.rs:855:                                .unwrap_or_default();
+native/nightshade_native/bridge/src/imaging_ops.rs:901:                                            .unwrap_or_default()
+native/nightshade_native/bridge/src/lib.rs:322:        LOG_DIR.set(log_path.clone()).ok();
+native/nightshade_native/bridge/src/lib.rs:329:        LOG_GUARD.set(guard).ok();
+native/nightshade_native/bridge/src/lib.rs:426:    writeln!(output, "=== Nightshade Log Export ===").ok();
+native/nightshade_native/bridge/src/lib.rs:427:    writeln!(output, "Exported: {}", chrono::Local::now().to_rfc3339()).ok();
+native/nightshade_native/bridge/src/lib.rs:428:    writeln!(output, "").ok();
+native/nightshade_native/bridge/src/lib.rs:435:        writeln!(output, "\n=== {} ===\n", log_file).ok();
+native/nightshade_native/bridge/src/lib.rs:437:            write!(output, "{}", content).ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1160:                        let sensor_type = camera.sensor_type().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1163:                            let offset_x = camera.bayer_offset_x().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1164:                            let offset_y = camera.bayer_offset_y().ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1426:            let sensor_type_code = camera.sensor_type().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1439:                let offset_x = camera.bayer_offset_x().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1440:                let offset_y = camera.bayer_offset_y().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1831:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1883:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1923:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1962:            let temp = focuser.temperature().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:1963:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2005:            focuser.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2080:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2137:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2177:            fw.disconnect().await.ok();
+native/nightshade_native/bridge/src/real_device_ops.rs:2522:                .unwrap_or_default()
+native/nightshade_native/bridge/src/util/supervisor.rs:269:            GLOBAL_WRITER.set(writer.clone()).ok();
+native/nightshade_native/imaging/src/platesolve.rs:1769:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
+native/nightshade_native/imaging/src/raw.rs:13://! * The remaining sites (`user_sat.unwrap_or_default()`,
+native/nightshade_native/imaging/src/raw.rs:15://!   `max_memory_mb.unwrap_or_default()`) are all paired with a
+native/nightshade_native/imaging/src/raw.rs:496:            user_sat: params.user_sat.unwrap_or_default(),
+native/nightshade_native/imaging/src/raw.rs:512:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
+native/nightshade_native/indi/src/autofocus.rs:169:        let current_temperature = self.focuser.get_temperature().await.ok();
+native/nightshade_native/indi/src/client.rs:1105:                                            group: get_attribute(e, "group").unwrap_or_default(),
+native/nightshade_native/indi/src/client.rs:1304:                    let text = e.unescape().unwrap_or_default().to_string();
+native/nightshade_native/indi/src/error.rs:155:                    .unwrap_or_default();
+native/nightshade_native/native/src/vendor/player_one.rs:1002:        let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();
+native/nightshade_native/native/src/vendor/player_one.rs:822:            let live_enabled = self.get_control_bool(POAConfig::POA_COOLER).ok();
+native/nightshade_native/native/src/vendor/player_one.rs:997:        let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
+native/nightshade_native/native/src/vendor/qhy.rs:1136:        let temperature = self.get_control(QhyControl::CONTROL_CURTEMP).ok();
+native/nightshade_native/native/src/vendor/qhy.rs:953:            .ok();
+native/nightshade_native/native/src/vendor/touptek.rs:475:// SAFETY: HOgmacam is a `*mut c_void` opaque camera handle returned by Ogmacam_OpenByIndex. The struct is always wrapped in `Mutex<HandleWrapper>` in TouptekCamera; the pointer is never dereferenced or modified outside `touptek_mutex().lock().await` + `handle.lock().unwrap()` sections (see all call sites in this module — every SDK call captures the handle value while both locks are held). Marking Send is therefore equivalent to a hand-serialized capability. Sync is intentionally NOT implemented (see comment block below).
+native/nightshade_native/native/src/vendor/zwo.rs:1042:            .ok();
+native/nightshade_native/native/src/vendor/zwo.rs:812:            .ok();
+native/nightshade_native/sequencer/src/executor.rs:2228:                                                    result.message.unwrap_or_default()
+native/nightshade_native/sequencer/src/executor.rs:2252:                                    "Trigger '{}' uses RecoveryAction::CustomBranch which is not implemented; pausing sequence",
+native/nightshade_native/sequencer/src/executor.rs:2261:                                        "Trigger '{}' configured with RecoveryAction::CustomBranch — this variant is not implemented. \
+native/nightshade_native/sequencer/src/executor.rs:863:            .unwrap_or_default();
+native/nightshade_native/sequencer/src/meridian_flip_executor.rs:915:        let af_config = ctx.autofocus_config.clone().unwrap_or_default();
+packages/nightshade_app/lib/screens/settings/widgets/solver_detection_card.dart:291:    // error rather than a silent no-op.
+packages/nightshade_core/lib/src/services/device_service.dart:1117:    } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1156:          } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1164:          } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1184:          } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1192:          } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1215:        } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:1317:        } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:158:      } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:183:      } catch (_) {}
+packages/nightshade_core/lib/src/services/device_service.dart:999:        } catch (_) {}
 packages/nightshade_updater/lib/src/services/lan_push_receiver.dart:170:      } catch (_) {}

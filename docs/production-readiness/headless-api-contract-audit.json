@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-06T11:09:13.257833Z",
+  "generatedAt": "2026-05-16T18:02:30.415879Z",
   "serverSource": "apps/desktop/lib/headless_api_server.dart",
   "networkBackendSource": "packages/nightshade_core/lib/src/backend/network_backend.dart",
   "routeMetadataSource": "apps/desktop/lib/headless_api/route_metadata.dart",
@@ -11,13 +11,13 @@
   "dashboardApiSource": "apps/desktop/web_dashboard/js/api.js",
   "apiDocsSource": "docs/api/web-server-api.md",
   "passed": true,
-  "registeredRouteCount": 295,
-  "advertisedRouteCount": 295,
-  "advertisedHttpRouteCount": 293,
+  "registeredRouteCount": 306,
+  "advertisedRouteCount": 306,
+  "advertisedHttpRouteCount": 304,
   "advertisedWebSocketRouteCount": 2,
-  "openApiPathCount": 270,
-  "openApiOperationCount": 293,
-  "networkBackendRouteCount": 255,
+  "openApiPathCount": 280,
+  "openApiOperationCount": 304,
+  "networkBackendRouteCount": 257,
   "registeredNotAdvertisedCount": 0,
   "advertisedNotRegisteredCount": 0,
   "networkBackendMissingOnServerCount": 0,
@@ -44,9 +44,10 @@
   "networkBackendContractCoverage": {
     "advertised_endpoints_match_registered_routes": true,
     "network_backend_calls_registered_routes": true,
-    "openapi_includes_every_http_route": true
+    "openapi_includes_every_http_route": true,
+    "openapi_generated_spec_path_method_assertions": true
   },
-  "networkBackendContractCoverageCount": 3,
+  "networkBackendContractCoverageCount": 4,
   "versionNegotiationCoverage": {
     "shared_compatibility_policy": true,
     "shared_compatibility_tests": true,

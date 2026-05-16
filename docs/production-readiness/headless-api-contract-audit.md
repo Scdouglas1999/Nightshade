@@ -1,18 +1,18 @@
 # Headless API Contract Audit
 
 - Passed: `true`
-- Registered routes: `295`
-- Advertised routes: `295`
-- Advertised HTTP routes: `293`
-- OpenAPI paths: `270`
-- NetworkBackend routes: `255`
+- Registered routes: `306`
+- Advertised routes: `306`
+- Advertised HTTP routes: `304`
+- OpenAPI paths: `280`
+- NetworkBackend routes: `257`
 - Registered not advertised: `0`
 - Advertised not registered: `0`
 - NetworkBackend missing on server: `0`
 - Advertised HTTP missing OpenAPI: `0`
 - OpenAPI metadata coverage: `9/9`
 - WebSocket contract coverage: `4/4`
-- NetworkBackend contract coverage: `3/3`
+- NetworkBackend contract coverage: `4/4`
 - Version negotiation coverage: `10/10`
 
 This audit compares the `HeadlessApiServer` route registrations, `/api/info` advertised endpoint table, generated OpenAPI route surface, and `NetworkBackend` call sites. It is a source-level contract audit; runtime smoke tests still verify packaged server behavior.
@@ -47,6 +47,7 @@ This audit compares the `HeadlessApiServer` route registrations, `/api/info` adv
 | `advertised_endpoints_match_registered_routes` | `true` |
 | `network_backend_calls_registered_routes` | `true` |
 | `openapi_includes_every_http_route` | `true` |
+| `openapi_generated_spec_path_method_assertions` | `true` |
 
 ## Version Negotiation Coverage
 

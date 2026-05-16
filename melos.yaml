@@ -265,10 +265,8 @@ scripts:
     description: Format all packages
 
   test:
-    run: dart run melos exec -- flutter test
+    run: dart run melos exec --concurrency=1 --flutter -- flutter test
     description: Run tests in all packages
-    packageFilters:
-      flutter: true
 
   # ==========================================================================
   # Production Builds
