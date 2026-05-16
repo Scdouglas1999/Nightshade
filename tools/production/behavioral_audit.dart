@@ -256,7 +256,14 @@ void main(List<String> args) {
   final unregistered = <String>[];
   final open = <String>[];
   for (final key in sortedKeys) {
-    final status = register[key];
+    // File-level exemption: register row whose finding_key is the file path
+    // alone (no :line:rule suffix). Used for fully auto-generated files
+    // (drift/freezed/json_serializable) where every hit is mechanical and
+    // line-by-line annotation is not load-bearing.
+    final filePath = _filePathOf(key);
+    final fileStatus = filePath == null ? null : register[filePath];
+    final lineStatus = register[key];
+    final status = lineStatus ?? fileStatus;
     if (status == null) {
       unregistered.add(key);
       continue;
@@ -342,10 +349,32 @@ bool _isClosedStatus(String status) {
     case 'accepted_modeled_approximation':
     case 'explicit_unsupported':
     case 'remove':
+    case 'auto_generated':
       return true;
     default:
       return false;
   }
+}
+
+/// Extracts the file-path portion of a finding key of the form
+/// `<path>:<line>:<rule_id>`. Returns null if the key has no trailing
+/// `:line:rule` shape (already a file-level entry).
+String? _filePathOf(String key) {
+  // A finding key always ends in `:<line>:<rule_id>`. We split from the right
+  // twice — line numbers are ints, rule IDs are snake_case ASCII.
+  final lastColon = key.lastIndexOf(':');
+  if (lastColon < 0) {
+    return null;
+  }
+  final secondColon = key.lastIndexOf(':', lastColon - 1);
+  if (secondColon < 0) {
+    return null;
+  }
+  final lineStr = key.substring(secondColon + 1, lastColon);
+  if (int.tryParse(lineStr) == null) {
+    return null;
+  }
+  return key.substring(0, secondColon);
 }
 
 List<String> _readLinesSafe(File file) {
