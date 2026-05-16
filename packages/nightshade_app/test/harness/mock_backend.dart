@@ -32,14 +32,62 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// Use [stubDefaults] (or [mockBackend]) to wire up the streams `eventStream`
 /// and `polarAlignmentEvents` — those are read by the framework code path
 /// before the widget tree even renders, so leaving them un-stubbed throws.
-class MockBackend extends Mock implements NightshadeBackend {}
+///
+/// Tests that need to drive backend events post-pump use [emitEvent] /
+/// [emitPolarAlignmentEvent]. Those forward to internal broadcast controllers
+/// that the harness wires into the mocked stream getters; widgets listening
+/// to `backend.eventStream` will see whatever the test pushes here.
+class MockBackend extends Mock implements NightshadeBackend {
+  // Why nullable + late-bound: the controllers are owned by [mockBackend]
+  // (the factory), not the constructor — mocktail's `Mock` requires a
+  // zero-arg constructor and adding a constructor argument here would
+  // require every existing test that does `class MyMock extends MockBackend`
+  // to forward it. The factory assigns these immediately after
+  // construction; calls to [emitEvent] before that point throw a clear
+  // StateError instead of producing silent no-ops.
+  StreamController<NightshadeEvent>? _eventController;
+  StreamController<Map<String, dynamic>>? _polarAlignController;
+
+  /// Push a [NightshadeEvent] onto the mocked `eventStream`.
+  ///
+  /// Throws [StateError] if the backend was constructed directly rather than
+  /// via [mockBackend] — without the factory's wiring there is no controller
+  /// to push to and silently no-op'ing would hide bugs.
+  void emitEvent(NightshadeEvent event) {
+    final c = _eventController;
+    if (c == null) {
+      throw StateError(
+        'MockBackend.emitEvent called before the event controller was wired. '
+        'Construct via mockBackend() instead of `MockBackend()` directly.',
+      );
+    }
+    c.add(event);
+  }
+
+  /// Push a polar-alignment data frame onto `polarAlignmentEvents`.
+  ///
+  /// Same wiring contract as [emitEvent]; see that doc comment.
+  void emitPolarAlignmentEvent(Map<String, dynamic> event) {
+    final c = _polarAlignController;
+    if (c == null) {
+      throw StateError(
+        'MockBackend.emitPolarAlignmentEvent called before the controller '
+        'was wired. Construct via mockBackend() instead of `MockBackend()` '
+        'directly.',
+      );
+    }
+    c.add(event);
+  }
+}
 
 /// Build a [MockBackend] with the minimum stubs every widget test needs:
 ///
-/// - `eventStream` -> empty broadcast stream (so `listen` returns immediately
-///   without throwing; tests can override with their own controller).
-/// - `polarAlignmentEvents` -> empty broadcast stream.
-/// - `dispose` -> no-op (called when the harness tears down).
+/// - `eventStream` -> broadcast stream backed by an internal controller that
+///   [MockBackend.emitEvent] forwards to.
+/// - `polarAlignmentEvents` -> broadcast stream backed by an internal
+///   controller that [MockBackend.emitPolarAlignmentEvent] forwards to.
+/// - `dispose` -> closes both controllers (called when the harness tears
+///   down).
 ///
 /// Tests that need richer behaviour can chain additional `when(...)` calls
 /// on the returned mock:
@@ -49,6 +97,14 @@ class MockBackend extends Mock implements NightshadeBackend {}
 /// when(() => backend.getConnectedDevices()).thenAnswer(
 ///   (_) async => [DeviceInfo(id: 'cam-1', ...)],
 /// );
+/// // Later, drive an event onto the stream:
+/// backend.emitEvent(NightshadeEvent(
+///   timestamp: 0,
+///   severity: EventSeverity.error,
+///   category: EventCategory.equipment,
+///   eventType: 'camera_fault',
+///   data: const {'message': 'shutter stuck'},
+/// ));
 /// ```
 MockBackend mockBackend() {
   final backend = MockBackend();
@@ -58,6 +114,12 @@ MockBackend mockBackend() {
   final eventController = StreamController<NightshadeEvent>.broadcast();
   final polarAlignController =
       StreamController<Map<String, dynamic>>.broadcast();
+  // Why assign-then-stub: tests call backend.emitEvent(...) directly via
+  // the instance, and stream listeners read the same controllers' .stream
+  // through the mocked getters. Keeping both pointed at the same controller
+  // is what makes the round-trip work.
+  backend._eventController = eventController;
+  backend._polarAlignController = polarAlignController;
 
   when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
   when(() => backend.polarAlignmentEvents)

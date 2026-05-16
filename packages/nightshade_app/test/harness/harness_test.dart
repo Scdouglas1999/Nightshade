@@ -159,4 +159,66 @@ void main() {
     expect(media.size.width, equals(640.0));
     expect(media.size.height, equals(480.0));
   });
+
+  test('MockBackend.emitEvent forwards onto the mocked eventStream', () async {
+    // Pure Dart test (no widget tree) — exercises just the event plumbing
+    // so this isolates the wiring contract from any imaging-screen rebuild
+    // side effects.
+    final backend = mockBackend();
+    final received = <NightshadeEvent>[];
+    final sub = backend.eventStream.listen(received.add);
+
+    backend.emitEvent(NightshadeEvent(
+      timestamp: 42,
+      severity: EventSeverity.error,
+      category: EventCategory.equipment,
+      eventType: 'camera_fault',
+      data: const {'message': 'shutter stuck'},
+    ));
+    // Wait one microtask so the broadcast controller delivers the event.
+    await Future<void>.delayed(Duration.zero);
+
+    expect(received, hasLength(1));
+    expect(received.first.eventType, equals('camera_fault'));
+    expect(received.first.severity, equals(EventSeverity.error));
+
+    await sub.cancel();
+    backend.dispose();
+  });
+
+  test(
+      'MockBackend.emitPolarAlignmentEvent forwards onto polarAlignmentEvents',
+      () async {
+    final backend = mockBackend();
+    final received = <Map<String, dynamic>>[];
+    final sub = backend.polarAlignmentEvents.listen(received.add);
+
+    backend.emitPolarAlignmentEvent(const {'kind': 'rotation', 'angle': 1.5});
+    await Future<void>.delayed(Duration.zero);
+
+    expect(received, hasLength(1));
+    expect(received.first['kind'], equals('rotation'));
+    expect(received.first['angle'], equals(1.5));
+
+    await sub.cancel();
+    backend.dispose();
+  });
+
+  test('MockBackend.emitEvent without factory wiring throws StateError', () {
+    // Constructing MockBackend directly skips mockBackend()'s controller
+    // wiring; emitEvent must fail loudly rather than silently no-op'ing,
+    // because a silent drop would make it hard to debug why a widget test
+    // never sees the event.
+    final raw = MockBackend();
+    expect(
+      () => raw.emitEvent(NightshadeEvent(
+        timestamp: 0,
+        severity: EventSeverity.info,
+        category: EventCategory.system,
+        eventType: 'noop',
+        data: const {},
+      )),
+      throwsStateError,
+    );
+  });
 }
