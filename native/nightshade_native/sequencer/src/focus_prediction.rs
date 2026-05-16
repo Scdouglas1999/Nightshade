@@ -27,6 +27,10 @@ pub struct FocusModel {
 impl FocusModel {
     /// Predict focus position for a given temperature
     pub fn predict_position(&self, temperature: f64) -> i32 {
+        // Why: linear-regression output for a focus position. Slope/intercept are
+        // bounded by the fitted i32 positions; even a wild extrapolation cannot
+        // overflow f64. f64 -> i32 saturates per Rust 1.45 spec, so a bogus model
+        // pinned at the focuser-limit position is the worst case.
         (self.intercept + self.slope * temperature).round() as i32
     }
 
@@ -107,6 +111,10 @@ impl FocusPredictionEngine {
             let idx = if slot == target_last_index {
                 last_index
             } else {
+                // Why: slot, last_index, target_last_index are usize bounded by
+                // max_data_points (100 default; user-config). u64::MAX-class values
+                // would lose precision in f64 above 2^53 — astronomically beyond any
+                // sane focus-history cap. f64 -> usize saturates per Rust 1.45 spec.
                 ((slot as f64 * last_index as f64) / target_last_index as f64).round() as usize
             };
 
@@ -142,6 +150,8 @@ impl FocusPredictionEngine {
         // Group by temperature buckets and take best HFR from each
         let mut buckets: HashMap<i32, Vec<&FocusDataPoint>> = HashMap::new();
         for point in &self.data_points {
+            // Why: temperature is a real-world Celsius value (typical -40..+50);
+            // rounding to i32 saturates per Rust 1.45 if a sensor returns garbage.
             let bucket = point.temperature_celsius.round() as i32;
             buckets.entry(bucket).or_default().push(point);
         }
@@ -164,11 +174,13 @@ impl FocusPredictionEngine {
             self.temperature_model = None;
         } else {
             // Linear regression: y = mx + b
+            // Why: best_points.len() is usize bounded by data_points (max ~100); lossless to f64.
             let n = best_points.len() as f64;
             let (mut sum_x, mut sum_y, mut sum_xy, mut sum_x2) = (0.0, 0.0, 0.0, 0.0);
 
             for point in &best_points {
                 let x = point.temperature_celsius;
+                // Why: i32 focus position -> f64 lossless.
                 let y = point.focus_position as f64;
                 sum_x += x;
                 sum_y += y;
@@ -190,6 +202,7 @@ impl FocusPredictionEngine {
 
                 for point in &best_points {
                     let predicted = intercept + slope * point.temperature_celsius;
+                    // Why: i32 focus position -> f64 lossless.
                     ss_tot += (point.focus_position as f64 - mean_y).powi(2);
                     ss_res += (point.focus_position as f64 - predicted).powi(2);
                 }
@@ -233,6 +246,8 @@ impl FocusPredictionEngine {
             _ => return,
         };
 
+        // Why: i32 focus position -> f64 lossless; ref_points.len() bounded by
+        // data_points (max ~100); lossless to f64.
         let ref_avg: f64 = ref_points
             .iter()
             .map(|p| p.focus_position as f64)
@@ -245,9 +260,13 @@ impl FocusPredictionEngine {
                 continue;
             }
 
+            // Why: i32 focus position -> f64 lossless; points.len() bounded by
+            // data_points (max ~100); lossless to f64.
             let filter_avg: f64 =
                 points.iter().map(|p| p.focus_position as f64).sum::<f64>() / points.len() as f64;
 
+            // Why: offset is the difference of two averages of i32 positions; falls in
+            // (-2^31, 2^31). f64 -> i32 saturates per Rust 1.45 spec on overflow.
             let offset_steps = (filter_avg - ref_avg).round() as i32;
 
             // Calculate confidence based on variance and count
@@ -259,6 +278,7 @@ impl FocusPredictionEngine {
 
             let std_dev = variance.sqrt();
             let consistency = if std_dev < 50.0 { 1.0 } else { 50.0 / std_dev };
+            // Why: points.len() bounded by max_data_points (~100); lossless to f64.
             let count_factor = (points.len() as f64 / 5.0).min(1.0);
             let confidence = (consistency * count_factor).clamp(0.0, 1.0);
 
@@ -377,11 +397,12 @@ mod tests {
 
         // Add data points with clear linear relationship
         // Focus moves 100 steps per degree C
-        for i in 0..10 {
-            let temp = 10.0 + i as f64;
+        for i in 0..10_i32 {
+            // Why: test fixture; i is i32 in 0..10, lossless to f64/i64.
+            let temp = 10.0 + f64::from(i);
             let pos = 10000 + (i * 100);
             engine.add_datapoint(FocusDataPoint {
-                timestamp_secs: i as i64,
+                timestamp_secs: i64::from(i),
                 temperature_celsius: temp,
                 focus_position: pos,
                 hfr: 2.0,
@@ -405,9 +426,10 @@ mod tests {
         engine.set_reference_filter("L".to_string());
 
         // Add L filter data
-        for i in 0..5 {
+        for i in 0..5_i64 {
+            // Why: test fixture; i is i64 directly.
             engine.add_datapoint(FocusDataPoint {
-                timestamp_secs: i as i64,
+                timestamp_secs: i,
                 temperature_celsius: 15.0,
                 focus_position: 10000,
                 hfr: 2.0,
@@ -416,9 +438,10 @@ mod tests {
         }
 
         // Add Ha filter data with offset
-        for i in 0..5 {
+        for i in 0..5_i64 {
             engine.add_datapoint(FocusDataPoint {
-                timestamp_secs: (i + 10) as i64,
+                // Why: test fixture; i is i64, +10 lossless.
+                timestamp_secs: i + 10,
                 temperature_celsius: 15.0,
                 focus_position: 10200,
                 hfr: 2.0,
@@ -436,9 +459,10 @@ mod tests {
         let mut engine = FocusPredictionEngine::new();
         engine.max_data_points = 5;
 
-        for i in 0..10 {
+        for i in 0..10_i64 {
             engine.add_datapoint(FocusDataPoint {
                 timestamp_secs: i,
+                // Why: test fixture; i is i64 in 0..10, lossless to f64/i32.
                 temperature_celsius: 10.0 + i as f64,
                 focus_position: 10000 + i as i32,
                 hfr: 2.0,

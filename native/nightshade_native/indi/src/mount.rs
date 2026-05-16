@@ -356,7 +356,14 @@ impl IndiMount {
         let mut client = self.client.write().await;
         // Different mounts use different switch names, try common patterns
         let rate_names = ["1x", "2x", "4x", "8x", "16x", "32x", "64x", "MAX"];
-        let rate_idx = (rate as usize).min(rate_names.len() - 1);
+        // Why: rate is i32 (0..7 expected). Clamp negatives to 0 explicitly
+        // rather than relying on i32->usize sign-wrap + .min() accidentally
+        // landing at MAX. Negative input is a caller bug; clamping to slowest
+        // rate is the safest fallback for a mount slew request.
+        let rate_clamped = rate.max(0);
+        let rate_idx = usize::try_from(rate_clamped)
+            .unwrap_or(0)
+            .min(rate_names.len() - 1);
 
         // Try numbered rate first
         if client

@@ -813,7 +813,8 @@ impl Node for RuntimeNode {
                 // shot. Per-frame updates would race with the synchronous
                 // progress callbacks and double-count under contention.
                 if result.status == NodeStatus::Success {
-                    let total_exposure_time = duration_secs * total_count as f64;
+                    // Why: total_count is u32 frame count (config.count); lossless to f64.
+                    let total_exposure_time = duration_secs * f64::from(total_count);
                     {
                         let mut counter = context.completed_integration_secs.write().await;
                         *counter += total_exposure_time;
@@ -1715,6 +1716,9 @@ impl RuntimeNode {
                 LoopCondition::Count => self.current_iteration < max_iterations,
                 LoopCondition::UntilTime => {
                     if let Some(until) = config.condition_value {
+                        // Why: condition_value is f64 carrying a Unix timestamp;
+                        // year 2038 is ~2.1e9 (< 2^31), still 1000x below f64
+                        // precision limit. f64 -> i64 saturates per Rust 1.45 spec.
                         chrono::Utc::now().timestamp() < (until as i64)
                     } else {
                         false
@@ -1778,6 +1782,7 @@ impl RuntimeNode {
             }
 
             let total_children = match config.condition {
+                // Why: max_iterations is u32 -> usize widening (lossless on >=32-bit platforms).
                 LoopCondition::Count => Some(max_iterations as usize),
                 _ => None,
             };
@@ -1788,6 +1793,7 @@ impl RuntimeNode {
                 message: Some(format!("Loop iteration {}", self.current_iteration)),
                 current_frame: None,
                 total_frames: None,
+                // Why: current_iteration is u32 -> usize widening (lossless).
                 current_child: Some(self.current_iteration as usize),
                 total_children,
                 completed_exposure_secs: None,
@@ -2435,7 +2441,10 @@ async fn wait_until_timestamp_or_cancel(
             return NodeStatus::Success;
         }
 
-        let sleep_secs = (target_timestamp - now).min(1) as u64;
+        // Why: `.min(1)` clamps to [_, 1] i64; the `now >= target_timestamp`
+        // check above guarantees the difference is positive, so i64 -> u64 is
+        // lossless. The clamp keeps the wait granular for cancellation polling.
+        let sleep_secs = u64::try_from((target_timestamp - now).min(1)).unwrap_or(0);
         tokio::time::sleep(std::time::Duration::from_secs(sleep_secs.max(1))).await;
     }
 }
@@ -2648,7 +2657,8 @@ mod tests {
     #[test]
     fn sun_ra_helper_stays_finite_and_normalized() {
         for days_since_j2000 in (-3650..=3650).step_by(137) {
-            let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000 as f64);
+            // Why: test fixture; days_since_j2000 is i32 in (-3650, 3650), lossless to f64.
+            let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(f64::from(days_since_j2000));
             assert!(sun_ra.is_finite());
             assert!(sun_dec.is_finite());
             assert!((0.0..24.0).contains(&sun_ra));
@@ -2770,11 +2780,13 @@ mod tests {
         // `increment_exposure_count` is unconditional, so the counter is the
         // authoritative measure of "writes observed".
         let final_state = trigger_state.read().await;
+        // Why: WRITERS is a const usize = 32; trivially fits in u32.
+        let writers_u32 = u32::try_from(WRITERS).expect("WRITERS fits in u32");
         assert_eq!(
             final_state.completed_exposures,
-            WRITERS as u32,
+            writers_u32,
             "every concurrent writer's increment must be observed; missing {} writes",
-            WRITERS as u32 - final_state.completed_exposures
+            writers_u32 - final_state.completed_exposures
         );
         // And the final target name must be one of the writers' names — i.e.
         // the last write was not silently dropped.

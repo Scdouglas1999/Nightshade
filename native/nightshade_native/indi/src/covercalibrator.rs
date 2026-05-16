@@ -285,7 +285,8 @@ impl IndiCoverCalibrator {
                     &self.device_name,
                     "FLAT_LIGHT_INTENSITY",
                     "FLAT_LIGHT_INTENSITY_VALUE",
-                    brightness as f64,
+                    // Why: i32 brightness -> f64 (INDI wire); lossless.
+                    f64::from(brightness),
                 )
                 .await;
 
@@ -295,7 +296,8 @@ impl IndiCoverCalibrator {
                     &self.device_name,
                     "LIGHTBOX_BRIGHTNESS",
                     "BRIGHTNESS",
-                    brightness as f64,
+                    // Why: i32 brightness -> f64 (INDI wire); lossless.
+                    f64::from(brightness),
                 )
                 .await;
         }
@@ -321,7 +323,8 @@ impl IndiCoverCalibrator {
                 &self.device_name,
                 "LIGHTBOX_BRIGHTNESS",
                 "BRIGHTNESS",
-                brightness.max(1) as f64,
+                // Why: i32 brightness clamped to >= 1, -> f64 (INDI wire); lossless.
+                f64::from(brightness.max(1)),
             )
             .await
             .is_ok()
@@ -467,6 +470,8 @@ impl IndiCoverCalibrator {
             )
             .await
         {
+            // Why: INDI wire f64 -> i32 brightness. Real brightness values are
+            // 0..255 typical; f64 -> i32 saturates per Rust 1.45 spec.
             return Ok(brightness as i32);
         }
 
@@ -475,6 +480,8 @@ impl IndiCoverCalibrator {
             .get_number(&self.device_name, "LIGHTBOX_BRIGHTNESS", "BRIGHTNESS")
             .await
         {
+            // Why: INDI wire f64 -> i32 brightness. Real brightness values are
+            // 0..255 typical; f64 -> i32 saturates per Rust 1.45 spec.
             return Ok(brightness as i32);
         }
 
@@ -491,7 +498,8 @@ impl IndiCoverCalibrator {
                 &self.device_name,
                 "FLAT_LIGHT_INTENSITY",
                 "FLAT_LIGHT_INTENSITY_VALUE",
-                brightness as f64,
+                // Why: i32 brightness -> f64 (INDI wire); lossless.
+                f64::from(brightness),
             )
             .await
             .is_ok()
@@ -505,7 +513,8 @@ impl IndiCoverCalibrator {
                 &self.device_name,
                 "LIGHTBOX_BRIGHTNESS",
                 "BRIGHTNESS",
-                brightness as f64,
+                // Why: i32 brightness -> f64 (INDI wire); lossless.
+                f64::from(brightness),
             )
             .await
             .is_ok()
@@ -529,6 +538,7 @@ impl IndiCoverCalibrator {
             .await
         {
             if let Some(max) = limits.max {
+                // Why: INDI wire f64 -> i32 max brightness; f64 -> i32 saturates per Rust 1.45.
                 return Ok(max.round() as i32);
             }
         }
@@ -538,6 +548,7 @@ impl IndiCoverCalibrator {
             .await
         {
             if let Some(max) = limits.max {
+                // Why: INDI wire f64 -> i32 max brightness; f64 -> i32 saturates per Rust 1.45.
                 return Ok(max.round() as i32);
             }
         }

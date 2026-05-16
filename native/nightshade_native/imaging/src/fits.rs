@@ -7,6 +7,22 @@
 //! - 2880-byte blocks
 //! - Header with 80-character keyword records
 //! - Data in big-endian format
+//!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! FITS pixel I/O involves many wire-format scalar casts. They cluster into:
+//! - **BITPIX dispatch** (`bitpix as i32`): FITS BITPIX is an integer in
+//!   {8, 16, 32, 64, -32, -64}. The cast is over a small set of statically
+//!   known constants.
+//! - **Pixel-buffer rescaling**: `v as f64 * bscale + bzero` saturating into
+//!   {u8,u16,u32,f32}. The `.clamp(...)` and `as` saturation match the FITS
+//!   spec's expectation that out-of-range scaled values are clipped.
+//! - **`width * height * depth`** in `(_ as usize)` form: these are u32 image
+//!   dimensions; for sensors below ~46340x46340x1 the u32 multiply fits, and
+//!   the resulting size is also valid usize. Allocation failure surfaces from
+//!   `Vec` itself on >RAM sizes.
+//!
+//! Sites with their own `Why:` comment override the module-level reasoning.
 
 use crate::{BayerPattern, ImageData, PixelType};
 use std::collections::HashMap;
@@ -506,6 +522,28 @@ fn is_valid_keyword(keyword: &str) -> bool {
         })
 }
 
+/// Compute pixel count from FITS NAXIS dimensions, surfacing overflow as a
+/// structured error rather than a wrapping `as usize`.
+///
+/// Why (audit-rust §1.4): the previous `(width * height * depth) as usize`
+/// in u32 silently wraps for >4G-pixel images; promoting to u64 with
+/// checked_mul forces the failure to surface at the I/O boundary where the
+/// caller can map it to a structured FitsError.
+fn fits_pixel_count(width: u32, height: u32, depth: u32) -> Result<usize, FitsError> {
+    let product = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|n| n.checked_mul(u64::from(depth)))
+        .ok_or_else(|| {
+            FitsError::InvalidFormat(format!(
+                "FITS NAXIS dimensions overflow: {}*{}*{}",
+                width, height, depth
+            ))
+        })?;
+    usize::try_from(product).map_err(|_| {
+        FitsError::InvalidFormat(format!("FITS pixel count {} exceeds usize::MAX", product))
+    })
+}
+
 /// Read unsigned 8-bit data
 fn read_u8_data<R: Read>(
     reader: &mut R,
@@ -513,7 +551,7 @@ fn read_u8_data<R: Read>(
     height: u32,
     depth: u32,
 ) -> Result<Vec<u8>, FitsError> {
-    let size = (width * height * depth) as usize;
+    let size = fits_pixel_count(width, height, depth)?;
     let mut data = vec![0u8; size];
     reader.read_exact(&mut data)?;
     Ok(data)
@@ -526,8 +564,11 @@ fn read_i16_data<R: Read>(
     height: u32,
     depth: u32,
 ) -> Result<Vec<i16>, FitsError> {
-    let size = (width * height * depth) as usize;
-    let mut buffer = vec![0u8; size * 2];
+    let size = fits_pixel_count(width, height, depth)?;
+    let buffer_len = size.checked_mul(2).ok_or_else(|| {
+        FitsError::InvalidFormat(format!("FITS i16 buffer overflow for {} pixels", size))
+    })?;
+    let mut buffer = vec![0u8; buffer_len];
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<i16> = buffer
@@ -545,8 +586,11 @@ fn read_i32_data<R: Read>(
     height: u32,
     depth: u32,
 ) -> Result<Vec<i32>, FitsError> {
-    let size = (width * height * depth) as usize;
-    let mut buffer = vec![0u8; size * 4];
+    let size = fits_pixel_count(width, height, depth)?;
+    let buffer_len = size.checked_mul(4).ok_or_else(|| {
+        FitsError::InvalidFormat(format!("FITS i32 buffer overflow for {} pixels", size))
+    })?;
+    let mut buffer = vec![0u8; buffer_len];
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<i32> = buffer
@@ -564,8 +608,11 @@ fn read_f32_data<R: Read>(
     height: u32,
     depth: u32,
 ) -> Result<Vec<f32>, FitsError> {
-    let size = (width * height * depth) as usize;
-    let mut buffer = vec![0u8; size * 4];
+    let size = fits_pixel_count(width, height, depth)?;
+    let buffer_len = size.checked_mul(4).ok_or_else(|| {
+        FitsError::InvalidFormat(format!("FITS f32 buffer overflow for {} pixels", size))
+    })?;
+    let mut buffer = vec![0u8; buffer_len];
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<f32> = buffer
@@ -583,8 +630,11 @@ fn read_f64_data<R: Read>(
     height: u32,
     depth: u32,
 ) -> Result<Vec<f64>, FitsError> {
-    let size = (width * height * depth) as usize;
-    let mut buffer = vec![0u8; size * 8];
+    let size = fits_pixel_count(width, height, depth)?;
+    let buffer_len = size.checked_mul(8).ok_or_else(|| {
+        FitsError::InvalidFormat(format!("FITS f64 buffer overflow for {} pixels", size))
+    })?;
+    let mut buffer = vec![0u8; buffer_len];
     reader.read_exact(&mut buffer)?;
 
     let data: Vec<f64> = buffer

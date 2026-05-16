@@ -6,6 +6,20 @@
 //!
 //! These are real implementations that call external solvers.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! This module's numeric casts cluster into three safe-by-construction families:
+//! - **Pixel-buffer math** (`u16/u32/f32/f64 as u16` for monochromization): the
+//!   target is a 16-bit pixel buffer; saturation per Rust 1.45 spec matches the
+//!   "clamp out-of-range pixel" intent.
+//! - **Image-coordinate widening** (`u32 as f64`, `u32 as usize`): sensor
+//!   dimensions fit losslessly in f64 mantissa and >=32-bit usize.
+//! - **Sub-pixel star coordinates** (`f64 as i32`, `f64 as usize`): centroid
+//!   values fall within image extent (bounds-checked) so saturation is unreachable.
+//!
+//! High-risk pixel_count arithmetic uses explicit `checked_mul`. Sites with
+//! their own `Why:` comment override the module-level reasoning.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! Each `unwrap_or` site below maps to a specific external-solver edge case:
@@ -822,11 +836,23 @@ fn to_monochrome_u16(image: &ImageData) -> Result<ImageData, String> {
         return Ok(image.clone());
     }
 
-    let pixel_count = (image.width as usize) * (image.height as usize);
+    // Why: width and height are u32; usize is >=32-bit on all our targets so the
+    // promotion is lossless. checked_mul surfaces a hypothetical >2^31 x >2^31
+    // sensor as an explicit error rather than silently allocating a zero-pixel
+    // buffer.
+    let pixel_count = (image.width as usize)
+        .checked_mul(image.height as usize)
+        .ok_or_else(|| {
+            format!(
+                "to_monochrome_u16: pixel-count overflow for {}x{}",
+                image.width, image.height
+            )
+        })?;
     if pixel_count == 0 {
         return Ok(ImageData::from_u16(0, 0, 1, &[]));
     }
 
+    // Why: channels is u32 (typically 1/3/4); u32 -> usize widening is lossless.
     let channels = image.channels.max(1) as usize;
     let values: Vec<u16> = match image.pixel_type {
         PixelType::U8 => image
@@ -879,7 +905,24 @@ fn cpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
         .ok_or_else(|| "Failed to read monochrome u16 image data".to_string())?;
     let out_width = mono.width.div_ceil(factor);
     let out_height = mono.height.div_ceil(factor);
-    let mut output = vec![0u16; (out_width * out_height) as usize];
+    // Why: out_width and out_height are u32 sensor dimensions / factor; lossless
+    // to u64 for the multiply. checked_mul surfaces overflow as an error
+    // rather than allocating a too-small buffer.
+    let output_count = u64::from(out_width)
+        .checked_mul(u64::from(out_height))
+        .ok_or_else(|| {
+            format!(
+                "cpu_downsample_max_u16: pixel-count overflow for {}x{}",
+                out_width, out_height
+            )
+        })?;
+    let output_count_usize = usize::try_from(output_count).map_err(|_| {
+        format!(
+            "cpu_downsample_max_u16: pixel count {} exceeds usize::MAX",
+            output_count
+        )
+    })?;
+    let mut output = vec![0u16; output_count_usize];
 
     for out_y in 0..out_height {
         for out_x in 0..out_width {
@@ -916,7 +959,22 @@ fn gpu_downsample_max_u16(image: &ImageData, factor: u32) -> Result<ImageData, S
     let input_u32: Vec<u32> = pixels.into_iter().map(u32::from).collect();
     let out_width = mono.width.div_ceil(factor);
     let out_height = mono.height.div_ceil(factor);
-    let output_len = (out_width * out_height) as usize;
+    // Why: identical bounds reasoning as cpu_downsample_max_u16 above;
+    // checked_mul surfaces u32-multiply overflow explicitly.
+    let output_count = u64::from(out_width)
+        .checked_mul(u64::from(out_height))
+        .ok_or_else(|| {
+            format!(
+                "gpu_downsample_max_u16: pixel-count overflow for {}x{}",
+                out_width, out_height
+            )
+        })?;
+    let output_len = usize::try_from(output_count).map_err(|_| {
+        format!(
+            "gpu_downsample_max_u16: pixel count {} exceeds usize::MAX",
+            output_count
+        )
+    })?;
 
     let instance = wgpu::Instance::default();
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {

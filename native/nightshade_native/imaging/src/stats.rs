@@ -1,4 +1,19 @@
 //! Image statistics and star detection
+//!
+//! ## `as`-cast policy (audit-rust §1.4)
+//!
+//! This module's numeric casts are dominated by pixel-arithmetic patterns that
+//! are safe by construction:
+//! - `u16 as f64`, `u32 as f64`: pixel values / sensor dimensions widening into
+//!   the f64 53-bit mantissa. Lossless for any real-world camera.
+//! - `usize as f64`: pixel-count math; image pixel counts fit in 53 bits for any
+//!   sensor under ~9 PB which is far beyond physical reality.
+//! - `i32 as usize` (image coordinates): bounds-checked above the cast, so the
+//!   cast is from a non-negative value within image extent.
+//! - `f64 as i32` / `f64 as u16`: saturating per Rust 1.45 spec, used for star
+//!   coordinates and ADU values that are inherently in-range.
+//!
+//! Sites with a specific invariant comment override the module-level reasoning.
 
 use crate::ImageData;
 use rayon::prelude::*;
@@ -408,7 +423,10 @@ struct StarMeasurementContext<'a> {
 
 /// Measure a star's properties including eccentricity and sharpness
 fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Option<DetectedStar> {
-    let radius = ctx.config.hfr_radius as i32;
+    // Why: hfr_radius is u32 (UI-bounded, typically <=50). TryFrom surfaces a
+    // pathological value as i32::MAX instead of wrapping negative; the bounds
+    // checks below then cap the loop range to in-image pixels.
+    let radius = i32::try_from(ctx.config.hfr_radius).unwrap_or(i32::MAX);
 
     // First pass: Calculate centroid using intensity-weighted center
     let mut sum_x = 0.0;

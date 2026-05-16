@@ -87,7 +87,8 @@ impl IndiCamera {
             .set_numbers(
                 &self.device_name,
                 CCD_BINNING,
-                &[("HOR_BIN", bin_x as f64), ("VER_BIN", bin_y as f64)],
+                // Why: i32 binning values -> f64 (INDI wire format); lossless.
+                &[("HOR_BIN", f64::from(bin_x)), ("VER_BIN", f64::from(bin_y))],
             )
             .await
     }
@@ -114,6 +115,9 @@ impl IndiCamera {
             .get_number(&self.device_name, CCD_BINNING, "VER_BIN")
             .await;
         match (bin_x, bin_y) {
+            // Why: INDI wire format is f64; binning is small (1..16). f64 -> i32
+            // saturates per Rust 1.45 spec, so a driver-bug huge value caps at
+            // i32::MAX rather than wrapping.
             (Some(x), Some(y)) => Ok(Some((x as i32, y as i32))),
             _ => Ok(None),
         }
@@ -132,6 +136,9 @@ impl IndiCamera {
         }
         tracing::warn!(
             device = %self.device_name,
+            // Why: Duration::as_millis() returns u128 wall-clock duration; in
+            // practice a tracing timeout is seconds-scale and fits in u64.
+            // u128 -> u64 saturates per Rust 1.45 spec.
             timeout_ms = timeout.as_millis() as u64,
             "INDI camera CCD_BINNING was not defined within timeout; falling back to (1, 1). \
              Downstream binning-dependent calculations may be incorrect until the property arrives."
@@ -146,11 +153,12 @@ impl IndiCamera {
             .set_numbers(
                 &self.device_name,
                 CCD_FRAME,
+                // Why: i32 ROI values -> f64 (INDI wire format); lossless.
                 &[
-                    ("X", x as f64),
-                    ("Y", y as f64),
-                    ("WIDTH", width as f64),
-                    ("HEIGHT", height as f64),
+                    ("X", f64::from(x)),
+                    ("Y", f64::from(y)),
+                    ("WIDTH", f64::from(width)),
+                    ("HEIGHT", f64::from(height)),
                 ],
             )
             .await
@@ -178,6 +186,8 @@ impl IndiCamera {
             .get_number(&self.device_name, CCD_FRAME, "HEIGHT")
             .await;
         match (x, y, width, height) {
+            // Why: INDI wire format is f64; ROI is bounded by sensor extent.
+            // f64 -> i32 saturates per Rust 1.45 spec on driver-bug overflow.
             (Some(x), Some(y), Some(w), Some(h)) => {
                 Ok(Some((x as i32, y as i32, w as i32, h as i32)))
             }
@@ -205,7 +215,10 @@ impl IndiCamera {
             (Some(w), Some(h)) => {
                 tracing::warn!(
                     device = %self.device_name,
-                    timeout_ms = timeout.as_millis() as u64,
+                    // Why: Duration::as_millis() returns u128 wall-clock duration; in
+            // practice a tracing timeout is seconds-scale and fits in u64.
+            // u128 -> u64 saturates per Rust 1.45 spec.
+            timeout_ms = timeout.as_millis() as u64,
                     sensor_w = w,
                     sensor_h = h,
                     "INDI camera CCD_FRAME was not defined within timeout; falling back to full sensor extent."
@@ -269,7 +282,8 @@ impl IndiCamera {
     pub async fn set_gain(&self, gain: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
         client
-            .set_number(&self.device_name, CCD_GAIN, "GAIN", gain as f64)
+            // Why: i32 gain -> f64 (INDI wire); lossless.
+            .set_number(&self.device_name, CCD_GAIN, "GAIN", f64::from(gain))
             .await
     }
 
@@ -279,6 +293,8 @@ impl IndiCamera {
         client
             .get_number(&self.device_name, CCD_GAIN, "GAIN")
             .await
+            // Why: INDI wire f64 -> i32. Gain is bounded by sensor (typically
+            // 0..600); f64 -> i32 saturates per Rust 1.45 spec on driver bug.
             .map(|g| g as i32)
             .ok_or_else(|| "Gain not available".to_string())
     }
@@ -287,7 +303,8 @@ impl IndiCamera {
     pub async fn set_offset(&self, offset: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
         client
-            .set_number(&self.device_name, CCD_OFFSET, "OFFSET", offset as f64)
+            // Why: i32 offset -> f64 (INDI wire); lossless.
+            .set_number(&self.device_name, CCD_OFFSET, "OFFSET", f64::from(offset))
             .await
     }
 
@@ -297,6 +314,8 @@ impl IndiCamera {
         client
             .get_number(&self.device_name, CCD_OFFSET, "OFFSET")
             .await
+            // Why: INDI wire f64 -> i32; offset bounded by sensor (typically 0..255).
+            // f64 -> i32 saturates per Rust 1.45 spec.
             .map(|o| o as i32)
             .ok_or_else(|| "Offset not available".to_string())
     }
@@ -316,6 +335,8 @@ impl IndiCamera {
         client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_X")
             .await
+            // Why: INDI wire f64 -> i32 sensor width. Real sensors are <= 65k.
+            // f64 -> i32 saturates per Rust 1.45 spec on driver-bug overflow.
             .map(|v| v as i32)
     }
 
@@ -325,6 +346,7 @@ impl IndiCamera {
         client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_Y")
             .await
+            // Why: INDI wire f64 -> i32 sensor height. Same bounds as width.
             .map(|v| v as i32)
     }
 
@@ -350,6 +372,8 @@ impl IndiCamera {
         client
             .get_number(&self.device_name, CCD_INFO, "CCD_BITSPERPIXEL")
             .await
+            // Why: INDI wire f64 -> i32 bit depth (typically 8/10/12/14/16/32).
+            // f64 -> i32 saturates per Rust 1.45 spec.
             .map(|v| v as i32)
     }
 
@@ -380,6 +404,7 @@ impl IndiCamera {
         Ok(client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_BIN_X")
             .await
+            // Why: INDI wire f64 -> i32 max bin (typically 1..16); saturates per Rust 1.45.
             .map(|v| v as i32))
     }
 
@@ -390,6 +415,7 @@ impl IndiCamera {
         Ok(client
             .get_number(&self.device_name, CCD_INFO, "CCD_MAX_BIN_Y")
             .await
+            // Why: INDI wire f64 -> i32 max bin (typically 1..16); saturates per Rust 1.45.
             .map(|v| v as i32))
     }
 
@@ -401,6 +427,9 @@ impl IndiCamera {
         }
         tracing::warn!(
             device = %self.device_name,
+            // Why: Duration::as_millis() returns u128 wall-clock duration; in
+            // practice a tracing timeout is seconds-scale and fits in u64.
+            // u128 -> u64 saturates per Rust 1.45 spec.
             timeout_ms = timeout.as_millis() as u64,
             default = Self::DEFAULT_MAX_BIN,
             "INDI camera CCD_INFO/CCD_MAX_BIN_X not defined within timeout; falling back to default."
@@ -416,6 +445,9 @@ impl IndiCamera {
         }
         tracing::warn!(
             device = %self.device_name,
+            // Why: Duration::as_millis() returns u128 wall-clock duration; in
+            // practice a tracing timeout is seconds-scale and fits in u64.
+            // u128 -> u64 saturates per Rust 1.45 spec.
             timeout_ms = timeout.as_millis() as u64,
             default = Self::DEFAULT_MAX_BIN,
             "INDI camera CCD_INFO/CCD_MAX_BIN_Y not defined within timeout; falling back to default."

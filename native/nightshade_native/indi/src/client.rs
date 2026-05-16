@@ -66,6 +66,10 @@ fn make_jitter_rng(host: &str, port: u16) -> JitterRng {
 
     let now_nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
+        // Why: u128 nanos since Unix epoch -> u64. u64::MAX nanos = ~584 years
+        // from epoch (year 2554), so any wall clock before that is lossless.
+        // After year 2554 the saturating cast becomes ID-seed jitter, which
+        // the comment below explicitly notes is not load-bearing for uniqueness.
         .map(|d| d.as_nanos() as u64)
         // Why (audit-rust §4.3): `SystemTime::duration_since(UNIX_EPOCH)` only fails for
         // pre-1970 clocks. Zero is acceptable for ID-seeding because the per-process
@@ -2330,10 +2334,11 @@ fn current_time_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
-        // Why (audit-rust §4.3): `duration_since(UNIX_EPOCH)` only fails for pre-1970 clocks;
-        // this timestamp feeds keepalive-tracking counters that are monotonic-difference
+        // Why (audit-rust §4.3, §1.4): `duration_since(UNIX_EPOCH)` only fails for pre-1970
+        // clocks; this timestamp feeds keepalive-tracking counters that are monotonic-difference
         // comparisons, so a zero baseline merely defers the first keepalive by one cycle —
-        // not a correctness invariant.
+        // not a correctness invariant. u128 -> u64 saturates per Rust 1.45 spec; u64::MAX
+        // milliseconds is year ~584M, so saturation only happens after a clock-bug.
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
 }

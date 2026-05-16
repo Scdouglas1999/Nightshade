@@ -55,7 +55,8 @@ impl IndiFilterWheel {
                 &self.device_name,
                 FILTER_SLOT,
                 "FILTER_SLOT_VALUE",
-                slot as f64,
+                // Why: i32 slot (1..wheel_size) -> f64 (INDI wire); lossless.
+                f64::from(slot),
             )
             .await
     }
@@ -82,7 +83,8 @@ impl IndiFilterWheel {
                     &self.device_name,
                     FILTER_SLOT,
                     "FILTER_SLOT_VALUE",
-                    slot as f64,
+                    // Why: i32 slot -> f64 (INDI wire); lossless.
+                    f64::from(slot),
                 )
                 .await?;
         }
@@ -101,6 +103,7 @@ impl IndiFilterWheel {
         client
             .get_number(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE")
             .await
+            // Why: INDI wire f64 -> i32 slot (bounded 1..wheel_size); saturates per Rust 1.45.
             .map(|s| s as i32)
             .ok_or_else(|| "Filter slot not available".to_string())
     }

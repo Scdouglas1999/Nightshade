@@ -314,7 +314,18 @@ impl MeridianFlipExecutor {
         });
 
         let steps = self.build_step_sequence();
-        let total_steps = steps.len() as u8;
+        // Why: build_step_sequence() pushes a hard-coded set of FlipStep variants,
+        // currently at most 9 (StoppingTracking + SlewingToTarget + VerifyingPierSide
+        // + ResumingTracking + Settling + 4 optional). 9 fits trivially in u8. The
+        // TryFrom version surfaces a future step-list explosion as a clamp+log
+        // rather than silent wrap.
+        let total_steps = u8::try_from(steps.len()).unwrap_or_else(|_| {
+            tracing::error!(
+                "Meridian flip step list exceeds u8::MAX ({} steps); clamping for UI",
+                steps.len()
+            );
+            u8::MAX
+        });
 
         let mut attempt = 0;
         let max_attempts = self.config.max_retries + 1;
@@ -364,6 +375,8 @@ impl MeridianFlipExecutor {
                         // entry; if the array is empty AND retries are configured,
                         // refuse to retry (return the underlying error so the
                         // failure_action runs) — silent fallback hides config bugs.
+                        // Why: u32 -> usize. usize is >=32 bits on all our target
+                        // platforms, so this is lossless.
                         let delay_idx = (attempt - 1) as usize;
                         let delay = match self.config.retry_delays_secs.get(delay_idx).copied() {
                             Some(d) => d,
@@ -415,9 +428,27 @@ impl MeridianFlipExecutor {
                             }
                         };
 
+                        // Why: attempt and max_attempts are u32 user-config values.
+                        // A retry count > 255 is operationally absurd (would imply
+                        // hours of mount-blocked retries); we surface the clamp via
+                        // tracing so configuration bugs aren't hidden.
+                        let attempt_u8 = u8::try_from(attempt).unwrap_or_else(|_| {
+                            tracing::warn!(
+                                "Meridian flip attempt count {} exceeds u8::MAX; clamping for UI",
+                                attempt
+                            );
+                            u8::MAX
+                        });
+                        let max_attempts_u8 = u8::try_from(max_attempts).unwrap_or_else(|_| {
+                            tracing::warn!(
+                                "Meridian flip max_attempts {} exceeds u8::MAX; clamping for UI",
+                                max_attempts
+                            );
+                            u8::MAX
+                        });
                         self.emit_event(MeridianFlipEvent::RetryScheduled {
-                            attempt: attempt as u8,
-                            max_attempts: max_attempts as u8,
+                            attempt: attempt_u8,
+                            max_attempts: max_attempts_u8,
                             delay_secs: delay,
                         });
 
@@ -525,9 +556,12 @@ impl MeridianFlipExecutor {
                 return Err("Abort requested".to_string());
             }
 
+            // Why: idx is bounded by steps.len() which build_step_sequence caps at
+            // ~9 hard-coded variants — well within u8.
+            let step_index_u8 = u8::try_from(idx).unwrap_or(u8::MAX);
             self.emit_event(MeridianFlipEvent::StepStarted {
                 step: *step,
-                step_index: idx as u8,
+                step_index: step_index_u8,
                 total_steps,
             });
 
@@ -587,7 +621,11 @@ impl MeridianFlipExecutor {
                         duration_secs: Some(duration),
                     });
 
-                    let progress = ((idx + 1) as f64 / total_steps as f64 * 100.0) as u8;
+                    // Why: idx and total_steps are both bounded by the ~9-variant
+                    // FlipStep set; widening to f64 is lossless, and the final
+                    // 0..=100 result fits in u8. f64 -> u8 saturates per the
+                    // f-to-int spec, so a future invariant break only clamps.
+                    let progress = ((idx + 1) as f64 / f64::from(total_steps) * 100.0) as u8;
                     self.emit_event(MeridianFlipEvent::Progress { percent: progress });
                 }
                 Err(e) => {
@@ -2036,6 +2074,7 @@ mod tests {
         // Park always fails (more failures than retry count).
         state
             .park_failures_remaining
+            // Why: SAFETY_ACTION_RETRY_COUNT is a const u32 = 3; lossless to i32.
             .store(SAFETY_ACTION_RETRY_COUNT as i32 + 5, Ordering::Relaxed);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
@@ -2074,6 +2113,7 @@ mod tests {
         // Park should have been retried SAFETY_ACTION_RETRY_COUNT times.
         assert_eq!(
             state.park_calls.load(Ordering::Relaxed),
+            // Why: SAFETY_ACTION_RETRY_COUNT is a const u32 = 3; lossless to i32.
             SAFETY_ACTION_RETRY_COUNT as i32,
             "Expected exactly {} park retries",
             SAFETY_ACTION_RETRY_COUNT

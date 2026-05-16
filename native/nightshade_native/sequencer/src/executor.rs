@@ -620,9 +620,13 @@ impl SequenceExecutor {
 
             match &node.node_type {
                 NodeType::TakeExposure(config) => {
-                    let count = config.count as u64;
+                    // Why: `config.count` is u32; widening u32 -> u64 is lossless.
+                    let count = u64::from(config.count);
                     *total_exposures =
                         total_exposures.saturating_add(count.saturating_mul(multiplier));
+                    // Why: u64 -> f64 only loses precision above 2^53 (~9 PB of exposures);
+                    // the saturating-add guarantees `count` and `multiplier` are bounded by
+                    // u32::MAX worth of tree nodes, so loss is impossible here.
                     *total_integration += config.duration_secs * count as f64 * multiplier as f64;
                 }
                 NodeType::Loop(config) => {
@@ -633,7 +637,8 @@ impl SequenceExecutor {
                             // construction time (enforced by `node.rs:1697` and the UI), so
                             // None is unreachable. `1` ensures the totals-rollup is at least
                             // self-consistent if a future refactor breaks the invariant.
-                            multiplier.saturating_mul(config.iterations.unwrap_or(1) as u64)
+                            // Why: u32 -> u64 widening on Option<u32> default is lossless.
+                            multiplier.saturating_mul(u64::from(config.iterations.unwrap_or(1)))
                         }
                         _ => {
                             *totals_indeterminate = true;
@@ -684,15 +689,18 @@ impl SequenceExecutor {
             &mut recursion_guard,
         );
 
-        let capped_total_exposures = if total_exposures > u32::MAX as u64 {
-            tracing::warn!(
-                "Total exposure count {} exceeds u32::MAX; clamping totals",
-                total_exposures
-            );
-            totals_indeterminate = true;
-            u32::MAX
-        } else {
-            total_exposures as u32
+        let capped_total_exposures = match u32::try_from(total_exposures) {
+            Ok(n) => n,
+            Err(_) => {
+                // Why: TryFrom failure means total > u32::MAX; surface to UI as
+                // indeterminate rather than silently truncating with `as`.
+                tracing::warn!(
+                    "Total exposure count {} exceeds u32::MAX; clamping totals",
+                    total_exposures
+                );
+                totals_indeterminate = true;
+                u32::MAX
+            }
         };
 
         (
@@ -1080,9 +1088,11 @@ impl SequenceExecutor {
                         let completed = prog.completed_exposures.min(prog.total_exposures);
                         let remaining = prog.total_exposures.saturating_sub(completed);
                         if remaining > 0 {
-                            let avg_secs_per_exposure = prog.elapsed_secs / completed as f64;
+                            // Why: completed and remaining are u32 progress counters; u32 -> f64
+                            // is lossless (f64 mantissa is 53 bits, u32::MAX < 2^32).
+                            let avg_secs_per_exposure = prog.elapsed_secs / f64::from(completed);
                             prog.estimated_remaining_secs =
-                                Some(avg_secs_per_exposure * remaining as f64);
+                                Some(avg_secs_per_exposure * f64::from(remaining));
                         } else {
                             prog.estimated_remaining_secs = Some(0.0);
                         }

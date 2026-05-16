@@ -240,6 +240,8 @@ impl Trigger {
                         // modes hides misconfiguration.
                         if let Some(limit_time) = state.mount_tracking_limit_time {
                             let now = chrono::Utc::now().timestamp();
+                            // Why: i64 timestamp difference -> f64; durations under
+                            // ~285k years fit in f64 mantissa.
                             let minutes_to_limit = (limit_time - now) as f64 / 60.0;
                             minutes_to_limit > 0.0
                                 && minutes_to_limit <= config.minutes_before_limit
@@ -270,6 +272,10 @@ impl Trigger {
                         if config.tracking_limit_wait_minutes > 0.0 {
                             if let Some(detected_at) = state.tracking_limit_detected_at {
                                 let elapsed_secs = chrono::Utc::now().timestamp() - detected_at;
+                                // Why: tracking_limit_wait_minutes is f64 user-config
+                                // (UI-bounded, typically 0..30). f64 -> i64 saturates
+                                // per Rust 1.45 spec; negatives clamp to 0 which is
+                                // the "no wait, flip immediately" semantics.
                                 let wait_secs = (config.tracking_limit_wait_minutes * 60.0) as i64;
                                 if elapsed_secs < wait_secs {
                                     // Why §1.21: emit "n/a" when HA is unmeasured so the log
@@ -378,6 +384,8 @@ impl Trigger {
                 // forcing a recompute on every poll.
                 if let Some(dawn_time) = state.dawn_time {
                     let now = chrono::Utc::now().timestamp();
+                    // Why: i64 timestamp difference -> f64 lossless for any
+                    // single-night duration.
                     let time_to_dawn = (dawn_time - now) as f64 / 60.0;
                     // Positive `time_to_dawn` excludes the case where dawn has
                     // already passed (negative value); without it the trigger
@@ -537,7 +545,8 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
     let altitude_threshold: f64 = -18.0;
 
     // Approximate solar declination using Cooper's equation
-    let day_of_year = today.ordinal() as f64;
+    // Why: ordinal() returns u32 day-of-year (1..=366); trivially lossless to f64.
+    let day_of_year = f64::from(today.ordinal());
     let declination: f64 = 23.45
         * (360.0_f64 * (284.0 + day_of_year) / 365.0)
             .to_radians()
@@ -572,6 +581,8 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
 
     // Normalize to 0-24 range
     let dawn_hour = dawn_hour_utc.rem_euclid(24.0);
+    // Why: dawn_hour is bounded by rem_euclid(24.0) above; .fract()*60.0 is in
+    // [0, 60). f64 -> u32 saturates per Rust 1.45 spec.
     let dawn_minutes = (dawn_hour.fract() * 60.0) as u32;
     let dawn_hour = dawn_hour as u32;
 
@@ -938,10 +949,13 @@ impl TriggerState {
         // outermost positions land exactly at ±pixels (matching the user's
         // intended dither radius); n=1 degenerates to a single (0,0) position.
         let (ra_offset, dec_offset) = if n > 1 {
-            let step = pixels * 2.0 / (n - 1) as f64;
-            let center = (n - 1) as f64 / 2.0;
-            let ra = (col as f64 - center) * step;
-            let dec = (row as f64 - center) * step;
+            // Why: n is u32 grid_size (UI-bounded, typically <=10); col and row
+            // are derived from idx % n / n. All u32 -> f64 widenings are lossless
+            // for any plausible grid size.
+            let step = pixels * 2.0 / f64::from(n - 1);
+            let center = f64::from(n - 1) / 2.0;
+            let ra = (f64::from(col) - center) * step;
+            let dec = (f64::from(row) - center) * step;
             (ra, dec)
         } else {
             (0.0, 0.0)

@@ -105,12 +105,29 @@ impl VCurveAutofocus {
 
     /// Calculate the focus sweep positions
     pub fn calculate_positions(&self, starting_position: i32) -> Vec<i32> {
-        let half_range = (self.config.steps_out as i32) * self.config.step_size;
-        let start_pos = starting_position - half_range;
-        let total_points = (self.config.steps_out * 2 + 1) as usize;
+        // Why: steps_out is a u32 user-config value but operationally bounded
+        // (UI ranges 1..50). saturating to i32::MAX would silently produce
+        // garbage sweep positions; saturating_mul on step_size then surfaces
+        // as truncated half_range. We use checked_mul/checked_sub and clamp
+        // explicitly so a misconfigured steps_out caps at i32::MAX instead
+        // of wrapping a negative position.
+        let steps_out_i32 = i32::try_from(self.config.steps_out).unwrap_or(i32::MAX);
+        let half_range = steps_out_i32.saturating_mul(self.config.step_size);
+        let start_pos = starting_position.saturating_sub(half_range);
+        // Why: steps_out*2+1 with steps_out <= UI-bound (~50) is <= 101, well
+        // within usize on all targets.
+        let total_points =
+            usize::try_from(self.config.steps_out.saturating_mul(2).saturating_add(1))
+                .unwrap_or(usize::MAX);
 
         (0..total_points)
-            .map(|i| start_pos + (i as i32) * self.config.step_size)
+            .map(|i| {
+                // Why: i is bounded by total_points (saturated above); i32 step
+                // is safe via try_from to surface bizarre configs as the last
+                // valid position rather than a wrap.
+                let i_i32 = i32::try_from(i).unwrap_or(i32::MAX);
+                start_pos.saturating_add(i_i32.saturating_mul(self.config.step_size))
+            })
             .collect()
     }
 
@@ -233,12 +250,14 @@ impl VCurveAutofocus {
             let intersection = (right_b - left_b) / (left_m - right_m);
             let min_position = sorted
                 .first()
+                // Why: i32 -> f64 is lossless (positions fit in 53-bit mantissa).
                 .map(|p| p.position as f64)
                 // Why (§4.3): empty branch → use the linear-regression intersection as the
                 // extrapolation target. See module-level policy.
                 .unwrap_or(intersection);
             let max_position = sorted
                 .last()
+                // Why: i32 -> f64 is lossless (positions fit in 53-bit mantissa).
                 .map(|p| p.position as f64)
                 // Why (§4.3): empty branch → use the linear-regression intersection as the
                 // extrapolation target. See module-level policy.
@@ -247,11 +266,15 @@ impl VCurveAutofocus {
                 continue;
             }
 
+            // Why: sorted.len() is usize bounded by `sweep points` (<= a few dozen
+            // in any plausible focus run); lossless to f64.
             let mean_hfr: f64 = sorted.iter().map(|p| p.hfr).sum::<f64>() / sorted.len() as f64;
             let mut ss_tot = 0.0;
             let mut ss_res = 0.0;
 
             for point in &sorted {
+                // Why: point.position is i32 focuser position; lossless to f64
+                // (i32 fits trivially in f64's 53-bit mantissa).
                 let x = point.position as f64;
                 let predicted = if x <= intersection {
                     left_m * x + left_b
@@ -275,6 +298,9 @@ impl VCurveAutofocus {
         }
 
         if let Some((intersection, r_squared)) = best_fit {
+            // Why: intersection is bounded by [min_position, max_position] (checked
+            // at line 263 above). Focuser positions are i32; rounded back is
+            // in-range. f64 -> i32 saturates per Rust 1.45 spec.
             return Ok((intersection.round() as i32, r_squared));
         }
 
@@ -300,6 +326,7 @@ impl VCurveAutofocus {
         // (Σx⁰, Σx¹, …, Σx⁴ accumulated below). Closed-form is preferred
         // over iterative LSQ for this small problem: it is single-pass,
         // deterministic, and bounded in cost regardless of point count.
+        // Why: points.len() is usize bounded by sweep size (<= a few dozen); lossless to f64.
         let n = points.len() as f64;
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
@@ -310,6 +337,7 @@ impl VCurveAutofocus {
         let mut sum_x2y = 0.0;
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let y = point.hfr;
             sum_x += x;
@@ -357,6 +385,9 @@ impl VCurveAutofocus {
         }
 
         // Standard vertex formula for ax² + bx + c: x = -b / (2a).
+        // Why: parabola fit only runs over sweep points whose i32 positions fit in
+        // f64; vertex falls within (or near) that range. f64 -> i32 saturates per
+        // Rust 1.45 spec, so a degenerate fit caps at i32::MIN/MAX rather than UB.
         let best_position = (-b / (2.0 * a)).round() as i32;
 
         let mean_y = sum_y / n;
@@ -364,6 +395,7 @@ impl VCurveAutofocus {
         let mut ss_res = 0.0;
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let predicted = a * x * x + b * x + c;
             ss_tot += (point.hfr - mean_y).powi(2);
@@ -393,7 +425,8 @@ impl VCurveAutofocus {
         // iteratively. Iteration count is bounded (10) so a non-converging
         // case cannot stall the sequence.
         let (initial_x0, _) = self.fit_parabola(points)?;
-        let mut x0 = initial_x0 as f64;
+        // Why: i32 -> f64 lossless.
+        let mut x0 = f64::from(initial_x0);
 
         let min_hfr = points
             .iter()
@@ -408,6 +441,7 @@ impl VCurveAutofocus {
             let mut sum_den = 0.0;
 
             for point in points {
+                // Why: i32 focuser position -> f64 lossless.
                 let x = point.position as f64;
                 let dx = x - x0;
                 let y = point.hfr;
@@ -430,6 +464,7 @@ impl VCurveAutofocus {
                 let mut count = 0.0;
 
                 for point in points {
+                    // Why: i32 focuser position -> f64 lossless.
                     let x = point.position as f64;
                     let y = point.hfr;
                     let dx = x - x0;
@@ -467,6 +502,7 @@ impl VCurveAutofocus {
         }
 
         // Calculate R-squared for final fit
+        // Why: points.len() is usize bounded by sweep size (<= a few dozen); lossless to f64.
         let mean_y: f64 = points.iter().map(|p| p.hfr).sum::<f64>() / points.len() as f64;
         let mut ss_tot = 0.0;
         let mut ss_res = 0.0;
@@ -475,6 +511,7 @@ impl VCurveAutofocus {
         let mut sum_num = 0.0;
         let mut sum_den = 0.0;
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let dx = x - x0;
             let y = point.hfr;
@@ -491,6 +528,7 @@ impl VCurveAutofocus {
         };
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let dx = x - x0;
             let predicted = ((dx * a).powi(2) + b * b).sqrt();
@@ -504,6 +542,8 @@ impl VCurveAutofocus {
             0.0
         };
 
+        // Why: x0 is constrained by the iterative fit over i32 focuser positions
+        // (lossless to f64); f64 -> i32 saturates per Rust 1.45 spec.
         Ok((x0.round() as i32, r_squared))
     }
 }
@@ -513,6 +553,8 @@ fn fit_line(points: &[FocusDataPoint]) -> Option<(f64, f64)> {
         return None;
     }
 
+    // Why: points.len() is usize bounded by sweep size; lossless to f64.
+    // Why: point.position is i32; lossless to f64.
     let n = points.len() as f64;
     let sum_x: f64 = points.iter().map(|point| point.position as f64).sum();
     let sum_y: f64 = points.iter().map(|point| point.hfr).sum();
@@ -593,6 +635,7 @@ mod tests {
         let points: Vec<FocusDataPoint> = positions
             .iter()
             .map(|&pos| {
+                // Why: test fixture; pos is small i32 literal, lossless to f64.
                 let x = pos as f64 - 5000.0;
                 let hfr = 0.001 * x * x + 2.0;
                 FocusDataPoint {

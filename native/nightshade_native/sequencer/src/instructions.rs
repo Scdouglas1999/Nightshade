@@ -446,6 +446,8 @@ async fn wait_for_mount_idle_with_progress(
         poll_count += 1;
         if poll_count.is_multiple_of(4) {
             let elapsed_secs = start.elapsed().as_secs();
+            // Why: elapsed_secs is a u64 wall-clock; even months of elapsed time fit
+            // in f64's 53-bit mantissa. Lossless for any plausible slew duration.
             let progress = ((elapsed_secs as f64 / 60.0) * 100.0).min(95.0);
             if let Some(cb) = progress_callback {
                 cb(progress, format!("Slewing... ({:.0}s)", elapsed_secs));
@@ -716,7 +718,10 @@ pub async fn execute_center(
             return result;
         }
 
-        let attempt_progress = ((attempt - 1) as f64 / config.max_attempts as f64) * 100.0;
+        // Why: attempt is a u32 loop counter bounded by max_attempts (also u32);
+        // both lossless to f64.
+        let attempt_progress =
+            (f64::from(attempt - 1) / f64::from(config.max_attempts)) * 100.0;
         tracing::info!("Center attempt {}/{}", attempt, config.max_attempts);
 
         if let Some(cb) = progress_callback {
@@ -803,7 +808,8 @@ pub async fn execute_center(
 
         if let Some(cb) = progress_callback {
             cb(
-                attempt_progress + 50.0 / config.max_attempts as f64,
+                // Why: config.max_attempts is u32; lossless to f64.
+                attempt_progress + 50.0 / f64::from(config.max_attempts),
                 format!(
                     "Attempt {}/{}: {:.1}\" off",
                     attempt, config.max_attempts, separation_arcsec
@@ -842,7 +848,8 @@ pub async fn execute_center(
         tracing::info!("Slewing to correct position...");
         if let Some(cb) = progress_callback {
             cb(
-                attempt_progress + 75.0 / config.max_attempts as f64,
+                // Why: config.max_attempts is u32; lossless to f64.
+                attempt_progress + 75.0 / f64::from(config.max_attempts),
                 format!("Attempt {}/{}: Correcting...", attempt, config.max_attempts),
             );
         }
@@ -1302,6 +1309,8 @@ pub async fn execute_autofocus(
         // 10-90% covers the V-curve sample loop; the remaining 10% is the
         // final move + settle + curve fit, which is the noticeable wait the
         // user sees after the last sample is taken.
+        // Why: point and total_points are usize bounded by sweep size (<=50 in UI);
+        // lossless to f64.
         let point_progress = 10.0 + (point as f64 / total_points as f64 * 80.0);
 
         tracing::info!(
@@ -1842,6 +1851,10 @@ pub async fn execute_start_guiding(
                 cb(80.0, "Verifying guiding is active".to_string());
             }
 
+            // Why: settle_timeout is f64 seconds (UI-bounded 0..3600 typical).
+            // f64 -> u64 saturates per Rust 1.45 spec; negatives clamp to 0
+            // which Duration::from_secs treats as "no wait" — surfaces as an
+            // immediate timeout, not a silent hang.
             let verification_timeout = Duration::from_secs(config.settle_timeout as u64);
             let poll_interval = Duration::from_secs(2);
             let deadline = tokio::time::Instant::now() + verification_timeout;
@@ -1948,7 +1961,8 @@ pub async fn execute_filter_change(
     let timeout = Duration::from_secs(
         config
             .timeout_secs
-            .map(|s| s as u64)
+            // Why: u32 -> u64 widening is lossless.
+            .map(u64::from)
             .unwrap_or(DEFAULT_FILTER_WHEEL_TIMEOUT_SECS),
     );
 
@@ -2223,6 +2237,9 @@ pub async fn execute_cool_camera(
         // 6 polls per minute = 10 s cadence; fast enough that the UI feels
         // responsive, slow enough that a 20-min cool-down does not flood
         // logs with hundreds of poll lines.
+        // Why: duration_mins is user-config f64 minutes (UI-bounded ~0..120);
+        // *6.0 in same range. f64 -> u32 saturates per Rust 1.45 spec; negatives
+        // clamp to 0 yielding an immediate exit from the cooling loop.
         let steps = (duration_mins * 6.0) as u32;
 
         for step in 0..steps {
@@ -2264,7 +2281,9 @@ pub async fn execute_cool_camera(
             // Time-based progress is the floor: even if the camera fails
             // to cool, the bar advances toward 100% as the user-configured
             // duration runs out, signalling that the wait is finite.
-            let time_progress = step as f64 / steps as f64 * 100.0;
+            // Why: step and steps are u32 bounded by the cooling-loop config
+            // (UI-bound minutes * 6); lossless to f64.
+            let time_progress = f64::from(step) / f64::from(steps) * 100.0;
 
             let progress = temp_progress.max(time_progress);
 
@@ -2342,6 +2361,8 @@ pub async fn execute_warm_camera(
     let target_temp = config.target_temp.unwrap_or(20.0);
     let temp_range = target_temp - start_temp;
     let duration_mins = temp_range / config.rate_per_min;
+    // Why: duration_mins is a computed temperature ramp; `.max(1.0)` ensures
+    // at least one iteration. f64 -> u32 saturates per Rust 1.45 spec.
     let steps = (duration_mins * 6.0).max(1.0) as u32;
 
     // Emit initial progress
@@ -2365,8 +2386,9 @@ pub async fn execute_warm_camera(
             return result;
         }
 
-        let progress_temp = start_temp + (temp_range * step as f64 / steps as f64);
-        let progress_percent = (step as f64 / steps as f64) * 100.0;
+        // Why: step and steps are u32 bounded by the warming-loop config; lossless to f64.
+        let progress_temp = start_temp + (temp_range * f64::from(step) / f64::from(steps));
+        let progress_percent = (f64::from(step) / f64::from(steps)) * 100.0;
 
         // Gradually increase target temperature
         if let Err(e) = ctx
@@ -2515,7 +2537,10 @@ pub async fn execute_wait_time(
     if let Some(until) = config.wait_until {
         let now = chrono::Utc::now().timestamp();
         if now < until {
-            let total_wait_secs = (until - now) as u64;
+            // Why: `now < until` is checked above, so `until - now` is positive
+            // i64 (no two-complement wrap risk). i64 -> u64 is then lossless for
+            // any positive value.
+            let total_wait_secs = u64::try_from(until - now).unwrap_or(0);
             let wait_until_str = chrono::DateTime::from_timestamp(until, 0)
                 .map(|dt| dt.format("%H:%M:%S").to_string())
                 // Why (audit-rust §4.3): `from_timestamp` only fails for out-of-range
@@ -2543,6 +2568,8 @@ pub async fn execute_wait_time(
 
                 // Emit progress every 10 seconds
                 if elapsed % 10 == 0 {
+                    // Why: u64 -> f64. Wait durations under ~285k years fit
+                    // losslessly in f64's 53-bit mantissa.
                     let progress = (elapsed as f64 / total_wait_secs as f64) * 100.0;
                     let remaining = total_wait_secs - elapsed;
                     if let Some(cb) = progress_callback {
@@ -2588,7 +2615,9 @@ Sequence cannot wait for an unreachable twilight state.",
             ));
         }
         if now < twilight_time {
-            let total_wait_secs = (twilight_time - now) as u64;
+            // Why: `now < twilight_time` is checked above, so the difference is
+            // positive i64. i64 -> u64 is then lossless via try_from.
+            let total_wait_secs = u64::try_from(twilight_time - now).unwrap_or(0);
             tracing::info!(
                 "Waiting {} seconds for {:?} twilight",
                 total_wait_secs,
@@ -2607,6 +2636,8 @@ Sequence cannot wait for an unreachable twilight state.",
 
                 // Emit progress every 30 seconds
                 if elapsed % 30 == 0 {
+                    // Why: u64 -> f64. Twilight wait durations (~hours) fit
+                    // losslessly in f64's 53-bit mantissa.
                     let progress = (elapsed as f64 / total_wait_secs as f64) * 100.0;
                     let remaining_mins = (total_wait_secs - elapsed) / 60;
                     if let Some(cb) = progress_callback {
@@ -2681,6 +2712,8 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
 
     // Convert to timestamp
     let twilight_hour = twilight_hour_utc.rem_euclid(24.0);
+    // Why: twilight_hour is bounded by rem_euclid(24.0) above; .fract()*60.0 is
+    // in [0, 60). f64 -> u32 saturates per Rust 1.45 spec.
     let twilight_minutes = (twilight_hour.fract() * 60.0) as u32;
     let twilight_hour = twilight_hour as u32;
 
@@ -2774,6 +2807,8 @@ pub async fn execute_delay(
         cb(0.0, format!("{:.0}s delay", config.seconds));
     }
 
+    // Why: config.seconds is f64 user-config delay (UI-bounded). f64 -> u64
+    // saturates per Rust 1.45 spec; negatives clamp to 0 yielding no-wait.
     let total_steps = (config.seconds * 10.0) as u64;
     for step in 0..total_steps {
         if let Some(result) = ctx.check_cancelled() {
@@ -2782,6 +2817,8 @@ pub async fn execute_delay(
 
         // Emit progress every second (10 steps)
         if step % 10 == 0 {
+            // Why: u64 step -> f64 lossless under any plausible delay length
+            // (years of seconds fit in 53-bit mantissa).
             let elapsed_secs = step as f64 / 10.0;
             let remaining_secs = config.seconds - elapsed_secs;
             let progress = (elapsed_secs / config.seconds) * 100.0;
@@ -2870,7 +2907,8 @@ pub async fn execute_script(config: &ScriptConfig, ctx: &InstructionContext) -> 
 
     // Set timeout
     let timeout = match config.timeout_secs {
-        Some(v) if v > 0 => v as u64,
+        // Why: u32 -> u64 widening is lossless.
+        Some(v) if v > 0 => u64::from(v),
         Some(_) => {
             return InstructionResult::failure(
                 "Script timeout_secs must be greater than zero".to_string(),
@@ -3291,7 +3329,8 @@ pub async fn execute_open_cover(
     }
 
     // Wait for cover to reach open state with timeout
-    let timeout = Duration::from_secs(config.timeout_secs as u64);
+    // Why: u32 timeout_secs -> u64 widening is lossless.
+    let timeout = Duration::from_secs(u64::from(config.timeout_secs));
     match wait_for_cover_state(&device_id, 3, ctx, timeout).await {
         Ok(_) => {
             // Report completion
@@ -3341,7 +3380,8 @@ pub async fn execute_close_cover(
     }
 
     // Wait for cover to reach closed state with timeout
-    let timeout = Duration::from_secs(config.timeout_secs as u64);
+    // Why: u32 timeout_secs -> u64 widening is lossless.
+    let timeout = Duration::from_secs(u64::from(config.timeout_secs));
     match wait_for_cover_state(&device_id, 1, ctx, timeout).await {
         Ok(_) => {
             // Report completion
@@ -3397,7 +3437,8 @@ pub async fn execute_calibrator_on(
     }
 
     // Wait for calibrator to reach ready state with timeout
-    let timeout = Duration::from_secs(config.timeout_secs as u64);
+    // Why: u32 timeout_secs -> u64 widening is lossless.
+    let timeout = Duration::from_secs(u64::from(config.timeout_secs));
     match wait_for_calibrator_state(&device_id, 3, ctx, timeout).await {
         Ok(_) => {
             // Verify brightness is set correctly
@@ -3465,7 +3506,8 @@ pub async fn execute_calibrator_off(
     }
 
     // Wait for calibrator to reach off state with timeout
-    let timeout = Duration::from_secs(config.timeout_secs as u64);
+    // Why: u32 timeout_secs -> u64 widening is lossless.
+    let timeout = Duration::from_secs(u64::from(config.timeout_secs));
     match wait_for_calibrator_state(&device_id, 1, ctx, timeout).await {
         Ok(_) => {
             // Report completion

@@ -2,6 +2,23 @@
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
 //
+// # `as`-cast policy (audit-rust §1.4)
+//
+// This file is the FFI surface for imaging; numeric casts cluster into:
+// - **Sensor-dimension widening** (`u32 as usize`, `u32 as f64`): >=32-bit
+//   usize on every target; f64 mantissa fits any real sensor's pixel count.
+// - **Bin / gain / exposure config** (`f64 as u16` or `u32 as f64`): bounded
+//   by camera-driver advertised ranges. Saturation per Rust 1.45 spec matches
+//   the "clamp out-of-range UI value" intent at the FFI boundary.
+// - **Simulator math** (synthetic exposure path): pixel counts and star
+//   counts are bounded by simulator config; the previously-overflowing
+//   `width * height` allocations were hardened in W12 with explicit
+//   `checked_mul` and `u64` promotion (see `simulate_*` helpers below).
+// - **Histogram indexing** (`pixel as usize`): pixel is u16; usize on every
+//   target trivially holds 65536 entries.
+//
+// Sites with their own `Why:` comment override the module-level reasoning.
+//
 // # `unwrap_or` policy (audit-rust §4.3)
 //
 // Three documented patterns appear in this file:

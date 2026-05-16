@@ -507,6 +507,8 @@ pub fn compute_polar_misalignment_from_drift(
     observer_lon_deg: f64,
     is_north: bool,
 ) -> PolarMisalignment {
+    // Why: i64 milliseconds -> f64 only loses precision above 2^53 ms (~285k years);
+    // baseline/current frames are seconds-scale apart in a single session.
     let dt_secs = (current.when - baseline.when).num_milliseconds() as f64 / 1000.0;
     if dt_secs <= 0.0 {
         // Same frame or clock skew — no information yet.
@@ -769,6 +771,9 @@ mod tests {
         SolvedFrame {
             ra_deg: ra,
             dec_deg: dec,
+            // Why: test helper; dt_secs is bounded by single-session durations
+            // (< 1 day = 86_400_000 ms, far below i64::MAX). f64 -> i64 truncates
+            // toward zero, which matches `milliseconds()` semantics.
             when: when + ChronoDuration::milliseconds((dt_secs * 1000.0) as i64),
         }
     }

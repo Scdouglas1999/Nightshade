@@ -562,7 +562,12 @@ async fn find_optimal_exposure_with_brightness(
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> Result<(f64, u16, i32), String> {
     let target_adu = config.target_adu;
-    let tolerance = (config.target_adu as f64 * config.tolerance_percent / 100.0) as u16;
+    // Why: target_adu is u16 (0..=65535) -> f64 lossless. Tolerance is at most
+    // target_adu * 100 / 100 = target_adu, so the final f64 -> u16 is in range
+    // for any non-negative tolerance_percent <= 100. The product is non-negative
+    // (target_adu, tolerance_percent both non-negative); `as u16` saturates on
+    // overflow which matches the "max tolerance == target" intent for misconfig.
+    let tolerance = (f64::from(config.target_adu) * config.tolerance_percent / 100.0) as u16;
     let is_flat_panel = matches!(config.panel_location, PanelLocation::FlatPanel);
 
     let mut min_exp = config.min_exposure;
@@ -593,7 +598,9 @@ async fn find_optimal_exposure_with_brightness(
 
         // Calculate progress: iterations span from 30% to 85%
         // Each iteration takes us further through the search
-        let progress = 30.0 + (iteration as f64 / max_iterations as f64) * 55.0;
+        // Why: iteration is i32 in 1..=10 (max_iterations); both u32-bounded values
+        // are lossless to f64.
+        let progress = 30.0 + (f64::from(iteration) / f64::from(max_iterations)) * 55.0;
         if let Some(cb) = progress_callback {
             cb(
                 progress,
@@ -723,6 +730,8 @@ Try adjusting panel brightness or exposure bounds.",
 /// Calculate median ADU value from image data
 fn calculate_median_adu(image_data: &crate::device_ops::ImageData) -> u16 {
     // Sample the central 25% of the image to avoid vignetting
+    // Why: u32 -> usize. usize is >=32 bits on all our target platforms
+    // (x86_64/aarch64 Windows/macOS/Linux/iOS/Android), so this is lossless.
     let width = image_data.width as usize;
     let height = image_data.height as usize;
 
@@ -800,8 +809,9 @@ mod tests {
     fn test_median_adu_with_variation() {
         // Create image with gradient
         let mut data = Vec::new();
-        for i in 0..10000 {
-            data.push((20000 + i) as u16);
+        for i in 0..10000_u16 {
+            // Why: test fixture; range is 0..10000, so 20000 + i <= 30000 fits in u16.
+            data.push(20000 + i);
         }
 
         let image = make_test_image(100, 100, data);

@@ -55,7 +55,8 @@ impl IndiFocuser {
                 &self.device_name,
                 ABS_FOCUS_POSITION,
                 "FOCUS_ABSOLUTE_POSITION",
-                position as f64,
+                // Why: i32 focuser position -> f64 (INDI wire); lossless.
+                f64::from(position),
             )
             .await
     }
@@ -114,7 +115,8 @@ impl IndiFocuser {
                 &self.device_name,
                 REL_FOCUS_POSITION,
                 "FOCUS_RELATIVE_POSITION",
-                abs_steps as f64,
+                // Why: i32 steps -> f64 (INDI wire); lossless.
+                f64::from(abs_steps),
             )
             .await
     }
@@ -177,6 +179,8 @@ impl IndiFocuser {
                 "FOCUS_ABSOLUTE_POSITION",
             )
             .await
+            // Why: INDI wire f64 -> i32 focuser position; bounded by focuser
+            // max (typically <2^31). f64 -> i32 saturates per Rust 1.45 spec.
             .map(|p| p as i32)
             .ok_or_else(|| "Position not available".to_string())
     }

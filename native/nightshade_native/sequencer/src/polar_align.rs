@@ -196,6 +196,7 @@ pub async fn perform_polar_alignment(
 
         status_callback(
             format!("Measuring point {}/3...", i + 1),
+            // Why: `i` is a usize bounded to 0..3 by the loop range; lossless to f64.
             Some((i as f64) / 3.0),
         );
 
@@ -256,6 +257,7 @@ pub async fn perform_polar_alignment(
                 height: image_data.height,
                 solved_ra: None,
                 solved_dec: None,
+                // Why: `i` is a usize bounded to 0..3 by the loop range; +1 -> i32 is lossless.
                 point: (i + 1) as i32,
                 phase: "measuring".to_string(),
             });
@@ -282,6 +284,7 @@ pub async fn perform_polar_alignment(
                 height: image_data.height,
                 solved_ra: Some(solve_result.ra_degrees),
                 solved_dec: Some(solve_result.dec_degrees),
+                // Why: `i` is a usize bounded to 0..3 by the loop range; +1 -> i32 is lossless.
                 point: (i + 1) as i32,
                 phase: "measuring".to_string(),
             });

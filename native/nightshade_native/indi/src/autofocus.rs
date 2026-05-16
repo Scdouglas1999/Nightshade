@@ -232,8 +232,10 @@ impl IndiAutofocus {
             // Check for dramatic star count changes (clouds, tracking issues)
             if let Some(ref_count) = reference_star_count {
                 if let Some(max_change) = self.config.max_star_count_change {
-                    let count_change =
-                        ((star_count as f64 - ref_count as f64) / ref_count as f64).abs();
+                    // Why: star_count and ref_count are u32 (lossless to f64).
+                    let count_change = ((f64::from(star_count) - f64::from(ref_count))
+                        / f64::from(ref_count))
+                    .abs();
                     if count_change > max_change {
                         tracing::warn!(
                             "Star count changed by {:.1}% ({} -> {}), possible clouds or tracking issue",
@@ -303,12 +305,24 @@ impl IndiAutofocus {
 
     /// Calculate the focus sweep positions
     fn calculate_positions(&self, starting_position: i32) -> Vec<i32> {
-        let half_range = (self.config.steps_out as i32) * self.config.step_size;
-        let start_pos = starting_position - half_range;
-        let total_points = (self.config.steps_out * 2 + 1) as usize;
+        // Why: steps_out is u32 user-config; UI bounds it well below i32::MAX.
+        // Convert via TryFrom so a pathological steps_out caps at i32::MAX, then
+        // use saturating math so subsequent overflows clamp rather than wrap.
+        let steps_out_i32 = i32::try_from(self.config.steps_out).unwrap_or(i32::MAX);
+        let half_range = steps_out_i32.saturating_mul(self.config.step_size);
+        let start_pos = starting_position.saturating_sub(half_range);
+        // Why: steps_out*2+1 bounded by UI (~50); usize is >=32-bit on all targets.
+        let total_points =
+            usize::try_from(self.config.steps_out.saturating_mul(2).saturating_add(1))
+                .unwrap_or(usize::MAX);
 
         (0..total_points)
-            .map(|i| start_pos + (i as i32) * self.config.step_size)
+            .map(|i| {
+                // Why: i is bounded by total_points; TryFrom caps wild values
+                // at i32::MAX instead of wrapping.
+                let i_i32 = i32::try_from(i).unwrap_or(i32::MAX);
+                start_pos.saturating_add(i_i32.saturating_mul(self.config.step_size))
+            })
             .collect()
     }
 
@@ -422,10 +436,27 @@ impl IndiAutofocus {
         }
 
         let end_card_index = end_card_index.ok_or_else(|| "Missing FITS END card".to_string())?;
-        let pixel_count = (width * height) as usize;
+        // Why: width*height in u32 can overflow for huge synthetic sensors
+        // (>65k square). Promote both to u64, then to usize; let allocator
+        // failures surface explicitly if the result exceeds usize::MAX.
+        let pixel_count_u64 = u64::from(width)
+            .checked_mul(u64::from(height))
+            .ok_or_else(|| {
+                format!(
+                    "FITS pixel count overflow: width={} * height={} exceeds u64",
+                    width, height
+                )
+            })?;
+        let pixel_count = usize::try_from(pixel_count_u64)
+            .map_err(|_| format!("FITS pixel count {} exceeds usize::MAX", pixel_count_u64))?;
         let header_bytes = (end_card_index + 1) * 80;
         let data_start = header_bytes.next_multiple_of(2880);
-        let data_end = data_start + pixel_count * 2;
+        // Why: pixel_count * 2 -> usize. checked_mul + checked_add surface
+        // truncation as an explicit error rather than a too-small slice index.
+        let data_end = pixel_count
+            .checked_mul(2)
+            .and_then(|n| n.checked_add(data_start))
+            .ok_or_else(|| "FITS data end offset overflow".to_string())?;
 
         if data_end > data.len() {
             return Err("FITS data truncated".to_string());
@@ -450,9 +481,11 @@ impl IndiAutofocus {
         image: &ImageData,
     ) -> Result<(f64, u32, Option<f64>), String> {
         // Convert to f64 for star detection
-        let pixels: Vec<f64> = image.data.iter().map(|&p| p as f64).collect();
+        // Why: image data is u16 pixels (max 65535); lossless to f64.
+        let pixels: Vec<f64> = image.data.iter().map(|&p| f64::from(p)).collect();
 
         // Estimate background using sigma-clipped median
+        // Why: u32 width/height -> usize; lossless on >=32-bit platforms.
         let (background, noise) =
             estimate_background(&pixels, image.width as usize, image.height as usize);
 
@@ -490,7 +523,10 @@ impl IndiAutofocus {
             .collect();
 
         if hfrs.is_empty() {
-            return Ok((20.0, stars.len() as u32, None));
+            // Why: star count from in-frame detection; bounded by image size.
+            // usize -> u32 narrowing — saturate so a giant synthetic frame
+            // doesn't wrap to a misleadingly small star count.
+            return Ok((20.0, u32::try_from(stars.len()).unwrap_or(u32::MAX), None));
         }
 
         hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
@@ -511,7 +547,12 @@ impl IndiAutofocus {
             None
         };
 
-        Ok((median_hfr, stars.len() as u32, median_fwhm))
+        // Why: star count usize -> u32; saturate on detection-blowup.
+        Ok((
+            median_hfr,
+            u32::try_from(stars.len()).unwrap_or(u32::MAX),
+            median_fwhm,
+        ))
     }
 
     /// Find best focus position using curve fitting
@@ -585,6 +626,7 @@ impl IndiAutofocus {
             .ok_or("No minimum found")?;
 
         // Calculate fit quality
+        // Why: points.len() is usize bounded by sweep size (<= a few dozen); lossless to f64.
         let mean_hfr: f64 = points.iter().map(|p| p.hfr).sum::<f64>() / points.len() as f64;
         let mut ss_tot = 0.0;
         let mut ss_res = 0.0;
@@ -610,6 +652,7 @@ impl IndiAutofocus {
         }
 
         // Fit y = ax^2 + bx + c where y=HFR, x=position
+        // Why: points.len() is usize bounded by sweep size; lossless to f64.
         let n = points.len() as f64;
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
@@ -620,6 +663,7 @@ impl IndiAutofocus {
         let mut sum_x2y = 0.0;
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let y = point.hfr;
             sum_x += x;
@@ -662,6 +706,7 @@ impl IndiAutofocus {
         }
 
         // Find vertex: x = -b / (2a)
+        // Why: fit output for i32 focuser position. f64 -> i32 saturates per Rust 1.45.
         let best_position = (-b / (2.0 * a)).round() as i32;
 
         // Calculate R-squared
@@ -670,6 +715,7 @@ impl IndiAutofocus {
         let mut ss_res = 0.0;
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let predicted = a * x * x + b * x + c;
             ss_tot += (point.hfr - mean_y).powi(2);
@@ -693,7 +739,8 @@ impl IndiAutofocus {
 
         // Use parabola as initial guess
         let (initial_x0, _) = self.fit_parabola(points)?;
-        let mut x0 = initial_x0 as f64;
+        // Why: i32 -> f64 lossless.
+        let mut x0 = f64::from(initial_x0);
 
         // Find minimum HFR as initial b
         let min_hfr = points
@@ -713,6 +760,7 @@ impl IndiAutofocus {
             let mut sum_den = 0.0;
 
             for point in points {
+                // Why: i32 focuser position -> f64 lossless.
                 let x = point.position as f64;
                 let dx = x - x0;
                 let y = point.hfr;
@@ -733,6 +781,7 @@ impl IndiAutofocus {
                 let mut count = 0.0;
 
                 for point in points {
+                    // Why: i32 focuser position -> f64 lossless.
                     let x = point.position as f64;
                     let y = point.hfr;
                     let dx = x - x0;
@@ -755,6 +804,7 @@ impl IndiAutofocus {
         }
 
         // Calculate R-squared
+        // Why: points.len() is usize bounded by sweep size; lossless to f64.
         let mean_y: f64 = points.iter().map(|p| p.hfr).sum::<f64>() / points.len() as f64;
         let mut ss_tot = 0.0;
         let mut ss_res = 0.0;
@@ -763,6 +813,7 @@ impl IndiAutofocus {
         let mut sum_num = 0.0;
         let mut sum_den = 0.0;
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let dx = x - x0;
             let y = point.hfr;
@@ -779,6 +830,7 @@ impl IndiAutofocus {
         };
 
         for point in points {
+            // Why: i32 focuser position -> f64 lossless.
             let x = point.position as f64;
             let dx = x - x0;
             let predicted = ((dx * a).powi(2) + b * b).sqrt();
@@ -792,6 +844,7 @@ impl IndiAutofocus {
             0.0
         };
 
+        // Why: x0 is constrained by the iterative fit; f64 -> i32 saturates per Rust 1.45 spec.
         Ok((x0.round() as i32, r_squared))
     }
 }
@@ -841,6 +894,8 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
         samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
         let median = samples[samples.len() / 2];
 
+        // Why: samples.len() is usize bounded by image pixel count / 4; lossless to f64
+        // for any image under ~2^53 pixels (~9 PB-class sensor).
         let mad: f64 =
             samples.iter().map(|&v| (v - median).abs()).sum::<f64>() / samples.len() as f64;
         let sigma = mad * 1.4826;
@@ -858,6 +913,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
     samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
     let background = samples[samples.len() / 2];
 
+    // Why: samples.len() is usize bounded by image size; lossless to f64.
     let variance: f64 = samples
         .iter()
         .map(|&v| (v - background).powi(2))
@@ -877,6 +933,7 @@ fn detect_stars(
     noise: f64,
     config: &StarDetectionConfig,
 ) -> Vec<DetectedStar> {
+    // Why: u32 -> usize widening; usize is >=32-bit on all our target platforms.
     let width = width as usize;
     let height = height as usize;
     let threshold = background + config.detection_sigma * noise;
@@ -903,7 +960,8 @@ fn detect_stars(
                 && val >= pixels[idx + width - 1]
                 && val >= pixels[idx + width + 1];
 
-            if !is_max || val > config.saturation_limit as f64 {
+            // Why: saturation_limit is u32 (typically 60000); lossless to f64.
+            if !is_max || val > f64::from(config.saturation_limit) {
                 continue;
             }
 
@@ -919,7 +977,8 @@ fn detect_stars(
                 &mut visited,
             ) {
                 let area = star.flux / (star.peak - background);
-                if area >= config.min_area as f64 && area <= config.max_area as f64 {
+                // Why: min_area and max_area are u32; lossless to f64.
+                if area >= f64::from(config.min_area) && area <= f64::from(config.max_area) {
                     stars.push(star);
                 }
             }
@@ -946,7 +1005,9 @@ fn measure_star(
     config: &StarDetectionConfig,
     visited: &mut [bool],
 ) -> Option<DetectedStar> {
-    let radius = config.hfr_radius as i32;
+    // Why: hfr_radius is u32 (config value, typically <=50). TryFrom surfaces
+    // a pathological config as i32::MAX rather than wrapping to negative.
+    let radius = i32::try_from(config.hfr_radius).unwrap_or(i32::MAX);
 
     let mut sum_x = 0.0;
     let mut sum_y = 0.0;
@@ -955,10 +1016,16 @@ fn measure_star(
 
     for dy in -radius..=radius {
         for dx in -radius..=radius {
-            let x = cx as i32 + dx;
-            let y = cy as i32 + dy;
+            // Why: cx and cy are usize image coordinates; for any sensor under
+            // i32::MAX pixels per axis (every commercial astrocam) this fits in i32.
+            let x = i32::try_from(cx).unwrap_or(i32::MAX).saturating_add(dx);
+            let y = i32::try_from(cy).unwrap_or(i32::MAX).saturating_add(dy);
 
-            if x < 0 || y < 0 || x >= width as i32 || y >= height as i32 {
+            // Why: width/height are usize; bounds check below ensures x,y >= 0,
+            // and x < width (similarly y) so the cast to usize is lossless.
+            let width_i32 = i32::try_from(width).unwrap_or(i32::MAX);
+            let height_i32 = i32::try_from(height).unwrap_or(i32::MAX);
+            if x < 0 || y < 0 || x >= width_i32 || y >= height_i32 {
                 continue;
             }
 
@@ -966,8 +1033,10 @@ fn measure_star(
             let val = pixels[idx] - background;
 
             if val > 0.0 {
-                sum_x += x as f64 * val;
-                sum_y += y as f64 * val;
+                // Why: x and y are in [0, width) and [0, height); both well
+                // under 2^53 for any real sensor, so i32 -> f64 is lossless.
+                sum_x += f64::from(x) * val;
+                sum_y += f64::from(y) * val;
                 sum_flux += val;
                 peak = peak.max(pixels[idx]);
                 visited[idx] = true;
@@ -1014,13 +1083,26 @@ fn calculate_hfr(
     let mut total_flux = 0.0;
     let mut weighted_radius_sum = 0.0;
 
+    // Why: width and height are usize image dimensions; for any sensor under
+    // i32::MAX pixels per axis (every commercial camera) try_from is lossless.
+    let width_i32 = i32::try_from(width).unwrap_or(i32::MAX);
+    let height_i32 = i32::try_from(height).unwrap_or(i32::MAX);
     for dy in -radius..=radius {
         for dx in -radius..=radius {
-            let x = (cx as i32 + dx).max(0).min(width as i32 - 1) as usize;
-            let y = (cy as i32 + dy).max(0).min(height as i32 - 1) as usize;
+            // Why: cx and cy are f64 centroid coordinates within image bounds.
+            // f64 -> i32 saturates per Rust 1.45 spec, then we clamp into image
+            // bounds, so the final usize cast is lossless.
+            let x = ((cx as i32).saturating_add(dx))
+                .max(0)
+                .min(width_i32 - 1) as usize;
+            let y = ((cy as i32).saturating_add(dy))
+                .max(0)
+                .min(height_i32 - 1) as usize;
 
             let val = (pixels[y * width + x] - background).max(0.0);
-            let dist = ((dx as f64).powi(2) + (dy as f64).powi(2)).sqrt();
+            // Why: dx and dy are i32 loop indices in [-radius, radius];
+            // radius is i32-bounded so f64 widening is lossless.
+            let dist = ((f64::from(dx)).powi(2) + (f64::from(dy)).powi(2)).sqrt();
 
             total_flux += val;
             weighted_radius_sum += val * dist;
