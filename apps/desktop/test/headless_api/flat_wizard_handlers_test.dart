@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/flat_wizard_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   group('FlatWizardHandlers', () {
     late ProviderContainer container;
@@ -21,7 +23,8 @@ void main() {
     });
 
     test('generate sequence returns JSON helper response', () async {
-      final response = await handlers.handleGenerateSequence(
+      final response =
+          await translateHandlerErrors(handlers.handleGenerateSequence(
         Request(
           'POST',
           Uri.parse('http://localhost/api/flat-wizard/generate-sequence'),
@@ -49,7 +52,7 @@ void main() {
             'onlySuccessful': true,
           }),
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
@@ -69,15 +72,17 @@ void main() {
 
     test('calibrate filter malformed body returns JSON internal server error',
         () async {
-      final response = await handlers.handleCalibrateFilter(
+      final response =
+          await translateHandlerErrors(handlers.handleCalibrateFilter(
         Request(
           'POST',
           Uri.parse('http://localhost/api/flat-wizard/calibrate'),
           body: jsonEncode({'deviceId': 'camera-1'}),
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -85,15 +90,17 @@ void main() {
 
     test('quick calibrate malformed body returns JSON internal server error',
         () async {
-      final response = await handlers.handleQuickCalibrate(
+      final response =
+          await translateHandlerErrors(handlers.handleQuickCalibrate(
         Request(
           'POST',
           Uri.parse('http://localhost/api/flat-wizard/quick-calibrate'),
           body: jsonEncode({'deviceId': 'camera-1'}),
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

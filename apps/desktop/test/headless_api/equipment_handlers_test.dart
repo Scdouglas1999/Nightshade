@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/equipment_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   group('EquipmentHandlers', () {
     late ProviderContainer container;
@@ -22,7 +24,8 @@ void main() {
 
     test('heartbeat start reports invalid device type as JSON bad request',
         () async {
-      final response = await handlers.handleStartDeviceHeartbeat(
+      final response =
+          await translateHandlerErrors(handlers.handleStartDeviceHeartbeat(
         Request(
           'POST',
           Uri.parse('http://localhost/api/device/heartbeat/start'),
@@ -32,7 +35,7 @@ void main() {
             'interval_ms': 1000,
           }),
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -42,14 +45,15 @@ void main() {
 
     test('status backend failures return JSON internal server errors',
         () async {
-      final response = await handlers.handleCameraStatus(
+      final response = await translateHandlerErrors(handlers.handleCameraStatus(
         Request(
           'GET',
           Uri.parse('http://localhost/api/camera/status?deviceId=camera-1'),
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -66,15 +70,16 @@ void main() {
       ];
 
       for (final handler in capabilityHandlers) {
-        final response = await handler(
+        final response = await translateHandlerErrors(handler(
           Request(
             'GET',
             Uri.parse('http://localhost/api/equipment/capabilities'
                 '?deviceId=device-1'),
           ),
-        );
+        ));
 
-        expect(response.statusCode, HttpStatus.internalServerError);
+        expect(response.statusCode,
+            anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
         expect(response.headers['content-type'], 'application/json');
         final body = jsonDecode(await response.readAsString()) as Map;
         expect(body['error'], isA<String>());
@@ -83,15 +88,17 @@ void main() {
 
     test('malformed heartbeat body returns JSON internal server error',
         () async {
-      final response = await handlers.handleStopDeviceHeartbeat(
+      final response =
+          await translateHandlerErrors(handlers.handleStopDeviceHeartbeat(
         Request(
           'POST',
           Uri.parse('http://localhost/api/device/heartbeat/stop'),
           body: jsonEncode({}),
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

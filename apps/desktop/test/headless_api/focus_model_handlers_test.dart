@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/focus_model_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -42,9 +44,9 @@ void main() {
 
     test('get focus data without active profile returns JSON bad request',
         () async {
-      final response = await handlers.handleGetFocusData(
+      final response = await translateHandlerErrors(handlers.handleGetFocusData(
         Request('GET', Uri.parse('http://localhost/api/focus-model/data')),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -56,12 +58,12 @@ void main() {
     });
 
     test('predict without active profile returns JSON bad request', () async {
-      final response = await handlers.handlePredictFocus(
+      final response = await translateHandlerErrors(handlers.handlePredictFocus(
         Request(
           'GET',
           Uri.parse('http://localhost/api/focus-model/predict'),
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -73,13 +75,14 @@ void main() {
     });
 
     test('import without active profile returns JSON bad request', () async {
-      final response = await handlers.handleImportFocusData(
+      final response =
+          await translateHandlerErrors(handlers.handleImportFocusData(
         Request(
           'POST',
           Uri.parse('http://localhost/api/focus-model/import'),
           body: '{',
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');

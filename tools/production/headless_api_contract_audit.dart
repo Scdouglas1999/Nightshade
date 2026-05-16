@@ -138,8 +138,7 @@ void main(List<String> args) {
     'webSocketContractCoverageCount':
         webSocketContractCoverage.values.where((present) => present).length,
     'networkBackendContractCoverage': networkBackendContractCoverage,
-    'networkBackendContractCoverageCount': networkBackendContractCoverage
-        .values
+    'networkBackendContractCoverageCount': networkBackendContractCoverage.values
         .where((present) => present)
         .length,
     'versionNegotiationCoverage': versionNegotiationCoverage,
@@ -255,10 +254,10 @@ Map<String, bool> _webSocketContractCoverage(String source) {
 
 Map<String, bool> _networkBackendContractCoverage(String source) {
   return {
-    'advertised_endpoints_match_registered_routes': source.contains(
-            'advertised endpoints match registered API routes') &&
-        source.contains('advertised.difference(registered)') &&
-        source.contains('registered.difference(advertised)'),
+    'advertised_endpoints_match_registered_routes':
+        source.contains('advertised endpoints match registered API routes') &&
+            source.contains('advertised.difference(registered)') &&
+            source.contains('registered.difference(advertised)'),
     'network_backend_calls_registered_routes': source.contains(
             'NetworkBackend call sites map to registered server routes') &&
         source.contains('clientRoutes.difference(registered)') &&
@@ -284,7 +283,7 @@ Map<String, bool> _versionNegotiationCoverage({
 }) {
   return {
     'shared_compatibility_policy': remoteApiCompatibilitySource
-            .contains('minimumSupportedVersion = SemanticVersion(2, 0, 0)') &&
+            .contains('minimumSupportedVersion = SemanticVersion(2, 4, 0)') &&
         remoteApiCompatibilitySource
             .contains('serverApiVersion = SemanticVersion(2, 5, 0)') &&
         remoteApiCompatibilitySource.contains('server_too_old') &&
@@ -333,7 +332,7 @@ Map<String, bool> _versionNegotiationCoverage({
     'docs_user_facing_compatibility':
         apiDocsSource.contains('/api/info.version') &&
             apiDocsSource.contains('server too old/new') &&
-            apiDocsSource.contains('`2.0.0`') &&
+            apiDocsSource.contains('`2.4.0`') &&
             apiDocsSource.contains('major version `2`'),
   };
 }

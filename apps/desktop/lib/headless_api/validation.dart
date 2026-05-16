@@ -28,8 +28,21 @@ class BadRequestError implements Exception {
   @override
   String toString() => 'BadRequestError(field=$field, expected=$expected)';
 
+  String get displayMessage {
+    if (message != null) return message!;
+    return switch (expected) {
+      'string' => '$field is required',
+      'number' => '$field is required',
+      'integer' => '$field is required',
+      'boolean' => '$field is required',
+      'object' => '$field is required',
+      _ => 'Invalid request',
+    };
+  }
+
   Map<String, Object?> toJsonBody() => {
-        'error': 'invalid_request',
+        'error': displayMessage,
+        'code': 'invalid_request',
         'field': field,
         'expected': expected,
         if (message != null) 'message': message,
@@ -359,9 +372,13 @@ Middleware errorTranslationMiddleware({
   required void Function(String message, {Map<String, Object?>? fields})
       logError,
   required String Function(Request request) requestIdFor,
+  bool Function(Request request)? shouldBypass,
 }) {
   return (innerHandler) {
     return (request) async {
+      if (shouldBypass?.call(request) ?? false) {
+        return innerHandler(request);
+      }
       try {
         return await innerHandler(request);
       } on BadRequestError catch (e) {

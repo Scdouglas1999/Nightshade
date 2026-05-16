@@ -511,6 +511,8 @@ class HeadlessApiServer {
     // Polar Alignment
     router.post('/api/polar-alignment/start',
         _sessionHandlers.handleStartPolarAlignment);
+    router.post('/api/polar-alignment/all-sky/start',
+        _sessionHandlers.handleStartAllSkyPolarAlignment);
     router.post(
         '/api/polar-alignment/stop', _sessionHandlers.handleStopPolarAlignment);
 
@@ -867,6 +869,10 @@ class HeadlessApiServer {
         .addMiddleware(errorTranslationMiddleware(
           logError: _logError,
           requestIdFor: _requestIdFrom,
+          shouldBypass: (request) {
+            final path = '/${request.url.path}';
+            return path == '/api/ws' || path == '/events';
+          },
         ))
         .addMiddleware(_corsMiddleware())
         .addMiddleware(_requestSizeLimitMiddleware())
@@ -1256,10 +1262,12 @@ class HeadlessApiServer {
       'DELETE /api/imaging/device-image/<deviceId>',
       // Polar Alignment
       'POST /api/polar-alignment/start',
+      'POST /api/polar-alignment/all-sky/start',
       'POST /api/polar-alignment/stop',
       // Session Images
       'GET /api/sessions/<sessionId>/images',
       'GET /api/images',
+      'GET /api/images/recent',
       'GET /api/images/standalone',
       'GET /api/images/<imageId>/thumbnail',
       'GET /api/images/<imageId>/download',
@@ -2096,7 +2104,9 @@ class HeadlessApiServer {
   /// defensive.
   static bool _methodNeedsCsrf(String method) {
     final upper = method.toUpperCase();
-    return upper == 'POST' || upper == 'PUT' || upper == 'DELETE' ||
+    return upper == 'POST' ||
+        upper == 'PUT' ||
+        upper == 'DELETE' ||
         upper == 'PATCH';
   }
 
@@ -2676,6 +2686,9 @@ class HeadlessApiServer {
               'elapsedMs': elapsedMs,
             },
           );
+          if (path == '/api/ws' || path == '/events') {
+            return response;
+          }
           return response.change(headers: {
             ...response.headers,
             _requestIdHeader: requestId,
@@ -2717,6 +2730,10 @@ class HeadlessApiServer {
         }
 
         final response = await innerHandler(request);
+        final path = '/${request.url.path}';
+        if (path == '/api/ws' || path == '/events') {
+          return response;
+        }
         if (corsHeaders.isEmpty) {
           return response;
         }
@@ -2848,6 +2865,9 @@ class HeadlessApiServer {
         }
 
         final response = await innerHandler(request);
+        if (isWebSocket) {
+          return response;
+        }
         return response.change(headers: {
           ...response.headers,
           ..._apiCompatibilityHeaders(),
@@ -3156,7 +3176,8 @@ class HeadlessApiServer {
         // changes; read-only responses do not need it (and pre-flighting
         // every GET would break image/event endpoints).
         if (tokenFromCookie && _methodNeedsCsrf(request.method)) {
-          final presented = request.headers[AuthCookieManager.csrfHeader.toLowerCase()];
+          final presented =
+              request.headers[AuthCookieManager.csrfHeader.toLowerCase()];
           if (!_authCookieManager.validateCsrf(
             cookieToken: sessionCookie,
             presented: presented,

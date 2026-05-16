@@ -51,8 +51,7 @@ Future<void> main() async {
     final networkBackendContractCoverage =
         passing['networkBackendContractCoverage'] as Map? ?? const {};
     _expect(
-      networkBackendContractCoverage.values
-          .every((present) => present == true),
+      networkBackendContractCoverage.values.every((present) => present == true),
       'passing fixture should include NetworkBackend contract test coverage',
     );
     final versionNegotiationCoverage =
@@ -294,7 +293,7 @@ Future<void> _writePassingVersionNegotiationFixtures(Directory root) async {
     'packages/nightshade_core/lib/src/models/backend/remote_api_compatibility.dart',
     r'''
 class RemoteApiCompatibility {
-  static const minimumSupportedVersion = SemanticVersion(2, 0, 0);
+  static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
   static const serverApiVersion = SemanticVersion(2, 5, 0);
   void codes() {
     print('server_too_old');
@@ -351,7 +350,7 @@ class NightshadeApi {
     'docs/api/web-server-api.md',
     r'''
 Remote clients use `/api/info.version` for API compatibility checks. The
-current client accepts server API versions `2.0.0` and newer within major version `2`.
+current client accepts server API versions `2.4.0` and newer within major version `2`.
 Incompatible versions show server too old/new guidance.
 ''',
   );

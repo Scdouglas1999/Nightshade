@@ -74,6 +74,34 @@ class SessionHandlers {
     return jsonOk({"status": "stopped"});
   }
 
+  Future<Response> handleStartAllSkyPolarAlignment(Request request) async {
+    _logInfo('[API] POST /api/polar-alignment/all-sky/start');
+    final payload = await readJsonObject(request);
+    final exposureTime = requireDouble(payload, 'exposure_time');
+    final solveTimeout = requireDouble(payload, 'solve_timeout');
+    final binning = requireInt(payload, 'binning');
+    final isNorth = requireBool(payload, 'is_north');
+    final acceptanceThresholdArcsec =
+        requireDouble(payload, 'acceptance_threshold_arcsec');
+    final iterationCadenceSecs =
+        requireDouble(payload, 'iteration_cadence_secs');
+    final gain = optionalInt(payload, 'gain');
+    final offset = optionalInt(payload, 'offset');
+
+    final backend = container.read(backendProvider);
+    await backend.startAllSkyPolarAlignment(
+      exposureTime: exposureTime,
+      solveTimeout: solveTimeout,
+      binning: binning,
+      isNorth: isNorth,
+      acceptanceThresholdArcsec: acceptanceThresholdArcsec,
+      iterationCadenceSecs: iterationCadenceSecs,
+      gain: gain,
+      offset: offset,
+    );
+    return jsonOk({"status": "started"});
+  }
+
   // ===========================================================================
   // Session Images
   // ===========================================================================
@@ -274,8 +302,7 @@ class SessionHandlers {
     final file = File(filePath);
 
     if (!await file.exists()) {
-      return jsonNotFound(
-          {'error': 'Export not found for session $sessionId'});
+      return jsonNotFound({'error': 'Export not found for session $sessionId'});
     }
 
     final fileLength = await file.length();

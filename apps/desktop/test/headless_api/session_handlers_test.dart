@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/session_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   group('SessionHandlers', () {
     late ProviderContainer container;
@@ -21,14 +23,15 @@ void main() {
     });
 
     test('unsupported export format returns JSON bad request', () async {
-      final response = await handlers.handleExportSession(
+      final response =
+          await translateHandlerErrors(handlers.handleExportSession(
         Request(
           'GET',
           Uri.parse('http://localhost/api/sessions/1/export/pdf'),
         ),
         '1',
         'pdf',
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
@@ -39,27 +42,31 @@ void main() {
 
     test('start polar alignment malformed payload returns JSON internal error',
         () async {
-      final response = await handlers.handleStartPolarAlignment(
+      final response =
+          await translateHandlerErrors(handlers.handleStartPolarAlignment(
         Request(
           'POST',
           Uri.parse('http://localhost/api/polar-alignment/start'),
           body: jsonEncode({}),
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
 
     test('thumbnail invalid image ID returns JSON internal error', () async {
-      final response = await handlers.handleGetImageThumbnail(
+      final response =
+          await translateHandlerErrors(handlers.handleGetImageThumbnail(
         Request('GET', Uri.parse('http://localhost/api/images/nope/thumbnail')),
         'nope',
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());

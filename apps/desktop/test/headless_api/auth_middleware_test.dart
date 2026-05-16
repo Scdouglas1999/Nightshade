@@ -71,7 +71,7 @@ void main() {
       expect(response.headers['x-request-id'], 'test-api-info-1');
       expect(response.body['version'], '2.5.0');
       expect(response.body['apiVersion'], '2.5.0');
-      expect(response.body['minimumSupportedApiVersion'], '2.0.0');
+      expect(response.body['minimumSupportedApiVersion'], '2.4.0');
       expect(
         response.body['apiVersionHeader'],
         RemoteApiCompatibility.apiVersionHeader,
@@ -80,7 +80,7 @@ void main() {
         response.headers[RemoteApiCompatibility.apiVersionHeader],
         '2.5.0',
       );
-      expect(response.headers['x-nightshade-minimum-api-version'], '2.0.0');
+      expect(response.headers['x-nightshade-minimum-api-version'], '2.4.0');
     });
 
     test('preserves caller-supplied request IDs on protected errors', () async {
@@ -114,7 +114,7 @@ void main() {
       expect(tooOld.statusCode, HttpStatus.upgradeRequired);
       expect(tooOld.body['error'], 'client_too_old');
       expect(tooOld.body['serverApiVersion'], '2.5.0');
-      expect(tooOld.body['minimumSupportedApiVersion'], '2.0.0');
+      expect(tooOld.body['minimumSupportedApiVersion'], '2.4.0');
 
       expect(tooNew.statusCode, HttpStatus.upgradeRequired);
       expect(tooNew.body['error'], 'server_too_old');
@@ -147,7 +147,7 @@ void main() {
 
       expect(tooOld.statusCode, HttpStatus.upgradeRequired);
       expect(tooOld.body['error'], 'client_too_old');
-      expect(tooOld.body['minimumSupportedApiVersion'], '2.0.0');
+      expect(tooOld.body['minimumSupportedApiVersion'], '2.4.0');
 
       expect(tooNew.statusCode, HttpStatus.upgradeRequired);
       expect(tooNew.body['error'], 'server_too_old');

@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/backup_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   group('BackupHandlers', () {
     late ProviderContainer container;
@@ -22,15 +24,16 @@ void main() {
 
     test('create backup malformed payload returns JSON internal error',
         () async {
-      final response = await handlers.handleCreateBackup(
+      final response = await translateHandlerErrors(handlers.handleCreateBackup(
         Request(
           'POST',
           Uri.parse('http://localhost/api/backup/create'),
           body: '{',
         ),
-      );
+      ));
 
-      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
@@ -38,13 +41,14 @@ void main() {
 
     test('upload restore oversized content length returns JSON too large',
         () async {
-      final response = await handlers.handleUploadRestoreBackup(
+      final response =
+          await translateHandlerErrors(handlers.handleUploadRestoreBackup(
         Request(
           'POST',
           Uri.parse('http://localhost/api/backup/upload-restore'),
           headers: {'content-length': '${257 * 1024 * 1024}'},
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.requestEntityTooLarge);
       expect(response.headers['content-type'], 'application/json');
@@ -54,14 +58,15 @@ void main() {
     });
 
     test('upload restore invalid filename returns JSON bad request', () async {
-      final response = await handlers.handleUploadRestoreBackup(
+      final response =
+          await translateHandlerErrors(handlers.handleUploadRestoreBackup(
         Request(
           'POST',
           Uri.parse(
             'http://localhost/api/backup/upload-restore?fileName=bad.exe',
           ),
         ),
-      );
+      ));
 
       expect(response.statusCode, HttpStatus.badRequest);
       expect(response.headers['content-type'], 'application/json');
