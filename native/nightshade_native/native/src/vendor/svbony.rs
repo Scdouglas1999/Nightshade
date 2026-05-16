@@ -1055,7 +1055,12 @@ impl NativeCamera for SvbonyCamera {
         // SAFETY: svbony_mutex held; `self.camera_id` valid; SVBStopVideoCapture is idempotent and takes a single c_int.
         let _ = unsafe { (sdk.stop_video_capture)(self.camera_id) };
 
-        // Convert to u16 data
+        // Convert to u16 data.
+        // Why (audit-rust §4.3): odd-byte tail (`chunk.len() == 1`) pads
+        // the trailing byte with 0 to form a complete u16. SVBony cameras
+        // always produce even-length buffers at 16bpp; this `0` pad is
+        // unreachable in practice but cheaper than panicking on a
+        // corrupt-length SDK return.
         let data: Vec<u16> = self.image_buffer[..buffer_size]
             .chunks(2)
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk.get(1).copied().unwrap_or(0)]))

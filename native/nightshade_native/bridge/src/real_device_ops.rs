@@ -1,6 +1,28 @@
 //! Real Device Operations Implementation
 //!
 //! Connects the sequencer engine to actual ASCOM/Alpaca devices via the DeviceManager.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Six site categories, each mapping to a documented optional-property:
+//!
+//! * `PierSide::Unknown` fallback — ASCOM telescopes that don't implement
+//!   `SideOfPier` (German-equatorial-only property) yield `Err` →
+//!   `Unknown`, which the meridian-flip executor reads as "do not attempt
+//!   flip; require operator confirmation".
+//! * `bayer.unwrap_or(false)` — when the camera SDK does not report a
+//!   Bayer pattern, treat as mono; `is_color()` check in the debayer
+//!   pipeline already short-circuits on `false`.
+//! * `raw_format_extension(...).unwrap_or("raw")` — generic vendor RAW
+//!   that we don't have a specific format handler for; ".raw" preserves
+//!   the bytes verbatim while flagging it in the file listing.
+//! * `gain_max() / offset_max().unwrap_or(0)` — gate "supports gain/offset"
+//!   on probe success; 0 is the documented "not declared" sentinel and
+//!   the conditional `> 0` already filters absent capability.
+//! * `parsed.get("Type").unwrap_or(1)` — ASCOM ImageBytes "Int32" default
+//!   per `IImageArrayElementType` enum in the ASCOM-Image-Bytes spec.
+//! * `hint_scale.unwrap_or(5.0)` — 5-degree pre-solve search radius is the
+//!   Nightshade default (matches the plate-solve UI's slider default).
 
 use crate::api::get_device_manager;
 use crate::api::{get_sim_focuser, get_sim_rotator};

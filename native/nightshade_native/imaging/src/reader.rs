@@ -5,6 +5,21 @@
 //! - Preview generation from 60MP+ images
 //! - Region-of-interest extraction
 //! - Streaming operations
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Three FITS-standard fallbacks appear in this reader:
+//!
+//! * `NAXIS3.unwrap_or(1)` — `NAXIS3` (channel count) is only present for
+//!   3D FITS cubes; absent for 2D mono frames where the FITS spec defines
+//!   the implicit channel count as 1.
+//! * `BZERO.unwrap_or(0.0)`, `BSCALE.unwrap_or(1.0)` — these are the
+//!   FITS 4.0 spec defaults for the linear pixel-value transform when the
+//!   keywords are absent: `physical_value = BZERO + BSCALE * stored_value`
+//!   degenerates to identity at `(0.0, 1.0)`.
+//! * `extension().unwrap_or("")` — no extension on the file path; empty
+//!   string flows through to the format-detection arm that fails with a
+//!   real error if no magic-bytes match.
 
 use crate::{FitsError, FitsHeader, ImageData, PixelType};
 use image::GenericImageView;

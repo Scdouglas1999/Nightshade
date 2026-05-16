@@ -3,6 +3,21 @@
 //! Methods in this module are an additional impl block on `DeviceManager`
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Two patterns:
+//!
+//! * `availability.get(field).cloned().unwrap_or(FieldAvailability::Available)`
+//!   — when ALTITUDE was probed earlier in the function, we mirror its
+//!   availability onto AZIMUTH (they share a single ASCOM round-trip).
+//!   `Available` is the safe default — both fields ARE available if the
+//!   underlying probe succeeded; the only way the lookup misses is if
+//!   the upstream code raced, in which case AZIMUTH appearing as
+//!   "Available" matches the actual mount state.
+//! * `mount.can_set_tracking().await.unwrap_or(false)` — ASCOM optional
+//!   `CanSetTracking` probe; absence means "cannot set tracking rate",
+//!   the safe assumption (UI hides the tracking-rate dropdown).
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

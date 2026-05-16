@@ -3,6 +3,22 @@
 //! Methods in this module are an additional impl block on `DeviceManager`
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Every `unwrap_or` / `unwrap_or_else` in this file is a property-read
+//! failure on the ICoverCalibrator interface (ASCOM/Alpaca) or its INDI
+//! switch equivalent. Each site logs via `warn!` with the device id +
+//! error message AND falls back to the documented "unknown" sentinel:
+//!
+//!   * `cover_state` / `calibrator_state` → `4` (the ASCOM "Unknown" enum
+//!     value). The UI renders these as a yellow "?" badge.
+//!   * `brightness` → `0` (the off state — safe for night-time imaging).
+//!   * `max_brightness` → `255` (the ASCOM default; the brightness slider
+//!     UI then renders 0-255 instead of a calibrator-specific scale).
+//!
+//! The `warn!` log is the explicit non-silent error signal required by
+//! CLAUDE.md "errors are a feature".
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

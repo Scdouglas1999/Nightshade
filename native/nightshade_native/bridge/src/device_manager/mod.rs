@@ -581,6 +581,13 @@ impl DeviceManager {
     }
 
     /// Check if a device is connected
+    ///
+    /// # `unwrap_or` policy (audit-rust §4.3)
+    ///
+    /// Device-not-registered → "not connected". Same rationale as
+    /// `state::SharedAppState::is_device_connected`: a tri-state return
+    /// (yes/no/unknown) would force every caller to handle an "unknown"
+    /// branch that the UI maps back to "not connected" anyway.
     pub async fn is_connected(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
         devices

@@ -113,6 +113,21 @@ pub struct DeviceIdCache {
 
 impl DeviceIdCache {
     /// Create a new cache with the specified capacity.
+    ///
+    /// # `unwrap_or` policy (audit-rust §4.3)
+    ///
+    /// * `NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap())`
+    ///   — caller-supplied zero capacity is treated as "use the default"
+    ///   rather than panicking; the inner `unwrap()` on the constant
+    ///   `DEFAULT_CACHE_CAPACITY` is genuinely infallible (compile-time
+    ///   constant > 0).
+    /// * `self.cache.lock().unwrap_or_else(|e| e.into_inner())` (five
+    ///   sites) — Mutex poison recovery: a previous panic-while-holding
+    ///   left the cache in a possibly-inconsistent state. The cache is a
+    ///   pure performance optimisation around `ParsedDeviceId::parse`, so
+    ///   recovering the inner LruCache is always safe — at worst we
+    ///   return a stale entry, which the caller's signature already
+    ///   tolerates via `Option`.
     fn new(capacity: usize) -> Self {
         let cap = NonZeroUsize::new(capacity)
             .unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap());
@@ -716,6 +731,11 @@ impl ParsedDeviceId {
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing device type"))?
             .to_lowercase();
 
+        // Why (audit-rust §4.3): simulator instance index defaults to 0
+        // when the suffix is malformed or absent. Real driver IDs go
+        // through stricter parsing; the simulator is a developer-only
+        // device family where "instance 0" is the legacy fallback that
+        // matches the pre-multi-instance default behaviour.
         let instance: u32 = if parts.len() > 1 {
             parts[1].parse().unwrap_or(0)
         } else {
@@ -923,6 +943,11 @@ impl ParsedDeviceId {
 /// Parse a base URL into protocol, host, and port
 fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
     // Expected format: http://host:port or https://host:port
+    // Why (audit-rust §4.3): `strip_prefix` returns None only when the
+    // prefix does not match, but we've already gated each branch with
+    // `starts_with` of the same prefix; the fallback `""` is unreachable
+    // but cheaper than `expect("checked above")`. Empty remainder would
+    // produce an "Empty host" error downstream, not silent acceptance.
     let (protocol, remainder) = if url.starts_with("https://") {
         (
             "https".to_string(),
@@ -1013,6 +1038,10 @@ impl std::fmt::Display for ParsedDeviceId {
 // =========================================================================
 
 #[cfg(test)]
+// `unwrap_or` policy (audit-rust §4.3): the test helpers in this module
+// use `unwrap_or_else(|e| panic!(...))` as a richer-message replacement
+// for `expect`. These are NOT silent fallbacks — they fail the test loud
+// with the vendor name and parse error embedded in the panic message.
 mod tests {
     use super::*;
 

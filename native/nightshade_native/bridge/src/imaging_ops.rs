@@ -5,6 +5,23 @@
 //!
 //! Implements pipeline parallelism:
 //! Capture -> Download -> [Queue] -> Processing (Stats/Save)
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! * `file_path.unwrap_or_else(|| "In-memory image")` — capture returned
+//!   bytes but never persisted to disk (memory-only mode); the placeholder
+//!   string is the documented UI label for unsaved frames.
+//! * Naming-pattern `unwrap_or` — falls back to the Nightshade default
+//!   `$TARGET/$FRAMETYPE/$TARGET_$FILTER_$EXPTIME_$FRAMENUM`. This default
+//!   matches the user-facing default in the naming-pattern settings UI.
+//! * FITS header optional-keyword `unwrap_or` — `EXPTIME → 0.0`,
+//!   `FRAMETYPE → "Light"`, `IMAGETYP → "Light"`. These are the FITS
+//!   standard fallbacks for optional keywords missing from third-party
+//!   FITS files (some camera vendors omit FRAMETYP for light frames).
+//!   The frame_type defaulting matches the FITS convention adopted by
+//!   ASTAP, SIRIL, and PixInsight.
+//! * `unwrap_or_default()` on string keyword lookups → empty string is
+//!   the FITS spec for "keyword present but value undefined".
 
 use crate::device::ExposureParams;
 use crate::device::ImageFileFormat;

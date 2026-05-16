@@ -448,6 +448,13 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                         None,
                     );
                     NativeDeviceInfo {
+                        // Why (audit-rust §4.3): Fujifilm cameras over PTP
+                        // may not surface a serial number on first enumeration
+                        // (the field is populated only after `connect()`);
+                        // the model name is the documented stable-key fallback
+                        // for that one-frame window before connection. Once
+                        // connected, the cached device id is refreshed by
+                        // the device manager.
                         id: format!(
                             "native:fujifilm:{}",
                             info.serial_number.as_deref().unwrap_or(&info.name)

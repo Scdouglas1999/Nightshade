@@ -567,6 +567,11 @@ impl DeviceManager {
         let devices = self.devices.read().await;
 
         if let Some(device) = devices.get(device_id) {
+            // Why (audit-rust §4.3): device-not-yet-communicated → 0
+            // (epoch). Paired with the `is_healthy = false` branch below
+            // that explicitly checks `is_none()` — so the (0, false)
+            // result distinguishes "never talked" from "talked, healthy
+            // or not" without needing a tri-state in the FFI return.
             let last_comm = device.last_successful_comm.unwrap_or(0);
             let now = chrono::Utc::now().timestamp_millis();
 
@@ -597,6 +602,10 @@ impl DeviceManager {
     /// Check if heartbeat is active for a device
     pub async fn is_heartbeat_active(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
+        // Why (audit-rust §4.3): unregistered device → "no heartbeat
+        // active". The UI uses this to decide whether to show the
+        // heartbeat-pulse indicator; absence-of-device = no indicator
+        // is the correct visual state.
         devices
             .get(device_id)
             .map(|d| d.heartbeat_active)

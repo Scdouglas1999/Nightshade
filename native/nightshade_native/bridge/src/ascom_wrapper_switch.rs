@@ -68,7 +68,14 @@ impl AscomSwitchWrapper {
                 }
             };
 
-            // Get static properties
+            // Get static properties.
+            // Why (audit-rust §4.3): `name` and `max_switch` are optional
+            // ASCOM ISwitchV2 properties; absence means "the driver did not
+            // expose a friendly name (use ProgID)" / "the driver does not
+            // declare any switches (treat as 0-count empty array)". The UI
+            // then renders the device as "ProgID — 0 switches" which is
+            // the correct presentation; the user can refresh after the
+            // driver finishes initialising.
             let name = switch.name().unwrap_or_else(|_| prog_id_clone.clone());
             let max_switch = switch.max_switch().unwrap_or(0);
 

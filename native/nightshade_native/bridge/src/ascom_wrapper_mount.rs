@@ -1,3 +1,17 @@
+//! ASCOM mount STA-thread wrapper.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All `ascom_caps.can_*.unwrap_or(false)` and `m.can_*().unwrap_or(false)`
+//! calls in this file follow the ASCOM ITelescope optional-property contract:
+//! drivers that do not implement a Can* probe throw `PropertyNotImplemented`,
+//! which `nightshade_ascom` surfaces as `Err`. The audit policy is to
+//! interpret missing probe as "this feature not supported" — `false` — so
+//! the UI never offers a button that the driver will reject. The same
+//! interpretation applies to `alignment_mode().map(...).unwrap_or(false)`
+//! (alignment mode unknown ⇒ "not safely classifiable as equatorial").
+//! Hard connection errors are still propagated through the worker channel
+//! to the caller as Err(String).
 use crate::timeout_ops::Timeouts;
 use nightshade_ascom::{init_com, uninit_com, AscomMount};
 use nightshade_native::traits::{

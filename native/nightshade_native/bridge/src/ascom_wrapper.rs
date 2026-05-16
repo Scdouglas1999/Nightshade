@@ -1,3 +1,32 @@
+//! ASCOM camera STA-thread wrapper.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! ASCOM is a Win32 COM protocol where many `ICameraV3` / `ICameraV4`
+//! properties are **optional** (the spec lets a driver throw
+//! `PropertyNotImplemented` rather than implement them). The `nightshade_ascom`
+//! crate surfaces those properties as `Result<T, AscomError>`. Where this
+//! wrapper composes them into the cross-driver `CameraCapabilities` /
+//! `CameraStatus` structs we substitute a *baseline value* defined by the
+//! ASCOM Platform 7 conformance guide:
+//!
+//! * boolean Can*/Has* probes → `unwrap_or(false)` — "the driver did not
+//!   declare support, treat as not-supported"
+//! * integer dimensions (`camera_x_size`, `camera_y_size`, `max_bin_*`,
+//!   `gain`, `offset`, `bin_x/y`) → `unwrap_or(1)` — the ASCOM minimum
+//!   meaningful value (1×1 binning, single-pixel sensor); never zero so
+//!   downstream image-math never divides by zero.
+//! * `state` integer → `unwrap_or(0)` — `cameraIdle` (CameraStates enum).
+//! * floats (`pixel_size_x/y`, exposure remaining) → `unwrap_or(0.0)` —
+//!   "unknown to UI" rendering.
+//! * `readout_modes()` / `supported_actions()` `Vec<String>` →
+//!   `unwrap_or_default()` — empty list = driver did not expose the
+//!   optional list, UI shows "no choice" picker.
+//!
+//! These are NOT silent error fallbacks for hard failures: connection
+//! errors are propagated via `Result<_, String>` from the worker channel
+//! at the call-site; the optional-property fallbacks here only run after
+//! the wrapper has already classified the error as "property absent".
 use crate::timeout_ops::Timeouts;
 use nightshade_ascom::{init_com, uninit_com, AscomCamera};
 use nightshade_native::camera::{

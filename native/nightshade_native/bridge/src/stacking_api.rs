@@ -17,6 +17,8 @@ fn get_stacker_lock() -> &'static Mutex<Option<LiveStacker>> {
 
 /// Acquire the stacker mutex with poison recovery.
 ///
+/// # `unwrap_or` policy (audit-rust §4.3)
+///
 /// If a previous holder panicked, the mutex becomes poisoned. Rather than
 /// making all future stacking calls fail permanently, we recover the inner
 /// data (which may be in an inconsistent state) and clear it, logging a
@@ -295,6 +297,12 @@ pub fn stacking_is_active() -> bool {
 }
 
 /// Get the current frame count.
+///
+/// # `unwrap_or` policy (audit-rust §4.3)
+///
+/// No stacker initialised yet → 0 frames. The UI uses this to render the
+/// "Stacked: N frames" badge; absent stacker = no badge, matching the
+/// "stacking session not started" state.
 #[flutter_rust_bridge::frb(sync)]
 pub fn stacking_frame_count() -> u32 {
     acquire_stacker()

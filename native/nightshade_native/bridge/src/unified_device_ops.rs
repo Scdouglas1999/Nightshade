@@ -328,6 +328,13 @@ impl DeviceOps for UnifiedDeviceOps {
         );
 
         // Start the exposure
+        // Why (audit-rust §4.3): gain/offset are Option<i32> from the FFI
+        // payload; None means "use the camera's current value, don't change".
+        // Passing 0 to `camera_start_exposure` makes the driver skip the
+        // ASCOM `Gain`/`Offset` setter (the wrapper short-circuits the call
+        // if the requested value equals the cached value, and 0 falls below
+        // the ASCOM minimum so we treat it as "no change requested"). The
+        // camera's actual gain/offset is reported by the next status poll.
         mgr.camera_start_exposure(
             camera_id,
             duration_secs,
@@ -497,6 +504,11 @@ impl DeviceOps for UnifiedDeviceOps {
                 let rgb_pixels: Vec<f64> =
                     rgb_data.par_iter().map(|&v| v as f64 / 65535.0).collect();
                 let mut sorted = rgb_pixels.clone();
+                // Why (audit-rust §4.3): f64::partial_cmp is required because
+                // f64 is PartialOrd, not Ord (NaN). Pixel data is already
+                // bounded to [0.0, 1.0] by the `v / 65535.0` normalisation
+                // above, so NaN cannot occur — the fallback is purely a
+                // language requirement to satisfy the closure signature.
                 sorted.par_sort_unstable_by(|a, b| {
                     a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
                 });
@@ -577,6 +589,9 @@ impl DeviceOps for UnifiedDeviceOps {
             EventSeverity::Info,
         );
 
+        // Why (audit-rust §4.3): log-only formatting; "unknown" when the
+        // camera SDK did not surface a sensor-type string matches the UI
+        // label used in the Equipment panel.
         tracing::info!(
             "Exposure complete: {}x{} image, {} sensor",
             native_image.width,
@@ -732,6 +747,12 @@ impl DeviceOps for UnifiedDeviceOps {
 
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for the event
+        // Why (audit-rust §4.3): from_position is purely informational
+        // for the FilterChanging event payload. If the current position
+        // read fails (filter wheel mid-move, or wheel just reconnected
+        // and hasn't homed yet), `-1` is the documented "position unknown"
+        // sentinel consumed by the UI. The actual move-to-position call
+        // below propagates its own errors via `.map_err`.
         let from_position = get_device_manager()
             .filter_wheel_get_position(fw_id)
             .await
@@ -985,7 +1006,10 @@ impl DeviceOps for UnifiedDeviceOps {
         .await
         .map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
 
-        // Use the near solve if we have hints, otherwise blind solve
+        // Use the near solve if we have hints, otherwise blind solve.
+        // Why (audit-rust §4.3): 5.0° search radius is the Nightshade
+        // default for "near solve" when the caller does not specify a
+        // scale hint — matches the plate-solve UI slider default.
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
             api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0)).await
         } else {

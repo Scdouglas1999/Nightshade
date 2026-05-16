@@ -541,6 +541,11 @@ fn rename_with_retry(from: &Path, to: &Path) -> Result<()> {
         from,
         to,
         MAX_ATTEMPTS,
+        // Why (audit-rust §4.3): `last_err` is None only when the retry
+        // loop completed all MAX_ATTEMPTS without ever observing an Err,
+        // which means the loop's `Ok` branch must have failed to return
+        // — unreachable in practice but defensive against a future code
+        // change. "unknown error" preserves the human-readable format.
         last_err
             .map(|e| e.to_string())
             .unwrap_or_else(|| "unknown error".to_string())
@@ -744,6 +749,12 @@ fn write_post_install_hashes(path: &Path, expected: &ExpectedHashes) -> Result<(
 
 /// Tiny RFC3339-ish timestamp without pulling in chrono. `seconds since epoch`
 /// is unambiguous, sortable, and good enough for diagnostics.
+///
+/// # `unwrap_or` policy (audit-rust §4.3)
+///
+/// `duration_since(UNIX_EPOCH).unwrap_or(0)` — pre-1970 clock → epoch:0
+/// in the log line, sortable but visibly anomalous. Acceptable for a
+/// diagnostic timestamp; the updater's correctness does not depend on it.
 fn chrono_like_rfc3339_now() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()

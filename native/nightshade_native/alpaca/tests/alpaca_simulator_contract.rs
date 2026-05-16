@@ -1,3 +1,24 @@
+//! Alpaca simulator contract integration tests.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Every `unwrap_or` site in this file lives inside the *toy HTTP parser*
+//! that the test simulator uses to parse loopback requests. The defaults
+//! are intentionally lenient because:
+//!
+//! * The parser is fed only the requests produced by `nightshade_alpaca`
+//!   itself — well-formed HTTP/1.1 lines. A missing token (`""` from
+//!   `unwrap_or_default()`) routes to the catch-all "unhandled" branch,
+//!   which fails the assertion in the test body and surfaces the bad
+//!   request line. So the fallback does NOT hide bugs; it converts them
+//!   into a `Failed to handle endpoint …` panic with the parsed pieces.
+//! * `content_length.parse().unwrap_or(0)` — a missing or malformed
+//!   `Content-Length` defaults to "no body", which is the HTTP/1.1
+//!   default for GET; this matches real Alpaca server behavior.
+//! * `unwrap_or(false)` on the JSON `Connected` field defaults the
+//!   simulator's connected state to `false` if the test client sends a
+//!   malformed PUT — again surfacing the bad payload via the test
+//!   assertion rather than silently succeeding.
 use nightshade_alpaca::{
     AlpacaCamera, AlpacaFilterWheel, AlpacaTelescope, CameraState, DriveRate,
 };

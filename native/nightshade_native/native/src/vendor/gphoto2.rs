@@ -1063,6 +1063,13 @@ impl GPhoto2Camera {
         // Get current ISO and map to gain index
         match self.get_config_value_str("iso") {
             Ok(current_iso) => {
+                // Why (audit-rust §4.3): if the reported ISO does not
+                // appear in the enumerated `iso_values` table (e.g. a
+                // firmware-defined "Hi 1" string that libgphoto2 surfaces
+                // but our parser hasn't mapped yet), fall back to index 0
+                // which is the lowest legal ISO for the camera. The
+                // subsequent set-gain call will then move the camera to a
+                // known-good ISO before exposure.
                 self.current_iso_index = self
                     .iso_values
                     .iter()
@@ -2156,6 +2163,9 @@ impl Drop for GPhoto2Camera {
 /// Convert a fixed-size c_char array to a Rust String.
 fn cstr_from_array(arr: &[c_char]) -> String {
     let bytes: Vec<u8> = arr.iter().map(|&c| c as u8).collect();
+    // Why (audit-rust §4.3): no NUL terminator → the whole fixed-size
+    // array is the string (this happens for C arrays that are completely
+    // full). `bytes.len()` is the correct upper bound for the slice.
     let null_pos = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     String::from_utf8_lossy(&bytes[..null_pos]).to_string()
 }

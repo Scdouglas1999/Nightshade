@@ -1,6 +1,33 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
+//
+// # `unwrap_or` policy (audit-rust §4.3)
+//
+// Three documented patterns appear in this file:
+//
+// 1. **Float partial_cmp in sort** — `a.partial_cmp(b).unwrap_or(Ordering::Equal)`.
+//    Required because `f32`/`f64` are `PartialOrd`, not `Ord`, due to NaN.
+//    Treating NaN as `Equal` keeps the sort stable; HFR/SNR computation
+//    upstream already filters out NaN before this point, so the fallback is
+//    only protective.
+// 2. **`SystemTime::elapsed().unwrap_or(Duration::ZERO)`** — `elapsed()`
+//    only errors when the monotonic clock went backwards (a system-clock
+//    adjustment). Reporting "0 elapsed" is the standard recovery and our
+//    timing dashboards already skip the resulting outlier frame.
+// 3. **Optional config defaults** — `config.min_hfr.unwrap_or(1.0)`,
+//    `config.min_snr.unwrap_or(5.0)`, `config.max_sharpness.unwrap_or(0.95)`,
+//    `BITPIX.unwrap_or(16)`, `extension().unwrap_or("fits")`. These are the
+//    documented Nightshade-default science thresholds and FITS-format
+//    fallback used when the FFI caller passes a minimal config. The same
+//    defaults are surfaced in the science-quality UI as the placeholders.
+// 4. **`min().unwrap_or(0)` / `max().unwrap_or(0)`** — empty image stripe
+//    would already have failed validation upstream; `0` here is unreachable
+//    but cheaper than `expect`. The `&min == &max == 0` produces a flat
+//    histogram which the renderer handles gracefully.
+//
+// Hard-error paths (FFI deserialisation failures, missing-device errors)
+// remain `Result<_, String>` propagation; no error class is silenced.
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;

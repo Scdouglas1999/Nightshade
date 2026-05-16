@@ -1,4 +1,18 @@
 //! Connection health monitoring for ASCOM devices.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All `unwrap_or(0)` sites in this file follow a `SystemTime::now()
+//! .duration_since(UNIX_EPOCH)` chain that only fails if the system clock
+//! is set to before 1970-01-01 — a configuration we have classified as
+//! "user has chosen to break Unix time, accept degraded health metrics".
+//! Returning `0` produces a timestamp before the connection was opened,
+//! which the `time_since_last_success()` `saturating_sub` already handles
+//! by clamping to `0` (treated as "no successful op yet").
+//! The same `0` fallback is used in `get_health()` — `now == 0` and
+//! `last_success == 0` are handled by the `last_success == 0 → Unknown`
+//! early return immediately after, so no degraded false-positive is
+//! reported either.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 

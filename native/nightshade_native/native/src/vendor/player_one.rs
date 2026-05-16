@@ -12,6 +12,28 @@
 //!
 //! All SDK operations that can potentially hang (exposure polling, image download)
 //! have configurable timeouts via `NativeTimeoutConfig`.
+//!
+//! ## `unwrap_or` policy (audit-rust §4.3)
+//!
+//! POA SDK property reads (`get_control_int`, `get_control_bool`, etc.)
+//! return `Result<T, NativeError>` and may fail with `POA_ERROR_OPERATION_FAILED`
+//! when the camera is mid-exposure or the control hasn't been initialised
+//! yet. The cooler/gain/offset paths here default to the same "fall back to
+//! cached value or zero" semantics as the other vendor crates:
+//!
+//! * `get_control_int(GAIN/OFFSET).unwrap_or(0)` — gain/offset 0 is the
+//!   POA SDK minimum; UI shows live value once cooler stabilises. The status
+//!   poll is intentionally non-fatal; the next status tick will retry.
+//! * `live_enabled.unwrap_or(cached.enabled)` / `live_target_c.unwrap_or(cached.target_c)`
+//!   — when live cooler probe fails, return the LAST KNOWN cached value
+//!   rather than zeroing-out, so the UI doesn't flicker during transient
+//!   SDK errors. The cache is updated only on a successful read.
+//! * `unwrap_or(false)` on cooler-supported boolean probes — undeclared
+//!   capability means "not present", matching the other vendor crates.
+//! * `unwrap_or_else(|e| *e.into_inner())` on mutex `into_inner()` —
+//!   recovers the cached state from a poisoned mutex during shutdown so
+//!   `Drop` can still write final coordinates; the poison signal is logged
+//!   via the upstream caller.
 
 #![allow(dead_code)] // FFI types must match SDK headers even if not all variants are used
 

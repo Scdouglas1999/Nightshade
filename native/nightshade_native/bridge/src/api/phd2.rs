@@ -128,6 +128,9 @@ pub async fn api_phd2_connect(
     host: Option<String>,
     port: Option<u16>,
 ) -> Result<(), NightshadeError> {
+    // Why (audit-rust §4.3): localhost + PHD2 default port 4400 are the
+    // documented PHD2 defaults from the PHD2 EventMonitoring wiki and the
+    // Nightshade PHD2-settings UI placeholder values.
     let host = host.unwrap_or_else(|| "127.0.0.1".to_string());
     let port = port.unwrap_or(4400);
 
@@ -372,6 +375,10 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
         NightshadeError::OperationFailed(format!("Failed to get PHD2 state: {}", e))
     })?;
 
+    // Why (audit-rust §4.3): pixel scale is reported only after PHD2 has
+    // selected a star and run a calibration; before that, the RPC errors.
+    // 0.0 communicates "not yet calibrated" to the UI guiding panel, which
+    // hides the arc-sec/pixel readout when the value is non-positive.
     let pixel_scale = client.get_pixel_scale().unwrap_or(0.0);
 
     // Why: forward the raw PHD2 state name when unrecognised so the desktop

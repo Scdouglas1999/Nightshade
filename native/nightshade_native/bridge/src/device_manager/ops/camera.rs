@@ -3,6 +3,28 @@
 //! Methods in this module are an additional impl block on `DeviceManager`
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All `unwrap_or` sites in this module are dimension/state composition
+//! steps that flatten `Option<T>` values from optional ASCOM probes into
+//! a flat `CameraInfo`/`CameraStatus`. Defaults:
+//!
+//! * sensor dimensions (`sensor_width`, `sensor_height`) → 0 when the
+//!   ASCOM driver did not provide a value; the UI distinguishes "no
+//!   sensor info" from "1×1 sensor" by checking the `can_*` booleans.
+//! * `pixel_size_x/y` → 0.0 → "unknown" in UI scale bars.
+//! * `max_adu` → `65535` — the 16-bit max representable in standard ASCOM
+//!   camera readouts; safe default for histogram scaling.
+//! * boolean caps (`can_cool`, `cooler_on`) → `false` — feature-not-declared.
+//! * `gain`/`offset` → 0 — bottom of the legal ASCOM gain table; user
+//!   adjusts via the gain UI before exposing.
+//! * `target_temp.unwrap_or(-10.0)` (set_cooler) — the historical Nightshade
+//!   default target when the caller does not specify; documented in the
+//!   "Imaging Setup" UI help text.
+//!
+//! Connection-level errors are not silenced here; this layer composes
+//! values *after* `with_camera!` has already established the device path.
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

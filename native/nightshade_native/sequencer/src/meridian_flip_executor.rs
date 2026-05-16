@@ -1667,6 +1667,10 @@ mod tests {
             _hint_scale: Option<f64>,
         ) -> DeviceResult<PlateSolveResult> {
             // Return success with the hint coordinates so total_offset==0.
+            // Why (audit-rust §4.3): this is a test-only mock device op.
+            // The hint-less case yields (0,0) which still satisfies the
+            // "total_offset==0" invariant the test asserts; production
+            // plate-solve always supplies hints from the mount pointing.
             Ok(PlateSolveResult {
                 ra_degrees: hint_ra.unwrap_or(0.0),
                 dec_degrees: hint_dec.unwrap_or(0.0),

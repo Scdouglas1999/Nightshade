@@ -2,6 +2,28 @@
 //!
 //! Tests for the native driver implementations.
 //! Some tests require hardware to be connected, others can run without hardware.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Two patterns appear in this test file:
+//!
+//! 1. Polling loops: `while device.is_moving().await.unwrap_or(false) { ... }`
+//!    and `while !camera.is_exposure_complete().await.unwrap_or(true) { ... }`.
+//!    These are integration tests against real or fake hardware. A transient
+//!    poll error must NOT block the test forever — defaulting `is_moving`
+//!    to `false` exits the wait loop and lets the next assertion surface the
+//!    underlying problem with the actual driver error message rather than a
+//!    spurious timeout. The complementary `is_exposure_complete` defaults to
+//!    `true` (assume done on error) for the same reason. Test failure mode
+//!    is preserved because the next call (e.g. `download_image`) will
+//!    re-trigger the same error path with full context.
+//!
+//! 2. Environment-restore helpers: `env::var("PATH").unwrap_or_default()` and
+//!    `env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string())`. Tests
+//!    save+restore PATH around SDK-discovery experiments; an empty `PATH`
+//!    is a valid restore target (the test invalidates `PATH` *deliberately*),
+//!    and the `rustc` fallback is the platform-conventional executable name
+//!    used for the bindgen self-check.
 
 use nightshade_native::traits::{
     NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,

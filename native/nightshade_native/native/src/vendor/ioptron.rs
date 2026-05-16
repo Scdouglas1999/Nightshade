@@ -82,6 +82,11 @@ fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
     let chars: Vec<char> = response.chars().collect();
 
     // Parse tracking rate from character at position 2 (0-3 for sidereal/lunar/solar/king)
+    // Why (audit-rust §4.3): the iOptron `:GLS#` reply is fixed-length
+    // per the iOptron Mount Command Protocol Rev 3.10; a response that
+    // truncates char[2] is a transport corruption that would have
+    // already failed the length check at line 73. `0` = sidereal is the
+    // documented "rate not specified" default in the iOptron spec.
     let tracking_rate = chars
         .get(2)
         .and_then(|c| c.to_digit(10))

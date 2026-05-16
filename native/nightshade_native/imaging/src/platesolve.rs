@@ -5,6 +5,25 @@
 //! - Local Astrometry.net
 //!
 //! These are real implementations that call external solvers.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Each `unwrap_or` site below maps to a specific external-solver edge case:
+//!
+//! * `output.status.code().unwrap_or(-1)` — on POSIX a subprocess killed by
+//!   a signal has no exit code; `-1` is the documented sentinel surfaced to
+//!   the FFI caller's `SolveResult.status` (treated as "solver crashed").
+//! * `crota.unwrap_or(0.0)` — `CROTA2` is optional in the FITS WCS standard;
+//!   zero rotation is the default North-Up orientation assumed when the
+//!   solver omits the keyword.
+//! * `parts.get(N).copied().unwrap_or(0.0)` (sexagesimal parse) — missing
+//!   minutes/seconds = treat as zero, the standard astronomy convention
+//!   (`12 30` is "12h 30m 0s", not an error).
+//! * `output_dir.parent().unwrap_or_else(|| Path::new("."))` — root-path
+//!   case for the temp/work directory; current-dir is the safe fallback.
+//! * `pixels.iter().max().unwrap_or(&0)` — empty pixel slice would have
+//!   already failed `validate_image()` upstream; `0` here is unreachable
+//!   but cheaper than `expect` and yields a flat-histogram render.
 
 mod platesolve_paths;
 

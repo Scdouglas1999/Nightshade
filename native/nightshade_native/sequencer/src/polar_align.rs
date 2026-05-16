@@ -3,6 +3,24 @@
 //! This module implements the logic for Three-Point Polar Alignment (TPPA).
 //! It captures three images at different mount rotations to calculate the
 //! mechanical center of rotation, and then determines the polar alignment error.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! * `is_slewing().unwrap_or(false)` (two sites at lines ~159, ~311) —
+//!   during the rotation step we poll the mount; if the poll temporarily
+//!   errors, defaulting to "not slewing" exits the wait loop so the next
+//!   call (`get_position`) surfaces the underlying error with full
+//!   context instead of looping forever. The polar-align state machine
+//!   advances; if the mount really was slewing, the subsequent capture
+//!   will show motion blur and the alignment iteration is rejected.
+//! * `config.binning.unwrap_or(1)` (four sites) — 1×1 binning is the
+//!   star-detection-optimal default and matches the PA wizard UI's
+//!   "Binning" dropdown default.
+//! * `bayer_pattern.unwrap_or(BayerPattern::RGGB)` — RGGB is the most
+//!   common Bayer layout (covers ZWO, ASI, Touptek, QHY). When the
+//!   camera SDK does not report its pattern, RGGB produces a reasonable
+//!   live-preview color; the iteration uses mono star centroids so the
+//!   PA math is unaffected by debayer-pattern guess.
 
 use crate::*;
 use std::time::Duration;

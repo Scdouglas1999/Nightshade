@@ -3,6 +3,16 @@
 //! Methods in this module are an additional impl block on `DeviceManager`
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! Every `unwrap_or(false)` in this file probes an INDI / ASCOM optional
+//! switch (`DOME_SHUTTER/SHUTTER_OPEN`, `DOME_AUTOSYNC/ENABLE`, …). The
+//! ASCOM-Alpaca and INDI specifications both treat undeclared switches as
+//! "feature not exposed"; treating the absence as `false` is the documented
+//! cross-driver mapping used by the equipment-compatibility matrix UI.
+//! Hard connection failures (driver not found, device disconnected) still
+//! return `Err(String)` from the outer dispatch helper.
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

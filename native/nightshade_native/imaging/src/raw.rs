@@ -4,6 +4,20 @@
 //! No synthetic Bayer conversion - preserves full X-Trans sharpness!
 //!
 //! Supports 600+ camera models including Fujifilm X-Trans sensors.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! * `params.unwrap_or(&default_params)` — caller passing `None` selects
+//!   the LibRaw out-of-the-box config (auto white-balance, no demosaic
+//!   overrides). The default-params binding lives on this stack frame.
+//! * The remaining sites (`user_sat.unwrap_or_default()`,
+//!   `gamma.unwrap_or([0.0, 0.0])`, `chromatic_aberration.unwrap_or([0.0, 0.0])`,
+//!   `max_memory_mb.unwrap_or_default()`) are all paired with a
+//!   `has_user_sat`/`has_gamma`/`has_chromatic_aberration`/`has_max_memory_mb`
+//!   flag set from `is_some()` on the same field. The C-side LibRaw config
+//!   reads the value ONLY when the flag is non-zero — so the unwrap_or
+//!   default value is dead code in the "absent" branch, present solely to
+//!   satisfy the C struct's required field width.
 
 use crate::{ImageData, PixelType};
 use image::GenericImageView;

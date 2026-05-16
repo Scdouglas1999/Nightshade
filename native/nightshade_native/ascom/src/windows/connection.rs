@@ -119,6 +119,11 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
             }
 
             let prog_id = String::from_utf16_lossy(&name_buffer[..name_len as usize]);
+            // Why (audit-rust §4.3): the registry "Description" REG_SZ is
+            // optional per the ASCOM Platform convention (some 3rd-party
+            // installers only write the ProgID key). Empty string flows
+            // through to the equipment-list UI's fallback display logic
+            // which substitutes the ProgID itself.
             let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
 
             if !prog_id.is_empty() {

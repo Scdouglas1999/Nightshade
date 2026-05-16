@@ -203,6 +203,15 @@ impl AppState {
     }
 
     /// Check if a device is connected
+    ///
+    /// # `unwrap_or` policy (audit-rust §4.3)
+    ///
+    /// Device-not-registered → "not connected" is the correct semantic
+    /// answer to "is this device id connected?". A separate error path
+    /// would force every UI caller to handle a tri-state (yes/no/unknown)
+    /// that adds no value: the user-facing "Connect" button already
+    /// renders correctly for both "not present" and "present but
+    /// disconnected" by treating both as `false`.
     pub async fn is_device_connected(&self, device_type: DeviceType, device_id: &str) -> bool {
         let key = (device_type, device_id.to_string());
         let devices = self.devices.read().await;

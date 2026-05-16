@@ -816,6 +816,15 @@ impl EventContext {
 // =========================================================================
 
 /// Generate a unique correlation ID
+///
+/// # `unwrap_or` policy (audit-rust §4.3)
+///
+/// `duration_since(UNIX_EPOCH).unwrap_or_default()` — only fails if the
+/// system clock is set before 1970-01-01. A zero `Duration` then produces
+/// the same correlation-ID format `corr-0-XXXXX`; the suffix is still
+/// derived from `timestamp.wrapping_mul`, so collisions are unlikely
+/// over a short pre-1970-clock interval. The ID is for log correlation
+/// only — uniqueness is best-effort, not load-bearing for correctness.
 pub fn generate_correlation_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
 

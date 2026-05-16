@@ -78,6 +78,11 @@ fn get_discovery_lock() -> &'static Mutex<bool> {
 
 pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
     let counter = TEMP_FITS_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    // Why (audit-rust §4.3): timestamp `unwrap_or_default()` recovers
+    // `Duration::ZERO` on a pre-1970 clock. The atomic `counter` and
+    // `process::id()` still guarantee uniqueness — the timestamp is only
+    // a secondary disambiguator, so a zero value in that case still
+    // produces a valid unique path.
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

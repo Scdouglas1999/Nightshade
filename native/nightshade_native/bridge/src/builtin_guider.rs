@@ -1,3 +1,21 @@
+//! Built-in multi-star guider.
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! * `unwrap_or(Ordering::Equal)` — required because `f64::partial_cmp`
+//!   returns `Option` (NaN handling). Star detection upstream filters NaN
+//!   centroids; the fallback only protects the sort from a malformed
+//!   `StarMass`/`StarSnr` produced by a misbehaving SDK.
+//! * `unwrap_or(0.0)` on selected star SNR/flux — when no star is currently
+//!   tracked (between frames, or before lock acquisition), the public
+//!   status struct reports `snr = 0.0, star_mass = 0.0`. The UI's "guiding
+//!   inactive" badge keys off `selected.is_none()`, not these numbers, so
+//!   the zero is a display-only convention.
+//! * `unwrap_or(1)` (frame width when image-format probe absent) — falls
+//!   through to the post-validation pipeline; 1×1 image immediately fails
+//!   star detection with a real `NoStarsDetected` error.
+//! * `unwrap_or_default()` on profile-name lookup — guider profile may not
+//!   yet exist on first run; empty name flows through to default config.
 use crate::api::{get_device_manager, get_state, Phd2StarImage, Phd2Status};
 use crate::device::DeviceType;
 use crate::error::NightshadeError;

@@ -50,6 +50,14 @@ pub(crate) fn device_info_from_id(device_id: &str, device_type: DeviceType) -> O
                 "svbony" => format!("SVBony {}", parts[2]),
                 "atik" => format!("Atik {}", parts[2]),
                 "moravian" => format!("Moravian {}", parts[2]),
+                // Why (audit-rust §4.3): Touptek IDs have variable parts
+                // ("native:touptek:brand:idx" — 4 parts) versus the
+                // single-vendor format ("native:zwo:idx" — 3 parts) used
+                // by the `parts[2]` arms above. Empty model is the
+                // documented fallback when only the brand prefix is
+                // present in a legacy device ID; the UI renders
+                // "Touptek " with a trailing space, which is acceptable
+                // for a never-actually-seen path.
                 "touptek" => format!("Touptek {}", parts.get(2).unwrap_or(&"")),
                 _ => format!("{} {}", vendor, parts[2]),
             };
@@ -364,6 +372,11 @@ pub mod alpaca_connections {
             )
         })?;
 
+        // Why (audit-rust §4.3): Alpaca `Name` is optional; falling back
+        // to the device ID is the same convention used elsewhere in this
+        // file for ASCOM drivers. Connection itself succeeded (line above
+        // would have early-returned with `?` on failure), so labelling
+        // with the ID is fine.
         let name = client
             .get_name()
             .await
@@ -457,6 +470,10 @@ pub mod ascom_connections {
             .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
+        // Why (audit-rust §4.3): name() is optional per ASCOM ICameraV3;
+        // when the driver omits it (rare, but seen on some custom DLs),
+        // the ProgID is the well-known fallback used across the
+        // equipment-compatibility matrix UI.
         let name = camera.name().unwrap_or_else(|_| prog_id.to_string());
         tracing::info!("Connected to ASCOM camera: {}", name);
 
@@ -476,6 +493,9 @@ pub mod ascom_connections {
             .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
+        // Why (audit-rust §4.3): same fallback as the ASCOM camera path
+        // above — Name is optional per ITelescope; ProgID is the
+        // documented display fallback.
         let name = mount.name().unwrap_or_else(|_| prog_id.to_string());
         tracing::info!("Connected to ASCOM mount: {}", name);
 

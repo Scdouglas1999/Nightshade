@@ -204,7 +204,16 @@ pub async fn api_start_polar_alignment(
         NightshadeError::DeviceNotFound("No mount connected".to_string())
     })?;
 
-    // Spawn background task for polar alignment
+    // Spawn background task for polar alignment.
+    // Why (audit-rust §4.3): each unwrap_or here applies the documented
+    // Nightshade default surfaced in the Polar-Align wizard UI when the
+    // FFI caller omits the optional field:
+    //   - gain/offset 0 → "keep camera's current value" (start_exposure
+    //     wrapper short-circuits when the requested value equals cached)
+    //   - solve_timeout 60s → matches the plate-solve panel's default
+    //   - start_from_current true → standard "use mount's current pointing"
+    //   - auto_complete_threshold 1.0 arcmin → the recommended PA accuracy
+    //     for typical 1000mm-focal-length imaging (per the wizard UI tooltip)
     let gain_val = gain.unwrap_or(0);
     let offset_val = offset.unwrap_or(0);
     let solve_timeout_val = solve_timeout.unwrap_or(60.0);

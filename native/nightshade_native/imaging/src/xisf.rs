@@ -4,6 +4,24 @@
 //! - XML header with metadata
 //! - Binary data block(s)
 //! - Optional compression (zlib, lz4, zstd)
+//!
+//! # `unwrap_or` policy (audit-rust §4.3)
+//!
+//! All XISF `unwrap_or` sites map to format-spec defaults:
+//!
+//! * `numberOfImages.unwrap_or(1)` — single image is the XISF spec default
+//!   for files without explicit count.
+//! * `sampleFormat.unwrap_or("UInt16")` / `colorSpace.unwrap_or("Gray")` —
+//!   XISF 1.0 defaults (16-bit unsigned, monochrome) per
+//!   <https://pixinsight.com/doc/docs/XISF-1.0-spec/>.
+//! * `propertyType.unwrap_or("String")` and the per-type parse fallback
+//!   `unwrap_or(XisfProperty::String(value.to_string()))` — when a typed
+//!   parse (`Int64`, `Float32`, `Boolean`, …) fails, fall back to the raw
+//!   string. PixInsight is permissive about property values and keeping
+//!   the raw string preserves round-tripability through the metadata
+//!   panel without losing the value entirely.
+//! * `boolean header attr.unwrap_or(false)` — XISF optional booleans
+//!   default to `false` per the spec.
 
 use crate::{ImageData, PixelType};
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, Event};
