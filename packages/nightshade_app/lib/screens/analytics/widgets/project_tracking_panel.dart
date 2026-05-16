@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import 'campaign_rollup_dialog.dart';
 
 // =============================================================================
 // Sort Mode
@@ -527,6 +528,18 @@ class _EnhancedProjectCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                TextButton.icon(
+                  onPressed: () => CampaignRollupDialog.show(
+                    context,
+                    progress.target.id,
+                  ),
+                  icon: const Icon(LucideIcons.lineChart, size: 14),
+                  label: const Text(
+                    'View Campaign',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () => _editGoal(context, ref),
                   icon: const Icon(LucideIcons.target, size: 14),
