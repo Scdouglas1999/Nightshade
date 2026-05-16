@@ -43,7 +43,7 @@ Get server information and capabilities.
 ```json
 {
   "status": "running",
-  "version": "2.0.0",
+  "version": "2.5.0",
   "apiOnlyMode": true,
   "webUIAvailable": false,
   "timestamp": "2025-11-30T12:00:00Z",
@@ -91,8 +91,8 @@ Get server information and capabilities.
 
 Remote clients use `/api/info.version` for API compatibility checks before
 switching into network-control mode. The current client accepts Nightshade
-server API versions `2.0.0` and newer within major version `2`. Servers older
-than `2.0.0`, servers with an unknown/malformed version, and servers with a
+server API versions `2.4.0` and newer within major version `2`. Servers older
+than `2.4.0`, servers with an unknown/malformed version, and servers with a
 newer major API version are rejected with user-facing "server too old/new"
 guidance.
 
@@ -118,7 +118,7 @@ Get server status.
 ```json
 {
   "status": "running",
-  "version": "2.0.0",
+  "version": "2.5.0",
   "timestamp": "2025-11-30T12:00:00Z"
 }
 ```

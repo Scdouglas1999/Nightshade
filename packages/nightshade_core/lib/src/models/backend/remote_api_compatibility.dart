@@ -1,7 +1,10 @@
 /// Compatibility policy for Nightshade remote/headless API clients.
 class RemoteApiCompatibility {
   static const apiVersionHeader = 'x-nightshade-api-version';
-  static const minimumSupportedVersion = SemanticVersion(2, 0, 0);
+  // 2.4.0 is the floor for the hardened remote API. Earlier 2.x builds did
+  // not expose the auth, pairing, and version-negotiation contracts required
+  // by current desktop, mobile, and WebRTC clients.
+  static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
   static const serverApiVersion = SemanticVersion(2, 5, 0);
   static const clientApiVersion = serverApiVersion;
 
