@@ -3,6 +3,17 @@
 //! Methods in this module are an additional impl block on `DeviceManager`
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
+//!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Filter wheels physically have ≤ 16 slots; every numeric cast in this
+//! module is therefore bounded:
+//! - **i32 position ↔ f64** (line 67): INDI wire is f64; i32 → f64 exact.
+//! - **i32 position - 1** (line 132): 1-based INDI position to 0-based.
+//!   Position is ≥ 1 (set elsewhere via INDI driver advertisement).
+//! - **usize → i32 filter count** (lines 242, 253, 272): real slot count
+//!   ≤ 16, fits i32 trivially.
+//! - **usize → i32 filter index** (line 323): same bound — index < count.
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;

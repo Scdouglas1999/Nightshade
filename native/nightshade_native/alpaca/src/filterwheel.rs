@@ -220,7 +220,19 @@ impl AlpacaFilterWheel {
         let names = self.names().await?;
         for (idx, name) in names.iter().enumerate() {
             if name.eq_ignore_ascii_case(filter_name) {
-                return self.set_position(idx as i32).await;
+                // Why (audit-rust §1.4): `idx` is a usize position into the
+                // filter-name list returned by Alpaca; real filter wheels
+                // ship with ≤10 slots (rarely up to 16). i32::try_from
+                // surfaces an impossible-but-defined wire bug rather than
+                // silently passing a negative position to set_position.
+                let idx_i32 = i32::try_from(idx).map_err(|_| {
+                    format!(
+                        "Filter index {} exceeds i32::MAX; impossible for a \
+                         real filter wheel.",
+                        idx
+                    )
+                })?;
+                return self.set_position(idx_i32).await;
             }
         }
         Err(format!("Filter '{}' not found", filter_name))
@@ -233,6 +245,10 @@ impl AlpacaFilterWheel {
             return Err("Filter wheel is moving".to_string());
         }
         let names = self.names().await?;
+        // Why (audit-rust §1.4): `pos >= 0` is checked immediately above; i32
+        // → usize widens on every supported Rust target. Out-of-bounds
+        // returns None and surfaces as "Invalid position" — not a silent
+        // panic.
         names
             .get(pos as usize)
             .cloned()
@@ -246,6 +262,9 @@ impl AlpacaFilterWheel {
             return Err("Filter wheel is moving".to_string());
         }
         let offsets = self.focus_offsets().await?;
+        // Why (audit-rust §1.4): same `pos >= 0` invariant as
+        // `current_filter_name`; out-of-bounds gives an error string rather
+        // than a panic.
         offsets
             .get(pos as usize)
             .copied()

@@ -174,8 +174,21 @@ impl AscomMount {
     }
 
     pub fn pulse_guide(&mut self, direction: i32, duration_ms: u32) -> Result<(), String> {
+        // Why (audit-rust §1.4): ASCOM ITelescopeV3.PulseGuide takes a 32-bit
+        // signed milliseconds value (COM IDL signed long). PHD2 and other
+        // guide controllers never request >32s pulses but a buggy upstream
+        // could overflow i32::MAX (~24.8 days). Reject explicitly instead of
+        // wrapping into a negative duration that ASCOM drivers interpret as
+        // "the opposite direction" silently.
+        let duration_i32 = i32::try_from(duration_ms).map_err(|_| {
+            format!(
+                "PulseGuide duration_ms {} exceeds i32::MAX; ASCOM PulseGuide \
+                 caps at ~24.8 days. This indicates an upstream guider bug.",
+                duration_ms
+            )
+        })?;
         self.device
-            .call_method_2_int("PulseGuide", direction, duration_ms as i32)
+            .call_method_2_int("PulseGuide", direction, duration_i32)
     }
 
     pub fn guide_rate_right_ascension(&self) -> Result<f64, String> {

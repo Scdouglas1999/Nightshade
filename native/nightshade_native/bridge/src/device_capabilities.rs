@@ -4,6 +4,19 @@
 //! Capabilities describe what operations a device supports, allowing the UI
 //! and sequencer to adapt to device limitations.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! All `as` casts in this file are capability-probe widenings:
+//! - **Sensor i32 → u32** (lines 517, 518): ASCOM CameraXSize/YSize are
+//!   int per spec, ≥ 1 physically; `unwrap_or(0)` on the optional probe
+//!   maps a missing/failed read to 0 (UI displays "unknown"). i32 → u32
+//!   for non-negative i32 is a SAFE narrowing.
+//! - **usize → i32 filter count** (lines 603, 998): physical filter wheels
+//!   have ≤ 16 slots; saturation at i32::MAX is unreachable.
+//! - **i32 → i32 filter position** (lines 604, 994, 1517): no-op widening
+//!   kept for clarity around the `.map(|p| p as i32)` Option-mapping
+//!   idiom in the surrounding code.
+//!
 //! # Example
 //!
 //! ```rust

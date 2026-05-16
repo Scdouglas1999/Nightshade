@@ -97,11 +97,16 @@ impl DeviceManager {
 
     /// Calculate backoff delay for reconnection
     pub(crate) fn calculate_backoff_delay(&self, attempts: u32) -> u64 {
+        // Why (audit-rust §1.4): u64 (initial_delay_secs) → f64 has bounded
+        // precision loss for any realistic config (seconds, not nanoseconds).
+        // u32 → i32 for `powi` saturates at i32::MAX (~2B retries) which is
+        // unreachable; the result is then clamped by `min(max_delay_secs)`.
+        // f64 → u64 uses Rust 1.45+ saturating semantics for the final cast.
         let delay = (self.reconnect_config.initial_delay_secs as f64)
             * self
                 .reconnect_config
                 .backoff_multiplier
-                .powi(attempts as i32);
+                .powi(i32::try_from(attempts).unwrap_or(i32::MAX));
 
         (delay as u64).min(self.reconnect_config.max_delay_secs)
     }

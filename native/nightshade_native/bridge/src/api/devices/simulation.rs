@@ -1,6 +1,17 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
+//
+// # `as`-cast policy (audit-rust §1.4)
+//
+// Numeric casts in this file are simulator-only device wrappers:
+// - **i32 duration_ms → u64 sleep / u32 pulse** (lines 441, 448):
+//   simulator-side wrappers; durations are user-supplied milliseconds
+//   capped by the same UI as real hardware (typically ≤ ~2000 ms for
+//   guide pulses). `as u64` widens; `as u32` is bounded by UI clamp.
+// - **i32 step distance → f64 move time** (lines 551, 593): exact widening.
+// - **i32 ↔ i32 filter wheel pos** (lines 786, 804): no-op widenings
+//   around `Option::map` plumbing.
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;

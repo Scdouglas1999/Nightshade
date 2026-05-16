@@ -1,5 +1,29 @@
 //! ASCOM camera STA-thread wrapper.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Numeric casts in this file cluster into three patterns; sites with a
+//! local `Why:` comment override the module-level reasoning.
+//!
+//! 1. **Sensor-dimension i32 → u32 after `> 0` guard** (lines 297, 314,
+//!    482, 493, 531, 532). The ASCOM ICameraV3/V4 spec defines CameraXSize,
+//!    CameraYSize and the SAFEARRAY dims as `int` (i32); a positive value
+//!    fits trivially in u32. Negative or zero returns are surfaced as
+//!    explicit `Err` immediately above each cast, not silently wrapped.
+//! 2. **Subframe i32 ↔ u32** (lines 581-592). The pre-check on lines
+//!    581-583 guarantees `start + width ≤ max` (i32 sums), making the
+//!    subsequent u32 → i32 narrowing SAFE because each sensor dimension is
+//!    already i32-bounded by the same driver.
+//! 3. **Display-only widening** (line 55, line 850 readout-mode index).
+//!    Progress percent and readout-mode index are bounded to small ranges
+//!    by construction (percent ≤ 100; readout modes ≤ ~10).
+//!
+//! Two truncation-risk sites have explicit hardening:
+//! - Line 517: ASCOM image_array() returns i32 SAFEARRAY samples; we
+//!   `clamp(0, 65535)` before `as u16` — that bounds the cast.
+//! - Line 829: bit-depth shift uses u64 intermediate then narrows to u32
+//!   after the `bit_depth >= 32` early-return ceiling.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! ASCOM is a Win32 COM protocol where many `ICameraV3` / `ICameraV4`

@@ -1618,8 +1618,10 @@ pub fn api_calculate_mosaic_area(
     panels_horizontal: u32,
     panels_vertical: u32,
 ) -> f64 {
-    let total_width_arcmin = panel_width_arcmin * panels_horizontal as f64;
-    let total_height_arcmin = panel_height_arcmin * panels_vertical as f64;
+    // Why (audit-rust §1.4): u32 → f64 widening, exact (f64 mantissa covers
+    // all u32 values).
+    let total_width_arcmin = panel_width_arcmin * f64::from(panels_horizontal);
+    let total_height_arcmin = panel_height_arcmin * f64::from(panels_vertical);
     // Return in square degrees
     (total_width_arcmin / 60.0) * (total_height_arcmin / 60.0)
 }
@@ -1643,8 +1645,9 @@ pub fn api_estimate_mosaic_time(
     } else {
         overhead_per_panel_secs
     };
-    let time_per_panel = exposure_secs * exposures_per_panel as f64 + overhead;
-    total_panels as f64 * time_per_panel
+    // Why (audit-rust §1.4): u32 → f64 widening, exact.
+    let time_per_panel = exposure_secs * f64::from(exposures_per_panel) + overhead;
+    f64::from(total_panels) * time_per_panel
 }
 
 /// Calculate altitude for a target at a specific time and observer location

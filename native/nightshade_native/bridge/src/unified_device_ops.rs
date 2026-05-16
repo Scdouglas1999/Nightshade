@@ -42,6 +42,21 @@
 //! let ops = create_unified_device_ops();
 //! executor.set_device_ops(ops);
 //! ```
+//!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Same pattern groupings as `sequencer_ops.rs` (this file is the unified
+//! replacement and the cast taxonomy is identical):
+//! - **Pixel histogram u16 → usize index** (line 548): u16 max 65535 fits
+//!   any supported usize.
+//! - **Image normalize u16 → f64** (line 505): exact widening.
+//! - **bool → u8** (lines 660, 904): wire encoding.
+//! - **Filter wheel index ±1** (lines 815, 817): bounded by slot count.
+//! - **star_count usize → u32** (line 544): real frames have ≤ tens of
+//!   thousands of stars; saturating cast would catch any pathology.
+//! - **Star-count average f64** (line 1300): exact widening.
+//! - **Julian Day chrono fields** (lines 1396-1410): per-site Why comments
+//!   in `sequencer/src/meridian.rs::julian_day` apply identically here.
 
 fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
     if sorted.is_empty() {

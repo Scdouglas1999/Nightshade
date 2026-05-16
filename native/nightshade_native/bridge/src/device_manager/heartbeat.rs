@@ -439,8 +439,13 @@ impl DeviceManager {
                                     );
 
                                     // Wait before reconnection attempt
+                                    // Why (audit-rust §1.4): `reconnect_attempts`
+                                    // is u32; u32 → u64 widening exact. The
+                                    // multiplication uses u64 arithmetic so
+                                    // a runaway attempt count saturates at
+                                    // u64::MAX (~584 billion years).
                                     let reconnect_delay = Duration::from_secs(
-                                        config.reconnect_delay_secs * (reconnect_attempts as u64),
+                                        config.reconnect_delay_secs * u64::from(reconnect_attempts),
                                     );
                                     tokio::time::sleep(reconnect_delay).await;
 

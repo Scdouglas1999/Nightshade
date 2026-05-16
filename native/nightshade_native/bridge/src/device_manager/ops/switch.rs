@@ -49,7 +49,10 @@ impl DeviceManager {
             DriverType::Indi => {
                 // INDI switches use named properties -- enumerate and count them
                 let switches = self.indi_get_all_switches(device_id).await?;
-                Ok(switches.len() as i32)
+                // Why (audit-rust §1.4): INDI switch counts are tiny (a
+                // power-box has ≤ a dozen outputs); usize → i32 SAFE for
+                // any realistic device.
+                Ok(i32::try_from(switches.len()).unwrap_or(i32::MAX))
             }
             DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),

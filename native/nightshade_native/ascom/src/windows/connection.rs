@@ -101,6 +101,9 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
         let mut name_buffer: [u16; 256] = [0; 256];
 
         loop {
+            // Why (audit-rust §1.4): `name_buffer` is a statically-sized
+            // `[u16; 256]`; `len()` is the literal compile-time constant 256,
+            // far inside u32's range. SAFE narrowing.
             let mut name_len = name_buffer.len() as u32;
 
             let result = RegEnumKeyExW(
@@ -118,6 +121,10 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
                 break;
             }
 
+            // Why (audit-rust §1.4): `name_len` is u32 written by
+            // RegEnumKeyExW and on success is bounded by the 256-element
+            // input buffer; u32 → usize is widening on every Rust target we
+            // support (16-bit usize is unsupported by std).
             let prog_id = String::from_utf16_lossy(&name_buffer[..name_len as usize]);
             // Why (audit-rust §4.3): the registry "Description" REG_SZ is
             // optional per the ASCOM Platform convention (some 3rd-party
@@ -177,6 +184,8 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
 
     let mut data_type: REG_VALUE_TYPE = REG_VALUE_TYPE(0);
     let mut data_buffer: [u8; 512] = [0; 512];
+    // Why (audit-rust §1.4): `data_buffer.len()` is the compile-time
+    // constant 512, trivially within u32 range. SAFE narrowing.
     let mut data_len = data_buffer.len() as u32;
 
     let result = RegQueryValueExW(
@@ -191,6 +200,9 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
     let _ = RegCloseKey(subkey);
 
     if result.is_ok() && data_type == REG_SZ {
+        // Why (audit-rust §1.4): `data_len` is u32 (≤512 on success, bounded
+        // by the input buffer). u32 → usize widens on every supported Rust
+        // target (no 16-bit-usize std target).
         let wide_slice: &[u16] = std::slice::from_raw_parts(
             data_buffer.as_ptr() as *const u16,
             (data_len as usize / 2).saturating_sub(1),

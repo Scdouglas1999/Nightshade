@@ -384,6 +384,10 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_tracking_rate(&self, rate: DriveRate) -> Result<(), String> {
+        // Why (audit-rust §1.4): `DriveRate` is a C-like enum with explicit
+        // discriminants in [0, 3]; `as i32` extracts the discriminant value
+        // — SAFE narrowing (default isize repr fits in i32 trivially for the
+        // range used here).
         self.client
             .put(
                 "trackingrate",
@@ -406,6 +410,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_side_of_pier(&self, side: PierSide) -> Result<(), String> {
+        // Why (audit-rust §1.4): `PierSide` is a C-like enum with explicit
+        // discriminants in {-1, 0, 1}; `as i32` extracts the discriminant —
+        // SAFE narrowing.
         self.client
             .put("sideofpier", &[("SideOfPier", &(side as i32).to_string())])
             .await

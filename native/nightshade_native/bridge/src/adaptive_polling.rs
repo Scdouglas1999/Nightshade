@@ -4,6 +4,20 @@
 //! operations. Instead of using fixed polling intervals, the `AdaptivePoller` adjusts
 //! its interval based on whether status changes are detected.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! All `as` casts in this file operate on poll-interval timings in
+//! milliseconds:
+//! - **u32 → u64 ratio** (lines 225, 234): metric counters in [0, 2^32);
+//!   f64 widening exact for any realistic count of poll ticks.
+//! - **Duration::as_millis() u128 → u64** (lines 323, 334, 335, 494, 516,
+//!   539, 549): poll intervals are configured ≤ minutes; u128 → u64 SAFE
+//!   for any value < ~584 million years. Rust 1.45+ saturating semantics
+//!   would catch absurd configs.
+//! - **u64 → f64 → u64 backoff multiplication** (line 334, 538): f64
+//!   precision-loss at the millisecond level is invisible to polling.
+//! - **u32 → u64** (line 531): max-ticks reset threshold widening, exact.
+//!
 //! # Use Cases
 //!
 //! - **Exposure monitoring**: Start with fast polling (200ms), back off to 2s when

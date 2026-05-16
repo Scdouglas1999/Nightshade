@@ -100,7 +100,9 @@ impl AscomFilterWheelWrapper {
                                 }
                                 msg
                             })?;
-                            let count = names.len() as i32;
+                            // Why (audit-rust §1.4): physical filter wheel
+                            // slot counts are ≤ 16; usize → i32 SAFE.
+                            let count = i32::try_from(names.len()).unwrap_or(i32::MAX);
                             tracing::info!(
                                 "ASCOM FilterWheel connected with {} filters: {:?}",
                                 count,

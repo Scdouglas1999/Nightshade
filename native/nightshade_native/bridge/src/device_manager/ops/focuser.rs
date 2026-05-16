@@ -491,6 +491,12 @@ impl DeviceManager {
                         // Try to get max position from FOCUS_MAX property (common INDI standard)
                         // If unavailable, report unknown (0) instead of inventing a fake limit.
                         let max_position = match client.get_number(&device_name, "FOCUS_MAX", "FOCUS_MAX_VALUE").await {
+                            // Why (audit-rust §1.4): INDI wire is f64 but
+                            // FOCUS_MAX is a step count physically ≤ ~200k
+                            // for any real focuser. Rust 1.45+ saturating
+                            // f64 → i32 catches an out-of-range driver bug
+                            // by reporting i32::MAX (which the UI displays
+                            // as "max step out of range" anyway).
                             Some(v) => v as i32,
                             None => {
                                 warn!(

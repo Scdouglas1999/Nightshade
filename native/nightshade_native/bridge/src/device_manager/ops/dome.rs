@@ -265,6 +265,9 @@ impl DeviceManager {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
                     let status = dome.shutter_status().await?;
+                    // Why (audit-rust §1.4): `ShutterState` is a C-like
+                    // ASCOM enum with values {0..4} (Open, Closed, Opening,
+                    // Closing, Error); `as i32` extracts the discriminant.
                     return Ok(status as i32);
                 }
                 Err(format!("Alpaca dome {} not found", device_id))

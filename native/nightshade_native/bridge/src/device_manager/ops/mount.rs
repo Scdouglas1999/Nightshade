@@ -676,8 +676,18 @@ impl DeviceManager {
                         nightshade_native::traits::GuideDirection::East => 2,
                         nightshade_native::traits::GuideDirection::West => 3,
                     };
+                    // Why (audit-rust §1.4): Alpaca PulseGuide takes i32 ms;
+                    // u32 > i32::MAX is ~24.8 days of pulse which is
+                    // physically impossible for guiding. Saturating
+                    // try_from rejects the impossible-but-defined case.
+                    let duration_i32 = i32::try_from(duration_ms).map_err(|_| {
+                        format!(
+                            "Alpaca pulse_guide duration {}ms exceeds i32::MAX",
+                            duration_ms
+                        )
+                    })?;
                     return mount
-                        .pulse_guide(alpaca_dir, duration_ms as i32)
+                        .pulse_guide(alpaca_dir, duration_i32)
                         .await
                         .map_err(|e| e.to_string());
                 }
@@ -694,22 +704,26 @@ impl DeviceManager {
                         match dir {
                             nightshade_native::traits::GuideDirection::North => {
                                 mount.move_north(true).await.map_err(|e| e.to_string())?;
-                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                // Why (audit-rust §1.4): u32 → u64 widening for sleep duration, exact.
+                                tokio::time::sleep(Duration::from_millis(u64::from(duration_ms))).await;
                                 mount.move_north(false).await.map_err(|e| e.to_string())?;
                             }
                             nightshade_native::traits::GuideDirection::South => {
                                 mount.move_south(true).await.map_err(|e| e.to_string())?;
-                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                // Why (audit-rust §1.4): u32 → u64 widening for sleep duration, exact.
+                                tokio::time::sleep(Duration::from_millis(u64::from(duration_ms))).await;
                                 mount.move_south(false).await.map_err(|e| e.to_string())?;
                             }
                             nightshade_native::traits::GuideDirection::East => {
                                 mount.move_east(true).await.map_err(|e| e.to_string())?;
-                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                // Why (audit-rust §1.4): u32 → u64 widening for sleep duration, exact.
+                                tokio::time::sleep(Duration::from_millis(u64::from(duration_ms))).await;
                                 mount.move_east(false).await.map_err(|e| e.to_string())?;
                             }
                             nightshade_native::traits::GuideDirection::West => {
                                 mount.move_west(true).await.map_err(|e| e.to_string())?;
-                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                // Why (audit-rust §1.4): u32 → u64 widening for sleep duration, exact.
+                                tokio::time::sleep(Duration::from_millis(u64::from(duration_ms))).await;
                                 mount.move_west(false).await.map_err(|e| e.to_string())?;
                             }
                         }
@@ -1473,6 +1487,9 @@ impl DeviceManager {
                 let native_mounts = self.native_mounts.read().await;
                 if let Some(mount) = native_mounts.get(device_id) {
                     let rate = mount.get_tracking_rate().await.map_err(|e| e.to_string())?;
+                    // Why (audit-rust §1.4): `TrackingRate` is a C-like enum
+                    // (Sidereal=0, Lunar=1, Solar=2, King=3); `as i32`
+                    // extracts the discriminant — SAFE narrowing.
                     return Ok(rate as i32);
                 }
                 Err("Native mount not connected".to_string())

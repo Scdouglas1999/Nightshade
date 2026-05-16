@@ -526,6 +526,10 @@ impl NightshadeError {
             NightshadeError::AscomError { error_code, .. } => Some(*error_code),
             NightshadeError::AlpacaError { error_code, .. } => Some(*error_code),
             NightshadeError::NativeError { error_code, .. } => Some(*error_code),
+            // Why (audit-rust §1.4): HRESULT is canonically a signed
+            // 32-bit value (Win32 `HRESULT` typedef). We store it as u32
+            // (Windows-crate convention) and reinterpret here — this is
+            // the standard COM error-code idiom; bit pattern is preserved.
             NightshadeError::ComError { hresult, .. } => Some(*hresult as i32),
             _ => None,
         }

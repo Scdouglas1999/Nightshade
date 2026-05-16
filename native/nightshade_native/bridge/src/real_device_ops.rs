@@ -2,6 +2,35 @@
 //!
 //! Connects the sequencer engine to actual ASCOM/Alpaca devices via the DeviceManager.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Numeric casts in this file cluster into:
+//! - **i32 → u32 sensor/array dim** (lines 1095, 1096, 1107, 1108, 1343,
+//!   1344, 1363, 1364): the upstream `nightshade_ascom` / `nightshade_alpaca`
+//!   APIs return ASCOM-spec `int` (i32) values that must be ≥ 1 by spec; we
+//!   already `?`-propagate the underlying Result, and per-driver validation
+//!   surfaces non-positive values earlier in the pipeline. Negative would
+//!   wrap to huge u32 and fail the subsequent buffer-sizing.
+//! - **i32 → u16 sample clamp** (lines 1124, 1377, 1387): preceded by
+//!   `.max(0).min(65535)` (or `.max(0)`) bounding the result before the
+//!   narrowing cast. SAFE under the clamp invariant.
+//! - **usize → i32 filter-wheel filter_count** (line 425): real filter
+//!   wheels expose ≤ 16 slots; saturation at i32::MAX is unreachable.
+//! - **i32 → usize position index** (lines 1040, 1041): the `pos >= 0`
+//!   check immediately precedes the cast; non-negative i32 → usize widens
+//!   on every supported target.
+//! - **Date/time field widening** (lines 2680, 2991, 2992, 3006-3015):
+//!   chrono `Datelike::year/month/day/hour/...` return values bounded by
+//!   calendar semantics; u32 → f64 / i32 / i64 widening is exact.
+//! - **Base64 / bit-packing math** (lines 2968, 2973): bit-packing inputs
+//!   are 0..=63 (6-bit) values; widening + masked narrowing is SAFE within
+//!   the bit-field invariant.
+//! - **Star-count average** (line 2857): `stars.len() as f64` exact
+//!   widening for any realistic count.
+//! - **Pulse-guide direction** (line 2414): boolean encoded as u8 ∈ {0, 1}.
+//!
+//! Sites with a local `Why:` comment override the module-level reasoning.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! Six site categories, each mapping to a documented optional-property:

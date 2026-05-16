@@ -86,8 +86,10 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
     }
     .to_string();
 
+    // Why (audit-rust §1.4): exposure counters are u32; u32 → f64 widening
+    // is exact. The resulting fraction is a UI progress value in [0, 1].
     let progress_val = if progress.total_exposures > 0 {
-        progress.completed_exposures as f64 / progress.total_exposures as f64
+        f64::from(progress.completed_exposures) / f64::from(progress.total_exposures)
     } else {
         0.0
     };

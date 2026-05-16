@@ -1,5 +1,24 @@
 //! Built-in multi-star guider.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! - **Timing nanoseconds u128 → f64** (line 361): wall-clock elapsed in
+//!   nanoseconds; f64 holds nanosecond precision for ~104 days of
+//!   monotonic elapsed time, far longer than any guiding session.
+//! - **u32 image coords → f64** (lines 438, 439, 1142, 1143, 1165, 1166):
+//!   exact widening; pixel coordinates are bounded by sensor size.
+//! - **Calibration ms u32 → f64** (line 813): exact widening; pulse width
+//!   ≤ a few thousand ms in practice.
+//! - **Rounded f64 → u32 frame rate** (line 943): bounded by FPS measured
+//!   over the calibration window; reasonable values ≤ thousands.
+//! - **Crop / sensor i32/u32 box math** (lines 1112-1166): every cast is
+//!   either i32 → u32 after explicit `>= 0` clamps (x_start/y_start are
+//!   bounded by `max(0)`) or u32 → usize widening for indexing. Per-pixel
+//!   index `((y * width + x) * 2) as usize` is bounded by the buffer
+//!   length we then `<` -check against `expected_data_len`.
+//!
+//! Sites with a local `Why:` comment override the module-level reasoning.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! * `unwrap_or(Ordering::Equal)` — required because `f64::partial_cmp`

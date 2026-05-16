@@ -510,11 +510,14 @@ impl NativeError {
     pub fn download_timeout(duration: Duration, width: u32, height: u32) -> Self {
         Self::DownloadTimeout {
             duration,
+            // Why (audit-rust §1.4): u32 → f64 is exact (f64 53-bit mantissa
+            // covers all u32 values); the resulting megapixel calculation is
+            // a display-only diagnostic.
             details: format!(
                 "downloading {}x{} image ({:.1}MP)",
                 width,
                 height,
-                (width as f64 * height as f64) / 1_000_000.0
+                (f64::from(width) * f64::from(height)) / 1_000_000.0
             ),
         }
     }

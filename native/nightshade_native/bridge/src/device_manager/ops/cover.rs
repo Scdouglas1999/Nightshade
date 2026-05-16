@@ -4,6 +4,15 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! - **i32 brightness → f64 INDI wire** (line 201): exact widening.
+//! - **i32 state → i32** (lines 275, 327, 489, 490): these are no-op
+//!   widenings around enum discriminant extraction (CoverState /
+//!   CalibratorState are small {0..5} enums per ASCOM ICoverCalibratorV1).
+//! - **i32 brightness → i32** (line 409): no-op widening; brightness is
+//!   already i32 in the ASCOM API.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! Every `unwrap_or` / `unwrap_or_else` in this file is a property-read

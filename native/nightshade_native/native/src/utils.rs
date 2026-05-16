@@ -100,6 +100,10 @@ pub fn calculate_buffer_size(
     width
         .checked_mul(height)
         .and_then(|pixels| pixels.checked_mul(bytes_per_pixel))
+        // Why (audit-rust §1.4): u32 → usize widening on every supported
+        // target (≥ 32-bit usize; no 16-bit-usize Rust target exists in std).
+        // The preceding `checked_mul`s already bounded the result to u32::MAX
+        // so it fits trivially.
         .map(|size| size as usize)
         .ok_or_else(|| {
             NativeError::InvalidParameter(format!(
@@ -132,6 +136,9 @@ pub fn calculate_buffer_size_i32(
         )));
     }
 
+    // Why (audit-rust §1.4): all three values are checked `> 0` above, so
+    // i32 → u32 is SAFE (positive i32 fits in u32). The cast is essentially
+    // a no-op bit-pattern reinterpretation under that precondition.
     calculate_buffer_size(width as u32, height as u32, bytes_per_pixel as u32)
 }
 

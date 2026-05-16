@@ -1,6 +1,22 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
+//
+// # `as`-cast policy (audit-rust §1.4)
+//
+// Numeric casts in this file cluster into:
+// - **Image dim u32 → u32** (lines 109, 110, 135, 136, 792, 793): `image.width`
+//   and `image.height` are already u32; the `as u32` is a no-op widening
+//   useful only for clippy disambiguation when builders accept ambiguous
+//   types. Kept as documentation.
+// - **PolarAlignmentPoint enum → i32** (lines 302, 326, 335, 385, 401, 403,
+//   411): the enum has 3 discriminants {0, 1, 2}; `as i32` extracts the
+//   value — SAFE narrowing from default isize repr.
+// - **Step size f64 → i32** (line 401): bounded by mount slew step (≤ 90°
+//   typical); used only in a display string, not a hardware command.
+// - **RGBA u8 → u32/u16 luminance** (lines 775, 785): u8 → u32 is exact
+//   widening; the average of three u8 values is ≤ 255 so `as u16 * 256`
+//   stays well inside u16. SAFE.
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;

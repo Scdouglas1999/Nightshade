@@ -2,6 +2,28 @@
 //!
 //! This module implements the DeviceOps trait from the sequencer crate,
 //! routing calls to actual connected devices via the bridge API.
+//!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Numeric casts in this file cluster into:
+//! - **Pixel-count widening (u32 → usize)** (line 259): expected-size
+//!   computation; u32 → usize widening is exact on every supported
+//!   target (≥ 32-bit usize).
+//! - **bool → u8** (line 337, 587): cooler-enable / ra-only flag in the
+//!   FFI wire; bool is by definition 0 or 1.
+//! - **Filter wheel index ±1** (lines 497, 499): `p` is i32 position from
+//!   ASCOM; `+1` for 1-based UI display is bounded by filter slot count
+//!   (typically ≤ 16, fits i32 trivially).
+//! - **GAIN/OFFSET i32 → i64 FITS header** (lines 672, 675, 764, 767):
+//!   i32 → i64 is exact widening.
+//! - **Star-count average f64** (line 999): `stars.len() as f64` exact for
+//!   any realistic count (f64 mantissa covers usize).
+//! - **Julian Day chrono fields → f64/i32** (lines 1102-1116): identical
+//!   pattern to `sequencer/src/meridian.rs::julian_day` (which has
+//!   per-site Why comments); chrono `Datelike` returns calendar-bounded
+//!   small integers that fit i32 and f64 exactly.
+//!
+//! Sites with a local `Why:` comment override the module-level reasoning.
 
 use crate::api::*;
 use crate::event::{EquipmentEvent, EventSeverity};

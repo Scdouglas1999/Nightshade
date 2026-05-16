@@ -73,6 +73,10 @@ impl CacheMetrics {
 
     /// Get the cache hit rate as a percentage (0.0 to 100.0)
     pub fn hit_rate(&self) -> f64 {
+        // Why (audit-rust §1.4): hit/miss counters are u64 atomics; u64 →
+        // f64 precision loss is bounded by the mantissa (53 bits) — for
+        // hit-rate-as-percentage display, any imprecision past 10^15 cache
+        // operations is invisible.
         let hits = self.hits() as f64;
         let total = hits + self.misses() as f64;
         if total == 0.0 {

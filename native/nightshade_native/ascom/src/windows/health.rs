@@ -71,10 +71,18 @@ impl HealthMonitor {
 
     /// Record a successful operation
     pub fn record_success(&self) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+        // Why (audit-rust §1.4): `Duration::as_millis()` returns u128. u64 ms since
+        // 1970 overflows in year ~584,554,531 AD; until then the cast is a pure
+        // truncation-of-leading-zeros widening-narrowing. Falling back to u64::MAX
+        // post-overflow keeps `time_since_last_success()` saturating-correct without
+        // panicking the health monitor.
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0),
+        )
+        .unwrap_or(u64::MAX);
         self.last_success.store(now, Ordering::SeqCst);
         self.failure_count.store(0, Ordering::SeqCst);
         self.is_healthy.store(true, Ordering::SeqCst);
@@ -82,10 +90,15 @@ impl HealthMonitor {
 
     /// Record a failed operation
     pub fn record_failure(&self) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // safe until year 584 million AD; saturate on overflow rather than panic.
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0),
+        )
+        .unwrap_or(u64::MAX);
         self.last_failure.store(now, Ordering::SeqCst);
         let failures = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
         if failures >= self.max_failures {
@@ -99,10 +112,15 @@ impl HealthMonitor {
             return ConnectionHealth::Failed;
         }
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // safe until year 584 million AD; saturate on overflow rather than panic.
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0),
+        )
+        .unwrap_or(u64::MAX);
         let last_success = self.last_success.load(Ordering::SeqCst);
 
         if last_success == 0 {
@@ -131,10 +149,15 @@ impl HealthMonitor {
         if last == 0 {
             return None;
         }
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+        // Why (audit-rust §1.4): see `record_success` — `as_millis()` u128 → u64
+        // safe until year 584 million AD; saturate on overflow rather than panic.
+        let now = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0),
+        )
+        .unwrap_or(u64::MAX);
         Some(now.saturating_sub(last))
     }
 }

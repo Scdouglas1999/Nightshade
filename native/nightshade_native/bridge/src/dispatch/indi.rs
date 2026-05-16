@@ -492,7 +492,11 @@ impl DeviceManager {
         index: i32,
     ) -> Result<nightshade_indi::IndiSwitchInfo, String> {
         let switches = self.indi_get_all_switches(device_id).await?;
-        let idx = index as usize;
+        // Why (audit-rust §1.4): a negative i32 wraps to a huge usize which
+        // would trip the immediate `idx >= switches.len()` check below; the
+        // structured "out of range" error replaces what would otherwise be
+        // a buffer-overrun-fault, so the cast is bounded by the next line.
+        let idx = usize::try_from(index).unwrap_or(usize::MAX);
         if idx >= switches.len() {
             return Err(format!(
                 "Switch index {} out of range (device has {} switches)",

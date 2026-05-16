@@ -674,8 +674,27 @@ impl AlpacaCamera {
         // Why: subframe geometry tells us the expected shape; we cross-check
         // the parsed array against this so a server that reports inconsistent
         // sizes can't slip past as a partially-filled frame.
-        let width = self.num_x().await.map_err(AlpacaError::OperationFailed)? as u32;
-        let height = self.num_y().await.map_err(AlpacaError::OperationFailed)? as u32;
+        // Why (audit-rust §1.4): `num_x`/`num_y` are ASCOM-wire i32 but
+        // physically must be ≥ 1; a negative or zero value is a server-side
+        // bug. `u32::try_from` surfaces that as a structured error rather
+        // than wrapping into a giant u32 that would propagate through
+        // pixel-count math.
+        let width = u32::try_from(
+            self.num_x().await.map_err(AlpacaError::OperationFailed)?,
+        )
+        .map_err(|_| {
+            AlpacaError::OperationFailed(
+                "NumX returned negative subframe width; ASCOM camera bug".to_string(),
+            )
+        })?;
+        let height = u32::try_from(
+            self.num_y().await.map_err(AlpacaError::OperationFailed)?,
+        )
+        .map_err(|_| {
+            AlpacaError::OperationFailed(
+                "NumY returned negative subframe height; ASCOM camera bug".to_string(),
+            )
+        })?;
 
         // Why: at minimum 10MB/s network speed plus extra margin; the configured
         // very-long timeout (camera preset = 15 min) covers a 24 MP frame in
@@ -700,7 +719,10 @@ impl AlpacaCamera {
         let http_client = self.client.http_client()?;
 
         // Why: estimate is for the timeout-error message, not for allocation.
-        let estimated_bytes = (width as u64) * (height as u64) * 2 * 3;
+        // Why (audit-rust §1.4): u32 → u64 widening, exact; subsequent
+        // multiplies use u64 arithmetic which cannot overflow for any
+        // realistic sensor (u64::MAX / 6 ≈ 3.07e18 bytes).
+        let estimated_bytes = u64::from(width) * u64::from(height) * 2 * 3;
 
         // Why §5.13: include `application/json` as the fallback alternative so
         // servers that do not speak ImageBytes can still satisfy the request
@@ -1083,8 +1105,13 @@ pub(crate) fn parse_image_array_json(
                 .and_then(|v| v.as_str())
                 .unwrap_or("Unknown error")
                 .to_string();
+            // Why (audit-rust §1.4): ASCOM ErrorNumber is defined as a
+            // signed 32-bit value (see ASCOM Master Interfaces). JSON
+            // parses to i64 so a wire bug could exceed i32 range; saturate
+            // at i32 boundaries — the structured error string still carries
+            // the full diagnostic via `message`.
             return Err(AlpacaError::DeviceError {
-                code: error_num as i32,
+                code: i32::try_from(error_num).unwrap_or(i32::MIN),
                 message: error_msg,
             });
         }
@@ -1143,6 +1170,9 @@ fn parse_rank2(
     width: u32,
     height: u32,
 ) -> Result<ImageArrayResult, AlpacaError> {
+    // Why (audit-rust §1.4): u32 → usize is widening on every supported
+    // target (≥ 32-bit usize); `checked_mul` then catches any overflow at
+    // the product boundary on 32-bit-usize hosts.
     let expected = (width as usize)
         .checked_mul(height as usize)
         .ok_or_else(|| AlpacaError::ParseError("width*height overflow".to_string()))?;
@@ -1217,7 +1247,16 @@ fn parse_rank3(
     let first_pixel = first_col[0]
         .as_array()
         .ok_or_else(|| AlpacaError::ParseError("Rank-3 outer[0][0] is not an array".to_string()))?;
-    let planes = first_pixel.len() as u32;
+    // Why (audit-rust §1.4): plane-count comes from a JSON array `.len()`;
+    // real cameras produce 3 (RGB) or 4 (RGBA). usize → u32 saturating
+    // try_from rejects an impossible-but-defined wire bug rather than
+    // wrapping into a mismatched plane count downstream.
+    let planes = u32::try_from(first_pixel.len()).map_err(|_| {
+        AlpacaError::ParseError(format!(
+            "Rank-3 plane count {} exceeds u32::MAX",
+            first_pixel.len()
+        ))
+    })?;
     if planes == 0 {
         return Err(AlpacaError::ParseError(
             "Rank-3 image array has zero planes".to_string(),
@@ -1226,9 +1265,12 @@ fn parse_rank3(
 
     // Why: scratch buffer in column-major (x, y) order per plane; we transpose
     // to planar at the end so each plane is contiguous.
+    // Why (audit-rust §1.4): u32 → usize widening on every supported
+    // target; `checked_mul` handles the product overflow on 32-bit-usize.
     let pixels_per_plane = (width as usize)
         .checked_mul(height as usize)
         .ok_or_else(|| AlpacaError::ParseError("width*height overflow".to_string()))?;
+    // Why (audit-rust §1.4): `planes` was just validated u32; usize widening.
     let total = pixels_per_plane
         .checked_mul(planes as usize)
         .ok_or_else(|| AlpacaError::ParseError("width*height*planes overflow".to_string()))?;
@@ -1246,7 +1288,12 @@ fn parse_rank3(
                     xi, yi
                 ))
             })?;
-            if pix_arr.len() as u32 != planes {
+            // Why (audit-rust §1.4): each pixel's plane count is at most a
+            // usize (capped by host memory); if it exceeds u32 it cannot
+            // equal `planes` (a u32) anyway. The cast here only matters
+            // for the inequality comparison and saturates to u32::MAX in
+            // the impossibly-large case — which trips the mismatch check.
+            if u32::try_from(pix_arr.len()).unwrap_or(u32::MAX) != planes {
                 return Err(AlpacaError::ParseError(format!(
                     "Rank-3 plane-count mismatch at ({},{}): expected {}, got {}",
                     xi,
@@ -1258,6 +1305,12 @@ fn parse_rank3(
             for (pi, channel) in pix_arr.iter().enumerate() {
                 let v = decode_pixel(channel, element_type, linear)?;
                 // Place into planar layout: plane pi, then column-major (xi, yi)
+                // Why (audit-rust §1.4): `height` is u32 → usize widening
+                // (≥ 32-bit usize target). `dest` is bounded by `total`
+                // which was computed via `checked_mul` above; index-out-of-
+                // range would panic on the assignment below — but `linear`
+                // is incremented in lockstep with the iteration so this
+                // index is loop-bounded by construction.
                 let dest = (pi * pixels_per_plane) + (xi * (height as usize)) + yi;
                 planar[dest] = v;
                 linear += 1;
@@ -1267,6 +1320,8 @@ fn parse_rank3(
 
     // Why: cross-check geometry; mismatched array dimensions vs. NumX/NumY
     // would silently produce a partially-zero plane otherwise.
+    // Why (audit-rust §1.4): u32 → usize widening; saturating_mul guards
+    // overflow on 32-bit-usize targets.
     let expected_linear = pixels_per_plane.saturating_mul(planes as usize);
     if linear != expected_linear {
         return Err(AlpacaError::ParseError(format!(
@@ -1339,9 +1394,12 @@ fn decode_pixel(
 fn clamp_i64_to_u16(v: i64) -> u16 {
     if v < 0 {
         0
-    } else if v > u16::MAX as i64 {
+    } else if v > i64::from(u16::MAX) {
+        // Why (audit-rust §1.4): u16::MAX (65535) → i64 widening, exact.
         u16::MAX
     } else {
+        // Why (audit-rust §1.4): the two branches above bound `v` to
+        // [0, u16::MAX]; the cast is SAFE within those bounds.
         v as u16
     }
 }
@@ -1351,9 +1409,14 @@ fn clamp_f64_to_u16(v: f64) -> u16 {
     let r = v.round();
     if r < 0.0 {
         0
-    } else if r > u16::MAX as f64 {
+    } else if r > f64::from(u16::MAX) {
+        // Why (audit-rust §1.4): u16::MAX (65535) → f64 exact (within
+        // f64 mantissa precision).
         u16::MAX
     } else {
+        // Why (audit-rust §1.4): the two branches above bound `r` to
+        // [0.0, u16::MAX]; Rust 1.45+ saturating f64 → u16 conversion is
+        // exact within the bounded interval after the `.round()` call.
         r as u16
     }
 }
@@ -1540,10 +1603,12 @@ fn decode_wire_sample(
     }
     let bytes = &payload[offset..end];
     match elem {
-        ImageArrayElementType::Byte => Ok(bytes[0] as u16),
+        // Why (audit-rust §1.4): u8 → u16 widening, exact.
+        ImageArrayElementType::Byte => Ok(u16::from(bytes[0])),
         ImageArrayElementType::Int16 => {
             let v = i16::from_le_bytes([bytes[0], bytes[1]]);
-            Ok(clamp_i64_to_u16(v as i64))
+            // Why (audit-rust §1.4): i16 → i64 widening, exact.
+            Ok(clamp_i64_to_u16(i64::from(v)))
         }
         ImageArrayElementType::UInt16 => {
             let v = u16::from_le_bytes([bytes[0], bytes[1]]);
@@ -1551,14 +1616,21 @@ fn decode_wire_sample(
         }
         ImageArrayElementType::Int32 => {
             let v = i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-            Ok(clamp_i64_to_u16(v as i64))
+            // Why (audit-rust §1.4): i32 → i64 widening, exact.
+            Ok(clamp_i64_to_u16(i64::from(v)))
         }
         ImageArrayElementType::UInt64 => {
             let v = u64::from_le_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
             ]);
             // Why: u64 max exceeds i64 range, so route through saturating cast.
-            Ok(if v > u16::MAX as u64 { u16::MAX } else { v as u16 })
+            // Why (audit-rust §1.4): u16::MAX (65535) → u64 widening exact;
+            // the branch above guarantees `v ≤ u16::MAX` so `as u16` is SAFE.
+            Ok(if v > u64::from(u16::MAX) {
+                u16::MAX
+            } else {
+                v as u16
+            })
         }
         ImageArrayElementType::Int64 => {
             let v = i64::from_le_bytes([
@@ -1575,7 +1647,8 @@ fn decode_wire_sample(
                     reason: "non-finite ImageBytes sample (NaN or infinity)".to_string(),
                 });
             }
-            Ok(clamp_f64_to_u16(v as f64))
+            // Why (audit-rust §1.4): f32 → f64 widening, exact.
+            Ok(clamp_f64_to_u16(f64::from(v)))
         }
         ImageArrayElementType::Double => {
             let v = f64::from_le_bytes([
@@ -1615,6 +1688,9 @@ pub(crate) fn parse_image_bytes(
     // optional UTF-8 error message lives between offset 44 and `data_start`.
     if header.error_number != 0 {
         let msg_start = IMAGE_BYTES_HEADER_SIZE;
+        // Why (audit-rust §1.4): `data_start` is i32 clamped to [0, ..) via
+        // `.max(0)`; the resulting non-negative i32 widens to usize on every
+        // supported target (≥ 32-bit). Subsequent bounds-checks below.
         let msg_end = header.data_start.max(0) as usize;
         let message = if msg_end > msg_start && msg_end <= payload.len() {
             String::from_utf8_lossy(&payload[msg_start..msg_end]).into_owned()
@@ -1636,11 +1712,13 @@ pub(crate) fn parse_image_bytes(
         // Why: when the server has not filled image_element_type, fall back to
         // transmission so callers still get a useful type tag on the result.
         0 => element_type,
-        other => match ImageArrayElementType::from_i64(other as i64) {
+        // Why (audit-rust §1.4): all three i32 → i64 casts below are
+        // widening, exact.
+        other => match ImageArrayElementType::from_i64(i64::from(other)) {
             ImageArrayElementType::Unknown => {
                 return Err(AlpacaError::UnsupportedImageArray {
-                    rank: header.rank as i64,
-                    image_type: other as i64,
+                    rank: i64::from(header.rank),
+                    image_type: i64::from(other),
                     reason: format!(
                         "unrecognised ImageBytes ImageElementType {}",
                         header.image_element_type
@@ -1671,13 +1749,19 @@ pub(crate) fn parse_image_bytes(
         3 => (header.dim1, header.dim2, header.dim3),
         other => {
             return Err(AlpacaError::UnsupportedImageArray {
-                rank: other as i64,
-                image_type: header.image_element_type as i64,
+                // Why (audit-rust §1.4): i32 → i64 widening, exact.
+                rank: i64::from(other),
+                image_type: i64::from(header.image_element_type),
                 reason: "only rank 2 (mono) and rank 3 (color) are supported".to_string(),
             })
         }
     };
 
+    // Why (audit-rust §1.4): the four `<= 0` checks above guarantee
+    // `width_from_header > 0` and `height_from_header > 0`, so the
+    // subsequent `as u32` casts on i32 cannot wrap into a large negative.
+    // The equality comparison with `expected_width` (a u32) then catches
+    // any pathological i32 value > i32::MAX (impossible per the type).
     if width_from_header <= 0
         || height_from_header <= 0
         || planes <= 0
@@ -1696,6 +1780,10 @@ pub(crate) fn parse_image_bytes(
     }
 
     let data_start = header.data_start;
+    // Why (audit-rust §1.4): IMAGE_BYTES_HEADER_SIZE is the literal 44 constant;
+    // 44 → i32 widening, exact. Comparison guards `data_start < 44` (which
+    // would underflow the subsequent cast) and `data_start > payload.len()`
+    // (caught after widening to usize).
     if data_start < IMAGE_BYTES_HEADER_SIZE as i32 || (data_start as usize) > payload.len() {
         return Err(AlpacaError::ParseError(format!(
             "ImageBytes DataStart {} outside payload (header={}, payload={} bytes)",
@@ -1704,12 +1792,19 @@ pub(crate) fn parse_image_bytes(
             payload.len()
         )));
     }
+    // Why (audit-rust §1.4): the check above guarantees `data_start ≥ 44`
+    // (non-negative i32) and `data_start ≤ payload.len()` (fits in usize
+    // because payload is a host-memory-bounded slice).
     let data_start = data_start as usize;
     let pixel_bytes = &payload[data_start..];
 
     let elem_size = transmission_element_size(element_type)?;
+    // Why (audit-rust §1.4): u32 → usize widening on every supported target
+    // (≥32-bit usize); subsequent `checked_mul`s catch the product overflow.
     let width = expected_width as usize;
     let height = expected_height as usize;
+    // Why (audit-rust §1.4): `planes > 0` validated above; non-negative i32
+    // → usize widens on every supported target.
     let planes_us = planes as usize;
     let pixels_per_plane = width
         .checked_mul(height)
@@ -1769,7 +1864,12 @@ pub(crate) fn parse_image_bytes(
     Ok(ImageArrayResult {
         width: expected_width,
         height: expected_height,
-        planes: planes as u32,
+        // Why (audit-rust §1.4): `planes` is i32 already validated `> 0`
+        // and bounded by rank (≤ a handful for any real camera); i32 → u32
+        // narrowing is SAFE for positive values up to i32::MAX. Saturate
+        // for defensive symmetry — an i32::MAX planes count is fictional
+        // but would already have failed allocation above.
+        planes: u32::try_from(planes).unwrap_or(u32::MAX),
         pixels: planar,
         element_type: image_element_type,
     })
@@ -1979,6 +2079,11 @@ mod image_array_tests {
 
 #[cfg(test)]
 mod image_bytes_tests {
+    // Why (audit-rust §1.4): all `IMAGE_BYTES_HEADER_SIZE as i32` casts in
+    // this test module are SAFE: `IMAGE_BYTES_HEADER_SIZE` is the literal
+    // constant 44; `(IMAGE_BYTES_HEADER_SIZE + msg.len()) as i32` is bounded
+    // by the synthetic short messages built in-test. All test casts on
+    // `data_start = X as i32` are constant-bounded.
     use super::*;
 
     /// Build a synthetic ImageBytes payload from a header description plus

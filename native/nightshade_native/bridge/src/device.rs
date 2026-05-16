@@ -581,7 +581,12 @@ impl DeviceApiVersion {
         Self {
             device_id,
             driver_type: DriverType::Alpaca,
-            interface_version: Some(interface_version as u32),
+            // Why (audit-rust §1.4): ASCOM/Alpaca interface versions are
+            // small single-digit integers (currently {1, 2, 3, 4}); the
+            // ASCOM spec defines them as i32 but they are physically u32
+            // values. Saturating try_from rejects an impossible-but-defined
+            // negative.
+            interface_version: Some(u32::try_from(interface_version).unwrap_or(0)),
             protocol_version: Some("v1".to_string()), // Alpaca uses v1 API
             driver_version,
             driver_info,
@@ -601,7 +606,9 @@ impl DeviceApiVersion {
         Self {
             device_id,
             driver_type: DriverType::Ascom,
-            interface_version: Some(interface_version as u32),
+            // Why (audit-rust §1.4): see Alpaca counterpart above —
+            // interface version is single-digit positive i32 by spec.
+            interface_version: Some(u32::try_from(interface_version).unwrap_or(0)),
             protocol_version: None, // ASCOM doesn't have a protocol version
             driver_version,
             driver_info,

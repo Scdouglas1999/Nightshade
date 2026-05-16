@@ -6,6 +6,30 @@
 //! Implements pipeline parallelism:
 //! Capture -> Download -> [Queue] -> Processing (Stats/Save)
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Numeric casts in this file cluster into:
+//! - **`star_count as u32`** (line 118, 207): `star_count` is a usize from
+//!   `stars.len()` returned by `nightshade_imaging::stats`. Real frames have
+//!   ≤ ~30 000 stars; the cast saturates at u32::MAX for any pathological
+//!   value and the result is only used for UI display.
+//! - **FITS header i32 → i64 widening** (lines 362, 365, 368, 369, 838,
+//!   839, 863): GAIN/OFFSET/XBINNING/YBINNING fit i64 trivially; the
+//!   reverse direction (i64 → i32) is bounded by FITS spec (BITPIX ∈
+//!   {8, 16, 32, 64, -32, -64}). i32-bounded reads use `.map(|v| v as i32)`
+//!   which Rust 1.45+ defines as saturating on overflow.
+//! - **Binning u32 widening** (line 592): u32 binning factor → u32 is a
+//!   no-op; documented for clarity.
+//! - **Star-count average** (line 617): `stars.len() as f64` is exact for
+//!   any realistic count (f64 mantissa covers usize on all targets).
+//! - **Downsample math** (lines 937-963): bounded by image dimensions
+//!   (already u32) and scale factor in (0, 1]; per-pixel u8 → u16 widening.
+//!   The product `new_width * new_height` is bounded by the original
+//!   `image.width * image.height` which was already accepted by the
+//!   capture pipeline.
+//!
+//! Sites with a local `Why:` comment override the module-level reasoning.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! * `file_path.unwrap_or_else(|| "In-memory image")` — capture returned

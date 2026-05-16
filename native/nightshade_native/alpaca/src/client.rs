@@ -367,9 +367,22 @@ impl Default for RetryConfig {
 impl RetryConfig {
     /// Calculate the delay for a given attempt number (0-indexed)
     pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
-        let base_delay =
-            self.initial_delay_ms as f64 * self.backoff_multiplier.powi(attempt as i32);
-        let capped_delay = base_delay.min(self.max_delay_ms as f64);
+        // Why (audit-rust §1.4): `initial_delay_ms` and `max_delay_ms` are u64
+        // configuration values typically ≤ 5_000 (5s); even at the u64::MAX
+        // edge, f64's 53-bit mantissa still represents the value with
+        // bounded relative error well below the +/-25% jitter band, so this
+        // is a precision-loss-acceptable widening.
+        let initial_delay_f = self.initial_delay_ms as f64;
+        let max_delay_f = self.max_delay_ms as f64;
+        // Why (audit-rust §1.4): `attempt` is u32; `powi` takes i32. Max
+        // retry attempts in practice is `max_attempts` (configured ≤ ~10);
+        // `attempt > i32::MAX` would require >2 billion retries, which is
+        // outside the retry loop's `attempts < max_attempts` invariant.
+        // Saturate at i32::MAX to avoid silent wrap into a negative exponent
+        // (which would yield 1/multiplier instead of multiplier^n).
+        let attempt_i32 = i32::try_from(attempt).unwrap_or(i32::MAX);
+        let base_delay = initial_delay_f * self.backoff_multiplier.powi(attempt_i32);
+        let capped_delay = base_delay.min(max_delay_f);
 
         let final_delay = if self.use_jitter {
             // Add +/- 25% jitter
@@ -379,6 +392,10 @@ impl RetryConfig {
             capped_delay
         };
 
+        // Why (audit-rust §1.4): `final_delay` is bounded by `max_delay_ms`
+        // (u64) * 1.25 jitter ceiling; clamped via `min` above. f64 → u64
+        // uses Rust 1.45+ saturating semantics on overflow / NaN, which for
+        // a bounded retry delay is the desired behavior.
         Duration::from_millis(final_delay as u64)
     }
 
@@ -403,7 +420,10 @@ fn rand_simple() -> f64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .subsec_nanos();
-    (nanos as f64 / u32::MAX as f64).fract()
+    // Why (audit-rust §1.4): `subsec_nanos()` returns u32 in [0, 999_999_999].
+    // u32 → f64 is exact (f64 mantissa covers all u32 values). `u32::MAX` →
+    // f64 is the literal divisor and is also exact.
+    (f64::from(nanos) / f64::from(u32::MAX)).fract()
 }
 
 /// Alpaca API version
@@ -1193,7 +1213,11 @@ impl AlpacaClient {
         let _: AlpacaResponse<bool> = response.json().await?;
 
         let elapsed = start.elapsed();
-        Ok(elapsed.as_millis() as u64)
+        // Why (audit-rust §1.4): heartbeat-elapsed `as_millis()` returns
+        // u128. Heartbeats time out in the seconds-range; u128 → u64
+        // saturating fallback covers any pathological never-completing case
+        // (which the timeout layer would have already cancelled).
+        Ok(u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
     }
 
     /// Detect supported API versions from the server

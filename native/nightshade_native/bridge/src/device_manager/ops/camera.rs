@@ -4,6 +4,30 @@
 //! using Rust's split-impl-block feature. Behavior is identical to the
 //! previous monolithic `devices.rs`.
 //!
+//! # `as`-cast policy (audit-rust §1.4)
+//!
+//! Numeric casts in this file cluster into:
+//! - **INDI wire f64 ↔ device numeric** (lines 118, 121, 125, 127, 937,
+//!   1002, 1078, 1081): INDI represents every numeric property as `f64`
+//!   over XML; i32/u32/u16 → f64 is exact widening. The reverse direction
+//!   `v as i32 / u32` (lines 754, 764, 791, 801, 829, 844, 845) is bounded
+//!   by INDI driver-advertised min/max ranges (gain/offset/bin are all
+//!   small integers; max_adu fits u32 for any current sensor). Saturation
+//!   on out-of-range surfaces as the displayed-zero baseline from the
+//!   companion `unwrap_or(0)` policy below.
+//! - **Sensor dimensions i32 → u32** (lines 374, 381, 675, 676): ASCOM
+//!   CameraXSize/YSize are int (i32) ≥ 1 by spec; the upstream Option
+//!   filter strips the None case. Negative would round to giant u32 and
+//!   immediately fail buffer-sizing.
+//! - **max_adu i32 → u32** (line 679): MaxADU is i32 by ASCOM spec but
+//!   physically u32-sized (≤ 4_294_967_295 for 32-bit sensors); positive
+//!   i32 narrows-and-widens cleanly to u32.
+//! - **Readout mode index i32 → usize** (lines 1180, 1181): preceded by
+//!   `mode_index >= 0` check; non-negative i32 → usize is widening on every
+//!   supported target.
+//!
+//! Sites with a local `Why:` comment override the module-level reasoning.
+//!
 //! # `unwrap_or` policy (audit-rust §4.3)
 //!
 //! All `unwrap_or` sites in this module are dimension/state composition

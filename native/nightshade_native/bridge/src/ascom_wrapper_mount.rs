@@ -653,7 +653,10 @@ impl NativeMount for AscomMountWrapper {
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         // Pulse guide takes the duration plus a buffer
-        let timeout = Duration::from_millis(duration_ms as u64) + Timeouts::short_slew();
+        // Why (audit-rust §1.4): `duration_ms` is u32 pulse-guide
+        // milliseconds (≤ a few thousand for real guiding); u32 → u64
+        // widening, exact.
+        let timeout = Duration::from_millis(u64::from(duration_ms)) + Timeouts::short_slew();
         Self::recv_with_timeout(rx, timeout, "pulse_guide").await
     }
 

@@ -85,6 +85,9 @@ impl From<LiveStackingConfigApi> for LiveStackConfig {
         LiveStackConfig {
             sigma_clip_threshold: api.sigma_clip_threshold,
             sigma_clip_enabled: api.sigma_clip_enabled,
+            // Why (audit-rust §1.4): live-stacking config values are u32
+            // UI-bounded (max_match_stars ≤ 10_000, min_matched_pairs ≤
+            // ~100); u32 → usize widening on every supported target.
             max_match_stars: api.max_match_stars as usize,
             match_radius_px: api.match_radius_px,
             match_flux_tolerance: api.match_flux_tolerance,

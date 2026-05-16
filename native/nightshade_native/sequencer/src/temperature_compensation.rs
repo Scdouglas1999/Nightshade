@@ -131,6 +131,11 @@ pub async fn execute_temperature_compensation(
     }
 
     // Calculate focus position change
+    // Why (audit-rust §1.4): `temp_delta` is single-digit °C in practice
+    // (months between sessions would be outliers), `thermal_coefficient` is
+    // configured in [-100, 100] steps/°C for any real focuser; the product
+    // is well inside i32 range. Rust 1.45+ saturating f64 → i32 catches
+    // pathological configs.
     let position_delta = (temp_delta * config.thermal_coefficient).round() as i32;
 
     if position_delta.abs() < config.min_step_change {
@@ -218,7 +223,9 @@ pub async fn execute_temperature_compensation(
 
     // Wait for focuser to reach position
     let move_start = std::time::Instant::now();
-    let timeout = std::time::Duration::from_secs(config.timeout_secs as u64);
+    // Why (audit-rust §1.4): `timeout_secs` is u32 (default 120, capped in
+    // UI); u32 → u64 widening, exact.
+    let timeout = std::time::Duration::from_secs(u64::from(config.timeout_secs));
     let mut poll_count: u32 = 0;
 
     // Emit progress for waiting
@@ -253,8 +260,13 @@ pub async fn execute_temperature_compensation(
                 if poll_count.is_multiple_of(5) {
                     let elapsed_secs = move_start.elapsed().as_secs();
                     // Progress from 70-90% during movement based on configured timeout budget.
+                    // Why (audit-rust §1.4): both `elapsed_secs` (u64) and
+                    // `timeout_secs` (u32) → f64 are precision-loss-
+                    // tolerant: this is a UI progress fraction in [0, 1],
+                    // and any f64 precision artifact at the millisecond
+                    // level is invisible to the user.
                     let move_progress = if config.timeout_secs > 0 {
-                        70.0 + ((elapsed_secs as f64 / config.timeout_secs as f64) * 20.0).min(20.0)
+                        70.0 + ((elapsed_secs as f64 / f64::from(config.timeout_secs)) * 20.0).min(20.0)
                     } else {
                         70.0
                     };
