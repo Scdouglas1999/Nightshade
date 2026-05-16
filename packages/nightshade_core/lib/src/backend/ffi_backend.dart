@@ -12,6 +12,8 @@ import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
 import 'package:nightshade_bridge/src/device.dart' as bridge_device;
 import 'package:nightshade_bridge/src/error.dart' as bridge_error;
+import 'package:nightshade_bridge/src/utils/safe_cast.dart'
+    show safelyCast, safelyCastOpt;
 
 // Import pure Dart types from backend_types for return types
 import '../models/backend/device_capabilities.dart' as dart_caps;
@@ -1544,10 +1546,27 @@ class FfiBackend implements NightshadeBackend {
     try {
       final response = await http.get(Uri.parse('http://ip-api.com/json'));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        // Why: ip-api.com returns a free-form JSON body. Validate it is a
+        // map before indexing, and run each numeric field through
+        // [safelyCastOpt] so a malformed payload surfaces a structured
+        // CastFailureException (audit-rust §1.4, CLAUDE.md "errors are a
+        // feature") instead of a bare TypeError or silent 0.0.
+        final decoded = jsonDecode(response.body);
+        final data = safelyCast<Map<String, dynamic>>(
+          decoded,
+          context: 'ip-api.com response body',
+        );
+        final lat = safelyCastOpt<num>(
+          data['lat'],
+          context: 'ip-api.com response["lat"]',
+        );
+        final lon = safelyCastOpt<num>(
+          data['lon'],
+          context: 'ip-api.com response["lon"]',
+        );
         return LocationSettings(
-          latitude: (data['lat'] as num?)?.toDouble() ?? 0.0,
-          longitude: (data['lon'] as num?)?.toDouble() ?? 0.0,
+          latitude: lat?.toDouble() ?? 0.0,
+          longitude: lon?.toDouble() ?? 0.0,
           elevation: 0.0,
         );
       }

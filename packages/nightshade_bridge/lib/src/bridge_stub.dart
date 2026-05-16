@@ -32,6 +32,7 @@ import 'event.dart' as gen_event;
 import 'state.dart' as gen_state;
 import 'storage.dart' as gen_storage;
 import 'frb_generated.dart' as frb;
+import 'utils/safe_cast.dart';
 
 // ============================================================================
 // Error Messages for Fallback Mode
@@ -3005,21 +3006,34 @@ class NativeBridge {
     //   width, height: top-level integers
     //   star_pos: [x, y] array (if star is selected)
     //   pixels: base64-encoded pixel data
-    final frame = (result['frame'] as num?)?.toInt() ?? 0;
-    final width = (result['width'] as num?)?.toInt() ?? size;
-    final height = (result['height'] as num?)?.toInt() ?? size;
+    //
+    // Why: route every field through safelyCast* so a malformed PHD2 reply
+    // surfaces a structured CastFailureException with the offending field
+    // name (audit-rust §1.4) instead of a bare TypeError.
+    const ctx = 'phd2GetStarImage.result';
+    final frame = safelyCastIntOpt(result, 'frame', contextPrefix: ctx) ?? 0;
+    final width =
+        safelyCastIntOpt(result, 'width', contextPrefix: ctx) ?? size;
+    final height =
+        safelyCastIntOpt(result, 'height', contextPrefix: ctx) ?? size;
 
     // star_pos is a positional array [x, y], not a named map
-    final starPos = result['star_pos'] as List?;
-    final starX = (starPos != null && starPos.length >= 1)
-        ? (starPos[0] as num).toDouble()
+    final starPos = safelyCastOpt<List<Object?>>(
+      result['star_pos'],
+      context: '$ctx["star_pos"]',
+    );
+    final starX = (starPos != null && starPos.isNotEmpty)
+        ? safelyCast<num>(starPos[0], context: '$ctx["star_pos"][0]')
+            .toDouble()
         : width / 2.0;
     final starY = (starPos != null && starPos.length >= 2)
-        ? (starPos[1] as num).toDouble()
+        ? safelyCast<num>(starPos[1], context: '$ctx["star_pos"][1]')
+            .toDouble()
         : height / 2.0;
 
     // Decode base64 pixel data
-    final pixelsB64 = result['pixels'] as String?;
+    final pixelsB64 =
+        safelyCastOpt<String>(result['pixels'], context: '$ctx["pixels"]');
     if (pixelsB64 == null) {
       throw Exception('No pixel data in PHD2 star image response');
     }
@@ -3115,13 +3129,18 @@ class NativeBridge {
       );
     }
 
-    // Extract calibration parameters from PHD2's response
-    // PHD2 returns xAngle/yAngle for RA/Dec rotation angles
-    // and xRate/yRate for guide rates in pixels/second
-    final xAngle = (result['xAngle'] as num?)?.toDouble();
-    final yAngle = (result['yAngle'] as num?)?.toDouble();
-    final xRate = (result['xRate'] as num?)?.toDouble();
-    final yRate = (result['yRate'] as num?)?.toDouble();
+    // Extract calibration parameters from PHD2's response.
+    // PHD2 returns xAngle/yAngle for RA/Dec rotation angles and xRate/yRate
+    // for guide rates in pixels/second.
+    //
+    // Why: any of these can be absent (older PHD2 builds) or wrong-typed
+    // (PHD2 plugin shims) — surface the offending field name via
+    // CastFailureException rather than a bare TypeError (audit-rust §1.4).
+    const ctx = 'phd2GetCalibrationData.result';
+    final xAngle = safelyCastDoubleOpt(result, 'xAngle', contextPrefix: ctx);
+    final yAngle = safelyCastDoubleOpt(result, 'yAngle', contextPrefix: ctx);
+    final xRate = safelyCastDoubleOpt(result, 'xRate', contextPrefix: ctx);
+    final yRate = safelyCastDoubleOpt(result, 'yRate', contextPrefix: ctx);
 
     return gen_api.Phd2CalibrationData(
       isCalibrated: true,
