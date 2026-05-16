@@ -246,8 +246,16 @@ enum NotificationLevel { info, warning, error, success }
 /// Twilight type
 enum TwilightType { civil, nautical, astronomical }
 
-/// Base class for all sequence nodes
-abstract class SequenceNode extends Equatable {
+/// Base class for all sequence nodes.
+///
+/// Sealed for exhaustive switch matching: every `switch (node)` statement
+/// must cover all 32 subtypes (or use a `_` wildcard) — adding a new node
+/// type will produce compile-time errors at every dispatch site that
+/// hasn't been updated.
+///
+/// All subclasses are declared in this same library, which is the
+/// requirement for sealed types.
+sealed class SequenceNode extends Equatable {
   final String id;
   final String name;
   final bool isEnabled;

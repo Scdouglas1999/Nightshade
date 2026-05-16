@@ -364,14 +364,8 @@ class _NodeEditor extends ConsumerWidget {
         CalibratorOffProperties(colors: colors, node: n),
       InstructionSetNode n =>
         InstructionSetInfo(colors: colors, node: n),
-      _ => Builder(builder: (context) => Text(
-          'No additional properties',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 12),
-            color: colors.textMuted,
-            fontStyle: FontStyle.italic,
-          ),
-        )),
+      // `SequenceNode` is sealed — the switch above covers every subtype.
+      // Adding a new subtype will produce a compile-time error here.
     };
   }
 
