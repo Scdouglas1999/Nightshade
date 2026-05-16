@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
@@ -41,7 +41,8 @@ class GeolocationService {
       }
     } catch (e) {
       // Silently fail - network might be unavailable
-      debugPrint('[Geolocation] IP-based location failed: $e');
+      developer.log('[Geolocation] IP-based location failed: $e',
+          name: 'GeolocationService', level: 900, error: e);
     }
 
     return null;
@@ -82,7 +83,8 @@ class GeolocationService {
         }
       }
     } catch (e) {
-      debugPrint('[Geolocation] Alternative IP-based location failed: $e');
+      developer.log('[Geolocation] Alternative IP-based location failed: $e',
+          name: 'GeolocationService', level: 900, error: e);
     }
 
     return null;
@@ -117,7 +119,10 @@ class GeolocationService {
       // Check if location services are enabled on the device
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        debugPrint('[Geolocation] Location services are disabled on device');
+        developer.log(
+            '[Geolocation] Location services are disabled on device',
+            name: 'GeolocationService',
+            level: 900);
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -127,14 +132,18 @@ class GeolocationService {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          debugPrint('[Geolocation] Location permission denied by user');
+          developer.log('[Geolocation] Location permission denied by user',
+              name: 'GeolocationService', level: 900);
           // Fallback to IP-based location
           return await fetchLocation();
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        debugPrint('[Geolocation] Location permissions are permanently denied');
+        developer.log(
+            '[Geolocation] Location permissions are permanently denied',
+            name: 'GeolocationService',
+            level: 900);
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -168,7 +177,8 @@ class GeolocationService {
       );
     } catch (e) {
       // GPS failed (timeout, no GPS hardware, etc.)
-      debugPrint('[Geolocation] GPS location fetch failed: $e');
+      developer.log('[Geolocation] GPS location fetch failed: $e',
+          name: 'GeolocationService', level: 900, error: e);
 
       // Fallback to IP-based location
       return await fetchLocation();

@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../backend/nightshade_backend.dart';
@@ -145,8 +145,10 @@ class FlatWizardService {
           Duration(milliseconds: (exposureTime * 1000).toInt() + 30000),
         );
       } on TimeoutException {
-        debugPrint(
-            'FlatWizardService: Exposure timed out after ${exposureTime + 30}s');
+        developer.log(
+            'FlatWizardService: Exposure timed out after ${exposureTime + 30}s',
+            name: 'FlatWizardService',
+            level: 900);
         return null;
       } finally {
         await subscription.cancel();
@@ -156,22 +158,26 @@ class FlatWizardService {
       final image = await backend.cameraGetLastImage(deviceId).timeout(
         _imageDownloadTimeout,
         onTimeout: () {
-          debugPrint(
+          developer.log(
             'FlatWizardService: Image retrieval timed out after '
             '${_imageDownloadTimeout.inSeconds}s',
+            name: 'FlatWizardService',
+            level: 900,
           );
           return null;
         },
       );
       if (image == null) {
-        debugPrint('FlatWizardService: Failed to retrieve test frame');
+        developer.log('FlatWizardService: Failed to retrieve test frame',
+            name: 'FlatWizardService', level: 900);
         return null;
       }
 
       // Return mean ADU
       return image.stats.mean;
     } catch (e) {
-      debugPrint('FlatWizardService: Error capturing test frame: $e');
+      developer.log('FlatWizardService: Error capturing test frame: $e',
+          name: 'FlatWizardService', level: 1000, error: e);
       return null;
     }
   }
@@ -202,17 +208,21 @@ class FlatWizardService {
     double? lastAdu;
     int iteration = 0;
 
-    debugPrint(
+    developer.log(
       'FlatWizardService: Starting calibration for filter "$filter"\n'
       '  Target ADU: ${targetAdu.toStringAsFixed(0)}\n'
       '  Tolerance: ±${tolerance.toStringAsFixed(1)}%\n'
       '  Exposure range: ${minExposure.toStringAsFixed(3)}s - ${maxExposure.toStringAsFixed(3)}s',
+      name: 'FlatWizardService',
+      level: 800,
     );
 
     for (iteration = 1; iteration <= maxIterations; iteration++) {
-      debugPrint(
+      developer.log(
         'FlatWizardService: Iteration $iteration/$maxIterations - '
         'Testing exposure: ${exposure.toStringAsFixed(3)}s',
+        name: 'FlatWizardService',
+        level: 800,
       );
 
       // Capture test frame
@@ -236,7 +246,8 @@ class FlatWizardService {
       }
 
       lastAdu = adu;
-      debugPrint('FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}');
+      developer.log('FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}',
+          name: 'FlatWizardService', level: 800);
 
       // Notify progress callback
       onProgress?.call(iteration, exposure, adu);
@@ -244,10 +255,12 @@ class FlatWizardService {
       // Check if within tolerance
       final error = ((adu - targetAdu).abs() / targetAdu) * 100;
       if (error <= tolerance) {
-        debugPrint(
+        developer.log(
           'FlatWizardService: SUCCESS! Found optimal exposure: '
           '${exposure.toStringAsFixed(3)}s (ADU: ${adu.toStringAsFixed(0)}, '
           'error: ${error.toStringAsFixed(2)}%)',
+          name: 'FlatWizardService',
+          level: 800,
         );
         return FlatResult(
           filter: filter,
@@ -269,9 +282,11 @@ class FlatWizardService {
 
       // Check for convergence (exposure not changing significantly)
       if ((nextExposure - exposure).abs() < 0.001) {
-        debugPrint(
+        developer.log(
           'FlatWizardService: Converged at exposure: ${exposure.toStringAsFixed(3)}s '
           '(ADU: ${adu.toStringAsFixed(0)})',
+          name: 'FlatWizardService',
+          level: 800,
         );
         return FlatResult(
           filter: filter,
@@ -286,9 +301,11 @@ class FlatWizardService {
     }
 
     // Max iterations reached
-    debugPrint(
+    developer.log(
       'FlatWizardService: Max iterations reached. Best result: '
       '${exposure.toStringAsFixed(3)}s (ADU: ${lastAdu?.toStringAsFixed(0) ?? "N/A"})',
+      name: 'FlatWizardService',
+      level: 900,
     );
     return FlatResult(
       filter: filter,
@@ -460,7 +477,10 @@ class FlatWizardService {
     final results = <FlatResult>[];
 
     for (final filter in filters) {
-      debugPrint('FlatWizardService: Starting calibration for filter: $filter');
+      developer.log(
+          'FlatWizardService: Starting calibration for filter: $filter',
+          name: 'FlatWizardService',
+          level: 800);
 
       final result = await calibrateFilter(
         deviceId: deviceId,
@@ -481,8 +501,10 @@ class FlatWizardService {
       onFilterComplete?.call(filter, result);
 
       if (!result.success) {
-        debugPrint(
+        developer.log(
           'FlatWizardService: Warning - Calibration failed for filter: $filter',
+          name: 'FlatWizardService',
+          level: 900,
         );
       }
     }
@@ -509,8 +531,10 @@ class FlatWizardService {
     for (final cal in calibrations) {
       // Skip failed calibrations if requested
       if (onlySuccessful && !cal.success) {
-        debugPrint(
+        developer.log(
           'FlatWizardService: Skipping failed calibration for filter: ${cal.filter}',
+          name: 'FlatWizardService',
+          level: 800,
         );
         continue;
       }
@@ -531,10 +555,12 @@ class FlatWizardService {
       );
 
       nodes.add(node);
-      debugPrint(
+      developer.log(
         'FlatWizardService: Generated sequence node - '
         'Filter: ${cal.filter}, Exposure: ${cal.exposure.toStringAsFixed(3)}s, '
         'Count: $framesPerFilter',
+        name: 'FlatWizardService',
+        level: 800,
       );
     }
 

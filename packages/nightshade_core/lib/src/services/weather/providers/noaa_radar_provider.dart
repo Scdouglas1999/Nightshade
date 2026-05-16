@@ -1,7 +1,8 @@
 // ignore_for_file: unused_element, unused_field
 
+import 'dart:developer' as developer;
+
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import '../radar_provider.dart';
 import '../../../models/weather/weather_models.dart';
 
@@ -109,9 +110,12 @@ class NoaaRadarProvider extends RadarProvider {
         );
       }).toList();
 
-      debugPrint('NoaaRadarProvider: Built ${frames.length} WMS frames');
-      debugPrint(
-          'NoaaRadarProvider: First frame time: ${frames.first.wmsAdditionalOptions?['time']}');
+      developer.log('NoaaRadarProvider: Built ${frames.length} WMS frames',
+          name: 'NoaaRadarProvider', level: 800);
+      developer.log(
+          'NoaaRadarProvider: First frame time: ${frames.first.wmsAdditionalOptions?['time']}',
+          name: 'NoaaRadarProvider',
+          level: 800);
 
       return RadarFetchResult.success(frames);
     } on http.ClientException catch (e) {
@@ -185,7 +189,8 @@ class NoaaRadarProvider extends RadarProvider {
           final dateTime = DateTime.parse(ts.trim());
           timestamps.add(dateTime);
         } catch (e) {
-          debugPrint('Failed to parse NOAA timestamp: $ts');
+          developer.log('Failed to parse NOAA timestamp: $ts',
+              name: 'NoaaRadarProvider', level: 900, error: e);
         }
       }
     } else if (timeString.contains('/')) {
@@ -205,7 +210,8 @@ class NoaaRadarProvider extends RadarProvider {
             current = current.add(period);
           }
         } catch (e) {
-          debugPrint('Failed to parse NOAA time period: $timeString');
+          developer.log('Failed to parse NOAA time period: $timeString',
+              name: 'NoaaRadarProvider', level: 900, error: e);
           return _generateFallbackTimestamps();
         }
       }

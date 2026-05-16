@@ -1,6 +1,5 @@
 import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 
 Map<String, dynamic> decodeJsonObjectString(
   String jsonStr, {
@@ -105,8 +104,9 @@ DateTime? jsonDateTime(dynamic value, {required String context}) {
 }
 
 void logJsonWarning(String context, Object error, [StackTrace? stackTrace]) {
-  debugPrint('$context: $error');
-  if (stackTrace != null) {
-    debugPrint(stackTrace.toString());
-  }
+  developer.log('$context: $error',
+      name: 'JsonValidation',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace);
 }

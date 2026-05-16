@@ -1,3 +1,8 @@
+// Auth tokens must be printed to stdout transiently (NOT logged to file —
+// see the security rationale around _logWarning below). These two prints
+// are the only legitimate stdout writes in this file.
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';

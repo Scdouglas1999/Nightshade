@@ -1,5 +1,5 @@
 import 'dart:collection';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/ui_notification_provider.dart';
 import 'logging_service.dart';
@@ -142,7 +142,8 @@ class ErrorService {
     }
 
     // Print to debug console
-    debugPrint(entry.logMessage);
+    developer.log(entry.logMessage,
+        name: 'ErrorService', level: entry.severity.toLogLevel().index * 200 + 500);
 
     // Log to file via logging service if available
     _loggingService?.log(

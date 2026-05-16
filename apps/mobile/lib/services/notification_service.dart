@@ -1,6 +1,6 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/foundation.dart';
 
 /// Callback the app installs so notification taps can drive go_router.
 ///
@@ -138,8 +138,10 @@ class MobileNotificationService {
     final route = _routeForPayload(payload);
     if (route == null) {
       // Unknown payload shape — surfacing it loudly beats silent fallback.
-      debugPrint(
-          '[MobileNotificationService] Notification payload has no route: $payload');
+      developer.log(
+          '[MobileNotificationService] Notification payload has no route: $payload',
+          name: 'MobileNotificationService',
+          level: 900);
       return;
     }
 
@@ -147,8 +149,10 @@ class MobileNotificationService {
     if (navigator == null) {
       // The app hasn't wired up the router yet (cold start path). Record
       // the route so we don't pretend the tap did something.
-      debugPrint(
-          '[MobileNotificationService] No navigator installed; dropped tap to $route ($payload)');
+      developer.log(
+          '[MobileNotificationService] No navigator installed; dropped tap to $route ($payload)',
+          name: 'MobileNotificationService',
+          level: 900);
       return;
     }
 

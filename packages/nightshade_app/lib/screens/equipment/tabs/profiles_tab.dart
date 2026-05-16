@@ -548,7 +548,10 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
       // Why: user already sees the error snackbar; logged so we can
       // diagnose profile-load failures (missing device IDs, FK errors)
       // after the fact.
-      debugPrint('[ProfilesTab] loadProfile failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[ProfilesTab] loadProfile failed: $e',
+          source: 'ProfilesTab',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (mounted) {
         context.showErrorSnackBar(
           'Could not load that equipment profile.',
@@ -575,7 +578,10 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     } catch (e, st) {
       // Why: user already sees the error snackbar; logged so we can
       // diagnose profile-duplicate failures after the fact.
-      debugPrint('[ProfilesTab] duplicateProfile failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[ProfilesTab] duplicateProfile failed: $e',
+          source: 'ProfilesTab',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (mounted) {
         context.showErrorSnackBar(
           'Could not duplicate that equipment profile.',
@@ -638,7 +644,10 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
       // Why: user already sees the error snackbar; logged so we can
       // diagnose profile-delete failures (FK constraints, DB lock) after
       // the fact.
-      debugPrint('[ProfilesTab] deleteProfile failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[ProfilesTab] deleteProfile failed: $e',
+          source: 'ProfilesTab',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (mounted) {
         context.showErrorSnackBar(
           'Could not delete that equipment profile.',

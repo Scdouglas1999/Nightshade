@@ -1,6 +1,7 @@
+import 'dart:developer' as developer;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -955,7 +956,11 @@ class _CenteringImageWidgetState extends State<_CenteringImageWidget> {
       // continues regardless. Logged so we can diagnose chronic decode
       // failures (codec issues, malformed buffer) that would otherwise
       // be invisible — the user just sees the spinner forever.
-      debugPrint('[CenteringDialog] preview decode failed: $e\n$st');
+      developer.log('[CenteringDialog] preview decode failed: $e',
+          name: 'CenteringDialog',
+          level: 900,
+          error: e,
+          stackTrace: st);
     }
   }
 

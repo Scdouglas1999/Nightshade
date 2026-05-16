@@ -452,6 +452,7 @@ class CapturePanel extends ConsumerWidget {
   }
 
   Future<void> _endSession(WidgetRef ref, BuildContext context) async {
+    final logger = ref.read(loggingServiceProvider);
     try {
       final parkOnEnd = ref.read(parkMountOnEndProvider);
 
@@ -460,17 +461,23 @@ class CapturePanel extends ConsumerWidget {
 
       // Park mount if requested (service handles connection check)
       if (parkOnEnd) {
-        debugPrint('[Imaging] Parking mount after session end...');
+        logger.info('[Imaging] Parking mount after session end...',
+            source: 'CapturePanel');
         final result = await ref.read(mountCommandServiceProvider).park();
         if (context.mounted) {
           context.showCommandActionResult(result);
         }
-        debugPrint(result.isSuccess
-            ? '[Imaging] Mount parked successfully'
-            : '[Imaging] Mount park failed: ${result.message}');
+        if (result.isSuccess) {
+          logger.info('[Imaging] Mount parked successfully',
+              source: 'CapturePanel');
+        } else {
+          logger.warning('[Imaging] Mount park failed: ${result.message}',
+              source: 'CapturePanel');
+        }
       }
     } catch (e) {
-      debugPrint('[Imaging] Error ending session: $e');
+      logger.error('[Imaging] Error ending session: $e',
+          source: 'CapturePanel', fields: {'error': e.toString()});
     }
   }
 }

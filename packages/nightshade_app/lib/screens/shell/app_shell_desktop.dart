@@ -1,4 +1,5 @@
 // Desktop implementation with window_manager
+import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
@@ -36,7 +37,8 @@ void initWindowManager(State state, {OnCloseRequested? onCloseRequested}) {
       _closeListener = _WindowCloseListener(onCloseRequested: onCloseRequested);
       windowManager.addListener(_closeListener!);
     } catch (e) {
-      debugPrint('[AppShell] Error initializing window manager: $e');
+      developer.log('[AppShell] Error initializing window manager: $e',
+          name: 'AppShell', level: 1000, error: e);
     }
   }
 }
@@ -50,7 +52,8 @@ void disposeWindowManager(State state) {
         _closeListener = null;
       }
     } catch (e) {
-      debugPrint('[AppShell] Error disposing window manager: $e');
+      developer.log('[AppShell] Error disposing window manager: $e',
+          name: 'AppShell', level: 1000, error: e);
     }
   }
 }

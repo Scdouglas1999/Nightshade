@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,8 +74,11 @@ class TitleBar extends ConsumerWidget {
                   try {
                     context.go('/transients');
                   } catch (e) {
-                    debugPrint(
-                        '[TitleBar] Could not navigate to transients: $e');
+                    developer.log(
+                        '[TitleBar] Could not navigate to transients: $e',
+                        name: 'TitleBar',
+                        level: 900,
+                        error: e);
                   }
                 },
               ),
@@ -93,7 +97,11 @@ class TitleBar extends ConsumerWidget {
                     context.go('/settings');
                   } catch (e) {
                     // Fallback for when router is not available
-                    debugPrint('[TitleBar] Could not navigate to settings: $e');
+                    developer.log(
+                        '[TitleBar] Could not navigate to settings: $e',
+                        name: 'TitleBar',
+                        level: 900,
+                        error: e);
                   }
                 },
               ),

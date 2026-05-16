@@ -74,7 +74,10 @@ Future<bool> showSaveToProfileDialog({
         // Why: user already sees the error snackbar; logged so we can
         // diagnose profile-creation failures (DB locked, unique-name
         // collision) after the fact.
-        debugPrint('[SaveToProfile] create profile failed: $e\n$st');
+        ref.read(loggingServiceProvider).error(
+            '[SaveToProfile] create profile failed: $e',
+            source: 'SaveToProfileDialog',
+            fields: {'error': e.toString(), 'stack': st.toString()});
         if (context.mounted) {
           context.showErrorSnackBar(
             'Could not create an equipment profile. Try again.',
@@ -107,7 +110,10 @@ Future<bool> showSaveToProfileDialog({
         // Why: user already sees the error snackbar; logged so we can
         // diagnose profile-activation failures (missing profile row,
         // schema mismatch) after the fact.
-        debugPrint('[SaveToProfile] activate profile failed: $e\n$st');
+        ref.read(loggingServiceProvider).error(
+            '[SaveToProfile] activate profile failed: $e',
+            source: 'SaveToProfileDialog',
+            fields: {'error': e.toString(), 'stack': st.toString()});
         if (context.mounted) {
           context.showErrorSnackBar(
             'Could not activate that profile. Try again.',
@@ -266,7 +272,10 @@ Future<bool> showSaveToProfileDialog({
       // Why: user already sees the error snackbar; logged so we can
       // diagnose profile-update failures (DB write error, FK violation)
       // after the fact.
-      debugPrint('[SaveToProfile] save device to profile failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[SaveToProfile] save device to profile failed: $e',
+          source: 'SaveToProfileDialog',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (context.mounted) {
         context.showErrorSnackBar(
           'Could not save this device to the active profile.',

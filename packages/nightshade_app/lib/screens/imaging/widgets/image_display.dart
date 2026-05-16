@@ -74,7 +74,10 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
         },
       );
     } catch (e) {
-      debugPrint('[Imaging] Error decoding image: $e');
+      ref.read(loggingServiceProvider).warning(
+          '[Imaging] Error decoding image: $e',
+          source: 'ImageDisplay',
+          fields: {'error': e.toString()});
       _isDecoding = false;
     }
   }

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import '../models/backend/event_types.dart';
 
 /// Priority level for push notifications sent to mobile devices
@@ -143,17 +143,23 @@ class PushNotificationService {
     _subscription = _eventStream.listen(
       _handleEvent,
       onError: (error) {
-        debugPrint('[PushNotificationService] Event stream error: $error');
+        developer.log(
+            '[PushNotificationService] Event stream error: $error',
+            name: 'PushNotificationService',
+            level: 1000,
+            error: error);
       },
     );
-    debugPrint('[PushNotificationService] Started listening for events');
+    developer.log('[PushNotificationService] Started listening for events',
+        name: 'PushNotificationService', level: 800);
   }
 
   /// Stop listening to the event stream
   void stop() {
     _subscription?.cancel();
     _subscription = null;
-    debugPrint('[PushNotificationService] Stopped');
+    developer.log('[PushNotificationService] Stopped',
+        name: 'PushNotificationService', level: 800);
   }
 
   /// Emit a test push notification
@@ -176,8 +182,10 @@ class PushNotificationService {
     final notification = _eventToNotification(event);
     if (notification != null) {
       _notificationController.add(notification);
-      debugPrint(
-          '[PushNotificationService] Push notification: ${notification.title}');
+      developer.log(
+          '[PushNotificationService] Push notification: ${notification.title}',
+          name: 'PushNotificationService',
+          level: 800);
     }
   }
 

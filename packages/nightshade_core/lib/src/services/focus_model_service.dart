@@ -2,9 +2,9 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -303,8 +303,10 @@ class FocusModelService {
 
     final slope = (n * sumXY - sumX * sumY) / denominator;
     if (slope.abs() > 500) {
-      debugPrint(
-          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C');
+      developer.log(
+          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C',
+          name: 'FocusModelService',
+          level: 900);
       return null;
     }
     final intercept = (sumY - slope * sumX) / n;
@@ -536,8 +538,11 @@ class FocusModelService {
           _profileData[data.profileId] = data;
         } catch (e) {
           // Log corrupted files but continue loading others
-          debugPrint(
-              'FocusModelService: Skipping corrupted focus data file ${entity.path}: $e');
+          developer.log(
+              'FocusModelService: Skipping corrupted focus data file ${entity.path}: $e',
+              name: 'FocusModelService',
+              level: 900,
+              error: e);
         }
       }
     }

@@ -1,7 +1,7 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:drift/drift.dart' show Variable;
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart' as db;
@@ -418,15 +418,18 @@ class QuickStartService {
   ///
   /// Returns null if no suitable session is found.
   Future<QuickStartContext?> getQuickStartContext() async {
-    debugPrint('QuickStartService: Getting quick start context...');
+    developer.log('QuickStartService: Getting quick start context...',
+        name: 'QuickStartService', level: 800);
 
     // First, check for active (interrupted) sessions
     final activeSessions = await sessionsDao.getActiveSessions();
     if (activeSessions.isNotEmpty) {
       // Return the most recent active session
       final session = activeSessions.first;
-      debugPrint(
-          'QuickStartService: Found active session ${session.id} from ${session.startTime}');
+      developer.log(
+          'QuickStartService: Found active session ${session.id} from ${session.startTime}',
+          name: 'QuickStartService',
+          level: 800);
       return _buildQuickStartContext(session);
     }
 
@@ -442,15 +445,19 @@ class QuickStartService {
     }).toList();
 
     if (candidateSessions.isEmpty) {
-      debugPrint(
-          'QuickStartService: No suitable sessions found for quick start');
+      developer.log(
+          'QuickStartService: No suitable sessions found for quick start',
+          name: 'QuickStartService',
+          level: 800);
       return null;
     }
 
     // Return the most recent completed session with progress
     final session = candidateSessions.first;
-    debugPrint(
-        'QuickStartService: Found recent session ${session.id} from ${session.startTime}');
+    developer.log(
+        'QuickStartService: Found recent session ${session.id} from ${session.startTime}',
+        name: 'QuickStartService',
+        level: 800);
     return _buildQuickStartContext(session);
   }
 
@@ -500,7 +507,11 @@ class QuickStartService {
         equipmentSnapshot =
             EquipmentSnapshot.fromJsonString(equipmentSnapshotJson);
       } catch (e) {
-        debugPrint('QuickStartService: Failed to parse equipment snapshot: $e');
+        developer.log(
+            'QuickStartService: Failed to parse equipment snapshot: $e',
+            name: 'QuickStartService',
+            level: 900,
+            error: e);
       }
     }
 
@@ -559,7 +570,8 @@ class QuickStartService {
       };
     } catch (e) {
       // Columns may not exist yet - this is fine, return empty
-      debugPrint('QuickStartService: Extended columns not available: $e');
+      developer.log('QuickStartService: Extended columns not available: $e',
+          name: 'QuickStartService', level: 900, error: e);
       return {};
     }
   }
@@ -609,8 +621,10 @@ class QuickStartService {
   /// equipmentSnapshot field.
   Future<void> saveEquipmentSnapshot(
       int sessionId, EquipmentSnapshot snapshot) async {
-    debugPrint(
-        'QuickStartService: Saving equipment snapshot for session $sessionId');
+    developer.log(
+        'QuickStartService: Saving equipment snapshot for session $sessionId',
+        name: 'QuickStartService',
+        level: 800);
 
     try {
       final session = await sessionsDao.getSessionById(sessionId);
@@ -621,8 +635,11 @@ class QuickStartService {
       final snapshotJson = snapshot.toJsonString();
       await sessionsDao.updateEquipmentSnapshot(sessionId, snapshotJson);
     } catch (e, stackTrace) {
-      debugPrint('QuickStartService: Error saving equipment snapshot: $e');
-      debugPrint('QuickStartService: Stack trace: $stackTrace');
+      developer.log('QuickStartService: Error saving equipment snapshot: $e',
+          name: 'QuickStartService',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -632,13 +649,18 @@ class QuickStartService {
   /// Quick start is available if there's a recent session (within 7 days)
   /// that has meaningful progress or an active (interrupted) session.
   Future<bool> isQuickStartAvailable() async {
-    debugPrint('QuickStartService: Checking if quick start is available...');
+    developer.log(
+        'QuickStartService: Checking if quick start is available...',
+        name: 'QuickStartService',
+        level: 800);
 
     // Check for active sessions first
     final hasActive = await sessionsDao.hasIncompleteSessions();
     if (hasActive) {
-      debugPrint(
-          'QuickStartService: Quick start available (active session found)');
+      developer.log(
+          'QuickStartService: Quick start available (active session found)',
+          name: 'QuickStartService',
+          level: 800);
       return true;
     }
 
@@ -651,13 +673,16 @@ class QuickStartService {
           session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
 
       if (sessionAge.inDays <= 7 && hasProgress) {
-        debugPrint(
-            'QuickStartService: Quick start available (recent session with progress found)');
+        developer.log(
+            'QuickStartService: Quick start available (recent session with progress found)',
+            name: 'QuickStartService',
+            level: 800);
         return true;
       }
     }
 
-    debugPrint('QuickStartService: Quick start not available');
+    developer.log('QuickStartService: Quick start not available',
+        name: 'QuickStartService', level: 800);
     return false;
   }
 
@@ -666,8 +691,10 @@ class QuickStartService {
   /// Returns up to [limit] sessions that are suitable for quick start,
   /// ordered by recency.
   Future<List<QuickStartContext>> getQuickStartContexts({int limit = 5}) async {
-    debugPrint(
-        'QuickStartService: Getting quick start contexts (limit: $limit)...');
+    developer.log(
+        'QuickStartService: Getting quick start contexts (limit: $limit)...',
+        name: 'QuickStartService',
+        level: 800);
     final contexts = <QuickStartContext>[];
 
     // Get active sessions first
@@ -700,8 +727,10 @@ class QuickStartService {
       }
     }
 
-    debugPrint(
-        'QuickStartService: Found ${contexts.length} quick start contexts');
+    developer.log(
+        'QuickStartService: Found ${contexts.length} quick start contexts',
+        name: 'QuickStartService',
+        level: 800);
     return contexts;
   }
 }

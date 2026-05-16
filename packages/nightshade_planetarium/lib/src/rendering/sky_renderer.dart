@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element, unused_field
 
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -1117,7 +1118,7 @@ class SkyCanvasPainter extends CustomPainter {
     if (doTiming) {
       _hasLoggedTimingBreakdown = true;
       final totalUs = bgUs + mwUs + gridUs + overlayUs + constUs + starUs + dsoUs + solarUs + labelUs + markerUs;
-      debugPrint(
+      developer.log(
         'SkyCanvasPainter TIMING BREAKDOWN (frame 60, ${(totalUs / 1000.0).toStringAsFixed(1)}ms total):\n'
         '  Background:     ${(bgUs / 1000.0).toStringAsFixed(2)}ms\n'
         '  Milky Way:      ${(mwUs / 1000.0).toStringAsFixed(2)}ms\n'
@@ -1130,6 +1131,8 @@ class SkyCanvasPainter extends CustomPainter {
         '  Labels:         ${(labelUs / 1000.0).toStringAsFixed(2)}ms\n'
         '  Markers:        ${(markerUs / 1000.0).toStringAsFixed(2)}ms\n'
         '  Quality: ${qualityConfig.quality.name}',
+        name: 'SkyCanvasPainter',
+        level: 500,
       );
     }
 
@@ -1154,13 +1157,15 @@ class SkyCanvasPainter extends CustomPainter {
       if (now.difference(_lastWarningTime).inSeconds >= 5) {
         _lastWarningTime = now;
         final avgMs = _paintTimings.reduce((a, b) => a + b) / _paintTimings.length;
-        debugPrint(
+        developer.log(
           'SkyCanvasPainter: paint() averaging ${avgMs.toStringAsFixed(1)}ms '
           '(budget: ${_frameBudgetMs}ms). '
           '$_overBudgetCount of last ${_paintTimings.length} frames over budget. '
           'Quality: ${qualityConfig.quality.name}, '
           'Stars: ${stars.length}, DSOs: ${dsos.length}. '
           'Consider lowering render quality.',
+          name: 'SkyCanvasPainter',
+          level: 900,
         );
       }
     }

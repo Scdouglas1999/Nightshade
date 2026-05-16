@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +35,10 @@ final displayRefreshRateProvider = Provider<double>((ref) {
         return parsed;
       }
       if (kDebugMode) {
-        debugPrint('[Platform] Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.');
+        developer.log(
+            '[Platform] Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.',
+            name: 'PlatformProviders',
+            level: 900);
       }
     }
   }
@@ -42,7 +46,10 @@ final displayRefreshRateProvider = Provider<double>((ref) {
   final views = PlatformDispatcher.instance.views;
   if (views.isEmpty) {
     if (kDebugMode) {
-      debugPrint('[Platform] No Flutter views available, using $defaultHz Hz.');
+      developer.log(
+          '[Platform] No Flutter views available, using $defaultHz Hz.',
+          name: 'PlatformProviders',
+          level: 900);
     }
     return defaultHz;
   }

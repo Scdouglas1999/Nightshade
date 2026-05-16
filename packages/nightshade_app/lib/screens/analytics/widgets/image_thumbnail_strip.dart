@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart'
     show
         backendProvider,
         isRemoteModeProvider,
+        loggingServiceProvider,
         DbCapturedImage,
         FrameQualityAssessment,
         FrameQualityAssessmentService,
@@ -553,7 +554,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     } catch (error) {
       backendError =
           'Backend thumbnail request failed for image ${widget.image.id}: $error';
-      debugPrint('ImageThumbnailStrip: $backendError');
+      ref.read(loggingServiceProvider).warning(
+          'ImageThumbnailStrip: $backendError',
+          source: 'ImageThumbnailStrip');
     }
 
     if (ref.read(isRemoteModeProvider)) {
@@ -575,7 +578,9 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     } catch (error) {
       final localError =
           'Failed to check local image file "${widget.image.filePath}": $error';
-      debugPrint('ImageThumbnailStrip: $localError');
+      ref.read(loggingServiceProvider).warning(
+          'ImageThumbnailStrip: $localError',
+          source: 'ImageThumbnailStrip');
       return _ThumbnailPayload(
         fileExists: false,
         errorMessage: '$backendError\n$localError',

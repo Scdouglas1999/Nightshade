@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -211,19 +211,27 @@ class NotificationService {
           .timeout(_requestTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        debugPrint('[Notification] Discord notification sent successfully');
+        developer.log(
+            '[Notification] Discord notification sent successfully',
+            name: 'NotificationService',
+            level: 800);
         return true;
       }
 
-      debugPrint(
-          '[Notification] Discord notification failed: ${response.statusCode} ${response.body}');
+      developer.log(
+          '[Notification] Discord notification failed: ${response.statusCode} ${response.body}',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } on TimeoutException {
-      debugPrint(
-          '[Notification] Discord notification timed out after ${_requestTimeout.inSeconds}s');
+      developer.log(
+          '[Notification] Discord notification timed out after ${_requestTimeout.inSeconds}s',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } catch (e) {
-      debugPrint('[Notification] Discord notification error: $e');
+      developer.log('[Notification] Discord notification error: $e',
+          name: 'NotificationService', level: 1000, error: e);
       return false;
     }
   }
@@ -252,19 +260,27 @@ class NotificationService {
       ).timeout(_requestTimeout);
 
       if (response.statusCode == 200) {
-        debugPrint('[Notification] Pushover notification sent successfully');
+        developer.log(
+            '[Notification] Pushover notification sent successfully',
+            name: 'NotificationService',
+            level: 800);
         return true;
       }
 
-      debugPrint(
-          '[Notification] Pushover notification failed: ${response.statusCode} ${response.body}');
+      developer.log(
+          '[Notification] Pushover notification failed: ${response.statusCode} ${response.body}',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } on TimeoutException {
-      debugPrint(
-          '[Notification] Pushover notification timed out after ${_requestTimeout.inSeconds}s');
+      developer.log(
+          '[Notification] Pushover notification timed out after ${_requestTimeout.inSeconds}s',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } catch (e) {
-      debugPrint('[Notification] Pushover notification error: $e');
+      developer.log('[Notification] Pushover notification error: $e',
+          name: 'NotificationService', level: 1000, error: e);
       return false;
     }
   }
@@ -324,11 +340,14 @@ class NotificationService {
 
       return response.statusCode >= 200 && response.statusCode < 300;
     } on TimeoutException {
-      debugPrint(
-          '[Notification] Discord test timed out after ${_requestTimeout.inSeconds}s');
+      developer.log(
+          '[Notification] Discord test timed out after ${_requestTimeout.inSeconds}s',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } catch (e) {
-      debugPrint('[Notification] Discord test failed: $e');
+      developer.log('[Notification] Discord test failed: $e',
+          name: 'NotificationService', level: 1000, error: e);
       return false;
     }
   }
@@ -350,11 +369,14 @@ class NotificationService {
 
       return response.statusCode == 200;
     } on TimeoutException {
-      debugPrint(
-          '[Notification] Pushover test timed out after ${_requestTimeout.inSeconds}s');
+      developer.log(
+          '[Notification] Pushover test timed out after ${_requestTimeout.inSeconds}s',
+          name: 'NotificationService',
+          level: 900);
       return false;
     } catch (e) {
-      debugPrint('[Notification] Pushover test failed: $e');
+      developer.log('[Notification] Pushover test failed: $e',
+          name: 'NotificationService', level: 1000, error: e);
       return false;
     }
   }

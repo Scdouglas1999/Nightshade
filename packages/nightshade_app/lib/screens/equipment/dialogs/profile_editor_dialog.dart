@@ -298,9 +298,11 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       final status = await backend.getFilterWheelStatus(deviceId);
       filterNames = status.filterNames;
     } catch (error, stack) {
-      debugPrint(
+      ref.read(loggingServiceProvider).warning(
         'ProfileEditorDialog: hardware filter-name query failed for '
-        '$deviceId. Falling back to cached provider state. Error=$error\n$stack',
+        '$deviceId. Falling back to cached provider state. Error=$error',
+        source: 'ProfileEditorDialog',
+        fields: {'error': error.toString(), 'stack': stack.toString()},
       );
       // Fall back to state if hardware query fails
       filterNames = filterWheelState.filterNames;

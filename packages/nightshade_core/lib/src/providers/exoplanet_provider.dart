@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../models/annotation_data.dart';
 
@@ -39,7 +39,8 @@ class ExoplanetProvider {
         }
       }
     } catch (e) {
-      debugPrint('[EXOPLANET] Error: $e');
+      developer.log('[EXOPLANET] Error: $e',
+          name: 'ExoplanetProvider', level: 900, error: e);
     }
     
     return [];

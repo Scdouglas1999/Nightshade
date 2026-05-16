@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart'
@@ -353,9 +353,13 @@ class SciencePhotometrySelectionNotifier
         return PhotometryAnchor.fromJson(decoded.cast<String, dynamic>());
       }
     } catch (error, stack) {
-      debugPrint(
+      developer.log(
         'SciencePhotometrySelectionNotifier: failed to decode target anchor '
-        'from persisted JSON "$raw": $error\n$stack',
+        'from persisted JSON "$raw": $error',
+        name: 'SciencePhotometrySelectionNotifier',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
       );
     }
     return null;
@@ -386,9 +390,13 @@ class SciencePhotometrySelectionNotifier
       }
       return anchors;
     } catch (error, stack) {
-      debugPrint(
+      developer.log(
         'SciencePhotometrySelectionNotifier: failed to decode comparison anchors '
-        'from persisted JSON "$raw": $error\n$stack',
+        'from persisted JSON "$raw": $error',
+        name: 'SciencePhotometrySelectionNotifier',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
       );
       return const [];
     }

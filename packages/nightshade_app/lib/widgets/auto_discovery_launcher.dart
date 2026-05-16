@@ -25,6 +25,8 @@ class AutoDiscoveryLauncher extends ConsumerStatefulWidget {
 class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
   bool _hasLaunched = false;
 
+  LoggingService get _logger => ref.read(loggingServiceProvider);
+
   @override
   void initState() {
     super.initState();
@@ -44,7 +46,8 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
 
       // Check if auto-discovery is enabled
       if (!settings.autoDiscoverOnLaunch) {
-        debugPrint('[AutoDiscovery] Auto-discovery disabled in settings');
+        _logger.info('[AutoDiscovery] Auto-discovery disabled in settings',
+            source: 'AutoDiscoveryLauncher');
         return;
       }
 
@@ -54,13 +57,17 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
 
       if (!mounted) return;
 
-      debugPrint('[AutoDiscovery] Starting background device discovery...');
+      _logger.info('[AutoDiscovery] Starting background device discovery...',
+          source: 'AutoDiscoveryLauncher');
 
       // Fire-and-forget: Start discovery without awaiting completion
       // This allows the UI to remain responsive while discovery runs
       _runDiscoveryInBackground();
     } catch (e) {
-      debugPrint('[AutoDiscovery] Error during auto-discovery setup: $e');
+      _logger.error(
+          '[AutoDiscovery] Error during auto-discovery setup: $e',
+          source: 'AutoDiscoveryLauncher',
+          fields: {'error': e.toString()});
       // Don't show error to user - this is a background operation
     }
   }
@@ -76,9 +83,12 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
         // Run discovery - this already runs backends in parallel internally
         await discoveryNotifier.discoverAll();
 
-        debugPrint('[AutoDiscovery] Background discovery completed');
+        _logger.info('[AutoDiscovery] Background discovery completed',
+            source: 'AutoDiscoveryLauncher');
       } catch (e) {
-        debugPrint('[AutoDiscovery] Discovery error (non-fatal): $e');
+        _logger.warning('[AutoDiscovery] Discovery error (non-fatal): $e',
+            source: 'AutoDiscoveryLauncher',
+            fields: {'error': e.toString()});
         // Errors during discovery are non-fatal - user can manually refresh
       }
     });

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/minor_planet_catalog.dart';
 import 'planetarium_providers.dart';
@@ -88,7 +88,8 @@ class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState
         lastUpdate: DateTime.now(),
       );
     } catch (e) {
-      debugPrint('[MinorPlanet] Position computation error: $e');
+      developer.log('[MinorPlanet] Position computation error: $e',
+          name: 'MinorPlanetProviders', level: 900, error: e);
     }
   }
 

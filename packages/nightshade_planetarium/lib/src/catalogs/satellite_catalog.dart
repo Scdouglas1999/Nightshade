@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import '../astronomy/sgp4.dart';
 import 'catalog_manager.dart';
@@ -159,7 +159,8 @@ class TleParser {
         if (parsed != null) {
           elements.add(parsed);
         } else {
-          debugPrint('[TLE] Failed to parse: ${lines[i].trim()}');
+          developer.log('[TLE] Failed to parse: ${lines[i].trim()}',
+              name: 'SatelliteCatalog', level: 900);
         }
         i += 3;
       } else if (i + 1 < lines.length && _isLine1(lines[i]) && _isLine2(lines[i + 1])) {
@@ -168,7 +169,8 @@ class TleParser {
         if (parsed != null) {
           elements.add(parsed);
         } else {
-          debugPrint('[TLE] Failed to parse 2-line at index $i');
+          developer.log('[TLE] Failed to parse 2-line at index $i',
+              name: 'SatelliteCatalog', level: 900);
         }
         i += 2;
       } else {
@@ -203,7 +205,8 @@ class TleParser {
     try {
       // Verify checksums
       if (!_verifyChecksum(line1) || !_verifyChecksum(line2)) {
-        debugPrint('[TLE] Checksum mismatch for $name');
+        developer.log('[TLE] Checksum mismatch for $name',
+            name: 'SatelliteCatalog', level: 900);
         // Continue anyway - some sources have bad checksums
       }
 
@@ -252,7 +255,8 @@ class TleParser {
         revolutionNumber: revolutionNumber,
       );
     } catch (e) {
-      debugPrint('[TLE] Parse error for "$name": $e');
+      developer.log('[TLE] Parse error for "$name": $e',
+          name: 'SatelliteCatalog', level: 900, error: e);
       return null;
     }
   }
@@ -381,11 +385,18 @@ class SatelliteCatalog {
           if (elements.isNotEmpty) {
             _cachedGroups[source.name] = elements;
             _lastDownloadTime = stat.modified;
-            debugPrint('[Satellite] Loaded ${elements.length} TLEs from cache for ${source.name}');
+            developer.log(
+                '[Satellite] Loaded ${elements.length} TLEs from cache for ${source.name}',
+                name: 'SatelliteCatalog',
+                level: 800);
             return elements;
           }
         } catch (e) {
-          debugPrint('[Satellite] Cache read error for ${source.name}: $e');
+          developer.log(
+              '[Satellite] Cache read error for ${source.name}: $e',
+              name: 'SatelliteCatalog',
+              level: 900,
+              error: e);
         }
       }
     }
@@ -407,12 +418,19 @@ class SatelliteCatalog {
         }
         await cacheFile.writeAsString(text);
       } catch (e) {
-        debugPrint('[Satellite] Cache write error for ${source.name}: $e');
+        developer.log(
+            '[Satellite] Cache write error for ${source.name}: $e',
+            name: 'SatelliteCatalog',
+            level: 900,
+            error: e);
       }
 
       _cachedGroups[source.name] = elements;
       _lastDownloadTime = DateTime.now();
-      debugPrint('[Satellite] Downloaded ${elements.length} TLEs for ${source.name}');
+      developer.log(
+          '[Satellite] Downloaded ${elements.length} TLEs for ${source.name}',
+          name: 'SatelliteCatalog',
+          level: 800);
       return elements;
     } catch (e) {
       // If download fails, try stale cache as last resort
@@ -422,7 +440,10 @@ class SatelliteCatalog {
           final elements = TleParser.parse(text);
           if (elements.isNotEmpty) {
             _cachedGroups[source.name] = elements;
-            debugPrint('[Satellite] Using stale cache for ${source.name} (${elements.length} TLEs)');
+            developer.log(
+                '[Satellite] Using stale cache for ${source.name} (${elements.length} TLEs)',
+                name: 'SatelliteCatalog',
+                level: 900);
             return elements;
           }
         } catch (e) {
@@ -431,8 +452,11 @@ class SatelliteCatalog {
           // the `rethrow` below so the original download error reaches the
           // caller (which is the actionable one). Logging here surfaces the
           // cache corruption distinctly from the network failure.
-          debugPrint(
+          developer.log(
             '[Satellite] Stale-cache fallback failed for ${source.name}: $e',
+            name: 'SatelliteCatalog',
+            level: 1000,
+            error: e,
           );
         }
       }
@@ -454,7 +478,8 @@ class SatelliteCatalog {
           }
         }
       } catch (e) {
-        debugPrint('[Satellite] Failed to load ${source.name}: $e');
+        developer.log('[Satellite] Failed to load ${source.name}: $e',
+            name: 'SatelliteCatalog', level: 900, error: e);
       }
     }
 

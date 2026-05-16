@@ -71,7 +71,8 @@ class HygStarCatalog extends Catalog<Star> {
         _cachedStars = stars;
         return stars;
       } catch (e) {
-        debugPrint('[Catalog] Error loading stars in isolate: $e');
+        developer.log('[Catalog] Error loading stars in isolate: $e',
+            name: 'StarCatalog', level: 1000, error: e);
         return [];
       }
     } finally {

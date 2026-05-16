@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
@@ -481,7 +481,8 @@ class ProfileService {
     final activeProfile = await dao.getActiveProfile();
 
     if (activeProfile == null) {
-      debugPrint('ProfileService: No active profile to save devices to');
+      developer.log('ProfileService: No active profile to save devices to',
+          name: 'ProfileService', level: 900);
       return false;
     }
 
@@ -548,7 +549,8 @@ class ProfileService {
         coverCalibratorId != null;
 
     if (!hasConnectedDevices) {
-      debugPrint('ProfileService: No connected devices to save');
+      developer.log('ProfileService: No connected devices to save',
+          name: 'ProfileService', level: 800);
       return false;
     }
 
@@ -567,8 +569,10 @@ class ProfileService {
       updatedAt: DateTime.now(),
     ));
 
-    debugPrint(
-        'ProfileService: Saved connected devices to profile "${activeProfile.name}"');
+    developer.log(
+        'ProfileService: Saved connected devices to profile "${activeProfile.name}"',
+        name: 'ProfileService',
+        level: 800);
     return true;
   }
 
@@ -602,7 +606,8 @@ class ProfileService {
     final activeProfile = await dao.getActiveProfile();
 
     if (activeProfile == null) {
-      debugPrint('ProfileService: No active profile to sync filters to');
+      developer.log('ProfileService: No active profile to sync filters to',
+          name: 'ProfileService', level: 900);
       return false;
     }
 
@@ -610,13 +615,15 @@ class ProfileService {
     final filterWheelState = _ref.read(filterWheelStateProvider);
 
     if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-      debugPrint('ProfileService: Filter wheel not connected');
+      developer.log('ProfileService: Filter wheel not connected',
+          name: 'ProfileService', level: 900);
       return false;
     }
 
     final hwFilterNames = filterWheelState.filterNames;
     if (hwFilterNames.isEmpty) {
-      debugPrint('ProfileService: No filter names from hardware');
+      developer.log('ProfileService: No filter names from hardware',
+          name: 'ProfileService', level: 900);
       return false;
     }
 
@@ -630,10 +637,14 @@ class ProfileService {
               'equipment_profiles.filter_focus_offsets for "${activeProfile.name}"',
         );
       } catch (error, stack) {
-        debugPrint(
+        developer.log(
           'ProfileService: Failed to parse filterFocusOffsets for profile '
           '"${activeProfile.name}" (id=${activeProfile.id}). '
-          'Value=${activeProfile.filterFocusOffsets} Error=$error\n$stack',
+          'Value=${activeProfile.filterFocusOffsets} Error=$error',
+          name: 'ProfileService',
+          level: 1000,
+          error: error,
+          stackTrace: stack,
         );
       }
     }
@@ -650,8 +661,10 @@ class ProfileService {
       updatedAt: DateTime.now(),
     ));
 
-    debugPrint(
-        'ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"');
+    developer.log(
+        'ProfileService: Synced ${hwFilterNames.length} filters to profile "${activeProfile.name}"',
+        name: 'ProfileService',
+        level: 800);
     return true;
   }
 
@@ -685,10 +698,14 @@ class ProfileService {
               'equipment_profiles.filter_focus_offsets for "${profile.name}"',
         );
       } catch (error, stack) {
-        debugPrint(
+        developer.log(
           'ProfileService: Failed to parse filterFocusOffsets for profile '
           '"${profile.name}" (id=${profile.id}). '
-          'Value=${profile.filterFocusOffsets} Error=$error\n$stack',
+          'Value=${profile.filterFocusOffsets} Error=$error',
+          name: 'ProfileService',
+          level: 1000,
+          error: error,
+          stackTrace: stack,
         );
       }
     }
@@ -769,7 +786,8 @@ class ProfileExportData {
         );
       } catch (e) {
         // Malformed filter names JSON - skip
-        debugPrint('ProfileService: Failed to parse filterNames: $e');
+        developer.log('ProfileService: Failed to parse filterNames: $e',
+            name: 'ProfileService', level: 1000, error: e);
       }
     }
 
@@ -782,7 +800,11 @@ class ProfileExportData {
         );
       } catch (e) {
         // Malformed filter offsets JSON - skip
-        debugPrint('ProfileService: Failed to parse filterFocusOffsets: $e');
+        developer.log(
+            'ProfileService: Failed to parse filterFocusOffsets: $e',
+            name: 'ProfileService',
+            level: 1000,
+            error: e);
       }
     }
 

@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -626,7 +627,8 @@ class _StackedPreviewState extends State<_StackedPreview> {
       descriptor.dispose();
       buffer.dispose();
     } catch (e) {
-      debugPrint('[StackingPanel] Error building preview image: $e');
+      developer.log('[StackingPanel] Error building preview image: $e',
+          name: 'StackingPanel', level: 900, error: e);
     } finally {
       _isDecoding = false;
     }

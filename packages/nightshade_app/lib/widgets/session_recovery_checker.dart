@@ -52,7 +52,10 @@ class _SessionRecoveryCheckerState extends ConsumerState<SessionRecoveryChecker>
         }
       }
     } catch (e) {
-      debugPrint('[SessionRecovery] Error checking for incomplete sessions: $e');
+      ref.read(loggingServiceProvider).warning(
+          '[SessionRecovery] Error checking for incomplete sessions: $e',
+          source: 'SessionRecoveryChecker',
+          fields: {'error': e.toString()});
       // Don't show error to user - this is a background check
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -352,14 +354,20 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
     ];
 
     // Find current selection
-    debugPrint('_buildFilterDropdown: node.filter="${node.filter}" node.filterIndex=${node.filterIndex} filterNames=$filterNames');
+    developer.log(
+        '_buildFilterDropdown: node.filter="${node.filter}" node.filterIndex=${node.filterIndex} filterNames=$filterNames',
+        name: 'InstructionNodeProperties',
+        level: 500);
     final currentFilter = filterOptions.firstWhere(
       (f) =>
           (node.filterIndex != null && f.index == node.filterIndex) ||
           (node.filterIndex == null && f.name == (node.filter ?? '')),
       orElse: () => filterOptions.first,
     );
-    debugPrint('_buildFilterDropdown: currentFilter=(index:${currentFilter.index}, name:"${currentFilter.name}")');
+    developer.log(
+        '_buildFilterDropdown: currentFilter=(index:${currentFilter.index}, name:"${currentFilter.name}")',
+        name: 'InstructionNodeProperties',
+        level: 500);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

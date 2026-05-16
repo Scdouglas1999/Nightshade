@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 import 'coordinate_system.dart';
 import 'celestial_object.dart';
 import 'catalogs/star_catalog.dart';
@@ -62,7 +64,8 @@ class _SkyViewState extends State<SkyView> {
         });
       }
     } catch (e) {
-      debugPrint('[SkyView] Error loading catalogs: $e');
+      developer.log('[SkyView] Error loading catalogs: $e',
+          name: 'SkyView', level: 1000, error: e);
       if (mounted) {
         setState(() => _isLoading = false);
       }

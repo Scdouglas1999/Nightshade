@@ -11,8 +11,8 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'utils/retry.dart';
 import 'utils/circuit_breaker.dart';
@@ -100,7 +100,10 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
               // Avoid duplicates
               if (!servers.any((s) => s.host == host && s.port == alpacaPort)) {
                 servers.add(AlpacaServer(host: host, port: alpacaPort));
-                debugPrint('[Alpaca] Discovered server at $host:$alpacaPort');
+                developer.log(
+                    '[Alpaca] Discovered server at $host:$alpacaPort',
+                    name: 'AlpacaClient',
+                    level: 800);
               }
             }
           } catch (e) {
@@ -124,7 +127,8 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
 
     return servers;
   } catch (e) {
-    debugPrint('[Alpaca] Discovery error: $e');
+    developer.log('[Alpaca] Discovery error: $e',
+        name: 'AlpacaClient', level: 900, error: e);
     // Try common localhost ports as fallback
     await _tryLocalPorts(servers);
     return servers;
@@ -145,7 +149,8 @@ Future<void> _tryLocalPorts(List<AlpacaServer> servers) async {
       if (response.statusCode == 200) {
         if (!servers.any((s) => s.host == 'localhost' && s.port == port)) {
           servers.add(AlpacaServer(host: 'localhost', port: port));
-          debugPrint('[Alpaca] Found server at localhost:$port');
+          developer.log('[Alpaca] Found server at localhost:$port',
+              name: 'AlpacaClient', level: 800);
         }
       }
       client.close();
@@ -185,7 +190,11 @@ Future<List<AlpacaDevice>> getAlpacaDevices(AlpacaServer server) async {
 
     client.close();
   } catch (e) {
-    debugPrint('[Alpaca] Error getting devices from ${server.baseUrl}: $e');
+    developer.log(
+        '[Alpaca] Error getting devices from ${server.baseUrl}: $e',
+        name: 'AlpacaClient',
+        level: 900,
+        error: e);
   }
 
   return devices;

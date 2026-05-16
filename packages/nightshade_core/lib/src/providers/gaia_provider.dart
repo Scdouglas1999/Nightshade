@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../models/annotation_data.dart';
 
@@ -47,7 +47,8 @@ class GaiaProvider {
         }
       }
     } catch (e) {
-      debugPrint('[GAIA] Error: $e');
+      developer.log('[GAIA] Error: $e',
+          name: 'GaiaProvider', level: 900, error: e);
     }
     
     return null;

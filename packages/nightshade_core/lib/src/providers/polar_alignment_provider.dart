@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/nightshade_backend.dart';
@@ -53,7 +54,10 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   void _handlePolarAlignmentEvent(String eventType, Map<String, dynamic> data) {
     if (!mounted) return;
 
-    debugPrint('[PolarAlignmentStateNotifier] Received event: $eventType');
+    developer.log(
+        '[PolarAlignmentStateNotifier] Received event: $eventType',
+        name: 'PolarAlignmentStateNotifier',
+        level: 500);
 
     switch (eventType) {
       case 'PolarAlignment':
@@ -244,8 +248,10 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   /// Mark alignment as complete and save result
   Future<void> completeAlignment({bool autoCompleted = false}) async {
     if (state.initialError == null || state.currentError == null) {
-      debugPrint(
-          '[PolarAlignmentStateNotifier] Cannot complete - missing error data');
+      developer.log(
+          '[PolarAlignmentStateNotifier] Cannot complete - missing error data',
+          name: 'PolarAlignmentStateNotifier',
+          level: 900);
       return;
     }
 
@@ -253,7 +259,11 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
       final backend = ref.read(backendProvider);
       await backend.stopPolarAlignment();
     } catch (e) {
-      debugPrint('[PolarAlignmentStateNotifier] Error stopping alignment: $e');
+      developer.log(
+          '[PolarAlignmentStateNotifier] Error stopping alignment: $e',
+          name: 'PolarAlignmentStateNotifier',
+          level: 1000,
+          error: e);
     }
 
     await _saveResult(autoCompleted: autoCompleted);
@@ -292,9 +302,11 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
     try {
       final db = ref.read(databaseProvider);
       await db.polarAlignmentHistoryDao.insertResult(result);
-      debugPrint('[PolarAlignmentStateNotifier] Saved alignment result');
+      developer.log('[PolarAlignmentStateNotifier] Saved alignment result',
+          name: 'PolarAlignmentStateNotifier', level: 800);
     } catch (e) {
-      debugPrint('[PolarAlignmentStateNotifier] Failed to save result: $e');
+      developer.log('[PolarAlignmentStateNotifier] Failed to save result: $e',
+          name: 'PolarAlignmentStateNotifier', level: 1000, error: e);
     }
   }
 
@@ -340,10 +352,12 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
       if (setting != null && setting.isNotEmpty) {
         final json = jsonDecode(setting) as Map<String, dynamic>;
         state = PolarAlignmentConfig.fromJson(json);
-        debugPrint('[PolarAlignmentConfigNotifier] Loaded config from DB');
+        developer.log('[PolarAlignmentConfigNotifier] Loaded config from DB',
+            name: 'PolarAlignmentConfigNotifier', level: 800);
       }
     } catch (e) {
-      debugPrint('[PolarAlignmentConfigNotifier] Failed to load config: $e');
+      developer.log('[PolarAlignmentConfigNotifier] Failed to load config: $e',
+          name: 'PolarAlignmentConfigNotifier', level: 1000, error: e);
     }
   }
 
@@ -357,9 +371,11 @@ class PolarAlignmentConfigNotifier extends StateNotifier<PolarAlignmentConfig> {
       final db = ref.read(databaseProvider);
       final json = jsonEncode(state.toJson());
       await db.settingsDao.setSetting(_settingsKey, json);
-      debugPrint('[PolarAlignmentConfigNotifier] Saved config to DB');
+      developer.log('[PolarAlignmentConfigNotifier] Saved config to DB',
+          name: 'PolarAlignmentConfigNotifier', level: 800);
     } catch (e) {
-      debugPrint('[PolarAlignmentConfigNotifier] Failed to save config: $e');
+      developer.log('[PolarAlignmentConfigNotifier] Failed to save config: $e',
+          name: 'PolarAlignmentConfigNotifier', level: 1000, error: e);
     }
   }
 

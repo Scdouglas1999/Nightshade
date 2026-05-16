@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' show apiEventStream;
 import 'package:nightshade_bridge/src/event.dart' show NightshadeEvent, EventCategory, EventSeverity;
@@ -153,7 +153,11 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
         break;
     }
   }, onError: (error) {
-    debugPrint('[ErrorNotificationBridge] Event stream error: $error');
+    developer.log(
+        '[ErrorNotificationBridge] Event stream error: $error',
+        name: 'ErrorNotificationBridge',
+        level: 1000,
+        error: error);
   });
 
   ref.onDispose(() {

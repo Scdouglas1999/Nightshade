@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../models/annotation_data.dart';
 
@@ -53,9 +53,10 @@ class SimbadProvider {
         }
       }
     } catch (e) {
-      debugPrint('[SIMBAD] Error: $e');
+      developer.log('[SIMBAD] Error: $e',
+          name: 'SimbadProvider', level: 900, error: e);
     }
-    
+
     return null;
   }
 
@@ -68,7 +69,7 @@ class SimbadProvider {
   ///
   /// Returns an empty list on network failure rather than throwing — the
   /// caller (planner search) wants a partial result if SIMBAD is down, not
-  /// to crash the search UI. Errors are still logged via [debugPrint].
+  /// to crash the search UI. Errors are still logged via developer.log.
   Future<List<SimbadNameMatch>> searchByName(
     String query, {
     int limit = 25,
@@ -104,7 +105,8 @@ class SimbadProvider {
         },
       );
       if (response.statusCode != 200) {
-        debugPrint('[SIMBAD] name search HTTP ${response.statusCode}');
+        developer.log('[SIMBAD] name search HTTP ${response.statusCode}',
+            name: 'SimbadProvider', level: 900);
         return const <SimbadNameMatch>[];
       }
       final json = jsonDecode(response.body);
@@ -135,7 +137,8 @@ class SimbadProvider {
       out.sort((a, b) => a.mainId.length.compareTo(b.mainId.length));
       return out;
     } catch (e) {
-      debugPrint('[SIMBAD] name search error: $e');
+      developer.log('[SIMBAD] name search error: $e',
+          name: 'SimbadProvider', level: 900, error: e);
       return const <SimbadNameMatch>[];
     }
   }

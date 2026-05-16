@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../../models/equipment/equipment_models.dart';
@@ -34,8 +34,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       final nextNames = next?.filterNames ?? [];
       if (_filterNamesEqual(previousNames, nextNames)) return;
 
-      debugPrint(
-          'FilterWheelStateNotifier: Active profile filter names changed, re-syncing');
+      developer.log(
+          'FilterWheelStateNotifier: Active profile filter names changed, re-syncing',
+          name: 'FilterWheelStateNotifier',
+          level: 800);
       _syncProfileFilterNamesToDriver(state.deviceId!);
     });
   }
@@ -103,8 +105,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
         final profileFilterNames = activeProfile.filterNames;
         final driverNames = state.filterNames;
-        debugPrint(
-            'FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots');
+        developer.log(
+            'FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
 
         // Pad profile names to match the wheel's actual slot count so no slots are lost
         final List<String> syncedNames;
@@ -113,8 +117,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
             ...profileFilterNames,
             ...driverNames.sublist(profileFilterNames.length),
           ];
-          debugPrint(
-              'FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames');
+          developer.log(
+              'FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames',
+              name: 'FilterWheelStateNotifier',
+              level: 800);
         } else {
           syncedNames = profileFilterNames.length > driverNames.length
               ? profileFilterNames.sublist(0, driverNames.length)
@@ -127,8 +133,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         );
 
         state = state.copyWith(filterNames: syncedNames);
-        debugPrint(
-            'FilterWheelStateNotifier: Profile filter names synced successfully');
+        developer.log(
+            'FilterWheelStateNotifier: Profile filter names synced successfully',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
         return;
       }
 
@@ -136,8 +144,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
       if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
         final driverNames = state.filterNames;
-        debugPrint(
-            'FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots');
+        developer.log(
+            'FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
 
         // Pad session names to match the wheel's actual slot count
         final List<String> syncedNames;
@@ -158,17 +168,25 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         );
 
         state = state.copyWith(filterNames: syncedNames);
-        debugPrint(
-            'FilterWheelStateNotifier: Session filter names synced successfully');
+        developer.log(
+            'FilterWheelStateNotifier: Session filter names synced successfully',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
         return;
       }
 
       // Priority 3: Use driver-reported names (no sync needed, they're already there)
-      debugPrint(
-          'FilterWheelStateNotifier: No profile or session filter names - using driver-reported names');
+      developer.log(
+          'FilterWheelStateNotifier: No profile or session filter names - using driver-reported names',
+          name: 'FilterWheelStateNotifier',
+          level: 800);
     } catch (e) {
       // Don't fail connection if filter name sync fails - log and continue
-      debugPrint('FilterWheelStateNotifier: Failed to sync filter names: $e');
+      developer.log(
+          'FilterWheelStateNotifier: Failed to sync filter names: $e',
+          name: 'FilterWheelStateNotifier',
+          level: 1000,
+          error: e);
     }
   }
 
@@ -260,17 +278,24 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         state.connectionState == DeviceConnectionState.connected &&
         state.deviceId != null) {
       try {
-        debugPrint(
-            'FilterWheelStateNotifier: Syncing session filter names to driver: $names');
+        developer.log(
+            'FilterWheelStateNotifier: Syncing session filter names to driver: $names',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
         await bridge_api.apiFilterwheelSetFilterNames(
           deviceId: state.deviceId!,
           names: names,
         );
-        debugPrint(
-            'FilterWheelStateNotifier: Session filter names synced to driver');
+        developer.log(
+            'FilterWheelStateNotifier: Session filter names synced to driver',
+            name: 'FilterWheelStateNotifier',
+            level: 800);
       } catch (e) {
-        debugPrint(
-            'FilterWheelStateNotifier: Failed to sync session filter names to driver: $e');
+        developer.log(
+            'FilterWheelStateNotifier: Failed to sync session filter names to driver: $e',
+            name: 'FilterWheelStateNotifier',
+            level: 1000,
+            error: e);
         // Don't throw - the names are still stored locally
       }
     }

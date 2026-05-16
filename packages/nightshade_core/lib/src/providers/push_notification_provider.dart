@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
@@ -27,7 +27,8 @@ class PushNotificationConfigNotifier extends AsyncNotifier<PushNotificationConfi
           notifyEquipmentDisconnected: map['notifyEquipmentDisconnected'] as bool? ?? false,
         );
       } catch (e) {
-        debugPrint('[PushNotificationConfig] Failed to parse config: $e');
+        developer.log('[PushNotificationConfig] Failed to parse config: $e',
+            name: 'PushNotificationConfig', level: 1000, error: e);
         return const PushNotificationConfig();
       }
     }

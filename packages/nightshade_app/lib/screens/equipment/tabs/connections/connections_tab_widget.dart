@@ -223,7 +223,10 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
       // Why: user already sees the snackbar; capture the exception for
       // the log so we can diagnose Alpaca discovery failures after the
       // fact ("said connect failed but didn't say why").
-      debugPrint('[ConnectionsTab] Alpaca connect failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[ConnectionsTab] Alpaca connect failed: $e',
+          source: 'ConnectionsTab',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (mounted) {
         context.showErrorSnackBar(
           'Could not connect to that Alpaca server.',
@@ -266,7 +269,10 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
       // Why: user already sees the snackbar; capture the exception for
       // the log so we can diagnose INDI discovery failures after the
       // fact ("said connect failed but didn't say why").
-      debugPrint('[ConnectionsTab] INDI connect failed: $e\n$st');
+      ref.read(loggingServiceProvider).error(
+          '[ConnectionsTab] INDI connect failed: $e',
+          source: 'ConnectionsTab',
+          fields: {'error': e.toString(), 'stack': st.toString()});
       if (mounted) {
         context.showErrorSnackBar(
           'Could not connect to that INDI server.',

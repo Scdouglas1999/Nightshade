@@ -1209,7 +1209,10 @@ class _ActionButtons extends ConsumerWidget {
               : null,
         );
       } catch (e) {
-        debugPrint('[FlatWizard] Failed to record calibration to history: $e');
+        ref.read(loggingServiceProvider).warning(
+            '[FlatWizard] Failed to record calibration to history: $e',
+            source: 'FlatWizardScreen',
+            fields: {'error': e.toString()});
       }
     }
 

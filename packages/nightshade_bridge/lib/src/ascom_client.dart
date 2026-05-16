@@ -7,8 +7,8 @@
 ///
 /// Reference: https://ascom-standards.org/
 
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 
 // Only compile on Windows
 // ignore: unused_import
@@ -72,7 +72,8 @@ Future<List<AscomDriver>> discoverAscomDrivers(String deviceType) async {
       ));
     }
   } catch (e) {
-    debugPrint('[ASCOM] Error discovering $deviceType drivers: $e');
+    developer.log('[ASCOM] Error discovering $deviceType drivers: $e',
+        name: 'AscomClient', level: 1000, error: e);
   }
 
   return drivers;
@@ -119,7 +120,8 @@ Future<dynamic> _getWin32() async {
     _win32Module ??= true; // Just flag that we've tried
     return _win32Module;
   } catch (e) {
-    debugPrint('[ASCOM] Failed to load win32: $e');
+    developer.log('[ASCOM] Failed to load win32: $e',
+        name: 'AscomClient', level: 1000, error: e);
     return null;
   }
 }
@@ -136,7 +138,8 @@ Future<List<String>> _queryAscomRegistry(String registryPath) async {
     final result = await _executeRegistryQuery(registryPath);
     drivers.addAll(result);
   } catch (e) {
-    debugPrint('[ASCOM] Registry query failed: $e');
+    developer.log('[ASCOM] Registry query failed: $e',
+        name: 'AscomClient', level: 900, error: e);
   }
 
   return drivers;
@@ -215,7 +218,8 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
       // Registry path doesn't exist - ASCOM not installed or no drivers of this type
     }
   } catch (e) {
-    debugPrint('[ASCOM] Registry query failed for $registryPath: $e');
+    developer.log('[ASCOM] Registry query failed for $registryPath: $e',
+        name: 'AscomClient', level: 900, error: e);
   }
 
   return drivers.toSet().toList(); // Remove duplicates
@@ -297,7 +301,8 @@ class AscomDeviceClient {
 
       if (result.stdout.toString().contains('SUCCESS')) {
         _connected = true;
-        debugPrint('[ASCOM] Connected to device: $progId');
+        developer.log('[ASCOM] Connected to device: $progId',
+            name: 'AscomClient', level: 800);
       } else {
         throw Exception('Failed to connect: ${result.stdout}');
       }
@@ -330,9 +335,11 @@ class AscomDeviceClient {
       );
 
       _connected = false;
-      debugPrint('[ASCOM] Disconnected from device: $progId');
+      developer.log('[ASCOM] Disconnected from device: $progId',
+          name: 'AscomClient', level: 800);
     } catch (e) {
-      debugPrint('[ASCOM] Error disconnecting: $e');
+      developer.log('[ASCOM] Error disconnecting: $e',
+          name: 'AscomClient', level: 1000, error: e);
     }
   }
 
@@ -484,7 +491,8 @@ Future<String?> showAscomChooser(String deviceType) async {
       }
     }
   } catch (e) {
-    debugPrint('[ASCOM] Failed to show chooser: $e');
+    developer.log('[ASCOM] Failed to show chooser: $e',
+        name: 'AscomClient', level: 1000, error: e);
   }
 
   return null;

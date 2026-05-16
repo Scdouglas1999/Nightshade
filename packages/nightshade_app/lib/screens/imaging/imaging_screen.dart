@@ -74,7 +74,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     // Reading the provider creates the AnnotationService instance
     // which sets up the listener for currentImageProvider
     ref.read(annotationServiceProvider);
-    debugPrint('[Imaging] AnnotationService initialized');
+    ref.read(loggingServiceProvider).info(
+        '[Imaging] AnnotationService initialized',
+        source: 'ImagingScreen');
   }
 
   /// Persist the catalog prompt dismissal to DB so it only shows once ever

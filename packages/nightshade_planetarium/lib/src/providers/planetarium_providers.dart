@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1706,7 +1707,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             }
           }
         } catch (e) {
-          debugPrint('[Planetarium] Star search error: $e');
+          developer.log('[Planetarium] Star search error: $e',
+              name: 'PlanetariumProviders', level: 900, error: e);
         }
       }
 
@@ -1801,7 +1803,8 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
             }
           }
         } catch (e) {
-          debugPrint('[Planetarium] DSO search error: $e');
+          developer.log('[Planetarium] DSO search error: $e',
+              name: 'PlanetariumProviders', level: 900, error: e);
         }
       }
 

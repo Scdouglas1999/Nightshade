@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -124,7 +125,8 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
         _scheduleUpdate();
       },
       onError: (error) {
-        debugPrint('Accelerometer error: $error');
+        developer.log('Accelerometer error: $error',
+            name: 'DeviceOrientationProvider', level: 900, error: error);
         state = state.copyWith(isActive: false);
       },
     );
@@ -140,7 +142,8 @@ class DeviceOrientationNotifier extends StateNotifier<DeviceOrientationState> {
         _scheduleUpdate();
       },
       onError: (error) {
-        debugPrint('Magnetometer error: $error');
+        developer.log('Magnetometer error: $error',
+            name: 'DeviceOrientationProvider', level: 900, error: error);
         state = state.copyWith(
           isActive: false,
           compassAccuracy: CompassAccuracy.unreliable,

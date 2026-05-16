@@ -138,7 +138,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
       }
     } catch (e) {
-      debugPrint('[AppShell] Error checking catalog status: $e');
+      ref.read(loggingServiceProvider).warning(
+          '[AppShell] Error checking catalog status: $e',
+          source: 'AppShell',
+          fields: {'error': e.toString()});
     }
   }
 
@@ -241,7 +244,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         await backend.discardCheckpoint();
       }
     } catch (e) {
-      debugPrint('[AppShell] Error checking checkpoint: $e');
+      ref.read(loggingServiceProvider).error(
+          '[AppShell] Error checking checkpoint: $e',
+          source: 'AppShell',
+          fields: {'error': e.toString()});
     }
   }
 

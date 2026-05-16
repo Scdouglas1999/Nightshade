@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/science/science_models.dart';
@@ -110,7 +112,11 @@ class PeriodAnalysisNotifier extends Notifier<PeriodAnalysisState> {
         clearCustomPhaseFold: true,
       );
     } catch (error, stack) {
-      debugPrint('Period analysis failed: $error\n$stack');
+      developer.log('Period analysis failed: $error',
+          name: 'PeriodAnalysis',
+          level: 1000,
+          error: error,
+          stackTrace: stack);
       state = state.copyWith(
         isRunning: false,
         error: error.toString(),

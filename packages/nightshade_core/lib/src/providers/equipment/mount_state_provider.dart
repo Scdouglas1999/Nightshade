@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
@@ -164,8 +164,10 @@ class MountStateNotifier extends StateNotifier<MountState> {
     _stopPositionPolling();
     final interval =
         state.isSlewing ? _slewingPollInterval : _normalPollInterval;
-    debugPrint(
-        '[Mount] Starting position polling (interval: ${interval.inMilliseconds}ms)');
+    developer.log(
+        '[Mount] Starting position polling (interval: ${interval.inMilliseconds}ms)',
+        name: 'MountStateNotifier',
+        level: 800);
     _positionPollTimer = Timer.periodic(interval, (_) => _pollPosition());
   }
 
@@ -173,7 +175,8 @@ class MountStateNotifier extends StateNotifier<MountState> {
     if (_positionPollTimer != null) {
       _positionPollTimer!.cancel();
       _positionPollTimer = null;
-      debugPrint('[Mount] Stopped position polling');
+      developer.log('[Mount] Stopped position polling',
+          name: 'MountStateNotifier', level: 800);
     }
   }
 
@@ -219,7 +222,8 @@ class MountStateNotifier extends StateNotifier<MountState> {
       // Don't spam errors for transient failures during polling.
       // A persistent failure will eventually be caught by the heartbeat
       // monitor which handles reconnection.
-      debugPrint('[Mount] Position poll failed: $e');
+      developer.log('[Mount] Position poll failed: $e',
+          name: 'MountStateNotifier', level: 900, error: e);
     } finally {
       _isPolling = false;
     }

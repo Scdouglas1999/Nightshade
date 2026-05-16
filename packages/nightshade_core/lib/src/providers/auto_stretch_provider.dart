@@ -1,7 +1,8 @@
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
@@ -74,7 +75,8 @@ final stretchedImageProvider =
     );
   } catch (e) {
     // On error, return the original display data (which is already stretched)
-    debugPrint('[AutoStretch] Error applying stretch: $e');
+    developer.log('[AutoStretch] Error applying stretch: $e',
+        name: 'AutoStretch', level: 1000, error: e);
     return imageData.displayData;
   }
 });
@@ -223,7 +225,8 @@ Future<Uint8List> _applyStfStretch({
     return result;
   } catch (e) {
     // Fall back to Dart implementation
-    debugPrint('[AutoStretch] Rust STF failed, using Dart fallback: $e');
+    developer.log('[AutoStretch] Rust STF failed, using Dart fallback: $e',
+        name: 'AutoStretch', level: 900, error: e);
     return compute(_stfStretchIsolate,
         _StretchParams(rawData, width, height, isColor, settings));
   }
