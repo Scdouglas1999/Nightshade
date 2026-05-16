@@ -1,17 +1,9 @@
 {
-  "generatedAt": "2026-05-13T03:29:44.174363Z",
+  "generatedAt": "2026-05-16T03:35:30.880586Z",
   "rulesPath": "docs/production-readiness/fail_closed_rules.yaml",
   "ruleCount": 10,
-  "filesScanned": 1531,
-  "violationCount": 1,
-  "passed": false,
-  "violations": [
-    {
-      "id": "ffi_backend_unimplemented",
-      "description": "Disallow UnimplementedError in production backend paths",
-      "path": "packages/nightshade_core/lib/src/backend/ffi_backend.dart",
-      "line": 2076,
-      "sinceVersion": "2.5.0"
-    }
-  ]
+  "filesScanned": 1558,
+  "violationCount": 0,
+  "passed": true,
+  "violations": []
 }
