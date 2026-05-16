@@ -83,11 +83,57 @@ class SequenceValidator {
     issues.addAll(await _checkEquipment(sequence));
     issues.addAll(_checkSettings(sequence));
     issues.addAll(_checkTiming(sequence));
+    issues.addAll(await _checkDiskSpace(sequence));
 
     return ValidationResult(
       issues: issues,
       validatedAt: DateTime.now(),
     );
+  }
+
+  /// Pre-flight disk-space check: queries free space on the capture directory
+  /// and compares against the projected sequence size (frame count * frame
+  /// size derived from camera capabilities). Surfaces info/warning/blocking
+  /// per the F3 spec.
+  ///
+  /// Failure to query (path missing, OS utility failure) is itself surfaced
+  /// as a warning rather than silently ignored — the user needs to know the
+  /// monitoring is degraded before starting a multi-hour run.
+  Future<List<ValidationIssue>> _checkDiskSpace(Sequence sequence) async {
+    final issues = <ValidationIssue>[];
+    try {
+      final projection = await projectCurrentSequence(ref);
+      if (projection == null) {
+        // No capture path or no sequence — already covered by _checkSettings.
+        return issues;
+      }
+      final severity = switch (projection.severity) {
+        DiskSpaceSeverity.info => ValidationSeverity.info,
+        DiskSpaceSeverity.warning => ValidationSeverity.warning,
+        DiskSpaceSeverity.blocking => ValidationSeverity.error,
+      };
+      issues.add(ValidationIssue(
+        severity: severity,
+        category: 'Storage',
+        title: switch (projection.severity) {
+          DiskSpaceSeverity.info => 'Disk space',
+          DiskSpaceSeverity.warning => 'Low disk space',
+          DiskSpaceSeverity.blocking => 'Not enough disk space',
+        },
+        description: projection.headline,
+        resolution: projection.detail,
+      ));
+    } catch (e) {
+      issues.add(ValidationIssue(
+        severity: ValidationSeverity.warning,
+        category: 'Storage',
+        title: 'Disk-space check failed',
+        description: 'Could not query free space on the capture directory: $e',
+        resolution:
+            'Verify the capture directory in Settings → File Output is valid and accessible.',
+      ));
+    }
+    return issues;
   }
 
   /// Check basic sequence structure

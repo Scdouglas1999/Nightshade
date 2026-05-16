@@ -16,6 +16,7 @@ import 'focus_card.dart';
 import 'alerts_card.dart';
 import 'quick_stats_card.dart';
 import 'tonight_card.dart';
+import 'storage_card.dart';
 
 typedef DashboardWidgetBuilder = Widget Function(
   BuildContext context,
@@ -144,6 +145,14 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     defaultZone: DashboardZone.tertiary,
     builder: _buildQuickStats,
   ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.storage,
+    title: 'Storage',
+    subtitle: 'Free space and projected sequence size',
+    icon: LucideIcons.hardDrive,
+    defaultZone: DashboardZone.tertiary,
+    builder: _buildStorage,
+  ),
 ];
 
 Widget _buildLivePreview(
@@ -244,4 +253,12 @@ Widget _buildTonight(
   AnimationController pulseController,
 ) {
   return TonightCard(colors: colors);
+}
+
+Widget _buildStorage(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return StorageCard(colors: colors);
 }

@@ -8,9 +8,11 @@ import '../../models/equipment/equipment_models.dart';
 import '../../models/imaging/imaging_models.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart' show ObserverLocation;
+import '../../services/disk_space_guard.dart';
 import '../../services/imaging_service.dart';
 import '../../services/logging_service.dart';
 import '../backend_provider.dart';
+import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
 import '../imaging_provider.dart';
 import '../profiles_provider.dart';
@@ -46,6 +48,7 @@ class SequenceExecutor {
   DateTime? _startTime;
   bool _isPaused = false;
   StreamSubscription? _nativeEventSubscription;
+  StreamSubscription<DiskSpaceWatchdogEvent>? _diskWatchdogSubscription;
   Timer? _checkpointTimer;
   bool _runFinalized = false;
 
@@ -598,6 +601,7 @@ class SequenceExecutor {
     });
 
     _startCheckpointTimer();
+    _startDiskSpaceWatchdog();
 
     if (!_useNativeExecution) {
       _logger.warning(
@@ -1264,6 +1268,7 @@ class SequenceExecutor {
     _checkpointTimer = null;
     _nativeEventSubscription?.cancel();
     _nativeEventSubscription = null;
+    _stopDiskSpaceWatchdog();
     _stopSettingsWatchers();
     _startTime = null;
     _isPaused = false;
@@ -1400,6 +1405,7 @@ class SequenceExecutor {
     });
 
     _startCheckpointTimer();
+    _startDiskSpaceWatchdog();
 
     _nativeEventSubscription = backend.eventStream.listen(
       _handleSequencerEvent,
@@ -1433,6 +1439,64 @@ class SequenceExecutor {
     });
   }
 
+  /// Start the disk-space watchdog for the duration of this run.
+  ///
+  /// Watches the capture directory and:
+  ///  - logs a warning event when free space drops below the configured
+  ///    warning threshold (default 10 GB);
+  ///  - pauses the running sequence when free space drops below the configured
+  ///    abort threshold (default 2 GB), so the in-flight frame finishes
+  ///    cleanly rather than the OS killing the writer mid-stream.
+  ///
+  /// Skipped silently when no capture path is configured — the pre-flight
+  /// dialog already warns about that and there's nothing useful to monitor.
+  void _startDiskSpaceWatchdog() {
+    _diskWatchdogSubscription?.cancel();
+    _diskWatchdogSubscription = null;
+
+    final settings = _ref.read(appSettingsProvider).valueOrNull;
+    final capturePath = settings?.imageOutputPath ?? '';
+    if (capturePath.isEmpty) {
+      _logger.warning(
+        'Disk-space watchdog not started: no capture path configured',
+        source: 'SequenceExecutor',
+      );
+      return;
+    }
+
+    final guard = _ref.read(diskSpaceGuardProvider);
+    guard.start(capturePath: capturePath);
+    _diskWatchdogSubscription = guard.events.listen((event) async {
+      _logger.warning(
+        '[disk-watchdog] ${event.message}',
+        source: 'SequenceExecutor',
+      );
+      if (event.severity == DiskSpaceSeverity.blocking) {
+        // Critical: pause the run so the user can intervene. We do NOT
+        // fully stop because that would lose the checkpoint; pause keeps
+        // state preserved.
+        try {
+          await pause();
+        } catch (e, stack) {
+          _logger.error(
+            'Failed to pause sequence on disk-space abort: $e\n$stack',
+            source: 'SequenceExecutor',
+          );
+        }
+      }
+    });
+  }
+
+  void _stopDiskSpaceWatchdog() {
+    _diskWatchdogSubscription?.cancel();
+    _diskWatchdogSubscription = null;
+    try {
+      _ref.read(diskSpaceGuardProvider).stop();
+    } catch (_) {
+      // Disposed provider — ignore.
+    }
+  }
+
   /// Cancel all owned timers and subscriptions.
   ///
   /// Wired into the owning Provider's `ref.onDispose`. Safe to call even when
@@ -1445,5 +1509,6 @@ class SequenceExecutor {
     _checkpointTimer = null;
     _nativeEventSubscription?.cancel();
     _nativeEventSubscription = null;
+    _stopDiskSpaceWatchdog();
   }
 }

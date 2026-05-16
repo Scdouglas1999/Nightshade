@@ -50,6 +50,7 @@ extension DashboardZoneX on DashboardZone {
       DashboardWidgetId.tonight => DashboardZone.tertiary,
       DashboardWidgetId.alerts => DashboardZone.tertiary,
       DashboardWidgetId.quickStats => DashboardZone.tertiary,
+      DashboardWidgetId.storage => DashboardZone.tertiary,
     };
   }
 }
@@ -67,6 +68,7 @@ enum DashboardWidgetId {
   quickActions,
   quickStats,
   tonight,
+  storage,
 }
 
 extension DashboardWidgetIdX on DashboardWidgetId {
@@ -84,6 +86,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       DashboardWidgetId.quickActions => 'quickActions',
       DashboardWidgetId.quickStats => 'quickStats',
       DashboardWidgetId.tonight => 'tonight',
+      DashboardWidgetId.storage => 'storage',
     };
   }
 
@@ -101,6 +104,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       'quickActions' => DashboardWidgetId.quickActions,
       'quickStats' => DashboardWidgetId.quickStats,
       'tonight' => DashboardWidgetId.tonight,
+      'storage' => DashboardWidgetId.storage,
       _ => throw FormatException('Unknown dashboard widget id: $value'),
     };
   }
@@ -439,6 +443,15 @@ class DashboardLayout {
         size: DashboardTileSize.small,
         enabled: false,
         order: 11,
+        zone: DashboardZone.tertiary,
+      ),
+      // Storage tile: free space + projected run size. Enabled by default
+      // so disk surprises don't blow up a multi-hour run at 3 AM (F3 polish).
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.storage,
+        size: DashboardTileSize.small,
+        enabled: true,
+        order: 12,
         zone: DashboardZone.tertiary,
       ),
     ];

@@ -147,6 +147,7 @@ export 'src/providers/period_analysis_provider.dart';
 export 'src/providers/photometric_transform_provider.dart';
 export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
+export 'src/providers/disk_space_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart';
@@ -235,6 +236,8 @@ export 'src/services/dark_library_service.dart';
 export 'src/services/live_stacking_service.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
+export 'src/services/disk_space_service.dart';
+export 'src/services/disk_space_guard.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';
