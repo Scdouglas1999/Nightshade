@@ -6,7 +6,7 @@
 
 Nightshade is astrophotography software for your imaging rig. One app handles camera control, mount slewing, autofocus, guiding, plate solving, sequencing, planetarium, and remote control from a phone or web browser. It runs on Windows, Linux, and macOS, with companion apps for iOS and Android.
 
-> **This is a beta.** The current release (v2.6.0) lives on the `beta` update channel. It's been through a long internal audit and hardening pass, but it hasn't had the multi-week soak that usually comes before a stable cut. If you need bulletproof reliability for an unattended run tonight, stay on [v2.5.0](https://github.com/Scdouglas1999/Nightshade/releases/tag/v2.5.0) for now. Otherwise, please try it and tell me what breaks — that's the fastest way we get to a clean stable.
+> **This is a beta.** v2.6.0 lives on the `beta` update channel. It's been through a long internal audit and hardening pass, but it hasn't had the multi-week soak that usually comes before a stable cut. That said, this is a real step up from v2.5.0 — Plan Tonight, working plate solving, defect-map calibration without darks, the full web dashboard and mobile companion, NINA/SGP sequence import. Beta means I'm still hunting edge cases, especially on hardware combinations I don't own. Please try it, and tell me what breaks; that's how we get to a clean stable cut.
 
 ## What it does
 
