@@ -33,6 +33,28 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard>
       statusDetails.add('Position: ---');
     }
 
+    // Why: surfaces focuserCapabilitiesProvider as a one-line summary on the
+    // connected card so the user sees range / temp-comp / reversal support
+    // without diving into a settings dialog. Silently skipped when not
+    // connected, capabilities not yet loaded, or backend returns null.
+    if (_isConnected && widget.focuserState.deviceId != null) {
+      final capsAsync = ref
+          .watch(focuserCapabilitiesProvider(widget.focuserState.deviceId!));
+      final caps = capsAsync.valueOrNull;
+      if (caps != null) {
+        final badges = <String>[];
+        if (caps.maxPosition > 0) {
+          badges.add('0–${caps.maxPosition} steps');
+        }
+        if (caps.absolute) badges.add('absolute');
+        if (caps.tempCompAvailable) badges.add('temp comp');
+        if (caps.canReverse) badges.add('reversible');
+        if (badges.isNotEmpty) {
+          statusDetails.add(badges.join(' · '));
+        }
+      }
+    }
+
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.focus,
       title: 'Focuser',

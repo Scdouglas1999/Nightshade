@@ -38,6 +38,25 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard>
       statusDetails.add('Position: ---');
     }
 
+    // Why: surfaces rotatorCapabilitiesProvider so the user can see at a
+    // glance whether the rotator supports absolute moves / halts / sync —
+    // the differentiating capabilities a sequencer step might require.
+    if (_isConnected && widget.rotatorState.deviceId != null) {
+      final capsAsync = ref
+          .watch(rotatorCapabilitiesProvider(widget.rotatorState.deviceId!));
+      final caps = capsAsync.valueOrNull;
+      if (caps != null) {
+        final badges = <String>[];
+        if (caps.canMoveAbsolute) badges.add('absolute');
+        if (caps.canReverse) badges.add('reversible');
+        if (caps.canHalt) badges.add('halt');
+        if (caps.canSync) badges.add('sync');
+        if (badges.isNotEmpty) {
+          statusDetails.add(badges.join(' · '));
+        }
+      }
+    }
+
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.rotateCw,
       title: 'Rotator',

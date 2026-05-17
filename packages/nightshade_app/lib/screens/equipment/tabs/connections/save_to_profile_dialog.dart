@@ -1,7 +1,22 @@
 part of '../connections_tab.dart';
 
-/// Device type enum for the save to profile dialog
-enum DeviceCategory { camera, mount, focuser, filterWheel, guider, rotator }
+/// Device type enum for the save to profile dialog.
+///
+/// `safetyMonitor` has no profile column today (it isn't part of equipment
+/// profiles), but is included so the dome/weather/safety cards can share the
+/// same connect-then-offer-to-save flow. The save dialog is a no-op for
+/// safetyMonitor — see [showSaveToProfileDialog].
+enum DeviceCategory {
+  camera,
+  mount,
+  focuser,
+  filterWheel,
+  guider,
+  rotator,
+  dome,
+  weather,
+  safetyMonitor,
+}
 
 /// Action to take when no profile exists
 enum _NoProfileAction {
@@ -151,6 +166,19 @@ Future<bool> showSaveToProfileDialog({
     case DeviceCategory.rotator:
       alreadyAssigned = profile.rotatorId == deviceId;
       break;
+    case DeviceCategory.dome:
+      alreadyAssigned = profile.domeId == deviceId;
+      break;
+    case DeviceCategory.weather:
+      alreadyAssigned = profile.weatherId == deviceId;
+      break;
+    case DeviceCategory.safetyMonitor:
+      // Why: safetyMonitor isn't part of equipment profiles today. The
+      // connect-flow still wants to call this dialog uniformly; treat as
+      // already-assigned so the dialog short-circuits and no profile write
+      // happens.
+      alreadyAssigned = true;
+      break;
   }
 
   // If already assigned, don't show dialog
@@ -261,6 +289,18 @@ Future<bool> showSaveToProfileDialog({
         case DeviceCategory.rotator:
           await profileService.updateProfileDevices(profile.id,
               rotatorId: deviceId);
+          break;
+        case DeviceCategory.dome:
+          await profileService.updateProfileDevices(profile.id,
+              domeId: deviceId);
+          break;
+        case DeviceCategory.weather:
+          await profileService.updateProfileDevices(profile.id,
+              weatherId: deviceId);
+          break;
+        case DeviceCategory.safetyMonitor:
+          // Why: short-circuited above; this branch is unreachable. Kept
+          // exhaustive so the analyzer enforces all-cases-covered.
           break;
       }
 

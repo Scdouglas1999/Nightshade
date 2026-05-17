@@ -36,6 +36,27 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard>
       statusDetails.add('Filter: ---');
     }
 
+    // Why: surfaces filterWheelCapabilitiesProvider as a one-line summary
+    // (slot count + editability flags) so the user can verify the wheel
+    // discovered the expected number of positions without opening profile
+    // settings. Silent when not connected or capabilities not loaded.
+    if (_isConnected && widget.filterWheelState.deviceId != null) {
+      final capsAsync = ref.watch(
+          filterWheelCapabilitiesProvider(widget.filterWheelState.deviceId!));
+      final caps = capsAsync.valueOrNull;
+      if (caps != null) {
+        final badges = <String>[];
+        if (caps.positionCount > 0) {
+          badges.add('${caps.positionCount} slots');
+        }
+        if (caps.canSetFilterNames) badges.add('names editable');
+        if (caps.canSetFocusOffsets) badges.add('offsets editable');
+        if (badges.isNotEmpty) {
+          statusDetails.add(badges.join(' · '));
+        }
+      }
+    }
+
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.circle,
       title: 'Filter Wheel',

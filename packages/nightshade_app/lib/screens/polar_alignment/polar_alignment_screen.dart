@@ -821,9 +821,15 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   }
 
   /// Task 4.6: History panel widget
+  ///
+  /// Why: uses the streaming history provider (`polarAlignmentHistoryStreamProvider`)
+  /// so new alignment runs appear in the panel immediately after the run
+  /// completes — previously the panel was on a one-shot Future and stale until
+  /// the screen was rebuilt.
   Widget _buildHistoryPanel(NightshadeColors colors) {
     final profileId = ref.watch(activeEquipmentProfileProvider)?.id;
-    final historyAsync = ref.watch(polarAlignmentHistoryProvider(profileId));
+    final historyAsync =
+        ref.watch(polarAlignmentHistoryStreamProvider(profileId));
 
     return Container(
       padding: const EdgeInsets.all(12),

@@ -307,6 +307,9 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
     final filterWheelState = ref.watch(filterWheelStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
     final rotatorState = ref.watch(rotatorStateProvider);
+    final domeState = ref.watch(domeStateProvider);
+    final weatherState = ref.watch(weatherStateProvider);
+    final safetyMonitorState = ref.watch(safetyMonitorStateProvider);
 
     // Device cards now use unified providers internally (unifiedCamerasProvider, etc.)
     // Each card fetches its own grouped devices and shows inline backend selector chips
@@ -378,6 +381,35 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
               ),
               _RotatorDeviceCard(
                 rotatorState: rotatorState,
+                colors: colors,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          // Observatory equipment section
+          _SectionHeader(
+            title: 'Observatory equipment',
+            subtitle:
+                'Optional dome, weather station, and safety monitor for unattended sessions.',
+            colors: colors,
+          ),
+          const SizedBox(height: 16),
+
+          ResponsiveCardGrid(
+            minCardWidth: 300,
+            children: [
+              _DomeDeviceCard(
+                domeState: domeState,
+                colors: colors,
+              ),
+              _WeatherDeviceCard(
+                weatherState: weatherState,
+                colors: colors,
+              ),
+              _SafetyMonitorDeviceCard(
+                safetyMonitorState: safetyMonitorState,
                 colors: colors,
               ),
             ],
