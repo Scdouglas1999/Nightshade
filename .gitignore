@@ -20,6 +20,47 @@ CLAUDE.md
 _fw_research/
 
 # =============================================================================
+# Internal release-engineering scratch (audit tool outputs, scratch scripts,
+# stale build-output DLLs). Kept locally for the maintainer; not relevant for
+# a downstream contributor building from source.
+# =============================================================================
+
+# Root-level audit tool outputs
+.audit_highrisk*.txt
+.audit_hits*.txt
+.behavioral_audit_hits.txt
+.ui_consistency_audit.txt
+
+# Root-level scratch / one-off ad-hoc helpers
+_old_marker.txt
+_patch_caps.py
+package-log.txt
+goal.txt
+
+# Internal report / audit / planning trees
+/report/
+/reports/
+/docs/audits/
+/docs/code-quality/
+/docs/plans/
+/docs/production-readiness/
+/docs/science_mockups/
+/docs/frb_warnings_*.txt
+
+# Build-output DLLs that get re-emitted by cargo + the packaging script.
+# The single canonical libraw.dll the installer consumes lives at
+# apps/desktop/windows/runner/Release/libraw.dll and is whitelisted below.
+apps/desktop/*.dll
+apps/desktop/windows/*.dll
+apps/desktop/windows/runner/*.dll
+apps/desktop/windows/runner/Debug/*.dll
+apps/desktop/windows/runner/Release/*.dll
+!apps/desktop/windows/runner/Release/libraw.dll
+
+# Build-log scratch dir used by release packaging scripts
+/build-logs/
+
+# =============================================================================
 # IDE and Editors
 # =============================================================================
 .idea/

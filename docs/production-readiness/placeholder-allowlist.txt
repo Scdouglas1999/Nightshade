@@ -1,6 +1,0 @@
-# Placeholder audit allowlist
-# Entries can be:
-# - path/to/file.ext:line
-# - path/to/file.ext:line:full matching line
-# Path-only entries are intentionally rejected so allowlisted markers remain
-# line-scoped and reviewable.

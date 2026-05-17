@@ -1,4 +1,0 @@
-# Analyzer warning codes treated as CI-critical.
-# Keep this list intentionally narrow and high-impact.
-
-UNDEFINED_HIDDEN_NAME
