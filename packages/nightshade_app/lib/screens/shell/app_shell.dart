@@ -384,7 +384,16 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // Activate the error notification bridge so backend errors show as toast notifications
     ref.watch(errorNotificationBridgeProvider);
+    // Why (audit-handoff §1.2): keep the meridian-flip disconnect guard alive
+    // for the shell's lifetime so a mount disconnect during an in-flight flip
+    // resets `flipExecutionStateProvider` to `aborted` and unsticks the UI.
     ref.watch(meridianFlipDisconnectGuardProvider);
+    // Why (audit-handoff §1.2): the standalone meridian monitor must be kept
+    // alive while the shell is mounted so the Sequencer Settings ->
+    // "Standalone monitoring" toggle actually does something — when enabled,
+    // it polls mount HA against the configured trigger and alerts the
+    // operator when the meridian is crossed outside of a sequence run.
+    ref.watch(meridianFlipStandaloneMonitorProvider);
     final isSideNavExpanded = settings != null
         ? !settings.sidebarCollapsed
         : _fallbackSideNavExpanded;

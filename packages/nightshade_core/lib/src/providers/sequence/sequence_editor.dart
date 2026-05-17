@@ -749,6 +749,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           pauseGuiding: json['pauseGuiding'] as bool? ?? false,
           autoCenter: json['autoCenter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          // Why: legacy JSON has no flag; pin values verbatim (audit §1.2).
+          useGlobalDefaults: json['useGlobalDefaults'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,

@@ -1955,6 +1955,19 @@ class MeridianFlipNode extends SequenceNode {
   final int maxRetries;
   final FlipFailureAction failureAction;
 
+  /// Whether this node should pull its effective configuration from the global
+  /// `globalMeridianFlipSettingsProvider` at execution time.
+  ///
+  /// Why: the Sequencer Settings panel exposes a 16-row "Meridian Flip"
+  /// section that operators reasonably expect to govern flip behavior. Fresh
+  /// nodes (from the palette / quick-start wizard / canonical importers) carry
+  /// `useGlobalDefaults: true` so any subsequent change in Sequencer Settings
+  /// takes effect without per-node editing. The node's own fields still exist
+  /// to allow explicit per-node overrides; touching any of them via
+  /// [copyWith] flips this flag to `false`, capturing the intent as a sticky
+  /// override.
+  final bool useGlobalDefaults;
+
   MeridianFlipNode({
     super.id,
     super.name = 'Meridian Flip',
@@ -1974,6 +1987,7 @@ class MeridianFlipNode extends SequenceNode {
     this.resumeGuiding = true,
     this.maxRetries = 3,
     this.failureAction = FlipFailureAction.pauseAndAlert,
+    this.useGlobalDefaults = true,
   });
 
   @override
@@ -2008,7 +2022,29 @@ class MeridianFlipNode extends SequenceNode {
     bool? resumeGuiding,
     int? maxRetries,
     FlipFailureAction? failureAction,
+    bool? useGlobalDefaults,
   }) {
+    // Why: touching any meridian-specific field is a deliberate per-node
+    // override. Implicitly clear the global-defaults flag so the executor
+    // honors the new value instead of overwriting it from settings on the
+    // next run. Pure structural copies (id/name/parent/etc.) leave the flag
+    // alone. An explicit `useGlobalDefaults:` arg always wins (used by the
+    // properties panel's "Use global defaults" toggle and by JSON load paths
+    // that must preserve the persisted flag verbatim).
+    final touchedConfig = triggerMethod != null ||
+        minutesPastMeridian != null ||
+        minutesBeforeLimit != null ||
+        hourAngleThreshold != null ||
+        pauseGuiding != null ||
+        autoCenter != null ||
+        refocusAfter != null ||
+        settleTime != null ||
+        resumeGuiding != null ||
+        maxRetries != null ||
+        failureAction != null;
+    final resolvedUseGlobalDefaults = useGlobalDefaults ??
+        (touchedConfig ? false : this.useGlobalDefaults);
+
     return MeridianFlipNode(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -2028,6 +2064,7 @@ class MeridianFlipNode extends SequenceNode {
       resumeGuiding: resumeGuiding ?? this.resumeGuiding,
       maxRetries: maxRetries ?? this.maxRetries,
       failureAction: failureAction ?? this.failureAction,
+      useGlobalDefaults: resolvedUseGlobalDefaults,
     );
   }
 
@@ -2045,6 +2082,7 @@ class MeridianFlipNode extends SequenceNode {
         resumeGuiding,
         maxRetries,
         failureAction,
+        useGlobalDefaults,
       ];
 }
 

@@ -412,6 +412,10 @@ class CanonicalNodeMapper {
           parentId: parentId,
           orderIndex: orderIndex,
           minutesPastMeridian: _readDouble(a['minutesPastMeridian']) ?? 5.0,
+          // Why: imported sequences (e.g., NINA) ship explicit per-node values;
+          // honor them rather than overlaying Sequencer Settings on top
+          // (audit §1.2). Users can opt into globals later via the node panel.
+          useGlobalDefaults: false,
         );
       case CanonicalKind.park:
         return ParkNode(

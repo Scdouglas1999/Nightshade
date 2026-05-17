@@ -473,19 +473,8 @@ class SequenceExecutor {
           'recovery_action': _recoveryActionToString(n.recoveryAction),
           'max_retries': n.maxRetries,
         };
-      case MeridianFlipNode _:
-        final flipSettings = _ref.read(effectiveMeridianFlipSettingsProvider);
-        return {
-          'type': 'MeridianFlip',
-          'minutes_past_meridian': flipSettings.minutesPastMeridian,
-          'pause_guiding': flipSettings.pauseGuidingBeforeFlip,
-          'auto_center': flipSettings.recenterAfterFlip,
-          'settle_time': flipSettings.settleTimeSeconds,
-          'refocus_after': flipSettings.refocusAfterFlip,
-          'resume_guiding': flipSettings.resumeGuidingAfterFlip,
-          'max_retries': flipSettings.maxRetries,
-          'failure_action': flipSettings.failureAction.name,
-        };
+      case MeridianFlipNode n:
+        return _buildMeridianFlipConfig(n);
       case OpenDomeNode n:
         return {
           'type': 'OpenDome',
@@ -534,6 +523,94 @@ class SequenceExecutor {
           'type': 'CalibratorOff',
           'timeout_secs': n.timeoutSecs,
         };
+    }
+  }
+
+  /// Build the Rust-side MeridianFlipConfig JSON for a [MeridianFlipNode].
+  ///
+  /// Why: the Rust struct [`MeridianFlipConfig`](native/.../lib.rs:875) has
+  /// no `#[serde(default)]` annotations on most fields, so the JSON we send
+  /// MUST include every required field. Two sources drive the final config:
+  ///
+  /// 1. When `node.useGlobalDefaults == true` (fresh nodes from the palette /
+  ///    quick-start wizard / canonical importers that opt in), the effective
+  ///    `globalMeridianFlipSettingsProvider` snapshot is the source of truth.
+  ///    The 16 settings in Sequencer Settings -> Meridian Flip therefore
+  ///    drive node behavior at execution time (audit §1.2).
+  /// 2. When `node.useGlobalDefaults == false` (user-edited or legacy nodes),
+  ///    the per-node fields take priority. The global retry-delays / tracking
+  ///    wait minutes still flow through because the node model doesn't carry
+  ///    them; the Rust struct requires both.
+  ///
+  /// Enum names are emitted PascalCase to match Rust's
+  /// `#[derive(Deserialize)]` default form.
+  Map<String, dynamic> _buildMeridianFlipConfig(MeridianFlipNode node) {
+    final global = _ref.read(effectiveMeridianFlipSettingsProvider);
+    final useGlobal = node.useGlobalDefaults;
+
+    final triggerMethod =
+        useGlobal ? global.triggerMethod : node.triggerMethod;
+    final minutesPastMeridian =
+        useGlobal ? global.minutesPastMeridian : node.minutesPastMeridian;
+    final minutesBeforeLimit =
+        useGlobal ? global.minutesBeforeLimit : node.minutesBeforeLimit;
+    final hourAngleThreshold =
+        useGlobal ? global.hourAngleThreshold : node.hourAngleThreshold;
+    final pauseGuiding =
+        useGlobal ? global.pauseGuidingBeforeFlip : node.pauseGuiding;
+    final autoCenter = useGlobal ? global.recenterAfterFlip : node.autoCenter;
+    final refocusAfter =
+        useGlobal ? global.refocusAfterFlip : node.refocusAfter;
+    final settleTime =
+        useGlobal ? global.settleTimeSeconds : node.settleTime;
+    final resumeGuiding =
+        useGlobal ? global.resumeGuidingAfterFlip : node.resumeGuiding;
+    final maxRetries = useGlobal ? global.maxRetries : node.maxRetries;
+    final failureAction =
+        useGlobal ? global.failureAction : node.failureAction;
+
+    return {
+      'type': 'MeridianFlip',
+      'trigger_method': _meridianTriggerMethodToString(triggerMethod),
+      'minutes_past_meridian': minutesPastMeridian,
+      'minutes_before_limit': minutesBeforeLimit,
+      'hour_angle_threshold': hourAngleThreshold,
+      // Why: only the global model carries tracking-limit wait minutes and
+      // retry delays — the per-node fields never existed. These are required
+      // by MeridianFlipConfig regardless of useGlobalDefaults.
+      'tracking_limit_wait_minutes': global.trackingLimitWaitMinutes,
+      'pause_guiding': pauseGuiding,
+      'auto_center': autoCenter,
+      'refocus_after': refocusAfter,
+      'settle_time': settleTime,
+      'resume_guiding': resumeGuiding,
+      'max_retries': maxRetries,
+      'retry_delays_secs': global.retryDelaysSeconds,
+      'failure_action': _flipFailureActionToString(failureAction),
+    };
+  }
+
+  /// Rust expects PascalCase enum names; Dart's `.name` is camelCase. Map
+  /// explicitly so this conversion never silently regresses.
+  String _meridianTriggerMethodToString(MeridianTriggerMethod method) {
+    switch (method) {
+      case MeridianTriggerMethod.minutesPastMeridian:
+        return 'MinutesPastMeridian';
+      case MeridianTriggerMethod.minutesBeforeLimit:
+        return 'MinutesBeforeLimit';
+      case MeridianTriggerMethod.hourAngleThreshold:
+        return 'HourAngleThreshold';
+      case MeridianTriggerMethod.onTrackingLimitHit:
+        return 'OnTrackingLimitHit';
+    }
+  }
+
+  String _flipFailureActionToString(FlipFailureAction action) {
+    switch (action) {
+      case FlipFailureAction.pauseAndAlert:
+        return 'PauseAndAlert';
+      case FlipFailureAction.abortAndPark:
+        return 'AbortAndPark';
     }
   }
 

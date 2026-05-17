@@ -711,6 +711,10 @@ class SequenceRepository {
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
           failureAction:
               _stringToFlipFailureAction(props['failureAction'] as String?),
+          // Why: legacy DB rows pre-§1.2 have no flag. Treat absence as
+          // `false` (use persisted per-node values verbatim) so existing
+          // user sequences keep behavior they had before the wire-up.
+          useGlobalDefaults: props['useGlobalDefaults'] as bool? ?? false,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -916,6 +920,10 @@ class SequenceRepository {
           'resumeGuiding': node.resumeGuiding,
           'maxRetries': node.maxRetries,
           'failureAction': node.failureAction.name,
+          // Why: persist the override flag so reopening the sequence preserves
+          // whether the user pinned per-node values or pulls from settings
+          // (audit §1.2).
+          'useGlobalDefaults': node.useGlobalDefaults,
         },
       OpenDomeNode() => {
           'shutterOnly': node.shutterOnly,

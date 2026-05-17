@@ -578,6 +578,11 @@ class _QuickStartWizardDialogState
         resumeGuiding: _enableAutoGuide,
         parentId: targetHeaderId,
         orderIndex: 2,
+        // Why: the wizard reflects the user's explicit choices from earlier
+        // pages (autofocus enabled, guiding enabled, etc.); persist those as
+        // per-node overrides so subsequent changes in Sequencer Settings
+        // don't quietly undo what the operator picked here (audit §1.2).
+        useGlobalDefaults: false,
       );
       final currentTarget = nodes[targetHeaderId] as TargetHeaderNode;
       nodes[targetHeaderId] = currentTarget.copyWith(

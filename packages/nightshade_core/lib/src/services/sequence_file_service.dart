@@ -395,6 +395,10 @@ class SequenceFileService {
           'resumeGuiding': node.resumeGuiding,
           'maxRetries': node.maxRetries,
           'failureAction': node.failureAction.name,
+          // Why: persist the override flag so reloading a sequence preserves
+          // whether the user explicitly overrode meridian flip behavior at the
+          // node level vs. pulling from Sequencer Settings (audit §1.2).
+          'useGlobalDefaults': node.useGlobalDefaults,
         },
       OpenDomeNode() => <String, dynamic>{
           'shutterOnly': node.shutterOnly,
@@ -803,6 +807,11 @@ class SequenceFileService {
           resumeGuiding: json['resumeGuiding'] as bool? ?? true,
           maxRetries: json['maxRetries'] as int? ?? 3,
           failureAction: _parseFlipFailureAction(json['failureAction']),
+          // Why: legacy sequences pre-§1.2 wired no global-defaults flag.
+          // Treat absence as `false` (preserve the persisted per-node values
+          // verbatim) so existing user sequences don't suddenly start pulling
+          // from settings.
+          useGlobalDefaults: json['useGlobalDefaults'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
