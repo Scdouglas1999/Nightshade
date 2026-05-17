@@ -13,6 +13,13 @@
 CLAUDE.md
 
 # =============================================================================
+# Vendor firmware research blobs (excluded from git per release audit
+# release-pr-lists/04-defer-exclude.txt; oversized .DAT files violate GitHub's
+# 100 MB hard limit. Files remain on disk for local research use.)
+# =============================================================================
+_fw_research/
+
+# =============================================================================
 # IDE and Editors
 # =============================================================================
 .idea/
