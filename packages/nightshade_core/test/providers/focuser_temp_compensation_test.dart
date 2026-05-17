@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/equipment/focuser_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/focuser_temp_compensation_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
