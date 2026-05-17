@@ -1,9 +1,9 @@
 # Nightshade 2.0 - Single Source of Truth for Version Info
 # This file is read by build scripts to update pubspec.yaml, installer.iss, etc.
 
-version: "2.5.0"
-build_number: 5
-channel: "stable"  # stable, beta, alpha
+version: "2.6.0"
+build_number: 6
+channel: "beta"  # stable, beta, alpha
 
 # Minimum version required to apply updates (for breaking changes)
 min_update_version: "2.0.0"

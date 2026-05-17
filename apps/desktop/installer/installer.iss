@@ -1,5 +1,5 @@
 #define MyAppName "Nightshade"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.6.0"
 #define MyAppPublisher "Nightshade"
 #define MyAppExeName "nightshade_desktop.exe"
 #define ReleaseDir "..\\build\\windows\\x64\\runner\\Release"

@@ -1,7 +1,7 @@
 name: nightshade_mobile
 description: Nightshade 2.0 Mobile - Companion app for remote monitoring and control
 publish_to: 'none'
-version: 2.0.0+1
+version: 2.6.0+6
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
