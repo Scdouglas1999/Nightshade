@@ -29,18 +29,13 @@ use crate::meridian_events::{FlipEventEmitter, FlipStep, MeridianFlipEvent, Pier
 use crate::triggers::TriggerState;
 use crate::{AutofocusConfig, FlipFailureAction, MeridianFlipConfig};
 
-/// Position match tolerance (degrees) for the coordinate-fallback verification
-/// path used when the mount does not report pier side. 1 arcminute.
-const FLIP_COORDINATE_TOLERANCE_DEG: f64 = 1.0 / 60.0;
-
-/// How many times to retry mount park / abort-slew / set-tracking calls inside
-/// `execute_failure_action` before giving up. The mount may be at a hard limit
-/// after a failed flip; retrying a few times with a delay handles transient
-/// driver/communication errors.
-const SAFETY_ACTION_RETRY_COUNT: u32 = 3;
-
-/// Delay between safety-action retries.
-const SAFETY_ACTION_RETRY_DELAY_SECS: f64 = 5.0;
+// AUDIT-FIX-5B (audit-handoff §4.3): the formerly-constant defaults
+// FLIP_COORDINATE_TOLERANCE_DEG / SAFETY_ACTION_RETRY_COUNT /
+// SAFETY_ACTION_RETRY_DELAY_SECS / MIN_POST_FLIP_ALTITUDE_DEG have moved to
+// fields on `MeridianFlipConfig`. The numeric defaults still match the prior
+// constants (1 arcminute / 3 retries / 5s / 10°), but the values are now
+// user-configurable via the meridian-flip settings panel. Read them via
+// `self.config.<field>` inside the executor.
 
 /// Result of a meridian flip execution
 #[derive(Debug, Clone)]
@@ -122,13 +117,6 @@ impl MeridianFlipExecutor {
         self.abort_requested.clone()
     }
 
-    /// Below ~10° atmospheric refraction (~9.5 arcmin near the horizon) and
-    /// differential extinction make plate-solve unreliable, and most amateur
-    /// mounts approach their lower altitude limit. 10° is a conservative
-    /// default that has tested clean on SkyWatcher EQ8 / iOptron CEM70 /
-    /// 10micron rigs; users with a clear horizon can tighten via config.
-    const MIN_POST_FLIP_ALTITUDE_DEG: f64 = 10.0;
-
     /// Execute the meridian flip
     pub async fn execute(&mut self, ctx: &FlipContext) -> FlipResult {
         let start_time = Instant::now();
@@ -161,19 +149,20 @@ impl MeridianFlipExecutor {
                 lat,
                 lon,
             );
+            let min_altitude = self.config.min_post_flip_altitude_deg;
             tracing::info!(
                 "[MERIDIAN] Pre-flip altitude check: target '{}' altitude = {:.1}° (minimum = {:.1}°)",
                 ctx.target_name,
                 altitude,
-                Self::MIN_POST_FLIP_ALTITUDE_DEG
+                min_altitude
             );
-            if altitude < Self::MIN_POST_FLIP_ALTITUDE_DEG {
+            if altitude < min_altitude {
                 let msg = format!(
                     "Meridian flip skipped: target '{}' altitude is {:.1}° which is below \
                      the minimum {:.1}°. The target is too low for useful imaging after the flip.",
                     ctx.target_name,
                     altitude,
-                    Self::MIN_POST_FLIP_ALTITUDE_DEG
+                    min_altitude
                 );
                 tracing::warn!("[MERIDIAN] {}", msg);
                 self.emit_event(MeridianFlipEvent::Failed {
@@ -755,9 +744,8 @@ impl MeridianFlipExecutor {
         let (post_ra, post_dec) = self.device_ops.mount_get_coordinates(mount_id).await?;
         let ra_diff_deg = normalize_ra_diff_hours(post_ra - ctx.target_ra_hours) * 15.0;
         let dec_diff_deg = post_dec - ctx.target_dec_degrees;
-        if ra_diff_deg.abs() > FLIP_COORDINATE_TOLERANCE_DEG
-            || dec_diff_deg.abs() > FLIP_COORDINATE_TOLERANCE_DEG
-        {
+        let tolerance_deg = self.config.flip_coordinate_tolerance_deg;
+        if ra_diff_deg.abs() > tolerance_deg || dec_diff_deg.abs() > tolerance_deg {
             return Err(format!(
                 "Flip slew completed but coordinate-fallback verification failed without \
                  pier-side telemetry: target RA={:.4}h Dec={:.4}°, mount reports RA={:.4}h \
@@ -1153,6 +1141,7 @@ impl MeridianFlipExecutor {
                 tracing::warn!("[MERIDIAN] Flip failed - aborting and parking");
 
                 // Audit §1.10: stop tracking with retries + explicit error logging.
+                let retry_count = self.config.safety_action_retry_count;
                 if let Err(e) = self
                     .retry_safety_action("mount_set_tracking(false)", || async {
                         self.device_ops.mount_set_tracking(mount_id, false).await
@@ -1161,7 +1150,7 @@ impl MeridianFlipExecutor {
                 {
                     tracing::error!(
                         "[MERIDIAN] CRITICAL: failed to stop tracking after {} retries: {}",
-                        SAFETY_ACTION_RETRY_COUNT,
+                        retry_count,
                         e
                     );
                     let _ = self
@@ -1190,7 +1179,7 @@ impl MeridianFlipExecutor {
                 {
                     tracing::error!(
                         "[MERIDIAN] mount_abort_slew failed after {} retries: {}",
-                        SAFETY_ACTION_RETRY_COUNT,
+                        retry_count,
                         e
                     );
                     // Continue to park — some drivers do not implement abort_slew
@@ -1230,7 +1219,7 @@ impl MeridianFlipExecutor {
                         tracing::error!(
                             "[MERIDIAN] CRITICAL: mount_park failed after {} retries: {}. \
                              Mount may be at hard limit — manual intervention required.",
-                            SAFETY_ACTION_RETRY_COUNT,
+                            retry_count,
                             park_err
                         );
                         // Critical-level notification so the UI surfaces this
@@ -1257,7 +1246,7 @@ impl MeridianFlipExecutor {
                         }
                         Err(format!(
                             "AbortAndPark failed: park error after {} retries: {}",
-                            SAFETY_ACTION_RETRY_COUNT, park_err
+                            retry_count, park_err
                         ))
                     }
                 }
@@ -1266,15 +1255,18 @@ impl MeridianFlipExecutor {
     }
 
     /// Audit §1.10: retry helper for safety-critical device operations. Logs
-    /// every failed attempt at error level; sleeps `SAFETY_ACTION_RETRY_DELAY_SECS`
-    /// between attempts. Returns the last error after exhaustion.
+    /// every failed attempt at error level; sleeps `safety_action_retry_delay_secs`
+    /// between attempts. Returns the last error after exhaustion. Retry count
+    /// and delay come from `MeridianFlipConfig` (AUDIT-FIX-5B / §4.3).
     async fn retry_safety_action<F, Fut>(&self, op_name: &str, mut op: F) -> Result<(), String>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<(), String>>,
     {
+        let retry_count = self.config.safety_action_retry_count;
+        let retry_delay_secs = self.config.safety_action_retry_delay_secs;
         let mut last_err = String::from("no attempt was made");
-        for attempt in 1..=SAFETY_ACTION_RETRY_COUNT {
+        for attempt in 1..=retry_count {
             match op().await {
                 Ok(()) => {
                     if attempt > 1 {
@@ -1291,13 +1283,13 @@ impl MeridianFlipExecutor {
                         "[MERIDIAN] {} attempt {}/{} failed: {}",
                         op_name,
                         attempt,
-                        SAFETY_ACTION_RETRY_COUNT,
+                        retry_count,
                         e
                     );
                     last_err = e;
-                    if attempt < SAFETY_ACTION_RETRY_COUNT {
+                    if attempt < retry_count {
                         tokio::time::sleep(std::time::Duration::from_secs_f64(
-                            SAFETY_ACTION_RETRY_DELAY_SECS,
+                            retry_delay_secs,
                         ))
                         .await;
                     }
@@ -1465,8 +1457,13 @@ mod tests {
         notifications: Mutex<Vec<(String, String)>>,
         /// Whether to simulate slewing (false means slew completes immediately).
         is_slewing: AtomicBool,
-        /// Observer location.
-        location: Option<(f64, f64)>,
+        /// Observer location. AUDIT-FIX-5B: wrapped in Mutex so altitude-gate
+        /// tests can install a location at runtime.
+        location: Mutex<Option<(f64, f64)>>,
+        /// AUDIT-FIX-5B: optional override for `calculate_altitude` so the
+        /// min_post_flip_altitude_deg gate can be exercised by tests. Defaults
+        /// to None (which causes calculate_altitude to return 45° as before).
+        altitude_override_deg: Mutex<Option<f64>>,
     }
 
     struct MockDeviceOps {
@@ -1751,12 +1748,20 @@ mod tests {
             _lat: f64,
             _lon: f64,
         ) -> f64 {
-            // Always above the minimum so altitude doesn't trip tests.
-            45.0
+            // AUDIT-FIX-5B: honour the per-test altitude override so the
+            // min_post_flip_altitude_deg gate can be exercised. Defaults to
+            // 45° (above the gate) so existing tests are unaffected.
+            self.state
+                .altitude_override_deg
+                .lock()
+                .unwrap()
+                .unwrap_or(45.0)
         }
 
         fn get_observer_location(&self) -> Option<(f64, f64)> {
-            self.state.location
+            // AUDIT-FIX-5B: read through the Mutex so altitude-gate tests can
+            // install a location at runtime.
+            *self.state.location.lock().unwrap()
         }
 
         async fn polar_align_update(
@@ -2072,10 +2077,11 @@ mod tests {
             crate::meridian::PierSide::East,
         ]);
         // Park always fails (more failures than retry count).
+        let retry_count = crate::default_safety_action_retry_count();
         state
             .park_failures_remaining
-            // Why: SAFETY_ACTION_RETRY_COUNT is a const u32 = 3; lossless to i32.
-            .store(SAFETY_ACTION_RETRY_COUNT as i32 + 5, Ordering::Relaxed);
+            // Why: safety_action_retry_count default is u32 = 3; lossless to i32.
+            .store(retry_count as i32 + 5, Ordering::Relaxed);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
         let config = MeridianFlipConfig {
@@ -2088,6 +2094,9 @@ mod tests {
             failure_action: FlipFailureAction::AbortAndPark,
             // Provide retry_delays_secs to satisfy §1.20.
             retry_delays_secs: vec![0.01],
+            // Override the safety-action retry delay so the test does not
+            // wait the default 5s between each park attempt.
+            safety_action_retry_delay_secs: 0.01,
             ..Default::default()
         };
 
@@ -2110,13 +2119,13 @@ mod tests {
             other => panic!("Expected Failed result, got {:?}", other),
         }
 
-        // Park should have been retried SAFETY_ACTION_RETRY_COUNT times.
+        // Park should have been retried `retry_count` times.
         assert_eq!(
             state.park_calls.load(Ordering::Relaxed),
-            // Why: SAFETY_ACTION_RETRY_COUNT is a const u32 = 3; lossless to i32.
-            SAFETY_ACTION_RETRY_COUNT as i32,
+            // Why: default retry count is u32 = 3; lossless to i32.
+            retry_count as i32,
             "Expected exactly {} park retries",
-            SAFETY_ACTION_RETRY_COUNT
+            retry_count
         );
 
         // A critical notification must have been emitted.
@@ -2125,6 +2134,130 @@ mod tests {
             notifications.iter().any(|(level, _)| level == "critical"),
             "Expected a critical-level notification, got {:?}",
             notifications
+        );
+    }
+
+    // ========================================================================
+    // AUDIT-FIX-5B (audit-handoff §4.3): magic-number-to-config promotions.
+    // Each test demonstrates that changing the configurable value flips the
+    // executor's behaviour — without the test the field would compile-pass
+    // but silently be ignored.
+    // ========================================================================
+
+    /// AUDIT-FIX-5B (§4.3 item 1): default `min_post_flip_altitude_deg = 10°`
+    /// makes a 5°-altitude target abort. Lowering the threshold to 0° allows
+    /// the same target to proceed.
+    #[tokio::test]
+    async fn test_min_post_flip_altitude_is_user_configurable() {
+        // Target altitude 5° — below the default 10° gate.
+        let make_state = || {
+            let s = Arc::new(MockDeviceOpsState::default());
+            *s.location.lock().unwrap() = Some((40.0, -74.0));
+            *s.altitude_override_deg.lock().unwrap() = Some(5.0);
+            s
+        };
+
+        // Default config (min=10°): low-altitude target must abort.
+        {
+            let state = make_state();
+            let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+            let config = MeridianFlipConfig {
+                pause_guiding: false,
+                auto_center: false,
+                refocus_after: false,
+                resume_guiding: false,
+                settle_time: 0.0,
+                retry_delays_secs: vec![0.01],
+                ..Default::default()
+            };
+            assert!((config.min_post_flip_altitude_deg - 10.0).abs() < 1e-9);
+            let mut executor = MeridianFlipExecutor::new(config, ops);
+            let ctx = make_ctx(&state);
+            let result = executor.execute(&ctx).await;
+            match result {
+                FlipResult::Aborted { reason } => assert!(
+                    reason.contains("altitude"),
+                    "Expected altitude reason, got {}",
+                    reason
+                ),
+                other => panic!(
+                    "Expected Aborted for low-altitude target with default config, got {:?}",
+                    other
+                ),
+            }
+        }
+
+        // Lower the threshold to 0°: same target now proceeds (would only
+        // fail later for unrelated reasons, but it must not abort with the
+        // altitude reason).
+        {
+            let state = make_state();
+            let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+            let config = MeridianFlipConfig {
+                pause_guiding: false,
+                auto_center: false,
+                refocus_after: false,
+                resume_guiding: false,
+                settle_time: 0.0,
+                retry_delays_secs: vec![0.01],
+                min_post_flip_altitude_deg: 0.0,
+                ..Default::default()
+            };
+            let mut executor = MeridianFlipExecutor::new(config, ops);
+            let ctx = make_ctx(&state);
+            let result = executor.execute(&ctx).await;
+            // Anything BUT an altitude-driven Aborted is acceptable here —
+            // the test only proves the gate has been lowered.
+            if let FlipResult::Aborted { reason } = &result {
+                assert!(
+                    !reason.contains("altitude"),
+                    "altitude gate should not fire when min_post_flip_altitude_deg=0; got {}",
+                    reason
+                );
+            }
+        }
+    }
+
+    /// AUDIT-FIX-5B (§4.3 item 3): default `safety_action_retry_count = 3`.
+    /// Lowering it to 1 means a failing park is attempted only once.
+    #[tokio::test]
+    async fn test_safety_action_retry_count_is_user_configurable() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::East,
+        ]);
+        // Park always fails — far more than any test would tolerate by default.
+        state
+            .park_failures_remaining
+            .store(99, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            failure_action: FlipFailureAction::AbortAndPark,
+            retry_delays_secs: vec![0.01],
+            // User-tuned: only one retry.
+            safety_action_retry_count: 1,
+            safety_action_retry_delay_secs: 0.01,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+        let _ = executor.execute(&ctx).await;
+
+        // With safety_action_retry_count=1, park is attempted exactly once,
+        // not the default 3 times.
+        assert_eq!(
+            state.park_calls.load(Ordering::Relaxed),
+            1,
+            "Expected exactly 1 park attempt when safety_action_retry_count=1"
         );
     }
 }

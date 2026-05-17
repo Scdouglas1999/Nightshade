@@ -33,6 +33,8 @@ _$AnnotationSettingsImpl _$$AnnotationSettingsImplFromJson(
       autoAnnotate: json['autoAnnotate'] as bool? ?? true,
       maxObjectsToDisplay:
           (json['maxObjectsToDisplay'] as num?)?.toInt() ?? 500,
+      catalogBboxPaddingFraction:
+          (json['catalogBboxPaddingFraction'] as num?)?.toDouble() ?? 0.05,
       compassEnabled: json['compassEnabled'] as bool? ?? true,
       scaleBarEnabled: json['scaleBarEnabled'] as bool? ?? true,
       gridType: $enumDecodeNullable(_$GridTypeEnumMap, json['gridType']) ??
@@ -59,6 +61,7 @@ Map<String, dynamic> _$$AnnotationSettingsImplToJson(
       'clickSearchRadiusArcsec': instance.clickSearchRadiusArcsec,
       'autoAnnotate': instance.autoAnnotate,
       'maxObjectsToDisplay': instance.maxObjectsToDisplay,
+      'catalogBboxPaddingFraction': instance.catalogBboxPaddingFraction,
       'compassEnabled': instance.compassEnabled,
       'scaleBarEnabled': instance.scaleBarEnabled,
       'gridType': _$GridTypeEnumMap[instance.gridType]!,

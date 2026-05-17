@@ -19,6 +19,9 @@ _$FlatWizardGlobalSettingsImpl _$$FlatWizardGlobalSettingsImplFromJson(
       savePath: json['savePath'] as String?,
       createDateSubfolder: json['createDateSubfolder'] as bool? ?? true,
       createFilterSubfolders: json['createFilterSubfolders'] as bool? ?? true,
+      imageDownloadTimeoutSeconds:
+          (json['imageDownloadTimeoutSeconds'] as num?)?.toInt() ?? 60,
+      maxIterations: (json['maxIterations'] as num?)?.toInt() ?? 8,
     );
 
 Map<String, dynamic> _$$FlatWizardGlobalSettingsImplToJson(
@@ -34,6 +37,8 @@ Map<String, dynamic> _$$FlatWizardGlobalSettingsImplToJson(
       'savePath': instance.savePath,
       'createDateSubfolder': instance.createDateSubfolder,
       'createFilterSubfolders': instance.createFilterSubfolders,
+      'imageDownloadTimeoutSeconds': instance.imageDownloadTimeoutSeconds,
+      'maxIterations': instance.maxIterations,
     };
 
 _$FlatFilterSettingsImpl _$$FlatFilterSettingsImplFromJson(

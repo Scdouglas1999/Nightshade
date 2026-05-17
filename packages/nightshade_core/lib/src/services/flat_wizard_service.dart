@@ -4,9 +4,11 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../backend/nightshade_backend.dart';
+import '../models/flat_wizard/flat_wizard_settings.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart';
 import '../providers/backend_provider.dart';
+import '../providers/flat_wizard_provider.dart';
 import 'sky_brightness_tracker.dart';
 import 'flat_exposure_calculator.dart';
 
@@ -50,9 +52,41 @@ class FlatResult {
 /// Service for flat frame calibration and sequence generation
 class FlatWizardService {
   final NightshadeBackend backend;
-  static const _imageDownloadTimeout = Duration(seconds: 60);
 
-  FlatWizardService(this.backend);
+  // AUDIT-FIX-5B (audit-handoff §4.3): image download timeout was previously
+  // a hardcoded `Duration(seconds: 60)` constant. It is now sourced from
+  // [FlatWizardGlobalSettings.imageDownloadTimeoutSeconds] (default 60s) so
+  // operators with very large sensors or slow USB hubs can tune it without a
+  // recompile. Defaults are passed in via the provider constructor below.
+  final Duration imageDownloadTimeout;
+
+  /// Default maximum binary-search iterations used by [quickCalibrate]. Wired
+  /// from [FlatWizardGlobalSettings.maxIterations] (default 8).
+  final int defaultMaxIterations;
+
+  FlatWizardService(
+    this.backend, {
+    this.imageDownloadTimeout = const Duration(seconds: 60),
+    this.defaultMaxIterations = 8,
+    this.quickMinExposure = 0.001,
+    this.quickMaxExposure = 30.0,
+  });
+
+  /// Build a service from [FlatWizardGlobalSettings] so settings-driven defaults
+  /// flow into the service in one place (AUDIT-FIX-5B / audit-handoff §4.3).
+  factory FlatWizardService.fromSettings(
+    NightshadeBackend backend,
+    FlatWizardGlobalSettings settings,
+  ) {
+    return FlatWizardService(
+      backend,
+      imageDownloadTimeout:
+          Duration(seconds: settings.imageDownloadTimeoutSeconds),
+      defaultMaxIterations: settings.maxIterations,
+      quickMinExposure: settings.minExposure,
+      quickMaxExposure: settings.maxExposure,
+    );
+  }
 
   /// Calculate next exposure time to reach target ADU using proportional adjustment
   ///
@@ -158,11 +192,11 @@ class FlatWizardService {
 
       // Retrieve captured image
       final image = await backend.cameraGetLastImage(deviceId).timeout(
-        _imageDownloadTimeout,
+        imageDownloadTimeout,
         onTimeout: () {
           developer.log(
             'FlatWizardService: Image retrieval timed out after '
-            '${_imageDownloadTimeout.inSeconds}s',
+            '${imageDownloadTimeout.inSeconds}s',
             name: 'FlatWizardService',
             level: 900,
           );
@@ -661,6 +695,9 @@ class FlatWizardService {
     int binX = 1,
     int binY = 1,
   }) async {
+    // AUDIT-FIX-5B (§4.3): exposure bounds and iteration count come from the
+    // service's settings-derived fields rather than hardcoded literals so the
+    // user can tune them via the flat wizard global-settings panel.
     return calibrateFilter(
       deviceId: deviceId,
       filter: filter,
@@ -668,13 +705,21 @@ class FlatWizardService {
       offset: offset,
       targetAdu: targetAdu,
       tolerance: tolerancePercent,
-      minExposure: 0.001, // 1ms minimum
-      maxExposure: 30.0, // 30s maximum
-      maxIterations: 8,
+      minExposure: quickMinExposure,
+      maxExposure: quickMaxExposure,
+      maxIterations: defaultMaxIterations,
       binX: binX,
       binY: binY,
     );
   }
+
+  /// Default minimum exposure for [quickCalibrate]. Was hardcoded 0.001s.
+  /// Promoted to a service field so user settings can override it. AUDIT-FIX-5B.
+  final double quickMinExposure;
+
+  /// Default maximum exposure for [quickCalibrate]. Was hardcoded 30.0s.
+  /// AUDIT-FIX-5B.
+  final double quickMaxExposure;
 }
 
 /// Helper function to convert bin values to BinningMode
@@ -686,8 +731,15 @@ BinningMode _binningFromInts(int x, int y) {
   return BinningMode.one;
 }
 
-/// Provider for FlatWizardService
+/// Provider for FlatWizardService.
+///
+/// AUDIT-FIX-5B (audit-handoff §4.3): re-watches `flatWizardProvider` so a
+/// settings change (min/max exposure, image download timeout, max iterations)
+/// rebuilds the service with the new values instead of being silently ignored.
 final flatWizardServiceProvider = Provider<FlatWizardService>((ref) {
   final backend = ref.watch(backendProvider.select((b) => b));
-  return FlatWizardService(backend);
+  final settings = ref.watch(
+    flatWizardProvider.select((s) => s.globalSettings),
+  );
+  return FlatWizardService.fromSettings(backend, settings);
 });

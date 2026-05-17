@@ -63,6 +63,13 @@ mixin _$AnnotationSettings {
   /// Maximum number of objects to display
   int get maxObjectsToDisplay => throw _privateConstructorUsedError;
 
+  /// AUDIT-FIX-5B (audit-handoff §4.3): Fractional padding around the
+  /// catalog FOV bounding box. 0.05 = 5% padding (the historical
+  /// hardcoded default). Increase if large DSOs whose centre is just
+  /// off-frame are getting clipped from the overlay; decrease to query
+  /// faster on slow disks.
+  double get catalogBboxPaddingFraction => throw _privateConstructorUsedError;
+
   /// Whether to show compass overlay (N/E arrows from plate solve rotation)
   bool get compassEnabled => throw _privateConstructorUsedError;
 
@@ -102,6 +109,7 @@ abstract class $AnnotationSettingsCopyWith<$Res> {
       double clickSearchRadiusArcsec,
       bool autoAnnotate,
       int maxObjectsToDisplay,
+      double catalogBboxPaddingFraction,
       bool compassEnabled,
       bool scaleBarEnabled,
       GridType gridType,
@@ -135,6 +143,7 @@ class _$AnnotationSettingsCopyWithImpl<$Res, $Val extends AnnotationSettings>
     Object? clickSearchRadiusArcsec = null,
     Object? autoAnnotate = null,
     Object? maxObjectsToDisplay = null,
+    Object? catalogBboxPaddingFraction = null,
     Object? compassEnabled = null,
     Object? scaleBarEnabled = null,
     Object? gridType = null,
@@ -197,6 +206,10 @@ class _$AnnotationSettingsCopyWithImpl<$Res, $Val extends AnnotationSettings>
           ? _value.maxObjectsToDisplay
           : maxObjectsToDisplay // ignore: cast_nullable_to_non_nullable
               as int,
+      catalogBboxPaddingFraction: null == catalogBboxPaddingFraction
+          ? _value.catalogBboxPaddingFraction
+          : catalogBboxPaddingFraction // ignore: cast_nullable_to_non_nullable
+              as double,
       compassEnabled: null == compassEnabled
           ? _value.compassEnabled
           : compassEnabled // ignore: cast_nullable_to_non_nullable
@@ -240,6 +253,7 @@ abstract class _$$AnnotationSettingsImplCopyWith<$Res>
       double clickSearchRadiusArcsec,
       bool autoAnnotate,
       int maxObjectsToDisplay,
+      double catalogBboxPaddingFraction,
       bool compassEnabled,
       bool scaleBarEnabled,
       GridType gridType,
@@ -271,6 +285,7 @@ class __$$AnnotationSettingsImplCopyWithImpl<$Res>
     Object? clickSearchRadiusArcsec = null,
     Object? autoAnnotate = null,
     Object? maxObjectsToDisplay = null,
+    Object? catalogBboxPaddingFraction = null,
     Object? compassEnabled = null,
     Object? scaleBarEnabled = null,
     Object? gridType = null,
@@ -333,6 +348,10 @@ class __$$AnnotationSettingsImplCopyWithImpl<$Res>
           ? _value.maxObjectsToDisplay
           : maxObjectsToDisplay // ignore: cast_nullable_to_non_nullable
               as int,
+      catalogBboxPaddingFraction: null == catalogBboxPaddingFraction
+          ? _value.catalogBboxPaddingFraction
+          : catalogBboxPaddingFraction // ignore: cast_nullable_to_non_nullable
+              as double,
       compassEnabled: null == compassEnabled
           ? _value.compassEnabled
           : compassEnabled // ignore: cast_nullable_to_non_nullable
@@ -376,6 +395,7 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
       this.clickSearchRadiusArcsec = 30.0,
       this.autoAnnotate = true,
       this.maxObjectsToDisplay = 500,
+      this.catalogBboxPaddingFraction = 0.05,
       this.compassEnabled = true,
       this.scaleBarEnabled = true,
       this.gridType = GridType.none,
@@ -462,6 +482,15 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
   @JsonKey()
   final int maxObjectsToDisplay;
 
+  /// AUDIT-FIX-5B (audit-handoff §4.3): Fractional padding around the
+  /// catalog FOV bounding box. 0.05 = 5% padding (the historical
+  /// hardcoded default). Increase if large DSOs whose centre is just
+  /// off-frame are getting clipped from the overlay; decrease to query
+  /// faster on slow disks.
+  @override
+  @JsonKey()
+  final double catalogBboxPaddingFraction;
+
   /// Whether to show compass overlay (N/E arrows from plate solve rotation)
   @override
   @JsonKey()
@@ -484,7 +513,7 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
 
   @override
   String toString() {
-    return 'AnnotationSettings(enabled: $enabled, magnitudeCutoff: $magnitudeCutoff, minMagnitude: $minMagnitude, visibleTypes: $visibleTypes, showLabels: $showLabels, showMagnitudes: $showMagnitudes, fadeWhenNotHovering: $fadeWhenNotHovering, hoverOpacity: $hoverOpacity, idleOpacity: $idleOpacity, fadeAnimationMs: $fadeAnimationMs, clickToIdentify: $clickToIdentify, clickSearchRadiusArcsec: $clickSearchRadiusArcsec, autoAnnotate: $autoAnnotate, maxObjectsToDisplay: $maxObjectsToDisplay, compassEnabled: $compassEnabled, scaleBarEnabled: $scaleBarEnabled, gridType: $gridType, showSolveResiduals: $showSolveResiduals)';
+    return 'AnnotationSettings(enabled: $enabled, magnitudeCutoff: $magnitudeCutoff, minMagnitude: $minMagnitude, visibleTypes: $visibleTypes, showLabels: $showLabels, showMagnitudes: $showMagnitudes, fadeWhenNotHovering: $fadeWhenNotHovering, hoverOpacity: $hoverOpacity, idleOpacity: $idleOpacity, fadeAnimationMs: $fadeAnimationMs, clickToIdentify: $clickToIdentify, clickSearchRadiusArcsec: $clickSearchRadiusArcsec, autoAnnotate: $autoAnnotate, maxObjectsToDisplay: $maxObjectsToDisplay, catalogBboxPaddingFraction: $catalogBboxPaddingFraction, compassEnabled: $compassEnabled, scaleBarEnabled: $scaleBarEnabled, gridType: $gridType, showSolveResiduals: $showSolveResiduals)';
   }
 
   @override
@@ -520,6 +549,10 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
                 other.autoAnnotate == autoAnnotate) &&
             (identical(other.maxObjectsToDisplay, maxObjectsToDisplay) ||
                 other.maxObjectsToDisplay == maxObjectsToDisplay) &&
+            (identical(other.catalogBboxPaddingFraction,
+                    catalogBboxPaddingFraction) ||
+                other.catalogBboxPaddingFraction ==
+                    catalogBboxPaddingFraction) &&
             (identical(other.compassEnabled, compassEnabled) ||
                 other.compassEnabled == compassEnabled) &&
             (identical(other.scaleBarEnabled, scaleBarEnabled) ||
@@ -532,26 +565,28 @@ class _$AnnotationSettingsImpl implements _AnnotationSettings {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      enabled,
-      magnitudeCutoff,
-      minMagnitude,
-      const DeepCollectionEquality().hash(_visibleTypes),
-      showLabels,
-      showMagnitudes,
-      fadeWhenNotHovering,
-      hoverOpacity,
-      idleOpacity,
-      fadeAnimationMs,
-      clickToIdentify,
-      clickSearchRadiusArcsec,
-      autoAnnotate,
-      maxObjectsToDisplay,
-      compassEnabled,
-      scaleBarEnabled,
-      gridType,
-      showSolveResiduals);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        enabled,
+        magnitudeCutoff,
+        minMagnitude,
+        const DeepCollectionEquality().hash(_visibleTypes),
+        showLabels,
+        showMagnitudes,
+        fadeWhenNotHovering,
+        hoverOpacity,
+        idleOpacity,
+        fadeAnimationMs,
+        clickToIdentify,
+        clickSearchRadiusArcsec,
+        autoAnnotate,
+        maxObjectsToDisplay,
+        catalogBboxPaddingFraction,
+        compassEnabled,
+        scaleBarEnabled,
+        gridType,
+        showSolveResiduals
+      ]);
 
   @JsonKey(ignore: true)
   @override
@@ -584,6 +619,7 @@ abstract class _AnnotationSettings implements AnnotationSettings {
       final double clickSearchRadiusArcsec,
       final bool autoAnnotate,
       final int maxObjectsToDisplay,
+      final double catalogBboxPaddingFraction,
       final bool compassEnabled,
       final bool scaleBarEnabled,
       final GridType gridType,
@@ -648,6 +684,14 @@ abstract class _AnnotationSettings implements AnnotationSettings {
 
   /// Maximum number of objects to display
   int get maxObjectsToDisplay;
+  @override
+
+  /// AUDIT-FIX-5B (audit-handoff §4.3): Fractional padding around the
+  /// catalog FOV bounding box. 0.05 = 5% padding (the historical
+  /// hardcoded default). Increase if large DSOs whose centre is just
+  /// off-frame are getting clipped from the overlay; decrease to query
+  /// faster on slow disks.
+  double get catalogBboxPaddingFraction;
   @override
 
   /// Whether to show compass overlay (N/E arrows from plate solve rotation)

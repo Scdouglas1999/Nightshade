@@ -192,11 +192,21 @@ class CatalogOverlayService {
   final CatalogOverlaySource source;
 
   /// Hard cap on rendered objects. The mission says "downsample if >500".
+  /// Exposed via [AnnotationSettings.maxObjectsToDisplay] for users that
+  /// want a denser overlay on high-resolution screens. AUDIT-FIX-5B
+  /// (audit-handoff §4.3).
   final int maxObjects;
+
+  /// Fractional padding around the image bbox when querying the catalog.
+  /// Larger values include partly-off-frame DSOs whose centre is just outside
+  /// the chip but whose extent crosses the edge. Was hardcoded to 0.05
+  /// (5 %); promoted to user-configurable in AUDIT-FIX-5B (audit-handoff §4.3).
+  final double bboxPaddingFraction;
 
   CatalogOverlayService({
     required this.source,
     this.maxObjects = 500,
+    this.bboxPaddingFraction = 0.05,
   });
 
   /// Project catalog objects through [wcs] and return everything visible
@@ -231,7 +241,8 @@ class CatalogOverlayService {
     }
 
     final projection = GnomonicProjection(wcs);
-    final bbox = projection.computeBoundingBox();
+    final bbox =
+        projection.computeBoundingBox(paddingFraction: bboxPaddingFraction);
 
     final hits = <_RankedHit>[];
     var totalInFov = 0;

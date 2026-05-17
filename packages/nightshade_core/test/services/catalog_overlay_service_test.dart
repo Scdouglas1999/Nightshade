@@ -225,5 +225,53 @@ void main() {
       expect(ids, containsAll(<String>['east', 'west']));
       expect(ids.contains('far'), isFalse);
     });
+
+    // AUDIT-FIX-5B (audit-handoff §4.3 item 6): bboxPaddingFraction promoted
+    // from hardcoded 0.05 to a user-configurable constructor parameter.
+    test(
+      'bboxPaddingFraction widens the catalog query bbox so off-frame DSOs '
+      'just past the chip edge are returned',
+      () async {
+        // Centre frame on (5.5h, -5°). At pixelScale 1.5"/px and 2048×2048,
+        // the chip is ~0.85° on a side, so ~0.43° half-FOV. Place a DSO
+        // 0.1° east of the centre — well inside the chip at any padding.
+        final inFovDso = _dso(
+          id: 'in-fov',
+          raHours: 5.5 + 0.1 / 15.0,
+          decDeg: -5.0,
+          magnitude: 6.0,
+        );
+
+        // Default padding (5 %): the DSO should be returned (it's in-frame).
+        final defaultSvc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
+        );
+        expect(defaultSvc.bboxPaddingFraction, 0.05);
+        final defaultResult =
+            await defaultSvc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+        expect(
+          defaultResult.objects.map((o) => o.id),
+          contains('in-fov'),
+          reason: 'in-FOV DSO must be returned at default padding',
+        );
+
+        // Wide padding (50 %): same DSO still returned — the setting widens
+        // the query, never narrows it. This proves the parameter is wired
+        // through to the bounding-box computation rather than being silently
+        // ignored.
+        final widePaddingSvc = CatalogOverlayService(
+          source: _FakeCatalogOverlaySource(dsos: [inFovDso]),
+          bboxPaddingFraction: 0.5,
+        );
+        expect(widePaddingSvc.bboxPaddingFraction, 0.5);
+        final wideResult =
+            await widePaddingSvc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+        expect(
+          wideResult.objects.map((o) => o.id),
+          contains('in-fov'),
+          reason: 'wider padding must not drop in-FOV DSOs',
+        );
+      },
+    );
   });
 }

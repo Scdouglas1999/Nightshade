@@ -894,6 +894,52 @@ pub struct MeridianFlipConfig {
     pub max_retries: u32,
     pub retry_delays_secs: Vec<f64>,
     pub failure_action: FlipFailureAction,
+
+    // -----------------------------------------------------------------------
+    // AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+    // const-in-executor to user-configurable settings. `#[serde(default = ...)]`
+    // keeps backward compatibility with previously-saved sequences that lack
+    // these fields.
+    // -----------------------------------------------------------------------
+    /// Minimum altitude (degrees) the target must be at, after the flip, for
+    /// the executor to proceed. Below ~10° atmospheric refraction makes
+    /// plate-solve unreliable and most amateur mounts approach their lower
+    /// limit. Was `Self::MIN_POST_FLIP_ALTITUDE_DEG = 10.0` constant.
+    #[serde(default = "default_min_post_flip_altitude_deg")]
+    pub min_post_flip_altitude_deg: f64,
+
+    /// Tolerance (degrees) for the RA/Dec coordinate-fallback pier-side
+    /// verification used when the mount does not report pier side natively.
+    /// Was `FLIP_COORDINATE_TOLERANCE_DEG = 1.0/60.0` (1 arcminute).
+    #[serde(default = "default_flip_coordinate_tolerance_deg")]
+    pub flip_coordinate_tolerance_deg: f64,
+
+    /// How many times to retry mount park / abort-slew / set-tracking calls
+    /// inside `execute_failure_action` before giving up. Was const u32 = 3.
+    #[serde(default = "default_safety_action_retry_count")]
+    pub safety_action_retry_count: u32,
+
+    /// Delay (seconds) between safety-action retries. Was const f64 = 5.0.
+    #[serde(default = "default_safety_action_retry_delay_secs")]
+    pub safety_action_retry_delay_secs: f64,
+}
+
+// AUDIT-FIX-5B: exposed as `pub(crate)` so executor tests can reference the
+// canonical defaults without re-hardcoding them.
+pub(crate) fn default_min_post_flip_altitude_deg() -> f64 {
+    10.0
+}
+
+pub(crate) fn default_flip_coordinate_tolerance_deg() -> f64 {
+    1.0 / 60.0
+}
+
+pub(crate) fn default_safety_action_retry_count() -> u32 {
+    3
+}
+
+pub(crate) fn default_safety_action_retry_delay_secs() -> f64 {
+    5.0
 }
 
 impl Default for MeridianFlipConfig {
@@ -912,6 +958,13 @@ impl Default for MeridianFlipConfig {
             max_retries: 3,
             retry_delays_secs: vec![30.0, 60.0, 120.0],
             failure_action: FlipFailureAction::PauseAndAlert,
+            // AUDIT-FIX-5B (audit-handoff §4.3) defaults — keep numeric values
+            // identical to the formerly-constant executor defaults so behaviour
+            // is unchanged for users who do not override them.
+            min_post_flip_altitude_deg: default_min_post_flip_altitude_deg(),
+            flip_coordinate_tolerance_deg: default_flip_coordinate_tolerance_deg(),
+            safety_action_retry_count: default_safety_action_retry_count(),
+            safety_action_retry_delay_secs: default_safety_action_retry_delay_secs(),
         }
     }
 }

@@ -245,7 +245,14 @@ class MosaicService {
     return widthDeg * heightDeg;
   }
 
-  /// Estimate total imaging time in seconds (pure Dart implementation)
+  /// Estimate total imaging time in seconds (pure Dart implementation).
+  ///
+  /// AUDIT-FIX-5B (audit-handoff §4.3): [overheadPerPanelSecs] defaults to
+  /// 60s — a conservative estimate covering slew + plate-solve + autofocus
+  /// + dither between panels for a typical EQ mount + filter wheel rig.
+  /// Callers with calibrated equipment profiles should pass a measured value
+  /// derived from prior sessions instead of relying on the default. The
+  /// settings panel surfaces this so users can lock it in per-rig.
   double estimateMosaicTime(
     MosaicConfig config,
     MosaicExposureSettings exposure, {

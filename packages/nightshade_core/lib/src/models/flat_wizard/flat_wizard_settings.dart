@@ -36,6 +36,20 @@ class FlatWizardGlobalSettings with _$FlatWizardGlobalSettings {
 
     /// Create filter subfolders
     @Default(true) bool createFilterSubfolders,
+
+    // AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+    // hardcoded constants in flat_wizard_service.dart.
+
+    /// Per-frame download timeout (seconds). Was hardcoded
+    /// `_imageDownloadTimeout = Duration(seconds: 60)`. Increase for very
+    /// large sensors or slow USB hubs.
+    @Default(60) int imageDownloadTimeoutSeconds,
+
+    /// Max binary-search iterations for the calibration solver. Was a
+    /// `int maxIterations = 8` default parameter in the service. Fewer
+    /// iterations exits faster on stubborn filters but risks missing the
+    /// target ADU; more iterations is slower but more accurate.
+    @Default(8) int maxIterations,
   }) = _FlatWizardGlobalSettings;
 
   factory FlatWizardGlobalSettings.fromJson(Map<String, dynamic> json) =>

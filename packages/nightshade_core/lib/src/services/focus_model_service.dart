@@ -10,10 +10,68 @@ import 'package:path_provider/path_provider.dart';
 
 /// Provider for the focus model service
 final focusModelServiceProvider = Provider<FocusModelService>((ref) {
-  final service = FocusModelService();
+  // AUDIT-FIX-5B (audit-handoff §4.3): plumb user-configurable thresholds
+  // through so the autofocus settings panel can override the rejection /
+  // reliability / filter-offset gates without a recompile.
+  final config = ref.watch(focusModelConfigProvider);
+  final service = FocusModelService(config: config);
   unawaited(service.initialize());
   return service;
 });
+
+/// User-configurable thresholds that gate the focus regression model.
+///
+/// AUDIT-FIX-5B (audit-handoff §4.3): each value was previously a magic number
+/// inside `FocusModelService`. They are surfaced as a single config object so
+/// the autofocus settings panel can mutate them; defaults reproduce the prior
+/// behaviour exactly.
+class FocusModelConfig {
+  /// Reject regressions whose absolute slope exceeds this many steps/°C.
+  /// Was hardcoded `|slope| > 500`.
+  final double maxAcceptableSlopeStepsPerC;
+
+  /// Minimum R² before [FocusModel.isReliable] returns true. Was 0.7.
+  final double minRSquared;
+
+  /// Minimum sample count before [FocusModel.isReliable] returns true. Was 5.
+  final int minDataPointCount;
+
+  /// Minimum filter-offset confidence required to apply the offset during a
+  /// prediction. Was 0.5.
+  final double minFilterOffsetConfidence;
+
+  const FocusModelConfig({
+    this.maxAcceptableSlopeStepsPerC = 500.0,
+    this.minRSquared = 0.7,
+    this.minDataPointCount = 5,
+    this.minFilterOffsetConfidence = 0.5,
+  });
+
+  FocusModelConfig copyWith({
+    double? maxAcceptableSlopeStepsPerC,
+    double? minRSquared,
+    int? minDataPointCount,
+    double? minFilterOffsetConfidence,
+  }) {
+    return FocusModelConfig(
+      maxAcceptableSlopeStepsPerC:
+          maxAcceptableSlopeStepsPerC ?? this.maxAcceptableSlopeStepsPerC,
+      minRSquared: minRSquared ?? this.minRSquared,
+      minDataPointCount: minDataPointCount ?? this.minDataPointCount,
+      minFilterOffsetConfidence:
+          minFilterOffsetConfidence ?? this.minFilterOffsetConfidence,
+    );
+  }
+}
+
+/// Provider for the focus-model thresholds. Defaults reproduce the prior
+/// hardcoded behaviour exactly. Override this provider from the autofocus
+/// settings panel (or in tests) to change behaviour.
+///
+/// AUDIT-FIX-5B (audit-handoff §4.3).
+final focusModelConfigProvider = StateProvider<FocusModelConfig>(
+  (_) => const FocusModelConfig(),
+);
 
 /// A single temperature-compensation history sample collected after each
 /// successful autofocus run. Persisted across sessions to feed the linear
@@ -75,8 +133,19 @@ class FocusModel {
     return (intercept + slope * temperatureCelsius).round();
   }
 
-  /// Check if model is reliable enough to use
-  bool get isReliable => rSquared >= 0.7 && dataPointCount >= 5;
+  /// Check if model is reliable enough to use against the default thresholds.
+  ///
+  /// AUDIT-FIX-5B (audit-handoff §4.3): the defaults reproduce the prior
+  /// hardcoded `rSquared >= 0.7 && dataPointCount >= 5` behaviour. The
+  /// regression service routes through [isReliableWith] so user-configurable
+  /// thresholds in [FocusModelConfig] flow through instead of being silently
+  /// pinned at the historical defaults.
+  bool get isReliable => isReliableWith(const FocusModelConfig());
+
+  /// User-configurable reliability gate. AUDIT-FIX-5B.
+  bool isReliableWith(FocusModelConfig config) =>
+      rSquared >= config.minRSquared &&
+      dataPointCount >= config.minDataPointCount;
 
   Map<String, dynamic> toJson() => {
         'slope': slope,
@@ -194,6 +263,12 @@ class FocusModelService {
   Future<void>? _initializeFuture;
   bool _isInitialized = false;
 
+  /// Thresholds that gate regression rejection, reliability, and filter-offset
+  /// application. AUDIT-FIX-5B (audit-handoff §4.3).
+  final FocusModelConfig config;
+
+  FocusModelService({this.config = const FocusModelConfig()});
+
   /// Initialize storage directory
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -302,9 +377,10 @@ class FocusModelService {
     }
 
     final slope = (n * sumXY - sumX * sumY) / denominator;
-    if (slope.abs() > 500) {
+    if (slope.abs() > config.maxAcceptableSlopeStepsPerC) {
       developer.log(
-          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C',
+          'Rejecting focus model with unrealistic slope ${slope.toStringAsFixed(2)} steps/°C '
+          '(threshold ${config.maxAcceptableSlopeStepsPerC.toStringAsFixed(0)})',
           name: 'FocusModelService',
           level: 900);
       return null;
@@ -401,7 +477,7 @@ class FocusModelService {
     if (data == null || data.temperatureModel == null) return null;
 
     final model = data.temperatureModel!;
-    if (!model.isReliable) return null;
+    if (!model.isReliableWith(config)) return null;
 
     int predictedPosition = model.predictPosition(currentTemperature);
     double confidence = model.rSquared;
@@ -411,7 +487,7 @@ class FocusModelService {
     if (currentFilter != null &&
         data.filterOffsets.containsKey(currentFilter)) {
       final offset = data.filterOffsets[currentFilter]!;
-      if (offset.confidence >= 0.5) {
+      if (offset.confidence >= config.minFilterOffsetConfidence) {
         filterOffset = offset.offsetSteps;
         predictedPosition += filterOffset;
         confidence *= offset.confidence;
@@ -438,7 +514,7 @@ class FocusModelService {
     if (data == null || data.temperatureModel == null) return false;
 
     final model = data.temperatureModel!;
-    if (!model.isReliable) return false;
+    if (!model.isReliableWith(config)) return false;
 
     // Calculate expected focus drift
     final tempDelta = (currentTemperature - lastFocusTemperature).abs();

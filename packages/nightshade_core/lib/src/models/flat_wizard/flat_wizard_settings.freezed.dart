@@ -49,7 +49,19 @@ mixin _$FlatWizardGlobalSettings {
   bool get createDateSubfolder => throw _privateConstructorUsedError;
 
   /// Create filter subfolders
-  bool get createFilterSubfolders => throw _privateConstructorUsedError;
+  bool get createFilterSubfolders =>
+      throw _privateConstructorUsedError; // AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+// hardcoded constants in flat_wizard_service.dart.
+  /// Per-frame download timeout (seconds). Was hardcoded
+  /// `_imageDownloadTimeout = Duration(seconds: 60)`. Increase for very
+  /// large sensors or slow USB hubs.
+  int get imageDownloadTimeoutSeconds => throw _privateConstructorUsedError;
+
+  /// Max binary-search iterations for the calibration solver. Was a
+  /// `int maxIterations = 8` default parameter in the service. Fewer
+  /// iterations exits faster on stubborn filters but risks missing the
+  /// target ADU; more iterations is slower but more accurate.
+  int get maxIterations => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -73,7 +85,9 @@ abstract class $FlatWizardGlobalSettingsCopyWith<$Res> {
       int binning,
       String? savePath,
       bool createDateSubfolder,
-      bool createFilterSubfolders});
+      bool createFilterSubfolders,
+      int imageDownloadTimeoutSeconds,
+      int maxIterations});
 }
 
 /// @nodoc
@@ -100,6 +114,8 @@ class _$FlatWizardGlobalSettingsCopyWithImpl<$Res,
     Object? savePath = freezed,
     Object? createDateSubfolder = null,
     Object? createFilterSubfolders = null,
+    Object? imageDownloadTimeoutSeconds = null,
+    Object? maxIterations = null,
   }) {
     return _then(_value.copyWith(
       histogramTarget: null == histogramTarget
@@ -142,6 +158,14 @@ class _$FlatWizardGlobalSettingsCopyWithImpl<$Res,
           ? _value.createFilterSubfolders
           : createFilterSubfolders // ignore: cast_nullable_to_non_nullable
               as bool,
+      imageDownloadTimeoutSeconds: null == imageDownloadTimeoutSeconds
+          ? _value.imageDownloadTimeoutSeconds
+          : imageDownloadTimeoutSeconds // ignore: cast_nullable_to_non_nullable
+              as int,
+      maxIterations: null == maxIterations
+          ? _value.maxIterations
+          : maxIterations // ignore: cast_nullable_to_non_nullable
+              as int,
     ) as $Val);
   }
 }
@@ -165,7 +189,9 @@ abstract class _$$FlatWizardGlobalSettingsImplCopyWith<$Res>
       int binning,
       String? savePath,
       bool createDateSubfolder,
-      bool createFilterSubfolders});
+      bool createFilterSubfolders,
+      int imageDownloadTimeoutSeconds,
+      int maxIterations});
 }
 
 /// @nodoc
@@ -191,6 +217,8 @@ class __$$FlatWizardGlobalSettingsImplCopyWithImpl<$Res>
     Object? savePath = freezed,
     Object? createDateSubfolder = null,
     Object? createFilterSubfolders = null,
+    Object? imageDownloadTimeoutSeconds = null,
+    Object? maxIterations = null,
   }) {
     return _then(_$FlatWizardGlobalSettingsImpl(
       histogramTarget: null == histogramTarget
@@ -233,6 +261,14 @@ class __$$FlatWizardGlobalSettingsImplCopyWithImpl<$Res>
           ? _value.createFilterSubfolders
           : createFilterSubfolders // ignore: cast_nullable_to_non_nullable
               as bool,
+      imageDownloadTimeoutSeconds: null == imageDownloadTimeoutSeconds
+          ? _value.imageDownloadTimeoutSeconds
+          : imageDownloadTimeoutSeconds // ignore: cast_nullable_to_non_nullable
+              as int,
+      maxIterations: null == maxIterations
+          ? _value.maxIterations
+          : maxIterations // ignore: cast_nullable_to_non_nullable
+              as int,
     ));
   }
 }
@@ -250,7 +286,9 @@ class _$FlatWizardGlobalSettingsImpl implements _FlatWizardGlobalSettings {
       this.binning = 1,
       this.savePath,
       this.createDateSubfolder = true,
-      this.createFilterSubfolders = true});
+      this.createFilterSubfolders = true,
+      this.imageDownloadTimeoutSeconds = 60,
+      this.maxIterations = 8});
 
   factory _$FlatWizardGlobalSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$FlatWizardGlobalSettingsImplFromJson(json);
@@ -303,10 +341,26 @@ class _$FlatWizardGlobalSettingsImpl implements _FlatWizardGlobalSettings {
   @override
   @JsonKey()
   final bool createFilterSubfolders;
+// AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+// hardcoded constants in flat_wizard_service.dart.
+  /// Per-frame download timeout (seconds). Was hardcoded
+  /// `_imageDownloadTimeout = Duration(seconds: 60)`. Increase for very
+  /// large sensors or slow USB hubs.
+  @override
+  @JsonKey()
+  final int imageDownloadTimeoutSeconds;
+
+  /// Max binary-search iterations for the calibration solver. Was a
+  /// `int maxIterations = 8` default parameter in the service. Fewer
+  /// iterations exits faster on stubborn filters but risks missing the
+  /// target ADU; more iterations is slower but more accurate.
+  @override
+  @JsonKey()
+  final int maxIterations;
 
   @override
   String toString() {
-    return 'FlatWizardGlobalSettings(histogramTarget: $histogramTarget, tolerancePercent: $tolerancePercent, minExposure: $minExposure, maxExposure: $maxExposure, frameCount: $frameCount, gain: $gain, binning: $binning, savePath: $savePath, createDateSubfolder: $createDateSubfolder, createFilterSubfolders: $createFilterSubfolders)';
+    return 'FlatWizardGlobalSettings(histogramTarget: $histogramTarget, tolerancePercent: $tolerancePercent, minExposure: $minExposure, maxExposure: $maxExposure, frameCount: $frameCount, gain: $gain, binning: $binning, savePath: $savePath, createDateSubfolder: $createDateSubfolder, createFilterSubfolders: $createFilterSubfolders, imageDownloadTimeoutSeconds: $imageDownloadTimeoutSeconds, maxIterations: $maxIterations)';
   }
 
   @override
@@ -331,7 +385,13 @@ class _$FlatWizardGlobalSettingsImpl implements _FlatWizardGlobalSettings {
             (identical(other.createDateSubfolder, createDateSubfolder) ||
                 other.createDateSubfolder == createDateSubfolder) &&
             (identical(other.createFilterSubfolders, createFilterSubfolders) ||
-                other.createFilterSubfolders == createFilterSubfolders));
+                other.createFilterSubfolders == createFilterSubfolders) &&
+            (identical(other.imageDownloadTimeoutSeconds,
+                    imageDownloadTimeoutSeconds) ||
+                other.imageDownloadTimeoutSeconds ==
+                    imageDownloadTimeoutSeconds) &&
+            (identical(other.maxIterations, maxIterations) ||
+                other.maxIterations == maxIterations));
   }
 
   @JsonKey(ignore: true)
@@ -347,7 +407,9 @@ class _$FlatWizardGlobalSettingsImpl implements _FlatWizardGlobalSettings {
       binning,
       savePath,
       createDateSubfolder,
-      createFilterSubfolders);
+      createFilterSubfolders,
+      imageDownloadTimeoutSeconds,
+      maxIterations);
 
   @JsonKey(ignore: true)
   @override
@@ -375,7 +437,9 @@ abstract class _FlatWizardGlobalSettings implements FlatWizardGlobalSettings {
       final int binning,
       final String? savePath,
       final bool createDateSubfolder,
-      final bool createFilterSubfolders}) = _$FlatWizardGlobalSettingsImpl;
+      final bool createFilterSubfolders,
+      final int imageDownloadTimeoutSeconds,
+      final int maxIterations}) = _$FlatWizardGlobalSettingsImpl;
 
   factory _FlatWizardGlobalSettings.fromJson(Map<String, dynamic> json) =
       _$FlatWizardGlobalSettingsImpl.fromJson;
@@ -420,6 +484,19 @@ abstract class _FlatWizardGlobalSettings implements FlatWizardGlobalSettings {
 
   /// Create filter subfolders
   bool get createFilterSubfolders;
+  @override // AUDIT-FIX-5B (audit-handoff §4.3): magic-number defaults promoted from
+// hardcoded constants in flat_wizard_service.dart.
+  /// Per-frame download timeout (seconds). Was hardcoded
+  /// `_imageDownloadTimeout = Duration(seconds: 60)`. Increase for very
+  /// large sensors or slow USB hubs.
+  int get imageDownloadTimeoutSeconds;
+  @override
+
+  /// Max binary-search iterations for the calibration solver. Was a
+  /// `int maxIterations = 8` default parameter in the service. Fewer
+  /// iterations exits faster on stubborn filters but risks missing the
+  /// target ADU; more iterations is slower but more accurate.
+  int get maxIterations;
   @override
   @JsonKey(ignore: true)
   _$$FlatWizardGlobalSettingsImplCopyWith<_$FlatWizardGlobalSettingsImpl>
