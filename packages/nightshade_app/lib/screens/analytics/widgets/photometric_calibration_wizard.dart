@@ -248,7 +248,7 @@ class _PhotometricCalibrationWizardState
   }
 
   Widget _buildFrameSelector(NightshadeColors colors, int sessionId) {
-    final images = ref.watch(sessionImagesProvider(sessionId));
+    final images = ref.watch(calibrationSessionImagesProvider(sessionId));
 
     return images.when(
       // Shimmer thumbnail strip matches the frame selector height so the
@@ -1190,7 +1190,11 @@ class _PhotometricCalibrationWizardState
 }
 
 /// Provider for session images (used by the calibration wizard).
-final sessionImagesProvider =
+///
+/// Renamed from `sessionImagesProvider` (which collided with the in-memory
+/// `sessionImagesProvider` in nightshade_core and the analytics
+/// `dbSessionImagesProvider`) so importers don't have to `hide` declarations.
+final calibrationSessionImagesProvider =
     FutureProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {

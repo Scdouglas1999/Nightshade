@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart'
-    hide TargetSearchState, targetSearchProvider;
+import 'package:nightshade_core/nightshade_core.dart';
 
 /// Small overlay card on the canvas showing the target's name, catalog id,
 /// coordinates, and optional magnitude / size.

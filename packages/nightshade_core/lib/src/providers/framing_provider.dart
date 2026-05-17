@@ -6,8 +6,6 @@ import 'dart:ui' as ui;
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:nightshade_planetarium/src/catalogs/catalog_manager.dart'; // Explicit import to fix visibility issue
 
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
@@ -1537,192 +1535,15 @@ class SimbadResolver {
 }
 
 // =============================================================================
-// TARGET SEARCH PROVIDER
+// TARGET SEARCH PROVIDER — REMOVED 2026-05-16 (audit §2.5).
+//
+// The duplicate `TargetSearchState` / `TargetSearchNotifier` / `targetSearchProvider`
+// previously lived here. The screen-local autoDispose version at
+// `packages/nightshade_app/lib/screens/framing/framing_search_provider.dart`
+// is the canonical implementation. Every importer of `nightshade_core` had to
+// `hide TargetSearchState, targetSearchProvider` to avoid the symbol collision;
+// removing the duplicate eliminates that workaround.
 // =============================================================================
-
-/// State for target search
-class TargetSearchState {
-  final String query;
-  final List<FramingTarget> results;
-  final bool isSearching;
-  final String? error;
-
-  const TargetSearchState({
-    this.query = '',
-    this.results = const [],
-    this.isSearching = false,
-    this.error,
-  });
-
-  TargetSearchState copyWith({
-    String? query,
-    List<FramingTarget>? results,
-    bool? isSearching,
-    String? error,
-  }) {
-    return TargetSearchState(
-      query: query ?? this.query,
-      results: results ?? this.results,
-      isSearching: isSearching ?? this.isSearching,
-      error: error,
-    );
-  }
-}
-
-class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
-  final Ref _ref;
-  Timer? _debounceTimer;
-
-  TargetSearchNotifier(this._ref) : super(const TargetSearchState());
-
-  /// Search for targets
-  void search(String query) {
-    _debounceTimer?.cancel();
-
-    if (query.isEmpty) {
-      state = const TargetSearchState();
-      return;
-    }
-
-    state = state.copyWith(query: query, isSearching: true);
-
-    // Debounce to avoid too many API calls
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _performSearch(query);
-    });
-  }
-
-  Future<void> _performSearch(String query) async {
-    final results = <FramingTarget>[];
-    final seenIds = <String>{}; // To deduplicate results
-
-    try {
-      // 1. Search local user database (highest priority)
-      final targetsDao = _ref.read(targetsDaoProvider);
-      final localTargets = await targetsDao.searchTargets(query);
-
-      for (final t in localTargets) {
-        // Backward-compatibility: some older DB entries stored RA in degrees, not hours.
-        final raHours = _normalizeRaHoursMaybeDegrees(t.ra);
-        results.add(FramingTarget(
-          name: t.name,
-          catalogId: t.catalogId,
-          raHours: raHours,
-          decDegrees: t.dec,
-          type: _parseTargetType(t.objectType),
-          magnitude: t.magnitude,
-          sizeArcmin: t.sizeArcmin,
-          constellation: t.constellation,
-        ));
-        if (t.catalogId != null) seenIds.add(t.catalogId!);
-      }
-
-      // 2. Search Offline Catalogs (OpenNGC & HYG)
-      try {
-        final manager = CatalogManager.instance;
-        if (manager.isInitialized) {
-          final catalogResults = await manager.search(query);
-
-          for (final r in catalogResults) {
-            if (seenIds.contains(r.catalogId)) continue;
-
-            results.add(FramingTarget(
-              name: r.name,
-              catalogId: r.catalogId,
-              raHours: r.ra / 15.0, // Convert degrees to hours
-              decDegrees: r.dec,
-              type: _mapCatalogType(r.type),
-              magnitude: r.magnitude,
-              constellation: r.constellation,
-            ));
-            seenIds.add(r.catalogId);
-          }
-        }
-      } catch (e) {
-        developer.log('Catalog search error: $e', name: 'Framing', level: 1000);
-      }
-
-      // 3. Fallback to SIMBAD (Live Internet Search)
-      if (results.isEmpty) {
-        final simbadResults = await SimbadResolver.search(query);
-
-        for (final r in simbadResults) {
-          if (seenIds.contains(r.mainId)) continue;
-
-          results.add(FramingTarget(
-            name: r.mainId,
-            catalogId: r.mainId,
-            raHours: r.raHours,
-            decDegrees: r.decDegrees,
-            magnitude: r.magnitude,
-            type: _parseTargetType(r.objectType) ?? TargetType.other,
-          ));
-          seenIds.add(r.mainId);
-        }
-      }
-
-      state = TargetSearchState(
-        query: query,
-        results: results,
-        isSearching: false,
-      );
-    } catch (e) {
-      state = TargetSearchState(
-        query: query,
-        results: results,
-        isSearching: false,
-        error: e.toString(),
-      );
-    }
-  }
-
-  TargetType? _parseTargetType(String? type) {
-    if (type == null) return null;
-    try {
-      return TargetType.values.firstWhere(
-        (t) => t.name.toLowerCase() == type.toLowerCase(),
-        orElse: () => TargetType.other,
-      );
-    } catch (error, stack) {
-      developer.log(
-        'Unrecognized target type "$type". Falling back to TargetType.other.',
-        name: 'Framing',
-        level: 900,
-        error: error,
-        stackTrace: stack,
-      );
-      return TargetType.other;
-    }
-  }
-
-  TargetType _mapCatalogType(String? type) {
-    if (type == null) return TargetType.other;
-    final t = type.toLowerCase();
-    if (t.contains('galaxy') || t == 'g') return TargetType.galaxy;
-    if (t.contains('nebula') || t.contains('neb') || t == 'pn' || t == 'en')
-      return TargetType.nebula;
-    if (t.contains('cluster') || t == 'oc' || t == 'gc')
-      return TargetType.cluster;
-    if (t.contains('star') || t == '*') return TargetType.star;
-    return TargetType.other;
-  }
-
-  void clear() {
-    _debounceTimer?.cancel();
-    state = const TargetSearchState();
-  }
-
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    super.dispose();
-  }
-}
-
-final targetSearchProvider =
-    StateNotifierProvider<TargetSearchNotifier, TargetSearchState>((ref) {
-  return TargetSearchNotifier(ref);
-});
 
 // =============================================================================
 // COORDINATE CONVERSION UTILITIES

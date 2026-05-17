@@ -208,11 +208,11 @@ class _SessionTab extends ConsumerWidget {
     // Get current session images if active, otherwise show standalone captures
     final bool isStandaloneMode = sessionState.dbSessionId == null;
     final imagesAsyncValue = sessionState.dbSessionId != null
-        ? ref.watch(sessionImagesProvider(sessionState.dbSessionId!))
+        ? ref.watch(dbSessionImagesProvider(sessionState.dbSessionId!))
         : ref.watch(standaloneImagesProvider);
     void retryImages() {
       if (sessionState.dbSessionId != null) {
-        ref.invalidate(sessionImagesProvider(sessionState.dbSessionId!));
+        ref.invalidate(dbSessionImagesProvider(sessionState.dbSessionId!));
       } else {
         ref.invalidate(standaloneImagesProvider);
       }
@@ -480,8 +480,12 @@ class _AnalyticsAsyncState extends StatelessWidget {
   }
 }
 
-/// Provider for watching session images
-final sessionImagesProvider =
+/// Provider for watching session images (Drift rows) on the Analytics screen.
+///
+/// Renamed from `sessionImagesProvider` (which collided with the
+/// in-memory `sessionImagesProvider` in nightshade_core) so importers don't
+/// have to `hide` either declaration.
+final dbSessionImagesProvider =
     StreamProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
@@ -883,7 +887,7 @@ class _SessionDetailDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final imagesAsyncValue = ref.watch(sessionImagesProvider(session.id));
+    final imagesAsyncValue = ref.watch(dbSessionImagesProvider(session.id));
     final l10n = context.l10n;
 
     return Dialog(

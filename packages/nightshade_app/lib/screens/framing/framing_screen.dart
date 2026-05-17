@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart'
-    hide TargetSearchState, targetSearchProvider;
+import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import 'framing_altaz.dart';

@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart'
-    hide TargetSearchState, targetSearchProvider;
+import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/tutorial_keys/framing_keys.dart';
 import '../painters/framing_background_painters.dart';

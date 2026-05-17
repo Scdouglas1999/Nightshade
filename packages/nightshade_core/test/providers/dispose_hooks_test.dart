@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
-import 'package:nightshade_core/src/providers/framing_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 
 import '../mocks/mock_backend.dart';
@@ -67,20 +66,10 @@ void main() {
     container.dispose();
   });
 
-  test(
-      'TargetSearchNotifier debounce timer is cancelled on dispose so the search closure cannot fire after teardown',
-      () async {
-    final notifier = container.read(targetSearchProvider.notifier);
-    // Kick off a debounced search: this schedules a 300 ms Timer.
-    notifier.search('Andromeda');
-    expect(container.read(targetSearchProvider).isSearching, isTrue);
-
-    // Dispose before the timer fires.
-    container.dispose();
-
-    // Wait longer than the debounce window. If dispose did not cancel the
-    // timer, _performSearch would attempt to mutate state on a disposed
-    // notifier and the test binding would surface the late update.
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-  });
+  // 2026-05-16 (audit §2.5): the core `targetSearchProvider` (which held a
+  // debounce Timer needing dispose-time cancellation) was removed; the
+  // canonical implementation is the autoDispose screen-local provider in
+  // `nightshade_app/lib/screens/framing/framing_search_provider.dart`, which
+  // performs awaited async work instead of scheduling timers — so no
+  // dispose-hook test is needed for it.
 }
