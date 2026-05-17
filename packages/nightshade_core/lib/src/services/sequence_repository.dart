@@ -360,6 +360,10 @@ class SequenceRepository {
           offset: (props['offset'] as num?)?.toInt(),
           binning: _stringToBinning(props['binning'] as String?),
           ditherEvery: (props['ditherEvery'] as num?)?.toInt(),
+          triggers: ((props['triggers'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((trigger) => trigger.cast<String, dynamic>())
+              .toList(growable: false),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -800,6 +804,7 @@ class SequenceRepository {
           'offset': node.offset,
           'binning': _binningToString(node.binning),
           'ditherEvery': node.ditherEvery,
+          'triggers': node.triggers,
         },
       SlewNode() => {
           'useTargetCoords': node.useTargetCoords,

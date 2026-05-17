@@ -53,14 +53,12 @@ pub type NodeId = String;
 /// This mirrors the Dart-side SafetyFailMode enum in app_settings.dart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SafetyFailMode {
-    /// Treat unavailable safety data as unsafe (required production behavior).
+    /// Treat unavailable safety data as unsafe.
     #[default]
     FailClosed,
-    /// Legacy mode retained for backward compatibility.
-    /// Runtime logic coerces this to fail-closed behavior.
+    /// Treat unavailable safety data as safe and continue operations.
     FailOpen,
-    /// Legacy mode retained for backward compatibility.
-    /// Runtime logic coerces this to fail-closed behavior.
+    /// Preserve prior safety state and emit an operator-visible warning.
     WarnOnly,
 }
 

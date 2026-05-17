@@ -298,9 +298,9 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
         tracing::debug!("Found {} Atik cameras", atik_devices.len());
         devices.extend(atik_devices.into_iter().map(|info| {
             // Why (audit-rust §1.4): `device_index` is i32 assigned by the
-                // Atik SDK enumeration loop (`let i = 0..count`); always ≥ 0
-                // and bounded by `connected_camera_count()` (typically ≤ 4).
-                // usize widening is SAFE for non-negative i32.
+            // Atik SDK enumeration loop (`let i = 0..count`); always ≥ 0
+            // and bounded by `connected_camera_count()` (typically ≤ 4).
+            // usize widening is SAFE for non-negative i32.
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
                 info.serial_number.as_deref(),

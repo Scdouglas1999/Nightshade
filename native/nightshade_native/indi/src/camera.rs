@@ -214,15 +214,15 @@ impl IndiCamera {
         match (sensor_w, sensor_h) {
             (Some(w), Some(h)) => {
                 tracing::warn!(
-                    device = %self.device_name,
-                    // Why: Duration::as_millis() returns u128 wall-clock duration; in
-            // practice a tracing timeout is seconds-scale and fits in u64.
-            // u128 -> u64 saturates per Rust 1.45 spec.
-            timeout_ms = timeout.as_millis() as u64,
-                    sensor_w = w,
-                    sensor_h = h,
-                    "INDI camera CCD_FRAME was not defined within timeout; falling back to full sensor extent."
-                );
+                        device = %self.device_name,
+                        // Why: Duration::as_millis() returns u128 wall-clock duration; in
+                // practice a tracing timeout is seconds-scale and fits in u64.
+                // u128 -> u64 saturates per Rust 1.45 spec.
+                timeout_ms = timeout.as_millis() as u64,
+                        sensor_w = w,
+                        sensor_h = h,
+                        "INDI camera CCD_FRAME was not defined within timeout; falling back to full sensor extent."
+                    );
                 Ok((0, 0, w, h))
             }
             _ => Err(IndiError::PropertyNotFound {
@@ -790,5 +790,4 @@ mod tests {
         assert_eq!(bx, IndiCamera::DEFAULT_MAX_BIN);
         assert_eq!(by, IndiCamera::DEFAULT_MAX_BIN);
     }
-
 }

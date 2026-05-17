@@ -98,6 +98,8 @@ class FlatWizardService {
   Future<double?> captureTestFrame({
     required String deviceId,
     required double exposureTime,
+    required int gain,
+    required int offset,
     String? filterName,
     int? filterPosition,
     String? filterWheelDeviceId,
@@ -132,8 +134,8 @@ class FlatWizardService {
         deviceId: deviceId,
         exposureTime: exposureTime,
         frameType: FrameType.flat,
-        gain: 0,
-        offset: 0,
+        gain: gain,
+        offset: offset,
         binX: binX,
         binY: binY,
       );
@@ -194,6 +196,8 @@ class FlatWizardService {
   Future<FlatResult> calibrateFilter({
     required String deviceId,
     required String filter,
+    required int gain,
+    required int offset,
     required double targetAdu,
     required double tolerance,
     required double minExposure,
@@ -229,6 +233,8 @@ class FlatWizardService {
       final adu = await captureTestFrame(
         deviceId: deviceId,
         exposureTime: exposure,
+        gain: gain,
+        offset: offset,
         filterName: filter,
         binX: binX,
         binY: binY,
@@ -246,8 +252,10 @@ class FlatWizardService {
       }
 
       lastAdu = adu;
-      developer.log('FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}',
-          name: 'FlatWizardService', level: 800);
+      developer.log(
+          'FlatWizardService: Measured ADU: ${adu.toStringAsFixed(0)}',
+          name: 'FlatWizardService',
+          level: 800);
 
       // Notify progress callback
       onProgress?.call(iteration, exposure, adu);
@@ -323,6 +331,8 @@ class FlatWizardService {
   Future<FlatResult> calibrateFilterWithRateTracking({
     required String deviceId,
     required String filter,
+    required int gain,
+    required int offset,
     required double targetAdu,
     required double tolerance,
     required double minExposure,
@@ -353,6 +363,8 @@ class FlatWizardService {
       final adu = await captureTestFrame(
         deviceId: deviceId,
         exposureTime: exposure,
+        gain: gain,
+        offset: offset,
         filterName: filter,
         binX: binX,
         binY: binY,
@@ -463,6 +475,8 @@ class FlatWizardService {
   Future<List<FlatResult>> calibrateMultipleFilters({
     required String deviceId,
     required List<String> filters,
+    required int gain,
+    required int offset,
     required double targetAdu,
     required double tolerance,
     required double minExposure,
@@ -485,6 +499,8 @@ class FlatWizardService {
       final result = await calibrateFilter(
         deviceId: deviceId,
         filter: filter,
+        gain: gain,
+        offset: offset,
         targetAdu: targetAdu,
         tolerance: tolerance,
         minExposure: minExposure,
@@ -638,6 +654,8 @@ class FlatWizardService {
   Future<FlatResult> quickCalibrate({
     required String deviceId,
     required String filter,
+    required int gain,
+    required int offset,
     double targetAdu = 30000,
     double tolerancePercent = 10.0,
     int binX = 1,
@@ -646,6 +664,8 @@ class FlatWizardService {
     return calibrateFilter(
       deviceId: deviceId,
       filter: filter,
+      gain: gain,
+      offset: offset,
       targetAdu: targetAdu,
       tolerance: tolerancePercent,
       minExposure: 0.001, // 1ms minimum

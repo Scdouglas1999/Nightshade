@@ -65,7 +65,6 @@ impl DeviceManager {
     // perform_alpaca_health_check / perform_ascom_health_check /
     // perform_indi_health_check moved to crate::dispatch::{alpaca,ascom,indi}.
 
-
     /// Start heartbeat monitoring for a device with default configuration
     ///
     /// This spawns a background task that periodically checks if the device
@@ -236,253 +235,252 @@ impl DeviceManager {
         let mut reconnect_attempts = 0u32;
         let mut is_reconnecting = false;
 
-            loop {
-                // Wait for interval
-                tokio::time::sleep(current_interval).await;
+        loop {
+            // Wait for interval
+            tokio::time::sleep(current_interval).await;
 
-                // Perform health check using the actual driver-specific implementation
-                let health_check_result = manager
-                    .perform_health_check(&device_id_clone, &device_type, &driver_type)
-                    .await;
+            // Perform health check using the actual driver-specific implementation
+            let health_check_result = manager
+                .perform_health_check(&device_id_clone, &device_type, &driver_type)
+                .await;
 
-                match health_check_result {
-                    Ok(true) => {
-                        // Device is healthy - reset failure counter and interval
-                        if consecutive_failures > 0 || is_reconnecting {
-                            tracing::info!(
-                                "Heartbeat recovered for device {} after {} failures{}",
-                                device_id_clone,
-                                consecutive_failures,
-                                if is_reconnecting {
-                                    " (reconnected)"
-                                } else {
-                                    ""
-                                }
-                            );
-
-                            // Emit HeartbeatStatusChanged event for recovery
+            match health_check_result {
+                Ok(true) => {
+                    // Device is healthy - reset failure counter and interval
+                    if consecutive_failures > 0 || is_reconnecting {
+                        tracing::info!(
+                            "Heartbeat recovered for device {} after {} failures{}",
+                            device_id_clone,
+                            consecutive_failures,
                             if is_reconnecting {
-                                app_state.publish_equipment_event(
-                                    EquipmentEvent::HeartbeatReconnected {
-                                        device_type: device_type_str.clone(),
-                                        device_id: device_id_clone.clone(),
-                                        after_attempts: reconnect_attempts,
-                                    },
-                                    EventSeverity::Info,
-                                );
+                                " (reconnected)"
+                            } else {
+                                ""
                             }
+                        );
 
+                        // Emit HeartbeatStatusChanged event for recovery
+                        if is_reconnecting {
                             app_state.publish_equipment_event(
-                                EquipmentEvent::HeartbeatStatusChanged {
+                                EquipmentEvent::HeartbeatReconnected {
                                     device_type: device_type_str.clone(),
                                     device_id: device_id_clone.clone(),
-                                    status: crate::event::HeartbeatStatus::Healthy,
-                                    consecutive_failures: 0,
-                                    last_rtt_ms: None, // RTT not available for generic health check
+                                    after_attempts: reconnect_attempts,
                                 },
                                 EventSeverity::Info,
                             );
                         }
-                        consecutive_failures = 0;
-                        reconnect_attempts = 0;
-                        is_reconnecting = false;
-                        current_interval = Duration::from_secs(config.base_interval_secs);
 
-                        // Update last successful communication time
+                        app_state.publish_equipment_event(
+                            EquipmentEvent::HeartbeatStatusChanged {
+                                device_type: device_type_str.clone(),
+                                device_id: device_id_clone.clone(),
+                                status: crate::event::HeartbeatStatus::Healthy,
+                                consecutive_failures: 0,
+                                last_rtt_ms: None, // RTT not available for generic health check
+                            },
+                            EventSeverity::Info,
+                        );
+                    }
+                    consecutive_failures = 0;
+                    reconnect_attempts = 0;
+                    is_reconnecting = false;
+                    current_interval = Duration::from_secs(config.base_interval_secs);
+
+                    // Update last successful communication time
+                    {
+                        let mut devices = manager.devices.write().await;
+                        if let Some(device) = devices.get_mut(&device_id_clone) {
+                            device.last_successful_comm =
+                                Some(chrono::Utc::now().timestamp_millis());
+                        }
+                    }
+
+                    tracing::trace!("Heartbeat OK for device: {}", device_id_clone);
+                }
+                Ok(false) | Err(_) => {
+                    // Health check failed
+                    consecutive_failures += 1;
+                    let error_msg = match &health_check_result {
+                        Err(e) => e.clone(),
+                        _ => "Device not responding".to_string(),
+                    };
+
+                    tracing::warn!(
+                        "Heartbeat failure {}/{} for device {}: {}",
+                        consecutive_failures,
+                        config.failure_threshold,
+                        device_id_clone,
+                        error_msg
+                    );
+
+                    // Apply exponential backoff
+                    let new_interval = Duration::from_secs_f64(
+                        current_interval.as_secs_f64() * config.backoff_multiplier,
+                    );
+                    current_interval = new_interval.min(max_interval);
+
+                    // Emit degraded status if we have failures but not yet at threshold
+                    if consecutive_failures < config.failure_threshold {
+                        app_state.publish_equipment_event(
+                            EquipmentEvent::HeartbeatStatusChanged {
+                                device_type: device_type_str.clone(),
+                                device_id: device_id_clone.clone(),
+                                status: crate::event::HeartbeatStatus::Degraded,
+                                consecutive_failures,
+                                last_rtt_ms: None,
+                            },
+                            EventSeverity::Warning,
+                        );
+                    }
+
+                    // Check if we've exceeded failure threshold
+                    if consecutive_failures >= config.failure_threshold {
+                        tracing::error!(
+                            "Heartbeat failed {} times for device {} - marking disconnected",
+                            consecutive_failures,
+                            device_id_clone
+                        );
+
+                        // Update device state
                         {
                             let mut devices = manager.devices.write().await;
                             if let Some(device) = devices.get_mut(&device_id_clone) {
-                                device.last_successful_comm =
-                                    Some(chrono::Utc::now().timestamp_millis());
+                                device.connection_state = ConnectionState::Error;
+                                device.last_error = Some(format!(
+                                    "Unresponsive after {} heartbeat failures",
+                                    consecutive_failures
+                                ));
                             }
                         }
 
-                        tracing::trace!("Heartbeat OK for device: {}", device_id_clone);
-                    }
-                    Ok(false) | Err(_) => {
-                        // Health check failed
-                        consecutive_failures += 1;
-                        let error_msg = match &health_check_result {
-                            Err(e) => e.clone(),
-                            _ => "Device not responding".to_string(),
-                        };
-
-                        tracing::warn!(
-                            "Heartbeat failure {}/{} for device {}: {}",
-                            consecutive_failures,
-                            config.failure_threshold,
-                            device_id_clone,
-                            error_msg
-                        );
-
-                        // Apply exponential backoff
-                        let new_interval = Duration::from_secs_f64(
-                            current_interval.as_secs_f64() * config.backoff_multiplier,
-                        );
-                        current_interval = new_interval.min(max_interval);
-
-                        // Emit degraded status if we have failures but not yet at threshold
-                        if consecutive_failures < config.failure_threshold {
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::HeartbeatStatusChanged {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                    status: crate::event::HeartbeatStatus::Degraded,
-                                    consecutive_failures,
-                                    last_rtt_ms: None,
-                                },
-                                EventSeverity::Warning,
-                            );
-                        }
-
-                        // Check if we've exceeded failure threshold
-                        if consecutive_failures >= config.failure_threshold {
-                            tracing::error!(
-                                "Heartbeat failed {} times for device {} - marking disconnected",
+                        // Emit disconnected status via HeartbeatStatusChanged
+                        app_state.publish_equipment_event(
+                            EquipmentEvent::HeartbeatStatusChanged {
+                                device_type: device_type_str.clone(),
+                                device_id: device_id_clone.clone(),
+                                status: crate::event::HeartbeatStatus::Disconnected,
                                 consecutive_failures,
-                                device_id_clone
-                            );
+                                last_rtt_ms: None,
+                            },
+                            EventSeverity::Error,
+                        );
 
-                            // Update device state
-                            {
-                                let mut devices = manager.devices.write().await;
-                                if let Some(device) = devices.get_mut(&device_id_clone) {
-                                    device.connection_state = ConnectionState::Error;
-                                    device.last_error = Some(format!(
-                                        "Unresponsive after {} heartbeat failures",
-                                        consecutive_failures
-                                    ));
-                                }
+                        app_state.publish_equipment_event(
+                            EquipmentEvent::Disconnected {
+                                device_type: device_type_str.clone(),
+                                device_id: device_id_clone.clone(),
+                            },
+                            EventSeverity::Warning,
+                        );
+
+                        app_state.publish_equipment_event(
+                            EquipmentEvent::Error {
+                                device_type: device_type_str.clone(),
+                                device_id: device_id_clone.clone(),
+                                message: format!(
+                                    "Device unresponsive after {} heartbeat failures: {}",
+                                    consecutive_failures, error_msg
+                                ),
+                            },
+                            EventSeverity::Error,
+                        );
+
+                        // Handle auto-reconnect if enabled
+                        if config.auto_reconnect {
+                            let max_reconnects = config.max_reconnect_attempts;
+                            let should_try =
+                                max_reconnects == 0 || reconnect_attempts < max_reconnects;
+
+                            if should_try {
+                                reconnect_attempts += 1;
+                                is_reconnecting = true;
+
+                                tracing::info!(
+                                    "Attempting auto-reconnect for device {} (attempt {}/{})",
+                                    device_id_clone,
+                                    reconnect_attempts,
+                                    if max_reconnects == 0 {
+                                        "unlimited".to_string()
+                                    } else {
+                                        max_reconnects.to_string()
+                                    }
+                                );
+
+                                // Emit reconnecting status
+                                app_state.publish_equipment_event(
+                                    EquipmentEvent::HeartbeatStatusChanged {
+                                        device_type: device_type_str.clone(),
+                                        device_id: device_id_clone.clone(),
+                                        status: crate::event::HeartbeatStatus::Reconnecting,
+                                        consecutive_failures,
+                                        last_rtt_ms: None,
+                                    },
+                                    EventSeverity::Info,
+                                );
+
+                                app_state.publish_equipment_event(
+                                    EquipmentEvent::HeartbeatReconnecting {
+                                        device_type: device_type_str.clone(),
+                                        device_id: device_id_clone.clone(),
+                                        attempt: reconnect_attempts,
+                                        max_attempts: max_reconnects,
+                                    },
+                                    EventSeverity::Info,
+                                );
+
+                                app_state.publish_equipment_event(
+                                    EquipmentEvent::Connecting {
+                                        device_type: device_type_str.clone(),
+                                        device_id: device_id_clone.clone(),
+                                    },
+                                    EventSeverity::Info,
+                                );
+
+                                // Wait before reconnection attempt
+                                // Why (audit-rust §1.4): `reconnect_attempts`
+                                // is u32; u32 → u64 widening exact. The
+                                // multiplication uses u64 arithmetic so
+                                // a runaway attempt count saturates at
+                                // u64::MAX (~584 billion years).
+                                let reconnect_delay = Duration::from_secs(
+                                    config.reconnect_delay_secs * u64::from(reconnect_attempts),
+                                );
+                                tokio::time::sleep(reconnect_delay).await;
+
+                                // Reset failure counter for reconnect monitoring
+                                consecutive_failures = 0;
+                                current_interval = Duration::from_secs(config.base_interval_secs);
+
+                                // Continue monitoring - if connection recovers, we'll see it
+                                continue;
+                            } else {
+                                tracing::error!(
+                                    "Max reconnection attempts ({}) reached for device {}",
+                                    max_reconnects,
+                                    device_id_clone
+                                );
+
+                                app_state.publish_equipment_event(
+                                    EquipmentEvent::Error {
+                                        device_type: device_type_str.clone(),
+                                        device_id: device_id_clone.clone(),
+                                        message: format!(
+                                            "Auto-reconnect failed after {} attempts",
+                                            reconnect_attempts
+                                        ),
+                                    },
+                                    EventSeverity::Error,
+                                );
                             }
-
-                            // Emit disconnected status via HeartbeatStatusChanged
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::HeartbeatStatusChanged {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                    status: crate::event::HeartbeatStatus::Disconnected,
-                                    consecutive_failures,
-                                    last_rtt_ms: None,
-                                },
-                                EventSeverity::Error,
-                            );
-
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::Disconnected {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                },
-                                EventSeverity::Warning,
-                            );
-
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::Error {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                    message: format!(
-                                        "Device unresponsive after {} heartbeat failures: {}",
-                                        consecutive_failures, error_msg
-                                    ),
-                                },
-                                EventSeverity::Error,
-                            );
-
-                            // Handle auto-reconnect if enabled
-                            if config.auto_reconnect {
-                                let max_reconnects = config.max_reconnect_attempts;
-                                let should_try =
-                                    max_reconnects == 0 || reconnect_attempts < max_reconnects;
-
-                                if should_try {
-                                    reconnect_attempts += 1;
-                                    is_reconnecting = true;
-
-                                    tracing::info!(
-                                        "Attempting auto-reconnect for device {} (attempt {}/{})",
-                                        device_id_clone,
-                                        reconnect_attempts,
-                                        if max_reconnects == 0 {
-                                            "unlimited".to_string()
-                                        } else {
-                                            max_reconnects.to_string()
-                                        }
-                                    );
-
-                                    // Emit reconnecting status
-                                    app_state.publish_equipment_event(
-                                        EquipmentEvent::HeartbeatStatusChanged {
-                                            device_type: device_type_str.clone(),
-                                            device_id: device_id_clone.clone(),
-                                            status: crate::event::HeartbeatStatus::Reconnecting,
-                                            consecutive_failures,
-                                            last_rtt_ms: None,
-                                        },
-                                        EventSeverity::Info,
-                                    );
-
-                                    app_state.publish_equipment_event(
-                                        EquipmentEvent::HeartbeatReconnecting {
-                                            device_type: device_type_str.clone(),
-                                            device_id: device_id_clone.clone(),
-                                            attempt: reconnect_attempts,
-                                            max_attempts: max_reconnects,
-                                        },
-                                        EventSeverity::Info,
-                                    );
-
-                                    app_state.publish_equipment_event(
-                                        EquipmentEvent::Connecting {
-                                            device_type: device_type_str.clone(),
-                                            device_id: device_id_clone.clone(),
-                                        },
-                                        EventSeverity::Info,
-                                    );
-
-                                    // Wait before reconnection attempt
-                                    // Why (audit-rust §1.4): `reconnect_attempts`
-                                    // is u32; u32 → u64 widening exact. The
-                                    // multiplication uses u64 arithmetic so
-                                    // a runaway attempt count saturates at
-                                    // u64::MAX (~584 billion years).
-                                    let reconnect_delay = Duration::from_secs(
-                                        config.reconnect_delay_secs * u64::from(reconnect_attempts),
-                                    );
-                                    tokio::time::sleep(reconnect_delay).await;
-
-                                    // Reset failure counter for reconnect monitoring
-                                    consecutive_failures = 0;
-                                    current_interval =
-                                        Duration::from_secs(config.base_interval_secs);
-
-                                    // Continue monitoring - if connection recovers, we'll see it
-                                    continue;
-                                } else {
-                                    tracing::error!(
-                                        "Max reconnection attempts ({}) reached for device {}",
-                                        max_reconnects,
-                                        device_id_clone
-                                    );
-
-                                    app_state.publish_equipment_event(
-                                        EquipmentEvent::Error {
-                                            device_type: device_type_str.clone(),
-                                            device_id: device_id_clone.clone(),
-                                            message: format!(
-                                                "Auto-reconnect failed after {} attempts",
-                                                reconnect_attempts
-                                            ),
-                                        },
-                                        EventSeverity::Error,
-                                    );
-                                }
-                            }
-
-                            // Stop heartbeat monitoring
-                            break;
                         }
+
+                        // Stop heartbeat monitoring
+                        break;
                     }
                 }
             }
+        }
 
         tracing::debug!("Heartbeat task ended for device: {}", device_id_clone);
 

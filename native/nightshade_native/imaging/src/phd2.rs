@@ -1674,10 +1674,7 @@ mod tests {
         for sample in &["GuidingPaused", "StarFound", "", "TotallyMadeUpState"] {
             match parse_phd2_app_state(sample) {
                 Phd2State::Unknown(raw) => assert_eq!(raw, *sample, "raw string must round-trip"),
-                other => panic!(
-                    "expected Phd2State::Unknown({:?}), got {:?}",
-                    sample, other
-                ),
+                other => panic!("expected Phd2State::Unknown({:?}), got {:?}", sample, other),
             }
         }
     }

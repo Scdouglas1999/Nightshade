@@ -25,12 +25,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Audit §3.5: hand the phone-tailored dashboard to the shared router
-  // before any consumer reads `appRouterProvider`. This must happen at
-  // boot because the router builder list is constructed eagerly inside
   // the provider — late mutation of `mobileDashboardBuilder` after the
   // router resolves the route would be ignored on first navigation.
-  mobileDashboardBuilder = (_) => const MobileDashboardScreen();
-
   // Audit §3.13: respect the user's immersive-mode preference. Default is
   // leanBack so the system clock and battery indicator remain visible
   // during long sequences; users who want full-screen can opt in.
@@ -184,8 +180,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
             if (!mounted) return;
             final current = ref.read(backendProvider);
             if (current is! NetworkBackend ||
-                current.connectionState ==
-                    BackendConnectionState.connected) {
+                current.connectionState == BackendConnectionState.connected) {
               return;
             }
             developer.log(
@@ -266,8 +261,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       // server-supplied fields; if it didn't, we still allow the user
       // to connect for this session but refuse to write the server to
       // disk (next launch should re-discover or re-prompt).
-      final fetched =
-          await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+      final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
       final enrichedServer = fetched ?? server;
       final compatibility = NightshadeServerCompatibility.check(
         enrichedServer.version,

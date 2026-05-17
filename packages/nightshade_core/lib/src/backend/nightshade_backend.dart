@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:nightshade_bridge/src/api/plate_solve.dart'
     show PlateSolveResult;
 import '../models/autofocus_progress.dart' show StarCrop;
-import '../models/imaging/imaging_models.dart' show FrameType, ImageStats, CapturedImage;
+import '../models/imaging/imaging_models.dart'
+    show FrameType, ImageStats, CapturedImage;
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
@@ -68,7 +69,7 @@ abstract class NightshadeBackend {
   // =========================================================================
 
   /// Start a camera exposure
-  /// 
+  ///
   /// [gain] and [offset] are optional - if null, the camera's current/default
   /// settings will be used. This supports cameras that don't have adjustable gain/offset.
   Future<void> cameraStartExposure({
@@ -244,7 +245,6 @@ abstract class NightshadeBackend {
   /// Get rotator angle
   Future<double> rotatorGetAngle(String deviceId);
 
-
   /// Halt rotator
   Future<void> rotatorHalt(String deviceId);
 
@@ -338,7 +338,7 @@ abstract class NightshadeBackend {
   // =========================================================================
 
   /// Start guiding using the connected guider
-  /// 
+  ///
   /// Routes to appropriate implementation (PHD2, or future guider types) based
   /// on the device ID. This abstraction allows future guider implementations
   /// to be added without changing service-level code.
@@ -583,7 +583,8 @@ abstract class NightshadeBackend {
   Future<Uint8List> autoStretchImage(int width, int height, Uint16List data);
 
   /// Get star crops from the last captured image for autofocus UI
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5});
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
+      {int maxCrops = 5});
   Future<Uint8List> debayerImage(
     int width,
     int height,
@@ -612,6 +613,7 @@ abstract class NightshadeBackend {
     int? offset,
     double? solveTimeout,
     bool? startFromCurrent,
+    double? autoCompleteThreshold,
   });
 
   /// Stop the polar alignment process
@@ -662,7 +664,8 @@ abstract class NightshadeBackend {
   /// Download full image data with progress tracking
   /// Downloads the full FITS file and saves to localPath
   /// Optionally calls onProgress with download percentage (0.0 to 1.0)
-  Future<void> downloadImage(int imageId, String localPath, {void Function(double)? onProgress});
+  Future<void> downloadImage(int imageId, String localPath,
+      {void Function(double)? onProgress});
 
   // =========================================================================
   // Device Health Monitoring
@@ -701,5 +704,3 @@ abstract class NightshadeBackend {
   /// A tuple of (last_successful_timestamp_ms, is_healthy)
   Future<(int, bool)> getDeviceHealth(String deviceId);
 }
-
-

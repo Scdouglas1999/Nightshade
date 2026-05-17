@@ -384,6 +384,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // Activate the error notification bridge so backend errors show as toast notifications
     ref.watch(errorNotificationBridgeProvider);
+    ref.watch(meridianFlipDisconnectGuardProvider);
     final isSideNavExpanded = settings != null
         ? !settings.sidebarCollapsed
         : _fallbackSideNavExpanded;

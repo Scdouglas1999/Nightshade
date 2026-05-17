@@ -52,11 +52,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // brings its own scaffold + bottom-nav and the desktop AppShell
       // would double-up the chrome and steal the bottom 78 px from the
       // sticky sequencer footer.
-      GoRoute(
-        path: '/mobile-dashboard',
-        name: 'mobile-dashboard',
-        builder: (context, state) => mobileDashboardBuilder(context),
-      ),
       // First-run equipment onboarding wizard. Sits outside the AppShell
       // so the new user is not distracted by the side-nav while they
       // configure their first profile. `EquipmentOnboardingLauncher`

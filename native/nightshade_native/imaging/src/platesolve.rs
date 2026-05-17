@@ -304,9 +304,7 @@ pub enum SolverVerifyError {
         #[source]
         source: std::io::Error,
     },
-    #[error(
-        "solver `{path}` exited with status {status} on `--help`. stderr: {stderr}"
-    )]
+    #[error("solver `{path}` exited with status {status} on `--help`. stderr: {stderr}")]
     NonZeroExit {
         path: PathBuf,
         status: i32,
@@ -1160,8 +1158,7 @@ fn estimate_background_u16(pixels: &[u16]) -> (f64, f64) {
     // MAD → σ via the standard 1.4826 scale factor for Gaussian-distributed
     // backgrounds. Compute on a deviations vector so we don't disturb
     // `sorted` (callers don't depend on it but keep it readable).
-    let mut deviations: Vec<f64> =
-        sorted.iter().map(|&v| (v as f64 - median).abs()).collect();
+    let mut deviations: Vec<f64> = sorted.iter().map(|&v| (v as f64 - median).abs()).collect();
     deviations.sort_by(|a, b| a.total_cmp(b));
     let mad = deviations[deviations.len() / 2];
     let sigma = (mad * 1.4826).max(1.0);
@@ -1667,9 +1664,7 @@ pub fn is_solver_available() -> bool {
 /// the filesystem. Called whenever the user updates the solver path via the
 /// settings UI.
 pub fn invalidate_solver_availability_cache() {
-    *SOLVER_AVAILABLE_CACHE
-        .lock()
-        .expect("solver-cache mutex") = None;
+    *SOLVER_AVAILABLE_CACHE.lock().expect("solver-cache mutex") = None;
 }
 
 /// Get path to installed solver
@@ -1984,8 +1979,7 @@ mod tests {
         let stars = [(40u32, 40u32, 180u16), (90, 60, 200), (140, 110, 220)];
         let image = synthetic_image_with_stars(192, 192, 100, 4, &stars);
 
-        let detected =
-            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
 
         assert!(
             detected.len() >= stars.len(),
@@ -2014,8 +2008,7 @@ mod tests {
         // gated nothing while a sigma-aware floor still gates correctly.
         let image = synthetic_image_with_stars(192, 192, 200, 60, &[]);
 
-        let detected =
-            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
 
         // A handful of pixels can sit at the extreme tail of the noise
         // distribution; a noise-aware threshold should keep this well below
@@ -2035,8 +2028,7 @@ mod tests {
         let stars = [(50u32, 50u32, 60_000u16), (120, 80, 55_000)];
         let image = synthetic_image_with_stars(192, 192, 200, 8, &stars);
 
-        let detected =
-            super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
+        let detected = super::detect_local_maxima(&image, 3.0).expect("detection should succeed");
 
         for &(sx, sy, _) in &stars {
             let hit = detected.iter().any(|s| {
@@ -2073,8 +2065,7 @@ mod tests {
         std::fs::write(temp.join("V17_0102.290"), b"fake catalog index")
             .expect("write fake catalog");
 
-        let info =
-            super::detect_astap_catalog(Some(&exe), None).expect("must find V17 catalog");
+        let info = super::detect_astap_catalog(Some(&exe), None).expect("must find V17 catalog");
         assert_eq!(info.name, "V17");
         assert_eq!(info.magnitude_limit, Some(17.0));
         assert_eq!(info.path, temp);

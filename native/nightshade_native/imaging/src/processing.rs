@@ -276,14 +276,12 @@ fn compute_global_minmax(image: &ImageData) -> Result<GlobalMinMax, String> {
                 .data
                 .iter()
                 .min()
-                .expect("U8 min: data is non-empty (just checked)")
-                as f64;
+                .expect("U8 min: data is non-empty (just checked)") as f64;
             let max = *image
                 .data
                 .iter()
                 .max()
-                .expect("U8 max: data is non-empty (just checked)")
-                as f64;
+                .expect("U8 max: data is non-empty (just checked)") as f64;
             Ok(GlobalMinMax { min, max })
         }
         PixelType::U32 => {
@@ -551,8 +549,12 @@ fn merge_tile_results(
                 width, height, output_channels
             )
         })?;
-    let total_bytes = usize::try_from(total_bytes_u64)
-        .map_err(|_| format!("Output buffer size {} does not fit in usize", total_bytes_u64))?;
+    let total_bytes = usize::try_from(total_bytes_u64).map_err(|_| {
+        format!(
+            "Output buffer size {} does not fit in usize",
+            total_bytes_u64
+        )
+    })?;
     let mut output = vec![0u8; total_bytes];
 
     for (tile, tile_data) in tile_results {

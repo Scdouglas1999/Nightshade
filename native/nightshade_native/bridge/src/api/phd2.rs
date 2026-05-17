@@ -91,7 +91,8 @@ pub fn api_is_phd2_running() -> bool {
 }
 
 /// Static PHD2 client storage
-pub(crate) static PHD2_CLIENT: OnceLock<Arc<RwLock<Option<nightshade_imaging::Phd2Client>>>> = OnceLock::new();
+pub(crate) static PHD2_CLIENT: OnceLock<Arc<RwLock<Option<nightshade_imaging::Phd2Client>>>> =
+    OnceLock::new();
 
 #[flutter_rust_bridge::frb(ignore)]
 pub fn get_phd2_storage() -> &'static Arc<RwLock<Option<nightshade_imaging::Phd2Client>>> {

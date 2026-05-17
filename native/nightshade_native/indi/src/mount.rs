@@ -508,5 +508,4 @@ mod tests {
         let result = mount.try_is_slewing().await;
         assert!(matches!(result, Err(IndiError::PropertyNotFound { .. })));
     }
-
 }

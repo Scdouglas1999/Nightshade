@@ -231,9 +231,8 @@ pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> 
     // isolate.
     nightshade_imaging::invalidate_solver_availability_cache();
 
-    let astap_path = nightshade_imaging::find_astap_with_override(
-        configured_astap.as_deref().map(Path::new),
-    );
+    let astap_path =
+        nightshade_imaging::find_astap_with_override(configured_astap.as_deref().map(Path::new));
     let astrometry_path = nightshade_imaging::find_astrometry_with_override(
         configured_astrometry.as_deref().map(Path::new),
     );
@@ -254,7 +253,9 @@ pub fn api_platesolve_detect() -> Result<PlateSolverDetection, NightshadeError> 
             }
         }),
         catalog_magnitude_limit: catalog.as_ref().and_then(|c| c.magnitude_limit),
-        catalog_path: catalog.as_ref().map(|c| c.path.to_string_lossy().to_string()),
+        catalog_path: catalog
+            .as_ref()
+            .map(|c| c.path.to_string_lossy().to_string()),
     })
 }
 
@@ -280,8 +281,8 @@ pub fn api_platesolve_verify(executable_path: String) -> Result<PlateSolverInfo,
 /// the storage was never written.
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_platesolve_get_config() -> Result<PlateSolverConfigPayload, NightshadeError> {
-    let pref = crate::state::get_platesolver_preference()
-        .map_err(NightshadeError::OperationFailed)?;
+    let pref =
+        crate::state::get_platesolver_preference().map_err(NightshadeError::OperationFailed)?;
     Ok(pref.into())
 }
 
@@ -289,9 +290,7 @@ pub fn api_platesolve_get_config() -> Result<PlateSolverConfigPayload, Nightshad
 /// availability cache so the next `api_is_plate_solver_available()` call
 /// re-probes the filesystem with the new paths.
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_platesolve_set_config(
-    config: PlateSolverConfigPayload,
-) -> Result<(), NightshadeError> {
+pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(), NightshadeError> {
     let pref = config.into_pref();
     crate::state::save_platesolver_preference(&pref).map_err(NightshadeError::OperationFailed)?;
     nightshade_imaging::invalidate_solver_availability_cache();

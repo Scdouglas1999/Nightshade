@@ -293,10 +293,7 @@ impl Default for RawProcessingParams {
 /// (e.g. `"bad_pixels"` / `"dark_frame"`) so the resulting `RawError` can
 /// pinpoint the offending input. Errors are never swallowed: a non-UTF-8
 /// path or an interior NUL byte both propagate.
-fn path_to_cstring(
-    which: &'static str,
-    path: Option<&Path>,
-) -> Result<Option<CString>, RawError> {
+fn path_to_cstring(which: &'static str, path: Option<&Path>) -> Result<Option<CString>, RawError> {
     let Some(path) = path else { return Ok(None) };
     let path_str = path.to_str().ok_or_else(|| {
         RawError::InvalidPath(format!(

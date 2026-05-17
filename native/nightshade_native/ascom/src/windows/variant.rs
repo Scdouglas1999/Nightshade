@@ -4,13 +4,13 @@
 //! Rust types and the COM `VARIANT` / `SAFEARRAY` representations that
 //! ASCOM drivers exchange via `IDispatch`.
 
+use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::{
     Com::{EXCEPINFO, SAFEARRAY},
     Variant::{
         VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_I2, VT_I4, VT_R8, VT_UI2, VT_VARIANT,
     },
 };
-use windows::Win32::Foundation::VARIANT_BOOL;
 
 // SAFEARRAY functions from OleAut32.dll
 #[link(name = "oleaut32")]

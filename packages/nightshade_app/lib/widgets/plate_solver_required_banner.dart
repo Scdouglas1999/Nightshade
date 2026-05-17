@@ -30,7 +30,7 @@ class PlateSolverRequiredBanner extends StatelessWidget {
   });
 
   void _navigateToSettings(BuildContext context) {
-    context.go('/settings/plate-solving');
+    context.push('/settings/plate-solving');
   }
 
   @override

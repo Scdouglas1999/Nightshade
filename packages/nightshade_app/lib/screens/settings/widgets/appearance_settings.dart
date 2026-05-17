@@ -100,6 +100,30 @@ class AppearanceSettings extends ConsumerWidget {
                 isMobile: isMobile,
               ),
               SettingRow(
+                icon: LucideIcons.zoomIn,
+                title: 'UI scale',
+                subtitle: 'Scale controls and layout density',
+                trailing: SettingsDropdown(
+                  value: settings.uiScale,
+                  items: const [
+                    'Auto',
+                    'Small (0.8x)',
+                    'Normal (1.0x)',
+                    'Large (1.2x)',
+                    'Extra Large (1.4x)',
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      ref.read(appSettingsProvider.notifier).setUiScale(value);
+                    }
+                  },
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                colors: colors,
+                isMobile: isMobile,
+              ),
+              SettingRow(
                 icon: LucideIcons.panelLeft,
                 title: 'Sidebar collapsed by default',
                 trailing: SettingsSwitch(

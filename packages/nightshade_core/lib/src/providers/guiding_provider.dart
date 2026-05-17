@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart'
@@ -15,6 +16,7 @@ import '../models/phd2_models.dart';
 import '../services/logging_service.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
+import 'settings_provider.dart';
 
 /// Provider for PHD2 connection status - derived from guiderStateProvider
 /// This is a computed provider that automatically stays in sync
@@ -234,6 +236,7 @@ class Phd2Controller {
   final Ref ref;
   final NightshadeBackend backend;
   StreamSubscription? _eventSub;
+  bool _disposed = false;
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   Phd2Controller(this.ref, this.backend) {
@@ -244,6 +247,7 @@ class Phd2Controller {
     // Listen to backend events
     _eventSub = backend.eventStream.listen((event) {
       if (event.category != EventCategory.guiding) return;
+      if (_disposed) return;
 
       _logger.debug('Received guiding event: ${event.eventType}',
           source: 'Phd2Controller');
@@ -397,6 +401,24 @@ class Phd2Controller {
     const deviceId = 'phd2_guider';
     ref.read(guiderStateProvider.notifier).setConnecting(deviceId, 'PHD2');
     try {
+      final phd2Path =
+          ref.read(appSettingsProvider).valueOrNull?.phd2Path.trim() ?? '';
+      if (phd2Path.isNotEmpty) {
+        ref
+            .read(guiderStateProvider.notifier)
+            .setConnecting(deviceId, 'Launching PHD2');
+        _logger.info('Launching PHD2 from configured path: $phd2Path',
+            source: 'PHD2');
+        await Process.start(
+          phd2Path,
+          const <String>[],
+          mode: ProcessStartMode.detached,
+        );
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      ref
+          .read(guiderStateProvider.notifier)
+          .setConnecting(deviceId, 'Connecting to PHD2');
       await backend.phd2Connect(host: host, port: port);
       ref.read(guiderStateProvider.notifier).setConnected();
     } catch (e) {
@@ -457,6 +479,7 @@ class Phd2Controller {
   }
 
   void dispose() {
+    _disposed = true;
     _eventSub?.cancel();
   }
 }

@@ -1016,10 +1016,7 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
 /// solve: the solver returns the astrometric PA of the captured frame and
 /// this call aligns the rotator's reported PA so subsequent absolute moves
 /// land at the correct sky angle.
-pub async fn api_rotator_sync_to_pa(
-    device_id: String,
-    pa: f64,
-) -> Result<(), NightshadeError> {
+pub async fn api_rotator_sync_to_pa(device_id: String, pa: f64) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         // Simulator has no mechanical offset — just snap the reported angle.
         let mut rotator = get_sim_rotator().write().await;

@@ -40,6 +40,7 @@ class PolarAlignmentService {
       offset: config.offset,
       solveTimeout: config.solveTimeout,
       startFromCurrent: config.startFromCurrent,
+      autoCompleteThreshold: config.autoCompleteThreshold,
     );
   }
 

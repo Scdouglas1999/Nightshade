@@ -933,7 +933,8 @@ class _ActionButtons extends ConsumerWidget {
     final backend = ref.read(backendProvider);
     final flatService = ref.read(flatWizardServiceProvider);
     final db = ref.read(databaseProvider);
-    final profileId = ref.read(activeEquipmentProfileProvider)?.id;
+    final activeProfile = ref.read(activeEquipmentProfileProvider);
+    final profileId = activeProfile?.id;
     final brightnessTracker = ref.read(skyBrightnessTrackerProvider);
 
     // Validate camera is connected
@@ -944,6 +945,14 @@ class _ActionButtons extends ConsumerWidget {
     }
 
     final cameraId = cameraState.deviceId!;
+    final gain = activeProfile?.defaultGain;
+    final offset = activeProfile?.defaultOffset;
+    if (gain == null || offset == null) {
+      notifier.setErrorMessage(
+        'Set gain and offset on the active equipment profile before calibrating flats.',
+      );
+      return;
+    }
 
     // Build save path with optional date subfolder
     String baseSavePath = state.globalSettings.savePath!;
@@ -998,6 +1007,8 @@ class _ActionButtons extends ConsumerWidget {
         calibrationResult = await flatService.calibrateFilterWithRateTracking(
           deviceId: cameraId,
           filter: filterSetting.filterName,
+          gain: gain,
+          offset: offset,
           targetAdu: targetAdu,
           tolerance: tolerance,
           minExposure: minExp,
@@ -1017,6 +1028,8 @@ class _ActionButtons extends ConsumerWidget {
         calibrationResult = await flatService.calibrateFilter(
           deviceId: cameraId,
           filter: filterSetting.filterName,
+          gain: gain,
+          offset: offset,
           targetAdu: targetAdu,
           tolerance: tolerance,
           minExposure: minExp,
@@ -1126,8 +1139,7 @@ class _ActionButtons extends ConsumerWidget {
             // matches imaging_service.dart and flat_wizard_service.dart, which
             // covers the slow-USB / large-sensor case the audit calls out.
             final timeout = Duration(
-              milliseconds:
-                  (calibrationResult.exposure * 1000).toInt() + 30000,
+              milliseconds: (calibrationResult.exposure * 1000).toInt() + 30000,
             );
             await exposureCompleter.future.timeout(
               timeout,

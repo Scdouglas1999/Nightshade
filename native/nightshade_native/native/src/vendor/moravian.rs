@@ -869,9 +869,9 @@ impl NativeCamera for MoravianCamera {
                     binned_width, binned_height
                 ))
             })?;
-        let byte_count_u64 = buffer_size_u64.checked_mul(2).ok_or_else(|| {
-            NativeError::SdkError("Moravian byte count overflow u64".into())
-        })?;
+        let byte_count_u64 = buffer_size_u64
+            .checked_mul(2)
+            .ok_or_else(|| NativeError::SdkError("Moravian byte count overflow u64".into()))?;
         let buffer_size = usize::try_from(buffer_size_u64).map_err(|_| {
             NativeError::SdkError(format!(
                 "Moravian buffer pixel count {} does not fit in usize",

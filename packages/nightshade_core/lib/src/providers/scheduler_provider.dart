@@ -95,8 +95,7 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
-    final currentNotifier =
-        _ref.read(currentSequenceProvider.notifier);
+    final currentNotifier = _ref.read(currentSequenceProvider.notifier);
     currentNotifier.loadSequence(sequence);
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.start();
@@ -140,17 +139,23 @@ class SchedulerCandidateLoader {
     await db.customStatement(targetConstraintsTargetIndexSql);
     await db.customStatement(horizonProfilesSchemaSql);
 
-    final targetRows = await db.customSelect(
-      'SELECT id, name, ra, dec, priority FROM targets ORDER BY priority DESC, name ASC',
-    ).get();
+    final targetRows = await db
+        .customSelect(
+          'SELECT id, name, ra, dec, priority, object_type, notes FROM targets ORDER BY priority DESC, name ASC',
+        )
+        .get();
 
     // Pre-fetch all constraints + horizon profiles in two queries.
-    final constraintRows = await db.customSelect(
-      'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints WHERE enabled = 1',
-    ).get();
-    final horizonRows = await db.customSelect(
-      'SELECT id, name, samples_json FROM horizon_profiles',
-    ).get();
+    final constraintRows = await db
+        .customSelect(
+          'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints WHERE enabled = 1',
+        )
+        .get();
+    final horizonRows = await db
+        .customSelect(
+          'SELECT id, name, samples_json FROM horizon_profiles',
+        )
+        .get();
 
     final horizonProfiles = <int, HorizonProfile>{};
     for (final row in horizonRows) {
@@ -214,9 +219,18 @@ class SchedulerCandidateLoader {
         constraints: cs,
         horizonProfiles: usedProfiles,
         availableFilters: availableFilters,
+        isMosaicTarget: _isMosaicTarget(row),
       ));
     }
     return out;
+  }
+
+  bool _isMosaicTarget(QueryRow row) {
+    final objectType = row.readNullable<String>('object_type') ?? '';
+    final notes = row.readNullable<String>('notes') ?? '';
+    final haystack =
+        '${row.read<String>('name')} $objectType $notes'.toLowerCase();
+    return haystack.contains('mosaic');
   }
 
   List<String> _availableFilters() {
@@ -356,8 +370,7 @@ class CurrentSchedulerDecisionNotifier
   final SchedulerEngine _engine;
   late final StreamSubscription<SchedulerDecision> _sub;
 
-  CurrentSchedulerDecisionNotifier(this._engine)
-      : super(_engine.lastDecision) {
+  CurrentSchedulerDecisionNotifier(this._engine) : super(_engine.lastDecision) {
     _sub = _engine.decisionStream.listen((d) {
       if (!mounted) return;
       state = d;

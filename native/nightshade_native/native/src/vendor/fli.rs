@@ -49,9 +49,8 @@ fn fli_c_long_to_i32(value: c_long, what: &str) -> Result<i32, NativeError> {
     // a single i64::try_from / i32::try_from pair without triggering useless
     // -conversion lints on either platform.
     let widened: i64 = value as i64;
-    i32::try_from(widened).map_err(|_| {
-        NativeError::SdkError(format!("FLI {} out of i32 range: {}", what, value))
-    })
+    i32::try_from(widened)
+        .map_err(|_| NativeError::SdkError(format!("FLI {} out of i32 range: {}", what, value)))
 }
 
 // =============================================================================
@@ -1067,10 +1066,7 @@ impl NativeCamera for FliCamera {
             NativeError::SdkError(format!("FLI image width does not fit in u32: {}", width))
         })?;
         let height_u32 = u32::try_from(height).map_err(|_| {
-            NativeError::SdkError(format!(
-                "FLI image height does not fit in u32: {}",
-                height
-            ))
+            NativeError::SdkError(format!("FLI image height does not fit in u32: {}", height))
         })?;
         Ok(ImageData {
             width: width_u32,

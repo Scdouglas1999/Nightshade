@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,6 +20,9 @@ import 'package:nightshade_core/src/database/daos/settings_dao.dart';
 import 'package:nightshade_core/src/database/daos/targets_dao.dart';
 import 'package:nightshade_core/src/database/daos/weather_settings_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/models/backend/event_types.dart';
+import 'package:nightshade_core/src/models/backend/image_result.dart';
+import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart'
     as seq_models;
 import 'package:nightshade_core/src/models/science/science_models.dart'
@@ -71,6 +75,8 @@ class _TestFlatWizardService extends FlatWizardService {
   Future<double?> captureTestFrame({
     required String deviceId,
     required double exposureTime,
+    required int gain,
+    required int offset,
     String? filterName,
     int? filterPosition,
     String? filterWheelDeviceId,
@@ -81,6 +87,68 @@ class _TestFlatWizardService extends FlatWizardService {
     _index = (_index + 1).clamp(0, _samples.length - 1);
     return sample;
   }
+}
+
+class _FlatWizardCaptureBackend extends MockBackend {
+  final _events = StreamController<NightshadeEvent>.broadcast();
+  int? gain;
+  int? offset;
+  int? binX;
+  int? binY;
+
+  @override
+  Stream<NightshadeEvent> get eventStream => _events.stream;
+
+  @override
+  Future<void> cameraStartExposure({
+    required String deviceId,
+    required double exposureTime,
+    required FrameType frameType,
+    int? gain,
+    int? offset,
+    int binX = 1,
+    int binY = 1,
+    int? x,
+    int? y,
+    int? width,
+    int? height,
+  }) async {
+    this.gain = gain;
+    this.offset = offset;
+    this.binX = binX;
+    this.binY = binY;
+    Timer.run(() {
+      _events.add(NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.imaging,
+        eventType: 'ExposureComplete',
+        data: const {},
+      ));
+    });
+  }
+
+  @override
+  Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
+    return CapturedImageResult(
+      width: 1,
+      height: 1,
+      displayData: const [0, 0, 0, 255],
+      histogram: const [1],
+      stats: const ImageStatsResult(
+        min: 1234,
+        max: 1234,
+        mean: 1234,
+        median: 1234,
+        stdDev: 0,
+        starCount: 0,
+      ),
+      exposureTime: 1.5,
+      timestamp: DateTime.now().toIso8601String(),
+    );
+  }
+
+  Future<void> close() => _events.close();
 }
 
 void main() {
@@ -169,6 +237,8 @@ void main() {
       final result = await service.calibrateFilterWithRateTracking(
         deviceId: 'camera-1',
         filter: 'L',
+        gain: 100,
+        offset: 50,
         targetAdu: 20000,
         tolerance: 5,
         minExposure: 1,
@@ -179,6 +249,28 @@ void main() {
 
       expect(result.success, isFalse);
       expect(result.iterations, 2);
+    });
+
+    test('captureTestFrame forwards supplied gain and offset to the camera',
+        () async {
+      final backend = _FlatWizardCaptureBackend();
+      addTearDown(backend.close);
+
+      final service = FlatWizardService(backend);
+      final adu = await service.captureTestFrame(
+        deviceId: 'camera-1',
+        exposureTime: 1.5,
+        gain: 137,
+        offset: 42,
+        binX: 2,
+        binY: 2,
+      );
+
+      expect(adu, 1234);
+      expect(backend.gain, 137);
+      expect(backend.offset, 42);
+      expect(backend.binX, 2);
+      expect(backend.binY, 2);
     });
 
     test(

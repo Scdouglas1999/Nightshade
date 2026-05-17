@@ -11,6 +11,7 @@ import 'tabs/devices_tab.dart';
 import 'tabs/log_tab.dart';
 import 'tabs/mount_tab.dart';
 import 'tabs/sequencer_tab.dart';
+import 'tabs/settings_tab.dart';
 
 /// Phone-tailored landing screen (audit §3.5).
 ///
@@ -64,6 +65,11 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
       icon: LucideIcons.scrollText,
       label: 'Log',
       child: LogTab(),
+    ),
+    _DashboardTab(
+      icon: LucideIcons.settings,
+      label: 'Settings',
+      child: SettingsTab(),
     ),
   ];
 

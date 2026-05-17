@@ -192,10 +192,14 @@ pub enum FitsError {
     /// FITS files with NAXIS > 3 (4-D cubes / hyperspectral) are not supported.
     /// Why: silently dropping planes corrupts science data; explicit failure forces
     /// the caller to choose a real handling strategy.
-    Unsupported4DCube { naxis: i64 },
+    Unsupported4DCube {
+        naxis: i64,
+    },
     /// Caller passed a sub-horizon altitude to an airmass routine; the optical
     /// path is undefined below the horizon. The caller decides how to handle.
-    BelowHorizon { altitude_degrees: f64 },
+    BelowHorizon {
+        altitude_degrees: f64,
+    },
 }
 
 impl std::fmt::Display for FitsError {
@@ -1000,11 +1004,7 @@ pub struct BayerGeometry {
 /// | GBRG   | GBRG  | BGGR  | RGGB  | GRBG  |
 ///
 /// Negative offsets are wrapped via Euclidean mod 2 to keep the table consistent.
-pub fn effective_bayer_pattern(
-    source: BayerPattern,
-    x_offset: i64,
-    y_offset: i64,
-) -> BayerPattern {
+pub fn effective_bayer_pattern(source: BayerPattern, x_offset: i64, y_offset: i64) -> BayerPattern {
     // Why: rust's `%` is sign-preserving; for offset composition we need a true
     // modulo so a -1 offset behaves like a +1 offset (parity is what matters).
     let xb = x_offset.rem_euclid(2) as usize;
@@ -1254,9 +1254,7 @@ pub fn calculate_airmass(altitude_degrees: f64) -> Result<f64, FitsError> {
         )));
     }
     if altitude_degrees < 0.0 {
-        return Err(FitsError::BelowHorizon {
-            altitude_degrees,
-        });
+        return Err(FitsError::BelowHorizon { altitude_degrees });
     }
     // Clamp upper bound only — the math is well-defined at 90° but we guard
     // against numerical noise like 90.000001 that would push trig sin(90+) past 1.
@@ -2414,9 +2412,7 @@ mod tests {
             "OBJECT  = 'NGC1'",
         ];
         // Four i16 BE pixels: -200, 100, 0, 32000  →  physical: 600, 1200, 1000, 65000
-        let data: Vec<u8> = vec![
-            0xFF, 0x38, 0x00, 0x64, 0x00, 0x00, 0x7D, 0x00,
-        ];
+        let data: Vec<u8> = vec![0xFF, 0x38, 0x00, 0x64, 0x00, 0x00, 0x7D, 0x00];
         let bytes = synth_fits_with_cards(&cards, &data);
         let (image_a, header_a) = read_fits_from_bytes(&bytes).expect("first read");
         let pix_a: Vec<u16> = image_a
@@ -2474,10 +2470,8 @@ mod tests {
         header.set_string("OBJECT", "M31");
         let image = ImageData::from_u16(2, 1, 1, &[10, 20]);
 
-        let path = std::env::temp_dir().join(format!(
-            "nightshade_strpad_{}.fits",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("nightshade_strpad_{}.fits", std::process::id()));
         write_fits(&path, &image, &header).expect("write");
         let on_disk = std::fs::read(&path).expect("read");
         let _ = std::fs::remove_file(&path);
@@ -2514,19 +2508,13 @@ mod tests {
             if chunk.starts_with(b"COMMENT ") {
                 // Per FITS 4.4.2.4 the text body starts at column 9 (offset 8) and
                 // there must be no `=` at offset 8.
-                assert_ne!(
-                    chunk[8], b'=',
-                    "COMMENT card must not have `=` separator"
-                );
+                assert_ne!(chunk[8], b'=', "COMMENT card must not have `=` separator");
                 let body = String::from_utf8_lossy(&chunk[8..]);
                 assert!(body.contains("Calibrated with master flat"));
                 found_comment = true;
             }
             if chunk.starts_with(b"HISTORY ") {
-                assert_ne!(
-                    chunk[8], b'=',
-                    "HISTORY card must not have `=` separator"
-                );
+                assert_ne!(chunk[8], b'=', "HISTORY card must not have `=` separator");
                 let body = String::from_utf8_lossy(&chunk[8..]);
                 assert!(body.contains("STAR-DETECT v2.5"));
                 found_history = true;

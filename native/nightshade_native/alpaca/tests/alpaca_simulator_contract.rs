@@ -19,9 +19,7 @@
 //!   simulator's connected state to `false` if the test client sends a
 //!   malformed PUT — again surfacing the bad payload via the test
 //!   assertion rather than silently succeeding.
-use nightshade_alpaca::{
-    AlpacaCamera, AlpacaFilterWheel, AlpacaTelescope, CameraState, DriveRate,
-};
+use nightshade_alpaca::{AlpacaCamera, AlpacaFilterWheel, AlpacaTelescope, CameraState, DriveRate};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -124,7 +122,11 @@ async fn handle_connection(mut stream: TcpStream, state: SimState) -> std::io::R
     state.record(method, raw_path, &body);
 
     let path = raw_path.split('?').next().unwrap_or(raw_path);
-    let endpoint = path.rsplit('/').next().unwrap_or_default().to_ascii_lowercase();
+    let endpoint = path
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let device = path
         .split('/')
         .nth(3)
@@ -133,10 +135,7 @@ async fn handle_connection(mut stream: TcpStream, state: SimState) -> std::io::R
     let device_number = path.split('/').nth(4).unwrap_or_default();
     let form = parse_form(&body);
 
-    if method == "PUT"
-        && device == "camera"
-        && device_number == "99"
-        && endpoint == "startexposure"
+    if method == "PUT" && device == "camera" && device_number == "99" && endpoint == "startexposure"
     {
         let body = json!({
             "Value": Value::Null,
@@ -227,7 +226,7 @@ async fn handle_connection(mut stream: TcpStream, state: SimState) -> std::io::R
         value.to_string()
     } else {
         let error_number = if matches!(value, Value::String(ref s) if s.starts_with("unhandled ")) {
-        1024
+            1024
         } else {
             0
         };
@@ -271,7 +270,10 @@ async fn alpaca_simulator_camera_filterwheel_and_telescope_contract() {
     let camera = AlpacaCamera::from_server(&base_url, 0);
     camera.connect().await.unwrap();
     assert!(camera.is_connected().await.unwrap());
-    assert_eq!(camera.name().await.unwrap(), "Nightshade Alpaca Camera Simulator");
+    assert_eq!(
+        camera.name().await.unwrap(),
+        "Nightshade Alpaca Camera Simulator"
+    );
     camera.start_exposure(0.01, true).await.unwrap();
     assert!(camera.image_ready().await.unwrap());
     let (width, height, pixels) = camera.download_image_data().await.unwrap();

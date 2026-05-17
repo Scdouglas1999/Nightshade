@@ -2341,7 +2341,7 @@ impl NativeFilterWheel for ZwoFilterWheel {
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
         let mut position: c_int = -999; // sentinel to detect if SDK writes
-        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
+                                        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
         tracing::info!(
             "[ZWO EFW] get_position(hw_id={}) => SDK result={}, position={}",
@@ -2361,7 +2361,7 @@ impl NativeFilterWheel for ZwoFilterWheel {
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
         let mut position: c_int = -999; // sentinel to detect if SDK writes
-        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
+                                        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
         tracing::info!(
             "[ZWO EFW] is_moving(hw_id={}) => SDK result={}, position={}",

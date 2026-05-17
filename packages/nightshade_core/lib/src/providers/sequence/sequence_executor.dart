@@ -7,7 +7,8 @@ import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/imaging/imaging_models.dart';
 import '../../models/sequence/sequence_models.dart';
-import '../../models/settings/app_settings.dart' show ObserverLocation;
+import '../../models/settings/app_settings.dart'
+    show ObserverLocation, SafetyFailMode;
 import '../../services/disk_space_guard.dart';
 import '../../services/imaging_service.dart';
 import '../../services/logging_service.dart';
@@ -15,6 +16,7 @@ import '../backend_provider.dart';
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
 import '../imaging_provider.dart';
+import '../meridian_flip_provider.dart';
 import '../profiles_provider.dart';
 import '../sequence_provider.dart'
     show
@@ -149,6 +151,11 @@ class SequenceExecutor {
     switch (node) {
       case ExposureNode n:
         final defaults = _ref.read(sequencerDefaultsProvider);
+        final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+        final ditherEvery = n.ditherEvery ??
+            ((appSettings?.ditherEnabled ?? true)
+                ? appSettings?.ditherEveryFrames
+                : null);
         // Auto-populate filter_index from profile if not set
         final filterIndex = n.filterIndex ?? _lookupFilterIndex(n.filter);
         return {
@@ -160,13 +167,14 @@ class SequenceExecutor {
           'gain': n.gain,
           'offset': n.offset,
           'binning': _binningToString(n.binning),
-          'dither_every': n.ditherEvery,
+          'dither_every': ditherEvery,
           'dither_pixels': defaults.ditherPixels,
           'dither_settle_pixels': defaults.ditherSettlePixels,
           'dither_settle_time': defaults.ditherSettleTime,
           'dither_settle_timeout': defaults.ditherSettleTimeout,
           'dither_ra_only': defaults.ditherRaOnly,
           'save_to': null,
+          'triggers': n.triggers,
         };
       case SlewNode n:
         return {
@@ -357,13 +365,18 @@ class SequenceExecutor {
           'recovery_action': _recoveryActionToString(n.recoveryAction),
           'max_retries': n.maxRetries,
         };
-      case MeridianFlipNode n:
+      case MeridianFlipNode _:
+        final flipSettings = _ref.read(effectiveMeridianFlipSettingsProvider);
         return {
           'type': 'MeridianFlip',
-          'minutes_past_meridian': n.minutesPastMeridian,
-          'pause_guiding': n.pauseGuiding,
-          'auto_center': n.autoCenter,
-          'settle_time': n.settleTime,
+          'minutes_past_meridian': flipSettings.minutesPastMeridian,
+          'pause_guiding': flipSettings.pauseGuidingBeforeFlip,
+          'auto_center': flipSettings.recenterAfterFlip,
+          'settle_time': flipSettings.settleTimeSeconds,
+          'refocus_after': flipSettings.refocusAfterFlip,
+          'resume_guiding': flipSettings.resumeGuidingAfterFlip,
+          'max_retries': flipSettings.maxRetries,
+          'failure_action': flipSettings.failureAction.name,
         };
       case OpenDomeNode n:
         return {
@@ -526,7 +539,8 @@ class SequenceExecutor {
   /// Validate the sequence about to run. Delegates to the top-level
   /// [validation.validateSequence] in `sequence_validation.dart`; kept as an
   /// instance method to preserve the historical call site.
-  List<validation.SequenceValidationIssue> validateSequence(Sequence sequence) =>
+  List<validation.SequenceValidationIssue> validateSequence(
+          Sequence sequence) =>
       validation.validateSequence(sequence);
 
   Future<void> start() async {
@@ -652,8 +666,11 @@ class SequenceExecutor {
     }
 
     if (settings != null) {
-      // Strict fail-closed behavior is enforced at runtime.
-      final modeString = 'fail_closed';
+      final modeString = switch (settings.safetyFailMode) {
+        SafetyFailMode.failOpen => 'fail_open',
+        SafetyFailMode.warnOnly => 'warn_only',
+        SafetyFailMode.failClosed => 'fail_closed',
+      };
       await backend.sequencerSetSafetyFailMode(modeString);
       _logger.debug('Safety fail mode set to: $modeString',
           source: 'SequenceExecutor');
@@ -990,8 +1007,7 @@ class SequenceExecutor {
             event.data['trigger_name'] as String? ?? 'Unknown trigger';
         final action = event.data['action'] as String? ?? '';
         _incrementRunStat((stats) => stats.recordTriggerFire());
-        _logger.info(
-            'Trigger fired: $triggerName -> $action',
+        _logger.info('Trigger fired: $triggerName -> $action',
             source: 'SequenceExecutor');
         progressNotifier.updateProgress(
           message: 'Trigger "$triggerName" fired: $action',

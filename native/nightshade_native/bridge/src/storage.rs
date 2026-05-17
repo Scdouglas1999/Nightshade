@@ -224,12 +224,8 @@ pub struct PlateSolverStorage {
 impl PlateSolverStorage {
     pub fn new(storage_dir: PathBuf) -> Result<Self, String> {
         if !storage_dir.exists() {
-            fs::create_dir_all(&storage_dir).map_err(|e| {
-                format!(
-                    "Failed to create plate-solver storage directory: {}",
-                    e
-                )
-            })?;
+            fs::create_dir_all(&storage_dir)
+                .map_err(|e| format!("Failed to create plate-solver storage directory: {}", e))?;
         }
         Ok(Self {
             storage_path: storage_dir.join("platesolver.json"),

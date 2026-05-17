@@ -19,6 +19,56 @@ class ExposureTriggerConfig {
     this.debounceSecs = 10.0,
   });
 
+  Map<String, dynamic> toNativeJson() {
+    final conditionJson = switch (condition) {
+      TriggerConditionType.guidingRms => {'GuidingRmsAbove': threshold},
+      TriggerConditionType.hfr => {'HfrAbove': threshold},
+      TriggerConditionType.drift => {
+          'DriftAbove': {'ra_px': threshold, 'dec_px': threshold},
+        },
+    };
+    final actionJson = switch (action) {
+      TriggerActionType.pauseAndRecalibrate => 'PauseAndRecalibrate',
+      TriggerActionType.autofocus => 'Autofocus',
+      TriggerActionType.abort => 'Abort',
+    };
+    return {
+      'condition': conditionJson,
+      'action': actionJson,
+      'debounce_secs': debounceSecs,
+    };
+  }
+
+  factory ExposureTriggerConfig.fromNativeJson(Map<String, dynamic> json) {
+    final conditionJson = json['condition'] as Map?;
+    final conditionKey = conditionJson == null || conditionJson.isEmpty
+        ? null
+        : conditionJson.keys.first;
+    final conditionValue =
+        conditionKey == null ? null : conditionJson![conditionKey];
+    final condition = switch (conditionKey) {
+      'HfrAbove' => TriggerConditionType.hfr,
+      'DriftAbove' => TriggerConditionType.drift,
+      _ => TriggerConditionType.guidingRms,
+    };
+    final threshold = switch (conditionKey) {
+      'DriftAbove' =>
+        ((conditionValue as Map?)?['ra_px'] as num?)?.toDouble() ?? 2.0,
+      _ => (conditionValue as num?)?.toDouble() ?? 2.0,
+    };
+    final action = switch (json['action'] as String?) {
+      'Autofocus' => TriggerActionType.autofocus,
+      'Abort' => TriggerActionType.abort,
+      _ => TriggerActionType.pauseAndRecalibrate,
+    };
+    return ExposureTriggerConfig(
+      condition: condition,
+      threshold: threshold,
+      action: action,
+      debounceSecs: (json['debounce_secs'] as num?)?.toDouble() ?? 10.0,
+    );
+  }
+
   String get conditionLabel {
     switch (condition) {
       case TriggerConditionType.guidingRms:

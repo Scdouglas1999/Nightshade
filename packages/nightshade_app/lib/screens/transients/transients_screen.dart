@@ -306,6 +306,18 @@ class _TransientsHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          IconButton(
+            icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/dashboard');
+              }
+            },
+            tooltip: 'Back',
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(

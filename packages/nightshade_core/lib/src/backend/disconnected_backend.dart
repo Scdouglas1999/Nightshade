@@ -11,7 +11,7 @@ import 'nightshade_backend.dart';
 // Import pure Dart types from backend_types
 
 /// A backend implementation that represents a disconnected state.
-/// 
+///
 /// This is the default state for the mobile app. It throws clear, user-friendly
 /// exceptions for all operations, ensuring that the app never attempts to
 /// execute local logic (like FFI) when it should be acting as a thin client.
@@ -44,7 +44,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<DeviceInfo>> discoverAlpacaAtAddress(String host, int port) async {
+  Future<List<DeviceInfo>> discoverAlpacaAtAddress(
+      String host, int port) async {
     _throwNotConnected();
   }
 
@@ -115,7 +116,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> mountSlewToCoordinates(String deviceId, double ra, double dec) async {
+  Future<void> mountSlewToCoordinates(
+      String deviceId, double ra, double dec) async {
     _throwNotConnected();
   }
 
@@ -169,7 +171,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> mountSlewAltAz(String deviceId, double altitude, double azimuth) async {
+  Future<void> mountSlewAltAz(
+      String deviceId, double altitude, double azimuth) async {
     _throwNotConnected();
   }
 
@@ -398,7 +401,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<(double, double)> guiderGetLockPosition({required String deviceId}) async {
+  Future<(double, double)> guiderGetLockPosition(
+      {required String deviceId}) async {
     _throwNotConnected();
   }
 
@@ -615,7 +619,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
+      String deviceId) async {
     _throwNotConnected();
   }
 
@@ -705,17 +710,20 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<ImageStats> getImageStats(int width, int height, Uint16List data) async {
+  Future<ImageStats> getImageStats(
+      int width, int height, Uint16List data) async {
     _throwNotConnected();
   }
 
   @override
-  Future<Uint8List> autoStretchImage(int width, int height, Uint16List data) async {
+  Future<Uint8List> autoStretchImage(
+      int width, int height, Uint16List data) async {
     _throwNotConnected();
   }
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
+      {int maxCrops = 5}) async {
     _throwNotConnected();
   }
 
@@ -734,10 +742,12 @@ class DisconnectedBackend implements NightshadeBackend {
   // Polar Alignment
   // =========================================================================
 
-  final _polarAlignController = StreamController<Map<String, dynamic>>.broadcast();
+  final _polarAlignController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   @override
-  Stream<Map<String, dynamic>> get polarAlignmentEvents => _polarAlignController.stream;
+  Stream<Map<String, dynamic>> get polarAlignmentEvents =>
+      _polarAlignController.stream;
 
   @override
   Future<void> startPolarAlignment({
@@ -751,6 +761,7 @@ class DisconnectedBackend implements NightshadeBackend {
     int? offset,
     double? solveTimeout,
     bool? startFromCurrent,
+    double? autoCompleteThreshold,
   }) async {
     _throwNotConnected();
   }
@@ -785,7 +796,8 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> downloadImage(int imageId, String localPath, {void Function(double)? onProgress}) async {
+  Future<void> downloadImage(int imageId, String localPath,
+      {void Function(double)? onProgress}) async {
     _throwNotConnected();
   }
 

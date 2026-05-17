@@ -483,6 +483,7 @@ class FramingMosaicPanel {
 
 class FramingNotifier extends StateNotifier<FramingState> {
   final Ref _ref;
+  static const _surveyImageTimeout = Duration(seconds: 30);
 
   FramingNotifier(this._ref) : super(const FramingState());
 
@@ -662,9 +663,25 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
       final client = http.Client();
       try {
-        final response = await client.get(Uri.parse(url));
+        http.Response? response;
+        try {
+          response = await client.get(Uri.parse(url)).timeout(
+                _surveyImageTimeout,
+                onTimeout: () => throw TimeoutException(
+                  'Aladin survey image fetch timed out',
+                  _surveyImageTimeout,
+                ),
+              );
+        } catch (e) {
+          developer.log(
+            'FramingProvider: Aladin survey fetch failed, trying SkyView: $e',
+            name: 'FramingProvider',
+            level: 900,
+            error: e,
+          );
+        }
 
-        if (response.statusCode == 200) {
+        if (response != null && response.statusCode == 200) {
           final bytes = response.bodyBytes;
 
           // Decode to ui.Image
@@ -690,7 +707,14 @@ class FramingNotifier extends StateNotifier<FramingState> {
             state.surveySource,
           );
 
-          final skyViewResponse = await client.get(Uri.parse(skyViewUrl));
+          final skyViewResponse =
+              await client.get(Uri.parse(skyViewUrl)).timeout(
+                    _surveyImageTimeout,
+                    onTimeout: () => throw TimeoutException(
+                      'SkyView survey image fetch timed out',
+                      _surveyImageTimeout,
+                    ),
+                  );
 
           if (skyViewResponse.statusCode == 200) {
             final bytes = skyViewResponse.bodyBytes;
@@ -717,6 +741,18 @@ class FramingNotifier extends StateNotifier<FramingState> {
       } finally {
         client.close();
       }
+    } on TimeoutException catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoadingImage: false,
+        imageError: 'Survey image fetch timed out - retry?',
+      );
+      developer.log(
+        'FramingProvider: ${e.message}',
+        name: 'FramingProvider',
+        level: 900,
+        error: e,
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(

@@ -222,8 +222,7 @@ impl DefectMap {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        let mut out =
-            Vec::with_capacity(NDM_HEADER_SIZE + self.bitmap.len() + NDM_FOOTER_SIZE);
+        let mut out = Vec::with_capacity(NDM_HEADER_SIZE + self.bitmap.len() + NDM_FOOTER_SIZE);
         out.extend_from_slice(NDM_MAGIC);
         out.extend_from_slice(&self.width.to_le_bytes());
         out.extend_from_slice(&self.height.to_le_bytes());
@@ -340,11 +339,9 @@ pub fn build_defect_map(
 
     let mut frame_pixels: Vec<Vec<u16>> = Vec::with_capacity(n_frames);
     for frame in darks {
-        let pixels = frame
-            .as_u16()
-            .ok_or(DefectMapError::UnsupportedPixelType {
-                pixel_type: frame.pixel_type,
-            })?;
+        let pixels = frame.as_u16().ok_or(DefectMapError::UnsupportedPixelType {
+            pixel_type: frame.pixel_type,
+        })?;
         if pixels.len() != pixel_count {
             return Err(DefectMapError::DimensionMismatch {
                 expected_width: width,
@@ -542,8 +539,7 @@ pub fn correct_frame_u16(light: &mut ImageData, map: &DefectMap) -> Result<(), D
                 neighbour_scratch.sort_unstable();
                 let mid = neighbour_scratch.len() / 2;
                 let median = if neighbour_scratch.len().is_multiple_of(2) {
-                    ((neighbour_scratch[mid - 1] as u32 + neighbour_scratch[mid] as u32) / 2)
-                        as u16
+                    ((neighbour_scratch[mid - 1] as u32 + neighbour_scratch[mid] as u32) / 2) as u16
                 } else {
                     neighbour_scratch[mid]
                 };

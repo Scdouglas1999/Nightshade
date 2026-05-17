@@ -97,9 +97,7 @@ pub fn astap_candidates(inputs: &AstapPathInputs<'_>) -> Vec<PathBuf> {
             out.push(PathBuf::from(r"C:\Program Files\astap\astap.exe"));
             out.push(PathBuf::from(r"C:\Program Files\astap\astap_cli.exe"));
             out.push(PathBuf::from(r"C:\Program Files (x86)\astap\astap.exe"));
-            out.push(PathBuf::from(
-                r"C:\Program Files (x86)\astap\astap_cli.exe",
-            ));
+            out.push(PathBuf::from(r"C:\Program Files (x86)\astap\astap_cli.exe"));
             out.push(PathBuf::from(r"C:\astap\astap.exe"));
             out.push(PathBuf::from(r"C:\astap\astap_cli.exe"));
         }
@@ -338,9 +336,7 @@ mod tests {
         });
         assert!(candidates.contains(&lad.join("Programs").join("astap").join("astap.exe")));
         assert!(candidates.contains(&PathBuf::from(r"C:\Program Files\astap\astap.exe")));
-        assert!(candidates.contains(&PathBuf::from(
-            r"C:\Program Files (x86)\astap\astap.exe"
-        )));
+        assert!(candidates.contains(&PathBuf::from(r"C:\Program Files (x86)\astap\astap.exe")));
         assert!(candidates.contains(&PathBuf::from(r"C:\astap\astap.exe")));
     }
 
@@ -495,7 +491,9 @@ mod tests {
         let dir = PathBuf::from(r"C:\astap");
         let info = identify_catalog(
             &dir,
-            ["V17_0101.290", "V17_0102.290", "INDEX.290"].iter().cloned(),
+            ["V17_0101.290", "V17_0102.290", "INDEX.290"]
+                .iter()
+                .cloned(),
         )
         .expect("V17 catalog must be detected");
         assert_eq!(info.name, "V17");

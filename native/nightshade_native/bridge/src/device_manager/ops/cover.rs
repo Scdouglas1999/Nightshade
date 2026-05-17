@@ -77,7 +77,10 @@ impl DeviceManager {
                         .set_switch(&device_name, "CAP_PARK", "UNPARK", true)
                         .await
                         .map_err(|e| {
-                            format!("Failed to open INDI cover (unpark) on {}: {}", device_name, e)
+                            format!(
+                                "Failed to open INDI cover (unpark) on {}: {}",
+                                device_name, e
+                            )
                         });
                 }
                 Err("INDI cover calibrator not connected".to_string())
@@ -125,7 +128,10 @@ impl DeviceManager {
                         .set_switch(&device_name, "CAP_PARK", "PARK", true)
                         .await
                         .map_err(|e| {
-                            format!("Failed to close INDI cover (park) on {}: {}", device_name, e)
+                            format!(
+                                "Failed to close INDI cover (park) on {}: {}",
+                                device_name, e
+                            )
                         });
                 }
                 Err("INDI cover calibrator not connected".to_string())

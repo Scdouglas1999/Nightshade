@@ -273,7 +273,10 @@ impl IndiAutofocus {
         let best_hfr = focus_data_points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             // Why (§4.3 cat 3): unreachable in practice — `?`-propagated sweep failure aborts
             // before reaching here. Empty-vector default 0.0 is an inert placeholder.
             .unwrap_or(0.0);
@@ -529,7 +532,10 @@ impl IndiAutofocus {
             return Ok((20.0, u32::try_from(stars.len()).unwrap_or(u32::MAX), None));
         }
 
-        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let median_hfr = hfrs[hfrs.len() / 2];
 
         // Calculate median FWHM
@@ -541,7 +547,10 @@ impl IndiAutofocus {
             .collect();
 
         let median_fwhm = if !fwhms.is_empty() {
-            fwhms.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+            fwhms.sort_by(|a, b| {
+                a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
             Some(fwhms[fwhms.len() / 2])
         } else {
             None
@@ -588,12 +597,18 @@ impl IndiAutofocus {
 
         // Calculate median and MAD
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
-        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let median = hfrs[hfrs.len() / 2];
 
         let mut deviations: Vec<f64> = hfrs.iter().map(|&h| (h - median).abs()).collect();
-        deviations.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+        deviations.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let mad = deviations[deviations.len() / 2];
 
         // Convert MAD to standard deviation estimate
@@ -621,7 +636,8 @@ impl IndiAutofocus {
             .min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal)
+                    /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
 
@@ -746,7 +762,10 @@ impl IndiAutofocus {
         let min_hfr = points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             // Why (§4.3 cat 3): `fit_parabola` above propagates via `?` when points is empty,
             // so `min_by` is guaranteed Some here. `1.0` is a non-zero placeholder that
             // avoids divide-by-zero in the hyperbolic-fit denominator if a future refactor
@@ -891,7 +910,10 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
 
     // Sigma clipping iterations
     for _ in 0..3 {
-        samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+        samples.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let median = samples[samples.len() / 2];
 
         // Why: samples.len() is usize bounded by image pixel count / 4; lossless to f64
@@ -910,7 +932,10 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
         }
     }
 
-    samples.sort_by(|a, b| a.partial_cmp(b)/* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal));
+    samples.sort_by(|a, b| {
+        a.partial_cmp(b) /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let background = samples[samples.len() / 2];
 
     // Why: samples.len() is usize bounded by image size; lossless to f64.
@@ -988,7 +1013,8 @@ fn detect_stars(
     stars.sort_by(|a, b| {
         b.flux
             .partial_cmp(&a.flux)
-            /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */ .unwrap_or(std::cmp::Ordering::Equal)
+            /* §4.3 cat 1 — f64 NaN orders Equal for sort stability */
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
     stars
 }
@@ -1092,12 +1118,8 @@ fn calculate_hfr(
             // Why: cx and cy are f64 centroid coordinates within image bounds.
             // f64 -> i32 saturates per Rust 1.45 spec, then we clamp into image
             // bounds, so the final usize cast is lossless.
-            let x = ((cx as i32).saturating_add(dx))
-                .max(0)
-                .min(width_i32 - 1) as usize;
-            let y = ((cy as i32).saturating_add(dy))
-                .max(0)
-                .min(height_i32 - 1) as usize;
+            let x = ((cx as i32).saturating_add(dx)).max(0).min(width_i32 - 1) as usize;
+            let y = ((cy as i32).saturating_add(dy)).max(0).min(height_i32 - 1) as usize;
 
             let val = (pixels[y * width + x] - background).max(0.0);
             // Why: dx and dy are i32 loop indices in [-radius, radius];

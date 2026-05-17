@@ -175,14 +175,6 @@ class _MountSettingsCard extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            _SettingRow(
-              label: 'Park on Unsafe',
-              child: NightshadeSwitch(
-                value: settings.parkOnUnsafeWeather,
-                onChanged: (value) => notifier.setParkOnUnsafeWeather(value),
-              ),
-            ),
           ],
         ),
       ),
@@ -245,7 +237,8 @@ class _FocuserSettingsCard extends ConsumerWidget {
                   initialValue: settings.backlashCompensation.toString(),
                   onChanged: (value) {
                     final parsed = int.tryParse(value);
-                    if (parsed != null) notifier.setBacklashCompensation(parsed);
+                    if (parsed != null)
+                      notifier.setBacklashCompensation(parsed);
                   },
                 ),
               ),

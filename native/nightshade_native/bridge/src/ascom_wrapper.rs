@@ -73,7 +73,10 @@ use tokio::sync::{mpsc, oneshot};
 /// the only progress signal is `PercentCompleted`. Both inputs must be
 /// present and `pct` must be in range — anything else maps to `None` so
 /// the UI can render "unknown" rather than a fabricated value.
-fn compute_exposure_remaining(percent_completed: Option<i32>, total_secs: Option<f64>) -> Option<f64> {
+fn compute_exposure_remaining(
+    percent_completed: Option<i32>,
+    total_secs: Option<f64>,
+) -> Option<f64> {
     match (percent_completed, total_secs) {
         (Some(pct), Some(total)) if (0..=100).contains(&pct) && total >= 0.0 => {
             let remaining = ((100 - pct) as f64 / 100.0) * total;
@@ -327,10 +330,10 @@ impl AscomCameraWrapper {
                                     continue;
                                 }
                                 None => {
-                                    let _ = reply.send(Err(
-                                        "ASCOM camera CameraXSize property failed"
-                                            .to_string(),
-                                    ));
+                                    let _ =
+                                        reply
+                                            .send(Err("ASCOM camera CameraXSize property failed"
+                                                .to_string()));
                                     continue;
                                 }
                             };
@@ -344,10 +347,10 @@ impl AscomCameraWrapper {
                                     continue;
                                 }
                                 None => {
-                                    let _ = reply.send(Err(
-                                        "ASCOM camera CameraYSize property failed"
-                                            .to_string(),
-                                    ));
+                                    let _ =
+                                        reply
+                                            .send(Err("ASCOM camera CameraYSize property failed"
+                                                .to_string()));
                                     continue;
                                 }
                             };
@@ -395,10 +398,10 @@ impl AscomCameraWrapper {
                             let exposure_settings = cam.get_exposure_settings();
 
                             // §5.16: try-once-cache the CanGetCoolerPower probe.
-                            let can_get_cooler_power = cooler_power_supported(
-                                &mut cooler_power_cache,
-                                || cam.cooler_power(),
-                            );
+                            let can_get_cooler_power =
+                                cooler_power_supported(&mut cooler_power_cache, || {
+                                    cam.cooler_power()
+                                });
 
                             let caps = AscomCameraCapabilities {
                                 max_width: width,
@@ -1330,7 +1333,7 @@ mod tests {
         let mut wrapper = build_test_wrapper(move |cmd| {
             if let AscomCommand::DownloadImage(reply) = cmd {
                 let _ = reply.send(Err(
-                    "ASCOM camera CameraXSize failed: COM error 0x80004005".to_string(),
+                    "ASCOM camera CameraXSize failed: COM error 0x80004005".to_string()
                 ));
                 return true;
             }
@@ -1442,10 +1445,7 @@ mod tests {
             Some(75.0)
         );
         // 0% complete → full duration remaining.
-        assert_eq!(
-            compute_exposure_remaining(Some(0), Some(60.0)),
-            Some(60.0)
-        );
+        assert_eq!(compute_exposure_remaining(Some(0), Some(60.0)), Some(60.0));
         // 100% complete → zero remaining.
         assert_eq!(compute_exposure_remaining(Some(100), Some(60.0)), Some(0.0));
     }

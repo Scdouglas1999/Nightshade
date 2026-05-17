@@ -6,8 +6,7 @@ import '../services/scheduler/integration_goal_service.dart';
 import 'database_provider.dart';
 
 /// Service provider for [CampaignRollupService].
-final campaignRollupServiceProvider =
-    Provider<CampaignRollupService>((ref) {
+final campaignRollupServiceProvider = Provider<CampaignRollupService>((ref) {
   return CampaignRollupService(
     sessionsDao: ref.watch(sessionsDaoProvider),
     imagesDao: ref.watch(imagesDaoProvider),
@@ -20,7 +19,7 @@ final campaignRollupServiceProvider =
 ///
 /// Family-keyed by `targetId`. Auto-invalidates when the underlying database
 /// providers change.
-final campaignRollupProvider =
-    FutureProvider.family<CampaignRollup, int>((ref, targetId) async {
+final campaignRollupProvider = FutureProvider.autoDispose
+    .family<CampaignRollup, int>((ref, targetId) async {
   return ref.watch(campaignRollupServiceProvider).buildForTarget(targetId);
 });

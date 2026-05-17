@@ -228,7 +228,8 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     if (_searchController.text != filtersState.searchQuery) {
       _searchController.value = TextEditingValue(
         text: filtersState.searchQuery,
-        selection: TextSelection.collapsed(offset: filtersState.searchQuery.length),
+        selection:
+            TextSelection.collapsed(offset: filtersState.searchQuery.length),
       );
     }
 
@@ -258,8 +259,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     AsyncValue<List<TargetSuggestion>> candidatesAsync,
   ) {
     return candidatesAsync.when(
-      data: (candidates) =>
-          _buildContent(context, colors, plan, candidates),
+      data: (candidates) => _buildContent(context, colors, plan, candidates),
       loading: () => _buildLoadingState(colors),
       error: (error, _) => _buildErrorState(context, colors, error),
     );
@@ -358,13 +358,14 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               // they want to broaden beyond the installed catalog. Reads the
               // current search query via ref so this method doesn't need a
               // filter parameter just to gate one widget.
-              if (ref.watch(suggestionFilterProvider).searchQuery.trim().length >=
-                  3)
-                _SimbadResultsSection(
-                  query: ref
+              if (ref
                       .watch(suggestionFilterProvider)
                       .searchQuery
-                      .trim(),
+                      .trim()
+                      .length >=
+                  3)
+                _SimbadResultsSection(
+                  query: ref.watch(suggestionFilterProvider).searchQuery.trim(),
                   colors: colors,
                   hasLocalMatches: candidates.isNotEmpty,
                 ),
@@ -590,8 +591,7 @@ class _PlannerControlsBar extends ConsumerWidget {
             colors: colors,
             onChanged: (value) {
               final notifier = ref.read(suggestionFilterProvider.notifier);
-              notifier.state =
-                  notifier.state.copyWith(searchQuery: value);
+              notifier.state = notifier.state.copyWith(searchQuery: value);
               ref.read(_plannerVisibleCountProvider.notifier).state =
                   _kPlannerPageSize;
             },
@@ -814,8 +814,7 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
-          notifier.state =
-              notifier.state.copyWith(selectedObjectTypes: result);
+          notifier.state = notifier.state.copyWith(selectedObjectTypes: result);
           ref.read(_plannerVisibleCountProvider.notifier).state =
               _kPlannerPageSize;
         }
@@ -860,7 +859,9 @@ class _ConstellationDropdown extends ConsumerWidget {
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: selected == null ? colors.surfaceAlt : colors.primary.withValues(alpha: 0.1),
+        color: selected == null
+            ? colors.surfaceAlt
+            : colors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: selected == null
@@ -1152,9 +1153,8 @@ class _MinAltitudeControl extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = value != null;
-    final label = active
-        ? 'Alt now ≥ ${value!.toStringAsFixed(0)}°'
-        : 'Alt now: any';
+    final label =
+        active ? 'Alt now ≥ ${value!.toStringAsFixed(0)}°' : 'Alt now: any';
 
     return _ControlChip(
       colors: colors,
@@ -1205,9 +1205,7 @@ class _MoonSeparationControl extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = value != null;
-    final label = active
-        ? 'Moon ≥ ${value!.toStringAsFixed(0)}°'
-        : 'Moon: any';
+    final label = active ? 'Moon ≥ ${value!.toStringAsFixed(0)}°' : 'Moon: any';
 
     return _ControlChip(
       colors: colors,
@@ -1319,12 +1317,10 @@ class _ControlChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = active
-        ? colors.primary.withValues(alpha: 0.1)
-        : colors.surfaceAlt;
-    final border = active
-        ? colors.primary.withValues(alpha: 0.5)
-        : colors.border;
+    final bg =
+        active ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt;
+    final border =
+        active ? colors.primary.withValues(alpha: 0.5) : colors.border;
     final fg = active ? colors.primary : colors.textSecondary;
 
     return InkWell(
@@ -1678,10 +1674,10 @@ class _CandidateRow extends ConsumerWidget {
                 onPressed: () => _addToObservingList(context, ref),
               ),
               NightshadeButton(
-                label: isExpanded ? 'Hide altitude curve' : 'Show altitude curve',
-                icon: isExpanded
-                    ? LucideIcons.chevronUp
-                    : LucideIcons.lineChart,
+                label:
+                    isExpanded ? 'Hide altitude curve' : 'Show altitude curve',
+                icon:
+                    isExpanded ? LucideIcons.chevronUp : LucideIcons.lineChart,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
                 onPressed: onToggleExpand,
@@ -1758,8 +1754,7 @@ class _CandidateRow extends ConsumerWidget {
                           ListTile(
                             dense: true,
                             title: Text(list.name,
-                                style:
-                                    TextStyle(color: colors.textPrimary)),
+                                style: TextStyle(color: colors.textPrimary)),
                             onTap: () => Navigator.of(dCtx).pop(list.id),
                           ),
                       ],
@@ -1794,9 +1789,7 @@ class _CandidateRow extends ConsumerWidget {
 
     if (chosenId == null) return;
     if (!context.mounted) return;
-    final id = await ref
-        .read(observingListNotifierProvider.notifier)
-        .addItem(
+    final id = await ref.read(observingListNotifierProvider.notifier).addItem(
           listId: chosenId,
           objectName: suggestion.targetName,
           catalogId: suggestion.catalogId,
@@ -1857,9 +1850,7 @@ class _CandidateRow extends ConsumerWidget {
         .createList(name: name.trim());
     if (newId == null) return null;
     if (!context.mounted) return null;
-    final id = await ref
-        .read(observingListNotifierProvider.notifier)
-        .addItem(
+    final id = await ref.read(observingListNotifierProvider.notifier).addItem(
           listId: newId,
           objectName: suggestion.targetName,
           catalogId: suggestion.catalogId,
@@ -2086,7 +2077,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                     const SizedBox(height: NightshadeTokens.spaceMd),
                     NightshadeButton(
                       label: 'Open catalog settings',
-                      onPressed: () => context.go('/settings/catalogs'),
+                      onPressed: () => context.go('/settings/plate-solving'),
                       icon: LucideIcons.download,
                       size: ButtonSize.small,
                     ),
@@ -2102,8 +2093,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                 ),
               );
             }),
-          ]
-          else ...[
+          ] else ...[
             Text(
               '${breakdown.total} candidate${breakdown.total == 1 ? '' : 's'} were scored, '
               '${breakdown.passed} passed the filters.',
@@ -2603,8 +2593,7 @@ class _SimbadResultsSection extends ConsumerWidget {
               colors: colors,
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
-            for (final m in matches)
-              _SimbadResultRow(match: m, colors: colors),
+            for (final m in matches) _SimbadResultRow(match: m, colors: colors),
           ],
         );
       },

@@ -43,6 +43,9 @@ class SchedulerCandidate {
   /// availability hard constraint.
   final List<String> availableFilters;
 
+  /// True when the target represents a multi-panel mosaic plan.
+  final bool isMosaicTarget;
+
   SchedulerCandidate({
     required this.targetId,
     required this.name,
@@ -54,6 +57,7 @@ class SchedulerCandidate {
     required this.constraints,
     required this.horizonProfiles,
     required this.availableFilters,
+    this.isMosaicTarget = false,
   }) {
     if (capturedCounts.length != goals.length) {
       throw ArgumentError(
@@ -167,8 +171,7 @@ class SchedulerEngine {
     _site = site;
   }
 
-  void setCandidateLoader(
-      Future<List<SchedulerCandidate>> Function() loader) {
+  void setCandidateLoader(Future<List<SchedulerCandidate>> Function() loader) {
     _candidateLoader = loader;
   }
 
@@ -764,8 +767,10 @@ class SchedulerEngine {
     );
     final radius = _config.moonAvoidanceRadiusDegrees;
     if (sep >= radius) {
-      return (1.0,
-          'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%');
+      return (
+        1.0,
+        'sep ${sep.toStringAsFixed(0)}° ill ${(moon.illumination * 100).toStringAsFixed(0)}%'
+      );
     }
     final closeness = 1.0 - (sep / radius);
     final penalty = closeness * moon.illumination;
@@ -838,10 +843,8 @@ class SchedulerEngine {
     final utc = time.toUtc();
     int y = utc.year;
     int m = utc.month;
-    final d = utc.day +
-        utc.hour / 24.0 +
-        utc.minute / 1440.0 +
-        utc.second / 86400.0;
+    final d =
+        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
     if (m <= 2) {
       y -= 1;
       m += 12;
@@ -918,6 +921,12 @@ class SchedulerEngine {
   /// currently most-needed filter. This is what the engine hands to the
   /// SequencerService when it picks a target.
   Sequence buildSequenceForCandidate(SchedulerCandidate c) {
+    if (c.isMosaicTarget) {
+      throw StateError(
+        'Scheduler cannot yet dispatch mosaic targets. Generate the mosaic sequence from Framing or Sequencer instead.',
+      );
+    }
+
     final goalProgress = <IntegrationGoalProgress>[];
     for (var i = 0; i < c.goals.length; i++) {
       goalProgress.add(IntegrationGoalProgress(
@@ -1014,8 +1023,8 @@ extension on SchedulerEngine {
     final lat = _site.latitudeDegrees * math.pi / 180.0;
     final lst = _localSiderealTime(time);
     final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-    final sinAlt =
-        math.sin(dec) * math.sin(lat) + math.cos(dec) * math.cos(lat) * math.cos(ha);
+    final sinAlt = math.sin(dec) * math.sin(lat) +
+        math.cos(dec) * math.cos(lat) * math.cos(ha);
     final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
     final y = -math.sin(ha) * math.cos(dec);
     final x = math.sin(dec) * math.cos(lat) -
@@ -1032,10 +1041,8 @@ extension on SchedulerEngine {
     final utc = time.toUtc();
     int y = utc.year;
     int m = utc.month;
-    final d = utc.day +
-        utc.hour / 24.0 +
-        utc.minute / 1440.0 +
-        utc.second / 86400.0;
+    final d =
+        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
     if (m <= 2) {
       y -= 1;
       m += 12;

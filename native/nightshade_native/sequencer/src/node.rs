@@ -2132,46 +2132,37 @@ impl RuntimeNode {
                     }
                 }
             }
-            ConditionalCheck::WeatherSafe => {
-                match context.device_ops.safety_is_safe(None).await {
-                    Ok(is_safe) => {
-                        if !is_safe {
-                            tracing::warn!("Weather safety check failed - conditions unsafe");
-                        }
-                        is_safe
+            ConditionalCheck::WeatherSafe => match context.device_ops.safety_is_safe(None).await {
+                Ok(is_safe) => {
+                    if !is_safe {
+                        tracing::warn!("Weather safety check failed - conditions unsafe");
                     }
-                    Err(e) => {
-                        // All three SafetyFailMode variants resolve to "unsafe"
-                        // for a Conditional check — fail-closed is the only
-                        // production-supported policy. We still match exhaustively
-                        // so the failure mode is recorded in the log message and
-                        // a future legacy mode change cannot drop a branch silently.
-                        match context.safety_fail_mode {
-                            SafetyFailMode::FailOpen => {
-                                tracing::warn!(
-                                    "Weather safety check error: {} - fail_open requested but strict fail-closed is enforced",
-                                    e
-                                );
-                                false
-                            }
-                            SafetyFailMode::FailClosed => {
-                                tracing::warn!(
-                                    "Weather safety check error: {} - treating as unsafe (fail-closed)",
-                                    e
-                                );
-                                false
-                            }
-                            SafetyFailMode::WarnOnly => {
-                                tracing::warn!(
-                                    "Weather safety check error: {} - warn_only requested but strict fail-closed is enforced",
-                                    e
-                                );
-                                false
-                            }
-                        }
-                    }
+                    is_safe
                 }
-            }
+                Err(e) => match context.safety_fail_mode {
+                    SafetyFailMode::FailOpen => {
+                        tracing::warn!(
+                            "Weather safety check error: {} - treating as safe (fail-open)",
+                            e
+                        );
+                        true
+                    }
+                    SafetyFailMode::FailClosed => {
+                        tracing::warn!(
+                            "Weather safety check error: {} - treating as unsafe (fail-closed)",
+                            e
+                        );
+                        false
+                    }
+                    SafetyFailMode::WarnOnly => {
+                        tracing::warn!(
+                                    "Weather safety check error: {} - treating as safe with warning (warn-only)",
+                                    e
+                                );
+                        true
+                    }
+                },
+            },
             ConditionalCheck::MoonSeparationAbove(degrees) => {
                 let Some(separation) = context.calculate_moon_separation() else {
                     tracing::error!("Conditional MoonSeparationAbove requires target coordinates");
@@ -2190,35 +2181,29 @@ impl RuntimeNode {
                         }
                         is_safe
                     }
-                    Err(e) => {
-                        // Same fail-closed reasoning as WeatherSafe above: a
-                        // legacy SafetyFailMode value still resolves to "unsafe"
-                        // here so a misconfigured profile cannot bypass the
-                        // safety check by setting FailOpen.
-                        match context.safety_fail_mode {
-                            SafetyFailMode::FailOpen => {
-                                tracing::warn!(
-                                    "Safety monitor check error: {} - fail_open requested but strict fail-closed is enforced",
-                                    e
-                                );
-                                false
-                            }
-                            SafetyFailMode::FailClosed => {
-                                tracing::warn!(
-                                    "Safety monitor check error: {} - treating as unsafe (fail-closed)",
-                                    e
-                                );
-                                false
-                            }
-                            SafetyFailMode::WarnOnly => {
-                                tracing::warn!(
-                                    "Safety monitor check error: {} - warn_only requested but strict fail-closed is enforced",
-                                    e
-                                );
-                                false
-                            }
+                    Err(e) => match context.safety_fail_mode {
+                        SafetyFailMode::FailOpen => {
+                            tracing::warn!(
+                                "Safety monitor check error: {} - treating as safe (fail-open)",
+                                e
+                            );
+                            true
                         }
-                    }
+                        SafetyFailMode::FailClosed => {
+                            tracing::warn!(
+                                "Safety monitor check error: {} - treating as unsafe (fail-closed)",
+                                e
+                            );
+                            false
+                        }
+                        SafetyFailMode::WarnOnly => {
+                            tracing::warn!(
+                                    "Safety monitor check error: {} - treating as safe with warning (warn-only)",
+                                    e
+                                );
+                            true
+                        }
+                    },
                 }
             }
         };

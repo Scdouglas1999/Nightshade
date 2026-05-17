@@ -33,6 +33,7 @@ class FlatWizardHandlers {
     final maxIterations = optionalInt(payload, 'maxIterations') ?? 10;
     final binX = optionalInt(payload, 'binX') ?? 1;
     final binY = optionalInt(payload, 'binY') ?? 1;
+    final (gain, offset) = _resolveGainOffset(payload);
 
     final service = container.read(flatWizardServiceProvider);
     final result = await service.calibrateFilter(
@@ -45,6 +46,8 @@ class FlatWizardHandlers {
       maxIterations: maxIterations,
       binX: binX,
       binY: binY,
+      gain: gain,
+      offset: offset,
     );
 
     return jsonOk({
@@ -69,6 +72,7 @@ class FlatWizardHandlers {
     final maxIterations = optionalInt(payload, 'maxIterations') ?? 10;
     final binX = optionalInt(payload, 'binX') ?? 1;
     final binY = optionalInt(payload, 'binY') ?? 1;
+    final (gain, offset) = _resolveGainOffset(payload);
 
     final service = container.read(flatWizardServiceProvider);
     final results = await service.calibrateMultipleFilters(
@@ -81,6 +85,8 @@ class FlatWizardHandlers {
       maxIterations: maxIterations,
       binX: binX,
       binY: binY,
+      gain: gain,
+      offset: offset,
     );
 
     return jsonOk({
@@ -166,6 +172,7 @@ class FlatWizardHandlers {
         optionalDouble(payload, 'tolerancePercent') ?? 10.0;
     final binX = optionalInt(payload, 'binX') ?? 1;
     final binY = optionalInt(payload, 'binY') ?? 1;
+    final (gain, offset) = _resolveGainOffset(payload);
 
     final service = container.read(flatWizardServiceProvider);
     final result = await service.quickCalibrate(
@@ -175,6 +182,8 @@ class FlatWizardHandlers {
       tolerancePercent: tolerancePercent,
       binX: binX,
       binY: binY,
+      gain: gain,
+      offset: offset,
     );
 
     return jsonOk({
@@ -185,6 +194,26 @@ class FlatWizardHandlers {
   // ===========================================================================
   // Helpers
   // ===========================================================================
+
+  (int, int) _resolveGainOffset(Map<String, dynamic> payload) {
+    final gain = optionalInt(payload, 'gain');
+    final offset = optionalInt(payload, 'offset');
+    if (gain != null && offset != null) return (gain, offset);
+
+    final profile = container.read(activeEquipmentProfileProvider);
+    final resolvedGain = gain ?? profile?.defaultGain;
+    final resolvedOffset = offset ?? profile?.defaultOffset;
+    if (resolvedGain != null && resolvedOffset != null) {
+      return (resolvedGain, resolvedOffset);
+    }
+
+    throw BadRequestError(
+      field: gain == null ? 'gain' : 'offset',
+      expected: 'integer',
+      message:
+          'Flat calibration requires gain and offset, either in the request or on the active equipment profile.',
+    );
+  }
 
   Map<String, dynamic> _flatResultToJson(FlatResult result) {
     return {

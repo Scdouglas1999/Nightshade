@@ -180,8 +180,12 @@ fn run() -> Result<()> {
 
     // Step 1: Wait for parent process to exit.
     println!("\nWaiting for Nightshade to exit...");
-    wait_for_process_exit(args.parent_pid, Duration::from_secs(30))
-        .with_context(|| format!("Failed waiting for parent process {} to exit", args.parent_pid))?;
+    wait_for_process_exit(args.parent_pid, Duration::from_secs(30)).with_context(|| {
+        format!(
+            "Failed waiting for parent process {} to exit",
+            args.parent_pid
+        )
+    })?;
     println!("Parent process has exited.");
 
     // Why: even after WaitForSingleObject returns, Windows may still hold file
@@ -396,8 +400,8 @@ fn apply_update(
     rollback_log: &mut RollbackLog,
 ) -> Result<()> {
     for entry in walkdir::WalkDir::new(staging_dir) {
-        let entry = entry
-            .with_context(|| format!("Failed to walk staging directory {:?}", staging_dir))?;
+        let entry =
+            entry.with_context(|| format!("Failed to walk staging directory {:?}", staging_dir))?;
         let src_path = entry.path();
         let relative = src_path.strip_prefix(staging_dir).with_context(|| {
             format!(

@@ -23,8 +23,8 @@ final sessionReportServiceProvider = Provider<SessionReportService>((ref) {
 /// Family-keyed so multiple session reports can be cached concurrently from
 /// the analytics screen (e.g. when opening a report dialog while a different
 /// one is already on screen).
-final sessionReportProvider =
-    FutureProvider.family<SessionReport, int>((ref, sessionId) async {
+final sessionReportProvider = FutureProvider.autoDispose
+    .family<SessionReport, int>((ref, sessionId) async {
   final service = ref.watch(sessionReportServiceProvider);
   return service.buildReport(sessionId);
 });

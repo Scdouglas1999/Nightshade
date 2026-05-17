@@ -48,9 +48,11 @@ enum LoopConditionType {
   count,
   untilTime,
   untilAltitude,
+
   /// Loop until altitude is above threshold (condition_value = altitude degrees).
   /// Note: untilAltitude means "below", altitudeAbove means "above".
   altitudeAbove,
+
   /// Loop until accumulated integration time reaches threshold (condition_value = seconds)
   integrationTime,
   forever,
@@ -562,7 +564,8 @@ class LoopNode extends SequenceNode {
       repeatCount: repeatCount ?? this.repeatCount,
       repeatUntil: repeatUntil ?? this.repeatUntil,
       repeatUntilAltitude: repeatUntilAltitude ?? this.repeatUntilAltitude,
-      integrationTimeTarget: integrationTimeTarget ?? this.integrationTimeTarget,
+      integrationTimeTarget:
+          integrationTimeTarget ?? this.integrationTimeTarget,
       maxSafetyIterations: maxSafetyIterations ?? this.maxSafetyIterations,
     );
   }
@@ -1001,6 +1004,7 @@ class ExposureNode extends SequenceNode {
   final int? offset;
   final BinningMode binning;
   final int? ditherEvery;
+  final List<Map<String, dynamic>> triggers;
 
   ExposureNode({
     super.id,
@@ -1019,6 +1023,7 @@ class ExposureNode extends SequenceNode {
     this.offset,
     this.binning = BinningMode.one,
     this.ditherEvery = 1,
+    this.triggers = const [],
   });
 
   /// Get estimated total duration
@@ -1054,6 +1059,7 @@ class ExposureNode extends SequenceNode {
     int? offset,
     BinningMode? binning,
     int? ditherEvery,
+    List<Map<String, dynamic>>? triggers,
   }) {
     return ExposureNode(
       id: id ?? this.id,
@@ -1072,6 +1078,7 @@ class ExposureNode extends SequenceNode {
       offset: offset ?? this.offset,
       binning: binning ?? this.binning,
       ditherEvery: ditherEvery ?? this.ditherEvery,
+      triggers: triggers ?? this.triggers,
     );
   }
 
@@ -1087,6 +1094,7 @@ class ExposureNode extends SequenceNode {
         offset,
         binning,
         ditherEvery,
+        triggers,
       ];
 }
 

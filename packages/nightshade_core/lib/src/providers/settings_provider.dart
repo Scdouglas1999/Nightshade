@@ -122,7 +122,8 @@ class AppSettingsState {
 
   // Observing Environment
   final int bortleClass; // 1-9, Bortle dark-sky scale
-  final String horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
+  final String
+      horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
 
   // Autofocus Settings
   final String afMethod; // 'Star HFR'
@@ -251,7 +252,8 @@ class AppSettingsState {
 
     // Observing Environment
     this.bortleClass = 5,
-    this.horizonProfileJson = '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
+    this.horizonProfileJson =
+        '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
 
     // Autofocus Settings
     this.afMethod = 'Star HFR',
@@ -488,8 +490,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
       autoDiscoverOnLaunch: remote.autoDiscoverOnLaunch,
       theme: remote.theme,
       language: remote.language,
-      accentColor:
-          remote.accentColor.isEmpty ? '#6366F1' : remote.accentColor,
+      accentColor: remote.accentColor.isEmpty ? '#6366F1' : remote.accentColor,
       fontSize: remote.fontSize,
       uiScale: remote.uiScale,
       latitude: location?.latitude ?? remote.latitude,
@@ -572,7 +573,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   Future<void> _writeRemoteSettings(AppSettingsState settings) async {
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
-      throw StateError('Remote settings write requested without network backend');
+      throw StateError(
+          'Remote settings write requested without network backend');
     }
 
     final remote = _toRemoteSettings(settings);
@@ -874,13 +876,12 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
                   current.autoFocusOnFilterChange,
                 )
               : null,
-      useFilterFocusOffsets:
-          settings.containsKey('use_filter_focus_offsets')
-              ? _parseBool(
-                  settings['use_filter_focus_offsets'],
-                  current.useFilterFocusOffsets,
-                )
-              : null,
+      useFilterFocusOffsets: settings.containsKey('use_filter_focus_offsets')
+          ? _parseBool(
+              settings['use_filter_focus_offsets'],
+              current.useFilterFocusOffsets,
+            )
+          : null,
       autoFocusEveryMinutes: settings.containsKey('auto_focus_every_minutes')
           ? _parseInt(
               settings['auto_focus_every_minutes'],
@@ -908,13 +909,12 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
               current.plateSolveTimeout,
             )
           : null,
-      plateSolveSearchRadius:
-          settings.containsKey('plate_solve_search_radius')
-              ? _parseDouble(
-                  settings['plate_solve_search_radius'],
-                  current.plateSolveSearchRadius,
-                )
-              : null,
+      plateSolveSearchRadius: settings.containsKey('plate_solve_search_radius')
+          ? _parseDouble(
+              settings['plate_solve_search_radius'],
+              current.plateSolveSearchRadius,
+            )
+          : null,
       blindSolve: settings.containsKey('blind_solve')
           ? _parseBool(settings['blind_solve'], current.blindSolve)
           : null,
@@ -1173,6 +1173,11 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     _patchState((s) => s.copyWith(fontSize: value));
   }
 
+  Future<void> setUiScale(String value) async {
+    await _saveSetting('ui_scale', value);
+    _patchState((s) => s.copyWith(uiScale: value));
+  }
+
   Future<void> setSidebarCollapsed(bool value) async {
     await _saveSetting('sidebar_collapsed', value.toString());
     _patchState((s) => s.copyWith(sidebarCollapsed: value));
@@ -1272,10 +1277,9 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     _patchState((s) => s.copyWith(parkBeforeDawn: value));
   }
 
-  Future<void> setSafetyFailMode(SafetyFailMode _) async {
-    // Strict fail-closed: retain enum compatibility but persist failClosed.
-    await _saveSetting('safety_fail_mode', SafetyFailMode.failClosed.name);
-    _patchState((s) => s.copyWith(safetyFailMode: SafetyFailMode.failClosed));
+  Future<void> setSafetyFailMode(SafetyFailMode value) async {
+    await _saveSetting('safety_fail_mode', value.name);
+    _patchState((s) => s.copyWith(safetyFailMode: value));
   }
 
   Future<void> setMeridianFlipMinutes(int value) async {
@@ -2059,12 +2063,26 @@ final autoConnectSettingsProvider =
 
 /// 8 compass directions for horizon profile definition
 const List<String> horizonDirections = [
-  'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'
+  'N',
+  'NE',
+  'E',
+  'SE',
+  'S',
+  'SW',
+  'W',
+  'NW'
 ];
 
 /// Azimuth angles corresponding to each compass direction
 const List<double> horizonDirectionAzimuths = [
-  0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0
+  0.0,
+  45.0,
+  90.0,
+  135.0,
+  180.0,
+  225.0,
+  270.0,
+  315.0
 ];
 
 /// Bortle scale descriptions and limiting magnitudes
@@ -2193,7 +2211,8 @@ class HorizonProfile {
     // Strip braces and split by comma
     var trimmed = json.trim();
     if (trimmed.startsWith('{')) trimmed = trimmed.substring(1);
-    if (trimmed.endsWith('}')) trimmed = trimmed.substring(0, trimmed.length - 1);
+    if (trimmed.endsWith('}'))
+      trimmed = trimmed.substring(0, trimmed.length - 1);
     if (trimmed.isEmpty) return result;
 
     for (final pair in trimmed.split(',')) {

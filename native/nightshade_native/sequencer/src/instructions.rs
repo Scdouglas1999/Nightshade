@@ -720,8 +720,7 @@ pub async fn execute_center(
 
         // Why: attempt is a u32 loop counter bounded by max_attempts (also u32);
         // both lossless to f64.
-        let attempt_progress =
-            (f64::from(attempt - 1) / f64::from(config.max_attempts)) * 100.0;
+        let attempt_progress = (f64::from(attempt - 1) / f64::from(config.max_attempts)) * 100.0;
         tracing::info!("Center attempt {}/{}", attempt, config.max_attempts);
 
         if let Some(cb) = progress_callback {
@@ -939,6 +938,43 @@ pub async fn execute_exposure(
                 if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
                     return InstructionResult::failure(format!("Failed to change filter: {}", e));
                 }
+                let filter_name = match config.filter.as_deref() {
+                    Some(name) if !name.is_empty() => Some(name.to_string()),
+                    _ if !ctx.filter_focus_offsets.is_empty() => {
+                        match ctx.device_ops.filterwheel_get_names(fw_id).await {
+                            Ok(names) if index >= 0 => match names.get(index as usize) {
+                                Some(name) => Some(name.clone()),
+                                None => {
+                                    return InstructionResult::failure(format!(
+                                    "Filter position {} has no configured filter name for focus offset lookup",
+                                    index
+                                ));
+                                }
+                            },
+                            Ok(_) => {
+                                return InstructionResult::failure(format!(
+                                    "Invalid negative filter position {} for focus offset lookup",
+                                    index
+                                ));
+                            }
+                            Err(e) => {
+                                return InstructionResult::failure(format!(
+                                    "Failed to read filter names for focus offset lookup: {}",
+                                    e
+                                ));
+                            }
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(filter_name) = filter_name {
+                    if let Err(e) = apply_filter_focus_offset(&filter_name, ctx, None).await {
+                        return InstructionResult::failure(format!(
+                            "Focus offset failed for filter \"{}\": {}",
+                            filter_name, e
+                        ));
+                    }
+                }
             } else if let Some(filter) = &config.filter {
                 tracing::info!("Changing to filter by name: {}", filter);
                 if let Err(e) = ctx
@@ -947,6 +983,12 @@ pub async fn execute_exposure(
                     .await
                 {
                     return InstructionResult::failure(format!("Failed to change filter: {}", e));
+                }
+                if let Err(e) = apply_filter_focus_offset(filter, ctx, None).await {
+                    return InstructionResult::failure(format!(
+                        "Focus offset failed for filter \"{}\": {}",
+                        filter, e
+                    ));
                 }
             }
         }
@@ -1991,7 +2033,14 @@ pub async fn execute_filter_change(
                 // here keeps the focus point usable for the next exposure
                 // without forcing the user to run autofocus after every
                 // filter change.
-                apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
+                if let Err(e) =
+                    apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await
+                {
+                    return InstructionResult::failure(format!(
+                        "Focus offset failed for filter \"{}\": {}",
+                        config.filter_name, e
+                    ));
+                }
                 if let Some(cb) = progress_callback {
                     cb(100.0, format!("Filter {}", index));
                 }
@@ -2016,7 +2065,14 @@ pub async fn execute_filter_change(
             if let Err(e) = wait_for_filterwheel_idle(&fw_id, pos, ctx, timeout).await {
                 return InstructionResult::failure(e);
             }
-            apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
+            if let Err(e) =
+                apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await
+            {
+                return InstructionResult::failure(format!(
+                    "Focus offset failed for filter \"{}\": {}",
+                    config.filter_name, e
+                ));
+            }
             if let Some(cb) = progress_callback {
                 cb(100.0, format!("Filter: {}", config.filter_name));
             }
@@ -2039,15 +2095,15 @@ async fn apply_filter_focus_offset(
     filter_name: &str,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
-) {
+) -> Result<(), String> {
     let offset = match ctx.filter_focus_offsets.get(filter_name) {
         Some(&o) if o != 0 => o,
-        _ => return,
+        _ => return Ok(()),
     };
 
     let focuser_id = match ctx.focuser_id.as_deref() {
         Some(id) if !id.is_empty() => id,
-        _ => return,
+        _ => return Ok(()),
     };
 
     tracing::info!(
@@ -2063,8 +2119,7 @@ async fn apply_filter_focus_offset(
     let current_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
-            tracing::error!("Failed to read focuser position for filter offset: {}", e);
-            return;
+            return Err(format!("failed to read focuser position: {}", e));
         }
     };
 
@@ -2077,12 +2132,7 @@ async fn apply_filter_focus_offset(
     );
 
     if let Err(e) = ctx.device_ops.focuser_move_to(focuser_id, target_pos).await {
-        tracing::error!(
-            "Failed to apply focus offset for filter \"{}\": {}",
-            filter_name,
-            e
-        );
-        return;
+        return Err(format!("failed to move focuser: {}", e));
     }
 
     // 60 polls × 500 ms = 30 s — enough for typical filter-offset moves
@@ -2100,40 +2150,27 @@ async fn apply_filter_focus_offset(
             }
             Ok(true) => continue,
             Err(e) => {
-                tracing::warn!("Error checking focuser movement: {}", e);
-                return;
+                return Err(format!("failed while checking focuser movement: {}", e));
             }
         }
     }
 
     if !reached_target {
-        tracing::warn!(
-            "Focus offset move for filter \"{}\" did not report completion before the timeout window",
-            filter_name
-        );
-        return;
+        return Err("focuser did not report completion before the timeout window".to_string());
     }
 
     let final_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
-            tracing::warn!(
-                "Failed to verify final focuser position after applying filter offset for \"{}\": {}",
-                filter_name,
-                e
-            );
-            return;
+            return Err(format!("failed to verify final focuser position: {}", e));
         }
     };
 
     if final_pos != target_pos {
-        tracing::warn!(
-            "Filter offset for \"{}\" could not be verified (target {}, actual {})",
-            filter_name,
-            target_pos,
-            final_pos
-        );
-        return;
+        return Err(format!(
+            "target focuser position {} but actual position is {}",
+            target_pos, final_pos
+        ));
     }
 
     if let Some(cb) = progress_callback {
@@ -2152,6 +2189,7 @@ async fn apply_filter_focus_offset(
         current_pos,
         final_pos
     );
+    Ok(())
 }
 
 // =============================================================================

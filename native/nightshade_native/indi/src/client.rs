@@ -82,9 +82,7 @@ fn make_jitter_rng(host: &str, port: u16) -> JitterRng {
     // Why: rotate before XOR so identical hosts in the same nanosecond still
     // diverge via the per-process counter — otherwise XOR of equal halves
     // cancels and the seed collapses to the counter alone.
-    let seed = host_hash
-        ^ now_nanos.rotate_left(17)
-        ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    let seed = host_hash ^ now_nanos.rotate_left(17) ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15);
 
     Arc::new(StdMutex::new(fastrand::Rng::with_seed(seed)))
 }
@@ -101,9 +99,7 @@ fn jitter_sample(rng: &JitterRng) -> f64 {
     match rng.lock() {
         Ok(mut guard) => guard.f64(),
         Err(poisoned) => {
-            tracing::warn!(
-                "INDI jitter RNG mutex poisoned; using fresh PRNG for this sample"
-            );
+            tracing::warn!("INDI jitter RNG mutex poisoned; using fresh PRNG for this sample");
             // Recover the inner Rng so subsequent calls continue using the
             // per-instance stream instead of permanently degrading.
             let mut guard = poisoned.into_inner();
@@ -1063,8 +1059,8 @@ impl IndiClient {
                                 // INDI convention is to assume `Idle`/`rw` until a subsequent
                                 // set*Vector element carries an explicit value — which our reader
                                 // applies via `parse_state` / `parse_perm` on the next message.
-                                let state_str = get_attribute(e, "state")
-                                    .unwrap_or_else(|| "Idle".to_string());
+                                let state_str =
+                                    get_attribute(e, "state").unwrap_or_else(|| "Idle".to_string());
                                 let state = parse_state(&state_str);
 
                                 let perm_str =
@@ -1138,8 +1134,7 @@ impl IndiClient {
                                     let limits = NumberLimits {
                                         min: get_attribute(e, "min").and_then(|s| s.parse().ok()),
                                         max: get_attribute(e, "max").and_then(|s| s.parse().ok()),
-                                        step: get_attribute(e, "step")
-                                            .and_then(|s| s.parse().ok()),
+                                        step: get_attribute(e, "step").and_then(|s| s.parse().ok()),
                                         format: get_attribute(e, "format"),
                                     };
 
@@ -1409,9 +1404,8 @@ impl IndiClient {
                                     String::from_utf8_lossy(&popped.tag)
                                 )));
 
-                                if let Some(match_idx) = xml_stack
-                                    .iter()
-                                    .rposition(|f| f.tag.as_slice() == end_name)
+                                if let Some(match_idx) =
+                                    xml_stack.iter().rposition(|f| f.tag.as_slice() == end_name)
                                 {
                                     // Drop everything above (and including) the matched
                                     // frame to re-establish a consistent depth.
@@ -1428,8 +1422,7 @@ impl IndiClient {
                                 // frame so we always use the device/property that THIS frame
                                 // established, not whatever sibling frames may have set.
                                 if let (Some(dev), Some(prop)) = (popped.device, popped.property) {
-                                    let _ = event_tx
-                                        .send(IndiEvent::PropertyUpdated(dev, prop));
+                                    let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
                                 }
                             }
 
@@ -2648,11 +2641,7 @@ mod tests {
 
         // Sanity: samples must be in [0, 1) per fastrand::Rng::f64 contract.
         for s in samples_a.iter().chain(samples_b.iter()) {
-            assert!(
-                (0.0..1.0).contains(s),
-                "jitter sample {} outside [0, 1)",
-                s
-            );
+            assert!((0.0..1.0).contains(s), "jitter sample {} outside [0, 1)", s);
         }
     }
 
@@ -2806,15 +2795,39 @@ mod tests {
         let rng = make_jitter_rng("test", 7624);
 
         // Test exponential growth
-        assert_eq!(config.calculate_restart_delay(1, &rng), Duration::from_secs(1));
-        assert_eq!(config.calculate_restart_delay(2, &rng), Duration::from_secs(2));
-        assert_eq!(config.calculate_restart_delay(3, &rng), Duration::from_secs(4));
-        assert_eq!(config.calculate_restart_delay(4, &rng), Duration::from_secs(8));
-        assert_eq!(config.calculate_restart_delay(5, &rng), Duration::from_secs(16));
-        assert_eq!(config.calculate_restart_delay(6, &rng), Duration::from_secs(32));
+        assert_eq!(
+            config.calculate_restart_delay(1, &rng),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(2, &rng),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(3, &rng),
+            Duration::from_secs(4)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(4, &rng),
+            Duration::from_secs(8)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(5, &rng),
+            Duration::from_secs(16)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(6, &rng),
+            Duration::from_secs(32)
+        );
         // Should cap at max
-        assert_eq!(config.calculate_restart_delay(7, &rng), Duration::from_secs(60));
-        assert_eq!(config.calculate_restart_delay(10, &rng), Duration::from_secs(60));
+        assert_eq!(
+            config.calculate_restart_delay(7, &rng),
+            Duration::from_secs(60)
+        );
+        assert_eq!(
+            config.calculate_restart_delay(10, &rng),
+            Duration::from_secs(60)
+        );
     }
 
     #[tokio::test]
@@ -3488,11 +3501,7 @@ mod tests {
         // First block parses cleanly.
         assert_eq!(
             values
-                .get(&(
-                    "DevA".to_string(),
-                    "PropA".to_string(),
-                    "X".to_string()
-                ))
+                .get(&("DevA".to_string(), "PropA".to_string(), "X".to_string()))
                 .map(String::as_str),
             Some("1.0")
         );
@@ -3513,11 +3522,7 @@ mod tests {
         // and continues. Either path must yield DevC's value.
         assert_eq!(
             values
-                .get(&(
-                    "DevC".to_string(),
-                    "PropC".to_string(),
-                    "Z".to_string()
-                ))
+                .get(&("DevC".to_string(), "PropC".to_string(), "Z".to_string()))
                 .map(String::as_str),
             Some("3.0"),
             "parser failed to recover after malformed block; events={:?}",

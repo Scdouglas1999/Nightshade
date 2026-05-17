@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-05-16T18:01:42.531047Z",
+  "generatedAtUtc": "2026-05-16T22:16:17.484704Z",
   "analyzerExitCode": 2,
   "policyPath": "docs/production-readiness/analyzer-policy.yaml",
   "policy": {
@@ -28,12 +28,12 @@
     "all": {
       "errors": 0,
       "warnings": 6,
-      "infos": 276
+      "infos": 286
     },
     "production": {
       "errors": 0,
       "warnings": 0,
-      "infos": 234
+      "infos": 233
     },
     "criticalWarnings": 0,
     "failed": false
@@ -88,7 +88,7 @@
       "type": "LINT",
       "code": "UNAWAITED_FUTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\apps\\\\mobile\\\\lib\\\\main.dart",
-      "line": 40,
+      "line": 36,
       "column": 18,
       "length": 22,
       "message": "Missing an 'await' for the 'Future' computed by this expression."
@@ -112,6 +112,16 @@
       "column": 9,
       "length": 14,
       "message": "Library names are not necessary."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_app\\\\lib\\\\screens\\\\equipment\\\\tabs\\\\settings_tab.dart",
+      "line": 241,
+      "column": 23,
+      "length": 41,
+      "message": "Statements in an if should be enclosed in a block."
     },
     {
       "severity": "INFO",
@@ -748,7 +758,7 @@
       "type": "HINT",
       "code": "DEPRECATED_MEMBER_USE_FROM_SAME_PACKAGE",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\nightshade_core.dart",
-      "line": 113,
+      "line": 118,
       "column": 1,
       "length": 137,
       "message": "'package:nightshade_core/src/providers/annotation_presets_provider.dart' is deprecated and shouldn't be used. Use annotation_settings_provider.dart for annotation presets. This file remains as a compatibility facade."
@@ -818,7 +828,7 @@
       "type": "LINT",
       "code": "AWAIT_ONLY_FUTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\ffi_backend.dart",
-      "line": 2280,
+      "line": 2282,
       "column": 24,
       "length": 5,
       "message": "Uses 'await' on an instance of 'Uint8List', which is not a subtype of 'Future'."
@@ -828,7 +838,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2893,
+      "line": 2892,
       "column": 7,
       "length": 66,
       "message": "Statements in an if should be enclosed in a block."
@@ -838,7 +848,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2895,
+      "line": 2894,
       "column": 7,
       "length": 62,
       "message": "Statements in an if should be enclosed in a block."
@@ -848,7 +858,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2906,
+      "line": 2905,
       "column": 7,
       "length": 66,
       "message": "Statements in an if should be enclosed in a block."
@@ -858,7 +868,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2908,
+      "line": 2907,
       "column": 7,
       "length": 62,
       "message": "Statements in an if should be enclosed in a block."
@@ -868,7 +878,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2977,
+      "line": 2976,
       "column": 7,
       "length": 65,
       "message": "Statements in an if should be enclosed in a block."
@@ -878,7 +888,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\backend\\\\network_backend.dart",
-      "line": 2979,
+      "line": 2978,
       "column": 7,
       "length": 46,
       "message": "Statements in an if should be enclosed in a block."
@@ -1298,7 +1308,7 @@
       "type": "LINT",
       "code": "UNNECESSARY_OVERRIDES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\models\\\\sequence\\\\sequence_models.dart",
-      "line": 1379,
+      "line": 1387,
       "column": 21,
       "length": 5,
       "message": "Unnecessary override."
@@ -1408,7 +1418,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\framing_provider.dart",
-      "line": 1667,
+      "line": 1703,
       "column": 7,
       "length": 25,
       "message": "Statements in an if should be enclosed in a block."
@@ -1418,7 +1428,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\framing_provider.dart",
-      "line": 1669,
+      "line": 1705,
       "column": 7,
       "length": 26,
       "message": "Statements in an if should be enclosed in a block."
@@ -1436,19 +1446,9 @@
     {
       "severity": "INFO",
       "type": "LINT",
-      "code": "PREFER_CONST_DECLARATIONS",
-      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence\\\\sequence_executor.dart",
-      "line": 652,
-      "column": 7,
-      "length": 32,
-      "message": "Use 'const' for final variables initialized to a constant value."
-    },
-    {
-      "severity": "INFO",
-      "type": "LINT",
       "code": "UNAWAITED_FUTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence\\\\sequence_executor.dart",
-      "line": 1265,
+      "line": 1285,
       "column": 31,
       "length": 6,
       "message": "Missing an 'await' for the 'Future' computed by this expression."
@@ -1458,7 +1458,7 @@
       "type": "LINT",
       "code": "UNAWAITED_FUTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\sequence\\\\sequence_executor.dart",
-      "line": 1277,
+      "line": 1298,
       "column": 46,
       "length": 10,
       "message": "Missing an 'await' for the 'Future' computed by this expression."
@@ -1478,7 +1478,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1219,
+      "line": 1224,
       "column": 7,
       "length": 54,
       "message": "Statements in an if should be enclosed in a block."
@@ -1488,7 +1488,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1221,
+      "line": 1226,
       "column": 7,
       "length": 54,
       "message": "Statements in an if should be enclosed in a block."
@@ -1498,7 +1498,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1886,
+      "line": 1890,
       "column": 7,
       "length": 60,
       "message": "Statements in an if should be enclosed in a block."
@@ -1508,7 +1508,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1888,
+      "line": 1892,
       "column": 7,
       "length": 54,
       "message": "Statements in an if should be enclosed in a block."
@@ -1518,7 +1518,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1984,
+      "line": 1988,
       "column": 7,
       "length": 60,
       "message": "Statements in an if should be enclosed in a block."
@@ -1528,7 +1528,7 @@
       "type": "LINT",
       "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 1987,
+      "line": 1991,
       "column": 7,
       "length": 57,
       "message": "Statements in an if should be enclosed in a block."
@@ -1538,10 +1538,20 @@
       "type": "LINT",
       "code": "PREFER_CONST_DECLARATIONS",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
-      "line": 2159,
+      "line": 2177,
       "column": 5,
       "length": 31,
       "message": "Use 'const' for final variables initialized to a constant value."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "CURLY_BRACES_IN_FLOW_CONTROL_STRUCTURES",
+      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\providers\\\\settings_provider.dart",
+      "line": 2215,
+      "column": 7,
+      "length": 51,
+      "message": "Statements in an if should be enclosed in a block."
     },
     {
       "severity": "INFO",
@@ -1678,7 +1688,7 @@
       "type": "LINT",
       "code": "PREFER_CONST_DECLARATIONS",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler\\\\scheduler_engine.dart",
-      "line": 940,
+      "line": 949,
       "column": 5,
       "length": 25,
       "message": "Use 'const' for final variables initialized to a constant value."
@@ -1688,7 +1698,7 @@
       "type": "LINT",
       "code": "PREFER_CONST_DECLARATIONS",
       "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\scheduler\\\\scheduler_engine.dart",
-      "line": 1061,
+      "line": 1068,
       "column": 5,
       "length": 40,
       "message": "Use 'const' for final variables initialized to a constant value."
@@ -1801,26 +1811,6 @@
       "line": 171,
       "column": 5,
       "length": 24,
-      "message": "Use 'const' for final variables initialized to a constant value."
-    },
-    {
-      "severity": "INFO",
-      "type": "LINT",
-      "code": "PREFER_CONST_DECLARATIONS",
-      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\sequence_time_estimator.dart",
-      "line": 477,
-      "column": 7,
-      "length": 62,
-      "message": "Use 'const' for final variables initialized to a constant value."
-    },
-    {
-      "severity": "INFO",
-      "type": "LINT",
-      "code": "PREFER_CONST_DECLARATIONS",
-      "file": "C:\\\\Users\\\\scdou\\\\Documents\\\\Nightshade2\\\\packages\\\\nightshade_core\\\\lib\\\\src\\\\services\\\\sequence_time_estimator.dart",
-      "line": 513,
-      "column": 7,
-      "length": 22,
       "message": "Use 'const' for final variables initialized to a constant value."
     },
     {

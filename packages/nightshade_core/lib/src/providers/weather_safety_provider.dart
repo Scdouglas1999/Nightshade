@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weather/weather_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/settings/app_settings.dart';
+import '../services/scheduler/sky_calculations.dart';
 import 'weather_providers.dart';
 import 'equipment_provider.dart';
 import 'settings_provider.dart';
 import 'ui_notification_provider.dart';
+import 'backend_provider.dart';
 
 /// Weather safety status for sequencer integration
 enum WeatherSafetyStatus {
@@ -134,9 +136,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   StreamSubscription? _alertSubscription;
   Timer? _snoozeTimer;
   Timer? _periodicEvalTimer;
+  bool _resumeInFlight = false;
 
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
+  static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
 
   WeatherSafetyNotifier(this._ref) : super(WeatherSafetyState.initial()) {
     _subscribeToAlerts();
@@ -160,6 +164,9 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     final weatherSettings = _ref.read(weatherSettingsProvider);
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
     final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
+    final parkPolicyEnabled = appSettings?.parkOnUnsafeWeather ?? true;
+    final shouldAutoPark = parkPolicyEnabled && weatherSettings.autoParkEnabled;
+    final dawnParkDue = _isParkBeforeDawnDue(appSettings);
     var shouldShowFailModeWarning = false;
 
     // Get hardware weather device state
@@ -220,6 +227,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     WeatherSafetyStatus finalStatus;
     WeatherSafetyActions finalActions;
 
+    final previousStatus = state.status;
+
     if (state.status == WeatherSafetyStatus.snoozed &&
         state.snoozeUntil != null &&
         DateTime.now().isBefore(state.snoozeUntil!)) {
@@ -237,7 +246,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
           finalStatus = WeatherSafetyStatus.unsafe;
           finalActions = WeatherSafetyActions(
             shouldPause: true,
-            shouldPark: weatherSettings.autoParkEnabled,
+            shouldPark: shouldAutoPark,
             reason: failModeWarning,
           );
           break;
@@ -270,10 +279,20 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.unsafe;
       finalActions = WeatherSafetyActions(
         shouldPause: true,
-        shouldPark: weatherSettings.autoParkEnabled,
+        shouldPark: shouldAutoPark,
         shouldCloseDome: _shouldCloseDome(currentAlert),
         reason: reason,
         resumeCheckTime: currentAlert?.eta?.add(const Duration(minutes: 15)),
+      );
+    }
+
+    if (dawnParkDue && finalStatus == WeatherSafetyStatus.safe) {
+      finalStatus = WeatherSafetyStatus.unsafe;
+      finalActions = WeatherSafetyActions(
+        shouldPause: true,
+        shouldPark: shouldAutoPark,
+        shouldCloseDome: shouldAutoPark,
+        reason: 'Astronomical dawn is approaching',
       );
     }
 
@@ -298,6 +317,56 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
               duration: const Duration(seconds: 10),
             );
       });
+    }
+
+    if (previousStatus == WeatherSafetyStatus.unsafe &&
+        finalStatus == WeatherSafetyStatus.safe &&
+        weatherSettings.autoResumeEnabled) {
+      unawaited(_autoResumeAfterWeatherClear());
+    }
+  }
+
+  bool _isParkBeforeDawnDue(AppSettingsState? appSettings) {
+    if (appSettings == null || !appSettings.parkBeforeDawn) return false;
+    final now = DateTime.now();
+    final twilight = SkyCalculations.computeTwilight(
+      noonLocal: DateTime(now.year, now.month, now.day, 12),
+      latitudeDegrees: appSettings.latitude,
+      longitudeDegrees: appSettings.longitude,
+      kind: TwilightKind.astronomical,
+    );
+    final dawn = twilight.morningStart?.toLocal();
+    if (dawn == null || now.isAfter(dawn)) return false;
+    return dawn.difference(now) <= _parkBeforeDawnLeadTime;
+  }
+
+  Future<void> _autoResumeAfterWeatherClear() async {
+    if (_resumeInFlight) return;
+    _resumeInFlight = true;
+    try {
+      final backend = _ref.read(backendProvider);
+      final mount = _ref.read(mountStateProvider);
+      if (mount.connectionState == DeviceConnectionState.connected &&
+          mount.deviceId != null &&
+          mount.isParked) {
+        await backend.mountUnpark(mount.deviceId!);
+      }
+      await backend.sequencerResume();
+      if (!mounted) return;
+      _ref.read(uiNotificationProvider.notifier).showInfo(
+            'Weather is safe again; sequence resume was requested.',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 8),
+          );
+    } catch (e) {
+      if (!mounted) return;
+      _ref.read(uiNotificationProvider.notifier).showWarning(
+            'Weather cleared, but automatic resume failed: $e',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 10),
+          );
+    } finally {
+      _resumeInFlight = false;
     }
   }
 

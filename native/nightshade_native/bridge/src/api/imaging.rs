@@ -874,8 +874,8 @@ pub(crate) fn generate_simulated_image(
     // Why: simulation code; width/height are u32 inputs from a controlled test path
     // (`generate_simulated_exposure_data` is only invoked with small fake-camera sizes
     // <= ~16M pixels). Promote to u64 anyway for overflow safety.
-    let pixel_count = usize::try_from((width as u64).saturating_mul(height as u64))
-        .unwrap_or(usize::MAX);
+    let pixel_count =
+        usize::try_from((width as u64).saturating_mul(height as u64)).unwrap_or(usize::MAX);
 
     // Create raw 16-bit image data
     let mut raw_data: Vec<u16> = vec![0u16; pixel_count];
@@ -2931,7 +2931,6 @@ pub fn api_generate_fits_thumbnail(
     Ok(jpeg_data)
 }
 
-
 /// Apply Auto White Balance using Histogram Peak Alignment
 /// This aligns the background sky peak of R and B channels to the G channel
 pub(crate) fn apply_auto_white_balance(image: &mut [u16]) {
@@ -3413,7 +3412,9 @@ pub struct ApiLiveStackingResult {
     pub stats: ApiLiveStackingStats,
 }
 
-pub(crate) fn convert_config(config: ApiLiveStackingConfig) -> crate::stacking_api::LiveStackingConfigApi {
+pub(crate) fn convert_config(
+    config: ApiLiveStackingConfig,
+) -> crate::stacking_api::LiveStackingConfigApi {
     crate::stacking_api::LiveStackingConfigApi {
         sigma_clip_enabled: config.sigma_clip_enabled,
         sigma_clip_threshold: config.sigma_clip_threshold,
@@ -3424,7 +3425,9 @@ pub(crate) fn convert_config(config: ApiLiveStackingConfig) -> crate::stacking_a
     }
 }
 
-pub(crate) fn convert_stats(stats: crate::stacking_api::LiveStackingStatsApi) -> ApiLiveStackingStats {
+pub(crate) fn convert_stats(
+    stats: crate::stacking_api::LiveStackingStatsApi,
+) -> ApiLiveStackingStats {
     ApiLiveStackingStats {
         stacked_frame_count: stats.stacked_frame_count,
         total_frames_attempted: stats.total_frames_attempted,

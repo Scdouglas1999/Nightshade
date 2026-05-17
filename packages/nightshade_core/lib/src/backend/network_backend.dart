@@ -176,10 +176,8 @@ class NetworkBackend implements NightshadeBackend {
     if (_connectionState != newState) {
       _connectionState = newState;
       _connectionStateController.add(newState);
-      developer.log(
-          '[NetworkBackend] Connection state changed to: $newState',
-          name: 'NetworkBackend',
-          level: 800);
+      developer.log('[NetworkBackend] Connection state changed to: $newState',
+          name: 'NetworkBackend', level: 800);
     }
   }
 
@@ -208,8 +206,9 @@ class NetworkBackend implements NightshadeBackend {
           RemoteApiCompatibility.clientApiVersion.format(),
       _requestIdHeader: _nextRequestId('compat'),
     };
-    final response =
-        await _http.get(uri, headers: headers).timeout(const Duration(seconds: 3));
+    final response = await _http
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 3));
     if (response.statusCode != 200) {
       throw HttpException(
         'GET /api/info failed with HTTP ${response.statusCode}',
@@ -406,11 +405,8 @@ class NetworkBackend implements NightshadeBackend {
           'timestamp': DateTime.now().toUtc().toIso8601String(),
         }));
       } catch (e) {
-        developer.log(
-            '[NetworkBackend] Failed to send WebSocket heartbeat: $e',
-            name: 'NetworkBackend',
-            level: 900,
-            error: e);
+        developer.log('[NetworkBackend] Failed to send WebSocket heartbeat: $e',
+            name: 'NetworkBackend', level: 900, error: e);
         _handleConnectionFailure();
       }
     });
@@ -2174,6 +2170,7 @@ class NetworkBackend implements NightshadeBackend {
     int? offset,
     double? solveTimeout,
     bool? startFromCurrent,
+    double? autoCompleteThreshold,
   }) async {
     await _post('polar-alignment/start', {
       'exposure_time': exposureTime,
@@ -2186,6 +2183,8 @@ class NetworkBackend implements NightshadeBackend {
       if (offset != null) 'offset': offset,
       if (solveTimeout != null) 'solve_timeout': solveTimeout,
       if (startFromCurrent != null) 'start_from_current': startFromCurrent,
+      if (autoCompleteThreshold != null)
+        'auto_complete_threshold': autoCompleteThreshold,
     });
   }
 

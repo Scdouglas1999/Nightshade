@@ -679,22 +679,18 @@ impl AlpacaCamera {
         // bug. `u32::try_from` surfaces that as a structured error rather
         // than wrapping into a giant u32 that would propagate through
         // pixel-count math.
-        let width = u32::try_from(
-            self.num_x().await.map_err(AlpacaError::OperationFailed)?,
-        )
-        .map_err(|_| {
-            AlpacaError::OperationFailed(
-                "NumX returned negative subframe width; ASCOM camera bug".to_string(),
-            )
-        })?;
-        let height = u32::try_from(
-            self.num_y().await.map_err(AlpacaError::OperationFailed)?,
-        )
-        .map_err(|_| {
-            AlpacaError::OperationFailed(
-                "NumY returned negative subframe height; ASCOM camera bug".to_string(),
-            )
-        })?;
+        let width = u32::try_from(self.num_x().await.map_err(AlpacaError::OperationFailed)?)
+            .map_err(|_| {
+                AlpacaError::OperationFailed(
+                    "NumX returned negative subframe width; ASCOM camera bug".to_string(),
+                )
+            })?;
+        let height = u32::try_from(self.num_y().await.map_err(AlpacaError::OperationFailed)?)
+            .map_err(|_| {
+                AlpacaError::OperationFailed(
+                    "NumY returned negative subframe height; ASCOM camera bug".to_string(),
+                )
+            })?;
 
         // Why: at minimum 10MB/s network speed plus extra margin; the configured
         // very-long timeout (camera preset = 15 min) covers a 24 MP frame in
@@ -1753,7 +1749,7 @@ pub(crate) fn parse_image_bytes(
                 rank: i64::from(other),
                 image_type: i64::from(header.image_element_type),
                 reason: "only rank 2 (mono) and rank 3 (color) are supported".to_string(),
-            })
+            });
         }
     };
 
@@ -2293,10 +2289,10 @@ mod image_bytes_tests {
             IMAGE_BYTES_HEADER_SIZE as i32,
             8,
             8,
-            2,    // rank 2
-            2,    // dim1
-            2,    // dim2
-            3,    // dim3 > 1 — inconsistent with rank=2
+            2, // rank 2
+            2, // dim1
+            2, // dim2
+            3, // dim3 > 1 — inconsistent with rank=2
             &[],
             &[0u8; 8],
         );
@@ -2395,18 +2391,7 @@ mod image_bytes_tests {
     #[test]
     fn data_start_inside_header_errors() {
         // DataStart < 44 is a protocol violation.
-        let payload = build_payload(
-            0,
-            10,
-            8,
-            8,
-            2,
-            1,
-            1,
-            0,
-            &[],
-            &[0u8, 0],
-        );
+        let payload = build_payload(0, 10, 8, 8, 2, 1, 1, 0, &[], &[0u8, 0]);
         let err = parse_image_bytes(&payload, 1, 1).expect_err("DataStart < header must error");
         assert!(matches!(err, AlpacaError::ParseError(_)));
     }

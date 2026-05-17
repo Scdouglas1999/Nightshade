@@ -2042,6 +2042,7 @@ class FfiBackend implements NightshadeBackend {
     int? offset,
     double? solveTimeout,
     bool? startFromCurrent,
+    double? autoCompleteThreshold,
   }) async {
     await bridge_api.apiStartPolarAlignment(
       exposureTime: exposureTime,
@@ -2054,6 +2055,7 @@ class FfiBackend implements NightshadeBackend {
       offset: offset,
       solveTimeout: solveTimeout,
       startFromCurrent: startFromCurrent,
+      autoCompleteThreshold: autoCompleteThreshold,
     );
   }
 

@@ -71,16 +71,31 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     }
   }
 
-  String _getFailModeDescription(SafetyFailMode _) {
-    return 'Treat unavailable safety data as unsafe and park/pause equipment';
+  String _getFailModeDescription(SafetyFailMode mode) {
+    return switch (mode) {
+      SafetyFailMode.failClosed =>
+        'Treat unavailable safety data as unsafe and park/pause equipment',
+      SafetyFailMode.failOpen =>
+        'Treat unavailable safety data as safe and continue operations',
+      SafetyFailMode.warnOnly =>
+        'Continue operations and show a warning when safety data is unavailable',
+    };
   }
 
-  String _failModeToString(SafetyFailMode _) {
-    return 'Fail Closed (Park)';
+  String _failModeToString(SafetyFailMode mode) {
+    return switch (mode) {
+      SafetyFailMode.failClosed => 'Fail Closed (Park)',
+      SafetyFailMode.failOpen => 'Fail Open (Continue)',
+      SafetyFailMode.warnOnly => 'Warn Only',
+    };
   }
 
-  SafetyFailMode _stringToFailMode(String _) {
-    return SafetyFailMode.failClosed;
+  SafetyFailMode _stringToFailMode(String value) {
+    return switch (value) {
+      'Fail Open (Continue)' => SafetyFailMode.failOpen,
+      'Warn Only' => SafetyFailMode.warnOnly,
+      _ => SafetyFailMode.failClosed,
+    };
   }
 
   Widget _buildMeridianFlipSection(MeridianFlipSettings flipSettings) {
@@ -417,7 +432,11 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: _getFailModeDescription(settings.safetyFailMode),
                   trailing: SettingsDropdown(
                     value: _failModeToString(settings.safetyFailMode),
-                    items: const ['Fail Closed (Park)'],
+                    items: const [
+                      'Fail Closed (Park)',
+                      'Fail Open (Continue)',
+                      'Warn Only',
+                    ],
                     onChanged: (value) {
                       if (value != null) {
                         ref

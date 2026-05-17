@@ -65,6 +65,40 @@ class SequenceToolbar extends ConsumerWidget {
                 builder: (_) => const QuickStartWizardDialog(),
               );
 
+          List<ExposureTriggerConfig> currentExposureTriggers() {
+            final exposureNodes =
+                sequence?.nodes.values.whereType<ExposureNode>();
+            final exposureNode = exposureNodes == null || exposureNodes.isEmpty
+                ? null
+                : exposureNodes.first;
+            if (exposureNode == null) return const [];
+            return exposureNode.triggers
+                .map(ExposureTriggerConfig.fromNativeJson)
+                .toList(growable: false);
+          }
+
+          Future<void> openExposureTriggers() async {
+            final result = await showDialog<List<ExposureTriggerConfig>>(
+              context: context,
+              builder: (_) => TriggerConfigurationDialog(
+                initialTriggers: currentExposureTriggers(),
+              ),
+            );
+            if (result == null) return;
+
+            final nativeTriggers =
+                result.map((trigger) => trigger.toNativeJson()).toList();
+            final current = ref.read(currentSequenceProvider);
+            if (current == null) return;
+            final notifier = ref.read(currentSequenceProvider.notifier);
+            for (final node in current.nodes.values.whereType<ExposureNode>()) {
+              notifier.updateNode(node.copyWith(triggers: nativeTriggers));
+            }
+            if (context.mounted) {
+              context.showSuccessSnackBar('Exposure triggers saved');
+            }
+          }
+
           Future<void> openSequenceFile() async {
             try {
               final fileService = ref.read(sequenceFileServiceProvider);
@@ -97,8 +131,7 @@ class SequenceToolbar extends ConsumerWidget {
               final fileService = ref.read(sequenceFileServiceProvider);
               await fileService.exportSequence(current);
               if (context.mounted) {
-                context.showSuccessSnackBar(
-                    'Sequence "${current.name}" saved');
+                context.showSuccessSnackBar('Sequence "${current.name}" saved');
               }
             } catch (e) {
               if (context.mounted) {
@@ -117,8 +150,8 @@ class SequenceToolbar extends ConsumerWidget {
                 targetGroup.decDegrees,
               );
               if (context.mounted) {
-                context.showInfoSnackBar(
-                    'Slewing to ${targetGroup.targetName}');
+                context
+                    .showInfoSnackBar('Slewing to ${targetGroup.targetName}');
               }
             } catch (e) {
               if (context.mounted) {
@@ -163,10 +196,7 @@ class SequenceToolbar extends ConsumerWidget {
             _ToolbarAction(
               icon: LucideIcons.bellRing,
               label: 'Exposure Triggers',
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const TriggerConfigurationDialog(),
-              ),
+              onPressed: openExposureTriggers,
             ),
             const _ToolbarAction.divider(),
             if (sequence != null && sequence.targetHeaders.isNotEmpty)
@@ -217,7 +247,6 @@ class SequenceToolbar extends ConsumerWidget {
                 onSkip: () => runSequenceAction(actionService.skip),
                 onReset: actionService.reset,
               ),
-
               if (!isCompact) ...[
                 for (final a in actions) ...[
                   if (a.isDivider) ...[
@@ -238,20 +267,16 @@ class SequenceToolbar extends ConsumerWidget {
                 const SizedBox(width: 12),
                 _ToolbarOverflowMenu(colors: colors, actions: actions),
               ],
-
               const Spacer(),
-
               if (sequence != null) ...[
                 _SequenceTimeEstimate(colors: colors, sequence: sequence),
                 const SizedBox(width: 16),
               ],
-
               if (!isCompact)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: EquipmentStatusWidget(colors: colors),
                 ),
-
               if (!isCompact)
                 Consumer(
                   builder: (context, ref, child) {
@@ -292,7 +317,6 @@ class SequenceToolbar extends ConsumerWidget {
                     );
                   },
                 ),
-
               _StatusBadge(
                 colors: colors,
                 executionState: executionState,

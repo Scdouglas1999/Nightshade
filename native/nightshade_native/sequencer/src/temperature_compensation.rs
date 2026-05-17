@@ -266,7 +266,8 @@ pub async fn execute_temperature_compensation(
                     // and any f64 precision artifact at the millisecond
                     // level is invisible to the user.
                     let move_progress = if config.timeout_secs > 0 {
-                        70.0 + ((elapsed_secs as f64 / f64::from(config.timeout_secs)) * 20.0).min(20.0)
+                        70.0 + ((elapsed_secs as f64 / f64::from(config.timeout_secs)) * 20.0)
+                            .min(20.0)
                     } else {
                         70.0
                     };

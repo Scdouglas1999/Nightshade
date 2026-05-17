@@ -893,10 +893,10 @@ impl NativeDevice for QhyCamera {
         // SAFETY: qhy_mutex held; handle valid (opened + initialized above); 16 is a documented
         // bit-depth value per qhyccd.h.
         let _ = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) }; // 16-bit mode
-        // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
+                                                                   // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
         let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
-        // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
-        // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
+                                                                   // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
+                                                                   // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
         let _ = unsafe {
             (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
         };

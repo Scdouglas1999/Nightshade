@@ -167,7 +167,10 @@ impl VCurveAutofocus {
         let best_hfr = filtered_points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .ok_or_else(|| "No valid HFR values found".to_string())?;
 
         Ok(AutofocusResult {
@@ -191,12 +194,18 @@ impl VCurveAutofocus {
         // for outlier rejection — unlike mean+stdev, it does not get
         // inflated by the very outliers we are trying to detect.
         let mut hfrs: Vec<f64> = points.iter().map(|p| p.hfr).collect();
-        hfrs.sort_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal));
+        hfrs.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let median = hfrs[hfrs.len() / 2];
 
         let mut deviations: Vec<f64> = hfrs.iter().map(|&h| (h - median).abs()).collect();
-        deviations.sort_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal));
+        deviations.sort_by(|a, b| {
+            a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let mad = deviations[deviations.len() / 2];
 
         // 1.4826 is the consistency constant that scales MAD to match the
@@ -309,7 +318,8 @@ impl VCurveAutofocus {
             .min_by(|a, b| {
                 a.hfr
                     .partial_cmp(&b.hfr)
-                    /* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal)
+                    /* §4.3: f64 NaN orders Equal — see module-level policy */
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .ok_or("No minimum found")?;
         Ok((min_point.position, 0.0))
@@ -431,7 +441,10 @@ impl VCurveAutofocus {
         let min_hfr = points
             .iter()
             .map(|p| p.hfr)
-            .min_by(|a, b| a.partial_cmp(b)/* §4.3: f64 NaN orders Equal — see module-level policy */ .unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.partial_cmp(b) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .ok_or_else(|| "No valid HFR values found for hyperbolic fit".to_string())?;
         let b = min_hfr;
         let mut prev_mean_residual: Option<f64> = None;

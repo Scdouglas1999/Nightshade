@@ -103,22 +103,6 @@ class GeneralSettings extends ConsumerWidget {
                 isMobile: isMobile,
               ),
               SettingRow(
-                icon: LucideIcons.save,
-                title: l10n.text('generalAutoSaveSequences'),
-                subtitle: l10n.text('generalAutoSaveSequencesDesc'),
-                trailing: SettingsSwitch(
-                  value: settings.autoSaveSequences,
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingsProvider.notifier)
-                        .setAutoSaveSequences(value);
-                  },
-                  colors: colors,
-                ),
-                colors: colors,
-                isMobile: isMobile,
-              ),
-              SettingRow(
                 icon: LucideIcons.alertTriangle,
                 title: l10n.text('generalConfirmBeforeClosing'),
                 subtitle: l10n.text('generalConfirmBeforeClosingDesc'),

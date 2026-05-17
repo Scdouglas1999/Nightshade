@@ -34,8 +34,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               icon: LucideIcons.sparkles,
               iconColor: colors.primary,
               title: 'First Night Walkthrough',
-              subtitle:
-                  '7-step guided wizard for your first imaging session — '
+              subtitle: '7-step guided wizard for your first imaging session — '
                   'connect, polar align, focus, frame, guide, sequence.',
               trailing: NightshadeButton(
                 label: 'Start',
@@ -49,9 +48,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 // "show me from the beginning". (Resume is the auto-open
                 // behavior, not what they asked for here.)
                 onPressed: () {
-                  ref
-                      .read(firstNightWizardProvider.notifier)
-                      .restart();
+                  ref.read(firstNightWizardProvider.notifier).restart();
                   context.go('/tutorial/first-night');
                 },
               ),
@@ -76,10 +73,24 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 // to pending. No route change needed — the overlay sits
                 // above the current screen.
                 onPressed: () async {
-                  await ref
-                      .read(onboardingTourProvider.notifier)
-                      .reset();
+                  await ref.read(onboardingTourProvider.notifier).reset();
                 },
+              ),
+              isLast: false,
+              colors: colors,
+            ),
+            SettingRow(
+              icon: LucideIcons.archive,
+              iconColor: colors.warning,
+              title: 'Generate Diagnostic Dump',
+              subtitle:
+                  'Package logs, settings, profile metadata, and system details for support.',
+              trailing: NightshadeButton(
+                label: 'Open',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                icon: LucideIcons.archive,
+                onPressed: () => context.go('/diagnostics/dump'),
               ),
               isLast: true,
               colors: colors,

@@ -307,6 +307,7 @@ class SequenceFileService {
           'offset': node.offset,
           'binning': node.binning.name,
           'ditherEvery': node.ditherEvery,
+          'triggers': node.triggers,
         },
       AutofocusNode() => <String, dynamic>{
           'method': node.method.name,
@@ -469,8 +470,7 @@ class SequenceFileService {
               (json['repeatUntilAltitude'] as num?)?.toDouble(),
           integrationTimeTarget:
               (json['integrationTimeTarget'] as num?)?.toDouble(),
-          maxSafetyIterations:
-              (json['maxSafetyIterations'] as num?)?.toInt(),
+          maxSafetyIterations: (json['maxSafetyIterations'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -576,6 +576,10 @@ class SequenceFileService {
           filterIndex: (json['filterIndex'] as num?)?.toInt(),
           binning: _parseBinningMode(json['binning']),
           ditherEvery: (json['ditherEvery'] as num?)?.toInt(),
+          triggers: ((json['triggers'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((trigger) => trigger.cast<String, dynamic>())
+              .toList(growable: false),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,

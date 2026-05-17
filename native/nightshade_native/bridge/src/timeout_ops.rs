@@ -277,10 +277,11 @@ where
     let timeout_duration = if let Some(current) = current_position {
         let distance = (target_position - current).abs();
         let full_travel_time = 120.0; // 120s for full travel
-        // Why (audit-rust §1.4): i32 → f64 widening, exact. The resulting
-        // timeout is clamped to [30, 180] seconds via min/max below, so
-        // any precision artifact is invisible.
-        let estimated_secs = (f64::from(distance) / f64::from(max_position)) * full_travel_time + 10.0;
+                                      // Why (audit-rust §1.4): i32 → f64 widening, exact. The resulting
+                                      // timeout is clamped to [30, 180] seconds via min/max below, so
+                                      // any precision artifact is invisible.
+        let estimated_secs =
+            (f64::from(distance) / f64::from(max_position)) * full_travel_time + 10.0;
         Duration::from_secs_f64(estimated_secs.max(30.0).min(180.0))
     } else {
         Timeouts::focuser_move()

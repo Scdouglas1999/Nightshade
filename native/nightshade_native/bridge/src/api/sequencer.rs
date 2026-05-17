@@ -777,24 +777,20 @@ pub async fn api_sequencer_set_devices(
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
-/// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
-/// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
+/// - "fail_closed": Treat unavailable safety data as unsafe
+/// - "fail_open": Treat unavailable safety data as safe
+/// - "warn_only": Preserve the previous safety state and emit a warning event
 pub async fn api_sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
     use nightshade_sequencer::SafetyFailMode;
 
     let mode_lower = mode.to_lowercase();
     let fail_mode = match mode_lower.as_str() {
         "fail_closed" | "failclosed" => SafetyFailMode::FailClosed,
-        "fail_open" | "failopen" | "warn_only" | "warnonly" => {
-            tracing::warn!(
-                "Safety fail mode '{}' requested, but strict fail-closed is enforced; using fail_closed",
-                mode
-            );
-            SafetyFailMode::FailClosed
-        }
+        "fail_open" | "failopen" => SafetyFailMode::FailOpen,
+        "warn_only" | "warnonly" => SafetyFailMode::WarnOnly,
         _ => {
             return Err(NightshadeError::InvalidParameter(format!(
-                "Invalid safety fail mode: '{}'. Must be 'fail_closed' (legacy aliases: 'fail_open', 'warn_only').",
+                "Invalid safety fail mode: '{}'. Must be 'fail_closed', 'fail_open', or 'warn_only'.",
                 mode
             )));
         }

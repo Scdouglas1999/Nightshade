@@ -267,11 +267,7 @@ pub async fn api_start_polar_alignment(
         // remain stuck `true` forever and the user could never restart it.
         // Clear the flag and surface the panic via the status channel.
         Some(|panic_msg: &str| {
-            emit_polar_status(
-                &format!("Polar alignment crashed: {panic_msg}"),
-                "error",
-                0,
-            );
+            emit_polar_status(&format!("Polar alignment crashed: {panic_msg}"), "error", 0);
             get_polar_align_flag().store(false, PolarOrdering::Relaxed);
         }),
     );
@@ -776,7 +772,10 @@ pub(crate) async fn run_polar_alignment(
 }
 
 /// Helper to write a temp FITS file for plate solving
-pub(crate) fn write_temp_fits_for_solve(image: &CapturedImageResult, path: &str) -> Result<(), String> {
+pub(crate) fn write_temp_fits_for_solve(
+    image: &CapturedImageResult,
+    path: &str,
+) -> Result<(), String> {
     use nightshade_imaging::{write_fits, FitsHeader, ImageData, PixelType};
     use std::path::Path;
 
@@ -961,8 +960,7 @@ pub async fn api_start_all_sky_polar_alignment(
     // algorithm is plate-solve-only by design.
     if !nightshade_imaging::is_solver_available() {
         return Err(NightshadeError::OperationFailed(
-            "Plate solver required — install ASTAP and re-run all-sky polar alignment"
-                .to_string(),
+            "Plate solver required — install ASTAP and re-run all-sky polar alignment".to_string(),
         ));
     }
 
@@ -1112,9 +1110,7 @@ pub async fn api_start_all_sky_polar_alignment(
                     "error",
                     0,
                 );
-                tracing::error!(
-                    "All-sky polar alignment aborted: plate solver not available"
-                );
+                tracing::error!("All-sky polar alignment aborted: plate solver not available");
             }
             Err(e) => {
                 emit_polar_status(&format!("Error: {}", e), "error", 0);

@@ -28,10 +28,10 @@ apps/desktop/lib/headless_api/handlers/filesystem_handlers.dart:129:    final pa
 apps/desktop/lib/headless_api/handlers/filesystem_handlers.dart:130:    final mustExist = optionalBool(payload, 'mustExist') ?? false;
 apps/desktop/lib/headless_api/handlers/filesystem_handlers.dart:131:    final mustBeWritable = optionalBool(payload, 'mustBeWritable') ?? false;
 apps/desktop/lib/headless_api/handlers/filesystem_handlers.dart:29:    _logInfo('[API] GET /api/files/browse?path=${requestedPath ?? ""}');
-apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:121:        iterations: optionalInt(entry, 'iterations') ?? 0,
-apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:134:    final onlySuccessful = optionalBool(payload, 'onlySuccessful') ?? false;
+apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:127:        iterations: optionalInt(entry, 'iterations') ?? 0,
+apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:140:    final onlySuccessful = optionalBool(payload, 'onlySuccessful') ?? false;
 apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:31:    final minExposure = optionalDouble(payload, 'minExposure') ?? 0.001;
-apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:67:    final minExposure = optionalDouble(payload, 'minExposure') ?? 0.001;
+apps/desktop/lib/headless_api/handlers/flat_wizard_handlers.dart:70:    final minExposure = optionalDouble(payload, 'minExposure') ?? 0.001;
 apps/desktop/lib/headless_api/handlers/focus_model_handlers.dart:127:      "dataPointCount": profileData?.dataPoints.length ?? 0,
 apps/desktop/lib/headless_api/handlers/focus_model_handlers.dart:129:      "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
 apps/desktop/lib/headless_api/handlers/focus_model_handlers.dart:185:        "dataPointCount": profileData?.dataPoints.length ?? 0,
@@ -101,10 +101,14 @@ apps/desktop/lib/screens/sequencer/tabs/targets_tab.dart:716:                   
 apps/desktop/lib/widgets/update_manager.dart:232:            version: currentState.availableUpdate?.version ?? '',
 apps/desktop/lib/widgets/update_manager.dart:255:      version: state.availableUpdate?.version ?? '',
 apps/desktop/lib/widgets/update_manager.dart:274:          version: state.availableUpdate?.version ?? '',
-apps/mobile/lib/services/mobile_preferences.dart:22:      _prefs.getBool(_kAndroidImmersiveSticky) ?? false;
-apps/mobile/lib/services/mobile_sequence_hooks.dart:141:  /// Toggle the iOS-only "honest banner" advisory. No-op on Android (where
-apps/mobile/lib/services/mobile_sequence_hooks.dart:221:          completedExposures ?? 0,
-apps/mobile/lib/services/notification_service.dart:360:    final body = data['body'] as String? ?? '';
+apps/mobile/lib/services/mobile_event_notifier.dart:248:        final message = event.data['message'] as String? ?? '';
+apps/mobile/lib/services/mobile_event_notifier.dart:263:        final status = event.data['status'] as String? ?? '';
+apps/mobile/lib/services/mobile_event_notifier.dart:285:        final nodeType = event.data['node_type'] as String? ?? '';
+apps/mobile/lib/services/mobile_event_notifier.dart:313:        final instruction = event.data['instruction'] as String? ?? '';
+apps/mobile/lib/services/mobile_preferences.dart:37:      _prefs.getBool(_kAndroidImmersiveSticky) ?? false;
+apps/mobile/lib/services/mobile_sequence_hooks.dart:191:  /// Toggle the iOS-only "honest banner" advisory. No-op on Android (where
+apps/mobile/lib/services/mobile_sequence_hooks.dart:271:          completedExposures ?? 0,
+apps/mobile/lib/services/notification_service.dart:639:    final body = data['body'] as String? ?? '';
 native/nightshade_native/alpaca/src/client.rs:1336:        let _ = TRANSACTION_ID.fetch_add(0, Ordering::SeqCst);
 native/nightshade_native/alpaca/src/client.rs:180:            // is a cosmetic placeholder inside the error payload so logs stay
 native/nightshade_native/alpaca/src/client.rs:421:        .unwrap_or_default()
@@ -132,84 +136,84 @@ native/nightshade_native/bridge/src/api/imaging.rs:40://    defaults are surface
 native/nightshade_native/bridge/src/api/init.rs:46:    let _ = get_state();
 native/nightshade_native/bridge/src/api/init.rs:49:    let _ = get_device_manager();
 native/nightshade_native/bridge/src/api/mod.rs:88:        .unwrap_or_default()
-native/nightshade_native/bridge/src/api/phd2.rs:133:    // Nightshade PHD2-settings UI placeholder values.
+native/nightshade_native/bridge/src/api/phd2.rs:134:    // Nightshade PHD2-settings UI placeholder values.
+native/nightshade_native/bridge/src/api/polar_alignment.rs:368:                let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/bridge/src/api/polar_alignment.rs:372:                let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:376:                let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:385:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:381:        let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:587:                    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/bridge/src/api/polar_alignment.rs:591:                    let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:595:                    let _ = std::fs::remove_file(&temp_path);
-native/nightshade_native/bridge/src/api/polar_alignment.rs:616:                    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/bridge/src/api/polar_alignment.rs:612:                    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/bridge/src/api/polar_alignment.rs:9://   and `image.height` are already u32; the `as u32` is a no-op widening
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1049:            // Best-effort hardware disconnect so the COM device is not left
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1058:                let _ = Self::recv_with_timeout(drx, Timeouts::connection(), "disconnect").await;
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1097:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1225:            .unwrap_or_default()
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1234:        let _ = self.get_capabilities().await?;
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1309:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1052:            // Best-effort hardware disconnect so the COM device is not left
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1061:                let _ = Self::recv_with_timeout(drx, Timeouts::connection(), "disconnect").await;
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1100:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1228:            .unwrap_or_default()
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1237:        let _ = self.get_capabilities().await?;
 native/nightshade_native/bridge/src/ascom_wrapper.rs:1312:                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1332:                let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1357:                let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1417:            Err("not implemented".to_string())
-native/nightshade_native/bridge/src/ascom_wrapper.rs:1425:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1315:                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1335:                let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1360:                let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1420:            Err("not implemented".to_string())
+native/nightshade_native/bridge/src/ascom_wrapper.rs:1428:            Err("not implemented".to_string())
 native/nightshade_native/bridge/src/ascom_wrapper.rs:1482:                let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:225:                            let _ = reply.send(cam.connect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:227:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:232:                            let _ = reply.send(cam.setup_dialog().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:234:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:245:                            let _ = reply.send(cam.disconnect().map_err(|e| e.to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:247:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:308:                            let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:310:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:323:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:330:                                    let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:340:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:347:                                    let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:361:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:394:                            let readout_modes = cam.readout_modes().unwrap_or_default();
-native/nightshade_native/bridge/src/ascom_wrapper.rs:426:                            let _ = reply.send(Ok(caps));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:428:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:448:                                    let _ = reply.send(Ok(()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:452:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper.rs:458:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:472:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:474:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:482:                                    let _ = reply.send(Ok(ready));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:486:                                    let _ = reply
-native/nightshade_native/bridge/src/ascom_wrapper.rs:491:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:508:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:519:                                    let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:582:                                    let _ = reply.send(Ok(image_data));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:587:                                    let _ =
-native/nightshade_native/bridge/src/ascom_wrapper.rs:593:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:608:                                        let _ = reply.send(Err(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:618:                                        let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:633:                                    let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:637:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:647:                                let _ = reply.send(Err(format!(
-native/nightshade_native/bridge/src/ascom_wrapper.rs:656:                                let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:659:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:668:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:670:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:679:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:681:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:690:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:692:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:710:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:712:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:735:                                    let _ = reply.send(Ok(status));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:739:                                    let _ = reply.send(Ok(CameraConnectionHealth::Degraded));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:743:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:748:                            let _ = reply.send(camera.interface_version());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:750:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:755:                            let _ = reply.send(camera.driver_version());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:757:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:762:                            let _ = reply.send(camera.driver_info());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:764:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:769:                            let _ = reply.send(camera.supported_actions());
-native/nightshade_native/bridge/src/ascom_wrapper.rs:771:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:785:                            let _ = reply.send(result);
-native/nightshade_native/bridge/src/ascom_wrapper.rs:787:                            let _ = reply.send(Err("Camera not created".to_string()));
-native/nightshade_native/bridge/src/ascom_wrapper.rs:799:            // `AscomDeviceConnection::Drop` is intentionally a no-op (see
+native/nightshade_native/bridge/src/ascom_wrapper.rs:228:                            let _ = reply.send(cam.connect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:230:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:235:                            let _ = reply.send(cam.setup_dialog().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:237:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:248:                            let _ = reply.send(cam.disconnect().map_err(|e| e.to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:250:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:311:                            let _ = reply.send(Ok(status));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:313:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:326:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:333:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:343:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:350:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:364:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:397:                            let readout_modes = cam.readout_modes().unwrap_or_default();
+native/nightshade_native/bridge/src/ascom_wrapper.rs:429:                            let _ = reply.send(Ok(caps));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:431:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:451:                                    let _ = reply.send(Ok(()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:455:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:461:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:475:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:477:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:485:                                    let _ = reply.send(Ok(ready));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:489:                                    let _ = reply
+native/nightshade_native/bridge/src/ascom_wrapper.rs:494:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:511:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:522:                                    let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:585:                                    let _ = reply.send(Ok(image_data));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:590:                                    let _ =
+native/nightshade_native/bridge/src/ascom_wrapper.rs:596:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:611:                                        let _ = reply.send(Err(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:621:                                        let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:636:                                    let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:640:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:650:                                let _ = reply.send(Err(format!(
+native/nightshade_native/bridge/src/ascom_wrapper.rs:659:                                let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:662:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:671:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:673:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:682:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:684:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:693:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:695:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:713:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:715:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:738:                                    let _ = reply.send(Ok(status));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:742:                                    let _ = reply.send(Ok(CameraConnectionHealth::Degraded));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:746:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:751:                            let _ = reply.send(camera.interface_version());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:753:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:758:                            let _ = reply.send(camera.driver_version());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:760:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:765:                            let _ = reply.send(camera.driver_info());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:767:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:772:                            let _ = reply.send(camera.supported_actions());
+native/nightshade_native/bridge/src/ascom_wrapper.rs:774:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:788:                            let _ = reply.send(result);
+native/nightshade_native/bridge/src/ascom_wrapper.rs:790:                            let _ = reply.send(Err("Camera not created".to_string()));
+native/nightshade_native/bridge/src/ascom_wrapper.rs:802:            // `AscomDeviceConnection::Drop` is intentionally a no-op (see
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:100:                        let _ = reply.send(cover_cal.calibrator_off());
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:103:                        let _ = reply.send(cover_cal.cover_state());
 native/nightshade_native/bridge/src/ascom_wrapper_covercalibrator.rs:106:                        let _ = reply.send(cover_cal.calibrator_state());
@@ -506,17 +510,17 @@ native/nightshade_native/bridge/src/device_manager/connection.rs:455:           
 native/nightshade_native/bridge/src/device_manager/connection.rs:462:                            let _ = sm.disconnect().await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:469:                            let _ = s.disconnect().await;
 native/nightshade_native/bridge/src/device_manager/connection.rs:476:                            let _ = c.disconnect().await;
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:309:                    let temp = camera.ccd_temperature().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:394:                        let _ = camera.enable_blob().await;
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:421:                        let temp = camera.get_temperature().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:630:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:678:                    let gain = camera.gain().await.ok();
-native/nightshade_native/bridge/src/device_manager/ops/camera.rs:679:                    let offset = camera.offset().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:317:                    let temp = camera.ccd_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:402:                        let _ = camera.enable_blob().await;
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:429:                        let temp = camera.get_temperature().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:638:                        let ascom_caps = camera_guard.get_capabilities().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:686:                    let gain = camera.gain().await.ok();
+native/nightshade_native/bridge/src/device_manager/ops/camera.rs:687:                    let offset = camera.offset().await.ok();
 native/nightshade_native/bridge/src/device_manager/ops/cover.rs:10://! - **i32 state → i32** (lines 275, 327, 489, 490): these are no-op
 native/nightshade_native/bridge/src/device_manager/ops/cover.rs:13://! - **i32 brightness → i32** (line 409): no-op widening; brightness is
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1320:                    // Unsupported for now so the sequencer refuses meridian flips.
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1596:                                let _ = mount.move_east(false).await;
-native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1616:                                let _ = mount.move_north(false).await;
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1349:                    // Unsupported for now so the sequencer refuses meridian flips.
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1625:                                let _ = mount.move_east(false).await;
+native/nightshade_native/bridge/src/device_manager/ops/mount.rs:1645:                                let _ = mount.move_north(false).await;
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:166:                    let interface_version = camera.interface_version().await.ok();
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:167:                    let driver_version = camera.driver_version().await.ok();
 native/nightshade_native/bridge/src/dispatch/alpaca.rs:168:                    let driver_info = camera.driver_info().await.ok();
@@ -637,66 +641,66 @@ native/nightshade_native/imaging/src/camera.rs:455:        let _ = self.event_tx
 native/nightshade_native/imaging/src/camera.rs:479:            let _ = self.event_tx.send(CaptureEvent::ExposureProgress {
 native/nightshade_native/imaging/src/camera.rs:490:        let _ = self
 native/nightshade_native/imaging/src/debayer.rs:372:                    // Some. Zero is the inert placeholder if a future refactor returned
-native/nightshade_native/imaging/src/defect_map.rs:805:        let _ = std::fs::remove_file(&path);
-native/nightshade_native/imaging/src/fits.rs:1408:            // Zero is the inert placeholder for the unreachable empty case.
-native/nightshade_native/imaging/src/fits.rs:2326:        let _ = std::fs::remove_file(&path);
-native/nightshade_native/imaging/src/fits.rs:2435:        let _ = std::fs::remove_file(&path);
-native/nightshade_native/imaging/src/fits.rs:2483:        let _ = std::fs::remove_file(&path);
-native/nightshade_native/imaging/src/fits.rs:2507:        let _ = std::fs::remove_file(&path);
-native/nightshade_native/imaging/src/platesolve.rs:1117:        let _ = sender.send(result);
-native/nightshade_native/imaging/src/platesolve.rs:1769:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
-native/nightshade_native/imaging/src/platesolve.rs:1793:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1822:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1850:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1876:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1899:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1919:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:1932:        let _ = std::fs::remove_file(path);
-native/nightshade_native/imaging/src/platesolve.rs:2082:        let _ = std::fs::remove_dir_all(&temp);
-native/nightshade_native/imaging/src/platesolve.rs:2104:        let _ = std::fs::remove_dir_all(&temp);
+native/nightshade_native/imaging/src/defect_map.rs:801:        let _ = std::fs::remove_file(&path);
+native/nightshade_native/imaging/src/fits.rs:1406:            // Zero is the inert placeholder for the unreachable empty case.
+native/nightshade_native/imaging/src/fits.rs:2324:        let _ = std::fs::remove_file(&path);
+native/nightshade_native/imaging/src/fits.rs:2431:        let _ = std::fs::remove_file(&path);
+native/nightshade_native/imaging/src/fits.rs:2477:        let _ = std::fs::remove_file(&path);
+native/nightshade_native/imaging/src/fits.rs:2501:        let _ = std::fs::remove_file(&path);
+native/nightshade_native/imaging/src/platesolve.rs:1115:        let _ = sender.send(result);
+native/nightshade_native/imaging/src/platesolve.rs:1764:        assert!(pixels.iter().copied().max().unwrap_or_default() > 5000);
+native/nightshade_native/imaging/src/platesolve.rs:1788:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1817:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1845:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1871:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1894:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1914:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:1927:        let _ = std::fs::remove_file(path);
+native/nightshade_native/imaging/src/platesolve.rs:2073:        let _ = std::fs::remove_dir_all(&temp);
+native/nightshade_native/imaging/src/platesolve.rs:2095:        let _ = std::fs::remove_dir_all(&temp);
 native/nightshade_native/imaging/src/raw.rs:13://! * The remaining sites (`user_sat.unwrap_or_default()`,
 native/nightshade_native/imaging/src/raw.rs:15://!   `max_memory_mb.unwrap_or_default()`) are all paired with a
-native/nightshade_native/imaging/src/raw.rs:496:            user_sat: params.user_sat.unwrap_or_default(),
-native/nightshade_native/imaging/src/raw.rs:512:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
-native/nightshade_native/imaging/src/raw.rs:856:    let _ = std::fs::remove_file(&temp_path);
+native/nightshade_native/imaging/src/raw.rs:493:            user_sat: params.user_sat.unwrap_or_default(),
+native/nightshade_native/imaging/src/raw.rs:509:            max_memory_mb: params.max_memory_mb.unwrap_or_default() as c_uint,
+native/nightshade_native/imaging/src/raw.rs:853:    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/imaging/src/reader.rs:416:        let _ = fs::remove_file(&path);
 native/nightshade_native/imaging/src/reader.rs:438:        let _ = fs::remove_file(&path);
 native/nightshade_native/imaging/src/reader.rs:465:        let _ = fs::remove_file(&path);
 native/nightshade_native/imaging/src/xisf.rs:795:        // matched the dynamic string and this is a no-op).
 native/nightshade_native/indi/src/autofocus.rs:169:        let current_temperature = self.focuser.get_temperature().await.ok();
 native/nightshade_native/indi/src/autofocus.rs:26://!    already). The fallback values are inert placeholders — the
-native/nightshade_native/indi/src/autofocus.rs:278:            // before reaching here. Empty-vector default 0.0 is an inert placeholder.
-native/nightshade_native/indi/src/autofocus.rs:751:            // so `min_by` is guaranteed Some here. `1.0` is a non-zero placeholder that
-native/nightshade_native/indi/src/client.rs:1085:                                        let _ = event_tx
-native/nightshade_native/indi/src/client.rs:1105:                                            group: get_attribute(e, "group").unwrap_or_default(),
-native/nightshade_native/indi/src/client.rs:1114:                                let _ = event_tx.send(IndiEvent::PropertyDefined(
-native/nightshade_native/indi/src/client.rs:1231:                            let _ = event_tx.send(IndiEvent::ProtocolVersionDetected(version));
-native/nightshade_native/indi/src/client.rs:1274:                        let _ = xml_stack.pop();
-native/nightshade_native/indi/src/client.rs:1288:                                let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
-native/nightshade_native/indi/src/client.rs:1304:                    let text = e.unescape().unwrap_or_default().to_string();
-native/nightshade_native/indi/src/client.rs:1352:                                    let _ = event_tx.send(IndiEvent::BlobReceived {
-native/nightshade_native/indi/src/client.rs:1406:                                let _ = event_tx.send(IndiEvent::Error(format!(
-native/nightshade_native/indi/src/client.rs:1431:                                    let _ = event_tx
-native/nightshade_native/indi/src/client.rs:1452:                            let _ = event_tx.send(IndiEvent::Error(format!(
-native/nightshade_native/indi/src/client.rs:1462:                    let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
-native/nightshade_native/indi/src/client.rs:1471:                    let _ = event_tx.send(IndiEvent::Error(format!("XML parse error: {}", e)));
-native/nightshade_native/indi/src/client.rs:1526:            let _ = tx.send(());
-native/nightshade_native/indi/src/client.rs:1550:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-native/nightshade_native/indi/src/client.rs:1555:        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(false));
-native/nightshade_native/indi/src/client.rs:2238:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-native/nightshade_native/indi/src/client.rs:2261:                let _ = self.event_tx.send(IndiEvent::ReaderRestarted {
-native/nightshade_native/indi/src/client.rs:3030:        let _ = client.disconnect().await;
-native/nightshade_native/indi/src/client.rs:3175:        let _ = client.disconnect().await;
-native/nightshade_native/indi/src/client.rs:735:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-native/nightshade_native/indi/src/client.rs:765:        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(true));
-native/nightshade_native/indi/src/client.rs:849:                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
-native/nightshade_native/indi/src/client.rs:872:                let _ = event_tx.send(IndiEvent::ReaderDied(e.to_string()));
-native/nightshade_native/indi/src/client.rs:875:                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
-native/nightshade_native/indi/src/client.rs:887:                    let _ = event_tx.send(IndiEvent::ReaderRestartFailed {
-native/nightshade_native/indi/src/client.rs:900:                    let _ = event_tx.send(IndiEvent::ReaderRestarting {
-native/nightshade_native/indi/src/client.rs:911:        let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
-native/nightshade_native/indi/src/client.rs:974:                    let _ = event_tx.send(IndiEvent::Error(format!(
-native/nightshade_native/indi/src/client.rs:995:                    let _ = event_tx.send(IndiEvent::Error(format!(
+native/nightshade_native/indi/src/autofocus.rs:281:            // before reaching here. Empty-vector default 0.0 is an inert placeholder.
+native/nightshade_native/indi/src/autofocus.rs:770:            // so `min_by` is guaranteed Some here. `1.0` is a non-zero placeholder that
+native/nightshade_native/indi/src/client.rs:1081:                                        let _ = event_tx
+native/nightshade_native/indi/src/client.rs:1101:                                            group: get_attribute(e, "group").unwrap_or_default(),
+native/nightshade_native/indi/src/client.rs:1110:                                let _ = event_tx.send(IndiEvent::PropertyDefined(
+native/nightshade_native/indi/src/client.rs:1226:                            let _ = event_tx.send(IndiEvent::ProtocolVersionDetected(version));
+native/nightshade_native/indi/src/client.rs:1269:                        let _ = xml_stack.pop();
+native/nightshade_native/indi/src/client.rs:1283:                                let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
+native/nightshade_native/indi/src/client.rs:1299:                    let text = e.unescape().unwrap_or_default().to_string();
+native/nightshade_native/indi/src/client.rs:1347:                                    let _ = event_tx.send(IndiEvent::BlobReceived {
+native/nightshade_native/indi/src/client.rs:1401:                                let _ = event_tx.send(IndiEvent::Error(format!(
+native/nightshade_native/indi/src/client.rs:1425:                                    let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
+native/nightshade_native/indi/src/client.rs:1445:                            let _ = event_tx.send(IndiEvent::Error(format!(
+native/nightshade_native/indi/src/client.rs:1455:                    let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
+native/nightshade_native/indi/src/client.rs:1464:                    let _ = event_tx.send(IndiEvent::Error(format!("XML parse error: {}", e)));
+native/nightshade_native/indi/src/client.rs:1519:            let _ = tx.send(());
+native/nightshade_native/indi/src/client.rs:1543:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
+native/nightshade_native/indi/src/client.rs:1548:        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(false));
+native/nightshade_native/indi/src/client.rs:2231:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
+native/nightshade_native/indi/src/client.rs:2254:                let _ = self.event_tx.send(IndiEvent::ReaderRestarted {
+native/nightshade_native/indi/src/client.rs:3043:        let _ = client.disconnect().await;
+native/nightshade_native/indi/src/client.rs:3188:        let _ = client.disconnect().await;
+native/nightshade_native/indi/src/client.rs:731:        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
+native/nightshade_native/indi/src/client.rs:761:        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(true));
+native/nightshade_native/indi/src/client.rs:845:                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
+native/nightshade_native/indi/src/client.rs:868:                let _ = event_tx.send(IndiEvent::ReaderDied(e.to_string()));
+native/nightshade_native/indi/src/client.rs:871:                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
+native/nightshade_native/indi/src/client.rs:883:                    let _ = event_tx.send(IndiEvent::ReaderRestartFailed {
+native/nightshade_native/indi/src/client.rs:896:                    let _ = event_tx.send(IndiEvent::ReaderRestarting {
+native/nightshade_native/indi/src/client.rs:907:        let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
+native/nightshade_native/indi/src/client.rs:970:                    let _ = event_tx.send(IndiEvent::Error(format!(
+native/nightshade_native/indi/src/client.rs:991:                    let _ = event_tx.send(IndiEvent::Error(format!(
 native/nightshade_native/indi/src/covercalibrator.rs:283:            let _ = client
 native/nightshade_native/indi/src/covercalibrator.rs:294:            let _ = client
 native/nightshade_native/indi/src/discovery.rs:82:    let _ = client.disconnect().await;
@@ -708,13 +712,13 @@ native/nightshade_native/native/src/vendor/atik.rs:751:        let _ = unsafe { 
 native/nightshade_native/native/src/vendor/atik.rs:791:        let _ = unsafe { (sdk.abort_exposure)(handle) };
 native/nightshade_native/native/src/vendor/atik.rs:797:            let _ = unsafe { (sdk.cooler_warm_up)(handle) };
 native/nightshade_native/native/src/vendor/atik.rs:949:        let _ = unsafe { (sdk.set_dark_mode)(handle, 0) };
-native/nightshade_native/native/src/vendor/fli.rs:1035:        let _ = unsafe { (sdk.end_exposure)(self.handle) };
-native/nightshade_native/native/src/vendor/fli.rs:485:                let _ = unsafe { (sdk.close)(dev) };
-native/nightshade_native/native/src/vendor/fli.rs:516:    let _ = unsafe { (sdk.delete_list)() };
-native/nightshade_native/native/src/vendor/fli.rs:680:        let _ = unsafe { (sdk.get_pixel_size)(self.handle, &mut pixel_x, &mut pixel_y) };
-native/nightshade_native/native/src/vendor/fli.rs:696:        // (no-op clamp on Windows where c_long == i32).
-native/nightshade_native/native/src/vendor/fli.rs:748:        let _ = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
-native/nightshade_native/native/src/vendor/fli.rs:780:        let _ = unsafe { (sdk.cancel_exposure)(self.handle) };
+native/nightshade_native/native/src/vendor/fli.rs:1034:        let _ = unsafe { (sdk.end_exposure)(self.handle) };
+native/nightshade_native/native/src/vendor/fli.rs:484:                let _ = unsafe { (sdk.close)(dev) };
+native/nightshade_native/native/src/vendor/fli.rs:515:    let _ = unsafe { (sdk.delete_list)() };
+native/nightshade_native/native/src/vendor/fli.rs:679:        let _ = unsafe { (sdk.get_pixel_size)(self.handle, &mut pixel_x, &mut pixel_y) };
+native/nightshade_native/native/src/vendor/fli.rs:695:        // (no-op clamp on Windows where c_long == i32).
+native/nightshade_native/native/src/vendor/fli.rs:747:        let _ = unsafe { (sdk.set_bit_depth)(self.handle, FLI_MODE_16BIT) };
+native/nightshade_native/native/src/vendor/fli.rs:779:        let _ = unsafe { (sdk.cancel_exposure)(self.handle) };
 native/nightshade_native/native/src/vendor/fujifilm.rs:1644:            let _ = self.stop_bulb_exposure().await;
 native/nightshade_native/native/src/vendor/fujifilm.rs:1980:    let _ = std::fs::remove_file(&temp_path);
 native/nightshade_native/native/src/vendor/fujifilm.rs:881:    let _ = unsafe { (sdk.init)(std::ptr::null_mut()) };
@@ -829,31 +833,31 @@ native/nightshade_native/sequencer/src/executor.rs:24:/// were silently dropped 
 native/nightshade_native/sequencer/src/executor.rs:771:        let _ = self.event_tx.send(event);
 native/nightshade_native/sequencer/src/executor.rs:863:            .unwrap_or_default();
 native/nightshade_native/sequencer/src/flat_wizard.rs:102:            let _ = cleanup_flat_panel(ctx).await;
-native/nightshade_native/sequencer/src/instructions.rs:1005:                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:1049:            // We log at warn! and use distinct synthetic placeholders that
-native/nightshade_native/sequencer/src/instructions.rs:1275:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:1278:            let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:1294:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:1300:            let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:1386:                let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:1393:                let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:1466:        let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:1469:        let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:2036:/// no focuser is connected, or no offset is configured, this is a no-op.
-native/nightshade_native/sequencer/src/instructions.rs:2382:            let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:2418:    let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:1047:                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:1091:            // We log at warn! and use distinct synthetic placeholders that
+native/nightshade_native/sequencer/src/instructions.rs:1317:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:1320:            let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:1336:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:1342:            let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:1428:                let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:1435:                let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:1508:        let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:1511:        let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:2092:/// no focuser is connected, or no offset is configured, this is a no-op.
+native/nightshade_native/sequencer/src/instructions.rs:2420:            let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:2456:    let _ = ctx
 native/nightshade_native/sequencer/src/instructions.rs:268:    // Slewing a parked mount on most drivers either silently no-ops or
-native/nightshade_native/sequencer/src/instructions.rs:3227:    let _ = ctx.device_ops.dome_close(&dome_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:3546:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:3608:            let _ = ctx
-native/nightshade_native/sequencer/src/instructions.rs:3612:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:3640:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:3265:    let _ = ctx.device_ops.dome_close(&dome_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:3584:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:3646:            let _ = ctx
+native/nightshade_native/sequencer/src/instructions.rs:3650:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:3678:            let _ = ctx.device_ops.cover_calibrator_halt_cover(device_id).await;
 native/nightshade_native/sequencer/src/instructions.rs:389:            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
 native/nightshade_native/sequencer/src/instructions.rs:423:            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:755:                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
-native/nightshade_native/sequencer/src/instructions.rs:865:                let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
-native/nightshade_native/sequencer/src/lib.rs:1126:///   child-node recovery branch is wired. Treating it as a no-op was the
-native/nightshade_native/sequencer/src/lib.rs:1148:    /// it at runtime instead of silently treating it as a no-op.
+native/nightshade_native/sequencer/src/instructions.rs:754:                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
+native/nightshade_native/sequencer/src/instructions.rs:864:                let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
+native/nightshade_native/sequencer/src/lib.rs:1124:///   child-node recovery branch is wired. Treating it as a no-op was the
+native/nightshade_native/sequencer/src/lib.rs:1146:    /// it at runtime instead of silently treating it as a no-op.
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1125:    /// Replaces the previous `let _ = mount_park(...)` pattern: on error, log
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1167:                    let _ = self
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1993:        let _ = executor;
@@ -864,25 +868,26 @@ native/nightshade_native/sequencer/src/node.rs:2031:                        // W
 native/nightshade_native/sequencer/src/node.rs:2032:                        // small and unambiguous. Park is a no-op for the
 native/nightshade_native/sequencer/src/node.rs:2039:                    let placeholder = RuntimeNode::from_definition(placeholder_def);
 native/nightshade_native/sequencer/src/node.rs:2040:                    restored_children.push(Box::new(placeholder));
-native/nightshade_native/sequencer/src/node.rs:2738:                    let _ = guard.current_target_name.clone();
-native/nightshade_native/sequencer/src/node.rs:2739:                    let _ = guard.completed_exposures;
-native/nightshade_native/sequencer/src/node.rs:2770:        // was real (not a no-op test).
+native/nightshade_native/sequencer/src/node.rs:2723:                    let _ = guard.current_target_name.clone();
+native/nightshade_native/sequencer/src/node.rs:2724:                    let _ = guard.completed_exposures;
+native/nightshade_native/sequencer/src/node.rs:2755:        // was real (not a no-op test).
 native/nightshade_native/sequencer/src/temperature_compensation.rs:243:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/sequencer/src/temperature_compensation.rs:289:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-native/nightshade_native/updater/src/main.rs:218:        let _ = rollback_in_place(&args.install_dir, &rollback_log);
-native/nightshade_native/updater/src/main.rs:258:        // applied and verified — but log loudly. (§7A.11: no silent let _ = ...)
+native/nightshade_native/sequencer/src/temperature_compensation.rs:290:            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+native/nightshade_native/updater/src/main.rs:223:        let _ = rollback_in_place(&args.install_dir, &rollback_log);
+native/nightshade_native/updater/src/main.rs:264:        // applied and verified — but log loudly. (§7A.11: no silent let _ = ...)
 packages/nightshade_app/lib/localization/nightshade_localizations.dart:529:      'analyticsAllTime': 'Todo el tiempo',
 packages/nightshade_app/lib/models/command_action_result.dart:39:  bool get hasMessage => (message ?? '').trim().isNotEmpty;
-packages/nightshade_app/lib/router/app_router.dart:31:/// dependency on `apps/mobile`. Defaults to a placeholder so the route
-packages/nightshade_app/lib/router/app_router.dart:33:/// tests), but the placeholder should never render in production.
-packages/nightshade_app/lib/screens/analytics/analytics_screen.dart:1394:/// Skeleton placeholder used while session history loads. Rendering a list of
+packages/nightshade_app/lib/router/app_router.dart:32:/// dependency on `apps/mobile`. Defaults to a placeholder so the route
+packages/nightshade_app/lib/router/app_router.dart:34:/// tests), but the placeholder should never render in production.
+packages/nightshade_app/lib/screens/analytics/analytics_screen.dart:1402:/// Skeleton placeholder used while session history loads. Rendering a list of
+packages/nightshade_app/lib/screens/analytics/widgets/campaign_rollup_dialog.dart:203:                    goal: rollup.totalGoalIntegrationSecs ?? 0,
 packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard.dart:526:        rotationDegrees: image.solvedRotation ?? 0.0,
 packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard.dart:544:      final zp = calibration.zeroPoint ?? 0.0;
-packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:100:          final bTime = b.lastSessionAt?.millisecondsSinceEpoch ?? 0;
-packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:182:      // Shimmer card placeholders so the panel keeps its real geometry.
-packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:54:        (targetMap[filterName] ?? 0.0) + image.exposureDuration;
-packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:780:/// Skeleton placeholder for the project list while progress data loads.
-packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:99:          final aTime = a.lastSessionAt?.millisecondsSinceEpoch ?? 0;
+packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:100:          final aTime = a.lastSessionAt?.millisecondsSinceEpoch ?? 0;
+packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:101:          final bTime = b.lastSessionAt?.millisecondsSinceEpoch ?? 0;
+packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:183:      // Shimmer card placeholders so the panel keeps its real geometry.
+packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:55:        (targetMap[filterName] ?? 0.0) + image.exposureDuration;
+packages/nightshade_app/lib/screens/analytics/widgets/project_tracking_panel.dart:793:/// Skeleton placeholder for the project list while progress data loads.
 packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab.dart:1609:                final fwhm = tile?.medianFwhm ?? 0.0;
 packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab.dart:190:    // has produced science data, render a single shared placeholder instead
 packages/nightshade_app/lib/screens/analytics/widgets/science_analytics_tab.dart:2010:      final filter = (image.filter ?? '').toLowerCase().trim();
@@ -968,8 +973,8 @@ packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card.dart
 packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card.dart:857:      // route here without an implementation would ship a stub.
 packages/nightshade_app/lib/screens/equipment/widgets/mount_control_panel.dart:405:                    executablePath: executablePath ?? '',
 packages/nightshade_app/lib/screens/equipment/widgets/mount_control_panel.dart:413:                    executablePath: executablePath ?? '',
-packages/nightshade_app/lib/screens/flat_wizard/flat_wizard_screen.dart:1119:              gain: cameraState.gain ?? 0,
-packages/nightshade_app/lib/screens/flat_wizard/flat_wizard_screen.dart:1120:              offset: cameraState.offset ?? 0,
+packages/nightshade_app/lib/screens/flat_wizard/flat_wizard_screen.dart:1132:              gain: cameraState.gain ?? 0,
+packages/nightshade_app/lib/screens/flat_wizard/flat_wizard_screen.dart:1133:              offset: cameraState.offset ?? 0,
 packages/nightshade_app/lib/screens/flat_wizard/flat_wizard_screen.dart:510:            onChanged: (v) => onToggle(v ?? false),
 packages/nightshade_app/lib/screens/flat_wizard/widgets/save_path_dialog.dart:48:    _pathController = TextEditingController(text: widget.currentPath ?? '');
 packages/nightshade_app/lib/screens/framing/framing_screen.dart:89:    } catch (_) {
@@ -1033,7 +1038,7 @@ packages/nightshade_app/lib/screens/imaging/widgets/custom_annotation_drawing.da
 packages/nightshade_app/lib/screens/imaging/widgets/focus_model_panel.dart:40:    final tempCompEnabled = settings?.tempCompensation ?? false;
 packages/nightshade_app/lib/screens/imaging/widgets/focus_panel.dart:129:    final currentPosition = focuserState.position ?? 0;
 packages/nightshade_app/lib/screens/imaging/widgets/focus_panel.dart:36:    final currentPosition = focuserState.position ?? 0;
-packages/nightshade_app/lib/screens/imaging/widgets/live_preview_area.dart:719:                                            annotation?.objects.length ?? 0;
+packages/nightshade_app/lib/screens/imaging/widgets/live_preview_area.dart:742:                                            annotation?.objects.length ?? 0;
 packages/nightshade_app/lib/screens/imaging/widgets/overlay_painters.dart:505:        final high = (highMap[(row, col)] ?? 0.0).clamp(0.0, 100.0);
 packages/nightshade_app/lib/screens/imaging/widgets/overlay_painters.dart:506:        final low = (lowMap[(row, col)] ?? 0.0).clamp(0.0, 100.0);
 packages/nightshade_app/lib/screens/imaging/widgets/panel_widgets.dart:37:    final objectCount = annotation?.objects.length ?? 0;
@@ -1041,12 +1046,21 @@ packages/nightshade_app/lib/screens/imaging/widgets/panel_widgets.dart:543:     
 packages/nightshade_app/lib/screens/imaging/widgets/rotator_panel.dart:138:                angle: angle ?? 0,
 packages/nightshade_app/lib/screens/imaging/widgets/stretch_controls.dart:127:            message: _methodDescriptions[settings.method] ?? '',
 packages/nightshade_app/lib/screens/imaging/widgets/stretch_controls.dart:386:    // value. If nothing was changed, this is a no-op write of the same value.
+packages/nightshade_app/lib/screens/onboarding/onboarding_screen.dart:154:        if ((draft.profileName ?? '').trim().isEmpty) {
+packages/nightshade_app/lib/screens/onboarding/onboarding_screen.dart:376:                    _stepLabels[step] ?? '',
+packages/nightshade_app/lib/screens/onboarding/steps/guider_step.dart:15:/// — a real socket probe, not a stub. Native guiders (camera-tracked
+packages/nightshade_app/lib/screens/onboarding/steps/guider_step.dart:48:      } catch (_) {
+packages/nightshade_app/lib/screens/onboarding/steps/mount_step.dart:19:          "Tracking mode and park position settings can be tuned later from the Equipment screen — we'll save sensible defaults for now.",
+packages/nightshade_app/lib/screens/onboarding/steps/optical_train_step.dart:159:        // Live preview of derived values. Renders with placeholder "--"
+packages/nightshade_app/lib/screens/onboarding/steps/optical_train_step.dart:40:      text: draft.focalLengthMm?.toStringAsFixed(1) ?? '',
+packages/nightshade_app/lib/screens/onboarding/steps/optical_train_step.dart:43:      text: draft.apertureMm?.toStringAsFixed(1) ?? '',
+packages/nightshade_app/lib/screens/onboarding/steps/optical_train_step.dart:46:      text: draft.pixelSizeMicrons?.toStringAsFixed(2) ?? '',
 packages/nightshade_app/lib/screens/planetarium/providers/device_orientation_provider.dart:171:    if (_updateTimer?.isActive ?? false) return;
 packages/nightshade_app/lib/screens/planetarium/widgets/info_tab.dart:339:                  history.filterIntegrationSecs[entry.key] ?? 0.0;
 packages/nightshade_app/lib/screens/planetarium/widgets/lists_tab.dart:391:    final itemCount = itemsAsync.valueOrNull?.length ?? 0;
 packages/nightshade_app/lib/screens/planner/planner_screen.dart:1168:        double seed = value ?? 0.0;
-packages/nightshade_app/lib/screens/planner/planner_screen.dart:1555:    final hoursAbove = suggestion.visibility.hoursAboveMinAlt ?? 0.0;
-packages/nightshade_app/lib/screens/planner/planner_screen.dart:2202:    final hoursAbove = target.visibility.hoursAboveMinAlt ?? 0.0;
+packages/nightshade_app/lib/screens/planner/planner_screen.dart:1551:    final hoursAbove = suggestion.visibility.hoursAboveMinAlt ?? 0.0;
+packages/nightshade_app/lib/screens/planner/planner_screen.dart:2192:    final hoursAbove = target.visibility.hoursAboveMinAlt ?? 0.0;
 packages/nightshade_app/lib/screens/planner/widgets/scheduler_tab_content.dart:1502:/// Empty-state placeholder shown in the queue table when the scheduler has
 packages/nightshade_app/lib/screens/polar_alignment/polar_alignment_screen.dart:118:      final wasRunning = prev?.isRunning ?? false;
 packages/nightshade_app/lib/screens/polar_alignment/polar_alignment_screen.dart:1708:    final improvementPercent = state.improvementPercent ?? 0.0;
@@ -1086,15 +1100,16 @@ packages/nightshade_app/lib/screens/sequencer/widgets/node_progress_panels.dart:
 packages/nightshade_app/lib/screens/sequencer/widgets/node_properties_panel.dart:283:              value: node.comment ?? '',
 packages/nightshade_app/lib/screens/sequencer/widgets/post_session_stats_dialog.dart:204:                                    '${(fe.value['captured'] as num?)?.toInt() ?? 0} frames  |  '
 packages/nightshade_app/lib/screens/sequencer/widgets/post_session_stats_dialog.dart:205:                                    '${stats.formatDuration((fe.value['integrationSecs'] as num?)?.toDouble() ?? 0)}',
-packages/nightshade_app/lib/screens/sequencer/widgets/preflight_validation_dialog.dart:1059:    final canStart = _result?.isValid ?? false;
+packages/nightshade_app/lib/screens/sequencer/widgets/preflight_validation_dialog.dart:1105:    final canStart = _result?.isValid ?? false;
 packages/nightshade_app/lib/screens/sequencer/widgets/quick_start_wizard_dialog.dart:1314:                  config.enabled = value ?? false;
 packages/nightshade_app/lib/screens/sequencer/widgets/quick_start_wizard_dialog.dart:986:                    '${target.catalogId ?? ""} | RA: ${_formatRa(target.ra)} Dec: ${_formatDec(target.dec)}',
 packages/nightshade_app/lib/screens/sequencer/widgets/sequence_timeline.dart:412:          minAltitude: node.minAltitude ?? 0,
-packages/nightshade_app/lib/screens/sequencer/widgets/sequence_toolbar.dart:260:                        settingsAsync.valueOrNull?.useSimulationMode ?? false;
+packages/nightshade_app/lib/screens/sequencer/widgets/sequence_toolbar.dart:285:                        settingsAsync.valueOrNull?.useSimulationMode ?? false;
 packages/nightshade_app/lib/screens/sequencer/widgets/sequence_tree.dart:1683:                progressPercent: widget.progressPercent ?? 0,
+packages/nightshade_app/lib/screens/sequencer/widgets/session_report_dialog.dart:588:        allReasons[entry.key] = (allReasons[entry.key] ?? 0) + entry.value;
 packages/nightshade_app/lib/screens/sequencer/widgets/target_node_properties.dart:90:            value: node.rotation ?? 0,
 packages/nightshade_app/lib/screens/sequencer/widgets/target_preview_tooltip.dart:79:    minAltitude: target.minAltitude ?? 0,
-packages/nightshade_app/lib/screens/sequencer/widgets/trigger_configuration_dialog.dart:124:    // Footer rely on its existing mainAxisAlignment.end (no-op with one child).
+packages/nightshade_app/lib/screens/sequencer/widgets/trigger_configuration_dialog.dart:174:    // Footer rely on its existing mainAxisAlignment.end (no-op with one child).
 packages/nightshade_app/lib/screens/settings/backup_screen.dart:101:        final restored = result['itemsRestored'] as int? ?? 0;
 packages/nightshade_app/lib/screens/settings/backup_screen.dart:159:      final restored = result['itemsRestored'] as int? ?? 0;
 packages/nightshade_app/lib/screens/settings/backup_screen.dart:337:      id: json['id'] as String? ?? '',
@@ -1146,7 +1161,7 @@ packages/nightshade_app/lib/screens/settings/widgets/solver_detection_card.dart:
 packages/nightshade_app/lib/screens/settings/widgets/solver_detection_card.dart:57:    final catalogName = detection.catalogName ?? '';
 packages/nightshade_app/lib/screens/shell/app_shell.dart:114:    return shouldClose ?? false;
 packages/nightshade_app/lib/screens/shell/app_shell.dart:292:    } catch (_) {
-packages/nightshade_app/lib/screens/shell/app_shell.dart:544:                      } catch (_) {
+packages/nightshade_app/lib/screens/shell/app_shell.dart:545:                      } catch (_) {
 packages/nightshade_app/lib/screens/shell/widgets/status_bar.dart:1004:    final tempCompEnabled = settings?.tempCompensation ?? false;
 packages/nightshade_app/lib/screens/shell/widgets/status_bar.dart:340:      if ((progress.currentTarget ?? '').isNotEmpty)
 packages/nightshade_app/lib/screens/shell/widgets/status_bar.dart:342:      if ((progress.currentNodeName ?? '').isNotEmpty)
@@ -1190,64 +1205,64 @@ packages/nightshade_core/lib/src/backend/ffi_backend.dart:1672:      atHome: s.a
 packages/nightshade_core/lib/src/backend/ffi_backend.dart:1678:      altitude: s.altitude ?? 0.0,
 packages/nightshade_core/lib/src/backend/ffi_backend.dart:1679:      azimuth: s.azimuth ?? 0.0,
 packages/nightshade_core/lib/src/backend/ffi_backend.dart:1680:      siderealTime: s.siderealTime ?? 0.0,
-packages/nightshade_core/lib/src/backend/ffi_backend.dart:2114:      latitude: loc?.latitude ?? 0.0,
-packages/nightshade_core/lib/src/backend/ffi_backend.dart:2115:      longitude: loc?.longitude ?? 0.0,
-packages/nightshade_core/lib/src/backend/ffi_backend.dart:2116:      elevation: loc?.elevation ?? 0.0,
-packages/nightshade_core/lib/src/backend/ffi_backend.dart:2224:            gain: dbImg.gain ?? 0,
-packages/nightshade_core/lib/src/backend/ffi_backend.dart:2225:            offset: dbImg.offset ?? 0,
+packages/nightshade_core/lib/src/backend/ffi_backend.dart:2116:      latitude: loc?.latitude ?? 0.0,
+packages/nightshade_core/lib/src/backend/ffi_backend.dart:2117:      longitude: loc?.longitude ?? 0.0,
+packages/nightshade_core/lib/src/backend/ffi_backend.dart:2118:      elevation: loc?.elevation ?? 0.0,
+packages/nightshade_core/lib/src/backend/ffi_backend.dart:2226:            gain: dbImg.gain ?? 0,
+packages/nightshade_core/lib/src/backend/ffi_backend.dart:2227:            offset: dbImg.offset ?? 0,
 packages/nightshade_core/lib/src/backend/ffi_backend.dart:745:      gain: gain ?? 0,
 packages/nightshade_core/lib/src/backend/ffi_backend.dart:746:      offset: offset ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1387:      connected: response['connected'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1388:      rmsRa: (response['rmsRa'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1389:      rmsDec: (response['rmsDec'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1390:      rmsTotal: (response['rmsTotal'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1391:      snr: (response['snr'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1392:      starMass: (response['starMass'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1393:      avgDistance: (response['avgDistance'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1768:      progress: (response['progress'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1785:    return response['hasCheckpoint'] as bool? ?? false;
-packages/nightshade_core/lib/src/backend/network_backend.dart:1814:      latitude: (response['latitude'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1815:      longitude: (response['longitude'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1816:      elevation: (response['elevation'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1935:      canReverse: json['canReverse'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1936:      reverse: json['reverse'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1938:      isMoving: json['isMoving'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1941:      canMoveAbsolute: json['canMoveAbsolute'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1942:      canHalt: json['canHalt'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:1943:      canSync: json['canSync'] ?? false,
-packages/nightshade_core/lib/src/backend/network_backend.dart:2236:          gain: img['gain'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:2237:          offset: img['offset'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3239:    return (response['id'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/backend/network_backend.dart:1383:      connected: response['connected'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1384:      rmsRa: (response['rmsRa'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1385:      rmsDec: (response['rmsDec'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1386:      rmsTotal: (response['rmsTotal'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1387:      snr: (response['snr'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1388:      starMass: (response['starMass'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1389:      avgDistance: (response['avgDistance'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1764:      progress: (response['progress'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1781:    return response['hasCheckpoint'] as bool? ?? false;
+packages/nightshade_core/lib/src/backend/network_backend.dart:1810:      latitude: (response['latitude'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1811:      longitude: (response['longitude'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1812:      elevation: (response['elevation'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1931:      canReverse: json['canReverse'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1932:      reverse: json['reverse'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1934:      isMoving: json['isMoving'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1937:      canMoveAbsolute: json['canMoveAbsolute'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1938:      canHalt: json['canHalt'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:1939:      canSync: json['canSync'] ?? false,
+packages/nightshade_core/lib/src/backend/network_backend.dart:2235:          gain: img['gain'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:2236:          offset: img['offset'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3238:    return (response['id'] as num?)?.toInt() ?? 0;
 packages/nightshade_core/lib/src/backend/network_backend.dart:36:      name: json['name'] as String? ?? '',
 packages/nightshade_core/lib/src/backend/network_backend.dart:37:      path: json['path'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:3823:      tileRow: json['tileRow'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3824:      tileCol: json['tileCol'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3825:      starCount: json['starCount'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3826:      medianFwhm: (json['medianFwhm'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3827:      medianHfr: (json['medianHfr'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3829:          (json['medianEccentricity'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3830:      roundness: (json['roundness'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3832:        json['timestamp'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3844:      x: (json['x'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3845:      y: (json['y'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3846:      dxArcsec: (json['dxArcsec'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3847:      dyArcsec: (json['dyArcsec'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3848:      magnitudeArcsec: (json['magnitudeArcsec'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:3851:        json['timestamp'] as int? ?? 0,
-packages/nightshade_core/lib/src/backend/network_backend.dart:557:              json['message'] as String? ?? json['details'] as String? ?? '';
-packages/nightshade_core/lib/src/backend/network_backend.dart:572:      // best-effort JSON decode path; HTTP-status fallback below is the
-packages/nightshade_core/lib/src/backend/network_backend.dart:871:              description: d['description'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:872:              driverVersion: d['driverVersion'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:913:              id: d['id'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:914:              name: d['name'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:923:              description: d['description'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:924:              driverVersion: d['driverVersion'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:940:              id: d['id'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:941:              name: d['name'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:950:              description: d['description'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:951:              driverVersion: d['driverVersion'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:983:              description: d['description'] as String? ?? '',
-packages/nightshade_core/lib/src/backend/network_backend.dart:984:              driverVersion: d['driverVersion'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:3822:      tileRow: json['tileRow'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3823:      tileCol: json['tileCol'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3824:      starCount: json['starCount'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3825:      medianFwhm: (json['medianFwhm'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3826:      medianHfr: (json['medianHfr'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3828:          (json['medianEccentricity'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3829:      roundness: (json['roundness'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3831:        json['timestamp'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3843:      x: (json['x'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3844:      y: (json['y'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3845:      dxArcsec: (json['dxArcsec'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3846:      dyArcsec: (json['dyArcsec'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3847:      magnitudeArcsec: (json['magnitudeArcsec'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:3850:        json['timestamp'] as int? ?? 0,
+packages/nightshade_core/lib/src/backend/network_backend.dart:553:              json['message'] as String? ?? json['details'] as String? ?? '';
+packages/nightshade_core/lib/src/backend/network_backend.dart:568:      // best-effort JSON decode path; HTTP-status fallback below is the
+packages/nightshade_core/lib/src/backend/network_backend.dart:867:              description: d['description'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:868:              driverVersion: d['driverVersion'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:909:              id: d['id'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:910:              name: d['name'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:919:              description: d['description'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:920:              driverVersion: d['driverVersion'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:936:              id: d['id'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:937:              name: d['name'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:946:              description: d['description'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:947:              driverVersion: d['driverVersion'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:979:              description: d['description'] as String? ?? '',
+packages/nightshade_core/lib/src/backend/network_backend.dart:980:              driverVersion: d['driverVersion'] as String? ?? '',
 packages/nightshade_core/lib/src/backend/nightshade_exception.dart:244:      isRecoverable: json['is_recoverable'] as bool? ?? false,
 packages/nightshade_core/lib/src/backend/nightshade_exception.dart:245:      shouldReconnect: json['should_reconnect'] as bool? ?? false,
 packages/nightshade_core/lib/src/backend/nightshade_exception.dart:286:      isRecoverable: json['is_recoverable'] as bool? ?? false,
@@ -1385,6 +1400,7 @@ packages/nightshade_core/lib/src/models/backend/phd2_status.dart:49:      starMa
 packages/nightshade_core/lib/src/models/backend/phd2_status.dart:50:      avgDistance: (json['avgDistance'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/models/backend/remote_api_compatibility.dart:145:      int.tryParse(match.group(2) ?? '') ?? 0,
 packages/nightshade_core/lib/src/models/backend/remote_api_compatibility.dart:146:      int.tryParse(match.group(3) ?? '') ?? 0,
+packages/nightshade_core/lib/src/models/campaign_rollup.dart:203:        .every((f) => (f.percentComplete ?? 0.0) >= 1.0);
 packages/nightshade_core/lib/src/models/equipment/unified_device.dart:148:    int bestScore = scoredBackends[best] ?? 0;
 packages/nightshade_core/lib/src/models/equipment_profile.g.dart:24:      focalLength: (json['focalLength'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/models/equipment_profile.g.dart:25:      aperture: (json['aperture'] as num?)?.toDouble() ?? 0.0,
@@ -1413,6 +1429,7 @@ packages/nightshade_core/lib/src/models/meridian_flip_settings.g.dart:22:       
 packages/nightshade_core/lib/src/models/meridian_flip_settings.g.dart:24:          (json['trackingLimitWaitMinutes'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/models/meridian_flip_settings.g.dart:27:      refocusAfterFlip: json['refocusAfterFlip'] as bool? ?? false,
 packages/nightshade_core/lib/src/models/meridian_flip_settings.g.dart:39:      soundAlertOnFlip: json['soundAlertOnFlip'] as bool? ?? false,
+packages/nightshade_core/lib/src/models/onboarding/onboarding_state.dart:291:    } catch (_) {
 packages/nightshade_core/lib/src/models/phd2_models.g.dart:119:      isCalibrated: json['isCalibrated'] as bool? ?? false,
 packages/nightshade_core/lib/src/models/phd2_models.g.dart:85:      rmsRa: (json['rmsRa'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/models/phd2_models.g.dart:86:      rmsDec: (json['rmsDec'] as num?)?.toDouble() ?? 0.0,
@@ -1504,27 +1521,33 @@ packages/nightshade_core/lib/src/providers/database_provider.dart:264:    succes
 packages/nightshade_core/lib/src/providers/database_provider.dart:265:    failedExposures: json['failedExposures'] as int? ?? 0,
 packages/nightshade_core/lib/src/providers/database_provider.dart:267:        (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/providers/database_provider.dart:273:    autofocusCount: json['autofocusCount'] as int? ?? 0,
+packages/nightshade_core/lib/src/providers/disk_space_provider.dart:128:  final cameraId = cameraState.deviceId ?? '';
+packages/nightshade_core/lib/src/providers/disk_space_provider.dart:96:  final cameraId = cameraState.deviceId ?? '';
 packages/nightshade_core/lib/src/providers/exoplanet_provider.dart:58:      discoveryYear: int.tryParse(row['disc_year']?.toString() ?? ''),
 packages/nightshade_core/lib/src/providers/filter_offset_provider.dart:193:    final currentOffset = state.offsets[filterName] ?? 0;
 packages/nightshade_core/lib/src/providers/filter_offset_provider.dart:234:    return state.offsets[filterName] ?? 0;
 packages/nightshade_core/lib/src/providers/filter_offset_provider.dart:278:  return state.offsets[filterName] ?? 0;
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:117:      snr: (json['SNR'] ?? 0).toDouble(),
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:118:      starMass: (json['StarMass'] ?? 0).toDouble(),
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:185:        final ra = (json['RADistanceRaw'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:186:        final dec = (json['DECDistanceRaw'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:373:    final snr = (json['SNR'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:374:    final starMass = (json['StarMass'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:586:        final raError = (json['RADistanceRaw'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:587:        final decError = (json['DECDistanceRaw'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:72:          final snr = (event.data['SNR'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:73:          final starMass = (event.data['StarMass'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:873:          final x = (event.data['X'] ?? event.data['x'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:874:          final y = (event.data['Y'] ?? event.data['y'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:88:    final raDistance = (json['RADistanceRaw'] ?? 0).toDouble();
-packages/nightshade_core/lib/src/providers/guiding_provider.dart:89:    final decDistance = (json['DECDistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:119:      snr: (json['SNR'] ?? 0).toDouble(),
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:120:      starMass: (json['StarMass'] ?? 0).toDouble(),
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:187:        final ra = (json['RADistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:188:        final dec = (json['DECDistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:377:    final snr = (json['SNR'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:378:    final starMass = (json['StarMass'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:405:          ref.read(appSettingsProvider).valueOrNull?.phd2Path.trim() ?? '';
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:609:        final raError = (json['RADistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:610:        final decError = (json['DECDistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:74:          final snr = (event.data['SNR'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:75:          final starMass = (event.data['StarMass'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:896:          final x = (event.data['X'] ?? event.data['x'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:897:          final y = (event.data['Y'] ?? event.data['y'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:90:    final raDistance = (json['RADistanceRaw'] ?? 0).toDouble();
+packages/nightshade_core/lib/src/providers/guiding_provider.dart:91:    final decDistance = (json['DECDistanceRaw'] ?? 0).toDouble();
 packages/nightshade_core/lib/src/providers/imaging_history_provider.dart:171:      filterCounts[img.filter!] = (filterCounts[img.filter!] ?? 0) + 1;
 packages/nightshade_core/lib/src/providers/imaging_history_provider.dart:173:          (filterIntegrationSecs[img.filter!] ?? 0.0) + img.exposureDuration;
 packages/nightshade_core/lib/src/providers/imaging_provider.dart:32:/// [exposureSettingsProvider]. Subsequent calls with the same profile are no-ops,
+packages/nightshade_core/lib/src/providers/onboarding_provider.dart:149:  /// Step backward. No-op on the welcome step.
+packages/nightshade_core/lib/src/providers/onboarding_provider.dart:276:      name: (draft.profileName ?? '').trim().isNotEmpty
+packages/nightshade_core/lib/src/providers/onboarding_provider.dart:292:      aperture: draft.apertureMm ?? 0.0,
 packages/nightshade_core/lib/src/providers/photometric_transform_provider.dart:98:  } catch (_) {
 packages/nightshade_core/lib/src/providers/polar_alignment_provider.dart:97:    final statusStr = data['status'] as String? ?? '';
 packages/nightshade_core/lib/src/providers/polar_alignment_provider.dart:98:    final phaseStr = data['phase'] as String? ?? '';
@@ -1534,10 +1557,12 @@ packages/nightshade_core/lib/src/providers/profiles_provider.dart:168:        db
 packages/nightshade_core/lib/src/providers/profiles_provider.dart:621:      : (profile.telescopeFocalLength ?? 0);
 packages/nightshade_core/lib/src/providers/profiles_provider.dart:624:      : (profile.telescopeAperture ?? 0);
 packages/nightshade_core/lib/src/providers/push_notification_provider.dart:27:          notifyEquipmentDisconnected: map['notifyEquipmentDisconnected'] as bool? ?? false,
-packages/nightshade_core/lib/src/providers/scheduler_provider.dart:227:    } catch (_) {
-packages/nightshade_core/lib/src/providers/scheduler_provider.dart:260:  final lat = settings?.latitude ?? 0.0;
-packages/nightshade_core/lib/src/providers/scheduler_provider.dart:261:  final lng = settings?.longitude ?? 0.0;
-packages/nightshade_core/lib/src/providers/scheduler_provider.dart:392:// in a no-op to keep the public surface clean.
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:229:    final objectType = row.readNullable<String>('object_type') ?? '';
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:230:    final notes = row.readNullable<String>('notes') ?? '';
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:241:    } catch (_) {
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:274:  final lat = settings?.latitude ?? 0.0;
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:275:  final lng = settings?.longitude ?? 0.0;
+packages/nightshade_core/lib/src/providers/scheduler_provider.dart:405:// in a no-op to keep the public surface clean.
 packages/nightshade_core/lib/src/providers/science_provider.dart:142:          settings[_keys['mpcObservatoryCode']] ?? '',
 packages/nightshade_core/lib/src/providers/science_provider.dart:144:          settings[_keys['aavsoObserverCode']] ?? '',
 packages/nightshade_core/lib/src/providers/science_provider.dart:698:          differentialMagnitude: row.differentialMagnitude ?? 0.0,
@@ -1558,20 +1583,22 @@ packages/nightshade_core/lib/src/providers/sequence/sequence_editor.dart:749:   
 packages/nightshade_core/lib/src/providers/sequence/sequence_editor.dart:750:          autoCenter: json['autoCenter'] as bool? ?? false,
 packages/nightshade_core/lib/src/providers/sequence/sequence_editor.dart:762:          seconds: (json['seconds'] as num?)?.toDouble() ?? 0.0,
 packages/nightshade_core/lib/src/providers/sequence/sequence_editor.dart:774:          message: json['message'] as String? ?? '',
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1140:            hfr: capturedImage.stats.hfr ?? 0.0,
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1142:            fwhm: (capturedImage.stats.hfr ?? 0.0) * 2.35,
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:62:      return settings?.useNativeExecution ?? false;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:79:      return settings?.useSimulationMode ?? false;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:864:        final frame = event.data['frame'] as int? ?? 0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:865:        final total = event.data['total'] as int? ?? 0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:884:        final frame = event.data['frame'] as int? ?? 0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:887:            (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:912:        final current = event.data['current'] as int? ?? 0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:913:        final total = event.data['total'] as int? ?? 0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:961:        final instruction = event.data['instruction'] as String? ?? '';
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:963:            (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:964:        final detail = event.data['detail'] as String? ?? '';
-packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:987:        final action = event.data['action'] as String? ?? '';
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1008:        final action = event.data['action'] as String? ?? '';
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1160:            hfr: capturedImage.stats.hfr ?? 0.0,
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1162:            fwhm: (capturedImage.stats.hfr ?? 0.0) * 2.35,
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1474:    final capturePath = settings?.imageOutputPath ?? '';
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:1511:    } catch (_) {
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:67:      return settings?.useNativeExecution ?? false;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:84:      return settings?.useSimulationMode ?? false;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:885:        final frame = event.data['frame'] as int? ?? 0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:886:        final total = event.data['total'] as int? ?? 0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:905:        final frame = event.data['frame'] as int? ?? 0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:908:            (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:933:        final current = event.data['current'] as int? ?? 0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:934:        final total = event.data['total'] as int? ?? 0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:982:        final instruction = event.data['instruction'] as String? ?? '';
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:984:            (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
+packages/nightshade_core/lib/src/providers/sequence/sequence_executor.dart:985:        final detail = event.data['detail'] as String? ?? '';
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:109:    stats.framesCaptured = (map['framesCaptured'] as num?)?.toInt() ?? 0;
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:110:    stats.framesRejected = (map['framesRejected'] as num?)?.toInt() ?? 0;
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:112:        (map['integrationSecs'] as num?)?.toDouble() ?? 0.0;
@@ -1591,29 +1618,29 @@ packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:203:    
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:204:      autofocusRuns: (map['autofocusRuns'] as num?)?.toInt() ?? 0,
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:205:      meridianFlips: (map['meridianFlips'] as num?)?.toInt() ?? 0,
 packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart:206:      ditherCount: (map['ditherCount'] as num?)?.toInt() ?? 0,
-packages/nightshade_core/lib/src/providers/settings_provider.dart:1851:    final savePath = await dao.getSetting('default_image_directory') ?? '';
-packages/nightshade_core/lib/src/providers/settings_provider.dart:1954:    final solverPath = await dao.getSetting('plate_solve_path') ?? '';
-packages/nightshade_core/lib/src/providers/settings_provider.dart:2133:    } catch (_) {
-packages/nightshade_core/lib/src/providers/settings_provider.dart:2149:  double altitudeAt(String direction) => _altitudes[direction] ?? 0.0;
-packages/nightshade_core/lib/src/providers/settings_provider.dart:2166:    final alt1 = _altitudes[horizonDirections[segmentIndex]] ?? 0.0;
-packages/nightshade_core/lib/src/providers/settings_provider.dart:2167:    final alt2 = _altitudes[horizonDirections[nextIndex]] ?? 0.0;
-packages/nightshade_core/lib/src/providers/settings_provider.dart:2183:      final val = _altitudes[dir] ?? 0.0;
-packages/nightshade_core/lib/src/providers/settings_provider.dart:560:      observer: previous?.observer ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:561:      telescope: previous?.telescope ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:562:      instrument: previous?.instrument ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:564:      updateServerUrl: previous?.updateServerUrl ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:567:      skippedUpdateVersion: previous?.skippedUpdateVersion ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:645:      astapPath: allSettings['astap_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:646:      astrometryPath: allSettings['astrometry_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:653:      phd2Path: allSettings['phd2_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:660:      discordWebhook: allSettings['discord_webhook'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:661:      pushoverKey: allSettings['pushover_key'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:662:      pushoverUser: allSettings['pushover_user'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:671:      imageOutputPath: allSettings['image_output_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:672:      sequencesPath: allSettings['sequences_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:673:      databasePath: allSettings['database_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:674:      logsPath: allSettings['logs_path'] ?? '',
-packages/nightshade_core/lib/src/providers/settings_provider.dart:740:      afAutofocusFilterName: allSettings['af_autofocus_filter_name'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:1855:    final savePath = await dao.getSetting('default_image_directory') ?? '';
+packages/nightshade_core/lib/src/providers/settings_provider.dart:1958:    final solverPath = await dao.getSetting('plate_solve_path') ?? '';
+packages/nightshade_core/lib/src/providers/settings_provider.dart:2151:    } catch (_) {
+packages/nightshade_core/lib/src/providers/settings_provider.dart:2167:  double altitudeAt(String direction) => _altitudes[direction] ?? 0.0;
+packages/nightshade_core/lib/src/providers/settings_provider.dart:2184:    final alt1 = _altitudes[horizonDirections[segmentIndex]] ?? 0.0;
+packages/nightshade_core/lib/src/providers/settings_provider.dart:2185:    final alt2 = _altitudes[horizonDirections[nextIndex]] ?? 0.0;
+packages/nightshade_core/lib/src/providers/settings_provider.dart:2201:      final val = _altitudes[dir] ?? 0.0;
+packages/nightshade_core/lib/src/providers/settings_provider.dart:561:      observer: previous?.observer ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:562:      telescope: previous?.telescope ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:563:      instrument: previous?.instrument ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:565:      updateServerUrl: previous?.updateServerUrl ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:568:      skippedUpdateVersion: previous?.skippedUpdateVersion ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:647:      astapPath: allSettings['astap_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:648:      astrometryPath: allSettings['astrometry_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:655:      phd2Path: allSettings['phd2_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:662:      discordWebhook: allSettings['discord_webhook'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:663:      pushoverKey: allSettings['pushover_key'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:664:      pushoverUser: allSettings['pushover_user'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:673:      imageOutputPath: allSettings['image_output_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:674:      sequencesPath: allSettings['sequences_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:675:      databasePath: allSettings['database_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:676:      logsPath: allSettings['logs_path'] ?? '',
+packages/nightshade_core/lib/src/providers/settings_provider.dart:742:      afAutofocusFilterName: allSettings['af_autofocus_filter_name'] ?? '',
 packages/nightshade_core/lib/src/providers/suggestion_filter_provider.dart:223:  final raw = (s.objectType ?? '').toLowerCase();
 packages/nightshade_core/lib/src/providers/suggestion_filter_provider.dart:564:        final ac = a.constellation ?? '';
 packages/nightshade_core/lib/src/providers/suggestion_filter_provider.dart:565:        final bc = b.constellation ?? '';
@@ -1652,6 +1679,8 @@ packages/nightshade_core/lib/src/services/calibration_service.dart:147:        o
 packages/nightshade_core/lib/src/services/calibration_service.dart:316:    await _saveSetting('calibration.master_flat_path', path ?? '');
 packages/nightshade_core/lib/src/services/calibration_service.dart:321:    await _saveSetting('calibration.master_bias_path', path ?? '');
 packages/nightshade_core/lib/src/services/calibration_service.dart:332:    await _saveSetting('calibration.manual_dark_path', path ?? '');
+packages/nightshade_core/lib/src/services/campaign_rollup_service.dart:151:      meanEffectiveImagingFraction: simpleMean(efficiencyInputs) ?? 0.0,
+packages/nightshade_core/lib/src/services/campaign_rollup_service.dart:173:      bucket.labelCounts[raw] = (bucket.labelCounts[raw] ?? 0) + 1;
 packages/nightshade_core/lib/src/services/catalog_service.dart:251:        ra: parts.length > 2 ? double.tryParse(parts[2]) ?? 0 : 0,
 packages/nightshade_core/lib/src/services/catalog_service.dart:252:        dec: parts.length > 3 ? double.tryParse(parts[3]) ?? 0 : 0,
 packages/nightshade_core/lib/src/services/catalog_service.dart:286:      final ra = double.tryParse(parts[7]) ?? 0;
@@ -1700,11 +1729,11 @@ packages/nightshade_core/lib/src/services/diagnostic_dump_service.dart:335:     
 packages/nightshade_core/lib/src/services/diagnostic_dump_service.dart:567:  // placeholder so the file path is preserved.
 packages/nightshade_core/lib/src/services/diagnostic_dump_service.dart:582:  } on Exception catch (_) {
 packages/nightshade_core/lib/src/services/diagnostic_dump_service.dart:81:/// - `profile.json`               active equipment profile (or error stub)
-packages/nightshade_core/lib/src/services/flat_wizard_service.dart:241:          adu: lastAdu ?? 0,
-packages/nightshade_core/lib/src/services/flat_wizard_service.dart:313:      adu: lastAdu ?? 0,
-packages/nightshade_core/lib/src/services/flat_wizard_service.dart:350:      onProgress?.call(iteration, exposure, lastAdu ?? 0, 'Testing exposure');
-packages/nightshade_core/lib/src/services/flat_wizard_service.dart:365:          adu: lastAdu ?? 0,
-packages/nightshade_core/lib/src/services/flat_wizard_service.dart:453:      adu: lastAdu ?? 0,
+packages/nightshade_core/lib/src/services/flat_wizard_service.dart:247:          adu: lastAdu ?? 0,
+packages/nightshade_core/lib/src/services/flat_wizard_service.dart:321:      adu: lastAdu ?? 0,
+packages/nightshade_core/lib/src/services/flat_wizard_service.dart:360:      onProgress?.call(iteration, exposure, lastAdu ?? 0, 'Testing exposure');
+packages/nightshade_core/lib/src/services/flat_wizard_service.dart:377:          adu: lastAdu ?? 0,
+packages/nightshade_core/lib/src/services/flat_wizard_service.dart:465:      adu: lastAdu ?? 0,
 packages/nightshade_core/lib/src/services/imaging_service.dart:103:            final progress = event.data['progress'] as double? ?? 0.0;
 packages/nightshade_core/lib/src/services/imaging_service.dart:104:            final remainingSecs = event.data['remainingSecs'] as double? ?? 0.0;
 packages/nightshade_core/lib/src/services/imaging_service.dart:447:                  filePath: processedFilePath ?? '',
@@ -1729,42 +1758,42 @@ packages/nightshade_core/lib/src/services/science/science_processing_service.dar
 packages/nightshade_core/lib/src/services/science/science_processing_service.dart:979:        rotationDegrees: image.solvedRotation ?? 0.0,
 packages/nightshade_core/lib/src/services/sequence_file_service.dart:226:      description: json['description'] as String? ?? '',
 packages/nightshade_core/lib/src/services/sequence_file_service.dart:229:      isTemplate: json['isTemplate'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:437:    final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:438:    final isEnabled = json['isEnabled'] as bool? ?? false;
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:456:          priority: (json['priority'] as num?)?.toInt() ?? 0,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:622:          raOnly: json['raOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:658:          filterName: json['filterName'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:695:          targetAngle: (json['targetAngle'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:696:          relative: json['relative'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:751:          title: json['title'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:752:          message: json['message'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:765:          scriptPath: json['scriptPath'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:785:              (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:788:          refocusAfter: json['refocusAfter'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:803:          shutterOnly: json['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:814:          shutterOnly: json['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:825:          shutterOnly: json['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:844:          startFromCurrent: json['startFromCurrent'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:845:          isNorth: json['isNorth'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_file_service.dart:846:          manualSlew: json['manualSlew'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:428:    final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:429:    final isEnabled = json['isEnabled'] as bool? ?? false;
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:447:          priority: (json['priority'] as num?)?.toInt() ?? 0,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:616:          raOnly: json['raOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:652:          filterName: json['filterName'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:689:          targetAngle: (json['targetAngle'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:690:          relative: json['relative'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:745:          title: json['title'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:746:          message: json['message'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:759:          scriptPath: json['scriptPath'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:779:              (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:782:          refocusAfter: json['refocusAfter'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:797:          shutterOnly: json['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:808:          shutterOnly: json['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:819:          shutterOnly: json['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:838:          startFromCurrent: json['startFromCurrent'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:839:          isNorth: json['isNorth'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_file_service.dart:840:          manualSlew: json['manualSlew'] as bool? ?? false,
 packages/nightshade_core/lib/src/services/sequence_repository.dart:238:      description: dbSequence.description ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:430:          raOnly: props['raOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:442:          filterName: props['filterName'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:481:          targetAngle: (props['targetAngle'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:482:          relative: props['relative'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:544:          title: props['title'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:545:          message: props['message'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:558:          scriptPath: props['scriptPath'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:573:          targetName: props['targetName'] as String? ?? '',
-packages/nightshade_core/lib/src/services/sequence_repository.dart:574:          raHours: (props['raHours'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:575:          decDegrees: (props['decDegrees'] as num?)?.toDouble() ?? 0.0,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:579:          priority: (props['priority'] as num?)?.toInt() ?? 0,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:701:              (props['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:704:          refocusAfter: props['refocusAfter'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:721:          shutterOnly: props['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:733:          shutterOnly: props['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:745:          shutterOnly: props['shutterOnly'] as bool? ?? false,
-packages/nightshade_core/lib/src/services/sequence_repository.dart:766:          manualSlew: props['manualSlew'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:434:          raOnly: props['raOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:446:          filterName: props['filterName'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_repository.dart:485:          targetAngle: (props['targetAngle'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:486:          relative: props['relative'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:548:          title: props['title'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_repository.dart:549:          message: props['message'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_repository.dart:562:          scriptPath: props['scriptPath'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_repository.dart:577:          targetName: props['targetName'] as String? ?? '',
+packages/nightshade_core/lib/src/services/sequence_repository.dart:578:          raHours: (props['raHours'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:579:          decDegrees: (props['decDegrees'] as num?)?.toDouble() ?? 0.0,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:583:          priority: (props['priority'] as num?)?.toInt() ?? 0,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:705:              (props['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:708:          refocusAfter: props['refocusAfter'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:725:          shutterOnly: props['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:737:          shutterOnly: props['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:749:          shutterOnly: props['shutterOnly'] as bool? ?? false,
+packages/nightshade_core/lib/src/services/sequence_repository.dart:770:          manualSlew: props['manualSlew'] as bool? ?? false,
 packages/nightshade_core/lib/src/services/session_export_service.dart:67:        image.filter ?? '',
 packages/nightshade_core/lib/src/services/session_export_service.dart:68:        image.hfr?.toStringAsFixed(2) ?? '',
 packages/nightshade_core/lib/src/services/session_export_service.dart:69:        fwhm?.toStringAsFixed(2) ?? '',
@@ -1778,6 +1807,13 @@ packages/nightshade_core/lib/src/services/session_handoff_service.dart:61:      
 packages/nightshade_core/lib/src/services/session_handoff_service.dart:62:      totalIntegrationHours: (json['totalIntegrationHours'] as num?)?.toDouble() ?? 0,
 packages/nightshade_core/lib/src/services/session_optimizer_service.dart:126:    final objectType = (suggestion.objectType ?? '').toLowerCase();
 packages/nightshade_core/lib/src/services/session_optimizer_service.dart:90:        (primary.visibility.hoursAboveMinAlt ?? 0).clamp(0.0, 24.0);
+packages/nightshade_core/lib/src/services/session_report_service.dart:221:    // Bucket rejection reasons. Use a placeholder for null/empty so the UI
+packages/nightshade_core/lib/src/services/session_report_service.dart:228:      rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
+packages/nightshade_core/lib/src/services/session_report_service.dart:344:      final runAf = (parsed['autofocusRuns'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/services/session_report_service.dart:345:      final runMf = (parsed['meridianFlips'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/services/session_report_service.dart:346:      final runDi = (parsed['ditherCount'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/services/session_report_service.dart:347:      final runTr = (parsed['triggerFires'] as num?)?.toInt() ?? 0;
+packages/nightshade_core/lib/src/services/session_report_service.dart:529:                (rejectionTotals[entry.key] ?? 0) + entry.value;
 packages/nightshade_core/lib/src/services/session_service.dart:280:        final notes = currentSession.notes ?? '';
 packages/nightshade_core/lib/src/services/target_suggestion_service.dart:170:        final objectType = target.objectType?.toLowerCase() ?? '';
 packages/nightshade_core/lib/src/services/transient_alert_service.dart:438:          final raStr = obj['ra'] as String? ?? '';

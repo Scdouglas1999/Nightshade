@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -43,6 +44,19 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
         children: [
           Row(
             children: [
+              IconButton(
+                tooltip: 'Back to help',
+                icon: const Icon(LucideIcons.arrowLeft),
+                color: colors.textSecondary,
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/settings');
+                  }
+                },
+              ),
+              const SizedBox(width: 4),
               Icon(LucideIcons.fileArchive, size: 22, color: colors.primary),
               const SizedBox(width: 10),
               Text(
@@ -170,7 +184,10 @@ class _ContentsCard extends StatelessWidget {
       ('Active equipment profile', 'profile.json — devices, optics, defaults'),
       ('Current sequence', 'sequence.json — name, tree shape, node metadata'),
       ('System info', 'system_info.json — OS, Dart version, app version'),
-      ('Device connection list', 'devices.json — role + connection state per device'),
+      (
+        'Device connection list',
+        'devices.json — role + connection state per device'
+      ),
       ('Manifest', 'manifest.json — bundle version and per-entry status'),
     ];
 
@@ -199,7 +216,8 @@ class _ContentsCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(LucideIcons.checkCircle2, size: 16, color: colors.success),
+                  Icon(LucideIcons.checkCircle2,
+                      size: 16, color: colors.success),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(

@@ -40,10 +40,7 @@ fn main() {
             err
         );
     });
-    println!(
-        "cargo:rustc-env=NIGHTSHADE_VERSION={}",
-        nightshade_version
-    );
+    println!("cargo:rustc-env=NIGHTSHADE_VERSION={}", nightshade_version);
 
     // Platform-specific library configuration
     #[cfg(target_os = "windows")]
@@ -62,10 +59,7 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", search_dir.display());
         println!("cargo:rustc-link-lib=dylib=libraw");
         let libraw_dll = search_dir.join("libraw.dll");
-        println!(
-            "cargo:rerun-if-changed={}",
-            libraw_dll.display()
-        );
+        println!("cargo:rerun-if-changed={}", libraw_dll.display());
         println!("cargo:rerun-if-env-changed=LIBRAW_DIR");
 
         let libraw_lib = search_dir.join("libraw.lib");
@@ -266,8 +260,5 @@ fn read_nightshade_version(path: &std::path::Path) -> Result<String, String> {
         }
         return Ok(stripped.to_string());
     }
-    Err(format!(
-        "`version:` key not found in {}",
-        path.display()
-    ))
+    Err(format!("`version:` key not found in {}", path.display()))
 }

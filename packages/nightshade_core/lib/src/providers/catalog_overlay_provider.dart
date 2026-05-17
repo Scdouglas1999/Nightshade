@@ -83,9 +83,8 @@ class CatalogOverlayQuery {
 /// so the UI thread is never blocked on catalog IO. Use this with
 /// `.watch(...)` in a Consumer to get loading / data / error states for
 /// free.
-final catalogOverlayQueryProvider =
-    FutureProvider.family<CatalogOverlayResult, CatalogOverlayQuery>(
-        (ref, query) async {
+final catalogOverlayQueryProvider = FutureProvider.autoDispose
+    .family<CatalogOverlayResult, CatalogOverlayQuery>((ref, query) async {
   final service = ref.watch(catalogOverlayServiceProvider);
   return service.queryFov(
     wcs: query.wcs,

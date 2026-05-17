@@ -23,6 +23,8 @@ class ConnectionSettings extends ConsumerWidget {
     final backend = ref.watch(backendProvider);
     final isConnected = backend is NetworkBackend;
     final isDisconnected = backend is DisconnectedBackend;
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final settingsNotifier = ref.read(appSettingsProvider.notifier);
     final platformCapabilities =
         PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
 
@@ -116,6 +118,41 @@ class ConnectionSettings extends ConsumerWidget {
             ),
           ],
         ),
+        if (settings != null)
+          SettingsSection(
+            title: 'Discovery',
+            colors: colors,
+            isMobile: isMobile,
+            children: [
+              SettingRow(
+                icon: LucideIcons.radio,
+                title: 'INDI auto-connect',
+                subtitle:
+                    'Automatically connect to the configured INDI server when available',
+                trailing: SettingsSwitch(
+                  value: settings.indiAutoConnect,
+                  onChanged: settingsNotifier.setIndiAutoConnect,
+                  colors: colors,
+                ),
+                colors: colors,
+                isMobile: isMobile,
+              ),
+              SettingRow(
+                icon: LucideIcons.search,
+                title: 'Alpaca auto-discovery',
+                subtitle:
+                    'Scan the local network for Alpaca devices and servers',
+                trailing: SettingsSwitch(
+                  value: settings.alpacaAutoDiscover,
+                  onChanged: settingsNotifier.setAlpacaAutoDiscover,
+                  colors: colors,
+                ),
+                isLast: true,
+                colors: colors,
+                isMobile: isMobile,
+              ),
+            ],
+          ),
         if (isConnected)
           SettingsSection(
             title: 'Remote Features',
@@ -203,8 +240,13 @@ class ConnectionSettings extends ConsumerWidget {
   }
 
   void _showConnectDialog(BuildContext context, WidgetRef ref) {
-    final hostController = TextEditingController(text: 'localhost');
-    final portController = TextEditingController(text: '8080');
+    final settings = ref.read(appSettingsProvider).valueOrNull;
+    final host = settings?.alpacaServerHost.isNotEmpty == true
+        ? settings!.alpacaServerHost
+        : settings?.indiServerHost ?? 'localhost';
+    final port = settings?.alpacaServerPort ?? 8080;
+    final hostController = TextEditingController(text: host);
+    final portController = TextEditingController(text: port.toString());
     final tokenController = TextEditingController();
 
     showDialog(
