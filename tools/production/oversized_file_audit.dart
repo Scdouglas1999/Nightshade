@@ -36,7 +36,7 @@ const _prioritySplitReasons = {
       'Headless route registration, middleware, self-test, and static serving share one release-critical file.',
   'packages/nightshade_core/lib/src/backend/network_backend.dart':
       'Remote client endpoint coverage and response parsing are concentrated in NetworkBackend.',
-  'packages/nightshade_webrtc/lib/src/web_server.dart':
+  'packages/nightshade_remote_protocol/lib/src/web_server.dart':
       'WebRTC server routing, API helpers, and dashboard docs are concentrated in one backend file.',
   'packages/nightshade_core/lib/src/backend/ffi_backend.dart':
       'Native backend command paths are large enough to make hardware workflow edits risky.',

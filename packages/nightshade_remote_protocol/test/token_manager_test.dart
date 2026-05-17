@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:nightshade_webrtc/src/auth/token_manager.dart';
-import 'package:nightshade_webrtc/src/database/pairing_database.dart';
+import 'package:nightshade_remote_protocol/src/auth/token_manager.dart';
+import 'package:nightshade_remote_protocol/src/database/pairing_database.dart';
 
 class MockPairingDatabase extends Mock implements PairingDatabase {}
 

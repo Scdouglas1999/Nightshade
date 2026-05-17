@@ -7,9 +7,10 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 // Why still imported: UpdatePushDiscovery (LAN update-push responder) lives in
-// nightshade_webrtc/discovery.dart. The server (NightshadeWebServer) is gone
-// in §2.2 but discovery primitives remain.
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+// nightshade_remote_protocol/discovery.dart. The server (NightshadeWebServer)
+// is gone in §2.2 but discovery primitives remain. Package was renamed from
+// nightshade_webrtc → nightshade_remote_protocol in AUDIT-FIX-5A (§4.2).
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 

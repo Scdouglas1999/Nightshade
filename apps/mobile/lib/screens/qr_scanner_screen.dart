@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 /// Screen for scanning QR codes to connect to Nightshade servers.
 ///

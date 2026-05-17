@@ -343,13 +343,13 @@ String _bucketIdFor(_StatusEntry entry) {
       category == 'planetarium' ||
       category == 'plugins' ||
       category == 'updater' ||
-      category == 'webrtc' ||
+      category == 'remote-protocol' ||
       path.startsWith('packages/nightshade_app/lib/') ||
       path.startsWith('packages/nightshade_ui/') ||
       path.startsWith('packages/nightshade_planetarium/') ||
       path.startsWith('packages/nightshade_plugins/') ||
       path.startsWith('packages/nightshade_updater/') ||
-      path.startsWith('packages/nightshade_webrtc/') ||
+      path.startsWith('packages/nightshade_remote_protocol/') ||
       path.startsWith('apps/desktop/lib/')) {
     return 'desktop-ui-workflows';
   }

@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 

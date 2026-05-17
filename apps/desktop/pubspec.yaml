@@ -21,8 +21,8 @@ dependencies:
     path: ../../packages/nightshade_bridge
   nightshade_plugins:
     path: ../../packages/nightshade_plugins
-  nightshade_webrtc:
-    path: ../../packages/nightshade_webrtc
+  nightshade_remote_protocol:
+    path: ../../packages/nightshade_remote_protocol
   nightshade_app:
     path: ../../packages/nightshade_app
   nightshade_updater:

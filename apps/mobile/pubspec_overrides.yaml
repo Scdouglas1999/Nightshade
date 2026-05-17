@@ -1,4 +1,4 @@
-# melos_managed_dependency_overrides: nightshade_app,nightshade_bridge,nightshade_core,nightshade_planetarium,nightshade_plugins,nightshade_ui,nightshade_webrtc,nightshade_updater
+# melos_managed_dependency_overrides: nightshade_app,nightshade_bridge,nightshade_core,nightshade_planetarium,nightshade_plugins,nightshade_ui,nightshade_remote_protocol,nightshade_updater
 dependency_overrides:
   nightshade_app:
     path: ../../packages/nightshade_app
@@ -14,5 +14,5 @@ dependency_overrides:
     path: ../../packages/nightshade_ui
   nightshade_updater:
     path: ../../packages/nightshade_updater
-  nightshade_webrtc:
-    path: ../../packages/nightshade_webrtc
+  nightshade_remote_protocol:
+    path: ../../packages/nightshade_remote_protocol

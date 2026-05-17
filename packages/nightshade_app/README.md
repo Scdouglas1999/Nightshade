@@ -67,7 +67,7 @@ NightshadeApp(
 - `nightshade_ui` - Design system and shared widgets
 - `nightshade_planetarium` - Sky visualization
 - `nightshade_plugins` - Plugin system
-- `nightshade_webrtc` - Remote control
+- `nightshade_remote_protocol` - Remote-control discovery + pairing
 
 ## Architecture
 

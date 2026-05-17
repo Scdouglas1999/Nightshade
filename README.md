@@ -246,7 +246,7 @@ nightshade/
 │  ├─ nightshade_plugins/      # Plugin host & API
 │  ├─ nightshade_screens/      # Shared screen stubs
 │  ├─ nightshade_updater/      # OTA update system
-│  └─ nightshade_webrtc/       # P2P remote control
+│  └─ nightshade_remote_protocol/ # Remote-control discovery + pairing
 │
 ├─ native/nightshade_native/
 │  ├─ bridge/                  # FFI entry point (cdylib)

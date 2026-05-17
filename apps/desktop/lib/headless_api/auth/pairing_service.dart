@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:nightshade_webrtc/nightshade_webrtc.dart' show PairingDatabase;
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart' show PairingDatabase;
 
 /// Outcome of a verify attempt against the [PairingService].
 enum PairingVerifyOutcome {

@@ -7,7 +7,7 @@ This guide shows how to integrate the secure WebRTC system into Nightshade 2.0.
 ### 1. Desktop Application Setup
 
 ```dart
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:uuid/uuid.dart';
 
 class RemoteControlService {
@@ -79,7 +79,7 @@ class RemoteControlProvider extends StateNotifier<RemoteControlState> {
 ### 3. Mobile Application Setup
 
 ```dart
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:uuid/uuid.dart';
 
 class MobileRemoteClient {

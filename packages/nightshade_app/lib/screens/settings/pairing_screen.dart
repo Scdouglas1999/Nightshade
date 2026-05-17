@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';

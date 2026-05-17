@@ -1,5 +1,5 @@
-name: nightshade_webrtc
-description: Nightshade 2.0 WebRTC - P2P communication for remote control
+name: nightshade_remote_protocol
+description: Nightshade 2.0 remote-control protocol — LAN discovery, pairing, secure token management, and channel encryption.
 version: 1.0.0
 publish_to: 'none'
 

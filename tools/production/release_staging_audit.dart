@@ -323,7 +323,7 @@ class _StatusEntry {
     if (path.startsWith('packages/nightshade_planetarium/')) return 'planetarium';
     if (path.startsWith('packages/nightshade_plugins/')) return 'plugins';
     if (path.startsWith('packages/nightshade_updater/')) return 'updater';
-    if (path.startsWith('packages/nightshade_webrtc/')) return 'webrtc';
+    if (path.startsWith('packages/nightshade_remote_protocol/')) return 'remote-protocol';
     if (path.startsWith('packages/nightshade_ui/')) return 'ui-system';
     if (path.startsWith('tools/production/')) return 'release-tooling';
     if (path.startsWith('tools/') || path.startsWith('scripts/')) {

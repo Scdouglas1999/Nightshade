@@ -1,10 +1,14 @@
-/// Nightshade WebRTC - LAN discovery, pairing, and remote-control protocol shims.
-library nightshade_webrtc;
+/// Nightshade remote-control protocol — LAN discovery, pairing, token
+/// management, and channel encryption used by the headless API server and
+/// the mobile companion.
+library;
 
-// Why the package is still called nightshade_webrtc: legacy name kept for v2.5.0
-// to avoid churning every downstream pubspec. The package no longer ships WebRTC
-// peer-connection or signaling primitives (deleted in §2.3 audit 2026-05-09);
-// live remote control runs over REST + WebSocket via headless_api_server.dart.
+// Why the rename: this package was originally named nightshade_webrtc, but the
+// WebRTC peer-connection + signaling primitives were removed in §2.3 audit
+// 2026-05-09. Live remote control now runs over REST + WebSocket via
+// headless_api_server.dart. Renamed to nightshade_remote_protocol in
+// AUDIT-FIX-5A (audit-handoff §4.2) so the name reflects what the package
+// actually contains: discovery, auth, crypto, and pairing primitives.
 //
 // web_server.dart was deleted in §2.2 (audit 2026-05-09) — the consolidated
 // HTTP/REST server now lives at apps/desktop/lib/headless_api_server.dart and

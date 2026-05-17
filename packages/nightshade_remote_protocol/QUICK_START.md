@@ -9,7 +9,7 @@
 Add to `pubspec.yaml`:
 ```yaml
 dependencies:
-  nightshade_webrtc: ^1.0.0
+  nightshade_remote_protocol: ^1.0.0
 ```
 
 ---
@@ -18,7 +18,7 @@ dependencies:
 
 ### 1. Initialize
 ```dart
-import 'package:nightshade_webrtc/nightshade_webrtc.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 final database = PairingDatabase();
 final tokenManager = TokenManager(database);

@@ -167,7 +167,7 @@ packages/
 ├── nightshade_plugins/   # Plugin host & API
 ├── nightshade_screens/   # Shared screen stubs (transitional)
 ├── nightshade_updater/   # OTA update system with LAN push
-└── nightshade_webrtc/    # P2P remote control (WebRTC)
+└── nightshade_remote_protocol/  # Remote-control discovery, auth, channel encryption (formerly nightshade_webrtc)
 
 native/nightshade_native/
 ├── bridge/       # FFI entry point (cdylib + staticlib)
@@ -229,7 +229,7 @@ docs/               # Documentation
 | Database | `packages/nightshade_core/lib/src/database/` |
 | Planetarium/sky rendering | `packages/nightshade_planetarium/` |
 | OTA updates | `packages/nightshade_updater/` |
-| Remote control (WebRTC) | `packages/nightshade_webrtc/` |
+| Remote control / discovery / pairing | `packages/nightshade_remote_protocol/` |
 | Plugin system | `packages/nightshade_plugins/` |
 | Windows ASCOM | `native/nightshade_native/ascom/src/` |
 | Linux/macOS INDI | `native/nightshade_native/indi/src/` |

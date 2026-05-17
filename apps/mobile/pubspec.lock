@@ -951,6 +951,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  nightshade_remote_protocol:
+    dependency: "direct main"
+    description:
+      path: "../../packages/nightshade_remote_protocol"
+      relative: true
+    source: path
+    version: "1.0.0"
   nightshade_ui:
     dependency: "direct main"
     description:
@@ -962,13 +969,6 @@ packages:
     dependency: "direct main"
     description:
       path: "../../packages/nightshade_updater"
-      relative: true
-    source: path
-    version: "1.0.0"
-  nightshade_webrtc:
-    dependency: "direct main"
-    description:
-      path: "../../packages/nightshade_webrtc"
       relative: true
     source: path
     version: "1.0.0"
