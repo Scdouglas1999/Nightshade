@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
@@ -1688,6 +1690,20 @@ class DeviceService {
       notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
       try {
         final settings = await _ref.read(appSettingsProvider.future);
+        // Auto-launch PHD2 when an executable path is configured and the
+        // host is local. Why: PHD2 is a separate process; if the user
+        // points Nightshade at a locally-installed binary, we should not
+        // require them to alt-tab to launch it before pressing Connect.
+        // For remote hosts (host != localhost/127.0.0.1) we never spawn —
+        // the user controls that machine's processes themselves.
+        if (settings.phd2Path.isNotEmpty &&
+            _isLocalHost(settings.phd2Host)) {
+          await _ensurePhd2Running(
+            executablePath: settings.phd2Path,
+            host: settings.phd2Host,
+            port: settings.phd2Port,
+          );
+        }
         await _backend.phd2Connect(
           host: settings.phd2Host,
           port: settings.phd2Port,
@@ -3083,6 +3099,114 @@ class DeviceService {
 
   Future<SequencerStatus> getSequencerStatus() async {
     return await _backend.sequencerGetStatus();
+  }
+
+  // ---------------------------------------------------------------------------
+  // PHD2 auto-launch
+  //
+  // Why: PHD2 is an external program. Users routinely configure a path to
+  // its executable in Settings → PHD2 expecting "Connect" to start the
+  // process when it is not already running. The previous behaviour required
+  // the user to launch PHD2 separately before pressing Connect, which made
+  // the path field misleading.
+  //
+  // Audit-handoff §2.1 WIRE-UP item #1.
+  // ---------------------------------------------------------------------------
+
+  /// Maximum wait for the PHD2 socket to come up after spawning the process.
+  static const Duration _phd2LaunchTimeout = Duration(seconds: 10);
+  static const Duration _phd2PollInterval = Duration(milliseconds: 250);
+
+  /// True when the configured host is the same machine (i.e. we should
+  /// auto-spawn PHD2 ourselves rather than expecting it to be remote).
+  bool _isLocalHost(String host) {
+    if (kIsWeb) return false;
+    final normalized = host.trim().toLowerCase();
+    return normalized.isEmpty ||
+        normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1';
+  }
+
+  /// Ensure PHD2 is running on [host]:[port]. If a socket is already
+  /// accepting connections we return immediately; otherwise we spawn the
+  /// configured executable and wait up to [_phd2LaunchTimeout] for the port
+  /// to open.
+  Future<void> _ensurePhd2Running({
+    required String executablePath,
+    required String host,
+    required int port,
+  }) async {
+    if (await _isPortOpen(host, port)) {
+      // Already running — nothing to do.
+      return;
+    }
+
+    final exe = File(executablePath);
+    if (!await exe.exists()) {
+      // Fail loud — the user pointed us at a path that does not exist.
+      throw FileSystemException(
+        'PHD2 executable not found. Update Settings → PHD2 Guiding → '
+        'PHD2 executable path or clear it to disable auto-launch.',
+        executablePath,
+      );
+    }
+
+    final notifications = _ref.read(uiNotificationProvider.notifier);
+    notifications.showInfo(
+      'PHD2 not running — launching $executablePath...',
+      title: 'PHD2',
+      duration: const Duration(seconds: 5),
+    );
+
+    try {
+      // detached: do not tie PHD2's lifetime to Nightshade's.
+      await Process.start(
+        executablePath,
+        const <String>[],
+        mode: ProcessStartMode.detached,
+      );
+    } on ProcessException catch (e) {
+      throw ProcessException(
+        executablePath,
+        const <String>[],
+        'Failed to launch PHD2 (${e.message}). Check the configured '
+        'PHD2 executable path.',
+        e.errorCode,
+      );
+    }
+
+    // Poll for the socket to open. PHD2 typically takes 2-5s to begin
+    // accepting connections on cold start.
+    final deadline = DateTime.now().add(_phd2LaunchTimeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (await _isPortOpen(host, port)) {
+        return;
+      }
+      await Future.delayed(_phd2PollInterval);
+    }
+
+    throw TimeoutException(
+      'PHD2 launched but did not open port $port on $host within '
+      '${_phd2LaunchTimeout.inSeconds} seconds. Verify PHD2 is configured '
+      'to expose its server interface.',
+      _phd2LaunchTimeout,
+    );
+  }
+
+  /// Check whether [host]:[port] is accepting TCP connections.
+  Future<bool> _isPortOpen(String host, int port) async {
+    try {
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(milliseconds: 500),
+      );
+      await socket.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }
 

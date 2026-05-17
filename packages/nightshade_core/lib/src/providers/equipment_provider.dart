@@ -12,6 +12,7 @@ export 'equipment/cover_calibrator_state_provider.dart';
 export 'equipment/dome_state_provider.dart';
 export 'equipment/filter_wheel_state_provider.dart';
 export 'equipment/focuser_state_provider.dart';
+export 'equipment/focuser_temp_compensation_provider.dart';
 export 'equipment/guider_state_provider.dart';
 export 'equipment/mount_state_provider.dart';
 export 'equipment/rotator_state_provider.dart';

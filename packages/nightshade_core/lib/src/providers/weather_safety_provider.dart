@@ -136,11 +136,21 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   StreamSubscription? _alertSubscription;
   Timer? _snoozeTimer;
   Timer? _periodicEvalTimer;
+  Timer? _resumeDelayTimer;
   bool _resumeInFlight = false;
 
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
+
+  /// Why: when weather first reads "safe" after an unsafe stretch we wait a
+  /// hold-off period before unparking. Astronomical conditions are noisy —
+  /// a transient cloud break can read as "safe" for a single sample before
+  /// the front re-arrives, and unparking immediately can leave the rig
+  /// mid-recovery when the next gust/cloud hits. Default 5 minutes matches
+  /// the periodic re-evaluation cadence so we have at least one confirmation
+  /// sample before committing to the resume.
+  static const _autoResumeHoldoff = Duration(minutes: 5);
 
   WeatherSafetyNotifier(this._ref) : super(WeatherSafetyState.initial()) {
     _subscribeToAlerts();
@@ -322,8 +332,55 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     if (previousStatus == WeatherSafetyStatus.unsafe &&
         finalStatus == WeatherSafetyStatus.safe &&
         weatherSettings.autoResumeEnabled) {
-      unawaited(_autoResumeAfterWeatherClear());
+      _scheduleAutoResume();
+    } else if (finalStatus == WeatherSafetyStatus.unsafe) {
+      // Why: if conditions re-degrade during the hold-off window we cancel
+      // the pending resume so we don't unpark into renewed unsafe weather.
+      _cancelPendingAutoResume();
     }
+  }
+
+  void _scheduleAutoResume() {
+    // Why: defer the unpark by `_autoResumeHoldoff` so a transient
+    // safe-reading does not force an immediate resume. The banner posted
+    // here is the same UI surface that announced the park so the operator
+    // sees the full park-then-resume narrative in one place.
+    _resumeDelayTimer?.cancel();
+    final resumeAt = DateTime.now().add(_autoResumeHoldoff);
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      final mins = _autoResumeHoldoff.inMinutes;
+      _ref.read(uiNotificationProvider.notifier).showInfo(
+            'Weather is clearing; auto-resume scheduled for '
+            '${resumeAt.hour.toString().padLeft(2, '0')}:'
+            '${resumeAt.minute.toString().padLeft(2, '0')} '
+            '(after $mins min hold-off).',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 10),
+          );
+    });
+    _resumeDelayTimer = Timer(_autoResumeHoldoff, () {
+      if (!mounted) return;
+      // Re-check just before resuming. If the periodic evaluator pushed us
+      // back to unsafe during the wait we abort.
+      if (state.status != WeatherSafetyStatus.safe) {
+        Future<void>.microtask(() {
+          if (!mounted) return;
+          _ref.read(uiNotificationProvider.notifier).showWarning(
+                'Auto-resume aborted: conditions deteriorated during hold-off.',
+                title: 'Weather Safety',
+                duration: const Duration(seconds: 10),
+              );
+        });
+        return;
+      }
+      unawaited(_autoResumeAfterWeatherClear());
+    });
+  }
+
+  void _cancelPendingAutoResume() {
+    _resumeDelayTimer?.cancel();
+    _resumeDelayTimer = null;
   }
 
   bool _isParkBeforeDawnDue(AppSettingsState? appSettings) {
@@ -453,6 +510,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _alertSubscription?.cancel();
     _snoozeTimer?.cancel();
     _periodicEvalTimer?.cancel();
+    _resumeDelayTimer?.cancel();
     super.dispose();
   }
 }

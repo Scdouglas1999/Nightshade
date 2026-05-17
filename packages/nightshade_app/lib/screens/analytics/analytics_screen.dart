@@ -1105,9 +1105,11 @@ class _SessionDetailDialog extends ConsumerWidget {
         }
         return;
       }
+      final clock = ref.read(clockProvider);
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
+        nowProvider: clock.now,
       );
 
       final filePath = await exportService.exportToJson(session.id);
@@ -1132,9 +1134,11 @@ class _SessionDetailDialog extends ConsumerWidget {
         }
         return;
       }
+      final clock = ref.read(clockProvider);
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
+        nowProvider: clock.now,
       );
 
       final filePath = await exportService.exportToCsv(session.id);
@@ -1158,9 +1162,11 @@ class _SessionDetailDialog extends ConsumerWidget {
             text: 'Session data for ${session.name ?? "session"}');
         return;
       }
+      final clock = ref.read(clockProvider);
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
+        nowProvider: clock.now,
       );
 
       // Export to CSV for sharing (more universal format)
@@ -1186,9 +1192,11 @@ class _SessionDetailDialog extends ConsumerWidget {
         }
         return;
       }
+      final clock = ref.read(clockProvider);
       final exportService = SessionExportService(
         sessionsDao: ref.read(sessionsDaoProvider),
         imagesDao: ref.read(imagesDaoProvider),
+        nowProvider: clock.now,
       );
 
       final filePath = await exportService.exportToHtml(session.id);

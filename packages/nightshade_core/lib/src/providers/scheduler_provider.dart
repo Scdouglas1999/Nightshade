@@ -13,6 +13,7 @@ import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
 import '../services/scheduler/target_constraint_service.dart';
+import 'clock_provider.dart';
 import 'database_provider.dart';
 import 'event_provider.dart';
 import 'profiles_provider.dart';
@@ -273,6 +274,13 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
   final lat = settings?.latitude ?? 0.0;
   final lng = settings?.longitude ?? 0.0;
+  // Why: route the scheduler's current-time reads through the user's
+  // configured clock so window evaluations, scoring, and meridian-factor
+  // calculations all reflect the operator's chosen timezone
+  // (audit-handoff §2.1 WIRE-UP #9). The local offset still comes from
+  // the system clock — the scheduler internally rebases to UTC for
+  // ephemeris math.
+  final clock = ref.watch(clockProvider);
   final localOffset = DateTime.now().timeZoneOffset;
 
   final engine = SchedulerEngine(
@@ -284,6 +292,7 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
     sequenceSink: _ExecutorSequenceSink(ref),
     candidateLoader: () => ref.read(schedulerCandidateLoaderProvider).load(),
     triggerStream: ref.watch(schedulerTriggerStreamProvider),
+    clock: clock.now,
   );
   ref.onDispose(() => engine.dispose());
   return engine;

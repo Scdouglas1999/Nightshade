@@ -2,10 +2,36 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../providers/settings_provider.dart';
+
+/// Plays a short audible alert via the platform's built-in beep channel.
+///
+/// Why: the desktop `NotificationService` ships notifications through
+/// HTTP-based webhooks (Discord/Pushover) which are visual-only. Users who
+/// run Nightshade unattended on a workstation expect an audible cue when a
+/// sequence completes or an error fires; the "Sound alerts" toggle in
+/// notification settings exposed by Settings → Notifications is what gates
+/// this playback (audit-handoff §2.1 WIRE-UP item #2).
+typedef NotificationSoundPlayer = Future<void> Function();
+
+Future<void> _defaultPlayAlertSound() async {
+  // Why: SystemSound.alert is the one cross-platform short tone Flutter
+  // exposes without an external audio dependency. It is the same UX
+  // affordance Windows/macOS/Linux apps use for "ding" cues. Failures here
+  // (e.g., a headless host without an audio device) must not break the
+  // notification pipeline, but they should be logged so the operator can
+  // diagnose missing audio output.
+  try {
+    await SystemSound.play(SystemSoundType.alert);
+  } catch (e) {
+    developer.log('[Notification] SystemSound.play failed: $e',
+        name: 'NotificationService', level: 900);
+  }
+}
 
 /// Notification event types
 enum NotificationEvent {
@@ -38,26 +64,31 @@ class NotificationService {
   final http.Client _httpClient;
   final Duration _requestTimeout;
   final bool _ownsHttpClient;
+  final NotificationSoundPlayer _playAlertSound;
 
   NotificationService(
     Ref ref, {
     http.Client? httpClient,
     Duration requestTimeout = defaultRequestTimeout,
+    NotificationSoundPlayer? soundPlayer,
   })  : _ref = ref,
         _settingsReader = null,
         _httpClient = httpClient ?? http.Client(),
         _requestTimeout = requestTimeout,
-        _ownsHttpClient = httpClient == null;
+        _ownsHttpClient = httpClient == null,
+        _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
 
   NotificationService.testing({
     required AppSettingsState? Function() settingsReader,
     http.Client? httpClient,
     Duration requestTimeout = defaultRequestTimeout,
+    NotificationSoundPlayer? soundPlayer,
   })  : _ref = null,
         _settingsReader = settingsReader,
         _httpClient = httpClient ?? http.Client(),
         _requestTimeout = requestTimeout,
-        _ownsHttpClient = httpClient == null;
+        _ownsHttpClient = httpClient == null,
+        _playAlertSound = soundPlayer ?? _defaultPlayAlertSound;
 
   void dispose() {
     if (_ownsHttpClient) {
@@ -85,6 +116,16 @@ class NotificationService {
 
     if (!_shouldNotifyForEvent(event, settings)) {
       return false;
+    }
+
+    // Why: the user can independently enable/disable the audible alert from
+    // Settings → Notifications → "Sound alerts". The toggle is local to the
+    // host running the notification service; webhooks ship regardless of
+    // the local sound preference.
+    if (settings.soundEnabled) {
+      // Fire-and-forget; SystemSound is short and we don't gate webhook
+      // dispatch on it. Errors are logged inside the default player.
+      unawaited(_playAlertSound());
     }
 
     final results = await Future.wait([

@@ -91,22 +91,117 @@ class SequenceExecutor {
     }
   }
 
+  /// Test-only entry point that returns the JSON the executor will send
+  /// to the Rust backend. Exposed so unit tests can assert AppSettings
+  /// defaults propagate correctly (audit-handoff §2.1 WIRE-UP #4/#5).
+  @visibleForTesting
+  String sequenceToJsonForTest(Sequence sequence) => _sequenceToJson(sequence);
+
   /// Convert Dart sequence to JSON for native executor
+  ///
+  /// Why: this is the point where per-sequence and per-node values are
+  /// combined with global AppSettings defaults. Per-node values always win;
+  /// AppSettings is consulted only when the node provides no explicit value
+  /// (audit-handoff §2.1 WIRE-UP items #4 and #5).
   String _sequenceToJson(Sequence sequence) {
+    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+    final autoFocusOnFilterChange =
+        appSettings?.autoFocusOnFilterChange ?? false;
+    final autoFocusEveryMinutes = appSettings?.autoFocusEveryMinutes ?? 0;
+
     final nodeDefinitions = <Map<String, dynamic>>[];
+
+    // Track which FilterChangeNodes need a synthetic AutofocusNode appended
+    // to their children. Why: when the user enables "Auto focus on filter
+    // change" globally and a FilterChangeNode does not already have an
+    // AutofocusNode following it in the sibling chain, we splice one in so
+    // the executor runs AF after the filter is in place. Per-sequence
+    // structure (an explicit AF node already present) always wins; we only
+    // inject when no AF would otherwise run.
+    final autoFocusInjectionParents = <String>{};
+
+    void collectAfInjections(SequenceNode node) {
+      for (var i = 0; i < node.childIds.length; i++) {
+        final childId = node.childIds[i];
+        final child = sequence.nodes[childId];
+        if (child == null) continue;
+        if (child is FilterChangeNode && autoFocusOnFilterChange) {
+          // Look at the next sibling (if any) — if it's an AutofocusNode the
+          // user already arranged for focus to follow the filter change.
+          final nextChildId =
+              i + 1 < node.childIds.length ? node.childIds[i + 1] : null;
+          final nextSibling =
+              nextChildId == null ? null : sequence.nodes[nextChildId];
+          final alreadyFollowedByAf = nextSibling is AutofocusNode;
+          if (!alreadyFollowedByAf) {
+            autoFocusInjectionParents.add(node.id);
+          }
+        }
+        collectAfInjections(child);
+      }
+    }
+
+    if (sequence.rootNode != null) {
+      collectAfInjections(sequence.rootNode!);
+    }
+
+    // Map of "after this FilterChange node id" -> synthetic AF node id, so we
+    // can rewrite parent child lists deterministically. The synthetic id is
+    // derived from the FilterChange id to keep checkpoint replay stable.
+    final injectedAfNodes = <String, Map<String, dynamic>>{};
 
     void processNode(SequenceNode node) {
       final Map<String, dynamic> nodeType = _nodeToConfig(node);
+
+      // If this node is a parent that contains FilterChange children needing
+      // injection, rewrite its `children` list to splice an AF node id in
+      // immediately after each affected FilterChange.
+      final originalChildIds = node.childIds;
+      final List<String> effectiveChildIds;
+      if (autoFocusOnFilterChange &&
+          autoFocusInjectionParents.contains(node.id)) {
+        effectiveChildIds = <String>[];
+        for (var i = 0; i < originalChildIds.length; i++) {
+          final childId = originalChildIds[i];
+          effectiveChildIds.add(childId);
+          final child = sequence.nodes[childId];
+          if (child is! FilterChangeNode) continue;
+          final nextSiblingId =
+              i + 1 < originalChildIds.length ? originalChildIds[i + 1] : null;
+          final nextSibling =
+              nextSiblingId == null ? null : sequence.nodes[nextSiblingId];
+          if (nextSibling is AutofocusNode) continue;
+          final syntheticId = 'af-auto-${child.id}';
+          effectiveChildIds.add(syntheticId);
+          injectedAfNodes[syntheticId] = {
+            'id': syntheticId,
+            'name': 'Autofocus (auto, post filter change)',
+            'node_type': {
+              'type': 'Autofocus',
+              'method': _autofocusMethodToString(AutofocusMethod.vCurve),
+              'step_size': 100,
+              'steps_out': 7,
+              'exposure_duration': 3.0,
+              'filter': null,
+              'binning': 'One',
+            },
+            'enabled': true,
+            'children': const <String>[],
+          };
+        }
+      } else {
+        effectiveChildIds = originalChildIds;
+      }
 
       nodeDefinitions.add({
         'id': node.id,
         'name': node.name,
         'node_type': nodeType,
         'enabled': node.isEnabled,
-        'children': node.childIds,
+        'children': effectiveChildIds,
       });
 
-      for (final childId in node.childIds) {
+      for (final childId in originalChildIds) {
         final child = sequence.nodes[childId];
         if (child != null) {
           processNode(child);
@@ -118,13 +213,26 @@ class SequenceExecutor {
       processNode(sequence.rootNode!);
     }
 
+    // Append synthetic AF nodes after the real node list so the executor can
+    // resolve their child ids when walking the tree.
+    nodeDefinitions.addAll(injectedAfNodes.values);
+
+    // Metadata propagates the AF-interval cadence to the Rust executor so
+    // future trigger configuration can honor the user's preference. We
+    // serialise even when zero so the executor sees an explicit "off"
+    // signal rather than an absent key.
+    final metadata = <String, String>{
+      'autofocus_every_minutes': autoFocusEveryMinutes.toString(),
+      'autofocus_on_filter_change': autoFocusOnFilterChange.toString(),
+    };
+
     return jsonEncode({
       'id': sequence.id,
       'name': sequence.name,
       'description': sequence.description,
       'nodes': nodeDefinitions,
       'root_node_id': sequence.rootNodeId,
-      'metadata': {},
+      'metadata': metadata,
     });
   }
 

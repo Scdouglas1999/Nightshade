@@ -9,6 +9,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:path/path.dart' as path;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
+import '../providers/clock_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart';
 import '../providers/backend_provider.dart';
@@ -207,7 +208,10 @@ class ImagingService {
           _logger.warning(
               'Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time',
               source: 'ImagingService');
-          captureTimestamp = DateTime.now();
+          // Why: when the bridge timestamp is unparseable we fall back to
+          // the user-chosen clock so the recovered timestamp matches the
+          // rest of the session's records (audit-handoff §2.1 WIRE-UP #9).
+          captureTimestamp = _ref.read(clockProvider).now();
         }
         _logger.debug('Timestamp parsed: $captureTimestamp',
             source: 'ImagingService');
@@ -292,7 +296,11 @@ class ImagingService {
             if (!await nightshadeTemp.exists()) {
               await nightshadeTemp.create(recursive: true);
             }
-            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            // Why: temp capture filenames should reflect the operator's
+            // chosen clock so two parallel sessions (one local TZ, one
+            // observatory TZ) don't collide on the same epoch millis.
+            final timestamp =
+                _ref.read(clockProvider).now().millisecondsSinceEpoch;
             savedFilePath =
                 path.join(nightshadeTemp.path, 'capture_$timestamp.fits');
             isTempFile = true;

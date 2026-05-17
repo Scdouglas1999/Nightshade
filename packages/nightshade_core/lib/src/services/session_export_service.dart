@@ -12,15 +12,23 @@ class SessionExportService {
   final SessionsDao _sessionsDao;
   final ImagesDao _imagesDao;
   final Future<Directory> Function() _documentsDirectoryProvider;
+  final DateTime Function() _now;
 
+  /// [nowProvider] supplies the timestamp stamped onto export filenames and
+  /// inside diagnostic dumps. Defaults to [DateTime.now] for backwards
+  /// compatibility; the desktop wiring overrides it with the user's
+  /// chosen [Clock] so exports labelled in the operator's timezone match
+  /// the rest of the session records (audit-handoff §2.1 WIRE-UP #9).
   SessionExportService({
     required SessionsDao sessionsDao,
     required ImagesDao imagesDao,
     Future<Directory> Function()? documentsDirectoryProvider,
+    DateTime Function()? nowProvider,
   })  : _sessionsDao = sessionsDao,
         _imagesDao = imagesDao,
         _documentsDirectoryProvider =
-            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+            documentsDirectoryProvider ?? getApplicationDocumentsDirectory,
+        _now = nowProvider ?? DateTime.now;
 
   /// Export session images to CSV format
   ///
@@ -86,7 +94,7 @@ class SessionExportService {
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
     final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
     final fileName = '${sessionName}_$timestamp.csv';
     final filePath = path.join(directory.path, fileName);
 
@@ -191,7 +199,7 @@ class SessionExportService {
           'rejectionReason': image.rejectionReason,
         };
       }).toList(),
-      'exportedAt': DateTime.now().toIso8601String(),
+      'exportedAt': _now().toIso8601String(),
       'exportVersion': '1.0',
     };
 
@@ -202,7 +210,7 @@ class SessionExportService {
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
     final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
     final fileName = '${sessionName}_$timestamp.json';
     final filePath = path.join(directory.path, fileName);
 
@@ -333,7 +341,7 @@ class SessionExportService {
     }
 
     buffer.writeln('=' * 60);
-    buffer.writeln('Exported: ${DateTime.now()}');
+    buffer.writeln('Exported: ${_now()}');
     buffer.writeln('=' * 60);
 
     return buffer.toString();
@@ -456,7 +464,7 @@ class SessionExportService {
     final directory = await _getExportDirectory();
     final sessionName = session.name ?? 'session_$sessionId';
     final timestamp =
-        DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+        _now().toIso8601String().replaceAll(':', '-').split('.')[0];
     final fileName = '${sessionName}_$timestamp.html';
     final filePath = path.join(directory.path, fileName);
     final file = File(filePath);

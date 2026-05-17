@@ -108,6 +108,7 @@ export 'src/providers/session_provider.dart';
 // samples-based HorizonProfile (services/scheduler/horizon_profile.dart) wins
 // at the barrel. Direct importers of settings_provider.dart still see it.
 export 'src/providers/settings_provider.dart' hide HorizonProfile;
+export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
 export 'src/providers/guiding_provider.dart';
 export 'src/providers/backend_provider.dart';

@@ -52,8 +52,15 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               trailing: Switch(
                 value: autoSubtract,
                 onChanged: (value) {
-                  ref.read(settingsDaoProvider).setSetting(
-                      'dark_library.auto_subtract', value.toString());
+                  // Why: the imaging pipeline reads
+                  // `calibrationSettingsProvider.autoCalibrate` to decide
+                  // whether to run dark/flat/bias correction on captured
+                  // frames. Writing through the calibration notifier keeps
+                  // the dark-library UI and the calibration pipeline in
+                  // sync (audit-handoff §2.1 WIRE-UP item #6).
+                  ref
+                      .read(calibrationSettingsProvider.notifier)
+                      .setAutoCalibrate(value);
                 },
               ),
               colors: widget.colors,

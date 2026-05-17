@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -282,22 +283,59 @@ final calibrationSettingsProvider =
 class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   final Ref _ref;
 
+  ProviderSubscription? _settingsSub;
+
   CalibrationSettingsNotifier(this._ref) : super(const CalibrationSettings()) {
-    _loadFromSettings();
+    // Why: `allSettingsProvider` is async; the first read on construction
+    // is typically `AsyncLoading` and `whenData` short-circuits. Use
+    // `_ref.listen` so we react as the settings stream resolves and on
+    // any subsequent invalidation. The subscription is closed when the
+    // notifier disposes.
+    _settingsSub = _ref.listen<AsyncValue<Map<String, String>>>(
+      allSettingsProvider,
+      (_, next) => next.whenData(_applyLoadedSettings),
+      fireImmediately: true,
+    );
   }
 
-  void _loadFromSettings() {
-    final settingsAsync = _ref.read(allSettingsProvider);
-    settingsAsync.whenData((settings) {
-      state = CalibrationSettings(
-        autoCalibrate: settings['calibration.auto_calibrate'] == 'true',
-        masterFlatPath: _nonEmpty(settings['calibration.master_flat_path']),
-        masterBiasPath: _nonEmpty(settings['calibration.master_bias_path']),
-        autoDarkFromLibrary:
-            settings['calibration.auto_dark_from_library'] != 'false',
-        manualDarkPath: _nonEmpty(settings['calibration.manual_dark_path']),
-      );
-    });
+  void _applyLoadedSettings(Map<String, String> settings) {
+    // Why: the dark-library UI historically wrote to
+    // `dark_library.auto_subtract` while the imaging pipeline only read
+    // `calibration.auto_calibrate`. Audit-handoff §2.1 unifies both
+    // surfaces against the calibration store. If the user has a
+    // pre-unification value in the legacy key and the calibration key
+    // has not yet been set, lift the legacy value forward. This runs
+    // once because we delete the legacy key after lifting it.
+    var autoCalibrate = settings['calibration.auto_calibrate'] == 'true';
+    final legacyDarkLibrary = settings['dark_library.auto_subtract'];
+    final hasCalibrationKey =
+        settings.containsKey('calibration.auto_calibrate');
+    if (!hasCalibrationKey && legacyDarkLibrary != null) {
+      autoCalibrate = legacyDarkLibrary == 'true';
+      // Persist the migrated value into the canonical store; clear the
+      // legacy key so subsequent loads don't re-trigger the migration.
+      unawaited(_migrateLegacyAutoSubtract(autoCalibrate));
+    }
+    state = CalibrationSettings(
+      autoCalibrate: autoCalibrate,
+      masterFlatPath: _nonEmpty(settings['calibration.master_flat_path']),
+      masterBiasPath: _nonEmpty(settings['calibration.master_bias_path']),
+      autoDarkFromLibrary:
+          settings['calibration.auto_dark_from_library'] != 'false',
+      manualDarkPath: _nonEmpty(settings['calibration.manual_dark_path']),
+    );
+  }
+
+  @override
+  void dispose() {
+    _settingsSub?.close();
+    super.dispose();
+  }
+
+  Future<void> _migrateLegacyAutoSubtract(bool value) async {
+    final dao = _ref.read(settingsDaoProvider);
+    await dao.setSetting('calibration.auto_calibrate', value.toString());
+    await dao.deleteSetting('dark_library.auto_subtract');
   }
 
   /// Returns the string if non-null and non-empty, otherwise null.

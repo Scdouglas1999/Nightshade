@@ -125,11 +125,19 @@ class SessionService {
   // Status tracking
   final _statusController = StreamController<String>.broadcast();
 
+  final DateTime Function() _now;
+
+  /// [nowProvider] lets the desktop wiring supply the user's chosen
+  /// [Clock] so session start/end timestamps reflect the operator's
+  /// timezone. Defaults to [DateTime.now] for tests and for hosts that
+  /// have not configured a TZ override (audit-handoff §2.1 WIRE-UP #9).
   SessionService({
     required this.sessionsDao,
     this.checkpointsDao,
     required LoggingService logger,
-  }) : _logger = logger;
+    DateTime Function()? nowProvider,
+  })  : _logger = logger,
+        _now = nowProvider ?? DateTime.now;
 
   /// Stream of status updates
   Stream<String> get statusStream => _statusController.stream;
@@ -168,8 +176,8 @@ class SessionService {
 
     // Initialize tracking
     _currentSessionId = sessionId;
-    _currentStats = SessionStats(lastUpdated: DateTime.now());
-    _lastCheckpoint = DateTime.now();
+    _currentStats = SessionStats(lastUpdated: _now());
+    _lastCheckpoint = _now();
     _imagesSinceCheckpoint = 0;
 
     // Start checkpoint timer if enabled
@@ -359,9 +367,9 @@ class SessionService {
       avgHfr: session.avgHfr,
       avgGuidingRms: session.avgGuidingRms,
       autofocusCount: session.autofocusCount,
-      lastUpdated: DateTime.now(),
+      lastUpdated: _now(),
     );
-    _lastCheckpoint = DateTime.now();
+    _lastCheckpoint = _now();
     _imagesSinceCheckpoint = 0;
 
     // Start checkpoint timer
@@ -440,7 +448,7 @@ class SessionService {
         autofocusCount: _currentStats!.autofocusCount,
       );
 
-      _lastCheckpoint = DateTime.now();
+      _lastCheckpoint = _now();
       _imagesSinceCheckpoint = 0;
 
       _statusController.add('Checkpoint saved');

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:equatable/equatable.dart';
 
+import 'clock_provider.dart';
 import 'database_provider.dart';
 import '../services/session_service.dart';
 import '../services/logging_service.dart';
@@ -377,10 +378,15 @@ final sequenceCheckpointsDaoProvider = Provider<SequenceCheckpointsDao>((ref) {
 
 /// SessionService provider
 final sessionServiceProvider = Provider<SessionService>((ref) {
+  // Why: inject the active clock so session-start/end timestamps stamped
+  // by SessionService honor the user's TZ override
+  // (audit-handoff §2.1 WIRE-UP #9).
+  final clock = ref.watch(clockProvider);
   final service = SessionService(
     sessionsDao: ref.watch(sessionsDaoProvider),
     checkpointsDao: ref.watch(sequenceCheckpointsDaoProvider),
     logger: ref.watch(loggingServiceProvider),
+    nowProvider: clock.now,
   );
 
   ref.onDispose(() => service.dispose());

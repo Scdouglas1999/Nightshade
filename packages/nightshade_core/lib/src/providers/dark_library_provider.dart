@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/daos/dark_library_dao.dart';
+import '../database/daos/settings_dao.dart';
 import '../database/database.dart';
+import '../services/calibration_service.dart';
 import '../services/dark_library_service.dart';
 import 'database_provider.dart';
 
@@ -48,17 +50,30 @@ final darkLibraryGroupsProvider =
   return ref.read(darkLibraryDaoProvider).getDistinctGroups();
 });
 
-/// Whether auto-dark-subtraction is enabled (from app_settings).
+/// Whether auto-dark-subtraction is enabled.
+///
+/// Why: dark-library settings used to live under `dark_library.auto_subtract`
+/// but the calibration pipeline (`imaging_service.dart`) only consults
+/// `calibrationSettingsProvider.autoCalibrate`. Pointing this provider at
+/// the calibration store keeps the dark-library UI in sync with what the
+/// pipeline actually evaluates so the toggle is no longer dead-write
+/// (audit-handoff §2.1 WIRE-UP item #6). The legacy
+/// `dark_library.auto_subtract` key is preserved as a one-time migration
+/// source via [migrateLegacyDarkLibrarySettings].
 final autoDarkSubtractEnabledProvider = Provider<bool>((ref) {
-  final settings = ref.watch(allSettingsProvider);
-  return settings.when(
-    data: (s) => s['dark_library.auto_subtract'] == 'true',
-    loading: () => false,
-    error: (_, __) => false,
+  // Watch calibration settings so dark-library UI updates reactively.
+  return ref.watch(
+    calibrationSettingsProvider.select((s) => s.autoCalibrate),
   );
 });
 
-/// Temperature tolerance for dark matching (from app_settings).
+/// Temperature tolerance for dark matching (degrees C).
+///
+/// Why: kept in `dark_library.temp_tolerance` since `CalibrationSettings`
+/// does not currently model the tolerance (it is consumed inside
+/// `DarkLibraryService.findMatchingDark` via the per-frame temperature
+/// argument). The tolerance is independent of whether calibration is
+/// enabled overall.
 final darkTempToleranceProvider = Provider<double>((ref) {
   final settings = ref.watch(allSettingsProvider);
   return settings.when(
@@ -71,6 +86,21 @@ final darkTempToleranceProvider = Provider<double>((ref) {
     error: (_, __) => 2.0,
   );
 });
+
+/// Migrate the legacy `dark_library.auto_subtract` setting into
+/// `calibrationSettingsProvider` on first launch after the unification.
+///
+/// Why: existing users who toggled the dark-library UI before the v2.5
+/// reconciliation had their preference written to a key the calibration
+/// pipeline never read. This helper is invoked from the calibration
+/// notifier's load path so the user's intent is preserved across the
+/// upgrade. The legacy key is cleared after migration so we don't keep
+/// reading the stale value.
+Future<bool?> readLegacyAutoSubtractFlag(SettingsDao dao) async {
+  final value = await dao.getSetting('dark_library.auto_subtract');
+  if (value == null) return null;
+  return value == 'true';
+}
 
 /// StateNotifier for managing the dark library UI state.
 final darkLibraryNotifierProvider =

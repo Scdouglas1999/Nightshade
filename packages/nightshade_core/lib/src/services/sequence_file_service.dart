@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
 import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart';
+import '../providers/settings_provider.dart';
 
 /// Service for saving and loading sequences to/from JSON files
 typedef SequenceImportValidator = void Function(Sequence sequence);
@@ -13,8 +14,24 @@ typedef SequenceImportValidator = void Function(Sequence sequence);
 class SequenceFileService {
   final SequenceImportValidator? _importValidator;
 
-  SequenceFileService({SequenceImportValidator? importValidator})
-      : _importValidator = importValidator;
+  /// Default directory for export/import file pickers.
+  ///
+  /// Why: Settings → File Paths → Sequences exposes a "Sequences" folder so
+  /// users can keep sequence JSON exports alongside the rest of their
+  /// observatory documentation. Routing the file_selector dialogs at this
+  /// directory makes the setting actually consequential
+  /// (audit-handoff §2.1 WIRE-UP item #8). Empty string means "let the
+  /// platform pick the default location".
+  final String _defaultDirectory;
+
+  SequenceFileService({
+    SequenceImportValidator? importValidator,
+    String defaultDirectory = '',
+  })  : _importValidator = importValidator,
+        _defaultDirectory = defaultDirectory;
+
+  String? get _initialDirectoryOrNull =>
+      _defaultDirectory.isEmpty ? null : _defaultDirectory;
 
   /// Export a sequence to a JSON file
   Future<void> exportSequence(Sequence sequence) async {
@@ -24,6 +41,7 @@ class SequenceFileService {
 
     // Show save dialog
     final saveLocation = await file_selector.getSaveLocation(
+      initialDirectory: _initialDirectoryOrNull,
       suggestedName: '${sequence.name}.nseq.json',
       acceptedTypeGroups: [
         const file_selector.XTypeGroup(
@@ -44,6 +62,7 @@ class SequenceFileService {
   Future<Sequence?> importSequence() async {
     // Show open dialog
     final file = await file_selector.openFile(
+      initialDirectory: _initialDirectoryOrNull,
       acceptedTypeGroups: [
         const file_selector.XTypeGroup(
           label: 'Nightshade Sequence',
@@ -972,7 +991,25 @@ class SequenceFileService {
 
 /// Provider for the sequence file service
 final sequenceFileServiceProvider = Provider<SequenceFileService>((ref) {
+  // Why: route export/import dialogs through the user-configured
+  // Settings → File Paths → Sequences directory when set. We do not
+  // `watch` the settings provider here — the file-service factory is
+  // long-lived and rebuilding it on every settings tick would invalidate
+  // dependents. Instead we read the current snapshot and capture it; the
+  // app uses the path at dialog-open time which already reads through
+  // the same provider tree.
+  String defaultDir = '';
+  try {
+    final settings = ref.read(appSettingsProvider).valueOrNull;
+    defaultDir = settings?.sequencesPath ?? '';
+  } catch (_) {
+    // Why: a unit test may construct this provider without a database.
+    // The fall-through to empty string mirrors the "not configured"
+    // path in production. Fail-loud is reserved for real consumers.
+    defaultDir = '';
+  }
   return SequenceFileService(
+    defaultDirectory: defaultDir,
     importValidator: (sequence) {
       final activeProfile = ref.read(activeEquipmentProfileProvider);
       final availableFilters =

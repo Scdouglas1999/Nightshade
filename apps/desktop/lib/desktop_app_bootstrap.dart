@@ -81,6 +81,12 @@ Future<void> _runBackgroundServices(
       appVersion: appVersion,
       appBuildNumber: appBuildNumber,
     );
+
+    // Eager-init: the focuser temperature compensation controller listens
+    // to FocuserState updates and AppSettings changes. It must exist before
+    // the focuser connects, otherwise the first temperature reading is
+    // missed and the baseline never captures.
+    container.read(focuserTempCompensationProvider);
   } catch (e) {
     logger.error(
       'Background services failed to initialise',
