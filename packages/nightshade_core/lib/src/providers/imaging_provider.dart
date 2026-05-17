@@ -53,14 +53,6 @@ final syncExposureFromProfileProvider = Provider<void>((ref) {
 /// Last captured image stats
 final lastImageStatsProvider = StateProvider<ImageStats?>((ref) => null);
 
-/// Current stretch parameters
-final stretchParamsProvider = StateProvider<StretchParams>((ref) {
-  return const StretchParams();
-});
-
-/// Auto stretch enabled
-final autoStretchProvider = StateProvider<bool>((ref) => true);
-
 /// Auto-stretch settings with method selection and advanced parameters.
 ///
 /// Settings are persisted to the database and loaded on startup.
@@ -223,31 +215,9 @@ final namingPatternProvider = Provider<NamingPattern>((ref) {
   );
 });
 
-/// Current capture mode
-final captureModeProvider = StateProvider<CaptureMode>((ref) {
-  return CaptureMode.single;
-});
-
-/// Frame count for count mode
-final frameCountTargetProvider = StateProvider<int>((ref) => 10);
-
-/// Star detection configuration
-final starDetectionConfigProvider = StateProvider<StarDetectionConfig>((ref) {
-  return const StarDetectionConfig();
-});
-
 /// Last star detection result
 final starDetectionResultProvider =
     StateProvider<StarDetectionResult?>((ref) => null);
-
-/// Show star overlay on image
-final showStarOverlayProvider = StateProvider<bool>((ref) => false);
-
-/// Show histogram overlay
-final showHistogramOverlayProvider = StateProvider<bool>((ref) => true);
-
-/// Show statistics overlay
-final showStatsOverlayProvider = StateProvider<bool>((ref) => true);
 
 /// Debayer settings for color cameras
 final debayerEnabledProvider = StateProvider<bool>((ref) => false);
@@ -294,30 +264,6 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
     );
   }
 }
-
-/// Image zoom level
-final imageZoomProvider = StateProvider<double>((ref) => 1.0);
-
-/// Image pan offset (dx, dy)
-final imagePanOffsetProvider =
-    StateProvider<(double, double)>((ref) => (0.0, 0.0));
-
-/// Image fit mode
-enum ImageFitMode {
-  fit, // Fit entire image in view
-  fill, // Fill view (may crop)
-  oneToOne, // 1:1 pixel mapping
-  custom, // Custom zoom level
-}
-
-final imageFitModeProvider =
-    StateProvider<ImageFitMode>((ref) => ImageFitMode.fit);
-
-/// Crosshair enabled
-final showCrosshairProvider = StateProvider<bool>((ref) => false);
-
-/// Grid overlay enabled
-final showGridOverlayProvider = StateProvider<bool>((ref) => false);
 
 // =============================================================================
 // TEMPERATURE HISTORY TRACKING
