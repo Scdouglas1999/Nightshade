@@ -85,6 +85,15 @@ dev_dependencies:
   riverpod_generator: ^2.3.9
   freezed: ^2.4.6
   json_serializable: ^6.7.1
+  mocktail: ^1.0.4
+  # Test-only path dependency: the mobile_remote_e2e_test in
+  # `test/services/` boots a real HeadlessApiServer in-process and verifies
+  # the desktop→mobile event propagation seam. The desktop server is the
+  # production code under test; depending on it here is the only way to
+  # exercise the actual transport without a stub. The dependency is
+  # dev-only — production mobile builds do NOT link the desktop server.
+  nightshade_desktop:
+    path: ../desktop
 
 flutter:
   uses-material-design: true
