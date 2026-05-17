@@ -1,397 +1,121 @@
-<p align="center">
-  <!-- TODO: Add logo here -->
-  <h1 align="center">Nightshade</h1>
-  <p align="center">
-    <strong>A modern, cross-platform astrophotography suite</strong>
-  </p>
-  <p align="center">
-    <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version: 2.0.0">
-    <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-blue" alt="Platforms">
-    <img src="https://img.shields.io/badge/built%20with-Flutter%20%2B%20Rust-blue" alt="Built with Flutter + Rust">
-  </p>
-</p>
+# Nightshade
 
-<!-- TODO: Add hero screenshot showing main imaging interface -->
+[![Latest release](https://img.shields.io/github/v/release/Scdouglas1999/Nightshade?include_prereleases&label=release)](https://github.com/Scdouglas1999/Nightshade/releases/latest)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20iOS%20%7C%20Android-blue)](#platforms)
+[![License](https://img.shields.io/badge/license-source--available-orange)](LICENSE)
 
-Nightshade is a complete imaging platform for astrophotographers, combining camera control, mount automation, focusing, guiding, and sequence planning in a single unified application. Built with Flutter and Rust for performance and reliability across desktop and mobile.
+Nightshade is astrophotography software for your imaging rig. One app handles camera control, mount slewing, autofocus, guiding, plate solving, sequencing, planetarium, and remote control from a phone or web browser. It runs on Windows, Linux, and macOS, with companion apps for iOS and Android.
 
-> **Platform compatibility and recommended running**: While in the public beta period, the two recommended platforms for running this will be the headless server and windows. This is completely untested with Mac/iOS and Linux testing is just beginning, so expect more issues there.
+> **This is a beta.** The current release (v2.6.0) lives on the `beta` update channel. It's been through a long internal audit and hardening pass, but it hasn't had the multi-week soak that usually comes before a stable cut. If you need bulletproof reliability for an unattended run tonight, stay on [v2.5.0](https://github.com/Scdouglas1999/Nightshade/releases/tag/v2.5.0) for now. Otherwise, please try it and tell me what breaks — that's the fastest way we get to a clean stable.
 
-> **Early Beta Status**: This software is currently in very early stages of functionality. Some things are polished and work quite well, others are pretty sketchy at the moment. Specifically, the Sequencer has been in a state of somewhat working for a while now, and while you may experience no problems, it would genuinely surprise me. Just keep in mind the early nature and rapidly changing state of the app. 
+## What it does
 
-> **Note on ReadMe**: This project is progressing extremely quickly. There may be some areas of this readme that become outdated or inaccurate. I will do my best to keep things updated but you may find that some features in-app are different (hopefully improved) versus the readme.
+**Capture and sequence.** Live preview with auto-stretch, full cooled-camera control (gain/offset/binning/ROI/readout mode), FITS/TIFF/XISF output with templated filenames, dithering through PHD2, and a behavior-tree sequencer that handles meridian flips, refocus on temperature or HFR drift, weather safety triggers, and checkpoint recovery when something dies mid-night.
 
----
+**Pick targets automatically with Plan Tonight.** Give it your targets along with per-filter integration goals (`L: 4h, RGB: 2h each, Hα: 6h`) and constraints (moon illumination cap, minimum moon separation, altitude window, custom horizon profile for trees and rooflines). It picks what to image right now, weights by altitude/moon/weather/priority/scheduled window, and only swaps to a new target when the score difference is meaningful enough to be worth the slew. It re-evaluates on real events — weather changes, guiding excursions, mount-state shifts — instead of just on a wall-clock timer, and the decision panel shows you exactly why it picked what it picked.
 
-## Features
+**Plate solving that actually works on day one.** ASTAP and astrometry.net are auto-detected across all standard install paths on Windows, macOS, and Linux. Catalog presence is checked separately so "binary OK, no catalog" is a distinct state. There's a verify-solve button in settings that runs your configured binary right then so you find out at setup time, not mid-sequence, when something's off. The wizards for centering, framing, and polar alignment all surface a required-banner with a one-click jump to setup if no solver is reachable yet.
 
-<table>
-<tr>
-<td width="50%" valign="top">
+**Polar align two ways.** All-sky single-shot (Sharpcap-style) for users who don't want to do the 3-point dance, plus the classic 3-point TPPA flow when you want it.
 
-### Imaging
+**Image without darks.** A defect-map pipeline builds a hot/cold pixel + dust shadow map from a short stack of darks (minimum 5 by default, fewer is a hard error not a silent fallback) and substitutes neighborhood medians at capture time. Lights leave the camera already clean. Maps are keyed by camera + sensor size + temperature bucket, so a +5°C run and a -10°C run don't share the same map.
 
-<!-- TODO: Screenshot of imaging interface -->
+**Bring your existing sequences with you.** NINA and Sequence Generator Pro sequence files import with auto-format detection and a node-mapping preview that shows you exactly what's about to be created. Unsupported nodes don't silently disappear. You either get a structured error with the offending type, or you toggle "import anyway" and Nightshade preserves the raw scalar fields so you can reconstruct.
 
-- Live preview with auto-stretch
-- Exposure sequencing with delays and looping
-- Cooled camera temperature management
-- Gain, offset, and binning presets
-- ROI for faster downloads
-- FITS/TIFF/XISF with customizable naming
-- Filter wheel integration
-- Dithering via PHD2
+**Run it from a phone or a browser.** Hit Nightshade's host from any browser on your LAN and you get the full equipment surface: camera cooling, gain, offset, readout mode, binning, subframe, filter wheel, focuser, rotator, mount slew on a press-and-hold d-pad, sequence load + checkpoint resume + profile switch, plus the plate-solve, polar-align, flat, mosaic, and framing wizards. Below 600px the layout switches to phone-tailored bottom-tab navigation. The iOS and Android companion apps pair by QR code, push critical-event notifications, and keep a foreground service running with live capture-progress percent.
 
-</td>
-<td width="50%" valign="top">
+**End-of-session reports.** After a night ends you get a report — captured frames per target per filter, HFR trend, guiding RMS distribution, weather/safety events that interrupted things, time on each target vs. planned. Multi-night campaigns roll those reports up per target so you can see how close you are to your integration goals.
 
-### Mount Control
+**First-night tutorial + equipment onboarding wizard.** New users get walked through the first sequence end-to-end. Connecting a new piece of equipment runs a 10-step onboarding that covers the common gotchas instead of throwing you into raw driver settings.
 
-<!-- TODO: Screenshot of mount control panel -->
+## Hardware support
 
-- Directional slewing (guide to slew speeds)
-- Go-to with coordinates or target selection
-- Sidereal, lunar, solar, and custom tracking
-- Park/unpark with custom positions
-- Automatic meridian flip
-- Horizon and meridian safety limits
+Three driver backends, plus native vendor SDKs where they make sense:
 
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
+| Backend | Windows | macOS | Linux | What it's for |
+|---|---|---|---|---|
+| ASCOM COM | yes | — | — | Locally installed ASCOM Platform drivers |
+| ASCOM Alpaca | yes | yes | yes | Network REST API; any Alpaca server or bridge |
+| INDI | yes | yes | yes | Any reachable INDI server |
+| Native SDK | yes | partial | partial | Direct vendor library, bypasses ASCOM/INDI |
 
-### Focusing
+Native camera SDKs are bundled for ZWO ASI, QHY, Player One, SVBony, Atik, FLI, Moravian, and the Touptek family (Touptek, Altair, Mallincam, OGMA). Native mount support covers SkyWatcher/Synta, iOptron, and LX200 (serial).
 
-- V-curve autofocus with HFR
-- Manual focus with live star profile
-- Temperature compensation
-- Backlash compensation
-- Per-filter focus offsets
-- Focus prediction with ML-based modeling
+Focusers, filter wheels, rotators, domes, and weather/safety devices go through ASCOM, Alpaca, or INDI. The protocol path is mature there and the native side isn't a public release guarantee yet for those categories.
 
-</td>
-<td width="50%" valign="top">
+A note on drivers, native or otherwise: I built this against the equipment I personally own. The protocol drivers were written to be as vendor-agnostic as the spec allows, so most things should work. But if your specific camera/mount/focuser combination misbehaves I want to hear about it — open an issue with the device, the backend (ASCOM/Alpaca/INDI/native), and the exact action that broke.
 
-### Guiding
+## Platforms
 
-- PHD2 integration
-- Real-time RA/Dec error graph
-- Dithering with settle detection
-- Guiding alerts and monitoring
-- Star image display
-- Calibration management
+|  | Windows | Linux | macOS | iOS | Android |
+|---|---|---|---|---|---|
+| Desktop app | tested | early testing | untested | — | — |
+| Headless server | tested | early testing | untested | — | — |
+| Web dashboard | runs against any working server | | | | |
+| Companion app | — | — | — | yes | yes |
 
-</td>
-</tr>
-</table>
+Windows is the most-exercised path because that's what I image on. Linux testing is just starting and Mac is essentially untested at this point — they both build and should run, but there's been no rigorous device-test pass. If you're running on Linux or Mac and something breaks, that's exactly the feedback the beta period exists to collect.
 
-### Sequencer
+## Install
 
-<!-- TODO: Screenshot of sequence builder -->
+Grab the right artifact from the [latest release](https://github.com/Scdouglas1999/Nightshade/releases/latest):
 
-The sequencer uses a **behavior tree architecture** for building complex automated workflows:
+| Platform | File |
+|---|---|
+| Windows installer | `NightshadeSetup-2.6.0.exe` |
+| Windows OTA bundle | `nightshade-2.6.0-windows-x64.zip` + `manifest.json` |
+| Linux bundle | `nightshade-2.6.0-linux-x64.tar.gz` |
+| Android APK | `nightshade-2.6.0-android.apk` |
+| iOS | Build from source for now |
 
-| Node Type | Examples |
-|-----------|----------|
-| **Instruction** | Expose, slew, autofocus, filter change, cool camera, park/unpark, wait, dither, rotate, open/close dome |
-| **Logic** | Loop, parallel execution, conditionals, sequence grouping, recovery |
-| **Trigger** | HFR monitor, guiding monitor, weather safety, time triggers, meridian flip |
+Windows needs Windows 10 or 11 (x64). On Windows the [ASCOM Platform](https://ascom-standards.org/) is optional but unlocks the local COM driver path.
 
-Build anything from simple single-target sequences to multi-target nights with automatic meridian flips, weather safety, checkpoint recovery, and adaptive refocusing.
+Linux is built against Ubuntu 22.04+. Runtime needs `libgtk-3`, `libsecret-1`, and standard glibc; pull the tar.gz, extract, and run the binary. For native vendor SDK paths you'll need the vendor's own udev rules and matching group memberships (`dialout`, `plugdev`, etc.).
 
-### Planetarium
+The Android APK is currently debug-signed for the beta, so you'll need to allow install from unknown sources. A Play Store / TestFlight build is on the list.
 
-<!-- TODO: Screenshot of planetarium view -->
+## Build from source
 
-- GPU-accelerated interactive sky map
-- Messier, NGC, IC, Caldwell, Hyperleda catalogs
-- Altitude charts and visibility planning
-- Framing preview with camera FOV
-- Moon phase and separation warnings
-- Mosaic planning
-- Survey image overlays
-
-### Remote Control
-
-- Control your rig from phone or tablet
-- Peer-to-peer WebRTC (no cloud required)
-- Encrypted communications
-- Live preview and equipment status
-- Full sequence control
-- QR code pairing
-
-### Weather Integration
-
-- Weather radar display
-- Cloud motion analysis
-- Safety alerts and monitoring
-- Automatic sequence pausing for unsafe conditions
-
-### OTA Updates
-
-- Self-hosted update system
-- LAN push for development
-- SHA256-verified packages
-- Automatic update detection
-
----
-
-## Supported Equipment
-
-### Protocols
-
-```
-+--------------------------+-------------------------+------------------+
-|  ASCOM (Windows)         |  INDI (Linux/macOS)     |  Alpaca (All)    |
-|  Native COM              |  Open-source            |  REST API        |
-+--------------------------+-------------------------+------------------+
-```
-
-> **Note on drivers (native or otherwise)**: I have attempted to build both native drivers as well as full ASCOM/INDI/Alpaca support for as many manufacturers as I possibly could. Unfortunately, I only have one specific set of hardware to test on. While none of these drivers should be expected to be dangerous to run on other hardware, it is absolutely possible (and possibly even likely) that some native drivers may not work at all, while ASCOM/INDI/Alpaca may not work with some hardware for some reason. The attempt here was to make the code as driver agnostic as possible, but there could definitely be edge cases I simply can't test. 
-
-### Native Camera SDKs
-
-Direct SDK integration for maximum performance (bypasses ASCOM/INDI overhead):
-
-| Vendor | Status |
-|--------|--------|
-| ZWO ASI | Supported |
-| QHY | Supported |
-| PlayerOne | Supported |
-| SVBony | Supported |
-| Atik | Supported |
-| FLI | Supported |
-| Moravian | Supported |
-| Touptek | Supported |
-
-### Native Mount Protocols
-
-| Protocol | Status |
-|----------|--------|
-| SkyWatcher/Synta | Supported |
-| iOptron | Supported |
-| LX200 (Serial) | Supported |
-
-Mounts, focusers, filter wheels, rotators, domes, and weather stations supported via ASCOM/INDI/Alpaca.
-
----
-
-## Installation
-
-### Requirements
-
-| Platform | Requirements |
-|----------|--------------|
-| **Windows** | Windows 10/11 (64-bit), .NET 4.8+, [ASCOM Platform](https://ascom-standards.org/) (optional) |
-| **macOS** | Ventura (13) or later, Intel or Apple Silicon |
-| **Linux** | Ubuntu 22.04+, [INDI](https://indilib.org/) (optional) |
-
-### Download
-
-Pre-built releases will be available on the [Releases](https://github.com/Scodouglas1999/Nightshade/releases) page.
-
----
-
-## Development
-
-### Prerequisites
-
-| Tool | Notes |
-|------|-------|
-| [Flutter](https://flutter.dev/) | 3.24+ |
-| [Rust](https://rustup.rs/) | Latest stable (Edition 2021) |
-| [Melos](https://melos.invertase.dev/) | `dart pub global activate melos` |
-
-**Windows**: Visual Studio 2022 (C++ workload), [LLVM/Clang](https://releases.llvm.org/)
-**Linux**: `build-essential`, `clang`, `cmake`, `ninja-build`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`
-
-### Quick Start
+You need [Flutter](https://flutter.dev/) 3.35+, [Rust](https://rustup.rs/) stable (edition 2021), and [Melos](https://melos.invertase.dev/):
 
 ```bash
-git clone https://github.com/Scodouglas1999/Nightshade.git
+git clone https://github.com/Scdouglas1999/Nightshade.git
 cd Nightshade
-
-melos bootstrap          # Install deps, generate code
-melos run dev            # Build Rust + Flutter, run app
+dart pub global activate melos
+melos bootstrap
+melos run dev
 ```
 
-### Commands
+`melos run dev` builds the Rust bridge, regenerates the FFI bindings, builds the Flutter app, and runs it. After that, `melos run dev:quick` skips FFI codegen when you've only changed implementation, and `melos run dev:clean` is the hard-reset button when something gets stuck.
 
-| Command | Description |
-|---------|-------------|
-| `melos run dev` | Full rebuild with FRB codegen |
-| `melos run dev:quick` | Skip FRB (implementation-only changes) |
-| `melos run dev:norun` | Build without running |
-| `melos run dev:clean` | Clean everything and rebuild |
-| `melos run test` | Run all tests |
-| `melos run analyze` | Static analysis |
-| `melos run format` | Format code |
-| `melos run generate` | Regenerate freezed/drift/FFI bindings |
+Build deps by platform:
 
-### Project Structure
+- **Windows:** Visual Studio 2022 with the C++ workload, LLVM/Clang on `PATH`.
+- **Linux:** `build-essential clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev libjsoncpp-dev`.
+- **macOS:** Xcode command-line tools.
 
-```
-nightshade/
-├─ apps/
-│  ├─ desktop/                 # Windows/macOS/Linux
-│  └─ mobile/                  # iOS/Android companion app
-│
-├─ packages/
-│  ├─ nightshade_app/          # Shared UI shell, screens, routing
-│  ├─ nightshade_core/         # Business logic, database, providers, services
-│  ├─ nightshade_bridge/       # Dart <-> Rust FFI bindings
-│  ├─ nightshade_ui/           # Design system & shared widgets
-│  ├─ nightshade_planetarium/  # GPU sky renderer
-│  ├─ nightshade_plugins/      # Plugin host & API
-│  ├─ nightshade_screens/      # Shared screen stubs
-│  ├─ nightshade_updater/      # OTA update system
-│  └─ nightshade_remote_protocol/ # Remote-control discovery + pairing
-│
-├─ native/nightshade_native/
-│  ├─ bridge/                  # FFI entry point (cdylib)
-│  ├─ sequencer/               # Behavior tree engine
-│  ├─ imaging/                 # LibRaw, FITS, XISF processing
-│  ├─ ascom/                   # Windows ASCOM drivers
-│  ├─ indi/                    # Linux/macOS INDI
-│  ├─ alpaca/                  # Cross-platform Alpaca
-│  ├─ native/                  # Vendor SDK bindings (12 vendors)
-│  └─ updater/                 # Standalone update binary
-│
-├─ tools/
-│  └─ update_server/           # Local update server
-│
-├─ lib/                        # Third-party libs (LibRaw)
-├─ scripts/                    # Build scripts
-└─ docs/                       # Documentation
-```
+If FFI codegen fails with `stdbool.h not found` (Windows) or missing-header errors (Linux), see [`docs/FRB_TROUBLESHOOTING.md`](docs/FRB_TROUBLESHOOTING.md). It's almost always a `CPATH` problem.
 
-### Architecture at a Glance
+## How to help
 
-```
-+-----------------------------------------------------------------+
-|                        Flutter UI                                |
-|                    (Riverpod providers)                          |
-+-----------------------------------------------------------------+
-|                   flutter_rust_bridge 2.11.1                     |
-+-----------------------------------------------------------------+
-|     Sequencer    |    Imaging    |   ASCOM/INDI/Alpaca/Native   |
-|   (behavior tree)|   (LibRaw)    |   (equipment control)        |
-+-----------------------------------------------------------------+
-                              Rust
-```
+The single most useful thing you can do right now is **try the beta and file what you hit**. Bug reports with the device, the backend, the OS, and the exact action that broke are worth more than anything else during the beta cycle. Use [GitHub Issues](https://github.com/Scdouglas1999/Nightshade/issues).
 
-**Database**: [Drift](https://drift.simonbinder.eu/) (SQLite) for profiles, targets, sessions, sequences, settings.
+If you have a vendor camera or mount that isn't in my equipment list, a "yes this connected and captured a frame" or "no, here's the error" is a real data point. Same for Linux distros beyond Ubuntu and any flavor of Mac.
 
-### Rust Development
-
-```bash
-cd native/nightshade_native
-cargo check --all-features
-cargo test --all-features
-cargo clippy --all-features -- -D warnings
-```
-
-### Troubleshooting
-
-<details>
-<summary><strong>FFI codegen fails with "stdbool.h not found" (Windows)</strong></summary>
-
-Set CPATH before running codegen:
-
-```powershell
-$env:CPATH = "C:\Program Files\LLVM\lib\clang\21\include;C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.43.34808\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\ucrt"
-flutter_rust_bridge_codegen generate
-```
-</details>
-
-<details>
-<summary><strong>FFI codegen fails (Linux)</strong></summary>
-
-Set CPATH before running codegen:
-
-```bash
-export CPATH="/usr/lib/clang/21/include"
-flutter_rust_bridge_codegen generate
-```
-</details>
-
-<details>
-<summary><strong>Hash mismatch errors at runtime</strong></summary>
-
-Dart bindings and Rust library are out of sync. Use `melos run dev` instead of `flutter run` after Rust changes.
-</details>
-
-<details>
-<summary><strong>Need a clean rebuild?</strong></summary>
-
-```bash
-melos run dev:clean
-```
-
-See [docs/FRB_TROUBLESHOOTING.md](docs/FRB_TROUBLESHOOTING.md) for more.
-</details>
-
----
-
-## Contributing
-
-Contributions are welcome:
-
-- **Bug reports** and **feature requests** via [Issues](https://github.com/Scodouglas1999/Nightshade/issues)
-- **Code contributions** via pull requests
-- **Documentation** improvements
-- **Testing** on different equipment setups
-
-### Philosophy
-
-| Principle | Meaning |
-|-----------|---------|
-| **Keep it simple** | Solve today's problems, not hypothetical ones |
-| **Performance matters** | Large images + real-time control = optimize where it counts |
-| **Cross-platform first** | Features work everywhere, degrade gracefully |
-| **Test your changes** | `melos run test && melos run analyze` before PRs |
-
----
-
-## Roadmap
-
-**Current Focus**
-- Core imaging workflow stability
-- Equipment compatibility testing
-- Sequencer reliability
-- Cross-platform consistency
-
-**Upcoming**
-- Plate solving integration
-- Flat wizard improvements
-- Advanced mosaic planning
-- Plugin system expansion
-- Cloud sync
-
----
+PRs are welcome for bugs you fix or small features you'd like. For anything substantial, open an issue first so we can talk through the design before you sink time into a branch. Development conventions live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-This software is proprietary and source-available. You may view and study the code, but you may not copy, modify, distribute, or create derivative works without explicit permission.
-
-See [LICENSE](LICENSE) for full terms.
-
----
+Source-available, not open source. You can view and study the code; you can't redistribute, modify, or build derivative works without explicit permission. Full terms in [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Standing on the shoulders of giants:
+This is built on a stack of community work that's older than I am at this hobby:
 
-- [ASCOM](https://ascom-standards.org/) - Astronomy Common Object Model
-- [INDI](https://indilib.org/) - Instrument Neutral Distributed Interface
-- [PHD2](https://openphdguiding.org/) - Open-source autoguiding
-- [Flutter](https://flutter.dev/) & [Rust](https://www.rust-lang.org/) - The foundation
-- [flutter_rust_bridge](https://github.com/aspect-build/flutter_rust_bridge) - Making FFI painless
-- [LibRaw](https://www.libraw.org/) - RAW image processing
+- [ASCOM](https://ascom-standards.org/) for the Windows COM standard the amateur astronomy industry settled on.
+- [INDI](https://indilib.org/) for the open Linux/macOS equivalent.
+- [PHD2](https://openphdguiding.org/) for guiding that everyone agrees on.
+- [Flutter](https://flutter.dev/) and [Rust](https://www.rust-lang.org/) for the app itself, glued together by [flutter_rust_bridge](https://cjycode.com/flutter_rust_bridge/).
+- [LibRaw](https://www.libraw.org/) for camera RAW decoding.
 
----
-
-<p align="center">
-  <sub>Clear skies!</sub>
-</p>
+Clear skies.
