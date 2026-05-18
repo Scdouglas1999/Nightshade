@@ -37,34 +37,36 @@ class PanelTabs extends ConsumerWidget {
     final objectCount = annotation?.objects.length ?? 0;
 
     return Container(
-      height: 44,
+      height: 52,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         border: Border(
           bottom: BorderSide(color: colors.border),
         ),
       ),
-      child: Row(
-        children: _tabs.asMap().entries.map((entry) {
-          final index = entry.key;
-          final (icon, label) = entry.value;
-          final isSelected = index == selectedIndex;
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          children: _tabs.asMap().entries.map((entry) {
+            final index = entry.key;
+            final (icon, label) = entry.value;
+            final isSelected = index == selectedIndex;
 
-          // Build the label with count badge for the Annotations tab
-          final displayLabel = index == annotationsTabIndex && objectCount > 0
-              ? '$label ($objectCount)'
-              : label;
+            // Build the label with count badge for the Annotations tab
+            final displayLabel = index == annotationsTabIndex && objectCount > 0
+                ? '$label ($objectCount)'
+                : label;
 
-          return Expanded(
-            child: _PanelTab(
+            return _PanelTab(
               icon: icon,
               label: displayLabel,
               isSelected: isSelected,
               onTap: () => onSelected(index),
               colors: colors,
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -94,52 +96,70 @@ class _PanelTabState extends State<_PanelTab> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            color: widget.isSelected
-                ? widget.colors.surface
-                : _isHovered
-                    ? widget.colors.surface.withValues(alpha: 0.5)
-                    : Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
+    return Tooltip(
+      message: widget.label,
+      child: Semantics(
+        button: true,
+        selected: widget.isSelected,
+        label: widget.label,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: widget.label.length > 9 ? 118 : 92,
+              margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
                 color: widget.isSelected
-                    ? widget.colors.primary
-                    : Colors.transparent,
-                width: widget.isSelected ? 2.5 : 0,
-              ),
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                size: 14,
-                color: widget.isSelected
-                    ? widget.colors.primary
-                    : widget.colors.textSecondary,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                    ? widget.colors.primary.withValues(alpha: 0.16)
+                    : _isHovered
+                        ? widget.colors.surfaceHover
+                        : widget.colors.surface.withValues(alpha: 0.28),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
                   color: widget.isSelected
-                      ? widget.colors.primary
-                      : widget.colors.textSecondary,
+                      ? widget.colors.primary.withValues(alpha: 0.42)
+                      : _isHovered
+                          ? widget.colors.borderHighlight.withValues(alpha: 0.7)
+                          : widget.colors.border.withValues(alpha: 0.55),
                 ),
               ),
-            ],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 14,
+                    color: widget.isSelected
+                        ? widget.colors.primary
+                        : widget.colors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      widget.label,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: widget.isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: widget.isSelected
+                            ? widget.colors.primary
+                            : _isHovered
+                                ? widget.colors.textPrimary
+                                : widget.colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
