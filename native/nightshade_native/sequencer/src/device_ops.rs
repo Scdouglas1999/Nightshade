@@ -291,6 +291,24 @@ pub trait DeviceOps: Send + Sync {
     /// Returns Err when safety status cannot be determined (missing device, driver error, etc.).
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool>;
 
+    /// Read humidity percentage (0-100) from the weather/observatory device.
+    ///
+    /// Returns `Ok(Some(value))` when the device reports humidity, `Ok(None)`
+    /// when humidity is genuinely not supported by the connected weather
+    /// device, and `Err(_)` when the query failed (driver error, no device
+    /// configured, etc.). The trigger monitor uses this to feed the
+    /// `HumidityThreshold` trigger; an `Err` result is logged and the trigger
+    /// state is left unchanged so a stale-but-known reading does not get
+    /// overwritten by a transient driver hiccup.
+    ///
+    /// Default implementation returns `Ok(None)` so existing DeviceOps
+    /// implementations that do not know about humidity continue to compile.
+    /// Real implementations should override this.
+    async fn weather_get_humidity(&self, weather_id: Option<&str>) -> DeviceResult<Option<f64>> {
+        let _ = weather_id;
+        Ok(None)
+    }
+
     // =========================================================================
     // IMAGE ANALYSIS
     // =========================================================================
@@ -774,5 +792,404 @@ impl DeviceOps for NullDeviceOps {
 
     async fn cover_calibrator_get_max_brightness(&self, _device_id: &str) -> DeviceResult<i32> {
         Ok(255)
+    }
+}
+
+/// Result of a park-with-retry attempt.
+///
+/// `attempts_made` counts the total invocations of `mount_park` (the initial
+/// attempt plus retries), so callers can include the count in failure messages
+/// surfaced to the operator.
+#[derive(Debug, Clone)]
+pub struct ParkRetryResult {
+    /// Whether the mount was successfully parked.
+    pub success: bool,
+    /// Total number of park-call attempts made (initial + retries).
+    pub attempts_made: u32,
+    /// Last error reported by `mount_park`, present iff `success == false`.
+    pub last_error: Option<String>,
+}
+
+/// Try to park the mount, retrying with a fixed delay between attempts.
+///
+/// Audit (trust-patch §8): the two pre-existing call sites (executor's
+/// `RecoveryAction::ParkAndAbort` and `Recovery::ParkAndAbort` in `node.rs`)
+/// previously diverged — one did a single retry with a hardcoded 2s wait, the
+/// other called park exactly once and ignored the result. This helper is the
+/// single source of truth so both paths report park-failure specifically in
+/// their failure events.
+///
+/// # Arguments
+/// * `device_ops` - Shared device operations handle.
+/// * `mount_id` - The mount device ID.
+/// * `max_retries` - How many additional attempts to make after the initial
+///   call. `0` means try once with no retries; the total number of park calls
+///   is `1 + max_retries`.
+/// * `retry_delay_secs` - Seconds to sleep between attempts. Always uses
+///   `tokio::time::sleep` so the caller's runtime cancellation still works.
+pub async fn try_park_with_retry(
+    device_ops: &SharedDeviceOps,
+    mount_id: &str,
+    max_retries: u32,
+    retry_delay_secs: f64,
+) -> ParkRetryResult {
+    let total_attempts = max_retries.saturating_add(1);
+    let mut last_error: Option<String> = None;
+
+    for attempt in 1..=total_attempts {
+        match device_ops.mount_park(mount_id).await {
+            Ok(()) => {
+                if attempt == 1 {
+                    tracing::info!("mount_park({}) succeeded on initial attempt", mount_id);
+                } else {
+                    tracing::info!(
+                        "mount_park({}) succeeded on attempt {}/{}",
+                        mount_id,
+                        attempt,
+                        total_attempts
+                    );
+                }
+                return ParkRetryResult {
+                    success: true,
+                    attempts_made: attempt,
+                    last_error: None,
+                };
+            }
+            Err(e) => {
+                tracing::error!(
+                    "mount_park({}) FAILED on attempt {}/{}: {}",
+                    mount_id,
+                    attempt,
+                    total_attempts,
+                    e
+                );
+                last_error = Some(e);
+                if attempt < total_attempts && retry_delay_secs > 0.0 {
+                    tokio::time::sleep(std::time::Duration::from_secs_f64(retry_delay_secs.max(0.0)))
+                        .await;
+                }
+            }
+        }
+    }
+
+    tracing::error!(
+        "mount_park({}) exhausted {} attempt(s); last error: {:?}. \
+         Mount may be in an unsafe position!",
+        mount_id,
+        total_attempts,
+        last_error
+    );
+    ParkRetryResult {
+        success: false,
+        attempts_made: total_attempts,
+        last_error,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc as StdArc;
+
+    /// A DeviceOps wrapper that fails `mount_park` a configurable number of
+    /// times before succeeding. Used by the retry-helper tests.
+    struct FlakyParkOps {
+        inner: StdArc<NullDeviceOps>,
+        fail_count: AtomicU32,
+        attempts: AtomicU32,
+        fail_forever: bool,
+    }
+
+    impl FlakyParkOps {
+        fn new(fail_count: u32, fail_forever: bool) -> Self {
+            Self {
+                inner: StdArc::new(NullDeviceOps),
+                fail_count: AtomicU32::new(fail_count),
+                attempts: AtomicU32::new(0),
+                fail_forever,
+            }
+        }
+
+        fn attempts(&self) -> u32 {
+            self.attempts.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl DeviceOps for FlakyParkOps {
+        // Only mount_park is overridden; every other method delegates to NullDeviceOps.
+        async fn mount_park(&self, mount_id: &str) -> DeviceResult<()> {
+            self.attempts.fetch_add(1, Ordering::SeqCst);
+            if self.fail_forever {
+                return Err(format!("simulated park failure for {}", mount_id));
+            }
+            let remaining = self.fail_count.load(Ordering::SeqCst);
+            if remaining > 0 {
+                self.fail_count.fetch_sub(1, Ordering::SeqCst);
+                return Err(format!(
+                    "simulated park failure for {} ({} failures remaining)",
+                    mount_id, remaining
+                ));
+            }
+            Ok(())
+        }
+
+        // === delegating methods ===
+        async fn mount_slew_to_coordinates(
+            &self,
+            id: &str,
+            ra: f64,
+            dec: f64,
+        ) -> DeviceResult<()> {
+            self.inner.mount_slew_to_coordinates(id, ra, dec).await
+        }
+        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_abort_slew(id).await
+        }
+        async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+            self.inner.mount_get_coordinates(id).await
+        }
+        async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_sync(id, ra, dec).await
+        }
+        async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_unpark(id).await
+        }
+        async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_slewing(id).await
+        }
+        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_parked(id).await
+        }
+        async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_can_flip(id).await
+        }
+        async fn mount_side_of_pier(
+            &self,
+            id: &str,
+        ) -> DeviceResult<crate::meridian::PierSide> {
+            self.inner.mount_side_of_pier(id).await
+        }
+        async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_tracking(id).await
+        }
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            self.inner.mount_set_tracking(id, enabled).await
+        }
+        async fn camera_start_exposure(
+            &self,
+            id: &str,
+            d: f64,
+            g: Option<i32>,
+            o: Option<i32>,
+            bx: i32,
+            by: i32,
+        ) -> DeviceResult<ImageData> {
+            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+        }
+        async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.inner.camera_abort_exposure(id).await
+        }
+        async fn camera_set_cooler(
+            &self,
+            id: &str,
+            e: bool,
+            t: f64,
+        ) -> DeviceResult<()> {
+            self.inner.camera_set_cooler(id, e, t).await
+        }
+        async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_temperature(id).await
+        }
+        async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_cooler_power(id).await
+        }
+        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.focuser_move_to(id, p).await
+        }
+        async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.focuser_get_position(id).await
+        }
+        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.focuser_is_moving(id).await
+        }
+        async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            self.inner.focuser_get_temperature(id).await
+        }
+        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.focuser_halt(id).await
+        }
+        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.filterwheel_set_position(id, p).await
+        }
+        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_get_position(id).await
+        }
+        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+            self.inner.filterwheel_get_names(id).await
+        }
+        async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_set_filter_by_name(id, n).await
+        }
+        async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_to(id, a).await
+        }
+        async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_relative(id, d).await
+        }
+        async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.rotator_get_angle(id).await
+        }
+        async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.rotator_halt(id).await
+        }
+        async fn guider_dither(
+            &self,
+            p: f64,
+            sp: f64,
+            st: f64,
+            sto: f64,
+            ra: bool,
+        ) -> DeviceResult<()> {
+            self.inner.guider_dither(p, sp, st, sto, ra).await
+        }
+        async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+            self.inner.guider_get_status().await
+        }
+        async fn guider_start(&self, sp: f64, st: f64, sto: f64) -> DeviceResult<()> {
+            self.inner.guider_start(sp, st, sto).await
+        }
+        async fn guider_stop(&self) -> DeviceResult<()> {
+            self.inner.guider_stop().await
+        }
+        async fn plate_solve(
+            &self,
+            d: &ImageData,
+            ra: Option<f64>,
+            dec: Option<f64>,
+            s: Option<f64>,
+        ) -> DeviceResult<PlateSolveResult> {
+            self.inner.plate_solve(d, ra, dec, s).await
+        }
+        async fn save_fits(
+            &self,
+            d: &ImageData,
+            f: &str,
+            t: Option<&str>,
+            fl: Option<&str>,
+            r: Option<f64>,
+            de: Option<f64>,
+        ) -> DeviceResult<()> {
+            self.inner.save_fits(d, f, t, fl, r, de).await
+        }
+        async fn send_notification(&self, l: &str, t: &str, m: &str) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m).await
+        }
+        fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+            self.inner.calculate_altitude(r, d, la, lo)
+        }
+        fn get_observer_location(&self) -> Option<(f64, f64)> {
+            self.inner.get_observer_location()
+        }
+        async fn polar_align_update(
+            &self,
+            r: &crate::polar_align::PolarAlignResult,
+        ) -> DeviceResult<()> {
+            self.inner.polar_align_update(r).await
+        }
+        async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_open(id).await
+        }
+        async fn dome_close(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_close(id).await
+        }
+        async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_park(id).await
+        }
+        async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
+            self.inner.dome_get_shutter_status(id).await
+        }
+        async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+            self.inner.safety_is_safe(id).await
+        }
+        async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.calculate_image_hfr(d).await
+        }
+        async fn detect_stars_in_image(
+            &self,
+            d: &ImageData,
+        ) -> DeviceResult<Vec<(f64, f64, f64)>> {
+            self.inner.detect_stars_in_image(d).await
+        }
+        async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_open_cover(id).await
+        }
+        async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_close_cover(id).await
+        }
+        async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_halt_cover(id).await
+        }
+        async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_on(id, b).await
+        }
+        async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_off(id).await
+        }
+        async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_cover_state(id).await
+        }
+        async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_calibrator_state(id).await
+        }
+        async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_brightness(id).await
+        }
+        async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_max_brightness(id).await
+        }
+    }
+
+    #[tokio::test]
+    async fn try_park_with_retry_succeeds_first_attempt() {
+        let ops: SharedDeviceOps = Arc::new(FlakyParkOps::new(0, false));
+        let result = try_park_with_retry(&ops, "mount-1", 3, 0.0).await;
+        assert!(result.success);
+        assert_eq!(result.attempts_made, 1);
+        assert!(result.last_error.is_none());
+    }
+
+    #[tokio::test]
+    async fn try_park_with_retry_recovers_after_retries() {
+        let ops_concrete = Arc::new(FlakyParkOps::new(2, false));
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let result = try_park_with_retry(&ops, "mount-1", 3, 0.0).await;
+        assert!(result.success, "should succeed after 2 failures");
+        assert_eq!(result.attempts_made, 3);
+        assert_eq!(ops_concrete.attempts(), 3);
+        assert!(result.last_error.is_none());
+    }
+
+    #[tokio::test]
+    async fn try_park_with_retry_gives_up_after_exhausting_attempts() {
+        let ops_concrete = Arc::new(FlakyParkOps::new(0, true));
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let result = try_park_with_retry(&ops, "mount-1", 2, 0.0).await;
+        assert!(!result.success);
+        // max_retries=2 means total 3 attempts (initial + 2 retries).
+        assert_eq!(result.attempts_made, 3);
+        assert_eq!(ops_concrete.attempts(), 3);
+        assert!(result.last_error.is_some());
+    }
+
+    #[tokio::test]
+    async fn try_park_with_retry_zero_retries_means_one_attempt() {
+        let ops_concrete = Arc::new(FlakyParkOps::new(0, true));
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let result = try_park_with_retry(&ops, "mount-1", 0, 0.0).await;
+        assert!(!result.success);
+        assert_eq!(result.attempts_made, 1);
+        assert_eq!(ops_concrete.attempts(), 1);
     }
 }

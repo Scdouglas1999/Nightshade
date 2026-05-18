@@ -282,9 +282,22 @@ class SessionReport {
   /// User notes from the session row.
   final String? notes;
 
-  /// Error / warning messages collected from the matching sequence_runs
+  /// Hard error messages collected from the matching sequence_runs
   /// row(s). Empty when no errors were recorded.
   final List<String> errorMessages;
+
+  /// Non-fatal warning messages collected from the matching
+  /// sequence_runs row(s). These are surfaced in the run dashboard
+  /// while the run is in progress and in the post-session report so
+  /// the user can see "during this run, filter 'Hα' could not be
+  /// matched 14 times" type events. Empty when no warnings were
+  /// recorded.
+  ///
+  /// Warnings are persisted alongside errors in the stats JSON blob
+  /// of each sequence_runs row — see [SequenceRunStats.warningMessages].
+  /// We keep them separate from [errorMessages] in the report so the
+  /// UI can render them with different severity styling.
+  final List<String> warningMessages;
 
   /// When the report was generated.
   final DateTime generatedAt;
@@ -307,6 +320,7 @@ class SessionReport {
     required this.avgSeeingArcsec,
     required this.notes,
     required this.errorMessages,
+    this.warningMessages = const [],
     required this.generatedAt,
   });
 
@@ -346,6 +360,7 @@ class SessionReport {
         'avgSeeingArcsec': avgSeeingArcsec,
         'notes': notes,
         'errorMessages': errorMessages,
+        'warningMessages': warningMessages,
         'generatedAt': generatedAt.toIso8601String(),
       };
 }

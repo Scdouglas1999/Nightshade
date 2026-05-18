@@ -15,9 +15,17 @@ class LoopProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    // Trust-patch §B: belt-and-suspenders gate (parent NodePropertiesPanel
+    // already wraps the editor body in AbsorbPointer when running).
+    // Wrap our own subtree in IgnorePointer too so that a future refactor
+    // pulling LoopProperties out of the panel can't silently un-gate the
+    // inputs.
+    final canEdit = ref.watch(canEditSequenceProvider);
+    return IgnorePointer(
+      ignoring: !canEdit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Text(
           'Loop Settings',
           style: TextStyle(
@@ -266,7 +274,8 @@ class LoopProperties extends ConsumerWidget {
           const SizedBox(height: 8),
           _UnboundedLoopSafetySection(colors: colors, node: node),
         ],
-      ],
+        ],
+      ),
     );
   }
 }
@@ -815,6 +824,23 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Filter Change';
                 case TriggerType.dawnApproaching:
                   return 'Dawn Approaching';
+                // Wave 1.5 Pack A additions
+                case TriggerType.humidityThreshold:
+                  return 'Humidity Threshold';
+                case TriggerType.focusDrift:
+                  return 'Focus Drift';
+                case TriggerType.mountTrackingLost:
+                  return 'Mount Tracking Lost';
+                case TriggerType.domeShutterNotOpen:
+                  return 'Dome Shutter Not Open';
+                case TriggerType.guideStarLost:
+                  return 'Guide Star Lost';
+                case TriggerType.autofocusInterval:
+                  return 'Autofocus Interval';
+                case TriggerType.ditherInterval:
+                  return 'Dither Interval';
+                case TriggerType.driftLimit:
+                  return 'Plate-Solve Drift Limit';
               }
             },
             onChanged: (value) {
@@ -934,6 +960,190 @@ class RecoveryProperties extends ConsumerWidget {
               suffix: '\u00B0',
               min: 0,
               max: 90,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerThreshold: value),
+                    );
+              },
+            ),
+          ),
+        // ===== Wave 1.5 Pack A trigger config editors =====
+        if (node.triggerType == TriggerType.humidityThreshold)
+          NodePropertyField(
+            colors: colors,
+            label: 'Max Humidity',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 85,
+              suffix: '%',
+              min: 0,
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerThreshold: value),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerType == TriggerType.focusDrift) ...[
+          NodePropertyField(
+            colors: colors,
+            label: 'Window Size (frames)',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.focusDriftWindowSize.toDouble(),
+              suffix: 'frames',
+              min: 2,
+              // Mirror Rust's FOCUS_DRIFT_WINDOW_MAX clamp (100) so the
+              // executor doesn't have to surface a clamp-warning event.
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(focusDriftWindowSize: value.toInt()),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Min Increasing Count',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.focusDriftMinIncreasingCount.toDouble(),
+              suffix: 'frames',
+              min: 2,
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(
+                          focusDriftMinIncreasingCount: value.toInt()),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Min Total Increase',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.focusDriftMinTotalIncrease,
+              suffix: 'px',
+              min: 0.1,
+              max: 10.0,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(focusDriftMinTotalIncrease: value),
+                    );
+              },
+            ),
+          ),
+        ],
+        if (node.triggerType == TriggerType.guidingFailed) ...[
+          NodePropertyField(
+            colors: colors,
+            label: 'RMS Threshold',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 2.0,
+              suffix: '"',
+              min: 0.1,
+              max: 20.0,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerThreshold: value),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Duration',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.guidingFailedDurationSecs,
+              suffix: 'seconds',
+              min: 1,
+              max: 600,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(guidingFailedDurationSecs: value),
+                    );
+              },
+            ),
+          ),
+        ],
+        if (node.triggerType == TriggerType.temperatureShift)
+          NodePropertyField(
+            colors: colors,
+            label: 'Temperature Change',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 2.0,
+              suffix: '\u00B0C',
+              min: 0.1,
+              max: 20.0,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerThreshold: value),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerType == TriggerType.dawnApproaching)
+          NodePropertyField(
+            colors: colors,
+            label: 'Minutes Before Twilight',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 30,
+              suffix: 'min',
+              min: 1,
+              max: 240,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerThreshold: value),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerType == TriggerType.autofocusInterval ||
+            node.triggerType == TriggerType.ditherInterval)
+          NodePropertyField(
+            colors: colors,
+            label: 'Every N Frames',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerEveryNFrames.toDouble(),
+              suffix: 'frames',
+              min: 1,
+              max: 9999,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(triggerEveryNFrames: value.toInt()),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerType == TriggerType.driftLimit)
+          NodePropertyField(
+            colors: colors,
+            label: 'Max Drift',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 30,
+              suffix: 'px',
+              min: 1,
+              max: 500,
               decimals: 0,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(

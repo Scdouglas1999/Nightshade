@@ -494,7 +494,8 @@ CREATE TABLE captured_images (
       expect(settings.triggerDistanceKm, equals(25.0));
       expect(settings.weatherSafetyEnabled, isTrue);
 
-      final rows = await db.customSelect('SELECT id FROM weather_settings').get();
+      final rows =
+          await db.customSelect('SELECT id FROM weather_settings').get();
       expect(
         rows,
         hasLength(1),
@@ -560,6 +561,144 @@ CREATE TABLE captured_images (
     } finally {
       await db.close();
       await fixture.dispose();
+    }
+  });
+
+  test('schema 17 captured_images without quality_score migrates', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('nightshade_schema17_no_qs_');
+    final dbFile = File('${tempDir.path}/nightshade.db');
+
+    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      await setupDb.customStatement('PRAGMA foreign_keys = OFF');
+      await setupDb.customStatement('DELETE FROM image_metadata');
+      await setupDb.customStatement('DROP TABLE captured_images');
+      await setupDb.customStatement('''
+CREATE TABLE captured_images (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_format TEXT NOT NULL DEFAULT 'fits',
+  file_size INTEGER,
+  session_id INTEGER REFERENCES imaging_sessions(id) ON DELETE CASCADE,
+  target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,
+  frame_type TEXT NOT NULL DEFAULT 'light',
+  exposure_duration REAL NOT NULL,
+  gain INTEGER,
+  offset INTEGER,
+  bin_x INTEGER NOT NULL DEFAULT 1,
+  bin_y INTEGER NOT NULL DEFAULT 1,
+  filter TEXT,
+  sensor_temp REAL,
+  cooler_power REAL,
+  hfr REAL,
+  star_count INTEGER,
+  background REAL,
+  noise REAL,
+  guiding_rms_ra REAL,
+  guiding_rms_dec REAL,
+  guiding_rms_total REAL,
+  mount_ra REAL,
+  mount_dec REAL,
+  mount_altitude REAL,
+  mount_azimuth REAL,
+  pier_side TEXT,
+  focuser_position INTEGER,
+  focuser_temp REAL,
+  rotator_angle REAL,
+  is_plate_solved INTEGER NOT NULL DEFAULT 0,
+  solved_ra REAL,
+  solved_dec REAL,
+  solved_rotation REAL,
+  solved_pixel_scale REAL,
+  captured_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+  is_accepted INTEGER NOT NULL DEFAULT 1,
+  rejection_reason TEXT
+)
+''');
+      await setupDb.customStatement('DELETE FROM imaging_sessions');
+      await setupDb.customStatement('''
+INSERT INTO imaging_sessions (id, start_time, status)
+VALUES (1, 1700000000, 'completed')
+''');
+      await setupDb.customStatement('''
+INSERT INTO captured_images (
+  id, file_path, file_name, file_format, session_id, frame_type,
+  exposure_duration, captured_at
+) VALUES (
+  1, '/legacy/light-001.fits', 'light-001.fits', 'fits', 1, 'light',
+  120.0, 1700000001
+)
+''');
+      await setupDb.customStatement('''
+INSERT INTO image_metadata (id, image_id, "key", value, comment)
+VALUES (1, 1, 'FILTER', 'L', 'legacy FITS metadata')
+''');
+      await setupDb.customStatement('DROP TABLE photometry_measurements');
+      await setupDb.customStatement('''
+CREATE TABLE photometry_measurements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  captured_image_id INTEGER REFERENCES captured_images(id) ON DELETE CASCADE,
+  session_id INTEGER REFERENCES imaging_sessions(id) ON DELETE CASCADE,
+  object_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'target',
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  flux REAL NOT NULL,
+  differential_magnitude REAL,
+  snr REAL,
+  uncertainty REAL,
+  is_outlier INTEGER NOT NULL DEFAULT 0,
+  timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+)
+''');
+      await setupDb.customStatement('''
+INSERT INTO photometry_measurements (
+  id, captured_image_id, session_id, object_id, role, x, y, flux,
+  differential_magnitude, snr, uncertainty, is_outlier, timestamp
+) VALUES (
+  1, 1, 1, 'target-a', 'target', 12.0, 13.0, 1000.0,
+  1.25, 42.0, 0.05, 0, 1700000002
+)
+''');
+      await setupDb.customStatement('PRAGMA user_version = 17');
+    } finally {
+      await setupDb.close();
+    }
+
+    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      final imageRows = await db
+          .customSelect(
+            'SELECT id, file_name, quality_score FROM captured_images',
+          )
+          .get();
+      expect(imageRows, hasLength(1));
+      expect(imageRows.single.data['file_name'], equals('light-001.fits'));
+      expect(imageRows.single.data['quality_score'], equals(null));
+
+      final metadataRows = await db
+          .customSelect('SELECT "key", value FROM image_metadata')
+          .get();
+      expect(metadataRows, hasLength(1));
+      expect(metadataRows.single.data['key'], equals('FILTER'));
+      expect(metadataRows.single.data['value'], equals('L'));
+
+      final photometryRows = await db
+          .customSelect(
+            'SELECT object_id, standard_magnitude FROM photometry_measurements',
+          )
+          .get();
+      expect(photometryRows, hasLength(1));
+      expect(photometryRows.single.data['object_id'], equals('target-a'));
+      expect(photometryRows.single.data['standard_magnitude'], equals(null));
+    } finally {
+      await db.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
     }
   });
 }

@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../utils/add_target_header_helper.dart';
 import '../../suggestions/widgets/suggestion_card.dart';
 import '../../suggestions/widgets/suggestion_filters.dart';
 
@@ -346,7 +347,7 @@ class FramingSuggestionsTab extends ConsumerWidget {
               label: 'Add',
               variant: ButtonVariant.primary,
               size: ButtonSize.small,
-              onPressed: () {
+              onPressed: () async {
                 // Create a TargetHeaderNode for the suggestion
                 final targetNode = TargetHeaderNode(
                   targetName: suggestion.targetName,
@@ -354,18 +355,26 @@ class FramingSuggestionsTab extends ConsumerWidget {
                   decDegrees: suggestion.decDegrees,
                 );
 
-                // Add target to sequence via provider
-                ref
-                    .read(currentSequenceProvider.notifier)
-                    .addTargetHeader(targetNode);
-
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Added ${suggestion.targetName} to sequence'),
-                    backgroundColor: colors.success,
-                  ),
+                // Add via the shared helper so a "no active sequence" /
+                // "sequence running" condition surfaces a meaningful
+                // prompt instead of silently no-op'ing or silently
+                // creating an unnamed sequence.
+                final added = await addTargetHeaderWithPrompt(
+                  context: context,
+                  ref: ref,
+                  targetNode: targetNode,
                 );
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                if (added) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content:
+                          Text('Added ${suggestion.targetName} to sequence'),
+                      backgroundColor: colors.success,
+                    ),
+                  );
+                }
               },
             ),
           ],

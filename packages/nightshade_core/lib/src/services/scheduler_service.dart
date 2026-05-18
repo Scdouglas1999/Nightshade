@@ -152,6 +152,103 @@ class SchedulerService {
         1524.5;
   }
 
+  /// Compute the next time the target falls to (or below) [horizonDeg].
+  ///
+  /// This is the canonical "time-to-set" helper used by the Run Dashboard
+  /// and the planetarium altitude card so both surfaces agree to the
+  /// second. The math is a Newton-style binary search on the analytical
+  /// rise/set hour-angle equation, with two refinements vs the old 5-min
+  /// probe loop:
+  ///
+  ///   * Closed-form hour-angle: `cos(H) = (sin(alt) - sin(δ)sin(φ)) /
+  ///     (cos(δ)cos(φ))`. The sidereal rotation of Earth (one solar day ≈
+  ///     0.9972 sidereal day) lets us convert the hour-angle delta to a
+  ///     wall-clock delta directly. No probing.
+  ///   * Circumpolar / never-rises detection up-front so the caller gets
+  ///     `null` (never sets) or `Duration.zero` (already below) without a
+  ///     12 h timeout.
+  ///
+  /// Returns:
+  ///   * `null` if the target never sets above [horizonDeg] within 24 h
+  ///     (circumpolar relative to the chosen horizon) — UI should render
+  ///     this as "—" / "never sets".
+  ///   * `Duration.zero` if the target is already at/below the horizon.
+  ///   * Otherwise: the wall-clock duration from [now] to the next time
+  ///     the target's altitude crosses [horizonDeg] downward.
+  Duration? nextSetTime({
+    required double raHours,
+    required double decDegrees,
+    required DateTime now,
+    required double latitudeDegrees,
+    required double longitudeDegrees,
+    double horizonDeg = 0.0,
+  }) {
+    final dec = decDegrees * math.pi / 180.0;
+    final lat = latitudeDegrees * math.pi / 180.0;
+    final alt = horizonDeg * math.pi / 180.0;
+
+    final cosDec = math.cos(dec);
+    final cosLat = math.cos(lat);
+    final denominator = cosDec * cosLat;
+
+    // Polar / equator degeneracies: when either latitude or declination
+    // pins the daily altitude to a single value, fall back to the simple
+    // "above-or-below" check.
+    if (denominator.abs() < 1e-12) {
+      final fixedAlt = math.asin(math.sin(dec) * math.sin(lat));
+      return fixedAlt >= alt ? null : Duration.zero;
+    }
+
+    final cosH0 = (math.sin(alt) - math.sin(dec) * math.sin(lat)) / denominator;
+    if (cosH0 <= -1.0) {
+      // Circumpolar: never crosses the horizon downward.
+      return null;
+    }
+    if (cosH0 >= 1.0) {
+      // Never rises above the horizon.
+      return Duration.zero;
+    }
+
+    // Hour angle at horizon crossing (degrees, then to sidereal hours).
+    final h0Deg = math.acos(cosH0) * 180.0 / math.pi;
+    final h0SiderealHours = h0Deg / 15.0;
+
+    // Current hour angle (sidereal hours, normalised to [-12, +12]).
+    final lst = _calculateLST(now, longitudeDegrees);
+    var haHours = lst - raHours;
+    while (haHours > 12.0) {
+      haHours -= 24.0;
+    }
+    while (haHours < -12.0) {
+      haHours += 24.0;
+    }
+
+    // Setting happens when HA reaches +h0SiderealHours; if we're already
+    // past that, the target is below the horizon. Return zero so the UI
+    // can render "set" rather than waiting another sidereal day.
+    if (haHours >= h0SiderealHours) {
+      // Verify with a direct altitude check — a target whose HA wraps
+      // beyond +h0 is below the horizon now.
+      final currentAlt = calculateAltitude(
+        raHours: raHours,
+        decDegrees: decDegrees,
+        time: now,
+        latitudeDegrees: latitudeDegrees,
+        longitudeDegrees: longitudeDegrees,
+      );
+      if (currentAlt <= horizonDeg) return Duration.zero;
+      // Otherwise fall through and treat as a full sidereal day away.
+      haHours -= 24.0;
+    }
+
+    final siderealHoursToSet = h0SiderealHours - haHours;
+    // Convert sidereal hours to solar (mean) hours.
+    final solarHoursToSet = siderealHoursToSet * 0.9972695663;
+    final seconds = (solarHoursToSet * 3600).round();
+    if (seconds <= 0) return Duration.zero;
+    return Duration(seconds: seconds);
+  }
+
   /// Calculate transit time for a target
   DateTime calculateTransitTime({
     required double raHours,

@@ -5,7 +5,7 @@ use crate::node::{ExecutionContext, Node, ProgressUpdate, RuntimeNode};
 use crate::triggers::{TriggerManager, TriggerState};
 use crate::{
     NodeDefinition, NodeId, NodeStatus, NodeType, RecoveryAction, SafetyFailMode,
-    SequenceDefinition,
+    SequenceDefinition, TriggerType,
 };
 use futures::FutureExt;
 use parking_lot::RwLock as StdRwLock;
@@ -38,6 +38,14 @@ pub struct RuntimeConfig {
     /// Filter -> focus offset (steps). Used by autofocus on filter change so
     /// the focuser is moved by the configured offset.
     pub filter_focus_offsets: HashMap<String, i32>,
+    /// Wave 1.5 Pack A: user override for the standard `AutofocusInterval`
+    /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
+    /// wildly wrong for both very-short (5 s) and very-long (5 min) subs —
+    /// the user must be able to tune this from the equipment profile or
+    /// sequence-level settings. `None` means "use the seeded default";
+    /// `Some(n)` overrides the trigger's `every_n_frames` field on the next
+    /// trigger reload.
+    pub autofocus_interval_frames: Option<u32>,
 }
 
 /// Commands that can be sent to the executor
@@ -66,6 +74,11 @@ pub enum ExecutorCommand {
     UpdateFilterOffsets {
         offsets: std::collections::HashMap<String, i32>,
     },
+    /// Wave 1.5 Pack A: update the autofocus-interval cadence at runtime.
+    /// Patches the standard `AutofocusInterval` trigger's `every_n_frames`
+    /// so the next periodic-AF tick honours the new value; mid-flight tuning
+    /// from the equipment-profile UI works without a sequence reload.
+    UpdateAutofocusInterval { every_n_frames: u32 },
 }
 
 /// State of the sequence executor
@@ -204,6 +217,7 @@ fn build_trigger_autofocus_context(
     device_ops: SharedDeviceOps,
     trigger_state: Arc<RwLock<TriggerState>>,
     runtime_config: &Arc<StdRwLock<RuntimeConfig>>,
+    event_tx: Option<broadcast::Sender<ExecutorEvent>>,
 ) -> crate::instructions::InstructionContext {
     // Audit §1.8: read filter_focus_offsets and location from the runtime
     // config so a mid-flight UpdateFilterOffsets / UpdateLocation is honoured
@@ -246,6 +260,12 @@ fn build_trigger_autofocus_context(
         device_ops,
         trigger_state: Some(trigger_state),
         filter_focus_offsets,
+        // Wave 1.5 Pack A: callers pass `Some(event_tx_clone2.clone())` so
+        // FITS-save failures and other instruction-level errors fired from
+        // trigger-initiated work (autofocus / dither / recenter) reach the
+        // executor's event subscribers (UI, logging). Unit tests still pass
+        // `None` because they exercise the build helper in isolation.
+        event_tx,
     }
 }
 
@@ -808,6 +828,55 @@ impl SequenceExecutor {
 
         self.set_state(ExecutorState::Running).await;
 
+        // Wave 1.5 Pack A: if the runtime config has a user-supplied
+        // autofocus-interval cadence, push it into the seeded standard
+        // trigger before the trigger-monitor task picks up its snapshot.
+        // Without this, a value set via the equipment-profile UI before
+        // start() would only take effect on the next start().
+        {
+            let override_value = {
+                let rc = self.runtime_config.read();
+                rc.autofocus_interval_frames
+            };
+            if let Some(every_n_frames) = override_value {
+                let mut mgr = self.trigger_manager.write().await;
+                if let Some(trigger) = mgr.get_trigger_mut("autofocus_interval") {
+                    if let TriggerType::AutofocusInterval { every_n_frames: live } =
+                        &mut trigger.trigger_type
+                    {
+                        *live = every_n_frames;
+                    }
+                }
+            }
+        }
+
+        // Wave 1.5 Pack A: surface trigger-creation-time clamp diagnostics
+        // (e.g. FocusDrift.window_size > FOCUS_DRIFT_WINDOW_MAX) as
+        // user-visible errors on the run dashboard. The clamping itself
+        // happens silently inside `Trigger::new` during standard-trigger
+        // seeding and sequence load; emitting once per Start is enough for
+        // the user to see and fix the configuration.
+        {
+            let mgr = self.trigger_manager.read().await;
+            for trigger in mgr.triggers() {
+                if let Some(warning) = &trigger.clamp_warning {
+                    let msg = format!(
+                        "Trigger '{}' ({}) clamped: {} was {}; clamped to maximum {}. \
+                         Reduce {} in the trigger configuration to silence this warning.",
+                        trigger.name,
+                        trigger.id,
+                        warning.field,
+                        warning.original,
+                        warning.clamped_to,
+                        warning.field,
+                    );
+                    let _ = self
+                        .event_tx
+                        .send(ExecutorEvent::Error { message: msg });
+                }
+            }
+        }
+
         let state = self.state.clone();
         let progress = self.progress.clone();
         let event_tx = self.event_tx.clone();
@@ -896,10 +965,15 @@ impl SequenceExecutor {
 
         let is_paused = Arc::new(AtomicBool::new(false));
         let skip_to_next_target = Arc::new(AtomicBool::new(false));
+        // Trust-patch §7: shared "SkipToNode target" slot. Set by the
+        // ExecutorCommand::SkipToNode handler, consumed by the node tree
+        // during execution (see RuntimeNode::execute_children_sequential).
+        let skip_to_node: Arc<StdRwLock<Option<NodeId>>> = Arc::new(StdRwLock::new(None));
         let resume_notify = Arc::new(tokio::sync::Notify::new());
 
         let is_paused_clone = is_paused.clone();
         let skip_to_next_target_clone = skip_to_next_target.clone();
+        let skip_to_node_clone = skip_to_node.clone();
         let resume_notify_clone = resume_notify.clone();
         let exposure_node_metadata = Arc::new(exposure_node_metadata);
         let trigger_action_context = trigger_action_context.clone();
@@ -925,6 +999,10 @@ impl SequenceExecutor {
                 context.is_cancelled = is_cancelled.clone();
                 context.is_paused = is_paused_clone;
                 context.skip_to_next_target = skip_to_next_target_clone;
+                // Trust-patch §7: wire shared SkipToNode slot into the
+                // execution context so the node tree sees commands posted
+                // by the executor command handler.
+                context.skip_to_node = skip_to_node_clone;
                 context.resume_notify = resume_notify_clone;
                 context.camera_id = camera_id;
                 context.mount_id = mount_id;
@@ -938,6 +1016,11 @@ impl SequenceExecutor {
                 context.longitude = longitude;
                 context.safety_fail_mode = safety_fail_mode;
                 context.filter_focus_offsets = filter_focus_offsets;
+                // Hand the event_tx to the execution context so instructions
+                // (e.g. execute_exposure) can surface ExecutorEvent::Error
+                // for FITS-save failures and other instruction-level errors
+                // that must reach UI subscribers, not just the log.
+                context.event_tx = Some(event_tx.clone());
                 // The trigger state owns HFR baseline and exposure counts; instructions
                 // (autofocus, exposures) feed it through the context so triggers can fire.
                 context.trigger_state = Some(trigger_manager.read().await.state());
@@ -1159,6 +1242,9 @@ impl SequenceExecutor {
 
                 let is_paused_cmd = is_paused.clone();
                 let skip_to_next_target_cmd = skip_to_next_target.clone();
+                // Trust-patch §7: command-handler-side clone for posting
+                // SkipToNode requests into the shared slot.
+                let skip_to_node_cmd = skip_to_node.clone();
                 let resume_notify_cmd = resume_notify.clone();
                 let command_handler = async {
                     while let Some(cmd) = rx.recv().await {
@@ -1197,11 +1283,39 @@ impl SequenceExecutor {
                                 });
                             }
                             ExecutorCommand::SkipToNode(node_id) => {
-                                let _ = event_tx.send(ExecutorEvent::Error {
-                                    message: format!(
-                                    "SkipToNode for '{}' is not supported during active execution",
+                                // Trust-patch §7: implement SkipToNode for
+                                // real. Post the target id into the shared
+                                // slot; the next iteration of the node tree
+                                // walk will mark preceding siblings as
+                                // Skipped and continue executing from the
+                                // target. The request clears itself when
+                                // the target subtree is entered (see
+                                // RuntimeNode::execute_children_sequential).
+                                //
+                                // We deliberately accept the request even
+                                // mid-instruction: the long-running
+                                // instruction (e.g. an exposure burst)
+                                // continues to completion, then the parent
+                                // container observes the skip request and
+                                // jumps to the target on the NEXT child. A
+                                // user who wants to interrupt mid-burst
+                                // sends Stop first, then re-Starts with the
+                                // sequence trimmed.
+                                tracing::info!(
+                                    "[SKIP_TO_NODE] Received request for target node '{}'",
                                     node_id
-                                ),
+                                );
+                                *skip_to_node_cmd.write() = Some(node_id.clone());
+                                let _ = event_tx.send(ExecutorEvent::Error {
+                                    // Re-using Error as an info-level UX
+                                    // surface is the existing pattern (see
+                                    // Start handler above); the message
+                                    // text makes the success case clear.
+                                    message: format!(
+                                        "SkipToNode request accepted: jumping to node '{}'. \
+                                         Current instruction (if any) will finish first.",
+                                        node_id
+                                    ),
                                 });
                             }
                             ExecutorCommand::UpdateDitherConfig {
@@ -1273,6 +1387,36 @@ impl SequenceExecutor {
                                 );
                                 let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
                                     what: "filter_offsets".to_string(),
+                                });
+                            }
+                            ExecutorCommand::UpdateAutofocusInterval { every_n_frames } => {
+                                // Wave 1.5 Pack A: write through runtime_config
+                                // AND patch the live trigger's `every_n_frames`
+                                // so the next AutofocusInterval evaluation sees
+                                // the new cadence without a sequence reload.
+                                {
+                                    let mut rc = runtime_config.write();
+                                    rc.autofocus_interval_frames = Some(every_n_frames);
+                                }
+                                {
+                                    let mut mgr = trigger_manager.write().await;
+                                    if let Some(trigger) =
+                                        mgr.get_trigger_mut("autofocus_interval")
+                                    {
+                                        if let TriggerType::AutofocusInterval {
+                                            every_n_frames: live,
+                                        } = &mut trigger.trigger_type
+                                        {
+                                            *live = every_n_frames;
+                                        }
+                                    }
+                                }
+                                tracing::info!(
+                                    "Runtime autofocus-interval cadence updated: every {} frames",
+                                    every_n_frames
+                                );
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "autofocus_interval".to_string(),
                                 });
                             }
                         }
@@ -1381,6 +1525,13 @@ impl SequenceExecutor {
                     // device does not flood the log every second. See SafetyFailMode
                     // dispatch below.
                     let mut safety_poll_last_was_error = false;
+
+                    // Trust-patch §1: rate-limit sentinel for the
+                    // "AltitudeLimit cannot evaluate because location is not
+                    // configured" warning. Set once per session on first
+                    // detection so the log is not flooded by a permanently
+                    // unconfigured rig.
+                    let mut altitude_warned_no_location = false;
 
                     // Tracks per-trigger Retry attempt counts so we can escalate after
                     // exhausting `max_attempts`. Keyed by trigger ID.
@@ -1492,6 +1643,17 @@ impl SequenceExecutor {
                             .ok()
                             .map(|status| status.rms_total);
 
+                        // Trust-patch §2: poll humidity from the weather/safety
+                        // device on the same cadence as safety_is_safe. The
+                        // default `weather_get_humidity` implementation returns
+                        // Ok(None) for backends that don't expose humidity —
+                        // those silently leave `state.current_humidity` alone
+                        // (which is correct: HumidityThreshold can't evaluate
+                        // without data).
+                        let humidity_result = device_ops_for_triggers
+                            .weather_get_humidity(None)
+                            .await;
+
                         {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
@@ -1505,6 +1667,35 @@ impl SequenceExecutor {
                             if let Some(rms) = guiding_rms {
                                 state.update_guiding_rms(rms);
                                 tracing::trace!("Updated guiding RMS: {:.2}", rms);
+                            }
+
+                            // Trust-patch §2: feed humidity into trigger state.
+                            // We deliberately separate "device doesn't report
+                            // humidity" (Ok(None)) from "query failed" (Err) so
+                            // a transient driver glitch leaves the previous
+                            // reading in place rather than overwriting it with
+                            // garbage. Match the safety-poll rate-limited
+                            // logging policy.
+                            match humidity_result {
+                                Ok(Some(h)) => {
+                                    state.update_humidity(h);
+                                    tracing::trace!(
+                                        "Updated humidity from weather device: {:.1}%",
+                                        h
+                                    );
+                                }
+                                Ok(None) => {
+                                    // Device exists but doesn't expose humidity.
+                                    // Nothing to do — HumidityThreshold needs a
+                                    // real value to evaluate. Trace level only:
+                                    // logging every tick would flood the log.
+                                }
+                                Err(e) => {
+                                    tracing::trace!(
+                                        "weather_get_humidity error: {} (trigger state retained)",
+                                        e
+                                    );
+                                }
                             }
 
                             // Dawn calculation needs lat/lon; if the executor was started
@@ -1526,6 +1717,75 @@ impl SequenceExecutor {
                                         lat,
                                         lon
                                     );
+                                }
+                            }
+
+                            // Trust-patch §1: compute target altitude so the
+                            // AltitudeLimit trigger has something to evaluate.
+                            // Inputs: target RA/Dec (set when a TargetHeader
+                            // node enters), observer lat/lon (seeded above or
+                            // by UpdateLocation), and current UTC time. Uses
+                            // the existing `meridian::calculate_altitude`
+                            // helper so the math is unified with the
+                            // meridian-flip predictions.
+                            //
+                            // Three "can't evaluate" cases:
+                            //   1. No target set yet (sequence hasn't entered
+                            //      any TargetHeader node).
+                            //   2. No observer location (user has not
+                            //      configured the profile; UpdateLocation
+                            //      hasn't fired).
+                            //   3. Both — same outcome.
+                            //
+                            // For case (2), emit a one-shot warning so the
+                            // operator sees that altitude triggers are dead
+                            // until location is supplied. The `&&` guard makes
+                            // it impossible to fire on (1) alone (no point
+                            // warning before any target has been entered).
+                            match (state.target_ra, state.target_dec, state.observer_latitude, state.observer_longitude) {
+                                (Some(ra_deg), Some(dec_deg), Some(lat), Some(lon)) => {
+                                    let now = chrono::Utc::now();
+                                    // TriggerState stores RA in degrees;
+                                    // calculate_altitude expects hours.
+                                    let ra_hours = ra_deg / 15.0;
+                                    let alt = crate::meridian::calculate_altitude(
+                                        ra_hours, dec_deg, lat, lon, now,
+                                    );
+                                    state.current_altitude = Some(alt);
+                                    tracing::trace!(
+                                        "Computed target altitude: {:.2}° (RA={:.4}h, Dec={:.4}°, lat={:.4}, lon={:.4})",
+                                        alt, ra_hours, dec_deg, lat, lon
+                                    );
+                                }
+                                (Some(_), Some(_), _, _) => {
+                                    // Wave 1.5 Pack A: target known but no
+                                    // location — altitude protection is
+                                    // effectively disabled. Previously this
+                                    // was a `tracing::warn!` which the user
+                                    // never saw; promote to a user-visible
+                                    // ExecutorEvent::Error so the run
+                                    // dashboard surfaces it. Still gated by
+                                    // the one-shot sentinel so a permanently
+                                    // unconfigured location doesn't flood the
+                                    // event stream every second.
+                                    if !altitude_warned_no_location {
+                                        let msg = "AltitudeLimit trigger configured but \
+                                             observer location is not set — altitude \
+                                             protection is INACTIVE. Set location in \
+                                             Profile to enable.";
+                                        tracing::warn!("{}", msg);
+                                        let _ = event_tx_clone2
+                                            .send(ExecutorEvent::Error {
+                                                message: msg.to_string(),
+                                            });
+                                        altitude_warned_no_location = true;
+                                    }
+                                }
+                                _ => {
+                                    // No target — silent. The trigger evaluator
+                                    // already returns false when
+                                    // current_altitude is None, so this is the
+                                    // correct "wait for a target" state.
                                 }
                             }
                         }
@@ -1753,49 +2013,53 @@ impl SequenceExecutor {
                                     // Park BEFORE aborting: a bare abort leaves the mount tracking
                                     // toward the limit. The whole point of ParkAndAbort is to put
                                     // the rig into a safe state — so we park first, then exit.
+                                    //
+                                    // Trust-patch §8: park retry logic lives in
+                                    // `device_ops::try_park_with_retry` so the
+                                    // executor's ParkAndAbort path and node.rs's
+                                    // Recovery::ParkAndAbort path use the same
+                                    // helper. Behaviour matches the prior inline
+                                    // implementation (one retry, 2s delay)
+                                    // exactly; the helper exposes them as
+                                    // parameters so a future config change can
+                                    // tune them without touching the call sites.
                                     if let Some(mount_id) = &trigger_action_context.mount_id {
                                         tracing::warn!(
-                                            "ParkAndAbort: parking mount '{}'",
+                                            "ParkAndAbort: parking mount '{}' (max_retries=1, retry_delay=2s)",
                                             mount_id
                                         );
-                                        match device_ops_for_triggers.mount_park(mount_id).await {
-                                            Ok(_) => {
-                                                tracing::info!(
-                                                    "ParkAndAbort: mount parked successfully"
-                                                );
-                                            }
-                                            Err(e) => {
-                                                tracing::error!(
-                                                    "ParkAndAbort: mount park FAILED: {}. \
-                                                 Mount may be in an unsafe position!",
-                                                    e
-                                                );
-                                                // One retry covers a transient driver hiccup;
-                                                // beyond that the operator must intervene anyway
-                                                // (we still proceed with abort to halt exposures).
-                                                tokio::time::sleep(std::time::Duration::from_secs(
-                                                    2,
-                                                ))
-                                                .await;
-                                                if let Err(retry_err) = device_ops_for_triggers
-                                                    .mount_park(mount_id)
-                                                    .await
-                                                {
-                                                    tracing::error!(
-                                                    "ParkAndAbort: mount park retry also FAILED: {}",
-                                                    retry_err
-                                                );
-                                                } else {
-                                                    tracing::info!(
-                                                        "ParkAndAbort: mount parked on retry"
-                                                    );
-                                                }
-                                            }
+                                        let park_outcome =
+                                            crate::device_ops::try_park_with_retry(
+                                                &device_ops_for_triggers,
+                                                mount_id,
+                                                1,
+                                                2.0,
+                                            )
+                                            .await;
+                                        if !park_outcome.success {
+                                            // Surface the park-specific failure
+                                            // in the event stream so the UI can
+                                            // distinguish "couldn't park, mount
+                                            // may be unsafe" from a generic
+                                            // ParkAndAbort termination.
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: format!(
+                                                    "ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                                     Mount may be in an unsafe position — manual intervention required.",
+                                                    park_outcome.attempts_made,
+                                                    park_outcome
+                                                        .last_error
+                                                        .unwrap_or_else(|| "unknown error".to_string()),
+                                                ),
+                                            });
                                         }
                                     } else {
                                         tracing::warn!(
                                             "ParkAndAbort: no mount configured, cannot park"
                                         );
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                                        });
                                     }
 
                                     fired_triggers.push((trigger_id, action));
@@ -1843,6 +2107,7 @@ impl SequenceExecutor {
                                                 device_ops_for_triggers.clone(),
                                                 trigger_state_for_actions.clone(),
                                                 &runtime_config,
+                                                Some(event_tx_clone2.clone()),
                                             );
 
                                             let af_result = crate::instructions::execute_autofocus(
@@ -2022,24 +2287,38 @@ impl SequenceExecutor {
                                                     // anywhere between sides. Park before we exit
                                                     // to avoid leaving it tracking into a limit
                                                     // — matches the ParkAndAbort policy above.
+                                                    //
+                                                    // Trust-patch §8: use `try_park_with_retry`
+                                                    // so a flaky driver gets at least one retry
+                                                    // before we give up. Surface a park-specific
+                                                    // failure to the event stream.
                                                     if let Some(mount_id) =
                                                         &trigger_action_context.mount_id
                                                     {
-                                                        tracing::warn!("FlipFailure AbortAndPark: parking mount '{}'", mount_id);
-                                                        match device_ops_for_triggers
-                                                            .mount_park(mount_id)
-                                                            .await
-                                                        {
-                                                            Ok(_) => {
-                                                                tracing::info!("FlipFailure AbortAndPark: mount parked successfully");
-                                                            }
-                                                            Err(e) => {
-                                                                tracing::error!(
-                                                                    "FlipFailure AbortAndPark: mount park FAILED: {}. \
-                                                                     Mount may be in an unsafe position!",
-                                                                    e
-                                                                );
-                                                            }
+                                                        tracing::warn!("FlipFailure AbortAndPark: parking mount '{}' (max_retries=1, retry_delay=2s)", mount_id);
+                                                        let park_outcome =
+                                                            crate::device_ops::try_park_with_retry(
+                                                                &device_ops_for_triggers,
+                                                                mount_id,
+                                                                1,
+                                                                2.0,
+                                                            )
+                                                            .await;
+                                                        if !park_outcome.success {
+                                                            let _ = event_tx_clone2.send(
+                                                                ExecutorEvent::Error {
+                                                                    message: format!(
+                                                                        "FlipFailure AbortAndPark: mount park FAILED after {} attempt(s): {}. \
+                                                                         Mount may be in an unsafe position — manual intervention required.",
+                                                                        park_outcome.attempts_made,
+                                                                        park_outcome
+                                                                            .last_error
+                                                                            .unwrap_or_else(|| {
+                                                                                "unknown error".to_string()
+                                                                            }),
+                                                                    ),
+                                                                },
+                                                            );
                                                         }
                                                     }
 
@@ -2133,6 +2412,7 @@ impl SequenceExecutor {
                                         device_ops_for_triggers.clone(),
                                         trigger_state_for_actions.clone(),
                                         &runtime_config,
+                                        Some(event_tx_clone2.clone()),
                                     );
                                     let dither_result = crate::instructions::execute_dither(
                                         &effective_config,
@@ -2190,6 +2470,7 @@ impl SequenceExecutor {
                                             device_ops_for_triggers.clone(),
                                             trigger_state_for_actions.clone(),
                                             &runtime_config,
+                                            Some(event_tx_clone2.clone()),
                                         );
                                         let center_config = crate::CenterConfig {
                                             use_target_coords: true,
@@ -2406,6 +2687,21 @@ impl SequenceExecutor {
         Ok(())
     }
 
+    /// Trust-patch §7: jump execution to the node with the given id, marking
+    /// preceding sibling nodes as Skipped. Honoured on the next container's
+    /// tree-walk step; the currently-running instruction (e.g. an exposure
+    /// burst) continues to completion first.
+    pub async fn skip_to_node(&self, node_id: NodeId) -> Result<(), String> {
+        if let Some(tx) = &self.command_tx {
+            tx.send(ExecutorCommand::SkipToNode(node_id))
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            return Err("Executor is not running".to_string());
+        }
+        Ok(())
+    }
+
     /// Update dither configuration at runtime.
     /// Audit §1.8: writes through `runtime_config` so a running sequence picks
     /// up the new values on its next dither (no sequence reload required).
@@ -2466,6 +2762,44 @@ impl SequenceExecutor {
         }
         let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
             what: "filter_offsets".to_string(),
+        });
+    }
+
+    /// Wave 1.5 Pack A: update the autofocus-interval cadence at runtime.
+    /// When a sequence is running the change is forwarded as an
+    /// `ExecutorCommand::UpdateAutofocusInterval` so the live trigger
+    /// manager is patched in-place; otherwise the value is recorded in the
+    /// runtime config and applied to the seeded standard trigger on the
+    /// next `start()` (see `start()`'s trigger-priming section).
+    pub async fn update_autofocus_interval(&mut self, every_n_frames: u32) {
+        tracing::info!(
+            "Updating autofocus-interval cadence: every {} frames",
+            every_n_frames
+        );
+        {
+            let mut rc = self.runtime_config.write();
+            rc.autofocus_interval_frames = Some(every_n_frames);
+        }
+        // Patch the trigger directly so an idle (loaded but not running)
+        // executor also picks up the change. The command_tx path covers a
+        // live executor; this covers the idle case.
+        {
+            let mut mgr = self.trigger_manager.write().await;
+            if let Some(trigger) = mgr.get_trigger_mut("autofocus_interval") {
+                if let TriggerType::AutofocusInterval { every_n_frames: live } =
+                    &mut trigger.trigger_type
+                {
+                    *live = every_n_frames;
+                }
+            }
+        }
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateAutofocusInterval { every_n_frames })
+                .await;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "autofocus_interval".to_string(),
         });
     }
 
@@ -2867,6 +3201,7 @@ mod tests {
             Arc::new(crate::device_ops::NullDeviceOps),
             Arc::new(RwLock::new(TriggerState::new())),
             &runtime_config,
+            None,
         );
 
         assert_eq!(instruction_ctx.target_name.as_deref(), Some("M31"));

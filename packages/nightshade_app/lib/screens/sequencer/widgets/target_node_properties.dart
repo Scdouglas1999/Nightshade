@@ -14,9 +14,19 @@ class TargetGroupProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    // Trust-patch §B: belt-and-suspenders gate. The parent
+    // `NodePropertiesPanel` already wraps the editor body in
+    // AbsorbPointer when [canEditSequenceProvider] is false, but we
+    // also wrap our own subtree in IgnorePointer here. This guarantees
+    // that any future refactor that extracts this widget out of the
+    // panel can't lose the gate silently — the safety reads as
+    // intentional in the code, not implicit through ancestor wrapping.
+    final canEdit = ref.watch(canEditSequenceProvider);
+    return IgnorePointer(
+      ignoring: !canEdit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         Text(
           'Target Settings',
           style: TextStyle(
@@ -263,7 +273,8 @@ class TargetGroupProperties extends ConsumerWidget {
             ),
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 }

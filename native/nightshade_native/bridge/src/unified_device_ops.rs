@@ -1288,6 +1288,29 @@ impl DeviceOps for UnifiedDeviceOps {
         }
     }
 
+    /// Trust-patch §2: feed HumidityThreshold triggers from the configured
+    /// weather device. See the trait rustdoc for Ok(None) vs Err semantics.
+    async fn weather_get_humidity(
+        &self,
+        weather_id: Option<&str>,
+    ) -> DeviceResult<Option<f64>> {
+        let device_id = match weather_id {
+            Some(id) => id.to_string(),
+            None => {
+                let profile = self.app_state.get_profile().await;
+                match profile.and_then(|p| p.weather_id) {
+                    Some(id) => id,
+                    None => return Ok(None),
+                }
+            }
+        };
+
+        match get_device_manager().weather_get_conditions(&device_id).await {
+            Ok(conditions) => Ok(conditions.humidity),
+            Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
+        }
+    }
+
     // =========================================================================
     // IMAGE ANALYSIS
     // =========================================================================

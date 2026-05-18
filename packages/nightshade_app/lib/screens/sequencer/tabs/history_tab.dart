@@ -7,13 +7,69 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../widgets/post_session_stats_dialog.dart';
 
-class HistoryTab extends ConsumerWidget {
+/// One-shot "open this run on first paint" hint for the history tab.
+///
+/// The Run Dashboard idle-state's "Jump to last run" button writes a run
+/// id here and switches the active tab to History. The history tab
+/// reads + clears this provider the first time it builds with a value,
+/// then opens the post-session stats dialog for that run.
+///
+/// Cleared to `null` immediately after consumption so re-entering the
+/// History tab doesn't re-open the dialog.
+final historyOpenRunIdProvider = StateProvider<int?>((ref) => null);
+
+class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends ConsumerState<HistoryTab> {
+  bool _consumedOpenHint = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final runsAsync = ref.watch(sequenceRunsProvider);
+    final openRunId = ref.watch(historyOpenRunIdProvider);
+
+    // If the dashboard asked us to open a specific run, honor it once.
+    // We schedule the dialog via post-frame because we cannot call
+    // showDialog during a build.
+    if (openRunId != null && !_consumedOpenHint && runsAsync.hasValue) {
+      _consumedOpenHint = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final runs = runsAsync.value!;
+        // Reset the hint regardless so a subsequent open clears.
+        ref.read(historyOpenRunIdProvider.notifier).state = null;
+        SequenceRun? match;
+        for (final r in runs) {
+          if (r.id == openRunId) {
+            match = r;
+            break;
+          }
+        }
+        if (match == null) return;
+        ParsedRunStats? stats;
+        try {
+          stats = ParsedRunStats.fromJson(match.statsJson);
+        } catch (_) {}
+        if (stats == null) return;
+        showDialog(
+          context: context,
+          builder: (_) => PostSessionStatsDialog(
+            colors: colors,
+            sequenceName: match!.sequenceName,
+            startedAt: match.startedAt,
+            endedAt: match.endedAt,
+            status: match.status,
+            stats: stats!,
+          ),
+        );
+      });
+    }
 
     return Padding(
       padding: const EdgeInsets.all(24),

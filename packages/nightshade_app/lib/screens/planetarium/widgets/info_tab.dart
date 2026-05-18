@@ -8,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
+import '../../../utils/add_target_header_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'sidebar_shared_widgets.dart';
 
@@ -66,16 +67,20 @@ class InfoTab extends ConsumerWidget {
             final coords = obj.coordinates;
             ref.read(mountCommandServiceProvider).slewTo(coords.ra, coords.dec);
           },
-          onAddToTargets: () {
+          onAddToTargets: () async {
             final coords = obj.coordinates;
-            ref.read(currentSequenceProvider.notifier).addTargetHeader(
-                  TargetHeaderNode(
-                    targetName: obj.name,
-                    raHours: coords.ra,
-                    decDegrees: coords.dec,
-                  ),
-                );
-            context.showSuccessSnackBar('Added ${obj.name} to sequence');
+            final added = await addTargetHeaderWithPrompt(
+              context: context,
+              ref: ref,
+              targetNode: TargetHeaderNode(
+                targetName: obj.name,
+                raHours: coords.ra,
+                decDegrees: coords.dec,
+              ),
+            );
+            if (added && context.mounted) {
+              context.showSuccessSnackBar('Added ${obj.name} to sequence');
+            }
           },
         ),
       );

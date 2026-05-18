@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +30,21 @@ import '../settings_provider.dart';
 import 'sequence_validation.dart' as validation;
 import 'sequencer_defaults.dart';
 
+// =============================================================================
+// ETA SMOOTHING CONFIGURATION
+// =============================================================================
+
+/// Number of recent per-frame durations retained for the smoothed ETA.
+/// Older samples are evicted FIFO. Larger window = smoother but slower to
+/// react to genuine cadence changes (e.g. switching from 60s subs to 600s).
+const int kEtaWindowSize = 10;
+
+/// Exponential moving average weight applied to the most recent frame.
+/// `0.0` would freeze on the first sample; `1.0` would always use the most
+/// recent. `0.3` is the balance that absorbs transient outliers (downloads,
+/// occasional dither stalls) while still tracking real shifts in cadence.
+const double kEtaEmaAlpha = 0.3;
+
 /// Sequence executor that manages execution.
 ///
 /// The provider wires `ref.onDispose(executor.dispose)` so owned timers and
@@ -53,6 +69,24 @@ class SequenceExecutor {
   StreamSubscription<DiskSpaceWatchdogEvent>? _diskWatchdogSubscription;
   Timer? _checkpointTimer;
   bool _runFinalized = false;
+
+  /// Sliding window of recent per-frame durations (seconds). Bounded to
+  /// [kEtaWindowSize]; older samples are dropped FIFO when full.
+  final Queue<double> _frameDurations = Queue<double>();
+
+  /// Smoothed average secs-per-frame computed via exponential moving average
+  /// over [_frameDurations]. `null` until at least one frame has completed.
+  double? _smoothedSecsPerFrame;
+
+  /// Last completed-frame count we observed; used to detect when a new
+  /// frame finished so we can extract its duration without storing
+  /// per-frame timestamps separately.
+  int _lastFrameCount = 0;
+
+  /// Wall-clock seconds at which the last completed frame was observed.
+  /// Combined with `_startTime` and `_lastFrameCount` to derive the
+  /// duration of each newly-completed frame inside `_recordFrameDuration`.
+  double? _lastFrameElapsedSecs;
 
   /// Subscriptions for propagating settings changes to the backend mid-sequence
   final List<ProviderSubscription> _settingsSubscriptions = [];
@@ -236,18 +270,136 @@ class SequenceExecutor {
     });
   }
 
-  /// Look up filter index from profile by name (case-insensitive)
+  /// Look up filter index from profile by name (case-insensitive).
+  ///
+  /// Returns `null` when:
+  ///   * [filterName] is null/empty,
+  ///   * the active equipment profile has no filter list, or
+  ///   * the name isn't found in the profile.
+  ///
+  /// In the latter two cases (and only those), emits a warning to the
+  /// logger AND the live sequence stats blob so the user can see in the
+  /// post-session report exactly which exposures fell back to literal
+  /// filter names. The warning is rate-limited via
+  /// [SequenceRunStats.recordWarning] which suppresses exact-duplicate
+  /// consecutive entries.
   int? _lookupFilterIndex(String? filterName) {
     if (filterName == null || filterName.isEmpty) return null;
     final profile = _ref.read(activeEquipmentProfileProvider);
-    if (profile == null) return null;
+    if (profile == null) {
+      _surfaceFilterLookupWarning(
+        'Filter wheel profile not active; node will use filter name '
+        '"$filterName" literally without a wheel index. Connect a filter '
+        'wheel + activate its profile to enable index-based filter selection.',
+      );
+      return null;
+    }
     final filterNames = profile.filterNames;
+    if (filterNames.isEmpty) {
+      _surfaceFilterLookupWarning(
+        'Active profile has no filter list configured; node will use '
+        'filter name "$filterName" literally. Configure the filter wheel '
+        'slot names in the equipment profile.',
+      );
+      return null;
+    }
     for (int i = 0; i < filterNames.length; i++) {
       if (filterNames[i].toLowerCase() == filterName.toLowerCase()) {
         return i;
       }
     }
+    _surfaceFilterLookupWarning(
+      'Filter "$filterName" not found in active profile '
+      '(available: ${filterNames.join(", ")}); node will use the literal '
+      'name without a wheel index.',
+    );
     return null;
+  }
+
+  /// Emit a filter-lookup warning to both the logger and (if a run is
+  /// live) the run stats. Centralized so the wording stays consistent
+  /// across the three lookup failure modes.
+  void _surfaceFilterLookupWarning(String message) {
+    _logger.warning(message, source: 'SequenceExecutor');
+    final stats = _ref.read(liveSequenceStatsProvider);
+    if (stats != null) {
+      stats.recordWarning(message);
+      _ref.read(liveSequenceStatsProvider.notifier).state = stats;
+      _persistLiveRunStats();
+    }
+  }
+
+  /// Record the duration of a newly-completed frame and update the EMA.
+  ///
+  /// Called from the progress timer when `completedExposures` increases.
+  /// Maintains a bounded queue of the [kEtaWindowSize] most recent frame
+  /// durations and keeps `_smoothedSecsPerFrame` as the EMA over them with
+  /// weight [kEtaEmaAlpha].
+  ///
+  /// Resilient to non-positive samples (e.g., when multiple frames complete
+  /// inside a single timer tick) — only positive durations enter the EMA.
+  void _recordFrameDurationSample(double secsForFrame) {
+    if (!secsForFrame.isFinite || secsForFrame <= 0) return;
+    _frameDurations.addLast(secsForFrame);
+    if (_frameDurations.length > kEtaWindowSize) {
+      _frameDurations.removeFirst();
+    }
+    final prior = _smoothedSecsPerFrame;
+    if (prior == null) {
+      // First sample bootstraps the EMA so we don't bias toward zero.
+      _smoothedSecsPerFrame = secsForFrame;
+    } else {
+      _smoothedSecsPerFrame =
+          (kEtaEmaAlpha * secsForFrame) + ((1.0 - kEtaEmaAlpha) * prior);
+    }
+  }
+
+  /// Reset the ETA EMA state. Called when a new run starts (or resumes
+  /// from a checkpoint) so the smoother doesn't carry stale samples
+  /// from a previous run with different exposure cadence.
+  void _resetEtaState() {
+    _frameDurations.clear();
+    _smoothedSecsPerFrame = null;
+    _lastFrameCount = 0;
+    _lastFrameElapsedSecs = null;
+  }
+
+  /// Compute the smoothed ETA in seconds for the supplied wall-clock
+  /// elapsed total and progress snapshot.
+  ///
+  /// Detects newly-completed frames since the last call and feeds their
+  /// per-frame elapsed delta into [_recordFrameDurationSample]. Returns
+  /// the predicted remaining seconds = EMA-secs-per-frame × frames-left,
+  /// or `null` when no frames have completed yet (so the UI can show
+  /// `--` instead of misleading garbage).
+  double? _computeSmoothedEta(double elapsedSecs, SequenceProgress progress) {
+    final completedFrames = progress.completedExposures;
+    final totalFrames = progress.totalExposures;
+    if (completedFrames <= 0 || totalFrames <= 0) {
+      return null;
+    }
+
+    // Feed any frames that completed since the previous tick into the EMA.
+    if (completedFrames > _lastFrameCount) {
+      final priorElapsed = _lastFrameElapsedSecs ?? 0.0;
+      final delta = elapsedSecs - priorElapsed;
+      final framesDelta = completedFrames - _lastFrameCount;
+      if (framesDelta > 0 && delta > 0) {
+        final perFrame = delta / framesDelta;
+        for (var i = 0; i < framesDelta; i++) {
+          _recordFrameDurationSample(perFrame);
+        }
+      }
+      _lastFrameCount = completedFrames;
+      _lastFrameElapsedSecs = elapsedSecs;
+    }
+
+    final remainingFrames = totalFrames - completedFrames;
+    if (remainingFrames <= 0) return 0.0;
+
+    final smoothed = _smoothedSecsPerFrame;
+    if (smoothed == null) return null;
+    return smoothed * remainingFrames;
   }
 
   /// Convert a Dart node to native config format.
@@ -467,9 +619,14 @@ class SequenceExecutor {
           },
         };
       case RecoveryNode n:
+        // Wave 1.5 Pack A: send the user-configured trigger to Rust. The
+        // previous hardcoded `'trigger': null` meant the recovery node
+        // matched ANY error, regardless of the UI selection — making the
+        // trigger-type dropdown a placebo. `toRustTriggerConfig()` mirrors
+        // the Rust serde-tagged `Option<TriggerType>` shape.
         return {
           'type': 'Recovery',
-          'trigger': null,
+          'trigger': n.toRustTriggerConfig(),
           'recovery_action': _recoveryActionToString(n.recoveryAction),
           'max_retries': n.maxRetries,
         };
@@ -724,8 +881,7 @@ class SequenceExecutor {
   /// Validate the sequence about to run. Delegates to the top-level
   /// [validation.validateSequence] in `sequence_validation.dart`; kept as an
   /// instance method to preserve the historical call site.
-  List<validation.SequenceValidationIssue> validateSequence(
-          Sequence sequence) =>
+  List<validation.ValidationIssue> validateSequence(Sequence sequence) =>
       validation.validateSequence(sequence);
 
   Future<void> start() async {
@@ -739,7 +895,7 @@ class SequenceExecutor {
         .where((i) => i.severity == validation.ValidationSeverity.error)
         .toList();
     if (errors.isNotEmpty) {
-      throw Exception('Cannot start sequence: ${errors.first.message}');
+      throw Exception('Cannot start sequence: ${errors.first.title}');
     }
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
@@ -772,26 +928,18 @@ class SequenceExecutor {
 
     _startTime = DateTime.now();
     _isPaused = false;
+    _resetEtaState();
 
-    // Start progress timer with ETA computation
+    // Start progress timer. ETA computation uses an EMA over the last
+    // [kEtaWindowSize] frame durations (alpha = [kEtaEmaAlpha]) so a single
+    // slow download or fast-completing calibration frame doesn't yank the
+    // estimate around.
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
         final elapsed =
             DateTime.now().difference(_startTime!).inSeconds.toDouble();
         final progress = _ref.read(sequenceProgressProvider);
-        final completedFrames = progress.completedExposures;
-        final totalFrames = progress.totalExposures;
-        double? eta;
-        if (completedFrames > 0 && totalFrames > 0) {
-          final remainingFrames = totalFrames - completedFrames;
-          if (remainingFrames > 0) {
-            // Wall-clock elapsed includes overhead (download, dither, slew, etc.)
-            final avgSecsPerFrame = elapsed / completedFrames;
-            eta = avgSecsPerFrame * remainingFrames;
-          } else {
-            eta = 0.0;
-          }
-        }
+        final eta = _computeSmoothedEta(elapsed, progress);
         progressNotifier.updateProgress(
           elapsedSecs: elapsed,
           estimatedRemainingSecs: eta,
@@ -1580,24 +1728,21 @@ class SequenceExecutor {
 
     _startTime = DateTime.now();
     _isPaused = false;
+    // Reset the EMA so resume samples — which start from the checkpoint
+    // mid-run cadence — aren't biased by stale samples from the original
+    // session (different exposure length, focuser, etc.).
+    _resetEtaState();
+    // Seed the frame counter to the checkpoint's completed count so newly
+    // completed frames during resume are correctly attributed.
+    _lastFrameCount = info.completedExposures;
+    _lastFrameElapsedSecs = 0.0;
 
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
         final elapsed =
             DateTime.now().difference(_startTime!).inSeconds.toDouble();
         final progress = _ref.read(sequenceProgressProvider);
-        final completedFrames = progress.completedExposures;
-        final totalFrames = progress.totalExposures;
-        double? eta;
-        if (completedFrames > 0 && totalFrames > 0) {
-          final remainingFrames = totalFrames - completedFrames;
-          if (remainingFrames > 0) {
-            final avgSecsPerFrame = elapsed / completedFrames;
-            eta = avgSecsPerFrame * remainingFrames;
-          } else {
-            eta = 0.0;
-          }
-        }
+        final eta = _computeSmoothedEta(elapsed, progress);
         progressNotifier.updateProgress(
           elapsedSecs: elapsed,
           estimatedRemainingSecs: eta,

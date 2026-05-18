@@ -14,6 +14,14 @@ class SequencerDefaults {
   final int autofocusStepsOut;
   final double autofocusExposureDuration;
 
+  /// Wave 1.5 Pack A: cadence (frames between autofocus runs) for the
+  /// standard `AutofocusInterval` trigger seeded into every executor. The
+  /// Rust default in `nightshade_sequencer::default_autofocus_interval_frames()`
+  /// is 25, which is wildly wrong for both very-short (5 s) and very-long
+  /// (5 min) subs. Exposed in Sequencer Settings so the user can match the
+  /// cadence to their actual sub-exposure length.
+  final int autofocusIntervalFrames;
+
   // Dither defaults
   final double ditherPixels;
   final double ditherSettleTime;
@@ -34,6 +42,7 @@ class SequencerDefaults {
     this.autofocusStepSize = 100,
     this.autofocusStepsOut = 7,
     this.autofocusExposureDuration = 3.0,
+    this.autofocusIntervalFrames = 25,
     this.ditherPixels = 5.0,
     this.ditherSettleTime = 30.0,
     this.ditherSettlePixels = 1.5,
@@ -52,6 +61,7 @@ class SequencerDefaults {
     int? autofocusStepSize,
     int? autofocusStepsOut,
     double? autofocusExposureDuration,
+    int? autofocusIntervalFrames,
     double? ditherPixels,
     double? ditherSettleTime,
     double? ditherSettlePixels,
@@ -70,6 +80,8 @@ class SequencerDefaults {
       autofocusStepsOut: autofocusStepsOut ?? this.autofocusStepsOut,
       autofocusExposureDuration:
           autofocusExposureDuration ?? this.autofocusExposureDuration,
+      autofocusIntervalFrames:
+          autofocusIntervalFrames ?? this.autofocusIntervalFrames,
       ditherPixels: ditherPixels ?? this.ditherPixels,
       ditherSettleTime: ditherSettleTime ?? this.ditherSettleTime,
       ditherSettlePixels: ditherSettlePixels ?? this.ditherSettlePixels,
@@ -108,6 +120,11 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
                 .getSetting('sequencer_autofocus_exposure_duration') ??
             '3.0') ??
         3.0;
+    // Wave 1.5 Pack A: persisted autofocus-interval cadence.
+    final autofocusIntervalFrames = int.tryParse(await settingsDao
+                .getSetting('sequencer_autofocus_interval_frames') ??
+            '25') ??
+        25;
 
     final ditherPixels = double.tryParse(
             await settingsDao.getSetting('sequencer_dither_pixels') ?? '5.0') ??
@@ -160,6 +177,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       autofocusStepSize: stepSize,
       autofocusStepsOut: stepsOut,
       autofocusExposureDuration: exposureDuration,
+      autofocusIntervalFrames: autofocusIntervalFrames,
       ditherPixels: ditherPixels,
       ditherSettleTime: ditherSettleTime,
       ditherSettlePixels: ditherSettlePixels,
@@ -179,6 +197,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     int? stepSize,
     int? stepsOut,
     double? exposureDuration,
+    int? intervalFrames,
   }) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     final updates = <String, String>{};
@@ -195,6 +214,15 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       updates['sequencer_autofocus_exposure_duration'] =
           exposureDuration.toString();
       state = state.copyWith(autofocusExposureDuration: exposureDuration);
+    }
+    if (intervalFrames != null) {
+      // Wave 1.5 Pack A: persist and push to the live executor so the
+      // autofocus-interval trigger cadence updates without a sequence reload.
+      // Validation: Rust rejects 0; clamp here as well so the UI doesn't
+      // round-trip a value that the backend will refuse.
+      final clamped = intervalFrames < 1 ? 1 : intervalFrames;
+      updates['sequencer_autofocus_interval_frames'] = clamped.toString();
+      state = state.copyWith(autofocusIntervalFrames: clamped);
     }
 
     if (updates.isNotEmpty) {

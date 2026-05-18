@@ -8,8 +8,11 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
+import 'node_duration_chip.dart';
 import 'node_progress_panels.dart';
 import 'sequence_minimap.dart';
+import 'sequence_tree_context_menu.dart';
+import 'sequence_tree_shortcuts.dart';
 import 'target_header_card.dart';
 import 'visual_timeline.dart';
 
@@ -28,9 +31,52 @@ final isDraggingNodeProvider =
 final followExecutionProvider =
     StateProvider.autoDispose<bool>((ref) => true);
 
-/// GlobalKey registry for auto-scroll: maps node IDs to their GlobalKeys.
-/// Populated by _NodeTreeView when building, used by auto-scroll logic.
-final _nodeKeyRegistry = <String, GlobalKey>{};
+/// Confirm-then-delete: prompt the user with "Delete N nodes?" when the
+/// target has any descendants, otherwise delete without prompting. The
+/// keyboard Delete shortcut in sequencer_screen.dart applies the same
+/// policy through its own helper.
+Future<void> _confirmAndRemoveTreeNode(
+  BuildContext context,
+  WidgetRef ref,
+  String nodeId,
+) async {
+  final sequence = ref.read(currentSequenceProvider);
+  if (sequence == null) return;
+  final node = sequence.nodes[nodeId];
+  if (node == null) return;
+
+  final descendantCount = sequence.countDescendants(nodeId);
+  if (descendantCount > 0) {
+    final total = descendantCount + 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete node?'),
+        content: Text(
+          'This will delete "${node.name}" and $descendantCount '
+          'descendant ${descendantCount == 1 ? "node" : "nodes"} '
+          '($total total). This cannot be undone except via Undo (Ctrl+Z).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete $total nodes'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+  }
+
+  ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
+  if (ref.read(selectedNodeIdProvider) == nodeId) {
+    ref.read(selectedNodeIdProvider.notifier).state = null;
+  }
+}
 
 /// Handle node selection with modifier key support for multi-select.
 /// Ctrl+Click: toggle individual node in multi-selection.
@@ -83,17 +129,53 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   String? _lastScrolledToNodeId;
   bool _userScrolledManually = false;
 
+  /// GlobalKey registry for auto-scroll: maps node IDs to their GlobalKeys.
+  /// Scoped to this state so it's torn down with the screen — the previous
+  /// module-level map leaked GlobalKeys across hot-reload and screen
+  /// transitions (audit-dart §1b).
+  final Map<String, GlobalKey> _nodeKeyRegistry = <String, GlobalKey>{};
+
+  /// The sequence id we last reconciled the key registry against. Used by
+  /// [didUpdateWidget] / [_pruneKeyRegistry] to detect "the user opened a
+  /// different sequence" and clear the registry.
+  String? _registryOwnerSequenceId;
+
+  /// FocusNode for the tree-keyboard-shortcut wiring. Owned so the tree
+  /// keeps focus across rebuilds — without this, every selection change
+  /// reshuffles focus and arrow keys stop working after the first press.
+  late final FocusNode _treeFocusNode;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onManualScroll);
+    _treeFocusNode = FocusNode(debugLabel: 'sequence-tree');
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onManualScroll);
     _scrollController.dispose();
+    _treeFocusNode.dispose();
+    _nodeKeyRegistry.clear();
     super.dispose();
+  }
+
+  /// Drop stale entries from the key registry. Called from build() once the
+  /// current set of node ids is known. Without this, replacing a node
+  /// (e.g. via wrap/group) leaves its GlobalKey in the map forever; the
+  /// next node sharing that id would steal the key and crash with a
+  /// "duplicate GlobalKey in widget tree" error.
+  void _pruneKeyRegistry(Sequence sequence) {
+    // If the active sequence changed entirely, the registry is rebuilt
+    // from scratch in the next render — no need to keep any keys.
+    if (_registryOwnerSequenceId != sequence.id) {
+      _nodeKeyRegistry.clear();
+      _registryOwnerSequenceId = sequence.id;
+      return;
+    }
+    final liveIds = sequence.nodes.keys.toSet();
+    _nodeKeyRegistry.removeWhere((id, _) => !liveIds.contains(id));
   }
 
   void _onManualScroll() {
@@ -160,6 +242,39 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
       return _EmptyState(colors: widget.colors);
     }
 
+    // Reconcile the key registry against the current sequence before we
+    // hand the registry to the recursive view. Pruning here (instead of
+    // in didUpdateWidget) keeps it driven by the same provider snapshot
+    // the view will render, so deletions can't race a re-add.
+    _pruneKeyRegistry(sequence);
+
+    // Tree-only keyboard shortcuts (arrow navigation, Enter -> properties,
+    // Left/Right collapse/expand). Scoped to the tree FocusScope so they
+    // don't fight Ctrl+Z/Y, Delete, etc. wired at the screen level. Text
+    // fields inside property editors don't see these because Flutter
+    // routes keystrokes to the nearest descendant Focus first.
+    return Shortcuts(
+      shortcuts: kSequenceTreeShortcuts,
+      child: Actions(
+        actions: buildSequenceTreeActions(ref),
+        child: Focus(
+          focusNode: _treeFocusNode,
+          // The tree panel is the user's primary surface in the Builder
+          // tab; auto-focus so arrows work right after switching tabs.
+          autofocus: !widget.isMobile,
+          child: _buildDragTarget(context, sequence, rootNode, progress, validation),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDragTarget(
+    BuildContext context,
+    Sequence sequence,
+    SequenceNode rootNode,
+    SequenceProgress progress,
+    LiveValidationState validation,
+  ) {
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) =>
           details.data is NodePaletteItem || details.data is TemplateSnippet,
@@ -217,6 +332,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                     depth: 0,
                     isMobile: widget.isMobile,
                     onNodeTap: widget.onNodeTap,
+                    keyRegistry: _nodeKeyRegistry,
                   ),
                 ),
               ),
@@ -503,6 +619,11 @@ class _NodeTreeView extends ConsumerWidget {
   final bool isMobile;
   final void Function(String nodeId)? onNodeTap;
 
+  /// Lifecycle-scoped key registry handed down from [_SequenceTreeState].
+  /// Treat as read-write: this view inserts new keys for nodes it draws,
+  /// and the state-level pruner removes keys for nodes that disappear.
+  final Map<String, GlobalKey> keyRegistry;
+
   const _NodeTreeView({
     required this.colors,
     required this.sequence,
@@ -510,6 +631,7 @@ class _NodeTreeView extends ConsumerWidget {
     required this.progress,
     required this.validation,
     required this.depth,
+    required this.keyRegistry,
     this.isMobile = false,
     this.onNodeTap,
   });
@@ -520,7 +642,7 @@ class _NodeTreeView extends ConsumerWidget {
     if (node == null) return const SizedBox.shrink();
 
     // Register a GlobalKey for auto-scroll
-    final scrollKey = _nodeKeyRegistry.putIfAbsent(nodeId, () => GlobalKey());
+    final scrollKey = keyRegistry.putIfAbsent(nodeId, () => GlobalKey());
 
     // Watch only whether THIS node is selected, not the entire selectedNodeId.
     // This means only the old and new selected nodes rebuild on selection change,
@@ -564,17 +686,30 @@ class _NodeTreeView extends ConsumerWidget {
       }
     }
 
+    // Per-node "is collapsed in the tree" state for Left-arrow / Right-
+    // arrow keyboard nav. Watched here so a collapse toggle rebuilds the
+    // children-area below (without re-rendering siblings).
+    final isCollapsed = ref.watch(
+      collapsedNodeIdsProvider.select((s) => s.contains(nodeId)),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Node item - wrapped with scroll key for auto-scroll
+        // Node item - wrapped with scroll key for auto-scroll. The
+        // context menu lives on the outside of the validation wrapper so
+        // its hit-test rect covers the whole row including the warning
+        // badge.
         KeyedSubtree(
           key: scrollKey,
-          child: _NodeValidationWrapper(
+          child: SequenceTreeContextMenu(
+            nodeId: nodeId,
             colors: colors,
-            validationSeverity: nodeValidationSeverity,
-            validationIssues: validation.issuesByNodeId[nodeId],
-            child: targetHeaderNode != null
+            child: _NodeValidationWrapper(
+              colors: colors,
+              validationSeverity: nodeValidationSeverity,
+              validationIssues: validation.issuesByNodeId[nodeId],
+              child: targetHeaderNode != null
                 ? TargetHeaderCard(
                     key: tutorialKey,
                     node: targetHeaderNode,
@@ -592,12 +727,10 @@ class _NodeTreeView extends ConsumerWidget {
                           .toggleNodeEnabled(nodeId);
                     },
                     onDelete: () {
-                      ref
-                          .read(currentSequenceProvider.notifier)
-                          .removeNode(nodeId);
-                      if (isSelected) {
-                        ref.read(selectedNodeIdProvider.notifier).state = null;
-                      }
+                      // Why: target headers usually own a non-trivial
+                      // subtree; route through the confirm helper so a
+                      // misclick can't nuke a fully-authored target.
+                      _confirmAndRemoveTreeNode(context, ref, nodeId);
                     },
                   )
                 : _NodeItem(
@@ -621,12 +754,10 @@ class _NodeTreeView extends ConsumerWidget {
                           .toggleNodeEnabled(nodeId);
                     },
                     onDelete: () {
-                      ref
-                          .read(currentSequenceProvider.notifier)
-                          .removeNode(nodeId);
-                      if (isSelected) {
-                        ref.read(selectedNodeIdProvider.notifier).state = null;
-                      }
+                      // Why: a node may be a container (Loop, Parallel,
+                      // InstructionSet) holding many children; the helper
+                      // gates with "Delete N nodes?" when descendants > 0.
+                      _confirmAndRemoveTreeNode(context, ref, nodeId);
                     },
                     onDuplicate: () {
                       ref
@@ -652,11 +783,29 @@ class _NodeTreeView extends ConsumerWidget {
                           }
                         : null,
                   ),
+            ),
           ),
         ),
 
+        // Per-container duration rollup chip ("~2h 14m"). Shown for
+        // container node types only — leaves already display their
+        // own per-node detail. Lives below the row so a wide row name
+        // doesn't get squeezed.
+        if (isContainer)
+          Padding(
+            padding: EdgeInsets.only(left: isMobile ? 16 : 24, bottom: 2),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: NodeDurationChip(
+                nodeId: nodeId,
+                colors: colors,
+                compact: isMobile,
+              ),
+            ),
+          ),
+
         // Children area
-        if (hasChildren || isContainer)
+        if ((hasChildren || isContainer) && !isCollapsed)
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 16 : 24),
             child: DragTarget<Object>(
@@ -735,6 +884,7 @@ class _NodeTreeView extends ConsumerWidget {
                             depth: depth + 1,
                             isMobile: isMobile,
                             onNodeTap: onNodeTap,
+                            keyRegistry: keyRegistry,
                           )
                         else
                           LongPressDraggable<String>(
@@ -788,6 +938,7 @@ class _NodeTreeView extends ConsumerWidget {
                                 progress: progress,
                                 validation: validation,
                                 depth: depth + 1,
+                                keyRegistry: keyRegistry,
                               ),
                             ),
                             child: _NodeTreeView(
@@ -797,6 +948,7 @@ class _NodeTreeView extends ConsumerWidget {
                               progress: progress,
                               validation: validation,
                               depth: depth + 1,
+                              keyRegistry: keyRegistry,
                             ),
                           ),
                       ],
@@ -1513,149 +1665,159 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                           // Actions
                           if ((isMobile || _isHovered) &&
                               !widget.isDragging) ...[
-                            _NodeActionButton(
-                              icon: widget.node.isEnabled
-                                  ? LucideIcons.eye
-                                  : LucideIcons.eyeOff,
-                              tooltip:
-                                  widget.node.isEnabled ? 'Disable' : 'Enable',
-                              colors: widget.colors,
-                              onPressed: widget.onToggleEnabled,
-                            ),
-                            _NodeActionButton(
-                              icon: LucideIcons.copy,
-                              tooltip: 'Duplicate',
-                              colors: widget.colors,
-                              onPressed: widget.onDuplicate,
-                            ),
-                            _NodeActionButton(
-                              icon: LucideIcons.trash2,
-                              tooltip: 'Delete',
-                              colors: widget.colors,
-                              color: widget.colors.error,
-                              onPressed: widget.onDelete,
-                            ),
-
-                            // Wrap / More Actions Menu
-                            Theme(
-                              data: Theme.of(context).copyWith(
-                                popupMenuTheme: PopupMenuThemeData(
-                                  color: widget.colors.surfaceAlt,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side:
-                                        BorderSide(color: widget.colors.border),
+                            // Trust-patch §B: per-row action icons mutate
+                            // the tree (toggle enabled, duplicate, delete)
+                            // and must be disabled when a sequence is
+                            // running. The kebab below already gated
+                            // move_up/move_down; this is the matching
+                            // gate for the inline icons.
+                            Builder(builder: (context) {
+                              final canEdit =
+                                  ref.watch(canEditSequenceProvider);
+                              final disabledTooltip =
+                                  ' (locked while sequence is running)';
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _NodeActionButton(
+                                    icon: widget.node.isEnabled
+                                        ? LucideIcons.eye
+                                        : LucideIcons.eyeOff,
+                                    tooltip: (widget.node.isEnabled
+                                            ? 'Disable'
+                                            : 'Enable') +
+                                        (canEdit ? '' : disabledTooltip),
+                                    colors: widget.colors,
+                                    onPressed: canEdit
+                                        ? widget.onToggleEnabled
+                                        : null,
                                   ),
-                                ),
-                              ),
-                              child: PopupMenuButton<String>(
-                                icon: Icon(LucideIcons.moreVertical,
-                                    size: 14, color: widget.colors.textMuted),
-                                tooltip: 'More Actions',
-                                padding: EdgeInsets.zero,
-                                itemBuilder: (context) => [
-                                  if (widget.onMoveUp != null)
-                                    const PopupMenuItem(
-                                      value: 'move_up',
-                                      height: 32,
-                                      child: Text('Move Up',
-                                          style: TextStyle(fontSize: 13)),
-                                    ),
-                                  if (widget.onMoveDown != null)
-                                    const PopupMenuItem(
-                                      value: 'move_down',
-                                      height: 32,
-                                      child: Text('Move Down',
-                                          style: TextStyle(fontSize: 13)),
-                                    ),
-                                  if (widget.onMoveUp != null ||
-                                      widget.onMoveDown != null)
-                                    const PopupMenuDivider(height: 8),
-                                  if (widget.hasChildren) ...[
-                                    const PopupMenuItem(
-                                      value: 'wrap_children_target',
-                                      height: 32,
-                                      child: Text(
-                                          'Wrap Children in Target Header',
-                                          style: TextStyle(fontSize: 13)),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'wrap_children_loop',
-                                      height: 32,
-                                      child: Text('Wrap Children in Loop',
-                                          style: TextStyle(fontSize: 13)),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'wrap_children_set',
-                                      height: 32,
-                                      child: Text(
-                                          'Wrap Children in Instruction Set',
-                                          style: TextStyle(fontSize: 13)),
-                                    ),
-                                    const PopupMenuDivider(height: 8),
-                                  ],
-                                  const PopupMenuItem(
-                                    value: 'wrap_loop',
-                                    height: 32,
-                                    child: Text('Wrap in Loop',
-                                        style: TextStyle(fontSize: 13)),
+                                  _NodeActionButton(
+                                    icon: LucideIcons.copy,
+                                    tooltip: 'Duplicate' +
+                                        (canEdit ? '' : disabledTooltip),
+                                    colors: widget.colors,
+                                    onPressed:
+                                        canEdit ? widget.onDuplicate : null,
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'wrap_set',
-                                    height: 32,
-                                    child: Text('Wrap in Instruction Set',
-                                        style: TextStyle(fontSize: 13)),
-                                  ),
-                                  const PopupMenuDivider(height: 8),
-                                  const PopupMenuItem(
-                                    value: 'save_snippet',
-                                    height: 32,
-                                    child: Text('Save as Template',
-                                        style: TextStyle(fontSize: 13)),
+                                  _NodeActionButton(
+                                    icon: LucideIcons.trash2,
+                                    tooltip: 'Delete' +
+                                        (canEdit ? '' : disabledTooltip),
+                                    colors: widget.colors,
+                                    color: widget.colors.error,
+                                    onPressed:
+                                        canEdit ? widget.onDelete : null,
                                   ),
                                 ],
-                                onSelected: (value) {
-                                  final notifier = ref
-                                      .read(currentSequenceProvider.notifier);
-                                  switch (value) {
-                                    case 'move_up':
-                                      widget.onMoveUp?.call();
-                                      break;
-                                    case 'move_down':
-                                      widget.onMoveDown?.call();
-                                      break;
-                                    case 'wrap_children_target':
-                                      notifier.wrapChildren(
-                                          widget.node.id,
-                                          TargetHeaderNode(
-                                              targetName: 'New Target',
-                                              raHours: 0,
-                                              decDegrees: 0));
-                                      break;
-                                    case 'wrap_children_loop':
-                                      notifier.wrapChildren(
-                                          widget.node.id, LoopNode());
-                                      break;
-                                    case 'wrap_children_set':
-                                      notifier.wrapChildren(
-                                          widget.node.id, InstructionSetNode());
-                                      break;
-                                    case 'wrap_loop':
-                                      notifier.wrapNode(
-                                          widget.node.id, LoopNode());
-                                      break;
-                                    case 'wrap_set':
-                                      notifier.wrapNode(
-                                          widget.node.id, InstructionSetNode());
-                                      break;
-                                    case 'save_snippet':
-                                      _showSaveAsSnippetDialog(
-                                          context, ref, widget.node);
-                                      break;
-                                  }
-                                },
-                              ),
-                            ),
+                              );
+                            }),
+
+                            // Inline more-actions menu.
+                            //
+                            // Reconciliation: the right-click / long-press
+                            // context menu (`SequenceTreeContextMenu`) is now
+                            // the comprehensive surface for tree mutations
+                            // (Insert, Duplicate, Group, Enable/Disable,
+                            // Delete). This kebab is intentionally limited to
+                            // entries that don't belong in a generic
+                            // right-click:
+                            //   * Move Up / Move Down — a visible, tappable
+                            //     re-order handle on touch and as a redundant
+                            //     surface alongside the Shift+Up / Shift+Down
+                            //     keyboard shortcut wired in
+                            //     `sequence_tree_shortcuts.dart`.
+                            //   * Save as Template — a "promote-this-subtree-
+                            //     to-the-library" action that is not part of
+                            //     the per-node edit vocabulary the context
+                            //     menu covers.
+                            // Items here respect `canEditSequenceProvider` —
+                            // when a sequence is Running / Paused / Stopping
+                            // the kebab still opens but mutating entries are
+                            // disabled (Save as Template is read-only so it
+                            // stays enabled).
+                            Builder(builder: (context) {
+                              final canEdit =
+                                  ref.watch(canEditSequenceProvider);
+                              return Theme(
+                                data: Theme.of(context).copyWith(
+                                  popupMenuTheme: PopupMenuThemeData(
+                                    color: widget.colors.surfaceAlt,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: BorderSide(
+                                          color: widget.colors.border),
+                                    ),
+                                  ),
+                                ),
+                                child: PopupMenuButton<String>(
+                                  icon: Icon(LucideIcons.moreVertical,
+                                      size: 14,
+                                      color: widget.colors.textMuted),
+                                  tooltip: 'More Actions',
+                                  padding: EdgeInsets.zero,
+                                  itemBuilder: (context) => [
+                                    if (widget.onMoveUp != null)
+                                      PopupMenuItem<String>(
+                                        value: 'move_up',
+                                        height: 32,
+                                        enabled: canEdit,
+                                        child: Text('Move Up',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: canEdit
+                                                  ? widget.colors.textPrimary
+                                                  : widget.colors.textMuted,
+                                            )),
+                                      ),
+                                    if (widget.onMoveDown != null)
+                                      PopupMenuItem<String>(
+                                        value: 'move_down',
+                                        height: 32,
+                                        enabled: canEdit,
+                                        child: Text('Move Down',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: canEdit
+                                                  ? widget.colors.textPrimary
+                                                  : widget.colors.textMuted,
+                                            )),
+                                      ),
+                                    if (widget.onMoveUp != null ||
+                                        widget.onMoveDown != null)
+                                      const PopupMenuDivider(height: 8),
+                                    // Save as Template is read-only (it
+                                    // copies the subtree to the snippet
+                                    // library; it does not mutate the
+                                    // current sequence), so it stays enabled
+                                    // even while the sequence is running.
+                                    PopupMenuItem<String>(
+                                      value: 'save_snippet',
+                                      height: 32,
+                                      child: Text('Save as Template',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              color:
+                                                  widget.colors.textPrimary)),
+                                    ),
+                                  ],
+                                  onSelected: (value) {
+                                    switch (value) {
+                                      case 'move_up':
+                                        widget.onMoveUp?.call();
+                                        break;
+                                      case 'move_down':
+                                        widget.onMoveDown?.call();
+                                        break;
+                                      case 'save_snippet':
+                                        _showSaveAsSnippetDialog(
+                                            context, ref, widget.node);
+                                        break;
+                                    }
+                                  },
+                                ),
+                              );
+                            }),
                           ],
 
                           // Expand indicator for containers
@@ -1766,12 +1928,19 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
   @override
   Widget build(BuildContext context) {
     final color = widget.color ?? widget.colors.textSecondary;
+    final disabled = widget.onPressed == null;
+    final iconColor = disabled
+        ? widget.colors.textMuted.withValues(alpha: 0.4)
+        : (_isHovered ? color : widget.colors.textMuted);
 
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onEnter: disabled ? null : (_) => setState(() => _isHovered = true),
+        onExit: disabled ? null : (_) => setState(() => _isHovered = false),
+        cursor: disabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
@@ -1780,7 +1949,7 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
             height: 24,
             margin: const EdgeInsets.only(left: 4),
             decoration: BoxDecoration(
-              color: _isHovered
+              color: !disabled && _isHovered
                   ? color.withValues(alpha: 0.1)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
@@ -1788,7 +1957,7 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
             child: Icon(
               widget.icon,
               size: 12,
-              color: _isHovered ? color : widget.colors.textMuted,
+              color: iconColor,
             ),
           ),
         ),
@@ -2159,8 +2328,8 @@ class _EmptyState extends StatelessWidget {
 /// has validation issues.
 class _NodeValidationWrapper extends StatelessWidget {
   final NightshadeColors colors;
-  final LiveValidationSeverity? validationSeverity;
-  final List<LiveValidationIssue>? validationIssues;
+  final ValidationSeverity? validationSeverity;
+  final List<ValidationIssue>? validationIssues;
   final Widget child;
 
   const _NodeValidationWrapper({
@@ -2181,15 +2350,15 @@ class _NodeValidationWrapper extends StatelessWidget {
     final Color badgeColor;
     final IconData badgeIcon;
     switch (validationSeverity!) {
-      case LiveValidationSeverity.error:
+      case ValidationSeverity.error:
         badgeColor = colors.error;
         badgeIcon = LucideIcons.xCircle;
         break;
-      case LiveValidationSeverity.warning:
+      case ValidationSeverity.warning:
         badgeColor = colors.warning;
         badgeIcon = LucideIcons.alertTriangle;
         break;
-      case LiveValidationSeverity.info:
+      case ValidationSeverity.info:
         badgeColor = colors.info;
         badgeIcon = LucideIcons.info;
         break;

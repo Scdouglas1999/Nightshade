@@ -41,44 +41,44 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
 
   // Dark theme colors - inspired by night sky observation
   static const dark = NightshadeColors(
-    primary: Color(0xFF6366F1),       // Indigo
-    accent: Color(0xFF8B5CF6),        // Violet
-    background: Color(0xFF0F0F14),    // Deep night
-    surface: Color(0xFF1A1A24),       // Base surface
-    surfaceAlt: Color(0xFF23232F),    // Cards and panels
-    surfaceHover: Color(0xFF2D2D3A),  // Hover state
-    surfaceElevated: Color(0xFF2F2F3D), // Raised interactive elements
-    surfaceOverlay: Color(0xFF383848), // Modals and floating elements
-    border: Color(0xFF2E2E3E),        // Subtle border
-    borderHighlight: Color(0xFF404052), // Highlight edge (catches light)
-    textPrimary: Color(0xFFF4F4F5),   // Primary text
+    primary: Color(0xFF6366F1), // Indigo
+    accent: Color(0xFF8B5CF6), // Violet
+    background: Color(0xFF0F0F14), // Deep night
+    surface: Color(0xFF191922), // Base surface
+    surfaceAlt: Color(0xFF242432), // Cards and panels
+    surfaceHover: Color(0xFF303044), // Hover state
+    surfaceElevated: Color(0xFF323246), // Raised interactive elements
+    surfaceOverlay: Color(0xFF3B3B50), // Modals and floating elements
+    border: Color(0xFF37374A), // Subtle border
+    borderHighlight: Color(0xFF505066), // Highlight edge (catches light)
+    textPrimary: Color(0xFFF4F4F5), // Primary text
     textSecondary: Color(0xFFA1A1AA), // Secondary text
-    textMuted: Color(0xFF52525B),     // Muted text
-    success: Color(0xFF22C55E),       // Green
-    warning: Color(0xFFF59E0B),       // Amber
-    error: Color(0xFFEF4444),         // Red
-    info: Color(0xFF3B82F6),          // Blue
+    textMuted: Color(0xFF71717A), // Muted text
+    success: Color(0xFF22C55E), // Green
+    warning: Color(0xFFF59E0B), // Amber
+    error: Color(0xFFEF4444), // Red
+    info: Color(0xFF3B82F6), // Blue
   );
 
   // Light theme colors
   static const light = NightshadeColors(
-    primary: Color(0xFF4F46E5),       // Indigo
-    accent: Color(0xFF7C3AED),        // Violet
-    background: Color(0xFFF8FAFC),    // Light background
-    surface: Color(0xFFFFFFFF),       // White surface
-    surfaceAlt: Color(0xFFF1F5F9),    // Alternative surface
-    surfaceHover: Color(0xFFE2E8F0),  // Hover state
+    primary: Color(0xFF4F46E5), // Indigo
+    accent: Color(0xFF7C3AED), // Violet
+    background: Color(0xFFF8FAFC), // Light background
+    surface: Color(0xFFFFFFFF), // White surface
+    surfaceAlt: Color(0xFFF1F5F9), // Alternative surface
+    surfaceHover: Color(0xFFE2E8F0), // Hover state
     surfaceElevated: Color(0xFFFFFFFF), // Raised elements (white with shadow)
     surfaceOverlay: Color(0xFFFFFFFF), // Modals (white with stronger shadow)
-    border: Color(0xFFE2E8F0),        // Subtle border
+    border: Color(0xFFE2E8F0), // Subtle border
     borderHighlight: Color(0xFFFFFFFF), // Highlight edge (pure white on light)
-    textPrimary: Color(0xFF0F172A),   // Primary text
+    textPrimary: Color(0xFF0F172A), // Primary text
     textSecondary: Color(0xFF64748B), // Secondary text
-    textMuted: Color(0xFF94A3B8),     // Muted text
-    success: Color(0xFF16A34A),       // Green
-    warning: Color(0xFFD97706),       // Amber
-    error: Color(0xFFDC2626),         // Red
-    info: Color(0xFF2563EB),          // Blue
+    textMuted: Color(0xFF94A3B8), // Muted text
+    success: Color(0xFF16A34A), // Green
+    warning: Color(0xFFD97706), // Amber
+    error: Color(0xFFDC2626), // Red
+    info: Color(0xFF2563EB), // Blue
   );
 
   /// Create a dark theme with custom accent color
@@ -100,29 +100,31 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   /// Helper to lighten a color for accent
   static Color _lightenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   /// Red night vision theme - designed to preserve dark-adapted eyes
   /// Uses only red wavelengths which minimally affect scotopic (night) vision
   static const redNight = NightshadeColors(
-    primary: Color(0xFFDC2626),       // Bright red (main accent)
-    accent: Color(0xFFB91C1C),        // Deeper red (secondary accent)
-    background: Color(0xFF0A0000),    // Nearly pure black with hint of red
-    surface: Color(0xFF140808),       // Very dark red surface
-    surfaceAlt: Color(0xFF1C0C0C),    // Slightly lighter red surface
-    surfaceHover: Color(0xFF241010),  // Hover state
+    primary: Color(0xFFDC2626), // Bright red (main accent)
+    accent: Color(0xFFB91C1C), // Deeper red (secondary accent)
+    background: Color(0xFF0A0000), // Nearly pure black with hint of red
+    surface: Color(0xFF140808), // Very dark red surface
+    surfaceAlt: Color(0xFF1C0C0C), // Slightly lighter red surface
+    surfaceHover: Color(0xFF241010), // Hover state
     surfaceElevated: Color(0xFF281212), // Raised interactive elements
     surfaceOverlay: Color(0xFF301616), // Modals and floating elements
-    border: Color(0xFF2E1414),        // Dark red border
+    border: Color(0xFF2E1414), // Dark red border
     borderHighlight: Color(0xFF3A1A1A), // Highlight edge
-    textPrimary: Color(0xFFE57373),   // Light red text - easy to read
+    textPrimary: Color(0xFFE57373), // Light red text - easy to read
     textSecondary: Color(0xFFB71C1C), // Medium red secondary text
-    textMuted: Color(0xFF7F1D1D),     // Muted dark red
-    success: Color(0xFFB91C1C),       // Dark red for success (no green)
-    warning: Color(0xFFDC2626),       // Standard red for warning
-    error: Color(0xFFEF5350),         // Bright red for errors
-    info: Color(0xFFE57373),          // Light red for info
+    textMuted: Color(0xFF7F1D1D), // Muted dark red
+    success: Color(0xFFB91C1C), // Dark red for success (no green)
+    warning: Color(0xFFDC2626), // Standard red for warning
+    error: Color(0xFFEF5350), // Bright red for errors
+    info: Color(0xFFE57373), // Light red for info
   );
 
   @override
@@ -190,8 +192,3 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     );
   }
 }
-
-
-
-
-

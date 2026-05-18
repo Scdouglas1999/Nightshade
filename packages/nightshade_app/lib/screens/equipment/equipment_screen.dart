@@ -1068,11 +1068,14 @@ class _FirstTimeOnboarding extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            NightshadeButton(
-              onPressed: onManualSetup,
-              label: "I'll do it manually",
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
+            SizedBox(
+              width: double.infinity,
+              child: NightshadeButton(
+                onPressed: onManualSetup,
+                label: "I'll do it manually",
+                variant: ButtonVariant.outline,
+                size: ButtonSize.medium,
+              ),
             ),
           ],
         ),

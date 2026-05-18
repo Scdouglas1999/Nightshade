@@ -70,8 +70,13 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
       rootNodeId: node.id,
     );
 
-    // Load and start sequence via provider
-    ref.read(currentSequenceProvider.notifier).loadSequence(sequence);
+    // Load and start sequence via provider. Polar alignment is a wizard-
+    // driven flow that builds a one-shot sequence; the user already opted
+    // into running it by completing the wizard, so we pass
+    // `discardUnsaved: true` to skip the editor's clobber prompt.
+    ref
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(sequence, discardUnsaved: true);
 
     try {
       // Subscribe to events using the generated API

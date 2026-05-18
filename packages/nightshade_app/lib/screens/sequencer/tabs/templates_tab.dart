@@ -2996,6 +2996,14 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     final templateColor = _getTemplateColor();
+    // Trust-patch §B: "Use Template" calls mergeTemplateNodes /
+    // loadSequence — both replace tree state and must be gated. "Edit"
+    // also calls loadSequence, "Duplicate" goes through the repository
+    // (not the editor) so it stays enabled. Delete operates on the
+    // template database row, not the active sequence, so also stays
+    // enabled. We grey out the whole card's primary action while
+    // running so the user can't accidentally clobber their in-flight run.
+    final canEdit = ref.watch(canEditSequenceProvider);
 
     return MouseRegion(
       onEnter: (_) {
@@ -3030,7 +3038,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                 : null,
           ),
           child: InkWell(
-            onTap: () => _useTemplate(context),
+            onTap: canEdit ? () => _useTemplate(context) : null,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -3055,6 +3063,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                       ),
                       const Spacer(),
                       if (_isHovered) ...[
+                        // "Duplicate" operates on the template DB row,
+                        // not the active sequence — stays enabled.
                         _SmallIconButton(
                           colors: widget.colors,
                           icon: LucideIcons.copy,
@@ -3062,13 +3072,21 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           onPressed: () => _duplicateTemplate(context),
                         ),
                         const SizedBox(width: 4),
+                        // "Edit" calls loadSequence — this replaces the
+                        // active sequence and MUST be gated.
                         _SmallIconButton(
                           colors: widget.colors,
                           icon: LucideIcons.pencil,
-                          tooltip: 'Edit',
-                          onPressed: () => _editTemplate(context),
+                          tooltip: canEdit
+                              ? 'Edit'
+                              : 'Edit (locked while sequence is running)',
+                          onPressed: canEdit
+                              ? () => _editTemplate(context)
+                              : null,
                         ),
                         const SizedBox(width: 4),
+                        // Delete removes the template from the library,
+                        // not the active sequence — stays enabled.
                         _SmallIconButton(
                           colors: widget.colors,
                           icon: LucideIcons.trash2,
@@ -3259,11 +3277,19 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
   void _applyTemplateToTarget(BuildContext context, TargetHeaderNode target) {
     final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
 
-    sequenceNotifier.mergeTemplateNodes(
-      templateNodes: widget.template.nodes,
-      templateRootId: widget.template.rootNodeId,
-      targetId: target.id,
-    );
+    try {
+      sequenceNotifier.mergeTemplateNodes(
+        templateNodes: widget.template.nodes,
+        templateRootId: widget.template.rootNodeId,
+        targetId: target.id,
+      );
+    } on SequenceLockedException catch (e) {
+      // Trust-patch §B: the InkWell that triggers this is gated by
+      // canEditSequenceProvider, but a Start race can still slip a
+      // running state under us. Surface to user instead of red overlay.
+      context.showErrorSnackBar(e.message);
+      return;
+    }
 
     // Switch to the Builder tab so user can see the result
     ref.read(sequencerTabProvider.notifier).state = 0;
@@ -3312,8 +3338,10 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       isTemplate: false,
     );
 
-    // Load the sequence
-    sequenceNotifier.loadSequence(newSequence);
+    // Load the sequence. Template instantiation is an explicit user
+    // action ("Use Template" button); the editor's unsaved-changes guard
+    // would be noise here, so we discard any in-flight edits.
+    sequenceNotifier.loadSequence(newSequence, discardUnsaved: true);
 
     // Switch to the Builder tab so user can see the loaded sequence
     ref.read(sequencerTabProvider.notifier).state = 0;
@@ -3360,7 +3388,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       isTemplate: false,
     );
 
-    ref.read(currentSequenceProvider.notifier).loadSequence(editableSequence);
+    // "Edit Template" is a destructive switch from whatever the user was
+    // working on; treat the click as confirmation per the wizard pattern.
+    ref
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(editableSequence, discardUnsaved: true);
     ref.read(sequencerTabProvider.notifier).state = 0;
 
     context.showInfoSnackBar('Editing "${widget.template.name}"');
@@ -3478,7 +3510,10 @@ class _SmallIconButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final Color? color;
-  final VoidCallback onPressed;
+  // Nullable so the template card can gray out the "Edit" pencil while
+  // the sequence is running. Other callers may still pass a non-null
+  // callback unchanged.
+  final VoidCallback? onPressed;
 
   const _SmallIconButton({
     required this.colors,
@@ -3498,12 +3533,21 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
   @override
   Widget build(BuildContext context) {
     final color = widget.color ?? widget.colors.textSecondary;
+    final disabled = widget.onPressed == null;
+    final iconColor = disabled
+        ? widget.colors.textMuted.withValues(alpha: 0.4)
+        : (_isHovered ? color : widget.colors.textMuted);
 
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onEnter:
+            disabled ? null : (_) => setState(() => _isHovered = true),
+        onExit:
+            disabled ? null : (_) => setState(() => _isHovered = false),
+        cursor: disabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
@@ -3511,7 +3555,7 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: _isHovered
+              color: !disabled && _isHovered
                   ? color.withValues(alpha: 0.1)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
@@ -3519,7 +3563,7 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             child: Icon(
               widget.icon,
               size: 14,
-              color: _isHovered ? color : widget.colors.textMuted,
+              color: iconColor,
             ),
           ),
         ),

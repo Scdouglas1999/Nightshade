@@ -572,7 +572,10 @@ class NodeDangerButton extends StatefulWidget {
   final NightshadeColors colors;
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  // Nullable so callers can disable the button when the sequence is
+  // locked (e.g. running). `_NodeDangerButtonState` swallows clicks when
+  // onPressed is null.
+  final VoidCallback? onPressed;
 
   const NodeDangerButton({
     super.key,

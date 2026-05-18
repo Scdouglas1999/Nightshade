@@ -17,6 +17,17 @@ class TargetsTab extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sequence = ref.watch(currentSequenceProvider);
     final isMobile = Responsive.isMobile(context);
+    // Trust-patch §B: Add Target opens a dialog that ultimately calls
+    // addTargetHeader / addNode, and Optimize Order calls reorderTargets.
+    // Both must be disabled while the sequence is running.
+    final canEdit = ref.watch(canEditSequenceProvider);
+    final lockedTooltip =
+        canEdit ? null : 'Cannot edit while sequence is running';
+
+    Widget wrapWithTooltip(Widget child) {
+      if (lockedTooltip == null) return child;
+      return Tooltip(message: lockedTooltip, child: child);
+    }
 
     return Padding(
       padding: EdgeInsets.all(isMobile ? 12 : 24),
@@ -39,35 +50,39 @@ class TargetsTab extends ConsumerWidget {
               children: [
                 if (sequence != null && sequence.targetHeaders.length > 1)
                   Expanded(
-                    child: NightshadeButton(
+                    child: wrapWithTooltip(NightshadeButton(
                       label: 'Optimize',
                       icon: LucideIcons.sparkles,
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => _OptimizeOrderDialog(
-                            targets: sequence.targetHeaders,
-                          ),
-                        );
-                      },
-                    ),
+                      onPressed: canEdit
+                          ? () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => _OptimizeOrderDialog(
+                                  targets: sequence.targetHeaders,
+                                ),
+                              );
+                            }
+                          : null,
+                    )),
                   ),
                 if (sequence != null && sequence.targetHeaders.length > 1)
                   const SizedBox(width: 8),
                 Expanded(
-                  child: NightshadeButton(
+                  child: wrapWithTooltip(NightshadeButton(
                     label: 'Add Target',
                     icon: LucideIcons.plus,
                     size: ButtonSize.small,
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => const _AddTargetDialog(),
-                      );
-                    },
-                  ),
+                    onPressed: canEdit
+                        ? () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => const _AddTargetDialog(),
+                            );
+                          }
+                        : null,
+                  )),
                 ),
               ],
             ),
@@ -100,30 +115,34 @@ class TargetsTab extends ConsumerWidget {
                 if (sequence != null && sequence.targetHeaders.length > 1)
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: NightshadeButton(
+                    child: wrapWithTooltip(NightshadeButton(
                       label: 'Optimize Order',
                       icon: LucideIcons.sparkles,
                       variant: ButtonVariant.outline,
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => _OptimizeOrderDialog(
-                            targets: sequence.targetHeaders,
-                          ),
-                        );
-                      },
-                    ),
+                      onPressed: canEdit
+                          ? () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => _OptimizeOrderDialog(
+                                  targets: sequence.targetHeaders,
+                                ),
+                              );
+                            }
+                          : null,
+                    )),
                   ),
-                NightshadeButton(
+                wrapWithTooltip(NightshadeButton(
                   label: 'Add Target',
                   icon: LucideIcons.plus,
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const _AddTargetDialog(),
-                    );
-                  },
-                ),
+                  onPressed: canEdit
+                      ? () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => const _AddTargetDialog(),
+                          );
+                        }
+                      : null,
+                )),
               ],
             ),
           ],
@@ -508,8 +527,14 @@ class _ActiveTargetList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Trust-patch §B: removeNode + reorderTargets both throw
+    // SequenceLockedException while running. Disable per-row delete and
+    // skip drag-reorders proactively (Flutter's ReorderableListView has
+    // no built-in "frozen" mode, so we no-op in onReorder).
+    final canEdit = ref.watch(canEditSequenceProvider);
     return ReorderableListView.builder(
       itemCount: sequence.targetHeaders.length,
+      buildDefaultDragHandles: canEdit,
       proxyDecorator: (child, index, animation) {
         return Material(
           color: Colors.transparent,
@@ -533,15 +558,34 @@ class _ActiveTargetList extends ConsumerWidget {
           target: target,
           color: color,
           index: index,
-          onDelete: () {
-            ref.read(currentSequenceProvider.notifier).removeNode(target.id);
-          },
+          onDelete: canEdit
+              ? () {
+                  ref
+                      .read(currentSequenceProvider.notifier)
+                      .removeNode(target.id);
+                }
+              : null,
         );
       },
       onReorder: (oldIndex, newIndex) {
-        ref
-            .read(currentSequenceProvider.notifier)
-            .reorderTargets(oldIndex, newIndex);
+        if (!canEdit) {
+          context
+              .showErrorSnackBar('Cannot reorder while sequence is running');
+          return;
+        }
+        try {
+          ref
+              .read(currentSequenceProvider.notifier)
+              .reorderTargets(oldIndex, newIndex);
+        } on CrossParentReorderException catch (e) {
+          // Why: the targets list flattens targets across multiple
+          // containers, but the editor only knows how to swap siblings.
+          // Show the user the actual constraint instead of silently
+          // ignoring their drag.
+          context.showErrorSnackBar(e.message);
+        } on SequenceLockedException catch (e) {
+          context.showErrorSnackBar(e.message);
+        }
       },
     );
   }
@@ -552,7 +596,10 @@ class _TargetListItem extends StatelessWidget {
   final TargetHeaderNode target;
   final Color color;
   final int index;
-  final VoidCallback onDelete;
+  // Null when canEditSequenceProvider == false. The delete control is
+  // rendered grayed out in that case (rather than removed) so the user
+  // sees what would be available once the sequence stops.
+  final VoidCallback? onDelete;
 
   const _TargetListItem({
     super.key,
@@ -869,13 +916,33 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
 
     final notifier = ref.read(currentSequenceProvider.notifier);
 
-    // Reorder targets to match optimized order
-    for (int i = 0; i < _optimizedOrder!.length; i++) {
-      final target = _optimizedOrder![i];
-      final currentIndex = widget.targets.indexWhere((t) => t.id == target.id);
-      if (currentIndex != i && currentIndex != -1) {
-        notifier.reorderTargets(currentIndex, i);
+    // Reorder targets to match optimized order. If any cross-parent
+    // reorder is requested by the optimizer (shouldn't happen — the
+    // optimizer operates on flat sibling lists) we surface it instead
+    // of half-applying the plan.
+    try {
+      for (int i = 0; i < _optimizedOrder!.length; i++) {
+        final target = _optimizedOrder![i];
+        final currentIndex =
+            widget.targets.indexWhere((t) => t.id == target.id);
+        if (currentIndex != i && currentIndex != -1) {
+          notifier.reorderTargets(currentIndex, i);
+        }
       }
+    } on CrossParentReorderException catch (e) {
+      Navigator.of(context).pop();
+      if (context.mounted) {
+        context.showErrorSnackBar(
+          'Optimizer plan crosses target parents: ${e.message}',
+        );
+      }
+      return;
+    } on SequenceLockedException catch (e) {
+      Navigator.of(context).pop();
+      if (context.mounted) {
+        context.showErrorSnackBar(e.message);
+      }
+      return;
     }
 
     Navigator.of(context).pop();

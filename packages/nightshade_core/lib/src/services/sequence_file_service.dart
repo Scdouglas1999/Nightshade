@@ -6,13 +6,25 @@ import 'package:uuid/uuid.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
 import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart';
+import '../providers/sequence/sequence_editor_exceptions.dart';
+import '../providers/sequence/sequence_validation.dart';
+import '../providers/sequence_provider.dart' show currentSequenceProvider;
 import '../providers/settings_provider.dart';
 
 /// Service for saving and loading sequences to/from JSON files
 typedef SequenceImportValidator = void Function(Sequence sequence);
 
+/// Strategy invoked by [SequenceFileService.exportSequence] to run the
+/// validator. The provider wiring at the bottom of this file binds this
+/// to [validateSequence] (the pure structural pass). Tests can inject
+/// a stub.
+typedef ExportValidatorStrategy = List<ValidationIssue> Function(
+    Sequence sequence);
+
 class SequenceFileService {
   final SequenceImportValidator? _importValidator;
+  final ExportValidatorStrategy _exportValidator;
+  final void Function(Sequence sequence)? _onExportSaved;
 
   /// Default directory for export/import file pickers.
   ///
@@ -26,15 +38,44 @@ class SequenceFileService {
 
   SequenceFileService({
     SequenceImportValidator? importValidator,
+    ExportValidatorStrategy? exportValidator,
+    void Function(Sequence sequence)? onExportSaved,
     String defaultDirectory = '',
   })  : _importValidator = importValidator,
+        _exportValidator = exportValidator ?? validateSequence,
+        _onExportSaved = onExportSaved,
         _defaultDirectory = defaultDirectory;
 
   String? get _initialDirectoryOrNull =>
       _defaultDirectory.isEmpty ? null : _defaultDirectory;
 
-  /// Export a sequence to a JSON file
-  Future<void> exportSequence(Sequence sequence) async {
+  /// Export a sequence to a JSON file.
+  ///
+  /// Before writing, runs [validateSequence] over [sequence] (or the
+  /// override strategy supplied at construction). If the result contains
+  /// any [ValidationSeverity.error]-level issues, throws
+  /// [SequenceValidationFailedException] and does **not** open the save
+  /// dialog or write the file. Warnings and info-level findings do not
+  /// block export.
+  ///
+  /// Pass [forceExport] = `true` to bypass the gate (e.g. the user clicked
+  /// "Export anyway" in the confirmation dialog). The validation pass still
+  /// runs so callers can include the issue list in any audit log, but the
+  /// failure is not raised as an exception.
+  Future<void> exportSequence(
+    Sequence sequence, {
+    bool forceExport = false,
+  }) async {
+    // Validate first — refusing to write a known-broken file is cheaper
+    // than letting the user discover the corruption on re-import. Errors
+    // are blocking unless the caller explicitly opted into [forceExport].
+    final issues = _exportValidator(sequence);
+    final hasErrors =
+        issues.any((i) => i.severity == ValidationSeverity.error);
+    if (hasErrors && !forceExport) {
+      throw SequenceValidationFailedException(issues);
+    }
+
     // Prepare JSON
     final json = _sequenceToJson(sequence);
     final jsonString = const JsonEncoder.withIndent('  ').convert(json);
@@ -56,6 +97,13 @@ class SequenceFileService {
     // Write file
     final file = File(saveLocation.path);
     await file.writeAsString(jsonString);
+    // Marking-saved is the caller's responsibility — the editor notifier
+    // owns the dirty flag and we can't reach it from this stateless file-
+    // service without a Ref. The provider wiring at the bottom of this
+    // file injects an optional `onExportSaved` callback that the desktop
+    // / mobile export buttons hook up to `markSaved()`.
+    final cb = _onExportSaved;
+    if (cb != null) cb(sequence);
   }
 
   /// Import a sequence from a JSON file
@@ -1019,6 +1067,27 @@ final sequenceFileServiceProvider = Provider<SequenceFileService>((ref) {
   }
   return SequenceFileService(
     defaultDirectory: defaultDir,
+    onExportSaved: (exported) {
+      // Reach into the sequence editor and clear the dirty flag. The
+      // export wrote the canonical bytes for the in-memory sequence, so
+      // any subsequent createSequence/loadSequence should no longer
+      // prompt "discard unsaved changes?" — the user just saved.
+      //
+      // Read (not watch) — this is a one-shot side effect inside an
+      // async write path, not a reactive subscription.
+      try {
+        final editor = ref.read(currentSequenceProvider.notifier);
+        final current = ref.read(currentSequenceProvider);
+        if (current != null && current.id == exported.id) {
+          editor.markSaved();
+        }
+      } catch (_) {
+        // Tests may construct this provider without the sequence
+        // notifier. Failing silent is acceptable here because the
+        // editor is the only place that cares about the flag — a missing
+        // notifier means there's no editor to dirty.
+      }
+    },
     importValidator: (sequence) {
       final activeProfile = ref.read(activeEquipmentProfileProvider);
       final availableFilters =

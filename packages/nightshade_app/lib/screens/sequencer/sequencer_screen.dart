@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../utils/sequence_mutator_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
@@ -22,6 +23,7 @@ import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/library_tab.dart';
+import 'tabs/run_tab.dart';
 import 'tabs/targets_tab.dart';
 import 'tabs/templates_tab.dart';
 
@@ -44,6 +46,56 @@ final sequencerPropertiesCollapsedProvider =
 /// Whether the snippet palette is visible in the toolbox panel
 final snippetPaletteVisibleProvider = StateProvider<bool>((ref) => false);
 
+/// Confirm-then-delete helper used by both the Delete keyboard shortcut and
+/// the per-node trash button. Nodes with descendants prompt the user with
+/// "Delete N nodes?" before the actual mutation; leaf nodes (and missing
+/// nodes) are removed without prompting.
+///
+/// Centralised here so the keyboard path can't drift away from the tree's
+/// trash-icon path — both must apply the same confirmation policy.
+Future<void> _confirmAndRemoveNode(
+  BuildContext context,
+  WidgetRef ref,
+  String nodeId,
+) async {
+  final sequence = ref.read(currentSequenceProvider);
+  if (sequence == null) return;
+  final node = sequence.nodes[nodeId];
+  if (node == null) return;
+
+  final descendantCount = sequence.countDescendants(nodeId);
+  if (descendantCount > 0) {
+    final total = descendantCount + 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete node?'),
+        content: Text(
+          'This will delete "${node.name}" and $descendantCount '
+          'descendant ${descendantCount == 1 ? "node" : "nodes"} '
+          '($total total). This cannot be undone except via Undo (Ctrl+Z).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete $total nodes'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+  }
+
+  ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
+  if (ref.read(selectedNodeIdProvider) == nodeId) {
+    ref.read(selectedNodeIdProvider.notifier).state = null;
+  }
+}
+
 class SequencerScreen extends ConsumerStatefulWidget {
   const SequencerScreen({super.key});
 
@@ -64,7 +116,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
 
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -151,42 +203,50 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         ),
         child: CallbackShortcuts(
           bindings: {
+            // Trust-patch §B: undo/redo/delete/duplicate/paste are
+            // mutations and MUST no-op while the sequence is running.
+            // Cutting Ctrl+Z is the load-bearing change here: a stray
+            // Ctrl+Z mid-run used to roll back Dart state while Rust
+            // kept executing the old tree (split-brain). Ctrl+C
+            // (clipboard copy) and Escape (clear multi-select) are
+            // NOT mutations and stay enabled.
             const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
-              if (currentTab == 0) {
-                ref.read(currentSequenceProvider.notifier).undo();
-              }
+              if (currentTab != 0) return;
+              if (!ref.read(canEditSequenceProvider)) return;
+              ref.read(currentSequenceProvider.notifier).undo();
             },
             const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
-              if (currentTab == 0) {
-                ref.read(currentSequenceProvider.notifier).redo();
-              }
+              if (currentTab != 0) return;
+              if (!ref.read(canEditSequenceProvider)) return;
+              ref.read(currentSequenceProvider.notifier).redo();
             },
             const SingleActivator(LogicalKeyboardKey.delete): () {
-              if (currentTab == 0) {
-                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
-                if (multiSelected.isNotEmpty) {
-                  ref
-                      .read(multiSelectedNodeIdsProvider.notifier)
-                      .deleteSelected();
-                } else {
-                  final selectedId = ref.read(selectedNodeIdProvider);
-                  if (selectedId != null) {
-                    ref
-                        .read(currentSequenceProvider.notifier)
-                        .removeNode(selectedId);
-                    ref.read(selectedNodeIdProvider.notifier).state = null;
-                  }
+              if (currentTab != 0) return;
+              if (!ref.read(canEditSequenceProvider)) return;
+              final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+              if (multiSelected.isNotEmpty) {
+                ref
+                    .read(multiSelectedNodeIdsProvider.notifier)
+                    .deleteSelected();
+              } else {
+                final selectedId = ref.read(selectedNodeIdProvider);
+                if (selectedId != null) {
+                  // Why: a Delete keystroke on a container with children
+                  // would silently nuke the subtree. Route through the
+                  // same confirmation helper the tree's trash button uses
+                  // so the keyboard path has parity.
+                  _confirmAndRemoveNode(context, ref, selectedId);
                 }
               }
             },
             const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
-              if (currentTab == 0) {
-                final selectedId = ref.read(selectedNodeIdProvider);
-                if (selectedId != null) {
-                  ref
-                      .read(currentSequenceProvider.notifier)
-                      .duplicateNode(selectedId);
-                }
+              if (currentTab != 0) return;
+              if (!ref.read(canEditSequenceProvider)) return;
+              final selectedId = ref.read(selectedNodeIdProvider);
+              if (selectedId != null) {
+                ref
+                    .read(currentSequenceProvider.notifier)
+                    .duplicateNode(selectedId);
               }
             },
             const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -198,6 +258,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
               }
             },
             const SingleActivator(LogicalKeyboardKey.keyC, control: true): () {
+              // Ctrl+C is a clipboard read — not an edit. Stays enabled
+              // during a run so users can copy a node into a snippet
+              // even while the executor is busy.
               if (currentTab == 0) {
                 final multiSelected = ref.read(multiSelectedNodeIdsProvider);
                 if (multiSelected.isNotEmpty) {
@@ -208,13 +271,13 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
               }
             },
             const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
-              if (currentTab == 0) {
-                final clipboard = ref.read(nodeCopyClipboardProvider);
-                if (clipboard != null && clipboard.isNotEmpty) {
-                  ref
-                      .read(multiSelectedNodeIdsProvider.notifier)
-                      .pasteFromClipboard();
-                }
+              if (currentTab != 0) return;
+              if (!ref.read(canEditSequenceProvider)) return;
+              final clipboard = ref.read(nodeCopyClipboardProvider);
+              if (clipboard != null && clipboard.isNotEmpty) {
+                ref
+                    .read(multiSelectedNodeIdsProvider.notifier)
+                    .pasteFromClipboard();
               }
             },
             const SingleActivator(LogicalKeyboardKey.digit1, alt: true): () {
@@ -231,6 +294,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             },
             const SingleActivator(LogicalKeyboardKey.digit5, alt: true): () {
               _tabController.animateTo(4);
+            },
+            const SingleActivator(LogicalKeyboardKey.digit6, alt: true): () {
+              _tabController.animateTo(5);
             },
             // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
             const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
@@ -264,6 +330,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                     children: [
                       // Builder tab
                       _BuilderContent(colors: colors),
+                      // Run dashboard (read-only live view; inserted between
+                      // Builder and Targets per the Run Dashboard spec).
+                      const RunTab(),
                       // Targets tab
                       const TargetsTab(),
                       // Templates tab
@@ -342,6 +411,17 @@ class _SequencerTabBar extends StatelessWidget {
                         Icon(LucideIcons.workflow, size: isMobile ? 14 : 16),
                         SizedBox(width: isMobile ? 4 : 8),
                         const Text('Builder'),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    key: SequencerTutorialKeys.tabRun,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.radio, size: isMobile ? 14 : 16),
+                        SizedBox(width: isMobile ? 4 : 8),
+                        const Text('Run'),
                       ],
                     ),
                   ),
@@ -1337,14 +1417,26 @@ class _SnippetPaletteContent extends ConsumerWidget {
     return SnippetPalette(
       colors: colors,
       onSnippetTap: (snippet) {
-        // Insert the snippet when tapped/double-clicked
-        final selectedId = ref.read(selectedNodeIdProvider);
-        final profile = ref.read(activeEquipmentProfileProvider);
-        ref.read(currentSequenceProvider.notifier).insertSnippet(
-              snippet,
-              parentId: selectedId,
-              profileFilterNames: profile?.filterNames,
-            );
+        // Trust-patch §B: insertSnippet can throw
+        // SnippetDeserializationException for unknown node types and
+        // SequenceLockedException while a run is in flight. Both must
+        // be caught with user-visible feedback — pre-patch they would
+        // pop a red Flutter error overlay. The mutator helper handles
+        // both as a structured dialog + snackbar.
+        withSequenceMutation(
+          context,
+          ref,
+          operationName: 'Insert Snippet',
+          action: () async {
+            final selectedId = ref.read(selectedNodeIdProvider);
+            final profile = ref.read(activeEquipmentProfileProvider);
+            ref.read(currentSequenceProvider.notifier).insertSnippet(
+                  snippet,
+                  parentId: selectedId,
+                  profileFilterNames: profile?.filterNames,
+                );
+          },
+        );
       },
     );
   }

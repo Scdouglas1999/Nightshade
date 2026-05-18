@@ -29,6 +29,12 @@ class SequenceRunStats {
   /// Error messages accumulated during the run
   final List<String> errorMessages;
 
+  /// Non-fatal warnings accumulated during the run. Used by the executor to
+  /// surface conditions like "filter wheel not connected, using filter name
+  /// as a literal" — situations that don't stop the sequence but the user
+  /// should see in the post-session report.
+  final List<String> warningMessages;
+
   SequenceRunStats()
       : startTime = DateTime.now(),
         framesCaptured = 0,
@@ -39,7 +45,8 @@ class SequenceRunStats {
         meridianFlips = 0,
         ditherCount = 0,
         targetBreakdown = {},
-        errorMessages = [];
+        errorMessages = [],
+        warningMessages = [];
 
   double get wallClockSecs {
     final end = endTime ?? DateTime.now();
@@ -72,6 +79,16 @@ class SequenceRunStats {
   void recordDither() => ditherCount++;
   void recordError(String message) => errorMessages.add(message);
 
+  /// Record a non-fatal warning surfaced during execution. Idempotent on
+  /// exact-duplicate consecutive messages so a per-frame warning (e.g.
+  /// "filter wheel not connected") doesn't bloat the stats blob.
+  void recordWarning(String message) {
+    if (warningMessages.isNotEmpty && warningMessages.last == message) {
+      return;
+    }
+    warningMessages.add(message);
+  }
+
   /// Serialize to JSON for database storage.
   String toJson() {
     final breakdown = <String, dynamic>{};
@@ -99,6 +116,7 @@ class SequenceRunStats {
       'meridianFlips': meridianFlips,
       'ditherCount': ditherCount,
       'errorMessages': errorMessages,
+      'warningMessages': warningMessages,
     });
   }
 
@@ -118,6 +136,11 @@ class SequenceRunStats {
     final errors = map['errorMessages'] as List<dynamic>?;
     if (errors != null) {
       stats.errorMessages.addAll(errors.cast<String>());
+    }
+
+    final warnings = map['warningMessages'] as List<dynamic>?;
+    if (warnings != null) {
+      stats.warningMessages.addAll(warnings.cast<String>());
     }
 
     final breakdown = map['targetBreakdown'] as Map<String, dynamic>?;
@@ -164,6 +187,7 @@ class ParsedRunStats {
   final int ditherCount;
   final Map<String, Map<String, Map<String, dynamic>>> targetBreakdown;
   final List<String> errorMessages;
+  final List<String> warningMessages;
 
   ParsedRunStats({
     required this.wallClockSecs,
@@ -177,6 +201,7 @@ class ParsedRunStats {
     required this.ditherCount,
     required this.targetBreakdown,
     required this.errorMessages,
+    this.warningMessages = const [],
   });
 
   factory ParsedRunStats.fromJson(String json) {
@@ -207,6 +232,8 @@ class ParsedRunStats {
       targetBreakdown: breakdown,
       errorMessages:
           (map['errorMessages'] as List<dynamic>?)?.cast<String>() ?? [],
+      warningMessages:
+          (map['warningMessages'] as List<dynamic>?)?.cast<String>() ?? [],
     );
   }
 

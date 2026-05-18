@@ -2,6 +2,7 @@
 
 use crate::{
     device_ops::{NullDeviceOps, SharedDeviceOps},
+    executor::ExecutorEvent,
     instructions::*,
     AutofocusConfig, AutofocusMethod, ConditionalCheck, ConditionalConfig, ExposureConfig,
     LoopCondition, LoopConfig, NodeDefinition, NodeId, NodeStatus, NodeType, ParallelConfig,
@@ -11,7 +12,7 @@ use crate::{
 use async_trait::async_trait;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 
 /// Context passed to nodes during execution
 pub struct ExecutionContext {
@@ -32,6 +33,14 @@ pub struct ExecutionContext {
     pub is_paused: Arc<AtomicBool>,
     /// Skip current target request - set by trigger monitor and consumed by target header.
     pub skip_to_next_target: Arc<AtomicBool>,
+    /// Trust-patch §7: SkipToNode target. When `Some(node_id)`, the executor
+    /// is in "skip until we reach this node" mode: container nodes mark
+    /// children whose subtree does NOT contain the target as Skipped, and
+    /// unwrap the request once the target's own subtree is entered. Cleared
+    /// to None once consumed. Read-frequently / written-rarely (typically
+    /// once per SkipToNode command), so a `parking_lot::RwLock` keeps the
+    /// read path lock-free under no contention.
+    pub skip_to_node: Arc<parking_lot::RwLock<Option<NodeId>>>,
     /// Resume notifier - signaled when execution should resume after pause
     pub resume_notify: Arc<tokio::sync::Notify>,
     /// Progress callback
@@ -62,6 +71,11 @@ pub struct ExecutionContext {
     pub safety_fail_mode: SafetyFailMode,
     /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
     pub filter_focus_offsets: std::collections::HashMap<String, i32>,
+    /// Optional broadcast handle so instruction code can emit ExecutorEvents
+    /// directly (used for surfacing FITS-save failures and other instruction-
+    /// level errors that the UI must see, beyond the InstructionResult flow).
+    /// `None` outside the live executor (e.g. unit tests / direct invocations).
+    pub event_tx: Option<broadcast::Sender<ExecutorEvent>>,
 }
 
 /// Progress update sent during execution
@@ -91,6 +105,7 @@ impl ExecutionContext {
             is_cancelled: Arc::new(AtomicBool::new(false)),
             is_paused: Arc::new(AtomicBool::new(false)),
             skip_to_next_target: Arc::new(AtomicBool::new(false)),
+            skip_to_node: Arc::new(parking_lot::RwLock::new(None)),
             resume_notify: Arc::new(tokio::sync::Notify::new()),
             progress_callback: None,
             polar_align_image_callback: None,
@@ -109,6 +124,7 @@ impl ExecutionContext {
             trigger_state: None,
             safety_fail_mode: SafetyFailMode::default(),
             filter_focus_offsets: std::collections::HashMap::new(),
+            event_tx: None,
         }
     }
 
@@ -190,6 +206,26 @@ impl ExecutionContext {
     /// Clear a pending skip-to-next-target request.
     pub fn clear_skip_to_next_target_request(&self) {
         self.skip_to_next_target.store(false, Ordering::Relaxed);
+    }
+
+    /// Trust-patch §7: read the current SkipToNode target, if any.
+    /// Returns the target node id when the executor is in "skip until we
+    /// reach this node" mode; None otherwise.
+    pub fn skip_to_node_target(&self) -> Option<NodeId> {
+        self.skip_to_node.read().clone()
+    }
+
+    /// Trust-patch §7: clear the SkipToNode request, signalling that we
+    /// have reached (or recursed into) the target subtree and normal
+    /// execution should resume.
+    pub fn clear_skip_to_node_request(&self) {
+        *self.skip_to_node.write() = None;
+    }
+
+    /// Trust-patch §7: set the SkipToNode request from outside the tree
+    /// walk (called by the executor command handler).
+    pub fn set_skip_to_node_request(&self, node_id: NodeId) {
+        *self.skip_to_node.write() = Some(node_id);
     }
 
     pub fn send_progress(&self, update: ProgressUpdate) {
@@ -349,6 +385,7 @@ impl ExecutionContext {
             device_ops: self.device_ops.clone(),
             trigger_state: self.trigger_state.clone(),
             filter_focus_offsets: self.filter_focus_offsets.clone(),
+            event_tx: self.event_tx.clone(),
         }
     }
 }
@@ -448,6 +485,24 @@ pub trait Node: Send + Sync {
     /// If node_id matches this node, marks it as Success.
     /// Otherwise, propagates to children.
     fn mark_completed(&mut self, node_id: &NodeId);
+
+    /// Trust-patch §7: does this subtree contain `node_id`?
+    ///
+    /// Used by the SkipToNode command path so the executor can mark
+    /// preceding siblings as Skipped and recurse only into the subtree
+    /// containing the target. Default implementation walks `id()` and
+    /// `children()` so RuntimeNode does not need to override it.
+    fn contains_node(&self, node_id: &NodeId) -> bool {
+        if self.id() == node_id {
+            return true;
+        }
+        for child in self.children() {
+            if child.contains_node(node_id) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// A runtime node instance created from a NodeDefinition
@@ -1901,8 +1956,10 @@ impl RuntimeNode {
         let longitude = context.longitude;
         let safety_fail_mode = context.safety_fail_mode;
         let skip_to_next_target = context.skip_to_next_target.clone();
+        let skip_to_node = context.skip_to_node.clone();
         let trigger_state = context.trigger_state.clone();
         let filter_focus_offsets = context.filter_focus_offsets.clone();
+        let event_tx = context.event_tx.clone();
 
         let handles: Vec<_> = children
             .iter()
@@ -1928,8 +1985,10 @@ impl RuntimeNode {
                 let cover_calibrator_id = cover_calibrator_id.clone();
                 let save_path = save_path.clone();
                 let skip_to_next_target = skip_to_next_target.clone();
+                let skip_to_node = skip_to_node.clone();
                 let trigger_state = trigger_state.clone();
                 let filter_focus_offsets = filter_focus_offsets.clone();
+                let event_tx = event_tx.clone();
 
                 tokio::spawn(async move {
                     if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
@@ -1951,6 +2010,7 @@ impl RuntimeNode {
                         is_cancelled: is_cancelled.clone(),
                         is_paused,
                         skip_to_next_target,
+                        skip_to_node,
                         resume_notify,
                         progress_callback: None,
                         polar_align_image_callback: None,
@@ -1969,6 +2029,7 @@ impl RuntimeNode {
                         trigger_state,
                         safety_fail_mode,
                         filter_focus_offsets,
+                        event_tx,
                     };
 
                     let mut child_guard = child.lock().await;
@@ -2256,13 +2317,57 @@ impl RuntimeNode {
                     RecoveryAction::Continue => NodeStatus::Success,
                     RecoveryAction::NextTarget => NodeStatus::Skipped,
                     RecoveryAction::ParkAndAbort => {
-                        let ctx = context.to_instruction_context().await;
-                        let park_result = execute_park(&ctx).await;
-                        if park_result.status != NodeStatus::Success {
-                            tracing::error!(
-                                "ParkAndAbort recovery: park failed: {:?}. Mount may be in an unsafe position!",
-                                park_result.message
+                        // Trust-patch §8: both ParkAndAbort recovery paths
+                        // (here and in executor.rs) now route through
+                        // `device_ops::try_park_with_retry` so park behaviour
+                        // is consistent. The retry parameters match the
+                        // executor's policy (1 retry, 2s delay) — both call
+                        // sites can be tuned together if the operator profile
+                        // ever exposes them.
+                        //
+                        // The previous `execute_park` instruction was a
+                        // single-attempt fire-and-forget; using the helper
+                        // turns the recovery into a structured "park retried,
+                        // park failed" event the UI can surface.
+                        if let Some(mount_id) = &context.mount_id {
+                            tracing::warn!(
+                                "Recovery::ParkAndAbort: parking mount '{}' (max_retries=1, retry_delay=2s)",
+                                mount_id
                             );
+                            let park_outcome =
+                                crate::device_ops::try_park_with_retry(
+                                    &context.device_ops,
+                                    mount_id,
+                                    1,
+                                    2.0,
+                                )
+                                .await;
+                            if !park_outcome.success {
+                                let park_error = format!(
+                                    "Recovery::ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                     Mount may be in an unsafe position — manual intervention required.",
+                                    park_outcome.attempts_made,
+                                    park_outcome
+                                        .last_error
+                                        .clone()
+                                        .unwrap_or_else(|| "unknown error".to_string()),
+                                );
+                                tracing::error!("{}", park_error);
+                                if let Some(tx) = &context.event_tx {
+                                    let _ = tx.send(ExecutorEvent::Error {
+                                        message: park_error,
+                                    });
+                                }
+                            }
+                        } else {
+                            tracing::error!(
+                                "Recovery::ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically."
+                            );
+                            if let Some(tx) = &context.event_tx {
+                                let _ = tx.send(ExecutorEvent::Error {
+                                    message: "Recovery::ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                                });
+                            }
                         }
                         NodeStatus::Failure
                     }
@@ -2368,6 +2473,51 @@ impl RuntimeNode {
                 return NodeStatus::Skipped;
             }
 
+            // Trust-patch §7: if a SkipToNode request is active, mark this
+            // child as Skipped unless its subtree contains the target. When
+            // the child IS the target (or contains it), the request stays
+            // pending so deeper recursion can keep skipping siblings; we
+            // only clear it when the executor reaches the target node
+            // itself (handled by the early-return below).
+            if let Some(ref target_id) = context.skip_to_node_target() {
+                if child.id() == target_id {
+                    // We reached the target node — clear the request and
+                    // let normal execution take over from here.
+                    tracing::info!(
+                        "[SKIP_TO_NODE] Reached target '{}'; clearing request and resuming normal execution",
+                        target_id
+                    );
+                    context.clear_skip_to_node_request();
+                    // Fall through to normal child.execute below.
+                } else if !child.contains_node(target_id) {
+                    tracing::info!(
+                        "[SKIP_TO_NODE] Skipping child '{}' (id={}) — target '{}' is not in this subtree",
+                        child.name(),
+                        child.id(),
+                        target_id
+                    );
+                    context.send_progress(ProgressUpdate {
+                        node_id: child.id().clone(),
+                        status: NodeStatus::Skipped,
+                        message: Some(format!(
+                            "Skipped by SkipToNode request (target: {})",
+                            target_id
+                        )),
+                        current_frame: None,
+                        total_frames: None,
+                        current_child: Some(i),
+                        total_children: Some(total),
+                        completed_exposure_secs: None,
+                    });
+                    continue;
+                }
+                // else: the target is somewhere INSIDE this child's
+                // subtree, but is not this child itself. Fall through to
+                // execute the child normally — the recursive skip logic
+                // inside the child will keep filtering siblings until the
+                // target is reached.
+            }
+
             tracing::info!(
                 "Executing child {}/{}: '{}' (id={})",
                 i + 1,
@@ -2458,6 +2608,54 @@ mod tests {
         assert!(ctx.target_ra.is_none());
         assert!(ctx.target_dec.is_none());
         assert!(ctx.camera_id.is_none());
+    }
+
+    /// Trust-patch §7: ExecutionContext exposes SkipToNode plumbing via
+    /// `set_skip_to_node_request` / `skip_to_node_target` /
+    /// `clear_skip_to_node_request`. The slot must round-trip and the
+    /// clear must take effect.
+    #[test]
+    fn trust_patch_7_skip_to_node_request_roundtrip() {
+        let ctx = ExecutionContext::new("root".to_string());
+        assert!(ctx.skip_to_node_target().is_none());
+        ctx.set_skip_to_node_request("target_node".to_string());
+        assert_eq!(ctx.skip_to_node_target().as_deref(), Some("target_node"));
+        ctx.clear_skip_to_node_request();
+        assert!(ctx.skip_to_node_target().is_none());
+    }
+
+    /// Trust-patch §7: `Node::contains_node` (default impl on the trait)
+    /// reports whether the subtree rooted at `self` contains `node_id`.
+    /// Verified against a small two-level tree built from NodeDefinition.
+    #[test]
+    fn trust_patch_7_contains_node_walks_subtree() {
+        use crate::{DelayConfig, NodeId, NodeType};
+
+        let leaf = NodeDefinition {
+            id: "leaf".to_string(),
+            name: "Leaf".to_string(),
+            node_type: NodeType::Delay(DelayConfig::default()),
+            enabled: true,
+            children: vec![],
+        };
+        let root = NodeDefinition {
+            id: "root".to_string(),
+            name: "Root".to_string(),
+            node_type: NodeType::Delay(DelayConfig::default()),
+            enabled: true,
+            children: vec![],
+        };
+
+        let mut root_node = RuntimeNode::from_definition(root);
+        root_node.add_child(Box::new(RuntimeNode::from_definition(leaf)));
+
+        let leaf_id: NodeId = "leaf".to_string();
+        let root_id: NodeId = "root".to_string();
+        let missing_id: NodeId = "missing".to_string();
+
+        assert!(root_node.contains_node(&root_id));
+        assert!(root_node.contains_node(&leaf_id));
+        assert!(!root_node.contains_node(&missing_id));
     }
 
     #[test]

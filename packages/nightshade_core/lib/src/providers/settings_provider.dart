@@ -125,6 +125,18 @@ class AppSettingsState {
   final String
       horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
 
+  /// Effective horizon in degrees used by the Run Dashboard, scheduler and
+  /// planetarium when computing "time-to-set". 0° = mathematical horizon;
+  /// a value like 20° models trees / structures the user can't see
+  /// through. The same value is consumed by every "set" display in the
+  /// app so the dashboard and the planetarium agree to the second.
+  final double effectiveHorizonDeg;
+
+  /// When true, critical-severity executor events trigger a system bell on
+  /// top of the in-app banner / notification. Useful for unattended
+  /// imaging where the user has walked away from the laptop.
+  final bool audibleAlertsOnCritical;
+
   // Autofocus Settings
   final String afMethod; // 'Star HFR'
   final String afCurveFitting; // 'Hyperbolic', 'Parabolic', 'Trend Lines'
@@ -254,6 +266,8 @@ class AppSettingsState {
     this.bortleClass = 5,
     this.horizonProfileJson =
         '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
+    this.effectiveHorizonDeg = 0.0,
+    this.audibleAlertsOnCritical = false,
 
     // Autofocus Settings
     this.afMethod = 'Star HFR',
@@ -352,6 +366,8 @@ class AppSettingsState {
     // Observing Environment
     int? bortleClass,
     String? horizonProfileJson,
+    double? effectiveHorizonDeg,
+    bool? audibleAlertsOnCritical,
     // Autofocus Settings
     String? afMethod,
     String? afCurveFitting,
@@ -453,6 +469,9 @@ class AppSettingsState {
       // Autofocus Settings
       bortleClass: bortleClass ?? this.bortleClass,
       horizonProfileJson: horizonProfileJson ?? this.horizonProfileJson,
+      effectiveHorizonDeg: effectiveHorizonDeg ?? this.effectiveHorizonDeg,
+      audibleAlertsOnCritical:
+          audibleAlertsOnCritical ?? this.audibleAlertsOnCritical,
       afMethod: afMethod ?? this.afMethod,
       afCurveFitting: afCurveFitting ?? this.afCurveFitting,
       afStepSize: afStepSize ?? this.afStepSize,
@@ -715,6 +734,10 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
       bortleClass: _parseInt(allSettings['bortle_class'], 5),
       horizonProfileJson: allSettings['horizon_profile_json'] ??
           '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
+      effectiveHorizonDeg:
+          _parseDouble(allSettings['effective_horizon_deg'], 0.0),
+      audibleAlertsOnCritical:
+          _parseBool(allSettings['audible_alerts_on_critical'], false),
 
       afMethod: allSettings['af_method'] ?? 'Star HFR',
       afCurveFitting: allSettings['af_curve_fitting'] ?? 'Hyperbolic',
@@ -1032,6 +1055,18 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
           ? _parseInt(settings['bortle_class'], current.bortleClass)
           : null,
       horizonProfileJson: settings['horizon_profile_json'],
+      effectiveHorizonDeg: settings.containsKey('effective_horizon_deg')
+          ? _parseDouble(
+              settings['effective_horizon_deg'],
+              current.effectiveHorizonDeg,
+            )
+          : null,
+      audibleAlertsOnCritical: settings.containsKey('audible_alerts_on_critical')
+          ? _parseBool(
+              settings['audible_alerts_on_critical'],
+              current.audibleAlertsOnCritical,
+            )
+          : null,
       afMethod: settings['af_method'],
       afCurveFitting: settings['af_curve_fitting'],
       afStepSize: settings.containsKey('af_step_size')
@@ -1246,6 +1281,21 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   Future<void> setHorizonProfileJson(String value) async {
     await _saveSetting('horizon_profile_json', value);
     _patchState((s) => s.copyWith(horizonProfileJson: value));
+  }
+
+  /// Set the effective horizon used by Run Dashboard, scheduler, and
+  /// planetarium for time-to-set calculations. Clamped to [0, 60] degrees
+  /// because anything above 60° makes most of the sky unreachable and is
+  /// almost certainly a typo rather than an intentional value.
+  Future<void> setEffectiveHorizonDeg(double value) async {
+    final clamped = value.clamp(0.0, 60.0);
+    await _saveSetting('effective_horizon_deg', clamped.toString());
+    _patchState((s) => s.copyWith(effectiveHorizonDeg: clamped));
+  }
+
+  Future<void> setAudibleAlertsOnCritical(bool value) async {
+    await _saveSetting('audible_alerts_on_critical', value.toString());
+    _patchState((s) => s.copyWith(audibleAlertsOnCritical: value));
   }
 
   // ========== Imaging Settings ==========
@@ -1657,6 +1707,17 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
 final appSettingsProvider =
     AsyncNotifierProvider<AppSettingsNotifier, AppSettingsState>(() {
   return AppSettingsNotifier();
+});
+
+/// Effective horizon in degrees selected from [appSettingsProvider].
+///
+/// The same value is consumed by the Run Dashboard's "time-to-set"
+/// statistic and by the planetarium target-card so both surfaces display
+/// the same number to the second. Falls back to 0° (mathematical horizon)
+/// before settings have loaded.
+final effectiveHorizonDegProvider = Provider<double>((ref) {
+  final settings = ref.watch(appSettingsProvider).valueOrNull;
+  return settings?.effectiveHorizonDeg ?? 0.0;
 });
 
 /// Focused observer-location selector derived from [appSettingsProvider].

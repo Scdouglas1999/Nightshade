@@ -651,7 +651,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     }
   }
 
-  void _loadSequence(BuildContext context) {
+  Future<void> _loadSequence(BuildContext context) async {
     // Create a copy with new IDs so we don't modify the saved one
     final newNodes = <String, SequenceNode>{};
     final idMapping = <String, String>{};
@@ -689,10 +689,42 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       databaseId: widget.sequence.databaseId, // Keep reference to original
     );
 
-    ref.read(currentSequenceProvider.notifier).loadSequence(loadedSequence);
+    final editor = ref.read(currentSequenceProvider.notifier);
+    try {
+      editor.loadSequence(loadedSequence);
+    } on UnsavedChangesException catch (e) {
+      // Prompt before clobbering — clicking a library item is a user
+      // action so we know they meant to switch sequences, but we still
+      // give them a chance to save first.
+      if (!context.mounted) return;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard unsaved changes?'),
+          content: Text(
+              '"${e.currentSequenceName}" has unsaved changes. '
+              'Loading "${widget.sequence.name}" will discard them.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Discard and load'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true) return;
+      editor.loadSequence(loadedSequence, discardUnsaved: true);
+    }
+
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    context.showSuccessSnackBar('Loaded "${widget.sequence.name}"');
+    if (context.mounted) {
+      context.showSuccessSnackBar('Loaded "${widget.sequence.name}"');
+    }
   }
 
   Future<void> _duplicateSequence(BuildContext context) async {

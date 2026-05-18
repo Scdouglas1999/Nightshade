@@ -145,6 +145,9 @@ class _SampleCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Trust-patch §B: "Use this template" calls loadSequence which
+    // replaces the current sequence — disable while running.
+    final canEdit = ref.watch(canEditSequenceProvider);
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -242,12 +245,18 @@ class _SampleCard extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: NightshadeButton(
-                    onPressed: () => _useTemplate(context, ref),
-                    label: 'Use this template',
-                    icon: LucideIcons.copy,
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
+                  child: Tooltip(
+                    message: canEdit
+                        ? ''
+                        : 'Cannot edit while sequence is running',
+                    child: NightshadeButton(
+                      onPressed:
+                          canEdit ? () => _useTemplate(context, ref) : null,
+                      label: 'Use this template',
+                      icon: LucideIcons.copy,
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                    ),
                   ),
                 ),
               ],
@@ -262,6 +271,11 @@ class _SampleCard extends ConsumerWidget {
     final service = ref.read(sampleSequenceServiceProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);
 
+    // loadSequence does NOT call _ensureEditable today (it clears state
+    // unconditionally), but treating it as a mutator at the UI level
+    // matches user expectation: replacing the tree while a sequence is
+    // running is destructive. The Tooltip-wrapped button above gates
+    // the affordance; this is just defense in depth.
     final cloned = service.cloneForUse(sample);
     notifier.loadSequence(cloned);
 

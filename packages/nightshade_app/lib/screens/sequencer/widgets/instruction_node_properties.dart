@@ -13,11 +13,11 @@ class ExposureProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ExposureNode node;
 
-  const ExposureProperties({super.key, required this.colors, required this.node});
+  const ExposureProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
-  ConsumerState<ExposureProperties> createState() =>
-      _ExposurePropertiesState();
+  ConsumerState<ExposureProperties> createState() => _ExposurePropertiesState();
 }
 
 class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
@@ -113,228 +113,235 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
     final colors = widget.colors;
     final node = widget.node;
     final profile = ref.watch(activeEquipmentProfileProvider);
+    // Trust-patch §B: belt-and-suspenders gate (parent
+    // NodePropertiesPanel already wraps the editor body in AbsorbPointer
+    // when running). Wrap the largest properties form in IgnorePointer
+    // too so an extraction refactor can't un-gate the dozens of
+    // inputs below.
+    final canEdit = ref.watch(canEditSequenceProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Exposure Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        NodePropertyField(
-          colors: colors,
-          label: 'Duration',
-          child: NodeNumberInput(
-            colors: colors,
-            value: node.durationSecs,
-            suffix: 's',
-            min: 0.001,
-            max: 3600,
-            decimals: 1,
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(durationSecs: value),
-                  );
-              // Save as default for future nodes
-              ref
-                  .read(sequencerDefaultsProvider.notifier)
-                  .updateExposureDefaults(
-                    duration: value,
-                  );
-            },
-          ),
-        ),
-
-        NodePropertyField(
-          colors: colors,
-          label: 'Count',
-          child: NodeNumberInput(
-            colors: colors,
-            value: node.count.toDouble(),
-            min: 1,
-            max: 9999,
-            onChanged: (value) {
-              final count = value.toInt();
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(count: count),
-                  );
-              // Save as default for future nodes
-              ref
-                  .read(sequencerDefaultsProvider.notifier)
-                  .updateExposureDefaults(
-                    count: count,
-                  );
-            },
-          ),
-        ),
-
-        NodePropertyField(
-          colors: colors,
-          label: 'Frame Type',
-          child: NodeDropdown<FrameType>(
-            colors: colors,
-            value: node.frameType,
-            items: FrameType.values,
-            labelBuilder: (t) => t.name.toUpperCase(),
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(frameType: value),
-                  );
-            },
-          ),
-        ),
-
-        _buildFilterDropdown(context),
-
-        // Binning with profile default indicator
-        NodePropertyField(
-          colors: colors,
-          label: _isBinningProfileDefault()
-              ? 'Binning (profile default)'
-              : 'Binning',
-          child: NodeDropdown<BinningMode>(
-            colors: colors,
-            value: node.binning,
-            items: BinningMode.values,
-            labelBuilder: (b) => b.label,
-            onChanged: (value) {
-              setState(() => _userOverrides.add('binning'));
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(binning: value),
-                  );
-              // Save as default for future nodes
-              ref
-                  .read(sequencerDefaultsProvider.notifier)
-                  .updateExposureDefaults(
-                    binning: value,
-                  );
-            },
-          ),
-        ),
-
-        // Gain and Offset with profile default indicators
-        Row(
-          children: [
-            Expanded(
-              child: NodePropertyField(
-                colors: colors,
-                label: _isGainProfileDefault()
-                    ? 'Gain (profile)'
-                    : 'Gain',
-                child: NodeNumberInputWithHint(
-                  colors: colors,
-                  value: _effectiveGain(profile).toDouble(),
-                  min: 0,
-                  max: 1000,
-                  isProfileDefault: _isGainProfileDefault(),
-                  hintText: _isGainProfileDefault() && profile?.defaultGain != null
-                      ? 'Profile: ${profile!.defaultGain}'
-                      : null,
-                  onChanged: (value) {
-                    final gain = value.toInt();
-                    setState(() => _userOverrides.add('gain'));
-                    ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(gain: gain),
-                        );
-                    // Save as default for future nodes
-                    ref
-                        .read(sequencerDefaultsProvider.notifier)
-                        .updateExposureDefaults(
-                          gain: gain,
-                        );
-                  },
-                ),
-              ),
+    return IgnorePointer(
+      ignoring: !canEdit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Exposure Settings',
+            style: TextStyle(
+              fontSize: Responsive.fontSize(context, 13),
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: NodePropertyField(
-                colors: colors,
-                label: _isOffsetProfileDefault()
-                    ? 'Offset (profile)'
-                    : 'Offset',
-                child: NodeNumberInputWithHint(
-                  colors: colors,
-                  value: _effectiveOffset(profile).toDouble(),
-                  min: 0,
-                  max: 1000,
-                  isProfileDefault: _isOffsetProfileDefault(),
-                  hintText:
-                      _isOffsetProfileDefault() && profile?.defaultOffset != null
-                          ? 'Profile: ${profile!.defaultOffset}'
-                          : null,
-                  onChanged: (value) {
-                    final offset = value.toInt();
-                    setState(() => _userOverrides.add('offset'));
-                    ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(offset: offset),
-                        );
-                    // Save as default for future nodes
-                    ref
-                        .read(sequencerDefaultsProvider.notifier)
-                        .updateExposureDefaults(
-                          offset: offset,
-                        );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
 
-        NodePropertyField(
-          colors: colors,
-          label: 'Dither Every',
-          child: NodeNumberInput(
+          NodePropertyField(
             colors: colors,
-            value: (node.ditherEvery ?? 0).toDouble(),
-            suffix: ' frames',
-            min: 0,
-            max: 100,
-            onChanged: (value) {
-              final ditherEvery = value.toInt();
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(ditherEvery: ditherEvery),
-                  );
-              // Save as default for future nodes
-              ref
-                  .read(sequencerDefaultsProvider.notifier)
-                  .updateExposureDefaults(
-                    ditherEvery: ditherEvery,
-                  );
-            },
+            label: 'Duration',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.durationSecs,
+              suffix: 's',
+              min: 0.001,
+              max: 3600,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(durationSecs: value),
+                    );
+                // Save as default for future nodes
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      duration: value,
+                    );
+              },
+            ),
           ),
-        ),
 
-        // Summary
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+          NodePropertyField(
+            colors: colors,
+            label: 'Count',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.count.toDouble(),
+              min: 1,
+              max: 9999,
+              onChanged: (value) {
+                final count = value.toInt();
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(count: count),
+                    );
+                // Save as default for future nodes
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      count: count,
+                    );
+              },
+            ),
           ),
-          child: Row(
+
+          NodePropertyField(
+            colors: colors,
+            label: 'Frame Type',
+            child: NodeDropdown<FrameType>(
+              colors: colors,
+              value: node.frameType,
+              items: FrameType.values,
+              labelBuilder: (t) => t.name.toUpperCase(),
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(frameType: value),
+                    );
+              },
+            ),
+          ),
+
+          _buildFilterDropdown(context),
+
+          // Binning with profile default indicator
+          NodePropertyField(
+            colors: colors,
+            label: _isBinningProfileDefault()
+                ? 'Binning (profile default)'
+                : 'Binning',
+            child: NodeDropdown<BinningMode>(
+              colors: colors,
+              value: node.binning,
+              items: BinningMode.values,
+              labelBuilder: (b) => b.label,
+              onChanged: (value) {
+                setState(() => _userOverrides.add('binning'));
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(binning: value),
+                    );
+                // Save as default for future nodes
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      binning: value,
+                    );
+              },
+            ),
+          ),
+
+          // Gain and Offset with profile default indicators
+          Row(
             children: [
-              Icon(LucideIcons.clock, size: 14, color: colors.primary),
-              const SizedBox(width: 8),
-              Text(
-                'Total: ${_formatDuration(node.totalDurationSecs)}',
-                style: TextStyle(
-                  fontSize: Responsive.fontSize(context, 13),
-                  fontWeight: FontWeight.w500,
-                  color: colors.primary,
+              Expanded(
+                child: NodePropertyField(
+                  colors: colors,
+                  label: _isGainProfileDefault() ? 'Gain (profile)' : 'Gain',
+                  child: NodeNumberInputWithHint(
+                    colors: colors,
+                    value: _effectiveGain(profile).toDouble(),
+                    min: 0,
+                    max: 1000,
+                    isProfileDefault: _isGainProfileDefault(),
+                    hintText:
+                        _isGainProfileDefault() && profile?.defaultGain != null
+                            ? 'Profile: ${profile!.defaultGain}'
+                            : null,
+                    onChanged: (value) {
+                      final gain = value.toInt();
+                      setState(() => _userOverrides.add('gain'));
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(gain: gain),
+                          );
+                      // Save as default for future nodes
+                      ref
+                          .read(sequencerDefaultsProvider.notifier)
+                          .updateExposureDefaults(
+                            gain: gain,
+                          );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: NodePropertyField(
+                  colors: colors,
+                  label:
+                      _isOffsetProfileDefault() ? 'Offset (profile)' : 'Offset',
+                  child: NodeNumberInputWithHint(
+                    colors: colors,
+                    value: _effectiveOffset(profile).toDouble(),
+                    min: 0,
+                    max: 1000,
+                    isProfileDefault: _isOffsetProfileDefault(),
+                    hintText: _isOffsetProfileDefault() &&
+                            profile?.defaultOffset != null
+                        ? 'Profile: ${profile!.defaultOffset}'
+                        : null,
+                    onChanged: (value) {
+                      final offset = value.toInt();
+                      setState(() => _userOverrides.add('offset'));
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(offset: offset),
+                          );
+                      // Save as default for future nodes
+                      ref
+                          .read(sequencerDefaultsProvider.notifier)
+                          .updateExposureDefaults(
+                            offset: offset,
+                          );
+                    },
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-      ],
+
+          NodePropertyField(
+            colors: colors,
+            label: 'Dither Every',
+            child: NodeNumberInput(
+              colors: colors,
+              value: (node.ditherEvery ?? 0).toDouble(),
+              suffix: ' frames',
+              min: 0,
+              max: 100,
+              onChanged: (value) {
+                final ditherEvery = value.toInt();
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(ditherEvery: ditherEvery),
+                    );
+                // Save as default for future nodes
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      ditherEvery: ditherEvery,
+                    );
+              },
+            ),
+          ),
+
+          // Summary
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.clock, size: 14, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Total: ${_formatDuration(node.totalDurationSecs)}',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 13),
+                    fontWeight: FontWeight.w500,
+                    color: colors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -416,7 +423,8 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
                       items: filterOptions.map((filter) {
                         return DropdownMenuItem(
                           value: filter,
-                          child: Text(filter.index < 0 ? '(None)' : filter.name),
+                          child:
+                              Text(filter.index < 0 ? '(None)' : filter.name),
                         );
                       }).toList(),
                       onChanged: (newValue) {
@@ -628,7 +636,8 @@ class AutofocusProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final AutofocusNode node;
 
-  const AutofocusProperties({super.key, required this.colors, required this.node});
+  const AutofocusProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -713,7 +722,8 @@ class AutofocusProperties extends ConsumerWidget {
   }
 
   /// Displays the persisted global AF settings as read-only informational rows.
-  Widget _buildDefaultsDisplay(BuildContext context, AutofocusSettings afSettings) {
+  Widget _buildDefaultsDisplay(
+      BuildContext context, AutofocusSettings afSettings) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -736,12 +746,17 @@ class AutofocusProperties extends ConsumerWidget {
           _buildInfoRow(context, 'Method', afSettings.method),
           _buildInfoRow(context, 'Curve Fitting', afSettings.curveFitting),
           _buildInfoRow(context, 'Step Size', '${afSettings.stepSize}'),
-          _buildInfoRow(context, 'Steps Out', '${afSettings.initialOffsetSteps}'),
+          _buildInfoRow(
+              context, 'Steps Out', '${afSettings.initialOffsetSteps}'),
           _buildInfoRow(context, 'Exposure', '${afSettings.exposureTime}s'),
-          _buildInfoRow(context, 'Exposures/Point', '${afSettings.exposuresPerPoint}'),
-          _buildInfoRow(context, 'Binning', '${afSettings.binning}x${afSettings.binning}'),
-          _buildInfoRow(context, 'R\u00B2 Threshold', '${afSettings.rSquaredThreshold}'),
-          _buildInfoRow(context, 'Backlash Comp', afSettings.backlashCompMethod),
+          _buildInfoRow(
+              context, 'Exposures/Point', '${afSettings.exposuresPerPoint}'),
+          _buildInfoRow(context, 'Binning',
+              '${afSettings.binning}x${afSettings.binning}'),
+          _buildInfoRow(
+              context, 'R\u00B2 Threshold', '${afSettings.rSquaredThreshold}'),
+          _buildInfoRow(
+              context, 'Backlash Comp', afSettings.backlashCompMethod),
           if (afSettings.disableGuidingDuringAf)
             _buildInfoRow(context, 'Guiding', 'Disabled during AF'),
         ],
@@ -900,7 +915,8 @@ class CoolCameraProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CoolCameraNode node;
 
-  const CoolCameraProperties({super.key, required this.colors, required this.node});
+  const CoolCameraProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -957,7 +973,8 @@ class FilterChangeProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final FilterChangeNode node;
 
-  const FilterChangeProperties({super.key, required this.colors, required this.node});
+  const FilterChangeProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1123,7 +1140,8 @@ class StartGuidingProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final StartGuidingNode node;
 
-  const StartGuidingProperties({super.key, required this.colors, required this.node});
+  const StartGuidingProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1343,7 +1361,8 @@ class WarmCameraProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final WarmCameraNode node;
 
-  const WarmCameraProperties({super.key, required this.colors, required this.node});
+  const WarmCameraProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1424,7 +1443,8 @@ class RotatorProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final RotatorNode node;
 
-  const RotatorProperties({super.key, required this.colors, required this.node});
+  const RotatorProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1634,7 +1654,8 @@ class NotificationProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final NotificationNode node;
 
-  const NotificationProperties({super.key, required this.colors, required this.node});
+  const NotificationProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1809,7 +1830,8 @@ class SimpleInstructionInfo extends StatelessWidget {
   final NightshadeColors colors;
   final SequenceNode node;
 
-  const SimpleInstructionInfo({super.key, required this.colors, required this.node});
+  const SimpleInstructionInfo(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context) {
@@ -1859,7 +1881,8 @@ class MeridianFlipProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final MeridianFlipNode node;
 
-  const MeridianFlipProperties({super.key, required this.colors, required this.node});
+  const MeridianFlipProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2220,7 +2243,8 @@ class PolarAlignmentProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final PolarAlignmentNode node;
 
-  const PolarAlignmentProperties({super.key, required this.colors, required this.node});
+  const PolarAlignmentProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2423,7 +2447,8 @@ class InstructionSetInfo extends StatelessWidget {
   final NightshadeColors colors;
   final InstructionSetNode node;
 
-  const InstructionSetInfo({super.key, required this.colors, required this.node});
+  const InstructionSetInfo(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context) {
@@ -2448,13 +2473,14 @@ class InstructionSetInfo extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Builder(builder: (context) => Text(
-            '${node.childIds.length} children',
-            style: TextStyle(
-              fontSize: Responsive.fontSize(context, 12),
-              color: colors.textMuted,
-            ),
-          )),
+          Builder(
+              builder: (context) => Text(
+                    '${node.childIds.length} children',
+                    style: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
+                      color: colors.textMuted,
+                    ),
+                  )),
         ],
       ),
     );
@@ -2469,7 +2495,8 @@ class OpenCoverProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final OpenCoverNode node;
 
-  const OpenCoverProperties({super.key, required this.colors, required this.node});
+  const OpenCoverProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2506,7 +2533,9 @@ class OpenCoverProperties extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Opens the motorized dust cover or flat panel lid. Requires a cover calibrator device.',
-                  style: TextStyle(fontSize: Responsive.fontSize(context, 12), color: colors.info),
+                  style: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
+                      color: colors.info),
                 ),
               ),
             ],
@@ -2521,7 +2550,8 @@ class CloseCoverProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CloseCoverNode node;
 
-  const CloseCoverProperties({super.key, required this.colors, required this.node});
+  const CloseCoverProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2558,7 +2588,9 @@ class CloseCoverProperties extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Closes the motorized dust cover or flat panel lid. Requires a cover calibrator device.',
-                  style: TextStyle(fontSize: Responsive.fontSize(context, 12), color: colors.info),
+                  style: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
+                      color: colors.info),
                 ),
               ),
             ],
@@ -2573,7 +2605,8 @@ class CalibratorOnProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CalibratorOnNode node;
 
-  const CalibratorOnProperties({super.key, required this.colors, required this.node});
+  const CalibratorOnProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2617,7 +2650,9 @@ class CalibratorOnProperties extends ConsumerWidget {
               ),
               Text(
                 '0 = off, 255 = maximum brightness',
-                style: TextStyle(fontSize: Responsive.fontSize(context, 11), color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 11),
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -2653,7 +2688,9 @@ class CalibratorOnProperties extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Turns on the flat panel light at the specified brightness. Use with flat frame sequences.',
-                  style: TextStyle(fontSize: Responsive.fontSize(context, 12), color: colors.info),
+                  style: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
+                      color: colors.info),
                 ),
               ),
             ],
@@ -2668,7 +2705,8 @@ class CalibratorOffProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final CalibratorOffNode node;
 
-  const CalibratorOffProperties({super.key, required this.colors, required this.node});
+  const CalibratorOffProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2705,7 +2743,9 @@ class CalibratorOffProperties extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Turns off the flat panel light. Use after flat frame capture is complete.',
-                  style: TextStyle(fontSize: Responsive.fontSize(context, 12), color: colors.info),
+                  style: TextStyle(
+                      fontSize: Responsive.fontSize(context, 12),
+                      color: colors.info),
                 ),
               ),
             ],

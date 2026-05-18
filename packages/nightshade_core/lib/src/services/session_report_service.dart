@@ -91,6 +91,7 @@ class SessionReportService {
     );
 
     final errors = await _collectErrorMessages(session);
+    final warnings = await _collectWarningMessages(session);
 
     return SessionReport(
       sessionId: session.id,
@@ -110,6 +111,7 @@ class SessionReportService {
       avgSeeingArcsec: session.avgSeeing,
       notes: session.notes,
       errorMessages: errors,
+      warningMessages: warnings,
       generatedAt: DateTime.now(),
     );
   }
@@ -374,6 +376,26 @@ class SessionReportService {
     return out;
   }
 
+  /// Pull non-fatal warnings ([SequenceRunStats.warningMessages]) from
+  /// every sequence_run row whose time window overlaps the session.
+  /// Mirrors [_collectErrorMessages] so the per-run JSON shape stays
+  /// the single source of truth.
+  Future<List<String>> _collectWarningMessages(ImagingSession session) async {
+    final runs = await _findRelatedSequenceRuns(session);
+    final out = <String>[];
+    for (final run in runs) {
+      final parsed = _tryDecodeStats(run.statsJson);
+      if (parsed == null) continue;
+      final warnings = parsed['warningMessages'];
+      if (warnings is List) {
+        for (final w in warnings) {
+          if (w is String && w.isNotEmpty) out.add(w);
+        }
+      }
+    }
+    return out;
+  }
+
   /// A "related" sequence run is any run whose `startedAt` falls inside the
   /// session window (or whose `endedAt` does, when the run extended past the
   /// session end). This handles both the common case (one run per session)
@@ -541,9 +563,18 @@ class SessionReportService {
     }
 
     if (report.errorMessages.isNotEmpty) {
-      buf.writeln('## Errors / warnings');
+      buf.writeln('## Errors');
       buf.writeln();
       for (final msg in report.errorMessages) {
+        buf.writeln('- $msg');
+      }
+      buf.writeln();
+    }
+
+    if (report.warningMessages.isNotEmpty) {
+      buf.writeln('## Warnings');
+      buf.writeln();
+      for (final msg in report.warningMessages) {
         buf.writeln('- $msg');
       }
       buf.writeln();
@@ -653,8 +684,16 @@ class SessionReportService {
     buf.writeln();
 
     if (report.errorMessages.isNotEmpty) {
-      buf.writeln('-- Errors / warnings --');
+      buf.writeln('-- Errors --');
       for (final msg in report.errorMessages) {
+        buf.writeln('  * $msg');
+      }
+      buf.writeln();
+    }
+
+    if (report.warningMessages.isNotEmpty) {
+      buf.writeln('-- Warnings --');
+      for (final msg in report.warningMessages) {
         buf.writeln('  * $msg');
       }
       buf.writeln();

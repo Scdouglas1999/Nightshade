@@ -1041,6 +1041,19 @@ pub async fn api_start_all_sky_polar_alignment(
 
     let device_ops = create_unified_device_ops();
 
+    // Wave 1.5 Pack A: hand the alignment task its own executor-event bridge
+    // so instruction-level failures (e.g. FITS-save error on a polar-align
+    // exposure) reach the same NightshadeEvent stream the rest of the app
+    // listens to. The status_cb/image_cb callbacks below cover the alignment
+    // workflow itself, but anything emitted directly by the instructions
+    // layer (write_fits failure, etc.) was previously silent.
+    //
+    // `event_tx` is moved into the spawned task; the background bridge task
+    // exits when the task drops the sender after the alignment finishes.
+    let event_tx_for_align = crate::util::executor_event_bridge::spawn_executor_event_bridge(
+        get_state().clone(),
+    );
+
     tokio::spawn(async move {
         let ctx = InstructionContext {
             target_ra: None,
@@ -1062,6 +1075,7 @@ pub async fn api_start_all_sky_polar_alignment(
             device_ops,
             trigger_state: None,
             filter_focus_offsets: std::collections::HashMap::new(),
+            event_tx: Some(event_tx_for_align),
         };
 
         let status_cb = |status: String, _progress: Option<f64>| {

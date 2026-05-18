@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../providers/sequence/sequence_validation.dart';
 import '../sequence/sequence_models.dart';
 import 'canonical_sequence_node.dart';
 
@@ -100,6 +101,17 @@ class ImportResult extends Equatable {
   /// [unsupportedNodes] that were dropped to satisfy that request.
   final bool forcedImport;
 
+  /// Validation issues found after the sequence was assembled, sorted by
+  /// severity. ERROR-severity issues block import unless the caller
+  /// requests `forceImport: true` (in which case the user sees the
+  /// issues and explicitly accepts them).
+  ///
+  /// Empty list = sequence passed structural validation. May contain
+  /// warning- and info-level entries even when the sequence imported
+  /// successfully; those are displayed in the import-summary dialog so
+  /// the user can fix them before running the sequence.
+  final List<ValidationIssue> validationIssues;
+
   const ImportResult({
     required this.sourceFormat,
     required this.totalNodes,
@@ -108,10 +120,19 @@ class ImportResult extends Equatable {
     required this.unsupportedNodes,
     required this.sequence,
     this.forcedImport = false,
+    this.validationIssues = const [],
   });
 
   bool get hasDropped => droppedNodes.isNotEmpty;
   bool get hasUnsupported => unsupportedNodes.isNotEmpty;
+
+  /// True when there are validation issues at any severity.
+  bool get hasValidationIssues => validationIssues.isNotEmpty;
+
+  /// True when there are validation issues at ERROR severity. UI uses
+  /// this to decide whether to show the "Import anyway" button.
+  bool get hasValidationErrors =>
+      validationIssues.any((i) => i.severity == ValidationSeverity.error);
 
   @override
   List<Object?> get props => [
@@ -122,6 +143,7 @@ class ImportResult extends Equatable {
         unsupportedNodes,
         sequence,
         forcedImport,
+        validationIssues,
       ];
 }
 
@@ -170,5 +192,36 @@ class MalformedSourceError implements Exception {
       return 'MalformedSourceError: $message (cause: $cause)';
     }
     return 'MalformedSourceError: $message';
+  }
+}
+
+/// Thrown by [SequenceImporter.importFromString] / [importFromPath] when
+/// the parsed sequence has at least one ERROR-severity validation issue
+/// and the caller did not request `forceImport: true`.
+///
+/// Carries:
+///   * [issues] — full list (errors + warnings + info) so the UI can
+///     show them grouped by severity in a dialog.
+///   * [parsed] — the assembled [ImportResult] (sequence is included)
+///     so the UI can offer "Import anyway" without re-parsing the file.
+class SequenceImportValidationFailedException implements Exception {
+  final List<ValidationIssue> issues;
+  final ImportResult parsed;
+
+  SequenceImportValidationFailedException({
+    required this.issues,
+    required this.parsed,
+  });
+
+  /// Just the blocking issues. UI surfaces this list in the dialog body
+  /// (warnings/info are de-emphasised below).
+  List<ValidationIssue> get errors =>
+      issues.where((i) => i.severity == ValidationSeverity.error).toList();
+
+  @override
+  String toString() {
+    final blockers = errors.map((i) => i.title).toSet().join(', ');
+    return 'SequenceImportValidationFailedException: ${errors.length} '
+        'blocking issue(s) [$blockers]; ${issues.length} total.';
   }
 }

@@ -5,6 +5,38 @@ import 'package:uuid/uuid.dart';
 import '../../models/imaging/imaging_models.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/sequence/template_snippet.dart';
+import '../sequence_provider.dart' show sequenceExecutionStateProvider;
+import 'sequence_editor_exceptions.dart';
+import 'sequence_undo_batch.dart';
+
+export 'sequence_editor_exceptions.dart';
+
+/// Provider exposing whether the current sequence can be edited.
+///
+/// Returns `false` while the sequence is Running / Paused / Stopping — those
+/// are the phases where the executor owns the tree. Returns `true` for Idle,
+/// Completed, and Failed.
+///
+/// UI should `watch` this provider to gray out edit affordances. The notifier
+/// itself enforces the gate by throwing [SequenceLockedException] from
+/// mutating methods, so this provider is for UX, not security.
+final canEditSequenceProvider = Provider<bool>((ref) {
+  final state = ref.watch(sequenceExecutionStateProvider);
+  return _isEditable(state);
+});
+
+bool _isEditable(SequenceExecutionState state) {
+  switch (state) {
+    case SequenceExecutionState.idle:
+    case SequenceExecutionState.completed:
+    case SequenceExecutionState.failed:
+      return true;
+    case SequenceExecutionState.running:
+    case SequenceExecutionState.paused:
+    case SequenceExecutionState.stopping:
+      return false;
+  }
+}
 
 /// Editor StateNotifier for the sequence currently being authored.
 ///
@@ -12,27 +44,104 @@ import '../../models/sequence/template_snippet.dart';
 /// stateful but owns no streams or timers, so it does not require a dispose
 /// override — Riverpod tears down the underlying state when the provider is
 /// disposed.
-class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
-  CurrentSequenceNotifier() : super(null);
+///
+/// Construction takes the owning [Ref] so mutating methods can read the
+/// `sequenceExecutionStateProvider` and refuse edits while the run is active.
+/// Pass `null` only in unit tests that never exercise the execution-state
+/// gate; production wiring in `sequence_provider.dart` always passes a Ref.
+class CurrentSequenceNotifier extends StateNotifier<Sequence?>
+    with UndoBatchMixin {
+  CurrentSequenceNotifier({Ref? ref})
+      : _ref = ref,
+        super(null);
 
+  final Ref? _ref;
   final _undoStack = <Sequence>[];
   final _redoStack = <Sequence>[];
 
+  /// True when the in-editor sequence has been mutated since the last
+  /// load / create / explicit [markSaved] call. Used by [createSequence]
+  /// and [loadSequence] to refuse to clobber unsaved work, and exposed
+  /// publicly via [isDirty] so the UI can show a "*" on the title bar.
+  ///
+  /// Why a separate flag instead of comparing the current sequence to the
+  /// last-saved snapshot: snapshots would have to be deep copies (Sequence
+  /// is immutable but its nodes map is a fresh Map each mutation), and
+  /// would double the editor's memory footprint for a feature the user
+  /// experiences as a binary. A flag is also robust against renames /
+  /// reorderings that produce structurally-different sequences that the
+  /// user considers "saved" (because they just hit Save).
+  bool _dirty = false;
+
+  /// Whether the in-editor sequence has unsaved changes since the last
+  /// save (or since it was loaded fresh). UI may surface this via title-
+  /// bar indicators or by gating destructive nav actions.
+  bool get isDirty => _dirty;
+
+  /// Mark the in-editor sequence as saved. Called by:
+  ///   * [SequenceRepository] write paths (manual Save button, OK in
+  ///     property dialogs that persist directly).
+  ///   * [AutoSaveService] after a successful auto-save tick.
+  ///   * [SequenceFileService.exportSequence] after a successful export.
+  /// After this returns, [isDirty] is `false` and [createSequence] /
+  /// [loadSequence] will not throw [UnsavedChangesException].
+  void markSaved() {
+    _dirty = false;
+  }
+
+  @override
+  List<Sequence> get undoStack => _undoStack;
+
+  @override
+  List<Sequence> get redoStack => _redoStack;
+
+  @override
+  Sequence? get currentState => state;
+
+  /// Wrap a multi-step edit so all internal `_saveUndo()` calls collapse into
+  /// one undo entry. Exposed publicly so callers performing batched edits
+  /// (e.g. drag-drop of a snippet, "apply mosaic plan") can opt in.
+  T withUndoGroup<T>(T Function() action) => withUndoBatch(action);
+
   void _saveUndo() {
-    if (state != null) {
-      _undoStack.add(state!);
-      _redoStack.clear();
-      // Limit undo stack
-      if (_undoStack.length > 50) {
-        _undoStack.removeAt(0);
-      }
+    // Every mutation that takes an undo snapshot is by definition a
+    // dirtying event. Flip the flag here instead of in every call site so
+    // we can't forget — and so the dirty-tracking and undo invariants
+    // stay in lockstep.
+    _dirty = true;
+    saveUndo();
+  }
+
+  /// Guard mutating operations against being called while the sequence is
+  /// running. Throws [SequenceLockedException] when blocked.
+  ///
+  /// When constructed without a [Ref] (test fixtures), no guard is enforced —
+  /// the test is responsible for asserting state directly.
+  void _ensureEditable(String operationDescription) {
+    final ref = _ref;
+    if (ref == null) return;
+    final execState = ref.read(sequenceExecutionStateProvider);
+    if (!_isEditable(execState)) {
+      throw SequenceLockedException(
+        attemptedOperation: operationDescription,
+        executionState: execState,
+      );
     }
   }
 
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
 
+  /// Roll back the last mutation.
+  ///
+  /// Gated by [_ensureEditable] — calling `undo()` while a sequence is
+  /// Running / Paused / Stopping would rewind Dart-side state while the
+  /// native executor keeps marching through the *old* tree, producing the
+  /// most pernicious class of split-brain bug imaginable. The notifier
+  /// refuses to do that even though the UI also disables Ctrl+Z and the
+  /// undo button via [canEditSequenceProvider].
   void undo() {
+    _ensureEditable('undo');
     if (_undoStack.isEmpty) return;
     if (state != null) {
       _redoStack.add(state!);
@@ -40,7 +149,10 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     state = _undoStack.removeLast();
   }
 
+  /// Re-apply the last undone mutation. Same trust-patch reasoning as
+  /// [undo] — see that doc.
   void redo() {
+    _ensureEditable('redo');
     if (_redoStack.isEmpty) return;
     if (state != null) {
       _undoStack.add(state!);
@@ -48,8 +160,21 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     state = _redoStack.removeLast();
   }
 
-  /// Create a new sequence
-  void createSequence({String name = 'New Sequence'}) {
+  /// Create a new sequence.
+  ///
+  /// If the current sequence has unsaved edits ([isDirty]), throws
+  /// [UnsavedChangesException] unless [discardUnsaved] is true. UI
+  /// callers should catch the exception, prompt "Discard unsaved
+  /// changes?", and retry with `discardUnsaved: true` on confirm.
+  void createSequence({
+    String name = 'New Sequence',
+    bool discardUnsaved = false,
+  }) {
+    _ensureEditable('create sequence');
+    _guardUnsavedClobber(
+      attemptedOperation: 'create a new sequence',
+      discardUnsaved: discardUnsaved,
+    );
     _saveUndo();
 
     final rootId = const Uuid().v4();
@@ -63,25 +188,60 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       nodes: {rootId: rootNode},
       rootNodeId: rootId,
     );
+    // A brand-new blank sequence has no on-disk counterpart so it is
+    // "dirty from birth" — saving will create the row. We still reset
+    // the flag here so the prompt doesn't fire on a freshly-created
+    // sequence; the next mutation will dirty it again.
+    _dirty = false;
   }
 
-  /// Load an existing sequence
-  void loadSequence(Sequence sequence) {
+  /// Load an existing sequence into the editor.
+  ///
+  /// If the current sequence has unsaved edits ([isDirty]), throws
+  /// [UnsavedChangesException] unless [discardUnsaved] is true. Used by
+  /// the import flow, library-open path, and recently-opened menu.
+  void loadSequence(Sequence sequence, {bool discardUnsaved = false}) {
+    _guardUnsavedClobber(
+      attemptedOperation: 'open another sequence',
+      discardUnsaved: discardUnsaved,
+    );
     _undoStack.clear();
     _redoStack.clear();
     state = sequence;
+    // Loaded from disk → considered clean.
+    _dirty = false;
   }
 
   /// Clear the current sequence
-  void clearSequence() {
+  void clearSequence({bool discardUnsaved = false}) {
+    _guardUnsavedClobber(
+      attemptedOperation: 'clear the sequence',
+      discardUnsaved: discardUnsaved,
+    );
     _undoStack.clear();
     _redoStack.clear();
     state = null;
+    _dirty = false;
+  }
+
+  void _guardUnsavedClobber({
+    required String attemptedOperation,
+    required bool discardUnsaved,
+  }) {
+    if (discardUnsaved) return;
+    if (!_dirty) return;
+    final current = state;
+    if (current == null) return;
+    throw UnsavedChangesException(
+      attemptedOperation: attemptedOperation,
+      currentSequenceName: current.name,
+    );
   }
 
   /// Update sequence name
   void setName(String name) {
     if (state == null) return;
+    _ensureEditable('rename sequence');
     _saveUndo();
     state = state!.copyWith(
       name: name,
@@ -92,6 +252,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Update sequence description
   void setDescription(String description) {
     if (state == null) return;
+    _ensureEditable('edit description');
     _saveUndo();
     state = state!.copyWith(
       description: description,
@@ -102,6 +263,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Add a node to the sequence
   void addNode(SequenceNode node, {String? parentId, int? index}) {
     if (state == null) return;
+    _ensureEditable('add node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -167,12 +329,18 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// If there are existing instruction nodes directly under the root (not wrapped
   /// in a target), those instructions will become children of the new target.
   ///
-  /// If no sequence exists, one will be created automatically so that targets
-  /// can be added from anywhere without requiring the sequencer tab to be opened first.
+  /// Throws [NoActiveSequenceException] when no sequence is loaded — previously
+  /// this silently created an unnamed sequence, hiding the UX failure that the
+  /// user hadn't opened or created one yet. UI callers should catch and prompt
+  /// (e.g. "Create a new sequence named '${targetNode.targetName}'?").
   void addTargetHeader(TargetHeaderNode targetNode) {
     if (state == null) {
-      createSequence();
+      throw NoActiveSequenceException(
+        attemptedOperation:
+            'add target "${targetNode.targetName}"',
+      );
     }
+    _ensureEditable('add target');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -230,7 +398,25 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   }) {
     if (state == null) return;
     if (templateRootId == null) return;
-    _saveUndo();
+    _ensureEditable('merge template');
+    // Single undo entry for the whole merge — the helper writes the new
+    // state map atomically below, but a future refactor that splits the
+    // write into per-node updates will still be correctly coalesced.
+    withUndoBatch(() {
+      _saveUndo();
+      _mergeTemplateNodesImpl(
+        templateNodes: templateNodes,
+        templateRootId: templateRootId,
+        targetId: targetId,
+      );
+    });
+  }
+
+  void _mergeTemplateNodesImpl({
+    required Map<String, SequenceNode> templateNodes,
+    required String templateRootId,
+    String? targetId,
+  }) {
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
     final idMapping = <String, String>{};
@@ -307,6 +493,10 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Insert a template snippet into the sequence.
   /// The snippet's nodes are deserialized and inserted at the specified parent,
   /// or the currently selected node if no parent is specified.
+  ///
+  /// Throws [SnippetDeserializationException] if any node in the snippet
+  /// carries a `nodeType` value the editor does not recognize. The whole
+  /// insertion is rejected (undo entry is still pushed; state is unchanged).
   void insertSnippet(
     TemplateSnippet snippet, {
     String? parentId,
@@ -315,8 +505,25 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   }) {
     if (state == null) return;
     if (snippet.nodeData.isEmpty) return;
-    _saveUndo();
+    _ensureEditable('insert snippet');
+    // Single undo entry for the whole multi-node insertion.
+    withUndoBatch(() {
+      _saveUndo();
+      _insertSnippetImpl(
+        snippet,
+        parentId: parentId,
+        index: index,
+        profileFilterNames: profileFilterNames,
+      );
+    });
+  }
 
+  void _insertSnippetImpl(
+    TemplateSnippet snippet, {
+    String? parentId,
+    int? index,
+    List<String>? profileFilterNames,
+  }) {
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
     final idMapping = <String, String>{};
     final createdNodes = <SequenceNode>[];
@@ -372,7 +579,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       // Remove children from JSON — already processed into childIds.
       nodeJson.remove('children');
 
-      final node = _deserializeSnippetNode(nodeJson);
+      final node = _deserializeSnippetNode(nodeJson, snippetName: snippet.name);
       createdNodes.add(node);
       return node;
     }
@@ -491,11 +698,20 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     };
   }
 
-  /// Deserialize a single node from snippet JSON data
-  SequenceNode _deserializeSnippetNode(Map<String, dynamic> json) {
+  /// Deserialize a single node from snippet JSON data.
+  ///
+  /// [snippetName] is propagated into [SnippetDeserializationException] so
+  /// the user can identify which snippet referenced the bad node type.
+  SequenceNode _deserializeSnippetNode(
+    Map<String, dynamic> json, {
+    required String snippetName,
+  }) {
     final rawType = json['nodeType'] as String?;
     if (rawType == null || rawType.trim().isEmpty) {
-      throw const FormatException('Snippet node missing nodeType');
+      throw SnippetDeserializationException(
+        unknownType: '<missing>',
+        snippetName: snippetName,
+      );
     }
 
     final nodeType = rawType.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
@@ -782,14 +998,12 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         );
 
       default:
-        // Default to InstructionSetNode for unknown types
-        return InstructionSetNode(
-          id: id,
-          name: name ?? nodeType,
-          parentId: parentId,
-          childIds: childIds,
-          orderIndex: orderIndex,
-          isEnabled: isEnabled,
+        // Unknown discriminator — fail loudly so the importer can surface
+        // a meaningful error to the user instead of silently dropping
+        // unrelated nodes into the tree as empty containers.
+        throw SnippetDeserializationException(
+          unknownType: rawType,
+          snippetName: snippetName,
         );
     }
   }
@@ -928,9 +1142,14 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     return null;
   }
 
-  /// Remove a node from the sequence
+  /// Remove a node from the sequence.
+  ///
+  /// Removes the node and its entire subtree. The editor does not gate this
+  /// on descendant count — confirmation dialogs are the UI's responsibility
+  /// (see [Sequence.countDescendants]).
   void removeNode(String nodeId) {
     if (state == null) return;
+    _ensureEditable('remove node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -965,6 +1184,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Update a node
   void updateNode(SequenceNode node) {
     if (state == null) return;
+    _ensureEditable('update node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -979,6 +1199,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Toggle node enabled state
   void toggleNodeEnabled(String nodeId) {
     if (state == null) return;
+    // No _ensureEditable here — updateNode below performs the guard.
     final node = state!.nodes[nodeId];
     if (node == null) return;
 
@@ -988,6 +1209,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Reorder nodes within a parent
   void reorderNodes(String parentId, int oldIndex, int newIndex) {
     if (state == null) return;
+    _ensureEditable('reorder nodes');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -1021,6 +1243,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Move a node to a different parent
   void moveNode(String nodeId, String newParentId, int index) {
     if (state == null) return;
+    _ensureEditable('move node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -1060,6 +1283,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final node = state!.nodes[nodeId];
     if (node == null) return;
 
+    _ensureEditable('duplicate node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -1109,6 +1333,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final parent = state!.nodes[parentId];
     if (parent == null) return;
 
+    _ensureEditable('wrap children');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -1139,6 +1364,128 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
+  /// Wrap a *contiguous* run of sibling children under [parentId] (identified
+  /// by [childIds], in any order) into a single new container node.
+  ///
+  /// Used by the multi-select group action: when the user has 3 nodes
+  /// selected and right-clicks "Group into Sequential Container", we want
+  /// all 3 to land inside the new container in their original sibling
+  /// order — *not* just the right-clicked node.
+  ///
+  /// Throws [StateError] if the supplied [childIds] are not all direct
+  /// children of [parentId] (selection spans multiple parents → ambiguous;
+  /// caller should refuse) or if they are not contiguous (would require
+  /// reordering siblings, which we don't silently do). The empty case is a
+  /// no-op so it composes safely with callers that don't pre-filter.
+  void wrapChildrenSubset(
+    String parentId,
+    List<String> childIds,
+    SequenceNode wrapper,
+  ) {
+    if (state == null) return;
+    if (childIds.isEmpty) return;
+    final parent = state!.nodes[parentId];
+    if (parent == null) return;
+
+    // Validate every requested child is in the parent's child list.
+    final parentChildIds = parent.childIds;
+    final indices = <int>[];
+    for (final childId in childIds) {
+      final idx = parentChildIds.indexOf(childId);
+      if (idx < 0) {
+        throw StateError(
+          'wrapChildrenSubset: node $childId is not a child of $parentId. '
+          'Multi-select group requires all selected nodes to share the '
+          'same parent.',
+        );
+      }
+      indices.add(idx);
+    }
+    indices.sort();
+
+    // Contiguity: indices must be a run of consecutive integers. Wrapping
+    // non-contiguous siblings would force us to reorder the parent's child
+    // list as a side effect — which is the kind of silent rearrangement
+    // that surprises users. Refuse and let the UI explain.
+    for (int i = 1; i < indices.length; i++) {
+      if (indices[i] != indices[i - 1] + 1) {
+        throw StateError(
+          'wrapChildrenSubset: selected children are not contiguous '
+          '(indices=${indices.join(",")}); refusing to silently reorder. '
+          'Group adjacent nodes only or wrap them individually.',
+        );
+      }
+    }
+
+    _ensureEditable('group selected nodes');
+    _saveUndo();
+
+    final newNodes = Map<String, SequenceNode>.from(state!.nodes);
+
+    // Recover the children in their original sibling order (matches what
+    // the user sees in the tree) instead of the click order.
+    final selectedInParentOrder = <String>[
+      for (final idx in indices) parentChildIds[idx],
+    ];
+
+    final firstIdx = indices.first;
+    final newWrapper = wrapper.copyWith(
+      id: const Uuid().v4(),
+      childIds: selectedInParentOrder,
+      parentId: parentId,
+      orderIndex: firstIdx,
+    );
+    newNodes[newWrapper.id] = newWrapper;
+
+    // Reparent each selected child onto the wrapper, preserving their
+    // sibling order via the new orderIndex.
+    for (int i = 0; i < selectedInParentOrder.length; i++) {
+      final childId = selectedInParentOrder[i];
+      final child = newNodes[childId];
+      if (child == null) continue;
+      newNodes[childId] = child.copyWith(
+        parentId: newWrapper.id,
+        orderIndex: i,
+      );
+    }
+
+    // Rebuild the parent's child list with the wrapper in place of the
+    // selected run, then renumber the remaining children's orderIndexes.
+    final newParentChildren = <String>[];
+    final selectedSet = selectedInParentOrder.toSet();
+    var inserted = false;
+    for (final id in parentChildIds) {
+      if (selectedSet.contains(id)) {
+        if (!inserted) {
+          newParentChildren.add(newWrapper.id);
+          inserted = true;
+        }
+        // Skip — child is now under the wrapper.
+        continue;
+      }
+      newParentChildren.add(id);
+    }
+    // Sanity: contiguous + non-empty + at least one matched → inserted is
+    // true. Defense-in-depth: if not, prepend so the wrapper is at least
+    // reachable.
+    if (!inserted) {
+      newParentChildren.insert(0, newWrapper.id);
+    }
+
+    for (int i = 0; i < newParentChildren.length; i++) {
+      final child = newNodes[newParentChildren[i]];
+      if (child == null) continue;
+      newNodes[newParentChildren[i]] = child.copyWith(orderIndex: i);
+    }
+
+    newNodes[parentId] = parent.copyWith(childIds: newParentChildren);
+
+    state = state!.copyWith(
+      nodes: newNodes,
+      modifiedAt: DateTime.now(),
+    );
+  }
+
   /// Wrap a specific node into a new container node
   void wrapNode(String nodeId, SequenceNode wrapper) {
     if (state == null) return;
@@ -1150,6 +1497,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final parent = state!.nodes[parentId];
     if (parent == null) return;
 
+    _ensureEditable('wrap node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
@@ -1177,9 +1525,18 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
-  /// Reorder target groups (helper for Targets tab)
+  /// Reorder target groups (helper for Targets tab).
+  ///
+  /// Throws [CrossParentReorderException] when the source and destination
+  /// targets do not share the same parent — that semantic is ambiguous
+  /// (move? adopt? merge?) and must be expressed explicitly. UI should
+  /// catch and show a snackbar.
   void reorderTargets(int oldIndex, int newIndex) {
     if (state == null) return;
+    // _ensureEditable runs implicitly through reorderNodes below; we also
+    // check upfront so the ambiguity exception (CrossParent) doesn't
+    // mask a SequenceLockedException for the same call.
+    _ensureEditable('reorder targets');
 
     final targets = state!.targetHeaders;
     if (oldIndex < 0 || oldIndex >= targets.length) return;
@@ -1194,20 +1551,25 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final oldTarget = targets[oldIndex];
     final newTarget = targets[newIndex];
 
-    // Only support reordering if they are siblings (share same parent)
-    if (oldTarget.parentId == newTarget.parentId &&
-        oldTarget.parentId != null) {
-      final parentId = oldTarget.parentId!;
-      final parent = state!.nodes[parentId];
-      if (parent == null) return;
+    final sameSiblingParent = oldTarget.parentId == newTarget.parentId &&
+        oldTarget.parentId != null;
+    if (!sameSiblingParent) {
+      throw CrossParentReorderException(
+        sourceTargetName: oldTarget.targetName,
+        destinationTargetName: newTarget.targetName,
+      );
+    }
 
-      // Find actual indices in the parent's child list (may contain non-targets)
-      final oldChildIndex = parent.childIds.indexOf(oldTarget.id);
-      final newChildIndex = parent.childIds.indexOf(newTarget.id);
+    final parentId = oldTarget.parentId!;
+    final parent = state!.nodes[parentId];
+    if (parent == null) return;
 
-      if (oldChildIndex != -1 && newChildIndex != -1) {
-        reorderNodes(parentId, oldChildIndex, newChildIndex);
-      }
+    // Find actual indices in the parent's child list (may contain non-targets)
+    final oldChildIndex = parent.childIds.indexOf(oldTarget.id);
+    final newChildIndex = parent.childIds.indexOf(newTarget.id);
+
+    if (oldChildIndex != -1 && newChildIndex != -1) {
+      reorderNodes(parentId, oldChildIndex, newChildIndex);
     }
   }
 }

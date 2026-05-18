@@ -140,7 +140,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 if (node.hasTimeConstraints || node.hasAltitudeConstraints)
                   _buildConstraintsRow(node),
 
-                // Runtime progress row
+                // Unified progress row. Single source of truth for the
+                // per-target progress display — adapts to either idle
+                // ("24 planned exposures") or running ("12/24 done · 32m
+                // / 96m") states so we never stack two indicators.
                 _buildProgressRow(),
               ],
             ),
@@ -440,22 +443,33 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     );
   }
 
+  /// Unified progress row: shows the plan summary when idle, and the
+  /// live progress bar + completed/planned counters when running.
+  ///
+  /// Why merged: the earlier implementation rendered a separate
+  /// `_buildExecutionProgressBar()` block above this row during a run,
+  /// so the card showed two indicators stacked (a frame counter on top
+  /// of a status line below). The audit flagged that as confusing — a
+  /// user can only act on one "current state" at a time. This row now
+  /// adapts: idle shows the static plan summary, running shows the
+  /// progress bar with the same per-target stats from
+  /// [targetExecutionProgressProvider].
   Widget _buildProgressRow() {
     final sequence = ref.watch(currentSequenceProvider);
     final progress = ref.watch(sequenceProgressProvider);
+    final executionState = ref.watch(sequenceExecutionStateProvider);
+    final stats = ref.watch(targetExecutionProgressProvider(widget.node.id));
     final plan = _calculateTargetPlan(sequence);
 
+    final isActive = executionState == SequenceExecutionState.running ||
+        executionState == SequenceExecutionState.paused ||
+        executionState == SequenceExecutionState.stopping;
+    final showLiveBar = isActive && stats.hasPlannedFrames;
+
     final currentNodeId = progress.currentNodeId;
-    final currentNodeProgress = currentNodeId != null
-        ? progress.nodeProgressPercent[currentNodeId]
-        : null;
     final currentNodeDetail = currentNodeId != null
         ? progress.nodeProgressDetail[currentNodeId]
         : null;
-
-    final isCurrentTarget = progress.currentTarget != null &&
-        (progress.currentTarget == widget.node.targetName ||
-            progress.currentTarget == widget.node.displayName);
 
     final statusLabel = switch (widget.nodeStatus) {
       NodeStatus.running => currentNodeDetail ?? progress.message ?? 'Running',
@@ -470,57 +484,110 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
         ? '${plan.totalExposures} planned exposures • ${_formatDuration(plan.totalIntegrationSecs)}'
         : 'No exposure nodes under this target';
 
-    final detailLabel = isCurrentTarget && currentNodeProgress != null
-        ? '${currentNodeProgress.toStringAsFixed(0)}% • $statusLabel'
-        : statusLabel;
+    if (!showLiveBar) {
+      // Idle / completed / skipped — single line with status + plan
+      // summary. No progress bar.
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              widget.nodeStatus == NodeStatus.running
+                  ? LucideIcons.activity
+                  : LucideIcons.camera,
+              size: 14,
+              color: widget.nodeStatus == NodeStatus.running
+                  ? widget.colors.info
+                  : widget.colors.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: widget.nodeStatus == NodeStatus.running
+                          ? widget.colors.info
+                          : widget.colors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    planLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: widget.colors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              LucideIcons.chevronDown,
+              size: 14,
+              color: widget.colors.textMuted,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Live run: progress bar with counters above.
+    final completedMins = (stats.completedIntegrationSecs / 60).round();
+    final totalMins = (stats.totalIntegrationSecs / 60).round();
+    final progressState = executionState == SequenceExecutionState.paused
+        ? NightshadeProgressState.paused
+        : NightshadeProgressState.normal;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            widget.nodeStatus == NodeStatus.running
-                ? LucideIcons.activity
-                : LucideIcons.camera,
-            size: 14,
-            color: widget.nodeStatus == NodeStatus.running
-                ? widget.colors.info
-                : widget.colors.textMuted,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  detailLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: widget.nodeStatus == NodeStatus.running
-                        ? widget.colors.info
-                        : widget.colors.textMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Icon(LucideIcons.activity, size: 14, color: widget.colors.info),
+              const SizedBox(width: 8),
+              Text(
+                '${stats.completedFrames}/${stats.totalFrames} done',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textSecondary,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  planLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: widget.colors.textMuted,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 6),
+              Text('•', style: TextStyle(fontSize: 11, color: widget.colors.textMuted)),
+              const SizedBox(width: 6),
+              Text(
+                '${completedMins}m / ${totalMins}m',
+                style:
+                    TextStyle(fontSize: 11, color: widget.colors.textMuted),
+              ),
+              const Spacer(),
+              Text(
+                '${(stats.fraction * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textSecondary,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Icon(
-            LucideIcons.chevronDown,
-            size: 14,
-            color: widget.colors.textMuted,
+          const SizedBox(height: 4),
+          NightshadeProgressBar(
+            value: stats.fraction,
+            style: NightshadeProgressStyle.thin,
+            state: progressState,
           ),
         ],
       ),

@@ -420,9 +420,29 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
       frameType: FrameType.light,
     );
 
-    sequenceNotifier.createSequence(name: '${target.targetName} Plan');
-    sequenceNotifier.addTargetHeader(targetNode);
-    sequenceNotifier.addNode(exposureNode, parentId: targetNode.id);
+    try {
+      // The planner replaces the editor sequence by design — the user
+      // explicitly clicked "Send to Sequencer" from this screen and the
+      // confirm-clobber decision is implicit. Pass `discardUnsaved: true`
+      // so we don't double-prompt them with an UnsavedChangesException
+      // they never asked to see.
+      sequenceNotifier.createSequence(
+        name: '${target.targetName} Plan',
+        discardUnsaved: true,
+      );
+      sequenceNotifier.addTargetHeader(targetNode);
+      sequenceNotifier.addNode(exposureNode, parentId: targetNode.id);
+    } on SequenceLockedException catch (e) {
+      // Can't author into a running/paused sequence; surface to user
+      // rather than silently dropping the planner's draft.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: colors.error,
+        ),
+      );
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

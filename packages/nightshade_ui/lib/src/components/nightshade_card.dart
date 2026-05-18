@@ -6,8 +6,10 @@ import '../theme/nightshade_tokens.dart';
 enum CardVariant {
   /// Standard card with surface background
   standard,
+
   /// Elevated card with stronger shadow
   elevated,
+
   /// Subtle card with minimal styling
   subtle,
 }
@@ -27,7 +29,7 @@ class NightshadeCard extends StatefulWidget {
     required this.child,
     this.padding,
     this.backgroundColor,
-    this.borderRadius = NightshadeTokens.radiusLg,
+    this.borderRadius = NightshadeTokens.radiusMd,
     this.onTap,
     this.enableHover = false,
     this.isSelected = false,
@@ -47,11 +49,12 @@ class _NightshadeCardState extends State<NightshadeCard> {
     final shouldAnimate = widget.enableHover || widget.onTap != null;
 
     // Determine base background color
-    final baseBackground = widget.backgroundColor ?? switch (widget.variant) {
-      CardVariant.standard => colors.surfaceAlt,
-      CardVariant.elevated => colors.surfaceElevated,
-      CardVariant.subtle => colors.surface,
-    };
+    final baseBackground = widget.backgroundColor ??
+        switch (widget.variant) {
+          CardVariant.standard => colors.surfaceAlt,
+          CardVariant.elevated => colors.surfaceElevated,
+          CardVariant.subtle => colors.surface,
+        };
 
     // Determine shadow based on variant and hover state
     final List<BoxShadow> shadow;
@@ -67,10 +70,10 @@ class _NightshadeCardState extends State<NightshadeCard> {
 
     // Border color with hover and selected states
     final borderColor = widget.isSelected
-        ? colors.primary.withValues(alpha: 0.5)
+        ? colors.primary.withValues(alpha: 0.55)
         : _isHovered && shouldAnimate
-            ? colors.border.withValues(alpha: 0.4)
-            : colors.border.withValues(alpha: 0.2);
+            ? colors.borderHighlight.withValues(alpha: 0.8)
+            : colors.border.withValues(alpha: 0.65);
 
     // Build the card content with optional padding
     Widget content = widget.child;
@@ -105,7 +108,9 @@ class _NightshadeCardState extends State<NightshadeCard> {
     return MouseRegion(
       onEnter: shouldAnimate ? (_) => setState(() => _isHovered = true) : null,
       onExit: shouldAnimate ? (_) => setState(() => _isHovered = false) : null,
-      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -134,7 +139,8 @@ class _NightshadeCardState extends State<NightshadeCard> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          colors.borderHighlight.withValues(alpha: _isHovered ? 0.3 : 0.15),
+                          colors.borderHighlight
+                              .withValues(alpha: _isHovered ? 0.3 : 0.15),
                           colors.borderHighlight.withValues(alpha: 0.0),
                         ],
                         stops: const [0.0, 0.7],
@@ -151,7 +157,3 @@ class _NightshadeCardState extends State<NightshadeCard> {
     );
   }
 }
-
-
-
-

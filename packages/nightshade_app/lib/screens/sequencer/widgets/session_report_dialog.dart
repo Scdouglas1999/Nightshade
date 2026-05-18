@@ -149,11 +149,25 @@ class _ReportBody extends ConsumerWidget {
                 if (report.errorMessages.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   _SectionTitle(
-                      title: 'Errors / warnings',
-                      icon: LucideIcons.alertTriangle,
+                      title: 'Errors',
+                      icon: LucideIcons.xCircle,
                       colors: colors,
                       titleColor: colors.error),
                   ..._buildErrorList(),
+                ],
+                // Surface the live warningMessages we accumulated during
+                // the run. Pre-patch these were collected by the
+                // executor but never rendered anywhere post-session —
+                // "filter Hα could not be matched 14 times" used to be
+                // invisible the moment the run ended.
+                if (report.warningMessages.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _SectionTitle(
+                      title: 'Warnings',
+                      icon: LucideIcons.alertTriangle,
+                      colors: colors,
+                      titleColor: colors.warning),
+                  ..._buildWarningList(),
                 ],
                 if (report.notes != null && report.notes!.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -206,6 +220,32 @@ class _ReportBody extends ConsumerWidget {
           child: Text(
             msg,
             style: TextStyle(fontSize: 12, color: colors.error),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _buildWarningList() {
+    return [
+      for (final msg in report.warningMessages)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(LucideIcons.chevronRight,
+                    size: 13, color: colors.warning),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  msg,
+                  style: TextStyle(fontSize: 12, color: colors.warning),
+                ),
+              ),
+            ],
           ),
         ),
     ];

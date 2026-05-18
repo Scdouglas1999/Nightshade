@@ -21,6 +21,10 @@ class SequencerSettings extends ConsumerStatefulWidget {
 class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   // Sequencer settings controllers
   final _autoFocusController = TextEditingController();
+  // Wave 1.5 Pack A: frames-based cadence for the standard AutofocusInterval
+  // trigger. Distinct from `_autoFocusController` (which is in minutes for the
+  // app-level AppSettings UX) — this one targets the Rust trigger directly.
+  final _autoFocusIntervalFramesController = TextEditingController();
   final _ditherController = TextEditingController();
 
   // Meridian flip settings controllers
@@ -37,6 +41,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   @override
   void dispose() {
     _autoFocusController.dispose();
+    _autoFocusIntervalFramesController.dispose();
     _ditherController.dispose();
     _minutesPastMeridianController.dispose();
     _minutesBeforeLimitController.dispose();
@@ -51,6 +56,11 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     if (!_initialized) {
       _autoFocusController.text = settings.autoFocusEveryMinutes.toString();
       _ditherController.text = settings.ditherEveryFrames.toString();
+      // Wave 1.5 Pack A: seed from sequencer defaults provider so the user
+      // sees the same value the executor uses on next start().
+      final seqDefaults = ref.read(sequencerDefaultsProvider);
+      _autoFocusIntervalFramesController.text =
+          seqDefaults.autofocusIntervalFrames.toString();
       _initialized = true;
     }
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_provider.dart';
@@ -109,6 +111,100 @@ final clockProvider = Provider<Clock>((ref) {
     return const SystemClock();
   }
   return FixedOffsetClock(utcOffset: offset, label: settings.timezone);
+});
+
+// ============================================================================
+// Shared tick stream — one timer per cadence, multiplexed across the app.
+// ============================================================================
+
+/// Standard cadences exposed by [tickerProvider]. Adding a new cadence is a
+/// matter of adding an enum value and the corresponding [Duration] in
+/// [_tickerInterval]; the provider machinery scales automatically.
+///
+/// The point of having a *fixed* set of cadences (rather than an arbitrary
+/// `Duration` family) is so that a hundred widgets asking for "give me a
+/// 1 s tick" share the *same* underlying timer. A `Provider.family` keyed
+/// on `Duration` would still de-duplicate by value, but the enum keeps the
+/// vocabulary small and makes it obvious in autocomplete what the
+/// supported cadences are.
+enum TickerCadence {
+  /// One tick per second. Used by per-frame countdown displays and live
+  /// exposure progress overlays where sub-second drift is irrelevant.
+  oneSecond,
+
+  /// One tick every five seconds. Used by guiding RMS smoothers and
+  /// safety-status freshness indicators.
+  fiveSeconds,
+
+  /// One tick every thirty seconds. Used by sky/AltAz recomputation,
+  /// integration totals, and other slow-moving telemetry. Altitude only
+  /// changes ~0.25°/min so 30 s is fine for any altitude/azimuth UI.
+  thirtySeconds,
+}
+
+Duration _tickerInterval(TickerCadence cadence) {
+  switch (cadence) {
+    case TickerCadence.oneSecond:
+      return const Duration(seconds: 1);
+    case TickerCadence.fiveSeconds:
+      return const Duration(seconds: 5);
+    case TickerCadence.thirtySeconds:
+      return const Duration(seconds: 30);
+  }
+}
+
+/// A shared interval-tick stream keyed by [TickerCadence].
+///
+/// Why this exists:
+///   * Previously each panel that needed a periodic refresh (the Run
+///     Dashboard's sky stats, the integration totals card, the safety
+///     freshness indicator) spun up its *own* `Timer.periodic`. With a
+///     dozen panels we had a dozen timers waking up out of phase. The
+///     symptom was "the dashboard recomputes things every 200 ms because
+///     each panel's tick is at a different millisecond offset."
+///   * Subsystems that share a cadence now also share a tick boundary —
+///     the dashboard sky panel and the dashboard integration panel both
+///     redraw on the same 30 s boundary, which makes test snapshots
+///     deterministic and shaves a measurable amount off the idle-CPU
+///     profile.
+///
+/// Each cadence is a `StreamProvider` (no `family` cell explosion: only
+/// three) that emits the current `DateTime` once on subscription and then
+/// at the requested cadence. The underlying timer is created on first
+/// listen and torn down when the provider is disposed (no listeners). New
+/// listeners join an in-flight cadence without resetting the phase.
+///
+/// Usage:
+/// ```dart
+/// final tick = ref.watch(tickerProvider(TickerCadence.thirtySeconds));
+/// final now = tick.valueOrNull ?? DateTime.now();
+/// ```
+final tickerProvider =
+    StreamProvider.family<DateTime, TickerCadence>((ref, cadence) {
+  final interval = _tickerInterval(cadence);
+  late StreamController<DateTime> controller;
+  Timer? timer;
+  controller = StreamController<DateTime>.broadcast(
+    onListen: () {
+      // Emit synchronously so the first build of a consumer doesn't have
+      // to wait for the first interval before it gets a value. Without
+      // this the consumer would render `AsyncLoading` until the timer
+      // fires, which produces a visible "—" → "12s remaining" flicker.
+      controller.add(DateTime.now());
+      timer ??= Timer.periodic(interval, (_) {
+        if (!controller.isClosed) controller.add(DateTime.now());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+      timer = null;
+    },
+  );
+  ref.onDispose(() {
+    timer?.cancel();
+    controller.close();
+  });
+  return controller.stream;
 });
 
 /// Parse a timezone label as supplied by the Settings → Location dropdown.

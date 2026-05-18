@@ -138,6 +138,14 @@ pub struct InstructionContext {
     /// When a filter change occurs, the focuser is moved by the offset relative to
     /// the current position. A positive offset means move outward.
     pub filter_focus_offsets: std::collections::HashMap<String, i32>,
+    /// Optional broadcast handle so instruction code can emit ExecutorEvents
+    /// directly to subscribers (UI, logging, etc.). Used to surface
+    /// instruction-level failures that must be visible beyond the
+    /// InstructionResult return value — e.g. FITS-save failures (see
+    /// `execute_exposure`). `None` outside the live executor; instructions
+    /// must use `if let Some(tx) = ...` and ignore send errors (no subscribers
+    /// is a benign case for headless runs).
+    pub event_tx: Option<tokio::sync::broadcast::Sender<crate::executor::ExecutorEvent>>,
 }
 
 impl InstructionContext {
@@ -300,12 +308,12 @@ pub async fn execute_slew(
         }
     };
 
-    tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}Ã‚Â°", ra, dec);
+    tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
 
     if let Some(cb) = progress_callback {
         cb(
             0.0,
-            format!("Slewing to RA: {:.2}h, Dec: {:.1}Ã‚Â°", ra, dec),
+            format!("Slewing to RA: {:.2}h, Dec: {:.1}°", ra, dec),
         );
     }
 
@@ -330,7 +338,7 @@ pub async fn execute_slew(
                             match ctx.device_ops.mount_get_coordinates(mount_id).await {
                                 Ok((actual_ra, actual_dec)) => {
                                     tracing::debug!(
-                                        "Slew completed. Target: RA={:.4}h, Dec={:.4}Ã‚Â°, Actual: RA={:.4}h, Dec={:.4}Ã‚Â°",
+                                        "Slew completed. Target: RA={:.4}h, Dec={:.4}°, Actual: RA={:.4}h, Dec={:.4}°",
                                         ra, dec, actual_ra, actual_dec
                                     );
 
@@ -700,7 +708,7 @@ pub async fn execute_center(
     let target_ra_deg = target_ra_hours * 15.0;
 
     tracing::info!(
-        "Centering on RA: {:.4}Ã‚Â°, Dec: {:.4}Ã‚Â° (accuracy: {:.1}\")",
+        "Centering on RA: {:.4}°, Dec: {:.4}° (accuracy: {:.1}\")",
         target_ra_deg,
         target_dec,
         config.accuracy_arcsec
@@ -792,7 +800,7 @@ pub async fn execute_center(
                 solve_result.pixel_scale,
             );
             tracing::debug!(
-                "Updated trigger state with plate solve: RA={:.4}Ã‚Â°, Dec={:.4}Ã‚Â°, scale={:.2}\"/px",
+                "Updated trigger state with plate solve: RA={:.4}°, Dec={:.4}°, scale={:.2}\"/px",
                 solve_result.ra_degrees, solve_result.dec_degrees, solve_result.pixel_scale
             );
         }
@@ -1132,10 +1140,39 @@ pub async fn execute_exposure(
                 )
                 .await
             {
-                tracing::warn!("Failed to save image: {}", e);
-            } else {
-                tracing::info!("Saved: {}", full_path.display());
+                // Trust-patch §4: a FITS save failure is data loss — the
+                // exposure is already complete and the image bytes are in
+                // RAM, so a failed write means that frame is gone. The
+                // previous warn-and-continue was the audit-flagged silent
+                // fallback: the user would discover the missing frame hours
+                // later when checking captures, with no surfaced error.
+                //
+                // Policy: log at ERROR, emit an ExecutorEvent::Error so the
+                // UI sees it, and return InstructionResult::failure so the
+                // sequence stops and the user can intervene (out-of-disk,
+                // permission denied, drive disconnected — every cause needs
+                // human action).
+                let error_message = format!(
+                    "FITS save failed for frame {}/{} at '{}': {}. \
+                     Image data has been lost. Sequence aborted to preserve \
+                     remaining storage and surface the issue.",
+                    frame,
+                    config.count,
+                    full_path.display(),
+                    e
+                );
+                tracing::error!("{}", error_message);
+                if let Some(event_tx) = &ctx.event_tx {
+                    // Why: a closed receiver (no UI subscribers) is benign —
+                    // headless / API runs may have no listeners. The log line
+                    // above is the durable record.
+                    let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                        message: error_message.clone(),
+                    });
+                }
+                return InstructionResult::failure(error_message);
             }
+            tracing::info!("Saved: {}", full_path.display());
         }
 
         completed_exposures += 1;
@@ -2210,7 +2247,7 @@ pub async fn execute_cool_camera(
         }
     };
 
-    tracing::info!("Cooling camera to {}Ã‚Â°C", config.target_temp);
+    tracing::info!("Cooling camera to {}°C", config.target_temp);
 
     // Initial temperature anchors the progress percentage: the user sees
     // "30% cooled" as halfway between start and target rather than a raw
@@ -2249,7 +2286,7 @@ pub async fn execute_cool_camera(
             }
         };
         let msg = format!(
-            "At target: {:.1}Ã‚Â°C ({:.0}% power)",
+            "At target: {:.1}°C ({:.0}% power)",
             start_temp, cooler_power
         );
         tracing::info!("Camera already at target temperature: {}", msg);
@@ -2264,7 +2301,7 @@ pub async fn execute_cool_camera(
         cb(
             0.0,
             format!(
-                "Starting: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                "Starting: {:.1}°C → {:.1}°C",
                 start_temp, target_temp
             ),
         );
@@ -2326,7 +2363,7 @@ pub async fn execute_cool_camera(
             let progress = temp_progress.max(time_progress);
 
             tracing::debug!(
-                "Cooling progress: {:.1}%, current temp: {:.1}Ã‚Â°C, power: {:.0}%",
+                "Cooling progress: {:.1}%, current temp: {:.1}°C, power: {:.0}%",
                 progress,
                 current_temp,
                 cooler_power
@@ -2336,7 +2373,7 @@ pub async fn execute_cool_camera(
                 cb(
                     progress,
                     format!(
-                        "Cooling: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C ({:.0}% power)",
+                        "Cooling: {:.1}°C → {:.1}°C ({:.0}% power)",
                         current_temp, target_temp, cooler_power
                     ),
                 );
@@ -2353,7 +2390,7 @@ pub async fn execute_cool_camera(
                     }
                 };
                 let msg = format!(
-                    "Target reached: {:.1}Ã‚Â°C ({:.0}% power)",
+                    "Target reached: {:.1}°C ({:.0}% power)",
                     current_temp, final_power
                 );
                 if let Some(cb) = progress_callback {
@@ -2367,10 +2404,10 @@ pub async fn execute_cool_camera(
     }
 
     if let Some(cb) = progress_callback {
-        cb(100.0, format!("Cooling to {}Ã‚Â°C initiated", target_temp));
+        cb(100.0, format!("Cooling to {}°C initiated", target_temp));
     }
 
-    InstructionResult::success_with_message(format!("Camera cooling set to {}Ã‚Â°C", target_temp))
+    InstructionResult::success_with_message(format!("Camera cooling set to {}°C", target_temp))
 }
 
 /// Execute camera warming
@@ -2384,7 +2421,7 @@ pub async fn execute_warm_camera(
         Err(e) => return e,
     };
 
-    tracing::info!("Warming camera at {}Ã‚Â°C/min", config.rate_per_min);
+    tracing::info!("Warming camera at {}°C/min", config.rate_per_min);
 
     let start_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
         Ok(value) => value,
@@ -2408,7 +2445,7 @@ pub async fn execute_warm_camera(
         cb(
             0.0,
             format!(
-                "Warming: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                "Warming: {:.1}°C → {:.1}°C",
                 start_temp, target_temp
             ),
         );
@@ -2442,13 +2479,13 @@ pub async fn execute_warm_camera(
             cb(
                 progress_percent,
                 format!(
-                    "Warming: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                    "Warming: {:.1}°C → {:.1}°C",
                     progress_temp, target_temp
                 ),
             );
         }
 
-        tracing::debug!("Warming progress: {:.1}Ã‚Â°C", progress_temp);
+        tracing::debug!("Warming progress: {:.1}°C", progress_temp);
         sleep(Duration::from_secs(10)).await;
     }
 
@@ -3098,6 +3135,14 @@ pub async fn execute_meridian_flip(
         config.clone(),
         ctx.device_ops.clone(),
     );
+    // Wave 1.5 Pack A: forward the live executor event channel so the
+    // post-flip refocus emits its instruction-level failures to UI
+    // subscribers (FITS-save errors during the test exposure, etc.).
+    // When the instruction runs outside a live executor (unit tests),
+    // ctx.event_tx is None and the chain remains silent.
+    if let Some(event_tx) = ctx.event_tx.clone() {
+        flip_executor = flip_executor.with_executor_event_tx(event_tx);
+    }
 
     match flip_executor.execute(&flip_ctx).await {
         crate::meridian_flip_executor::FlipResult::Success {

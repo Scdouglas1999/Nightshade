@@ -3,6 +3,7 @@ library nightshade_bridge;
 
 export 'src/frb_generated.dart';
 export 'src/event.dart';
+export 'src/event_display.dart';
 export 'src/device.dart';
 export 'src/bridge_stub.dart'
     hide

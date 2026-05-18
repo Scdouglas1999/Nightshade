@@ -462,15 +462,19 @@ class _CategoryItemState extends State<_CategoryItem> {
                     : widget.colors.textSecondary,
               ),
               const SizedBox(width: 12),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: widget.isSelected
-                      ? widget.colors.textPrimary
-                      : widget.colors.textSecondary,
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                        widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: widget.isSelected
+                        ? widget.colors.textPrimary
+                        : widget.colors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],

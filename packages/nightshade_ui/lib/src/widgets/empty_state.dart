@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 
 /// Centered "no data" / "nothing selected" placeholder used across screens
 /// (diagnostics, science analytics) when a tab has nothing to render but
@@ -42,29 +43,62 @@ class EmptyState extends StatelessWidget {
     return Padding(
       padding: padding,
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: colors.textMuted),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(fontSize: 15, color: colors.textSecondary),
-              textAlign: TextAlign.center,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.space2xl,
+              vertical: NightshadeTokens.spaceXl,
             ),
-            if (body != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                body!,
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              action!,
-            ],
-          ],
+            decoration: BoxDecoration(
+              color: colors.surface.withValues(alpha: 0.72),
+              borderRadius: NightshadeTokens.borderRadiusMd,
+              border: Border.all(color: colors.border.withValues(alpha: 0.55)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: 0.1),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: Icon(icon, size: 28, color: colors.primary),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (body != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    body!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.45,
+                      color: colors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                if (action != null) ...[
+                  const SizedBox(height: 16),
+                  action!,
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

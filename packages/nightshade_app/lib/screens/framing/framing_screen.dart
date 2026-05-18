@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
+import 'package:nightshade_app/utils/add_target_header_helper.dart';
 import 'framing_altaz.dart';
 import 'framing_search_provider.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
@@ -465,19 +466,24 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     }
   }
 
-  void _addToSequence(FramingTarget target) {
-    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
-
+  Future<void> _addToSequence(FramingTarget target) async {
     final targetNode = TargetHeaderNode(
       targetName: target.name,
       raHours: target.raHours,
       decDegrees: target.decDegrees,
     );
 
-    // Use addTargetHeader to properly wrap existing orphan instructions
-    sequenceNotifier.addTargetHeader(targetNode);
-
-    context.showInfoSnackBar('Added ${target.name} to sequence');
+    // addTargetHeaderWithPrompt centralises the no-active-sequence
+    // prompt + sequence-locked handling so every "Add to sequence"
+    // entry point behaves identically.
+    final added = await addTargetHeaderWithPrompt(
+      context: context,
+      ref: ref,
+      targetNode: targetNode,
+    );
+    if (added && mounted) {
+      context.showInfoSnackBar('Added ${target.name} to sequence');
+    }
   }
 
   Future<void> _saveTarget() async {

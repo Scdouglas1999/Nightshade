@@ -8,7 +8,8 @@ import 'sequence/sequence_editor.dart';
 // live in `sequence/`:
 //
 //   * sequence_executor.dart    — SequenceExecutor + sequenceExecutorProvider
-//   * sequence_validation.dart  — validateSequence / SequenceValidationIssue
+//   * sequence_validation.dart  — validateSequence / ValidationIssue + the
+//                                  full SequenceValidatorService rule engine
 //   * sequencer_defaults.dart   — SequencerDefaults(+Notifier) provider
 //   * node_palette.dart         — NodePaletteCategory / NodePaletteItem provider
 //   * sequence_editor.dart      — CurrentSequenceNotifier (tree mutations,
@@ -24,6 +25,8 @@ export 'sequence/sequence_executor.dart';
 export 'sequence/sequence_validation.dart';
 export 'sequence/sequencer_defaults.dart';
 export 'sequence/node_palette.dart';
+export 'sequence/node_duration_provider.dart';
+export 'sequence/target_progress_provider.dart';
 
 // =============================================================================
 // EXECUTION STATE
@@ -115,9 +118,12 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
 /// Current sequence being edited.
 ///
 /// The notifier implementation lives in `sequence/sequence_editor.dart`.
+/// We pass `ref` so the notifier can consult
+/// `sequenceExecutionStateProvider` and throw `SequenceLockedException`
+/// when mutations are attempted during an active run.
 final currentSequenceProvider =
     StateNotifierProvider<CurrentSequenceNotifier, Sequence?>((ref) {
-  return CurrentSequenceNotifier();
+  return CurrentSequenceNotifier(ref: ref);
 });
 
 // =============================================================================
@@ -226,13 +232,61 @@ class MultiSelectNotifier extends StateNotifier<Set<String>> {
   }
 
   /// Delete all selected nodes.
+  ///
+  /// Pre-filters the selection to only top-level *ancestors* before
+  /// iterating, so a selection that contains both a parent and one of its
+  /// descendants doesn't double-remove (which previously either threw
+  /// "node not found" from the executor's remove path or — worse — left
+  /// the descendant in a partial tombstone state because `removeNode` had
+  /// already wiped it via the parent's recursive subtree delete).
   void deleteSelected() {
+    if (state.isEmpty) return;
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) {
+      // Without a sequence we can't filter ancestors; clear to keep state
+      // consistent with the post-delete contract.
+      clear();
+      return;
+    }
+
+    final ancestorsOnly = _ancestorsOnly(sequence, state);
+
     final notifier = ref.read(currentSequenceProvider.notifier);
-    for (final nodeId in state) {
+    for (final nodeId in ancestorsOnly) {
       notifier.removeNode(nodeId);
     }
     clear();
     ref.read(selectedNodeIdProvider.notifier).state = null;
+  }
+
+  /// Return only the ids in [ids] that are not a descendant of another id
+  /// in [ids]. Removing these top-level nodes will recursively delete the
+  /// dropped descendants via [CurrentSequenceNotifier.removeNode], so we
+  /// don't iterate them.
+  ///
+  /// Exposed via the public ancestor-only filter (no underscore) so unit
+  /// tests can exercise the predicate directly without depending on the
+  /// full delete pipeline.
+  static Set<String> ancestorsOnly(Sequence sequence, Set<String> ids) =>
+      _ancestorsOnly(sequence, ids);
+
+  static Set<String> _ancestorsOnly(Sequence sequence, Set<String> ids) {
+    if (ids.length < 2) return Set<String>.from(ids);
+
+    bool hasAncestorInSet(String nodeId) {
+      var cursor = sequence.nodes[nodeId]?.parentId;
+      while (cursor != null) {
+        if (ids.contains(cursor)) return true;
+        cursor = sequence.nodes[cursor]?.parentId;
+      }
+      return false;
+    }
+
+    final out = <String>{};
+    for (final id in ids) {
+      if (!hasAncestorInSet(id)) out.add(id);
+    }
+    return out;
   }
 
   /// Enable all selected nodes.

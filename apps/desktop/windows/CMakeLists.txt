@@ -7,7 +7,7 @@ project(nightshade_desktop LANGUAGES CXX)
 set(BINARY_NAME "nightshade_desktop")
 
 # Rust library discovery (shared with runner and install)
-set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../native/nightshade_native/target/release")
+set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../native/nightshade_native/target/release")
 set(RUST_LIB_NAME "nightshade_bridge.dll")
 set(RUST_LIB_PATH "${RUST_LIB_DIR}/${RUST_LIB_NAME}")
 set(RUST_FALLBACK_PATH_1 "${CMAKE_CURRENT_SOURCE_DIR}/../${RUST_LIB_NAME}")

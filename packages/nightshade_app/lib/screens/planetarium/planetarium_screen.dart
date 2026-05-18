@@ -10,6 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../services/finder_chart_service.dart';
+import '../../utils/add_target_header_helper.dart';
 import 'widgets/filter_sidebar.dart';
 import 'widgets/top_overlay.dart';
 import 'widgets/bottom_info_bar.dart';
@@ -317,25 +318,26 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     _dismissPopup();
   }
 
-  void _addToSequencer() {
+  Future<void> _addToSequencer() async {
     if (_popupObject == null) return;
 
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
 
-    // Add to sequencer, adopting any orphan instructions
-    ref.read(currentSequenceProvider.notifier).addTargetHeader(
-          TargetHeaderNode(
-            targetName: obj.name,
-            raHours: coords.ra,
-            decDegrees: coords.dec,
-          ),
-        );
+    final added = await addTargetHeaderWithPrompt(
+      context: context,
+      ref: ref,
+      targetNode: TargetHeaderNode(
+        targetName: obj.name,
+        raHours: coords.ra,
+        decDegrees: coords.dec,
+      ),
+    );
 
-    // Show confirmation
-    context.showSuccessSnackBar('Added ${obj.name} to sequence');
-
-    _dismissPopup();
+    if (added && mounted) {
+      context.showSuccessSnackBar('Added ${obj.name} to sequence');
+    }
+    if (mounted) _dismissPopup();
   }
 
   Future<void> _handleSlewToTarget() async {

@@ -1165,6 +1165,17 @@ pub fn default_focus_drift_min_total_increase() -> f64 {
     0.5
 }
 
+/// Trust-patch §3: default cadence (frames between autofocus runs) used by
+/// the standard `AutofocusInterval` trigger seeded by
+/// `TriggerManager::create_standard_triggers`. 25 frames matches a typical
+/// "autofocus every ~30 minutes" cadence for 60-90 s sub-exposures. Exposed
+/// as a function so config loaders and the builder share the same default
+/// — and so the value can be overridden in a downstream profile JSON via
+/// the standard `#[serde(default = "...")]` pattern.
+pub fn default_autofocus_interval_frames() -> u32 {
+    25
+}
+
 /// Recovery action to take when a trigger fires or error occurs.
 ///
 /// Audit §1.5:

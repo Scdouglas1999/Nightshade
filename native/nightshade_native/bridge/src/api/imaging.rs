@@ -183,6 +183,18 @@ pub async fn api_run_autofocus(
         .ok()
         .flatten();
 
+    // Wave 1.5 Pack A: spawn an executor-event bridge so instruction-level
+    // emergencies (FITS-save failures from the autofocus V-curve frames, etc.)
+    // reach the same NightshadeEvent stream Dart subscribes to. Without this
+    // the user only sees a generic "autofocus failed" return code with no
+    // hint that the underlying problem was a write error or drive disconnect.
+    // The original sender lives on the stack for the duration of the call;
+    // the cloned handle is moved into `InstructionContext::event_tx`. When the
+    // function returns and the binding is dropped, the background bridge task
+    // exits naturally.
+    let event_tx = crate::util::executor_event_bridge::spawn_executor_event_bridge(
+        get_state().clone(),
+    );
     let ctx = InstructionContext {
         target_ra: None,
         target_dec: None,
@@ -203,6 +215,7 @@ pub async fn api_run_autofocus(
         device_ops,
         trigger_state: None,
         filter_focus_offsets: std::collections::HashMap::new(),
+        event_tx: Some(event_tx.clone()),
     };
 
     // Execute (no progress callback when called directly from API)

@@ -617,9 +617,11 @@ class _QuickStartWizardDialogState
       isTemplate: false,
     );
 
-    // Load into editor and switch to Builder tab
+    // Load into editor and switch to Builder tab. The user just completed
+    // the wizard so we treat that as explicit confirmation to replace the
+    // current sequence — skip the unsaved-changes prompt.
     final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
-    sequenceNotifier.loadSequence(sequence);
+    sequenceNotifier.loadSequence(sequence, discardUnsaved: true);
     ref.read(sequencerTabProvider.notifier).state = 0;
 
     Navigator.of(context).pop();

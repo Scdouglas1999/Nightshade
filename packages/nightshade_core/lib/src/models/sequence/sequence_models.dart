@@ -230,7 +230,14 @@ enum RecoveryActionType {
   customBranch
 }
 
-/// Trigger type
+/// Trigger type.
+///
+/// Mirrors the Rust `TriggerType` enum in
+/// `native/nightshade_native/sequencer/src/lib.rs`. Adding a new variant here
+/// REQUIRES extending [`SequenceExecutor._nodeToConfig`]'s RecoveryNode
+/// serializer so the trigger config round-trips to Rust correctly. The
+/// `Wave 1.5 Pack A` set fills in the long-standing gap where the Rust side
+/// had 17 trigger variants but Dart only modelled 8.
 enum TriggerType {
   hfrDegraded,
   meridianFlip,
@@ -240,6 +247,19 @@ enum TriggerType {
   temperatureShift,
   filterChange,
   dawnApproaching,
+  // Wave 1.5 Pack A additions — config payload fields are stored in the
+  // dedicated columns on [`RecoveryNode`] (triggerThreshold for single-double
+  // payloads; the FocusDrift-specific window/count/increase fields are
+  // dedicated). Trigger types that take no payload (mountTrackingLost,
+  // domeShutterNotOpen, guideStarLost) read no config.
+  humidityThreshold,
+  focusDrift,
+  mountTrackingLost,
+  domeShutterNotOpen,
+  guideStarLost,
+  autofocusInterval,
+  ditherInterval,
+  driftLimit,
 }
 
 /// Notification level
@@ -707,6 +727,14 @@ class RecoveryNode extends SequenceNode {
   /// - For [TriggerType.hfrDegraded]: absolute HFR threshold in arcsec/px
   ///   (0 = disabled, use only relative mode)
   /// - For [TriggerType.altitudeLimit]: minimum altitude in degrees
+  /// - For [TriggerType.humidityThreshold]: max percent humidity (e.g. 85)
+  /// - For [TriggerType.driftLimit]: max drift in pixels (e.g. 30)
+  /// - For [TriggerType.temperatureShift]: degrees of change to trigger
+  /// - For [TriggerType.guidingFailed]: RMS threshold in arcsec
+  /// - For [TriggerType.dawnApproaching]: minutes before astronomical twilight
+  /// - For [TriggerType.autofocusInterval] / [TriggerType.ditherInterval]:
+  ///   the integer cadence (every-N-frames) is read from [triggerEveryNFrames]
+  ///   instead so the int type is preserved on the wire.
   final double? triggerThreshold;
 
   /// HFR-specific: percentage above baseline HFR that triggers recovery.
@@ -719,6 +747,30 @@ class RecoveryNode extends SequenceNode {
   /// before the trigger fires. Prevents false positives from momentary seeing
   /// spikes. Only used when [triggerType] is [TriggerType.hfrDegraded].
   final int hfrConsecutiveFrames;
+
+  // ===== Wave 1.5 Pack A trigger-config fields =====
+
+  /// Cadence in frames for [TriggerType.autofocusInterval] /
+  /// [TriggerType.ditherInterval]. The Rust side rejects 0 (`silently
+  /// disables`); use the node's `enabled` flag to disable instead.
+  final int triggerEveryNFrames;
+
+  /// [TriggerType.focusDrift] rolling-window size (number of HFR samples).
+  /// Rust clamps to [`FOCUS_DRIFT_WINDOW_MAX`] (100) at trigger-create time
+  /// and now emits a user-visible ExecutorEvent::Error when clamping occurs.
+  final int focusDriftWindowSize;
+
+  /// [TriggerType.focusDrift] minimum number of consecutive increasing HFR
+  /// samples before firing. Must be >= 2.
+  final int focusDriftMinIncreasingCount;
+
+  /// [TriggerType.focusDrift] minimum total HFR increase across the
+  /// increasing run to fire.
+  final double focusDriftMinTotalIncrease;
+
+  /// [TriggerType.guidingFailed] required duration (seconds) of elevated RMS
+  /// before firing.
+  final double guidingFailedDurationSecs;
 
   RecoveryNode({
     super.id,
@@ -734,6 +786,11 @@ class RecoveryNode extends SequenceNode {
     this.triggerThreshold,
     this.hfrThresholdPercent = 20.0,
     this.hfrConsecutiveFrames = 3,
+    this.triggerEveryNFrames = 25,
+    this.focusDriftWindowSize = 10,
+    this.focusDriftMinIncreasingCount = 5,
+    this.focusDriftMinTotalIncrease = 0.5,
+    this.guidingFailedDurationSecs = 30.0,
   });
 
   @override
@@ -760,6 +817,11 @@ class RecoveryNode extends SequenceNode {
     double? triggerThreshold,
     double? hfrThresholdPercent,
     int? hfrConsecutiveFrames,
+    int? triggerEveryNFrames,
+    int? focusDriftWindowSize,
+    int? focusDriftMinIncreasingCount,
+    double? focusDriftMinTotalIncrease,
+    double? guidingFailedDurationSecs,
   }) {
     return RecoveryNode(
       id: id ?? this.id,
@@ -775,6 +837,14 @@ class RecoveryNode extends SequenceNode {
       triggerThreshold: triggerThreshold ?? this.triggerThreshold,
       hfrThresholdPercent: hfrThresholdPercent ?? this.hfrThresholdPercent,
       hfrConsecutiveFrames: hfrConsecutiveFrames ?? this.hfrConsecutiveFrames,
+      triggerEveryNFrames: triggerEveryNFrames ?? this.triggerEveryNFrames,
+      focusDriftWindowSize: focusDriftWindowSize ?? this.focusDriftWindowSize,
+      focusDriftMinIncreasingCount:
+          focusDriftMinIncreasingCount ?? this.focusDriftMinIncreasingCount,
+      focusDriftMinTotalIncrease:
+          focusDriftMinTotalIncrease ?? this.focusDriftMinTotalIncrease,
+      guidingFailedDurationSecs:
+          guidingFailedDurationSecs ?? this.guidingFailedDurationSecs,
     );
   }
 
@@ -787,7 +857,97 @@ class RecoveryNode extends SequenceNode {
         triggerThreshold,
         hfrThresholdPercent,
         hfrConsecutiveFrames,
+        triggerEveryNFrames,
+        focusDriftWindowSize,
+        focusDriftMinIncreasingCount,
+        focusDriftMinTotalIncrease,
+        guidingFailedDurationSecs,
       ];
+
+  /// Wave 1.5 Pack A: serialize the configured trigger into the Rust-side
+  /// `TriggerType` JSON form. Mirrors the tagged-enum serde format used by
+  /// `nightshade_sequencer::TriggerType`. `null` means "any error" (no
+  /// type-specific trigger configured), which matches Rust's
+  /// `RecoveryConfig::trigger: Option<TriggerType>` semantics.
+  ///
+  /// Returns either a `Map<String, dynamic>` (struct variants) or a `String`
+  /// (unit variants) — serde's externally-tagged default encodes those forms
+  /// as `{"VariantName": {...}}` and `"VariantName"` respectively. Callers
+  /// pass the result through `jsonEncode` so both shapes round-trip.
+  dynamic toRustTriggerConfig() {
+    final type = triggerType;
+    if (type == null) return null;
+    switch (type) {
+      case TriggerType.hfrDegraded:
+        return {
+          'HfrDegraded': {
+            'threshold_percent': hfrThresholdPercent,
+            'absolute_threshold': triggerThreshold ?? 0.0,
+            'consecutive_frames': hfrConsecutiveFrames,
+          }
+        };
+      case TriggerType.meridianFlip:
+        // MeridianFlip carries a full MeridianFlipConfig payload. RecoveryNode
+        // doesn't model that yet; default to the Rust-side serde defaults by
+        // passing an empty object so the deserializer fills in the defaults.
+        return {
+          'MeridianFlip': {'config': <String, dynamic>{}}
+        };
+      case TriggerType.guidingFailed:
+        return {
+          'GuidingFailed': {
+            'rms_threshold': triggerThreshold ?? 2.0,
+            'duration_secs': guidingFailedDurationSecs,
+          }
+        };
+      case TriggerType.altitudeLimit:
+        return {
+          'AltitudeLimit': {'min_altitude': triggerThreshold ?? 30.0}
+        };
+      case TriggerType.weatherUnsafe:
+        return 'WeatherUnsafe';
+      case TriggerType.temperatureShift:
+        return {
+          'TemperatureShift': {'degrees': triggerThreshold ?? 2.0}
+        };
+      case TriggerType.filterChange:
+        return 'FilterChange';
+      case TriggerType.dawnApproaching:
+        return {
+          'DawnApproaching': {'minutes_before': triggerThreshold ?? 30.0}
+        };
+      case TriggerType.humidityThreshold:
+        return {
+          'HumidityThreshold': {'max_percent': triggerThreshold ?? 85.0}
+        };
+      case TriggerType.focusDrift:
+        return {
+          'FocusDrift': {
+            'window_size': focusDriftWindowSize,
+            'min_increasing_count': focusDriftMinIncreasingCount,
+            'min_total_increase': focusDriftMinTotalIncrease,
+          }
+        };
+      case TriggerType.mountTrackingLost:
+        return 'MountTrackingLost';
+      case TriggerType.domeShutterNotOpen:
+        return 'DomeShutterNotOpen';
+      case TriggerType.guideStarLost:
+        return 'GuideStarLost';
+      case TriggerType.autofocusInterval:
+        return {
+          'AutofocusInterval': {'every_n_frames': triggerEveryNFrames}
+        };
+      case TriggerType.ditherInterval:
+        return {
+          'DitherInterval': {'every_n_frames': triggerEveryNFrames}
+        };
+      case TriggerType.driftLimit:
+        return {
+          'DriftLimit': {'max_pixels': triggerThreshold ?? 30.0}
+        };
+    }
+  }
 }
 
 /// Instruction Set node - executes children sequentially once
@@ -2874,6 +3034,37 @@ class Sequence extends Equatable {
         .whereType<SequenceNode>()
         .toList()
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+  }
+
+  /// Count all descendants of [nodeId] (children, grandchildren, ...).
+  ///
+  /// Returns 0 when [nodeId] does not exist or is a leaf. The node itself
+  /// is **not** counted — only its subtree. Used by the UI to decide
+  /// whether deleting a node warrants a confirmation dialog (e.g.,
+  /// "Delete N nodes?" for non-leaf containers).
+  ///
+  /// Cycles in the node graph would cause this to loop forever, so we
+  /// guard with a visited set even though the editor maintains tree
+  /// invariants — defense in depth against corrupted import data.
+  int countDescendants(String nodeId) {
+    final root = nodes[nodeId];
+    if (root == null) return 0;
+
+    final visited = <String>{nodeId};
+    int count = 0;
+
+    void recurse(SequenceNode node) {
+      for (final childId in node.childIds) {
+        if (!visited.add(childId)) continue;
+        final child = nodes[childId];
+        if (child == null) continue;
+        count++;
+        recurse(child);
+      }
+    }
+
+    recurse(root);
+    return count;
   }
 
   Sequence copyWith({

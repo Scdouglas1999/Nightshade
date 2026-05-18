@@ -97,7 +97,12 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
     final currentNotifier = _ref.read(currentSequenceProvider.notifier);
-    currentNotifier.loadSequence(sequence);
+    // The scheduler dispatches generated sequences as part of its own
+    // autopilot loop; the in-editor sequence has nothing to do with what
+    // the scheduler decided to run next. Discard the unsaved guard so a
+    // user happening to have an unsaved sequence in the editor doesn't
+    // throw inside the scheduler's run path.
+    currentNotifier.loadSequence(sequence, discardUnsaved: true);
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.start();
   }

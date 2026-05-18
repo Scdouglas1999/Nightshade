@@ -3,9 +3,62 @@
 use crate::{PierSide, RecoveryAction, TriggerType};
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+
+/// Trust-patch §6: hard upper bound on the FocusDrift rolling-window length.
+/// The window is user-configurable (`TriggerType::FocusDrift::window_size`,
+/// `lib.rs:1115`); enforcing a ceiling here keeps the in-memory footprint
+/// bounded and prevents a misconfigured sequence from allocating an
+/// unbounded ring buffer per trigger evaluation. 100 samples at the typical
+/// 1 Hz monitor tick is 100 s of drift history — well past any reasonable
+/// focus-drift detection horizon.
+pub const FOCUS_DRIFT_WINDOW_MAX: usize = 100;
+
+/// If `trigger_type` is `FocusDrift` and the configured window exceeds
+/// `FOCUS_DRIFT_WINDOW_MAX`, clamp it and log a warning. Used by
+/// `Trigger::new` so a stored sequence with an oversized window does not
+/// allocate without bounds at runtime.
+///
+/// Wave 1.5 Pack A: returns `(clamped_type, Option<TriggerClampWarning>)` so
+/// `Trigger::new` can capture the clamping diagnostic and the executor can
+/// later surface it as a user-visible `ExecutorEvent::Error`. Previously the
+/// only signal was a `tracing::warn!` which the user never saw.
+fn clamp_focus_drift_window(
+    trigger_type: TriggerType,
+) -> (TriggerType, Option<TriggerClampWarning>) {
+    if let TriggerType::FocusDrift {
+        window_size,
+        min_increasing_count,
+        min_total_increase,
+    } = &trigger_type
+    {
+        if *window_size > FOCUS_DRIFT_WINDOW_MAX {
+            tracing::warn!(
+                "FocusDrift trigger window_size {} exceeds maximum {}; clamping (trust-patch §6). \
+                 Reduce window_size in the trigger configuration to silence this warning.",
+                window_size,
+                FOCUS_DRIFT_WINDOW_MAX
+            );
+            let warning = TriggerClampWarning {
+                field: "FocusDrift.window_size",
+                original: *window_size,
+                clamped_to: FOCUS_DRIFT_WINDOW_MAX,
+            };
+            return (
+                TriggerType::FocusDrift {
+                    window_size: FOCUS_DRIFT_WINDOW_MAX,
+                    min_increasing_count: *min_increasing_count,
+                    min_total_increase: *min_total_increase,
+                },
+                Some(warning),
+            );
+        }
+    }
+    (trigger_type, None)
+}
 
 fn build_utc_naive_time_or_fallback(
     date: NaiveDate,
@@ -100,18 +153,49 @@ pub struct Trigger {
     pub hfr_bad_frame_count: u32,
     /// Rolling window of HFR values for FocusDrift detection.
     /// Stores recent HFR measurements to detect monotonic upward trends.
+    /// Trust-patch §6: switched from `Vec<f64>` to `VecDeque<f64>` so the
+    /// per-tick trim uses O(1) `pop_front` instead of O(n) `remove(0)`. The
+    /// window is bounded by `FOCUS_DRIFT_WINDOW_MAX` (enforced at trigger
+    /// creation time) so worst-case allocation is fixed.
     #[serde(skip)]
-    pub focus_drift_hfr_window: Vec<f64>,
+    pub focus_drift_hfr_window: VecDeque<f64>,
+    /// Wave 1.5 Pack A: when `Trigger::new` clamped an oversize FocusDrift
+    /// `window_size`, the original user-supplied value is captured here so the
+    /// executor can emit a user-visible `ExecutorEvent::Error` on start
+    /// instead of leaving the clamp silently in the tracing log. `None` means
+    /// no clamping occurred.
+    #[serde(skip, default)]
+    pub clamp_warning: Option<TriggerClampWarning>,
+}
+
+/// Wave 1.5 Pack A: trigger-creation-time clamping diagnostic. Built by
+/// `Trigger::new` when the user-supplied configuration was reduced to fit a
+/// hard upper bound (currently `FOCUS_DRIFT_WINDOW_MAX`). Consumed by the
+/// executor's start path so the user sees the clamp in the UI run dashboard.
+#[derive(Debug, Clone)]
+pub struct TriggerClampWarning {
+    pub field: &'static str,
+    pub original: usize,
+    pub clamped_to: usize,
 }
 
 impl Trigger {
-    /// Create a new trigger
+    /// Create a new trigger.
+    ///
+    /// Trust-patch §6: when `trigger_type` is `FocusDrift`, the configured
+    /// `window_size` is silently clamped to `FOCUS_DRIFT_WINDOW_MAX`. A
+    /// warning is emitted via `tracing::warn!` so a misconfigured sequence
+    /// is loudly visible in the logs (CLAUDE.md "errors are a feature").
+    /// Callers that want to reject invalid windows up front should use
+    /// [`Trigger::new_focus_drift_checked`] instead, which returns an
+    /// `Err(String)` for sizes exceeding the cap.
     pub fn new(
         id: impl Into<String>,
         name: impl Into<String>,
         trigger_type: TriggerType,
         recovery_action: RecoveryAction,
     ) -> Self {
+        let (trigger_type, clamp_warning) = clamp_focus_drift_window(trigger_type);
         Self {
             id: id.into(),
             name: name.into(),
@@ -121,8 +205,42 @@ impl Trigger {
             cooldown_secs: None,
             last_triggered: None,
             hfr_bad_frame_count: 0,
-            focus_drift_hfr_window: Vec::new(),
+            focus_drift_hfr_window: VecDeque::new(),
+            clamp_warning,
         }
+    }
+
+    /// Construct a `FocusDrift` trigger, rejecting `window_size` values
+    /// above `FOCUS_DRIFT_WINDOW_MAX` instead of clamping silently. This is
+    /// the preferred entry point when loading a user-provided sequence: a
+    /// clear error message lets the UI surface the misconfiguration rather
+    /// than silently truncating the user's value (CLAUDE.md "errors are a
+    /// feature; silent fallbacks hide bugs for months").
+    pub fn new_focus_drift_checked(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        window_size: usize,
+        min_increasing_count: usize,
+        min_total_increase: f64,
+        recovery_action: RecoveryAction,
+    ) -> Result<Self, String> {
+        if window_size > FOCUS_DRIFT_WINDOW_MAX {
+            return Err(format!(
+                "FocusDrift window_size {} exceeds maximum {} (trust-patch §6). \
+                 Reduce window_size in the trigger configuration.",
+                window_size, FOCUS_DRIFT_WINDOW_MAX
+            ));
+        }
+        Ok(Self::new(
+            id,
+            name,
+            TriggerType::FocusDrift {
+                window_size,
+                min_increasing_count,
+                min_total_increase,
+            },
+            recovery_action,
+        ))
     }
 
     /// Set cooldown duration
@@ -464,14 +582,21 @@ impl Trigger {
                     None => return false,
                 };
 
-                self.focus_drift_hfr_window.push(current);
+                // Trust-patch §6: O(1) push to the back of the VecDeque
+                // (previously O(n) `Vec::remove(0)` for the head-drop in the
+                // trim loop below).
+                self.focus_drift_hfr_window.push_back(current);
 
                 // `.max(2)` guards against a misconfigured window of 0 or 1 —
                 // a single sample cannot show a trend, so the math below would
-                // panic on the run-start subtraction.
-                let max_size = (*window_size).max(2);
+                // panic on the run-start subtraction. The window is further
+                // clamped to FOCUS_DRIFT_WINDOW_MAX at trigger construction
+                // time, so the allocation here is bounded.
+                let max_size = (*window_size).clamp(2, FOCUS_DRIFT_WINDOW_MAX);
                 while self.focus_drift_hfr_window.len() > max_size {
-                    self.focus_drift_hfr_window.remove(0);
+                    // Trust-patch §6: O(1) head-drop replaces the
+                    // O(n) `Vec::remove(0)` shift.
+                    self.focus_drift_hfr_window.pop_front();
                 }
 
                 let min_count = (*min_increasing_count).max(2);
@@ -500,7 +625,12 @@ impl Trigger {
                 // increases that satisfy "monotonic" but are within noise:
                 // 0.01 px/frame over 5 frames is not a drift, it is jitter.
                 let run_start = window.len() - increasing_run;
-                let total_increase = window.last().unwrap() - window[run_start];
+                // Why (audit-rust §4.3): `back()` returns None only if the
+                // deque is empty, but the `len() < min_count` early return
+                // above guarantees at least `min_count >= 2` samples are
+                // present here. The unwrap documents that invariant.
+                let total_increase = window.back().expect("non-empty window invariant")
+                    - window[run_start];
                 total_increase >= *min_total_increase
             }
             TriggerType::HumidityThreshold { max_percent } => {
@@ -1436,6 +1566,31 @@ impl TriggerManager {
             )
             .with_cooldown(0), // Cadence is exposure-count-driven; no time-based cooldown.
         );
+
+        // Trust-patch §3: standard `AutofocusInterval` trigger so periodic
+        // refocus happens in sequences that lack an explicit Autofocus node
+        // between bursts. Wired symmetrically with `DitherInterval` so
+        // disabling either is straightforward.
+        //
+        // Default cadence `default_autofocus_interval_frames()` (25 frames)
+        // matches typical "AF every ~30 min" for 60-90 s subs. Users override
+        // via UI/profile JSON. Recovery is `Autofocus` so the trigger-monitor
+        // dispatch reaches `execute_autofocus` with the live device IDs.
+        //
+        // No time-based cooldown — the cadence is already exposure-count
+        // driven and a duplicate cooldown would mask the user's setting
+        // (CLAUDE.md "errors are a feature").
+        self.add_trigger(
+            Trigger::new(
+                "autofocus_interval",
+                "Autofocus Interval",
+                TriggerType::AutofocusInterval {
+                    every_n_frames: crate::default_autofocus_interval_frames(),
+                },
+                RecoveryAction::Autofocus,
+            )
+            .with_cooldown(0),
+        );
     }
 }
 
@@ -2344,6 +2499,151 @@ mod tests {
             names.contains(&"drift_limit".to_string()),
             "DriftLimit standard trigger missing — audit §1.11 regression. ids: {:?}",
             names
+        );
+    }
+
+    /// Trust-patch §3: AutofocusInterval is now part of the standard
+    /// trigger set so periodic refocus fires in sequences that lack an
+    /// explicit Autofocus node. Symmetric with the §1.5 DitherInterval test.
+    #[tokio::test]
+    async fn trust_patch_3_standard_triggers_include_autofocus_interval() {
+        let mut manager = TriggerManager::new();
+        manager.create_standard_triggers();
+        let names: Vec<String> = manager.triggers().iter().map(|t| t.id.clone()).collect();
+        assert!(
+            names.contains(&"autofocus_interval".to_string()),
+            "AutofocusInterval standard trigger missing — trust-patch §3 regression. ids: {:?}",
+            names
+        );
+    }
+
+    /// Trust-patch §6: HumidityThreshold trigger fires when state.current_humidity
+    /// exceeds the configured threshold and stays inactive when below.
+    #[tokio::test]
+    async fn trust_patch_2_humidity_threshold_fires_above_max_percent() {
+        let mut trigger = Trigger::new(
+            "humidity",
+            "Humidity Threshold",
+            TriggerType::HumidityThreshold { max_percent: 85.0 },
+            RecoveryAction::Pause,
+        );
+        let mut state = TriggerState::new();
+
+        // No humidity reading -> trigger stays inactive
+        assert!(!trigger.check(&state).await);
+
+        // Below threshold -> inactive
+        state.update_humidity(70.0);
+        assert!(!trigger.check(&state).await);
+
+        // Above threshold -> fires
+        state.update_humidity(90.0);
+        assert!(trigger.check(&state).await);
+    }
+
+    /// Trust-patch §6: FocusDrift trigger uses VecDeque so trimming is O(1)
+    /// and the window stays bounded.
+    #[tokio::test]
+    async fn trust_patch_6_focus_drift_window_uses_vecdeque_and_is_bounded() {
+        let mut trigger = Trigger::new(
+            "focus_drift",
+            "Focus Drift",
+            TriggerType::FocusDrift {
+                window_size: 5,
+                min_increasing_count: 3,
+                min_total_increase: 0.3,
+            },
+            RecoveryAction::Autofocus,
+        );
+
+        let mut state = TriggerState::new();
+        // Feed monotonically increasing HFR values to force a trip:
+        // window will hold the last 5 of these.
+        for hfr in [1.0_f64, 1.2, 1.4, 1.6, 1.9, 2.3, 2.7] {
+            state.current_hfr = Some(hfr);
+            // No assertion on intermediate state — the trigger may or may
+            // not have fired by now; what matters is the window cap.
+            let _ = trigger.check(&state).await;
+        }
+
+        // Window must not exceed configured size.
+        assert!(
+            trigger.focus_drift_hfr_window.len() <= 5,
+            "FocusDrift window {} exceeded configured size 5",
+            trigger.focus_drift_hfr_window.len()
+        );
+    }
+
+    /// Trust-patch §6: `Trigger::new_focus_drift_checked` rejects oversize
+    /// windows up-front (instead of silently clamping the way `new` does
+    /// for stored sequences).
+    #[test]
+    fn trust_patch_6_focus_drift_checked_rejects_oversize_windows() {
+        let err = Trigger::new_focus_drift_checked(
+            "fd",
+            "FD",
+            FOCUS_DRIFT_WINDOW_MAX + 1,
+            5,
+            0.5,
+            RecoveryAction::Autofocus,
+        )
+        .expect_err("oversize window must be rejected");
+        assert!(err.contains("exceeds maximum"), "error message: {}", err);
+    }
+
+    /// Trust-patch §6: `Trigger::new` clamps oversize windows silently with
+    /// a tracing warning so a checkpoint-restored sequence with a stale
+    /// window still loads.
+    #[test]
+    fn trust_patch_6_focus_drift_new_clamps_oversize_windows() {
+        let trigger = Trigger::new(
+            "fd",
+            "FD",
+            TriggerType::FocusDrift {
+                window_size: FOCUS_DRIFT_WINDOW_MAX * 2,
+                min_increasing_count: 5,
+                min_total_increase: 0.5,
+            },
+            RecoveryAction::Autofocus,
+        );
+        match trigger.trigger_type {
+            TriggerType::FocusDrift { window_size, .. } => {
+                assert_eq!(
+                    window_size, FOCUS_DRIFT_WINDOW_MAX,
+                    "Trigger::new must clamp oversize FocusDrift windows to FOCUS_DRIFT_WINDOW_MAX"
+                );
+            }
+            _ => panic!("expected FocusDrift trigger_type after construction"),
+        }
+        // Wave 1.5 Pack A: clamp must also populate the visible diagnostic so
+        // the executor can surface it on start (ExecutorEvent::Error).
+        let warning = trigger
+            .clamp_warning
+            .as_ref()
+            .expect("clamp_warning must be populated when window was clamped");
+        assert_eq!(warning.field, "FocusDrift.window_size");
+        assert_eq!(warning.original, FOCUS_DRIFT_WINDOW_MAX * 2);
+        assert_eq!(warning.clamped_to, FOCUS_DRIFT_WINDOW_MAX);
+    }
+
+    /// Wave 1.5 Pack A: when no clamping occurs, `clamp_warning` must be None
+    /// so the executor doesn't emit spurious clamp errors for healthy
+    /// configurations.
+    #[test]
+    fn wave_1_5_focus_drift_below_cap_has_no_clamp_warning() {
+        let trigger = Trigger::new(
+            "fd",
+            "FD",
+            TriggerType::FocusDrift {
+                window_size: 5,
+                min_increasing_count: 3,
+                min_total_increase: 0.5,
+            },
+            RecoveryAction::Autofocus,
+        );
+        assert!(
+            trigger.clamp_warning.is_none(),
+            "clamp_warning must be None for healthy FocusDrift windows"
         );
     }
 

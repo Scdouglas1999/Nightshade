@@ -82,7 +82,12 @@ class ImportSequenceFlow {
     final fmt = result.sourceFormat.displayName;
     switch (decision.destination!) {
       case ImportDestination.openInEditor:
-        ref.read(currentSequenceProvider.notifier).loadSequence(sequence);
+        final loaded = await _loadSequenceWithDirtyCheck(
+          context,
+          ref,
+          sequence,
+        );
+        if (!loaded) return false;
         if (!context.mounted) return true;
         context.showSuccessSnackBar(
             'Imported "${sequence.name}" ($fmt) and opened in editor');
@@ -104,12 +109,15 @@ class ImportSequenceFlow {
     BuildContext context,
     SequenceImporter importer,
     String content,
-    String defaultName,
-  ) async {
+    String defaultName, {
+    bool forceUnsupported = false,
+    bool forceImport = false,
+  }) async {
     try {
       return importer.importFromString(
         content,
-        forceUnsupported: false,
+        forceUnsupported: forceUnsupported,
+        forceImport: forceImport,
         sequenceName: defaultName,
       );
     } on UnknownFormatError catch (e) {
@@ -127,24 +135,163 @@ class ImportSequenceFlow {
       if (!context.mounted) return null;
       final force = await _confirmForceImport(context, e.unsupported);
       if (force != true) return null;
-      try {
-        return importer.importFromString(
-          content,
-          forceUnsupported: true,
-          sequenceName: defaultName,
-        );
-      } on UnknownFormatError catch (err) {
-        if (context.mounted) {
-          context.showErrorSnackBar('Force import failed: ${err.message}');
-        }
-        return null;
-      } on MalformedSourceError catch (err) {
-        if (context.mounted) {
-          context.showErrorSnackBar('Force import failed: ${err.message}');
-        }
-        return null;
-      }
+      if (!context.mounted) return null;
+      // Retry in force-unsupported mode, preserving any prior force-
+      // import-validation decision the caller had passed in.
+      return _parseWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: true,
+        forceImport: forceImport,
+      );
+    } on SequenceImportValidationFailedException catch (e) {
+      // The file parsed fine but the unified validator surfaced
+      // ERROR-severity issues. Show a structured dialog with the issue
+      // list and let the user accept the import via `forceImport: true`.
+      if (!context.mounted) return null;
+      final accept = await _confirmForceValidation(context, e);
+      if (accept != true) return null;
+      if (!context.mounted) return null;
+      return _parseWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: forceUnsupported,
+        forceImport: true,
+      );
     }
+  }
+
+  /// Show a structured dialog listing every blocking validation issue
+  /// from a [SequenceImportValidationFailedException]. Returns `true` if
+  /// the user opts to import anyway, `false`/`null` if they cancel.
+  static Future<bool?> _confirmForceValidation(
+    BuildContext context,
+    SequenceImportValidationFailedException error,
+  ) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final errors = error.errors;
+    final warnings = error.issues
+        .where((i) => i.severity == ValidationSeverity.warning)
+        .toList();
+    final infos = error.issues
+        .where((i) => i.severity == ValidationSeverity.info)
+        .toList();
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Row(
+          children: [
+            Icon(LucideIcons.alertOctagon, color: colors.error, size: 18),
+            const SizedBox(width: 8),
+            const Text('Sequence has validation errors'),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 440),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Importing this file would create a sequence with '
+                  '${errors.length} blocking error(s). Some features may '
+                  "not work until you fix them.",
+                  style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                ),
+                const SizedBox(height: 12),
+                if (errors.isNotEmpty) ...[
+                  Text('Errors',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.error)),
+                  const SizedBox(height: 4),
+                  for (final issue in errors)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('- ${issue.title}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: colors.textPrimary,
+                                  fontWeight: FontWeight.w500)),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: Text(issue.description,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: colors.textSecondary)),
+                          ),
+                          if (issue.resolutionHint != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Text('Fix: ${issue.resolutionHint!}',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: colors.textMuted,
+                                      fontStyle: FontStyle.italic)),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+                if (warnings.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('Warnings',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.warning)),
+                  const SizedBox(height: 4),
+                  for (final issue in warnings)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text('- ${issue.title}: ${issue.description}',
+                          style: TextStyle(
+                              fontSize: 11, color: colors.textSecondary)),
+                    ),
+                ],
+                if (infos.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('Info',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.info)),
+                  const SizedBox(height: 4),
+                  for (final issue in infos)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Text('- ${issue.title}',
+                          style: TextStyle(
+                              fontSize: 11, color: colors.textMuted)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Import anyway'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Shown after the user dismisses the file picker without selecting a
@@ -214,6 +361,68 @@ class ImportSequenceFlow {
           ),
         );
       },
+    );
+  }
+
+  /// Loads [sequence] into the editor via `loadSequence`. If the editor
+  /// has unsaved edits, prompts the user before discarding them. Returns
+  /// `true` on success, `false` if the user cancelled.
+  static Future<bool> _loadSequenceWithDirtyCheck(
+    BuildContext context,
+    WidgetRef ref,
+    Sequence sequence,
+  ) async {
+    final editor = ref.read(currentSequenceProvider.notifier);
+    try {
+      editor.loadSequence(sequence);
+      return true;
+    } on UnsavedChangesException catch (e) {
+      if (!context.mounted) return false;
+      final confirmed = await _confirmDiscardUnsaved(context, e);
+      if (confirmed != true) return false;
+      editor.loadSequence(sequence, discardUnsaved: true);
+      return true;
+    } on SequenceLockedException catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar(
+            'Cannot open imported sequence: ${e.message}');
+      }
+      return false;
+    }
+  }
+
+  static Future<bool?> _confirmDiscardUnsaved(
+    BuildContext context,
+    UnsavedChangesException error,
+  ) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Row(
+          children: [
+            Icon(LucideIcons.fileWarning, color: colors.warning, size: 18),
+            const SizedBox(width: 8),
+            const Text('Discard unsaved changes?'),
+          ],
+        ),
+        content: Text(
+          '"${error.currentSequenceName}" has unsaved changes. Opening the '
+          'imported sequence will discard them.',
+          style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Discard and open'),
+          ),
+        ],
+      ),
     );
   }
 

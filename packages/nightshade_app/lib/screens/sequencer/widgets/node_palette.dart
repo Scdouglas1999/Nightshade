@@ -578,6 +578,10 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
   bool _isHovered = false;
 
   void _addNode() {
+    // Trust-patch §B: refuse the click while the executor owns the
+    // tree. Editor still throws SequenceLockedException as a last line
+    // of defense; this just keeps the affordance honest.
+    if (!ref.read(canEditSequenceProvider)) return;
     final node = widget.item.createNode();
     final selectedId = ref.read(selectedNodeIdProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);
@@ -600,14 +604,23 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
 
   @override
   Widget build(BuildContext context) {
+    final canEdit = ref.watch(canEditSequenceProvider);
     final isMobile = widget.isMobile;
 
-    // On mobile, use tap instead of double-tap and skip dragging
-    if (isMobile) {
-      return _buildMobileItem();
-    }
+    final inner = isMobile ? _buildMobileItem() : _buildDesktopItem();
 
-    return _buildDesktopItem();
+    if (!canEdit) {
+      // Disable taps, dragging, and visually wash out the palette item.
+      // Wrap in Tooltip so hovering explains why the tile is inert.
+      return Tooltip(
+        message: 'Cannot edit while sequence is running',
+        child: IgnorePointer(
+          ignoring: true,
+          child: Opacity(opacity: 0.45, child: inner),
+        ),
+      );
+    }
+    return inner;
   }
 
   Widget _buildMobileItem() {

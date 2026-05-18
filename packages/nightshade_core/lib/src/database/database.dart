@@ -126,7 +126,8 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         // happens to read a damaged page. We do NOT auto-recover from here —
         // the connection is already live in a background isolate and we
         // cannot rotate the file out from under it safely.
-        final integrityRow = await customSelect('PRAGMA integrity_check;').get();
+        final integrityRow =
+            await customSelect('PRAGMA integrity_check;').get();
         final ok = integrityRow.length == 1 &&
             integrityRow.first.data['integrity_check'] == 'ok';
         if (!ok) {
@@ -886,6 +887,12 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             );
             await customStatement('DROP TABLE line_ratio_products');
 
+            final capturedImagesHasQualityScore =
+                await _columnExists('captured_images', 'quality_score');
+            final qualityScoreSelect = capturedImagesHasQualityScore
+                ? 'quality_score'
+                : 'NULL AS quality_score';
+
             // Now recreate captured_images with correct FK constraints
             await customStatement('''
             CREATE TABLE captured_images_new (
@@ -933,8 +940,92 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             )
           ''');
             await customStatement('''
-            INSERT INTO captured_images_new
-              SELECT * FROM captured_images
+            INSERT INTO captured_images_new (
+              id,
+              file_path,
+              file_name,
+              file_format,
+              file_size,
+              session_id,
+              target_id,
+              frame_type,
+              exposure_duration,
+              gain,
+              "offset",
+              bin_x,
+              bin_y,
+              filter,
+              sensor_temp,
+              cooler_power,
+              hfr,
+              star_count,
+              background,
+              noise,
+              quality_score,
+              guiding_rms_ra,
+              guiding_rms_dec,
+              guiding_rms_total,
+              mount_ra,
+              mount_dec,
+              mount_altitude,
+              mount_azimuth,
+              pier_side,
+              focuser_position,
+              focuser_temp,
+              rotator_angle,
+              is_plate_solved,
+              solved_ra,
+              solved_dec,
+              solved_rotation,
+              solved_pixel_scale,
+              captured_at,
+              created_at,
+              is_accepted,
+              rejection_reason
+            )
+            SELECT
+              id,
+              file_path,
+              file_name,
+              file_format,
+              file_size,
+              session_id,
+              target_id,
+              frame_type,
+              exposure_duration,
+              gain,
+              "offset",
+              bin_x,
+              bin_y,
+              filter,
+              sensor_temp,
+              cooler_power,
+              hfr,
+              star_count,
+              background,
+              noise,
+              $qualityScoreSelect,
+              guiding_rms_ra,
+              guiding_rms_dec,
+              guiding_rms_total,
+              mount_ra,
+              mount_dec,
+              mount_altitude,
+              mount_azimuth,
+              pier_side,
+              focuser_position,
+              focuser_temp,
+              rotator_angle,
+              is_plate_solved,
+              solved_ra,
+              solved_dec,
+              solved_rotation,
+              solved_pixel_scale,
+              captured_at,
+              created_at,
+              is_accepted,
+              rejection_reason
+            FROM captured_images
           ''');
             await customStatement('DROP TABLE captured_images');
             await customStatement(
@@ -992,10 +1083,47 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             // ── 4. Recreate science child tables that reference captured_images ──
 
             // photometry_measurements
+            final photometryHasStandardMagnitude = await _columnExists(
+              '_tmp_photometry_measurements',
+              'standard_magnitude',
+            );
+            final standardMagnitudeSelect = photometryHasStandardMagnitude
+                ? 'standard_magnitude'
+                : 'NULL AS standard_magnitude';
             await m.createTable(photometryMeasurements);
             await customStatement('''
-            INSERT INTO photometry_measurements
-              SELECT * FROM _tmp_photometry_measurements
+            INSERT INTO photometry_measurements (
+              id,
+              captured_image_id,
+              session_id,
+              object_id,
+              role,
+              x,
+              y,
+              flux,
+              differential_magnitude,
+              standard_magnitude,
+              snr,
+              uncertainty,
+              is_outlier,
+              timestamp
+            )
+            SELECT
+              id,
+              captured_image_id,
+              session_id,
+              object_id,
+              role,
+              x,
+              y,
+              flux,
+              differential_magnitude,
+              $standardMagnitudeSelect,
+              snr,
+              uncertainty,
+              is_outlier,
+              timestamp
+            FROM _tmp_photometry_measurements
           ''');
             await customStatement('DROP TABLE _tmp_photometry_measurements');
             await customStatement(

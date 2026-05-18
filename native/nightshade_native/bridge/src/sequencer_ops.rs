@@ -996,6 +996,41 @@ impl DeviceOps for BridgeDeviceOps {
         }
     }
 
+    /// Trust-patch §2: feed `HumidityThreshold` triggers with live humidity
+    /// from the configured weather/observatory device. Routes through the
+    /// same DeviceManager `weather_get_conditions` call the bridge already
+    /// exposes — we just project the humidity field. Returns:
+    ///   * `Ok(Some(value))` when the weather device reports humidity
+    ///   * `Ok(None)`         when the device exists but does not advertise humidity
+    ///   * `Err(_)`           when no weather device is configured or the
+    ///                        DeviceManager call fails (the trigger monitor
+    ///                        retains the previous reading on Err).
+    async fn weather_get_humidity(
+        &self,
+        weather_id: Option<&str>,
+    ) -> DeviceResult<Option<f64>> {
+        let device_id = match weather_id {
+            Some(id) => id.to_string(),
+            None => {
+                let profile = self.app_state.get_profile().await;
+                match profile.and_then(|p| p.weather_id) {
+                    Some(id) => id,
+                    None => {
+                        // No configured weather device — humidity polling is
+                        // a no-op rather than an error so the trigger monitor
+                        // doesn't log every tick on an undeployed device.
+                        return Ok(None);
+                    }
+                }
+            }
+        };
+
+        match get_device_manager().weather_get_conditions(&device_id).await {
+            Ok(conditions) => Ok(conditions.humidity),
+            Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
+        }
+    }
+
     // =========================================================================
     // IMAGE ANALYSIS
     // =========================================================================

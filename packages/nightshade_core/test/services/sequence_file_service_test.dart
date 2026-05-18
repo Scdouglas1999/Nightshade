@@ -152,4 +152,56 @@ void main() {
       ),
     );
   });
+
+  test('exportSequence refuses to write a sequence with validation errors',
+      () async {
+    final tempDir = await Directory.systemTemp
+        .createTemp('sequence_file_service_export_validation_');
+    addTearDown(() async => tempDir.delete(recursive: true));
+
+    final filePath = path.join(tempDir.path, 'invalid.nseq.json');
+    final originalPlatform = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = TestFileSelectorPlatform(
+      openPath: filePath,
+      savePath: filePath,
+    );
+    addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
+
+    // An empty sequence is the simplest pre-built validation failure
+    // (EmptySequenceRule fires).
+    final bad = Sequence(id: 'bad', name: 'Empty');
+
+    final service = SequenceFileService();
+
+    await expectLater(
+      service.exportSequence(bad),
+      throwsA(isA<SequenceValidationFailedException>()),
+    );
+
+    // No file should have been written.
+    expect(await File(filePath).exists(), isFalse,
+        reason: 'export must not write when validation errors block it');
+  });
+
+  test('exportSequence honours forceExport flag and writes even with errors',
+      () async {
+    final tempDir = await Directory.systemTemp
+        .createTemp('sequence_file_service_export_force_');
+    addTearDown(() async => tempDir.delete(recursive: true));
+
+    final filePath = path.join(tempDir.path, 'forced.nseq.json');
+    final originalPlatform = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = TestFileSelectorPlatform(
+      openPath: filePath,
+      savePath: filePath,
+    );
+    addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
+
+    final bad = Sequence(id: 'bad', name: 'Empty');
+    final service = SequenceFileService();
+
+    await service.exportSequence(bad, forceExport: true);
+    expect(await File(filePath).exists(), isTrue,
+        reason: 'forceExport=true should bypass the validation gate');
+  });
 }

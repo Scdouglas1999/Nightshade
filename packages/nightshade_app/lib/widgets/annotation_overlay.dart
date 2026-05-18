@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../screens/imaging/imaging_science_state.dart';
+import '../utils/add_target_header_helper.dart';
 import '../utils/preview_transform.dart';
 
 const _annotationOverlayTextColor = Color(0xFFFFFFFF);
@@ -880,9 +881,8 @@ class ObjectInfoTooltip extends ConsumerWidget {
     }
   }
 
-  void _createSequenceForObject(WidgetRef ref, BuildContext context) {
-    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
-
+  Future<void> _createSequenceForObject(
+      WidgetRef ref, BuildContext context) async {
     // RA stored in degrees in annotation, sequence needs hours
     final raHours = object.ra / 15.0;
 
@@ -892,9 +892,13 @@ class ObjectInfoTooltip extends ConsumerWidget {
       decDegrees: object.dec,
     );
 
-    sequenceNotifier.addTargetHeader(targetNode);
+    final added = await addTargetHeaderWithPrompt(
+      context: context,
+      ref: ref,
+      targetNode: targetNode,
+    );
 
-    if (context.mounted) {
+    if (added && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

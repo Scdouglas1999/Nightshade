@@ -8,9 +8,10 @@ import 'instruction_node_properties.dart';
 import 'logic_node_properties.dart';
 import 'node_property_widgets.dart';
 import 'node_timing_section.dart';
+import 'sequence_tree_shortcuts.dart';
 import 'target_node_properties.dart';
 
-class NodePropertiesPanel extends ConsumerWidget {
+class NodePropertiesPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ScrollController? scrollController;
   final bool isMobileSheet;
@@ -27,13 +28,60 @@ class NodePropertiesPanel extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NodePropertiesPanel> createState() =>
+      _NodePropertiesPanelState();
+}
+
+class _NodePropertiesPanelState extends ConsumerState<NodePropertiesPanel> {
+  /// Focus scope owned by the panel so the tree's Enter-key shortcut can
+  /// hand focus over here. We listen to the provider tick in build() and
+  /// call [FocusScopeNode.requestFocus] when it changes; Flutter then
+  /// drives focus to the first focusable descendant (usually the first
+  /// text field in the editor).
+  final FocusScopeNode _scopeNode =
+      FocusScopeNode(debugLabel: 'sequence-properties-panel');
+
+  @override
+  void dispose() {
+    _scopeNode.dispose();
+    super.dispose();
+  }
+
+  // Convenience getters so the existing builder methods (kept verbatim
+  // below) keep reading `colors`, `onClose`, etc. without `widget.`.
+  NightshadeColors get colors => widget.colors;
+  ScrollController? get scrollController => widget.scrollController;
+  bool get isMobileSheet => widget.isMobileSheet;
+  VoidCallback? get onClose => widget.onClose;
+  VoidCallback? get onCollapse => widget.onCollapse;
+
+  @override
+  Widget build(BuildContext context) {
     final selectedNode = ref.watch(selectedNodeProvider);
 
-    if (isMobileSheet) {
-      return _buildMobileSheetContent(context, ref, selectedNode);
-    }
-    return _buildDesktopSidebarContent(context, ref, selectedNode);
+    // Tree -> Enter -> jump focus into this panel. The provider is a
+    // monotonic tick; we don't care about the value, only that it
+    // changed. `ref.listen` is the right primitive for one-shot side
+    // effects in build (versus ref.watch which would also rebuild).
+    ref.listen<int>(propertiesPanelFocusRequestProvider, (prev, next) {
+      if (prev == next) return;
+      if (!mounted) return;
+      // Defer to next frame so freshly-mounted property editors are in
+      // the tree before we request focus on them.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scopeNode.requestFocus();
+      });
+    });
+
+    final content = isMobileSheet
+        ? _buildMobileSheetContent(context, ref, selectedNode)
+        : _buildDesktopSidebarContent(context, ref, selectedNode);
+
+    return FocusScope(
+      node: _scopeNode,
+      child: content,
+    );
   }
 
   Widget _buildMobileSheetContent(
@@ -182,36 +230,12 @@ class _EmptySelection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryFontSize = isMobile ? 16.0 : Responsive.fontSize(context, 14);
-    final secondaryFontSize = isMobile ? 14.0 : Responsive.fontSize(context, 12);
-    final iconSize = isMobile ? 40.0 : Responsive.iconSize(context, 32);
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            LucideIcons.mousePointer,
-            size: iconSize,
-            color: colors.textMuted,
-          ),
-          SizedBox(height: isMobile ? 16 : Responsive.spacing(context, 12)),
-          Text(
-            'Select a node',
-            style: TextStyle(
-              fontSize: primaryFontSize,
-              color: colors.textSecondary,
-            ),
-          ),
-          SizedBox(height: Responsive.spacing(context, 4)),
-          Text(
-            'to view its properties',
-            style: TextStyle(
-              fontSize: secondaryFontSize,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
+    return EmptyState(
+      icon: LucideIcons.mousePointer,
+      title: 'Select a node',
+      body: 'Choose a sequence step to edit its properties.',
+      padding: EdgeInsets.all(
+        isMobile ? 24 : Responsive.spacing(context, 18),
       ),
     );
   }
@@ -233,13 +257,25 @@ class _NodeEditor extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final editorPadding = isMobile ? 20.0 : Responsive.spacing(context, 16);
+    // Trust-patch §B: the entire property editor is read-only while a
+    // sequence is Running / Paused / Stopping. We surface the lock as a
+    // banner at the top and wrap the form in an AbsorbPointer + Opacity
+    // so every inner field and the Delete button are visibly disabled.
+    // The notifier still throws SequenceLockedException as a last line
+    // of defense.
+    final canEdit = ref.watch(canEditSequenceProvider);
 
-    return SingleChildScrollView(
+    final body = SingleChildScrollView(
       controller: scrollController,
       padding: EdgeInsets.all(editorPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (!canEdit) ...[
+            _SequenceLockedBanner(colors: colors),
+            const SizedBox(height: 16),
+          ],
+
           // Node type badge
           _NodeTypeBadge(colors: colors, node: node),
           const SizedBox(height: 16),
@@ -285,8 +321,7 @@ class _NodeEditor extends ConsumerWidget {
               maxLines: 3,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(
-                          comment: value.isEmpty ? null : value),
+                      node.copyWith(comment: value.isEmpty ? null : value),
                     );
               },
             ),
@@ -306,15 +341,37 @@ class _NodeEditor extends ConsumerWidget {
               colors: colors,
               label: 'Delete Node',
               icon: LucideIcons.trash2,
-              onPressed: () {
-                ref.read(currentSequenceProvider.notifier).removeNode(node.id);
-                ref.read(selectedNodeIdProvider.notifier).state = null;
-              },
+              onPressed: canEdit
+                  ? () {
+                      ref
+                          .read(currentSequenceProvider.notifier)
+                          .removeNode(node.id);
+                      ref.read(selectedNodeIdProvider.notifier).state = null;
+                    }
+                  : null,
             ),
           ),
         ],
       ),
     );
+
+    // When the sequence is locked, the form fields themselves stay visible
+    // (so the user can read current values) but are completely inert. The
+    // banner inside `body` already explains *why* — no need for a tooltip
+    // overlay on top.
+    if (!canEdit) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.forbidden,
+        child: AbsorbPointer(
+          absorbing: true,
+          child: Opacity(
+            opacity: 0.55,
+            child: body,
+          ),
+        ),
+      );
+    }
+    return body;
   }
 
   /// Dispatch node type to its property panel using pattern matching.
@@ -328,42 +385,32 @@ class _NodeEditor extends ConsumerWidget {
       CenterNode n => CenterProperties(colors: colors, node: n),
       AutofocusNode n => AutofocusProperties(colors: colors, node: n),
       CoolCameraNode n => CoolCameraProperties(colors: colors, node: n),
-      FilterChangeNode n =>
-        FilterChangeProperties(colors: colors, node: n),
+      FilterChangeNode n => FilterChangeProperties(colors: colors, node: n),
       DelayNode n => DelayProperties(colors: colors, node: n),
       DitherNode n => DitherProperties(colors: colors, node: n),
       WarmCameraNode n => WarmCameraProperties(colors: colors, node: n),
       RotatorNode n => RotatorProperties(colors: colors, node: n),
       SlewNode n => SlewProperties(colors: colors, node: n),
       WaitTimeNode n => WaitTimeProperties(colors: colors, node: n),
-      ConditionalNode n =>
-        ConditionalProperties(colors: colors, node: n),
+      ConditionalNode n => ConditionalProperties(colors: colors, node: n),
       ParallelNode n => ParallelProperties(colors: colors, node: n),
       RecoveryNode n => RecoveryProperties(colors: colors, node: n),
-      NotificationNode n =>
-        NotificationProperties(colors: colors, node: n),
+      NotificationNode n => NotificationProperties(colors: colors, node: n),
       ScriptNode n => ScriptProperties(colors: colors, node: n),
-      StartGuidingNode n =>
-        StartGuidingProperties(colors: colors, node: n),
-      StopGuidingNode _ =>
-        SimpleInstructionInfo(colors: colors, node: node),
+      StartGuidingNode n => StartGuidingProperties(colors: colors, node: n),
+      StopGuidingNode _ => SimpleInstructionInfo(colors: colors, node: node),
       ParkNode _ => SimpleInstructionInfo(colors: colors, node: node),
       UnparkNode _ => SimpleInstructionInfo(colors: colors, node: node),
-      MeridianFlipNode n =>
-        MeridianFlipProperties(colors: colors, node: n),
+      MeridianFlipNode n => MeridianFlipProperties(colors: colors, node: n),
       OpenDomeNode _ => DomeProperties(colors: colors, node: node),
       CloseDomeNode _ => DomeProperties(colors: colors, node: node),
       ParkDomeNode _ => DomeProperties(colors: colors, node: node),
-      PolarAlignmentNode n =>
-        PolarAlignmentProperties(colors: colors, node: n),
+      PolarAlignmentNode n => PolarAlignmentProperties(colors: colors, node: n),
       OpenCoverNode n => OpenCoverProperties(colors: colors, node: n),
       CloseCoverNode n => CloseCoverProperties(colors: colors, node: n),
-      CalibratorOnNode n =>
-        CalibratorOnProperties(colors: colors, node: n),
-      CalibratorOffNode n =>
-        CalibratorOffProperties(colors: colors, node: n),
-      InstructionSetNode n =>
-        InstructionSetInfo(colors: colors, node: n),
+      CalibratorOnNode n => CalibratorOnProperties(colors: colors, node: n),
+      CalibratorOffNode n => CalibratorOffProperties(colors: colors, node: n),
+      InstructionSetNode n => InstructionSetInfo(colors: colors, node: n),
       // `SequenceNode` is sealed — the switch above covers every subtype.
       // Adding a new subtype will produce a compile-time error here.
     };
@@ -512,6 +559,45 @@ class _NodeTypeBadge extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner shown at the top of the property editor when
+/// [canEditSequenceProvider] is false. Mirrors the toolbar's "Sequence
+/// Running" indicator language so users build a single mental model:
+/// running = locked.
+class _SequenceLockedBanner extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _SequenceLockedBanner({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.lock, size: 14, color: colors.warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Editing is locked while the sequence is running. '
+              'Stop the sequence to make changes.',
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.warning,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

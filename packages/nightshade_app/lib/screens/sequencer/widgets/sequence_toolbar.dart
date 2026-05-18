@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
+import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
@@ -23,6 +24,12 @@ class SequenceToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
+    // Trust-patch §B: every action that *replaces* or *mutates* the
+    // sequence must be disabled while the executor owns the tree. Save
+    // and "Slew to Target" are NOT edits — they stay enabled even while
+    // running so the user can still write a checkpoint or chase the
+    // current target.
+    final canEdit = ref.watch(canEditSequenceProvider);
     final isTablet = Responsive.isTablet(context);
     final actionService = ref.read(sequenceActionServiceProvider);
 
@@ -104,13 +111,48 @@ class SequenceToolbar extends ConsumerWidget {
               final fileService = ref.read(sequenceFileServiceProvider);
               final imported = await fileService.importSequence();
               if (imported != null) {
-                ref
-                    .read(currentSequenceProvider.notifier)
-                    .loadSequence(imported);
+                final editor = ref.read(currentSequenceProvider.notifier);
+                try {
+                  editor.loadSequence(imported);
+                } on UnsavedChangesException catch (e) {
+                  // The editor has unsaved edits; ask the user before
+                  // clobbering them with the freshly loaded sequence.
+                  if (!context.mounted) return;
+                  final discard = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Discard unsaved changes?'),
+                      content: Text(
+                          '"${e.currentSequenceName}" has unsaved changes. '
+                          'Open the loaded sequence anyway?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text('Discard and open'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (discard != true) return;
+                  editor.loadSequence(imported, discardUnsaved: true);
+                }
                 if (context.mounted) {
                   context.showSuccessSnackBar(
                       'Sequence "${imported.name}" loaded');
                 }
+              }
+            } on SnippetDeserializationException catch (e) {
+              // Imported file contained a nodeType the editor does not
+              // know about — never silently drop it onto the tree.
+              if (context.mounted) {
+                context.showErrorSnackBar(
+                  'Could not load sequence: ${e.message}',
+                  duration: const Duration(seconds: 6),
+                );
               }
             } catch (e) {
               if (context.mounted) {
@@ -127,11 +169,38 @@ class SequenceToolbar extends ConsumerWidget {
               }
               return;
             }
+            final fileService = ref.read(sequenceFileServiceProvider);
             try {
-              final fileService = ref.read(sequenceFileServiceProvider);
               await fileService.exportSequence(current);
               if (context.mounted) {
                 context.showSuccessSnackBar('Sequence "${current.name}" saved');
+              }
+            } on SequenceValidationFailedException catch (e) {
+              // Trust-patch §B: validation errors deserve a structured
+              // dialog, not a one-line "Failed to save: ..." snackbar.
+              // The user gets the per-issue list with severity icons,
+              // category badges, descriptions and resolution hints, plus
+              // a "Force Save anyway" escape hatch that re-invokes
+              // exportSequence with forceExport: true.
+              if (!context.mounted) return;
+              final forceSave = await showValidationIssueDialog(
+                context,
+                issues: e.issues,
+                operationName: 'Save Sequence',
+                forceLabel: 'Force save anyway',
+              );
+              if (!forceSave) return;
+              if (!context.mounted) return;
+              try {
+                await fileService.exportSequence(current, forceExport: true);
+                if (context.mounted) {
+                  context.showSuccessSnackBar(
+                      'Sequence "${current.name}" saved (forced)');
+                }
+              } catch (err) {
+                if (context.mounted) {
+                  context.showErrorSnackBar('Failed to save sequence: $err');
+                }
               }
             } catch (e) {
               if (context.mounted) {
@@ -160,27 +229,37 @@ class SequenceToolbar extends ConsumerWidget {
             }
           }
 
+          // §B: every action below that ends up mutating the sequence
+          // tree must respect canEditSequenceProvider. "Save Sequence"
+          // and "Slew to Target" are read-only/runtime operations and
+          // stay enabled. "Polar Alignment" navigates to another screen
+          // and is also not an edit. The disabled-button visual is
+          // already wired through _ToolbarIconButton / overflow popup
+          // when `onPressed == null`.
+          final lockedTooltipSuffix =
+              canEdit ? '' : ' (locked while sequence is running)';
           final actions = <_ToolbarAction>[
             const _ToolbarAction.divider(),
             _ToolbarAction(
               icon: LucideIcons.filePlus,
-              label: 'New Sequence',
-              onPressed: notifier.createSequence,
+              label: 'New Sequence$lockedTooltipSuffix',
+              onPressed: canEdit ? notifier.createSequence : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.wand2,
-              label: 'Quick-Start Wizard',
-              onPressed: openWizard,
+              label: 'Quick-Start Wizard$lockedTooltipSuffix',
+              onPressed: canEdit ? openWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.folderOpen,
-              label: 'Open Sequence',
-              onPressed: openSequenceFile,
+              label: 'Open Sequence$lockedTooltipSuffix',
+              onPressed: canEdit ? openSequenceFile : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.fileInput,
-              label: 'Import from NINA / SGP',
-              onPressed: () => ImportSequenceFlow.run(context, ref),
+              label: 'Import from NINA / SGP$lockedTooltipSuffix',
+              onPressed:
+                  canEdit ? () => ImportSequenceFlow.run(context, ref) : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.save,
@@ -195,8 +274,8 @@ class SequenceToolbar extends ConsumerWidget {
             ),
             _ToolbarAction(
               icon: LucideIcons.bellRing,
-              label: 'Exposure Triggers',
-              onPressed: openExposureTriggers,
+              label: 'Exposure Triggers$lockedTooltipSuffix',
+              onPressed: canEdit ? openExposureTriggers : null,
             ),
             const _ToolbarAction.divider(),
             if (sequence != null && sequence.targetHeaders.isNotEmpty)
@@ -207,13 +286,13 @@ class SequenceToolbar extends ConsumerWidget {
               ),
             _ToolbarAction(
               icon: LucideIcons.undo2,
-              label: 'Undo (Ctrl+Z)',
-              onPressed: notifier.canUndo ? notifier.undo : null,
+              label: 'Undo (Ctrl+Z)$lockedTooltipSuffix',
+              onPressed: (canEdit && notifier.canUndo) ? notifier.undo : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.redo2,
-              label: 'Redo (Ctrl+Y)',
-              onPressed: notifier.canRedo ? notifier.redo : null,
+              label: 'Redo (Ctrl+Y)$lockedTooltipSuffix',
+              onPressed: (canEdit && notifier.canRedo) ? notifier.redo : null,
             ),
           ];
 

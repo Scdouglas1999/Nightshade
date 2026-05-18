@@ -314,6 +314,23 @@ pub async fn api_sequencer_skip() -> Result<(), NightshadeError> {
     Ok(())
 }
 
+/// Wave 1.5 Pack A / trust-patch §7: jump execution to a specific node id,
+/// marking preceding siblings as Skipped. Honoured on the next container's
+/// tree-walk step; the currently-running instruction (e.g. an exposure burst)
+/// completes before the jump takes effect. Returns an error if the executor
+/// is not running (caller should gate the UI button on execution state).
+pub async fn api_sequencer_skip_to_node(node_id: String) -> Result<(), NightshadeError> {
+    tracing::info!("Skipping execution to node: {}", node_id);
+
+    let executor = get_sequence_executor().read().await;
+    executor
+        .skip_to_node(node_id)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to skip to node: {}", e)))?;
+
+    Ok(())
+}
+
 /// Reset the sequence executor
 pub async fn api_sequencer_reset() -> Result<(), NightshadeError> {
     tracing::info!("Resetting sequence executor");
@@ -868,6 +885,31 @@ pub async fn api_sequencer_update_filter_offsets(
     );
     let mut executor = get_sequence_executor().write().await;
     executor.update_filter_offsets(offsets);
+    Ok(())
+}
+
+/// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
+/// The default in `default_autofocus_interval_frames()` is 25 frames; this
+/// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
+/// must let the user override it. `every_n_frames == 0` is rejected because
+/// the trigger evaluator disables the periodic AF when the cadence is zero,
+/// which would silently turn AF off (CLAUDE.md "errors are a feature").
+pub async fn api_sequencer_update_autofocus_interval(
+    every_n_frames: u32,
+) -> Result<(), NightshadeError> {
+    if every_n_frames == 0 {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus_interval_frames must be > 0. Pass a positive frame cadence; \
+             use the trigger 'enabled' toggle in the trigger list to disable periodic AF."
+                .to_string(),
+        ));
+    }
+    tracing::info!(
+        "Updating sequencer autofocus-interval cadence: every {} frames",
+        every_n_frames
+    );
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_autofocus_interval(every_n_frames).await;
     Ok(())
 }
 

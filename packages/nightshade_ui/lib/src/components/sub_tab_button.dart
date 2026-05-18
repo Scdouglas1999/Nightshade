@@ -31,18 +31,23 @@ class _SubTabButtonState extends State<SubTabButton> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.only(top: 4, bottom: 4, right: 4),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? colors.primary.withValues(alpha: 0.1)
+                ? colors.primary.withValues(alpha: 0.16)
                 : _isHovered
                     ? colors.surfaceHover
                     : Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
-                color: widget.isSelected ? colors.primary : Colors.transparent,
-                width: 2,
-              ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.isSelected
+                  ? colors.primary.withValues(alpha: 0.4)
+                  : _isHovered
+                      ? colors.border.withValues(alpha: 0.7)
+                      : Colors.transparent,
             ),
           ),
           child: Material(
@@ -53,12 +58,14 @@ class _SubTabButtonState extends State<SubTabButton> {
               highlightColor: colors.primary.withValues(alpha: 0.1),
               splashColor: colors.primary.withValues(alpha: 0.1),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 child: Text(
                   widget.label,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight:
+                        widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: widget.isSelected
                         ? colors.primary
                         : _isHovered
@@ -74,8 +81,3 @@ class _SubTabButtonState extends State<SubTabButton> {
     );
   }
 }
-
-
-
-
-

@@ -2856,6 +2856,27 @@ impl DeviceOps for RealDeviceOps {
         }
     }
 
+    /// Trust-patch §2: HumidityThreshold trigger feed. Reads the configured
+    /// weather device's humidity via DeviceManager. See `weather_get_humidity`
+    /// rustdoc on the trait for the Ok(None) vs Err semantics.
+    async fn weather_get_humidity(
+        &self,
+        weather_id: Option<&str>,
+    ) -> DeviceResult<Option<f64>> {
+        let device_id = match weather_id {
+            Some(id) => id.to_string(),
+            None => match self.get_device_id(crate::device::DeviceType::Weather) {
+                Some(id) => id,
+                None => return Ok(None),
+            },
+        };
+
+        match get_device_manager().weather_get_conditions(&device_id).await {
+            Ok(conditions) => Ok(conditions.humidity),
+            Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
+        }
+    }
+
     // =========================================================================
     // IMAGE ANALYSIS
     // =========================================================================

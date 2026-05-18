@@ -19,10 +19,12 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 
 use crate::device_ops::SharedDeviceOps;
+use crate::executor::ExecutorEvent;
 use crate::instructions::{execute_autofocus, InstructionContext};
 use crate::meridian::{self, julian_day, local_sidereal_time};
 use crate::meridian_events::{FlipEventEmitter, FlipStep, MeridianFlipEvent, PierSide};
@@ -91,6 +93,10 @@ pub struct MeridianFlipExecutor {
     device_ops: SharedDeviceOps,
     event_emitter: FlipEventEmitter,
     event_tx: Option<mpsc::Sender<MeridianFlipEvent>>,
+    /// Wave 1.5 Pack A: parent executor's broadcast handle for ExecutorEvent.
+    /// Plumbed into the post-flip refocus InstructionContext so FITS-save
+    /// failures and other instruction-level errors surface to UI subscribers.
+    executor_event_tx: Option<broadcast::Sender<ExecutorEvent>>,
     abort_requested: Arc<AtomicBool>,
 }
 
@@ -102,6 +108,7 @@ impl MeridianFlipExecutor {
             device_ops,
             event_emitter: FlipEventEmitter::new(),
             event_tx: None,
+            executor_event_tx: None,
             abort_requested: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -109,6 +116,15 @@ impl MeridianFlipExecutor {
     /// Set event channel for progress updates
     pub fn with_event_channel(mut self, tx: mpsc::Sender<MeridianFlipEvent>) -> Self {
         self.event_tx = Some(tx);
+        self
+    }
+
+    /// Wave 1.5 Pack A: set the parent executor's broadcast handle so the
+    /// post-flip refocus inherits the same event surface as the rest of the
+    /// sequence. Without this the refocus's FITS-save failures and per-step
+    /// errors emit only to the tracing log (silent for the user).
+    pub fn with_executor_event_tx(mut self, tx: broadcast::Sender<ExecutorEvent>) -> Self {
+        self.executor_event_tx = Some(tx);
         self
     }
 
@@ -932,6 +948,12 @@ impl MeridianFlipExecutor {
             device_ops: self.device_ops.clone(),
             trigger_state: ctx.trigger_state.clone(),
             filter_focus_offsets: std::collections::HashMap::new(),
+            // Wave 1.5 Pack A: inherit the parent executor's broadcast handle
+            // so the post-flip refocus's instruction-level errors (FITS-save
+            // failure on the test exposure, etc.) reach UI subscribers. When
+            // the flip is invoked outside the live executor (unit tests) the
+            // sender is None and emits are silently dropped.
+            event_tx: self.executor_event_tx.clone(),
         };
 
         tracing::info!(
