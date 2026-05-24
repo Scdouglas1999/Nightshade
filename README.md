@@ -26,223 +26,135 @@ Connect ASCOM, Alpaca, INDI, or native SDK hardware from a single equipment prof
 
 > **Beta (v2.6.0)** — Delivered on the `beta` update channel after an extended hardening pass. Plan Tonight, working plate solving, defect-map calibration without darks, the web dashboard, mobile companion, and NINA/SGP import are in this build; stable follows a longer soak. [Report issues](https://github.com/Scdouglas1999/Nightshade/issues) with device, backend, OS, and the steps that failed.
 
+## Contents
+
+- [Why Nightshade](#why-nightshade)
+- [Walk through a night](#walk-through-a-night)
+- [Hardware support](#hardware-support)
+- [Platforms](#platforms)
+- [Install](#install)
+- [Documentation](#documentation)
+- [Build from source](#build-from-source)
+- [Contributing](#contributing)
+- [License](#license)
+
 ---
 
 ## Why Nightshade
 
 Most imaging nights still mean juggling a capture app, a sequence editor, a planetarium, and a separate remote dashboard—each with its own profiles, failure modes, and “did that actually work?” moments. Nightshade replaces that patchwork with one desktop suite for the full night: connect the rig once, plan targets, run unattended sequences, and monitor or intervene from the same place when conditions change.
 
-### Capture & automation
+**Capture & automation** — One equipment profile drives camera, mount, focuser, filter wheel, dome, and weather across ASCOM, Alpaca, INDI, or native SDK paths. The behavior-tree sequencer combines instructions, parallel triggers (HFR, guiding, time), and recovery so meridian flips, autofocus, dithering, and checkpoint resume stay in one canvas.
 
-**Unified rig control**  
-One equipment profile drives camera, mount, focuser, filter wheel, dome, and weather devices across ASCOM, Alpaca, INDI, or native SDK paths—so you spend less time re-entering connections and more time collecting data.
+**Planning & solving** — Plan Tonight scores targets for altitude, moon, and horizon; the scheduler can re-evaluate when conditions shift. Plate solving uses ASTAP or astrometry.net (verified at setup) for framing and recovery—not placeholder coordinates.
 
-**Behavior-tree sequencer**  
-Build complex nights visually with instructions, parallel triggers, and recovery logic—meridian flips, autofocus between filters, dithering, and checkpoint resume—without stitching together scripts from multiple tools.
+**Safety & remote** — Radar, cloud-motion cues, and sequence-integrated alerts can pause or park before weather costs you a run. The same session is visible from the browser dashboard or iOS/Android companion (QR pairing) without a second stack on the observatory PC.
 
-### Planning & solving
-
-**Plan Tonight**  
-Get scored target recommendations that respect altitude, moon, horizon, and your integration goals, then let the scheduler re-evaluate when weather or guiding shifts—so the rig keeps working the best target instead of a static list you set at dusk.
-
-**Plate solving that works**  
-Frame, center, and align with real ASTAP or astrometry.net solvers (auto-detected and verified at setup)—not placeholder coordinates—so slews and recovery actions land where you intend.
-
-### Safety & remote
-
-**Weather safety**  
-Radar, cloud-motion cues, and sequence-integrated alerts can pause or park before a front costs you a run—so a surprise cloud bank does not become a ruined session.
-
-**Remote from anywhere**  
-Monitor and control the same session from a browser dashboard or iOS/Android companion (QR pairing)—cooling, capture, mount, sequencer, and safety—without a second stack of apps on the observatory PC.
-
-### Migration & calibration
-
-**Image without darks**  
-Build a temperature-aware defect map from a short dark stack and apply hot-pixel repair at capture time—clean lights on disk even when you skip traditional dark frames.
-
-**Migrate from NINA / SGP**  
-Import competitor sequences with a mapping preview before you commit; unsupported steps surface clearly instead of vanishing silently, so moving your library is a planned transition, not a gamble.
-
-**First-night onboarding**  
-A guided equipment wizard and re-runnable tutorial walk new setups from driver choice through optical train and save path—so the first connection night is setup, not guesswork.
+**Migration & calibration** — Defect-map calibration from a short dark stack repairs hot pixels at capture time. NINA and SGP sequences import with a mapping preview; unsupported steps surface clearly. A guided equipment wizard walks new rigs from driver choice through optical train and save path.
 
 ---
 
-## Screenshots
+## Walk through a night
 
-A walk through Nightshade **2.6.0 on Windows**—the same beta build linked in [releases](https://github.com/Scdouglas1999/Nightshade/releases/latest). The tour follows a real night: connect the rig, plan and frame targets, run capture and guiding, watch weather and quality, then monitor or adjust from the browser. Captions call out what you accomplish on each screen, not just what is visible.
+Follow the flow below the way most imagers use Nightshade on a clear night. Screenshots are from **Nightshade 2.6.0 on Windows** ([latest release](https://github.com/Scdouglas1999/Nightshade/releases/latest)). Each step is one screen, one job—open it when you need that part of the night, then move on.
 
-<table>
-<tr>
-<td width="50%" valign="top">
+### Connect your rig
 
-<img src="assets/screenshots/sequencer.png" alt="Behavior-tree sequence builder with instruction nodes, triggers, and recovery branches" width="100%">
+Before you slew or expose, bind the observatory into one profile. Discover cameras, mounts, focusers, and wheels across ASCOM COM, Alpaca, INDI, or native SDK backends, confirm connection health, and save the profile so every other screen talks to the same rig. When something drops offline, you fix it here instead of chasing drivers in three apps.
 
-<br><br>
+![Equipment discovery and profile management](assets/screenshots/equipment.png)
 
-**Sequencer**
+*Equipment: discovery, driver choice, and per-device connection state for the active profile.*
 
-Build unattended nights as a behavior tree: expose, slew, filter changes, meridian flips, and parallel triggers (HFR, guiding, time) in one canvas. Recovery and checkpoint resume mean a single failed step does not discard the rest of the run.
+### Tune profiles and optics
 
-</td>
-<td width="50%" valign="top">
+Open saved equipment profiles when focal length, plate scale, or device roles change—after a reducer, a new camera, or a solver tweak. Framing, plate solving, and the sequencer read these defaults; keeping optics accurate here prevents offset and scale mistakes later in the night.
 
-<img src="assets/screenshots/plan-tonight.png" alt="Plan Tonight target recommendation with scored list and altitude chart" width="100%">
+![Equipment profile and optical configuration](assets/screenshots/settings-equipment-profiles.png)
 
-<br><br>
+*Equipment profiles: optics, device roles, and solver-related defaults for this rig.*
 
-**Plan Tonight**
+### Choose what to shoot
 
-Pick the next target from scored recommendations that weigh altitude, moon separation, and horizon limits. The altitude chart shows when each object is worth shooting so you spend clear time on data, not spreadsheet math.
+Use the planetarium to pan the sky, search objects, and read tonight’s visibility before you commit integration time. When you know the field you want, hand targets to Plan Tonight or drop them straight into the sequencer.
 
-</td>
-</tr>
-</table>
+![GPU-rendered interactive sky map with tonight panel](assets/screenshots/planetarium.png)
 
-### Run your night
+*Planetarium: interactive sky map, search, and tonight’s visibility panel.*
 
-<table>
-<tr>
-<td width="50%" valign="top">
+### Let Plan Tonight rank targets
 
-<img src="assets/screenshots/equipment.png" alt="Equipment discovery and profile management with ASCOM, Alpaca, INDI, and native SDK paths" width="100%">
+Plan Tonight scores candidates for altitude, moon separation, and horizon limits, then shows when each object is worth shooting. Pick the next target from data instead of a static list you wrote at dusk; the scheduler can re-rank when weather or guiding shifts.
 
-<br><br>
+![Plan Tonight target recommendations and altitude chart](assets/screenshots/plan-tonight.png)
 
-**Equipment**
+*Plan Tonight: scored target list and altitude chart for the rest of the night.*
 
-Discover cameras, mounts, focusers, and wheels across ASCOM, Alpaca, INDI, or native SDK backends, then bind them into a profile you reuse every night. Connection health and driver choice live here so the rest of the app talks to one consistent rig.
+### Frame and solve the field
 
-</td>
-<td width="50%" valign="top">
+Line up composition with plate solving and a reference overlay (DSS or similar) so rotation and offset match the plan. You spend fewer iterative slews when narrowing in on a faint target or matching a mosaic pane.
 
-<img src="assets/screenshots/imaging.png" alt="Imaging screen with capture controls, histogram, and frame metadata" width="100%">
+![Framing assistant with plate-solved overlay on M42](assets/screenshots/framing.png)
 
-<br><br>
+*Framing: plate-solved overlay and reference image for rotation and offset.*
 
-**Imaging**
+### Build the night in the sequencer
 
-Capture lights and calibration frames with exposure controls, live histogram, and frame metadata in one workspace. Defect-map calibration can run at capture time so hot pixels are handled without juggling separate dark libraries.
+Assemble unattended runs as a behavior tree: expose, slew, filter changes, meridian flips, and parallel triggers in one canvas. Recovery branches and checkpoint resume mean one failed step does not discard the rest of the run—you adjust the tree, not a pile of scripts.
 
-</td>
-</tr>
-<tr>
-<td width="100%" valign="top">
+![Behavior-tree sequence builder](assets/screenshots/sequencer.png)
 
-<img src="assets/screenshots/guiding.png" alt="PHD2 guiding integration with star profile, RMS graphs, and dither controls" width="100%">
+*Sequencer: instructions, triggers, and recovery branches on one canvas.*
 
-<br><br>
+### Capture lights and calibration
 
-**Guiding**
+Run exposures from the imaging workspace: exposure controls, live histogram, and frame metadata in one place. Defect-map calibration can run at capture time so hot pixels are handled without maintaining separate dark libraries for every temperature.
 
-Operate PHD2 from inside Nightshade: star profile, guiding RMS, and dither settings without alt-tabbing. The sequencer and triggers can react to guiding state so capture pauses when tracking degrades.
+![Imaging screen with capture controls and histogram](assets/screenshots/imaging.png)
 
-</td>
-</tr>
-</table>
+*Imaging: capture controls, histogram, and frame metadata.*
 
-### Plan and frame
+### Keep guiding on track
 
-<table>
-<tr>
-<td width="50%" valign="top">
+Operate PHD2 inside Nightshade—star profile, guiding RMS, and dither settings without alt-tabbing. Sequencer triggers can react when tracking degrades so capture pauses before trailed frames stack up.
 
-<img src="assets/screenshots/planetarium.png" alt="GPU-rendered interactive sky map with tonight panel and object search" width="100%">
+![PHD2 guiding integration with RMS graphs](assets/screenshots/guiding.png)
 
-<br><br>
+*Guiding: PHD2 star profile, RMS trends, and dither controls.*
 
-**Planetarium**
+### Watch the sky
 
-Pan a GPU-rendered sky map, search objects, and read tonight’s visibility from the side panel. Use it to choose what to shoot before you hand targets to Plan Tonight or the sequencer.
+Monitor radar and cloud signals beside observatory conditions when you decide whether to pause, park, or let automation continue. Plan Tonight and the sequencer can factor weather into decisions so you are not the only watcher when a front moves in.
 
-</td>
-<td width="50%" valign="top">
+![Weather radar and cloud monitoring](assets/screenshots/weather.png)
 
-<img src="assets/screenshots/framing.png" alt="Framing assistant with plate-solved overlay and DSS reference on M42" width="100%">
+*Weather: radar, cloud cues, and safety-oriented conditions.*
 
-<br><br>
+### Review session quality
 
-**Framing**
+During or after capture, scan frame quality, HFR trends, and guiding performance in one analytics view. Spot when seeing softened or autofocus drifted without opening every FITS header by hand.
 
-Line up the field with plate solving and a DSS (or similar) reference overlay—here on M42—so rotation and offset match the planned composition. Saves iterative slews when you are narrowing in on a faint target.
+![Session analytics with HFR and guiding trends](assets/screenshots/analytics.png)
 
-</td>
-</tr>
-</table>
+*Analytics: frame quality, HFR, and guiding trends for the session.*
 
-### Monitor and calibrate
+### Run flats between targets
 
-<table>
-<tr>
-<td width="50%" valign="top">
+When the sequencer calls for calibration—or you need a quick flat series before meridian—use the flat wizard for filter-aware panels and ADU targeting so flats land in the right brightness range.
 
-<img src="assets/screenshots/weather.png" alt="Weather radar with cloud cover monitoring and safety-oriented conditions" width="100%">
+![Flat frame wizard with ADU targeting](assets/screenshots/flat-wizard.png)
 
-<br><br>
+*Flat wizard: filter-aware panels and ADU targeting.*
 
-**Weather**
+### Step away with remote access
 
-Watch radar and cloud signals alongside observatory conditions to decide when to pause or park. Sequencer and Plan Tonight can factor weather into automation so you are not the only thing watching the sky.
+Leave the observatory PC running headless or on the LAN, then open the browser dashboard for session status, preview, and core actions from inside the house or on a tablet. Return to equipment profiles on the desktop when you need to edit optics or device roles without sitting at the pier.
 
-</td>
-<td width="50%" valign="top">
+![Browser remote dashboard for headless control](assets/screenshots/web-dashboard.png)
 
-<img src="assets/screenshots/analytics.png" alt="Session analytics with frame quality, HFR, and guiding trend charts" width="100%">
+*Web dashboard: session status and core actions from a browser on your LAN.*
 
-<br><br>
-
-**Analytics**
-
-Review the night after—or during—capture: frame quality, HFR trends, and guiding performance in one analytics view. Spot when seeing softened or autofocus drifted without digging through individual FITS headers.
-
-</td>
-</tr>
-<tr>
-<td width="100%" valign="top">
-
-<img src="assets/screenshots/flat-wizard.png" alt="Flat frame wizard with ADU targeting and filter-aware flat panels" width="100%">
-
-<br><br>
-
-**Flat wizard**
-
-Run filter-aware flat panels with ADU targeting so flats land in the right brightness range. Fits between targets when the sequencer calls for calibration or when you need a quick flat series before meridian.
-
-</td>
-</tr>
-</table>
-
-### Remote and settings
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-<img src="assets/screenshots/web-dashboard.png" alt="Browser remote dashboard for headless control of session status and core actions" width="100%">
-
-<br><br>
-
-**Web dashboard**
-
-Control a headless or LAN-hosted rig from the browser: session status, preview, and core actions without the full desktop UI on the observatory PC. Same stack as the mobile companion—useful when you are warm inside or on a tablet.
-
-</td>
-<td width="50%" valign="top">
-
-<img src="assets/screenshots/settings-equipment-profiles.png" alt="Equipment profile and optical configuration including focal length and plate scale" width="100%">
-
-<br><br>
-
-**Equipment profiles**
-
-Edit saved profiles: optics (focal length, plate scale), device roles, and solver-related defaults that framing and plate solving rely on. One profile per rig keeps imports, centering, and sequences aligned with your real hardware.
-
-</td>
-</tr>
-</table>
-
-Screenshots captured from **Nightshade 2.6.0** on Windows. See [`assets/README.md`](assets/README.md) for file naming and refresh instructions.
+Screenshot refresh notes: [`assets/README.md`](assets/README.md).
 
 ---
 
