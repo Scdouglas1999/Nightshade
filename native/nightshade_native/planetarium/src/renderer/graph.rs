@@ -1,8 +1,9 @@
 //! Frame graph: ordered render passes per design §5.1.
 //!
-//! Passes 1–9 are no-ops until their pipelines land in later tasks; pass 0 clears to black.
+//! Pass 0 clears to black; pass 3 draws instanced stars when present.
 
 use super::Scene;
+use crate::renderer::pipelines::stars::StarsPipeline;
 use crate::renderer::FRAME_CLEAR;
 
 /// Ordered render passes (design doc §5.1).
@@ -52,22 +53,41 @@ pub struct FrameGraph;
 
 impl FrameGraph {
     /// Run the full pass graph into `target_view`.
-    ///
-    /// Empty scene: only the clear pass writes pixels; later passes load and draw nothing,
-    /// leaving pure black.
     pub fn render(
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
-        _scene: &Scene,
+        scene: &Scene,
+        stars: &StarsPipeline,
+        star_instance_buf: &wgpu::Buffer,
+        star_instance_count: u32,
+        width: u32,
+        height: u32,
     ) {
         for (index, pass_id) in RenderPassId::ORDER.iter().enumerate() {
-            Self::run_pass(encoder, target_view, *pass_id, index == 0);
+            Self::run_pass(
+                encoder,
+                target_view,
+                scene,
+                stars,
+                star_instance_buf,
+                star_instance_count,
+                width,
+                height,
+                *pass_id,
+                index == 0,
+            );
         }
     }
 
     fn run_pass(
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
+        scene: &Scene,
+        stars: &StarsPipeline,
+        star_instance_buf: &wgpu::Buffer,
+        star_instance_count: u32,
+        width: u32,
+        height: u32,
         pass_id: RenderPassId,
         is_first: bool,
     ) {
@@ -78,7 +98,7 @@ impl FrameGraph {
             wgpu::LoadOp::Load
         };
 
-        let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(&label),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target_view,
@@ -92,7 +112,18 @@ impl FrameGraph {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        // Pipeline draw calls for `pass_id` are added in Tasks 48–62.
+
+        if pass_id == RenderPassId::Stars {
+            stars.draw_with_viewport(
+                &mut pass,
+                scene,
+                star_instance_buf,
+                star_instance_count,
+                width,
+                height,
+            );
+        }
+
         drop(pass);
     }
 }

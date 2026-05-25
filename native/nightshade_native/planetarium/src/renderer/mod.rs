@@ -3,10 +3,15 @@
 //! [`Renderer`] owns the render target and drives [`graph::FrameGraph`] each frame.
 
 mod graph;
+mod pipelines;
 
 use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
+pub use pipelines::stars::{
+    render_three_stars_rgba, three_star_instances, three_stars_view_pose, StarInstance,
+    StarsPipeline, THREE_STARS_SIZE,
+};
 
 use crate::types::{RenderConfig, ViewPose};
 
@@ -25,6 +30,8 @@ pub struct Scene {
     pub view_pose: ViewPose,
     /// Layer visibility and quality knobs.
     pub config: RenderConfig,
+    /// GPU star instances for the current frame (may be empty).
+    pub stars: Vec<StarInstance>,
 }
 
 impl Default for Scene {
@@ -32,6 +39,7 @@ impl Default for Scene {
         Self {
             view_pose: ViewPose::default(),
             config: RenderConfig::default(),
+            stars: Vec::new(),
         }
     }
 }
@@ -45,6 +53,9 @@ pub struct Renderer {
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
+    stars: StarsPipeline,
+    star_instance_buf: wgpu::Buffer,
+    star_instance_count: u32,
 }
 
 impl Renderer {
@@ -72,6 +83,14 @@ impl Renderer {
         });
         let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let stars = StarsPipeline::new(device.clone(), queue.clone(), format);
+        let star_instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("planetarium.stars.instances"),
+            size: 4,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         Self {
             device,
             queue,
@@ -80,6 +99,9 @@ impl Renderer {
             width,
             height,
             format,
+            stars,
+            star_instance_buf,
+            star_instance_count: 0,
         }
     }
 
@@ -109,13 +131,44 @@ impl Renderer {
     }
 
     /// Run the frame graph for `scene` into the internal render target.
-    pub fn render(&self, scene: &Scene) {
+    pub fn render(&mut self, scene: &Scene) {
+        self.upload_star_instances(scene);
+
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("planetarium.renderer.encoder"),
         });
-        FrameGraph::render(&mut encoder, &self.target_view, scene);
+        FrameGraph::render(
+            &mut encoder,
+            &self.target_view,
+            scene,
+            &self.stars,
+            &self.star_instance_buf,
+            self.star_instance_count,
+            self.width,
+            self.height,
+        );
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
+    }
+
+    fn upload_star_instances(&mut self, scene: &Scene) {
+        let count = scene.stars.len();
+        if count == 0 {
+            self.star_instance_count = 0;
+            return;
+        }
+        let byte_len = (count * std::mem::size_of::<StarInstance>()) as u64;
+        if self.star_instance_buf.size() < byte_len {
+            self.star_instance_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("planetarium.stars.instances"),
+                size: byte_len,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        self.queue
+            .write_buffer(&self.star_instance_buf, 0, bytemuck::cast_slice(&scene.stars));
+        self.star_instance_count = count as u32;
     }
 
     /// Read back RGBA8 pixels from the internal target (`width * height * 4` bytes).
@@ -197,7 +250,7 @@ pub fn readback_rgba(
 pub fn render_empty_scene_rgba(width: u32, height: u32) -> Vec<u8> {
     pollster::block_on(async {
         let (device, queue) = offscreen_device().await;
-        let renderer = Renderer::new(
+        let mut renderer = Renderer::new(
             device,
             queue,
             wgpu::TextureFormat::Rgba8UnormSrgb,
