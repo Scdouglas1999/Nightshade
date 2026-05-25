@@ -4,3 +4,4 @@
 library nightshade_planetarium_v2;
 
 export 'src/bridge/planetarium_handle.dart';
+export 'src/providers/planetarium_handle_provider.dart';
