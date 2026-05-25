@@ -24,6 +24,7 @@ mod handle;
 pub use handle::Planetarium;
 
 pub mod astrometry;
+pub mod catalog;
 pub mod animation;
 pub mod bus;
 pub mod gesture;
