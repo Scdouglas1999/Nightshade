@@ -6,12 +6,22 @@
 #![warn(missing_docs)]
 
 /// Crate-wide error type. Per CLAUDE.md, fail loud — no silent fallbacks.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum PlanetariumError {
     /// A platform surface could not be created for the current platform.
     #[error("platform surface unsupported: {0}")]
     UnsupportedPlatform(&'static str),
+    /// No Flutter texture has been allocated yet (resize not completed successfully).
+    #[error("texture not allocated — send Resize with a valid engine handle first")]
+    NotAllocated,
+    /// The render-loop command channel is closed (handle dropped or thread exited).
+    #[error("command channel closed")]
+    ChannelClosed,
 }
+
+mod handle;
+
+pub use handle::Planetarium;
 
 pub mod bus;
 pub mod scene;

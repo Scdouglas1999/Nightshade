@@ -15,6 +15,14 @@ use super::PlanetariumCommand;
 
 /// Renders one frame when the loop has pending dirty state.
 pub trait FrameRenderer: Send {
+    /// Apply side effects for an incoming command and update dirty flags.
+    ///
+    /// Default implementation only updates [`DirtyFlags`]; production renderers may
+    /// also drive platform surface resize, snapshot state, etc.
+    fn on_command(&mut self, cmd: &PlanetariumCommand, dirty: &mut DirtyFlags) {
+        cmd.apply_dirty(dirty);
+    }
+
     /// Draw (or simulate drawing) for the given dirty subsystem flags.
     fn render_frame(&mut self, dirty: DirtyFlags);
 }
@@ -118,7 +126,7 @@ fn run<R: FrameRenderer>(cmd_rx: Receiver<PlanetariumCommand>, mut renderer: R) 
         while !dirty.any() {
             match cmd_rx.recv() {
                 Ok(PlanetariumCommand::Shutdown) => return,
-                Ok(cmd) => cmd.apply_dirty(&mut dirty),
+                Ok(cmd) => renderer.on_command(&cmd, &mut dirty),
                 Err(RecvError) => return,
             }
         }
@@ -126,7 +134,7 @@ fn run<R: FrameRenderer>(cmd_rx: Receiver<PlanetariumCommand>, mut renderer: R) 
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
                 PlanetariumCommand::Shutdown => return,
-                other => other.apply_dirty(&mut dirty),
+                other => renderer.on_command(&other, &mut dirty),
             }
         }
 
