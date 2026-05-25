@@ -132,6 +132,17 @@ impl GestureStateMachine {
         self.pose
     }
 
+    /// Replace the pose anchor without disturbing active momentum or in-progress gestures.
+    ///
+    /// Use after a programmatic pose update (e.g. `PlanetariumCommand::SetPose`)
+    /// so that subsequent pan/zoom/rotate deltas accumulate on top of the new
+    /// pose instead of the stale one. Unlike [`Self::new`], this does NOT clear
+    /// in-flight pan coast — programmatic pose changes should not silently
+    /// cancel a user's release-fling.
+    pub fn set_pose_anchor(&mut self, pose: ViewPose) {
+        self.pose = pose;
+    }
+
     /// Whether a pan/zoom/rotate sequence is in progress.
     pub fn active_gesture(&self) -> Option<ActiveGesture> {
         self.active
@@ -329,5 +340,57 @@ mod tests {
         assert!(sm.momentum_active());
         let _ = sm.apply(GestureEvent::PanStart { x: 0.5, y: 0.5 });
         assert!(!sm.momentum_active());
+    }
+
+    #[test]
+    fn set_pose_anchor_preserves_active_momentum() {
+        // Programmatic pose updates (e.g. Planetarium::SetPose driven by a
+        // tracking target update) must NOT cancel an in-flight pan coast — the
+        // user's release-fling continues over the new anchor.
+        let mut sm = GestureStateMachine::new(test_pose());
+        let _ = sm.apply(GestureEvent::PanEnd { vx: 1.0, vy: 0.0 });
+        assert!(sm.momentum_active());
+
+        let new_anchor = ViewPose {
+            ra_rad: 2.5,
+            dec_rad: -0.3,
+            ..test_pose()
+        };
+        sm.set_pose_anchor(new_anchor);
+
+        assert!(
+            sm.momentum_active(),
+            "set_pose_anchor must not cancel momentum",
+        );
+        assert_eq!(
+            sm.pose().ra_rad,
+            new_anchor.ra_rad,
+            "new pan deltas accumulate on top of the new anchor",
+        );
+    }
+
+    #[test]
+    fn set_pose_anchor_preserves_active_gesture_kind() {
+        // Mid-pan programmatic pose updates also must not flip `active` to None.
+        let mut sm = GestureStateMachine::new(test_pose());
+        let _ = sm.apply(GestureEvent::PanStart { x: 0.5, y: 0.5 });
+        let _ = sm.apply(GestureEvent::PanUpdate {
+            dx: 0.01,
+            dy: 0.0,
+            vx: 0.0,
+            vy: 0.0,
+        });
+        assert_eq!(sm.active_gesture(), Some(ActiveGesture::Pan));
+
+        sm.set_pose_anchor(ViewPose {
+            ra_rad: 3.0,
+            ..test_pose()
+        });
+
+        assert_eq!(
+            sm.active_gesture(),
+            Some(ActiveGesture::Pan),
+            "set_pose_anchor must preserve in-flight gesture phase",
+        );
     }
 }

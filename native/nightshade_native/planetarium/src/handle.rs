@@ -256,7 +256,12 @@ impl FrameRenderer for PlanetariumRenderer {
                     tracing::error!("SetPose apply_user_pose failed: {err}");
                 }
                 self.refresh_view_pose();
-                self.gestures = GestureStateMachine::new(self.view_pose);
+                // Re-anchor the gesture machine on the new pose WITHOUT cancelling
+                // any in-flight pan momentum or active gesture phase: a programmatic
+                // pose update (Dart following a target, etc.) should not silently
+                // kill the user's release-fling. Cancellation is what
+                // GestureEvent::Cancel is for.
+                self.gestures.set_pose_anchor(self.view_pose);
                 *dirty |= DirtyFlags::POSE;
             }
             PlanetariumCommand::SetMountPosition(mount) => {
