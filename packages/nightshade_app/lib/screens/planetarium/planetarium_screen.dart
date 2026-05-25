@@ -24,6 +24,7 @@ import 'providers/device_orientation_provider.dart';
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/planetarium_keys.dart';
+import 'widgets/full_screen_sky_view.dart';
 import '../imaging/centering_dialog.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
@@ -1010,7 +1011,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                     ref.watch(listedCatalogIdsProvider).valueOrNull ?? {};
                 final bortleClass = ref.watch(bortleClassProvider);
                 final horizonProfile = ref.watch(horizonProfileProvider);
-                return InteractiveSkyView(
+                return FullScreenSkyView(
                   key: PlanetariumTutorialKeys.skyView,
                   showFOV: _showFOV,
                   onObjectTapped: _handleObjectTapped,
@@ -1227,7 +1228,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                         final bortleClass = ref.watch(bortleClassProvider);
                         final horizonProfile =
                             ref.watch(horizonProfileProvider);
-                        return InteractiveSkyView(
+                        return FullScreenSkyView(
                           key: PlanetariumTutorialKeys.skyView,
                           showFOV: _showFOV,
                           onObjectTapped: _handleObjectTapped,

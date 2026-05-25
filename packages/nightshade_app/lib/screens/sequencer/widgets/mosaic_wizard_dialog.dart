@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'dart:math' as math;
 
 import '../../../utils/snackbar_helper.dart';
+import '../../planetarium/widgets/mosaic_planner_sky_view.dart';
 
 class MosaicWizardDialog extends ConsumerStatefulWidget {
   final double? initialRa;
@@ -457,7 +458,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               ),
             ),
           ),
-          // Preview Panel
+          // Visual planner: adaptive sky + panel overlay
           Expanded(
             flex: 3,
             child: Container(
@@ -467,13 +468,25 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: colors.border),
               ),
-              child: CustomPaint(
-                painter: _MosaicPreviewPainter(
-                  panels: panels,
-                  panelWidthArcmin: _panelWidthArcmin,
-                  panelHeightArcmin: _panelHeightArcmin,
-                  colors: colors,
-                ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                key: const ValueKey('mosaic_visual_planner'),
+                fit: StackFit.expand,
+                children: [
+                  MosaicPlannerSkyView(
+                    centerRaHours: _centerRa,
+                    centerDecDegrees: _centerDec,
+                    showFOV: true,
+                  ),
+                  CustomPaint(
+                    painter: _MosaicPreviewPainter(
+                      panels: panels,
+                      panelWidthArcmin: _panelWidthArcmin,
+                      panelHeightArcmin: _panelHeightArcmin,
+                      colors: colors,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

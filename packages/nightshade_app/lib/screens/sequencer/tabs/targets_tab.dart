@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+
+import '../../planetarium/widgets/target_picker_sky_view.dart';
 import 'package:intl/intl.dart';
 
 import '../../../utils/snackbar_helper.dart';
@@ -758,8 +760,8 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
       child: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
           context,
-          preferredWidth: 500,
-          preferredHeight: 600,
+          preferredWidth: 960,
+          preferredHeight: 640,
           minWidth: 350,
           minHeight: 400,
         ),
@@ -777,9 +779,16 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Search Bar
-              TextField(
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
                 controller: _searchController,
                 autofocus: true,
                 style: TextStyle(color: colors.textPrimary),
@@ -794,16 +803,15 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                     borderSide: BorderSide.none,
                   ),
                 ),
-                onChanged: (value) {
-                  ref.read(objectSearchProvider.notifier).search(value);
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Results
-              Expanded(
-                child: searchState.isSearching
+                            onChanged: (value) {
+                              ref
+                                  .read(objectSearchProvider.notifier)
+                                  .search(value);
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: searchState.isSearching
                     ? Center(
                         child: CircularProgressIndicator(color: colors.primary))
                     : searchState.results.isEmpty
@@ -835,32 +843,72 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                                   icon: LucideIcons.plus,
                                   variant: ButtonVariant.ghost,
                                   size: ButtonSize.small,
-                                  onPressed: () {
-                                    ref
-                                        .read(currentSequenceProvider.notifier)
-                                        .addNode(
-                                          TargetHeaderNode(
-                                            targetName: obj.name,
-                                            raHours: obj.coordinates.ra,
-                                            decDegrees: obj.coordinates.dec,
-                                          ),
-                                        );
-                                    Navigator.pop(context);
-                                    if (context.mounted) {
-                                      context.showSuccessSnackBar(
-                                          'Added ${obj.name} to sequence');
-                                    }
-                                  },
+                                  onPressed: () => _addTargetFromObject(
+                                    context,
+                                    obj.name,
+                                    obj.coordinates.ra,
+                                    obj.coordinates.dec,
+                                  ),
                                 ),
+                                onTap: () {
+                                  ref
+                                      .read(skyViewStateProvider.notifier)
+                                      .lookAt(obj.coordinates);
+                                },
                               );
                             },
                           ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 3,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: TargetPickerSkyView(
+                          onObjectTapped: (object, coordinates, _) {
+                            if (object == null) {
+                              return;
+                            }
+                            _addTargetFromObject(
+                              context,
+                              object.name,
+                              coordinates.ra,
+                              coordinates.dec,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _addTargetFromObject(
+    BuildContext context,
+    String name,
+    double raHours,
+    double decDegrees,
+  ) {
+    ref.read(currentSequenceProvider.notifier).addNode(
+          TargetHeaderNode(
+            targetName: name,
+            raHours: raHours,
+            decDegrees: decDegrees,
+          ),
+        );
+    Navigator.pop(context);
+    if (context.mounted) {
+      context.showSuccessSnackBar('Added $name to sequence');
+    }
   }
 }
 
