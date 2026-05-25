@@ -19,6 +19,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_rust_bridge: ^2.11.1
   # Pinned exact version across all workspace packages to prevent
   # mixed-version drift. Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE
   # (audit-dart §10 #3).
