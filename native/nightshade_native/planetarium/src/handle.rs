@@ -19,12 +19,12 @@ use std::path::Path;
 
 use crate::catalog::{open_star_tile_pack, CatalogSet, StarPack};
 use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
-use crate::scene::{
-    build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs,
-    MountPosition, PoseController, PoseInputs, PoseLock, SceneSnapshot, SelectedObject,
-    SnapshotInputs, SnapshotSlot, TrackingTarget,
-};
 use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
+use crate::scene::{
+    build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs, MountPosition,
+    PoseController, PoseInputs, PoseLock, SceneSnapshot, SelectedObject, SnapshotInputs,
+    SnapshotSlot, TrackingTarget,
+};
 use crate::surface::{create_surface, PlatformSurface};
 use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use crate::PlanetariumError;
@@ -34,7 +34,11 @@ const NO_TEXTURE_ID: i64 = 0;
 
 /// Logical layout size → physical texture pixels (Flutter logical size × device pixel ratio).
 fn physical_texture_dimensions(width: u32, height: u32, dpr: f32) -> (u32, u32) {
-    let dpr = if dpr.is_finite() && dpr > 0.0 { dpr } else { 1.0 };
+    let dpr = if dpr.is_finite() && dpr > 0.0 {
+        dpr
+    } else {
+        1.0
+    };
     let w = (width as f32 * dpr).round().max(1.0) as u32;
     let h = (height as f32 * dpr).round().max(1.0) as u32;
     (w, h)
@@ -211,7 +215,8 @@ impl Planetarium {
 
     /// Load a verified star-tile pack from disk and register it on this handle.
     pub fn load_pack(&self, pack_dir: &Path) -> Result<(), PlanetariumError> {
-        let pack = open_star_tile_pack(pack_dir).map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
+        let pack = open_star_tile_pack(pack_dir)
+            .map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
         self.register_pack(pack);
         Ok(())
     }
@@ -289,8 +294,7 @@ impl Planetarium {
         }
         // Fast path: a resize newer than `since_resize_gen` has already
         // completed and produced a definitive failure outcome.
-        if self.resize_generation() > since_resize_gen
-            && self.inner.surface_error.lock().is_some()
+        if self.resize_generation() > since_resize_gen && self.inner.surface_error.lock().is_some()
         {
             return Err(PlanetariumError::NotAllocated);
         }
@@ -345,11 +349,7 @@ impl Planetarium {
 impl FrameRenderer for PlanetariumRenderer {
     fn on_command(&mut self, cmd: &PlanetariumCommand, dirty: &mut DirtyFlags) {
         match cmd {
-            PlanetariumCommand::Resize {
-                width,
-                height,
-                dpr,
-            } => {
+            PlanetariumCommand::Resize { width, height, dpr } => {
                 *dirty |= DirtyFlags::RESIZE;
                 self.resize_generation.fetch_add(1, Ordering::Release);
                 *self.surface_error.lock() = None;

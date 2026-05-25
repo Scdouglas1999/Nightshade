@@ -57,7 +57,10 @@ fn open_star_tile_pack_loads_hyg_fixture() {
 
     let mut set = CatalogSet::new();
     set.register(pack);
-    assert_eq!(set.active_pack_ids().collect::<Vec<_>>(), ["stars-hyg-fixture"]);
+    assert_eq!(
+        set.active_pack_ids().collect::<Vec<_>>(),
+        ["stars-hyg-fixture"]
+    );
 
     let _ = fs::remove_dir_all(&pack_dir);
 }

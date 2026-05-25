@@ -90,11 +90,13 @@ fn target_lock_follows_set_tracking_target() {
     let planetarium = Planetarium::new(0).expect("new");
     // Locking is explicit — provide the target THEN switch to LockedToTarget.
     planetarium
-        .send(PlanetariumCommand::SetTrackingTarget(Some(TrackingTarget {
-            id: target_id,
-            ra_rad: 3.0,
-            dec_rad: 0.1,
-        })))
+        .send(PlanetariumCommand::SetTrackingTarget(Some(
+            TrackingTarget {
+                id: target_id,
+                ra_rad: 3.0,
+                dec_rad: 0.1,
+            },
+        )))
         .expect("target");
     planetarium
         .send(PlanetariumCommand::SetPoseLock(PoseLock::LockedToTarget(
@@ -109,11 +111,13 @@ fn target_lock_follows_set_tracking_target() {
     assert!((snap.view_pose.dec_rad - 0.1).abs() < 1e-8);
 
     planetarium
-        .send(PlanetariumCommand::SetTrackingTarget(Some(TrackingTarget {
-            id: target_id,
-            ra_rad: 4.2,
-            dec_rad: -0.3,
-        })))
+        .send(PlanetariumCommand::SetTrackingTarget(Some(
+            TrackingTarget {
+                id: target_id,
+                ra_rad: 4.2,
+                dec_rad: -0.3,
+            },
+        )))
         .expect("target move");
     wake_render_loop(&planetarium);
 
@@ -146,11 +150,13 @@ fn set_tracking_target_does_not_lock_pose_when_free() {
     );
 
     planetarium
-        .send(PlanetariumCommand::SetTrackingTarget(Some(TrackingTarget {
-            id: target_id,
-            ra_rad: 5.0, // wildly different from baseline
-            dec_rad: 0.9,
-        })))
+        .send(PlanetariumCommand::SetTrackingTarget(Some(
+            TrackingTarget {
+                id: target_id,
+                ra_rad: 5.0, // wildly different from baseline
+                dec_rad: 0.9,
+            },
+        )))
         .expect("target");
     wake_render_loop(&planetarium);
 

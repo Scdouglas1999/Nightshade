@@ -14,12 +14,8 @@ use std::time::{Duration, Instant};
 use nightshade_planetarium::bus::PlanetariumCommand;
 use nightshade_planetarium::catalog::StarPack;
 use nightshade_planetarium::gesture::GestureEvent;
-use nightshade_planetarium::scene::{
-    LabelCategory, LabelHint, SceneSnapshot, SelectedObject,
-};
-use nightshade_planetarium::types::{
-    AstroTime, Observer, RenderConfig, SkyProjection, ViewPose,
-};
+use nightshade_planetarium::scene::{LabelCategory, LabelHint, SceneSnapshot, SelectedObject};
+use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, SkyProjection, ViewPose};
 use nightshade_planetarium::{Planetarium, PlanetariumError};
 use parking_lot::Mutex;
 
@@ -567,10 +563,7 @@ pub fn planetarium_set_config(handle: i64, config: RenderConfigDto) -> Result<()
 
 /// Forward a normalized gesture event; updates view pose on pan/zoom/rotate.
 #[flutter_rust_bridge::frb(sync)]
-pub fn planetarium_push_gesture(
-    handle: i64,
-    evt: GestureEventDto,
-) -> Result<(), String> {
+pub fn planetarium_push_gesture(handle: i64, evt: GestureEventDto) -> Result<(), String> {
     with_planetarium(handle, |planetarium| {
         planetarium
             .send(PlanetariumCommand::PushGesture(evt.into()))
@@ -594,10 +587,7 @@ pub fn planetarium_hit_test(
 }
 
 /// Register a star pack for catalog queries and hit testing (tests / pack-load path).
-pub fn planetarium_register_star_pack(
-    handle: i64,
-    pack: Box<dyn StarPack>,
-) -> Result<(), String> {
+pub fn planetarium_register_star_pack(handle: i64, pack: Box<dyn StarPack>) -> Result<(), String> {
     with_planetarium(handle, |planetarium| {
         planetarium.register_pack(pack);
         Ok(())
@@ -860,9 +850,7 @@ mod tests {
         use std::borrow::Cow;
         use std::collections::HashMap;
 
-        use nightshade_planetarium::catalog::{
-            pixel_for_direction, StarPack, StarRecord,
-        };
+        use nightshade_planetarium::catalog::{pixel_for_direction, StarPack, StarRecord};
         use nightshade_planetarium::scene::projection::project_icrs;
 
         struct FakePack {

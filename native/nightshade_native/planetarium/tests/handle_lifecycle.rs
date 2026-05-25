@@ -65,7 +65,10 @@ fn drop_joins_render_thread_within_bounded_time() {
 #[test]
 fn send_pose_publishes_snapshot_without_surface_allocate() {
     let planetarium = Planetarium::new(0).expect("new");
-    assert_eq!(planetarium.texture_id(), Err(PlanetariumError::NotAllocated));
+    assert_eq!(
+        planetarium.texture_id(),
+        Err(PlanetariumError::NotAllocated)
+    );
 
     planetarium
         .send(PlanetariumCommand::SetPose(ViewPose {
@@ -88,7 +91,10 @@ fn send_pose_publishes_snapshot_without_surface_allocate() {
         thread::sleep(POLL);
     }
 
-    assert_eq!(planetarium.texture_id(), Err(PlanetariumError::NotAllocated));
+    assert_eq!(
+        planetarium.texture_id(),
+        Err(PlanetariumError::NotAllocated)
+    );
 }
 
 #[test]
