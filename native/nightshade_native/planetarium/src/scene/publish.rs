@@ -1,6 +1,6 @@
 //! Per-frame snapshot assembly and ArcSwap publish hook.
 
-use crate::types::{RenderConfig, ViewPose};
+use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 
 use super::dev_catalog::DEV_STARS;
 use super::projection::project_icrs;
@@ -15,6 +15,10 @@ pub struct SnapshotInputs {
     pub frame_id: u64,
     /// Camera pose used for projection.
     pub view_pose: ViewPose,
+    /// Astronomical time for this frame.
+    pub astro_time: AstroTime,
+    /// Observer site for this frame.
+    pub observer: Observer,
     /// Layer visibility and magnitude limit.
     pub render_config: RenderConfig,
     /// Active selection, if any (screen position is refreshed each frame).
@@ -31,6 +35,8 @@ pub fn build_snapshot(inputs: SnapshotInputs) -> SceneSnapshot {
     SceneSnapshot {
         frame_id: inputs.frame_id,
         view_pose: inputs.view_pose,
+        astro_time: inputs.astro_time,
+        observer: inputs.observer,
         labels,
         selected,
     }

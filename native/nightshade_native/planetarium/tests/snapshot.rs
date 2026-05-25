@@ -8,7 +8,8 @@ use nightshade_planetarium::scene::{
     load, new_snapshot_slot, publish, LabelCategory, LabelHint, SceneSnapshot, SelectedObject,
     SmallString,
 };
-use nightshade_planetarium::types::ViewPose;
+use nightshade_planetarium::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
+use nightshade_planetarium::types::{AstroTime, Observer, ViewPose};
 
 const FINAL_FRAME: u64 = 32;
 
@@ -19,6 +20,8 @@ fn snapshot_for_frame(frame_id: u64) -> SceneSnapshot {
             ra_rad: frame_id as f64 * 0.01,
             ..ViewPose::default()
         },
+        astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
+        observer: Observer::default(),
         labels: vec![LabelHint {
             object_id: frame_id,
             screen_x: 10.0,

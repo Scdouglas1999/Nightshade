@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use nightshade_planetarium::bus::PlanetariumCommand;
-use nightshade_planetarium::types::ViewPose;
+use nightshade_planetarium::types::{AstroTime, Observer, ViewPose};
 use nightshade_planetarium::{Planetarium, PlanetariumError};
 
 const ITERATIONS: usize = 48;
@@ -54,4 +54,43 @@ fn send_pose_publishes_snapshot_without_surface_allocate() {
     }
 
     assert_eq!(planetarium.texture_id(), Err(PlanetariumError::NotAllocated));
+}
+
+#[test]
+fn set_time_and_observer_appear_in_published_snapshot() {
+    let planetarium = Planetarium::new(0).expect("new");
+    let time = AstroTime::from_jd_utc(2_459_223.5);
+    let observer = Observer {
+        latitude_rad: 0.5,
+        longitude_rad: -1.2,
+        elevation_m: 1200.0,
+        pressure_hpa: 900.0,
+        temperature_c: -5.0,
+    };
+
+    planetarium
+        .send(PlanetariumCommand::SetTime(time))
+        .expect("SetTime");
+    planetarium
+        .send(PlanetariumCommand::SetObserver(observer))
+        .expect("SetObserver");
+    planetarium
+        .send(PlanetariumCommand::SetPose(ViewPose::default()))
+        .expect("SetPose");
+
+    let deadline = std::time::Instant::now() + WAKE_TIMEOUT;
+    loop {
+        let snap = planetarium.snapshot();
+        if snap.frame_id > 0 && snap.astro_time == time && snap.observer == observer {
+            return;
+        }
+        if std::time::Instant::now() >= deadline {
+            let snap = planetarium.snapshot();
+            panic!(
+                "timed out; frame_id={} time={:?} observer={:?}",
+                snap.frame_id, snap.astro_time, snap.observer
+            );
+        }
+        thread::sleep(POLL);
+    }
 }

@@ -7,7 +7,10 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 
-use crate::types::ViewPose;
+use crate::types::{AstroTime, Observer, ViewPose};
+
+/// J2000.0 epoch used before the first [`PlanetariumCommand::SetTime`].
+pub const DEFAULT_ASTRO_TIME_JD_UTC: f64 = 2_451_545.0;
 
 /// Stable identifier for a catalog object (HIP, NGC id hash, body id, etc.).
 pub type ObjectId = u64;
@@ -106,6 +109,10 @@ pub struct SceneSnapshot {
     pub frame_id: u64,
     /// Camera pose used when this frame was rendered.
     pub view_pose: ViewPose,
+    /// Astronomical time used for this frame (horizon / solar-system prep).
+    pub astro_time: AstroTime,
+    /// Observer site used for this frame.
+    pub observer: Observer,
     /// Visible object labels for the Dart overlay layer.
     pub labels: Vec<LabelHint>,
     /// Active selection, if any.
@@ -118,6 +125,8 @@ impl SceneSnapshot {
         Self {
             frame_id: 0,
             view_pose: ViewPose::default(),
+            astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
+            observer: Observer::default(),
             labels: Vec::new(),
             selected: None,
         }

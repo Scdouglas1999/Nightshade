@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 use crossbeam_channel::SendError;
+use parking_lot::Mutex;
 
 use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
@@ -17,8 +18,9 @@ use crate::scene::{
     load, new_snapshot_slot, publish_snapshot, SceneSnapshot, SelectedObject, SnapshotInputs,
     SnapshotSlot,
 };
+use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use crate::surface::{create_surface, PlatformSurface};
-use crate::types::{RenderConfig, ViewPose};
+use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use crate::PlanetariumError;
 
 /// Sentinel: no Flutter texture registered yet. Never returned from [`Planetarium::texture_id`].
@@ -35,6 +37,7 @@ struct PlanetariumInner {
     cmd_tx: crossbeam_channel::Sender<PlanetariumCommand>,
     snapshot: SnapshotSlot,
     texture_id: Arc<AtomicI64>,
+    surface_error: Arc<Mutex<Option<String>>>,
 }
 
 /// Renderer running on the dedicated loop thread; owns the platform surface.
@@ -42,8 +45,11 @@ struct PlanetariumRenderer {
     surface: Box<dyn PlatformSurface>,
     snapshot: SnapshotSlot,
     texture_id: Arc<AtomicI64>,
+    surface_error: Arc<Mutex<Option<String>>>,
     frame_id: u64,
     view_pose: ViewPose,
+    astro_time: AstroTime,
+    observer: Observer,
     render_config: RenderConfig,
     selected: Option<SelectedObject>,
     gestures: GestureStateMachine,
@@ -60,13 +66,17 @@ impl Planetarium {
         let surface = create_surface(engine_handle)?;
         let snapshot = new_snapshot_slot();
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
+        let surface_error = Arc::new(Mutex::new(None));
 
         let renderer = PlanetariumRenderer {
             surface,
             snapshot: Arc::clone(&snapshot),
             texture_id: Arc::clone(&texture_id),
+            surface_error: Arc::clone(&surface_error),
             frame_id: 0,
             view_pose: ViewPose::default(),
+            astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
+            observer: Observer::default(),
             render_config: RenderConfig::default(),
             selected: None,
             gestures: GestureStateMachine::new(ViewPose::default()),
@@ -81,6 +91,7 @@ impl Planetarium {
                 cmd_tx,
                 snapshot,
                 texture_id,
+                surface_error,
             }),
             _render_loop: render_loop,
         })
@@ -111,6 +122,11 @@ impl Planetarium {
             Ok(id)
         }
     }
+
+    /// Last surface allocate/resize failure from the render thread, if any.
+    pub fn last_surface_error(&self) -> Option<String> {
+        self.inner.surface_error.lock().clone()
+    }
 }
 
 impl FrameRenderer for PlanetariumRenderer {
@@ -124,13 +140,23 @@ impl FrameRenderer for PlanetariumRenderer {
                 *dirty |= DirtyFlags::RESIZE;
                 match self.surface.resize(*width, *height) {
                     Ok(id) => {
+                        *self.surface_error.lock() = None;
                         self.texture_id.store(id, Ordering::Release);
                     }
                     Err(err) => {
+                        *self.surface_error.lock() = Some(err.to_string());
                         self.texture_id.store(NO_TEXTURE_ID, Ordering::Release);
                         tracing::error!("surface resize failed: {err}");
                     }
                 }
+            }
+            PlanetariumCommand::SetTime(time) => {
+                self.astro_time = *time;
+                *dirty |= DirtyFlags::TIME;
+            }
+            PlanetariumCommand::SetObserver(observer) => {
+                self.observer = *observer;
+                *dirty |= DirtyFlags::OBSERVER;
             }
             PlanetariumCommand::SetPose(pose) => {
                 self.view_pose = *pose;
@@ -172,6 +198,8 @@ impl FrameRenderer for PlanetariumRenderer {
             SnapshotInputs {
                 frame_id: self.frame_id,
                 view_pose: self.view_pose,
+                astro_time: self.astro_time,
+                observer: self.observer,
                 render_config: self.render_config,
                 selected: self.selected.clone(),
             },
