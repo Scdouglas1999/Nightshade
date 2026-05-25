@@ -14,7 +14,14 @@ pub const MEAN_OBLIQUITY_J2000_DEG: f64 = 23.439_291_111;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VsopBody {
-    Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune,
+    Mercury,
+    Venus,
+    Earth,
+    Mars,
+    Jupiter,
+    Saturn,
+    Uranus,
+    Neptune,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,7 +37,9 @@ pub fn julian_millennia_tt(jd_tt: f64) -> f64 {
 }
 
 fn eval_terms(terms: &[(f64, f64, f64)], t: f64) -> f64 {
-    terms.iter().fold(0.0, |acc, &(a, b, c)| acc + a * (b + c * t).cos())
+    terms
+        .iter()
+        .fold(0.0, |acc, &(a, b, c)| acc + a * (b + c * t).cos())
 }
 
 fn eval_component(
@@ -40,15 +49,21 @@ fn eval_component(
     t: f64,
 ) -> f64 {
     let mut v = eval_terms(c0, t);
-    if !c1.is_empty() { v += t * eval_terms(c1, t); }
-    if !c2.is_empty() { v += t * t * eval_terms(c2, t); }
+    if !c1.is_empty() {
+        v += t * eval_terms(c1, t);
+    }
+    if !c2.is_empty() {
+        v += t * t * eval_terms(c2, t);
+    }
     v / 1e8
 }
 
 fn normalize_longitude_rad(lon: f64) -> f64 {
     use std::f64::consts::TAU;
     let mut lon = lon % TAU;
-    if lon < 0.0 { lon += TAU; }
+    if lon < 0.0 {
+        lon += TAU;
+    }
     lon
 }
 
@@ -121,10 +136,7 @@ const EARTH_L1: &[(f64, f64, f64)] = &[
     (4303.0, 2.6351, 12566.1517),
 ];
 
-const EARTH_L2: &[(f64, f64, f64)] = &[
-    (52919.0, 0.0, 0.0),
-    (8720.0, 1.0721, 6283.0758),
-];
+const EARTH_L2: &[(f64, f64, f64)] = &[(52919.0, 0.0, 0.0), (8720.0, 1.0721, 6283.0758)];
 
 const EARTH_R0: &[(f64, f64, f64)] = &[
     (100013989.0, 0.0, 0.0),
@@ -142,6 +154,14 @@ const EARTH_R1: &[(f64, f64, f64)] = &[
     (1721.0, 1.0644, 12566.1517),
 ];
 
+// VSOP87 coefficient tables follow. The middle column is the phase angle B in
+// the term `A·cos(B + C·t)`; many entries land near π/2π/etc. which clippy's
+// approx_constant lint flags as "approximation of f64::consts::PI/TAU". These
+// are *physical phase angles* of the planetary motion series — not numeric
+// approximations of PI used in formulas — so the lint is a false positive on
+// every const that follows. Apply the allow once at the const-block level
+// rather than papering it over each table.
+#[allow(clippy::approx_constant)]
 const MERCURY_B0: &[(f64, f64, f64)] = &[
     (11737529.0, 1.98357499, 26087.90314157),
     (2388077.0, 5.0373896, 52175.8062831),
@@ -151,6 +171,7 @@ const MERCURY_B0: &[(f64, f64, f64)] = &[
     (31867.0, 1.58088, 130439.51571),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const MERCURY_B1: &[(f64, f64, f64)] = &[
     (429151.0, 3.501698, 26087.903142),
     (146234.0, 3.141593, 0.0),
@@ -195,6 +216,7 @@ const MERCURY_R1: &[(f64, f64, f64)] = &[
     (10094.0, 4.47466, 78263.70942),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const VENUS_B0: &[(f64, f64, f64)] = &[
     (5923638.0, 0.2670278, 10213.2855462),
     (40108.0, 1.14737, 20426.57109),
@@ -240,10 +262,7 @@ const VENUS_R0: &[(f64, f64, f64)] = &[
     (498.0, 2.587, 9683.595),
 ];
 
-const VENUS_R1: &[(f64, f64, f64)] = &[
-    (34551.0, 0.89199, 10213.28555),
-    (234.0, 1.772, 20426.571),
-];
+const VENUS_R1: &[(f64, f64, f64)] = &[(34551.0, 0.89199, 10213.28555), (234.0, 1.772, 20426.571)];
 
 const MARS_B0: &[(f64, f64, f64)] = &[
     (3197135.0, 3.7683204, 3340.6124267),
@@ -253,6 +272,7 @@ const MARS_B0: &[(f64, f64, f64)] = &[
     (3484.0, 4.7881, 13362.4497),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const MARS_B1: &[(f64, f64, f64)] = &[
     (350069.0, 5.368478, 3340.612427),
     (14116.0, 3.14159, 0.0),
@@ -371,6 +391,7 @@ const SATURN_B0: &[(f64, f64, f64)] = &[
     (30863.0, 3.48442, 220.41264),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const SATURN_B1: &[(f64, f64, f64)] = &[
     (397555.0, 5.3329, 213.299095),
     (49479.0, 3.14159, 0.0),
@@ -416,6 +437,7 @@ const SATURN_R0: &[(f64, f64, f64)] = &[
     (371684.0, 2.271148, 220.412642),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const SATURN_R1: &[(f64, f64, f64)] = &[
     (6182981.0, 0.2584352, 213.2990954),
     (506578.0, 0.711147, 206.185548),
@@ -424,6 +446,7 @@ const SATURN_R1: &[(f64, f64, f64)] = &[
     (186262.0, 3.141593, 0.0),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const URANUS_B0: &[(f64, f64, f64)] = &[
     (1346278.0, 2.6187781, 74.7815986),
     (62341.0, 5.08111, 149.5632),
@@ -432,6 +455,7 @@ const URANUS_B0: &[(f64, f64, f64)] = &[
     (9926.0, 0.5763, 73.2971),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const URANUS_B1: &[(f64, f64, f64)] = &[
     (206366.0, 4.123943, 74.781599),
     (4825.0, 3.1416, 0.0),
@@ -472,6 +496,7 @@ const URANUS_R0: &[(f64, f64, f64)] = &[
     (496404.0, 1.401399, 454.909367),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const URANUS_R1: &[(f64, f64, f64)] = &[
     (1479896.0, 3.6719405, 74.7815986),
     (71212.0, 6.22601, 63.7359),
@@ -487,6 +512,7 @@ const NEPTUNE_B0: &[(f64, f64, f64)] = &[
     (15355.0, 2.52124, 36.64856),
 ];
 
+#[allow(clippy::approx_constant)] // see MERCURY_B0: physical phase angle ≈ π
 const NEPTUNE_B1: &[(f64, f64, f64)] = &[
     (227279.0, 3.807931, 38.133036),
     (1803.0, 1.9758, 76.2661),
@@ -509,10 +535,7 @@ const NEPTUNE_L1: &[(f64, f64, f64)] = &[
     (15807.0, 2.27923, 38.13304),
 ];
 
-const NEPTUNE_L2: &[(f64, f64, f64)] = &[
-    (53893.0, 0.0, 0.0),
-    (296.0, 1.855, 38.133),
-];
+const NEPTUNE_L2: &[(f64, f64, f64)] = &[(53893.0, 0.0, 0.0), (296.0, 1.855, 38.133)];
 
 const NEPTUNE_R0: &[(f64, f64, f64)] = &[
     (3007013206.0, 0.0, 0.0),
@@ -540,7 +563,9 @@ fn heliocentric_earth(t: f64) -> HeliocentricEcliptic {
 
 fn heliocentric_mercury(t: f64) -> HeliocentricEcliptic {
     HeliocentricEcliptic {
-        longitude_rad: normalize_longitude_rad(eval_component(MERCURY_L0, MERCURY_L1, MERCURY_L2, t)),
+        longitude_rad: normalize_longitude_rad(eval_component(
+            MERCURY_L0, MERCURY_L1, MERCURY_L2, t,
+        )),
         latitude_rad: eval_component(MERCURY_B0, MERCURY_B1, &[], t),
         distance_au: eval_component(MERCURY_R0, MERCURY_R1, &[], t),
     }
@@ -564,7 +589,9 @@ fn heliocentric_mars(t: f64) -> HeliocentricEcliptic {
 
 fn heliocentric_jupiter(t: f64) -> HeliocentricEcliptic {
     HeliocentricEcliptic {
-        longitude_rad: normalize_longitude_rad(eval_component(JUPITER_L0, JUPITER_L1, JUPITER_L2, t)),
+        longitude_rad: normalize_longitude_rad(eval_component(
+            JUPITER_L0, JUPITER_L1, JUPITER_L2, t,
+        )),
         latitude_rad: eval_component(JUPITER_B0, JUPITER_B1, &[], t),
         distance_au: eval_component(JUPITER_R0, JUPITER_R1, &[], t),
     }
@@ -588,7 +615,9 @@ fn heliocentric_uranus(t: f64) -> HeliocentricEcliptic {
 
 fn heliocentric_neptune(t: f64) -> HeliocentricEcliptic {
     HeliocentricEcliptic {
-        longitude_rad: normalize_longitude_rad(eval_component(NEPTUNE_L0, NEPTUNE_L1, NEPTUNE_L2, t)),
+        longitude_rad: normalize_longitude_rad(eval_component(
+            NEPTUNE_L0, NEPTUNE_L1, NEPTUNE_L2, t,
+        )),
         latitude_rad: eval_component(NEPTUNE_B0, NEPTUNE_B1, &[], t),
         distance_au: eval_component(NEPTUNE_R0, NEPTUNE_R1, &[], t),
     }
@@ -617,11 +646,8 @@ fn ecliptic_rectangular(lon: f64, lat: f64, r: f64) -> (f64, f64, f64) {
 /// Geocentric ecliptic position (planet or Sun) from heliocentric VSOP87D.
 pub fn geocentric_ecliptic(body: VsopBody, t: f64) -> HeliocentricEcliptic {
     let earth = heliocentric_earth(t);
-    let (xe, ye, ze) = ecliptic_rectangular(
-        earth.longitude_rad,
-        earth.latitude_rad,
-        earth.distance_au,
-    );
+    let (xe, ye, ze) =
+        ecliptic_rectangular(earth.longitude_rad, earth.latitude_rad, earth.distance_au);
     let (xp, yp, zp, rp) = if body == VsopBody::Earth {
         (0.0, 0.0, 0.0, 0.0)
     } else {
@@ -644,11 +670,8 @@ pub fn geocentric_ecliptic(body: VsopBody, t: f64) -> HeliocentricEcliptic {
 /// Geocentric ecliptic Sun (negated Earth heliocentric vector).
 pub fn sun_geocentric_ecliptic(t: f64) -> HeliocentricEcliptic {
     let earth = heliocentric_earth(t);
-    let (x, y, z) = ecliptic_rectangular(
-        earth.longitude_rad,
-        earth.latitude_rad,
-        earth.distance_au,
-    );
+    let (x, y, z) =
+        ecliptic_rectangular(earth.longitude_rad, earth.latitude_rad, earth.distance_au);
     let d = earth.distance_au;
     HeliocentricEcliptic {
         longitude_rad: normalize_longitude_rad((-y).atan2(-x)),
@@ -672,4 +695,3 @@ pub fn planet_equatorial_rad(body: VsopBody, jd_tt: f64) -> (f64, f64) {
     let eps = mean_obliquity_deg(jd_tt).to_radians();
     ecliptic_to_equatorial_rad(ecl.longitude_rad, ecl.latitude_rad, eps)
 }
-
