@@ -1,4 +1,5 @@
 // Star instanced quads — design §5.2 (ICRS→view→projection, PSF, B−V color).
+// PSF size + tone mapping ported from v1 SkyRenderer (_magnitudeToRadius / _magnitudeToBrightness).
 
 struct StarUniforms {
     icrs_to_view: mat4x4<f32>,
@@ -29,6 +30,28 @@ struct VsOut {
 
 const MIN_COSC: f32 = 0.01;
 const OFF_CLIP: vec4<f32> = vec4<f32>(0.0, 0.0, -2.0, 1.0);
+const PSF_RADIUS_MIN: f32 = 0.5;
+const PSF_RADIUS_MAX: f32 = 25.0;
+
+fn psf_base_radius_px(magnitude: f32) -> f32 {
+    if (magnitude < 0.0) {
+        return 6.0 + (0.0 - magnitude) * 2.5;
+    } else if (magnitude < 2.0) {
+        return 3.0 + (2.0 - magnitude) * 1.5;
+    } else if (magnitude < 4.0) {
+        return 1.5 + (4.0 - magnitude) * 0.75;
+    }
+    return max(0.5, (6.5 - magnitude) * 0.3);
+}
+
+fn psf_radius_px(magnitude: f32) -> f32 {
+    let base = psf_base_radius_px(magnitude);
+    return clamp(base * uniforms.psf_scale, PSF_RADIUS_MIN, PSF_RADIUS_MAX);
+}
+
+fn magnitude_to_tone(magnitude: f32) -> f32 {
+    return clamp((7.0 - magnitude) / 6.0, 0.3, 1.0);
+}
 
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
@@ -56,8 +79,7 @@ fn vs_main(in: VsIn) -> VsOut {
     let tan_y = k * v.y;
     let ndc = vec2<f32>(tan_x, tan_y) * uniforms.proj_scale;
 
-    let mag_factor = pow(max(6.0 - in.mag, 0.0), 0.4);
-    let radius_px = uniforms.psf_scale * mag_factor * 2.0;
+    let radius_px = psf_radius_px(in.mag);
     let radius_ndc = radius_px / min(uniforms.viewport_pixels.x, uniforms.viewport_pixels.y) * 2.0;
     let offset = in.corner * radius_ndc;
 
@@ -98,7 +120,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     alpha = alpha * tw;
 
     let rgb = bv_to_rgb(in.bv);
-    let tone = pow(max(6.5 - in.mag, 0.2) / 6.5, 0.55);
+    let tone = magnitude_to_tone(in.mag);
     let col = rgb * tone;
     return vec4<f32>(col * alpha, alpha);
 }

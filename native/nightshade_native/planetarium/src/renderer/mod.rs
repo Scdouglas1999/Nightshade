@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
 pub use pipelines::stars::{
-    render_three_stars_rgba, three_star_instances, three_stars_view_pose, StarInstance,
-    StarsPipeline, THREE_STARS_SIZE,
+    magnitude_to_tone, psf_radius_px, psf_zoom_factor_from_fov_rad, render_three_stars_rgba,
+    three_star_instances, three_stars_view_pose, StarInstance, StarsPipeline, THREE_STARS_SIZE,
 };
 
 use crate::types::{RenderConfig, ViewPose};

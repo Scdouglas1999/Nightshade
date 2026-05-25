@@ -1,4 +1,7 @@
 //! Instanced star quads (design §5.2).
+//!
+//! PSF screen size and tone mapping match the v1 Dart planetarium
+//! (`SkyRenderer._magnitudeToRadius` / `_magnitudeToBrightness`).
 
 use std::sync::Arc;
 
@@ -50,8 +53,45 @@ struct StarUniforms {
     viewport_pixels: [f32; 2],
 }
 
+/// Reference FOV in degrees for zoom scaling (v1 `viewState.fieldOfView` baseline).
+const REFERENCE_FOV_DEG: f32 = 90.0;
+
 /// Golden-image render size for the three-star regression.
 pub const THREE_STARS_SIZE: u32 = 256;
+
+/// Zoom factor applied to tiered PSF base radius from field of view (v1).
+#[must_use]
+pub fn psf_zoom_factor_from_fov_rad(fov_rad: f32) -> f32 {
+    let fov_deg = fov_rad.to_degrees().max(0.1);
+    (REFERENCE_FOV_DEG / fov_deg).clamp(0.8, 2.0)
+}
+
+/// Tiered PSF base radius in pixels before zoom clamp (v1 `_magnitudeToRadius` base term).
+#[must_use]
+pub fn psf_base_radius_px(magnitude: f32) -> f32 {
+    if magnitude < 0.0 {
+        6.0 + (0.0 - magnitude) * 2.5
+    } else if magnitude < 2.0 {
+        3.0 + (2.0 - magnitude) * 1.5
+    } else if magnitude < 4.0 {
+        1.5 + (4.0 - magnitude) * 0.75
+    } else {
+        (6.5 - magnitude).max(0.5) * 0.3
+    }
+}
+
+/// Screen PSF radius in pixels (base × zoom, clamped like v1).
+#[must_use]
+pub fn psf_radius_px(magnitude: f32, fov_rad: f32) -> f32 {
+    let zoom = psf_zoom_factor_from_fov_rad(fov_rad);
+    (psf_base_radius_px(magnitude) * zoom).clamp(0.5, 25.0)
+}
+
+/// Brightness tone from apparent magnitude (v1 `_magnitudeToBrightness`).
+#[must_use]
+pub fn magnitude_to_tone(magnitude: f32) -> f32 {
+    ((7.0 - magnitude) / 6.0).clamp(0.3, 1.0)
+}
 
 /// B−V indices for the three-star golden (HYG / standard photometry).
 const BV_POLARIS: f32 = 0.636;
@@ -344,7 +384,7 @@ fn build_uniforms_for_viewport(
         icrs_to_view: icrs_to_view.to_cols_array_2d(),
         proj_scale: [proj_scale[0], proj_scale[1]],
         mag_limit,
-        psf_scale: 1.0,
+        psf_scale: psf_zoom_factor_from_fov_rad(pose.fov_rad),
         twinkle_seed: 0.0,
         viewport_pixels: [width as f32, height as f32],
     }
@@ -407,4 +447,41 @@ fn create_buffer_init<T: Pod>(
     });
     queue.write_buffer(&buf, 0, bytemuck::cast_slice(data));
     buf
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn psf_zoom_factor_clamps_at_narrow_fov() {
+        let fov_30 = 30.0_f32.to_radians();
+        assert!((psf_zoom_factor_from_fov_rad(fov_30) - 2.0).abs() < 1e-5);
+        let fov_90 = 90.0_f32.to_radians();
+        assert!((psf_zoom_factor_from_fov_rad(fov_90) - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn psf_base_radius_tiered_matches_v1() {
+        assert!((psf_base_radius_px(-1.46) - 9.65).abs() < 0.01);
+        assert!((psf_base_radius_px(0.03) - 5.955).abs() < 0.01);
+        assert!((psf_base_radius_px(1.98) - 3.03).abs() < 0.01);
+        assert!((psf_base_radius_px(5.0) - 0.45).abs() < 0.01);
+    }
+
+    #[test]
+    fn psf_radius_px_applies_zoom_and_clamp() {
+        let fov_30 = 30.0_f32.to_radians();
+        assert!((psf_radius_px(-1.46, fov_30) - 19.3).abs() < 0.05);
+        assert!((psf_radius_px(0.03, fov_30) - 11.91).abs() < 0.05);
+        assert!((psf_radius_px(1.98, fov_30) - 6.06).abs() < 0.05);
+    }
+
+    #[test]
+    fn magnitude_to_tone_matches_v1() {
+        assert!((magnitude_to_tone(-1.46) - 1.0).abs() < 1e-5);
+        assert!((magnitude_to_tone(0.03) - 1.0).abs() < 1e-5);
+        assert!((magnitude_to_tone(1.98) - 0.837).abs() < 0.01);
+        assert!((magnitude_to_tone(7.0) - 0.3).abs() < 1e-5);
+    }
 }
