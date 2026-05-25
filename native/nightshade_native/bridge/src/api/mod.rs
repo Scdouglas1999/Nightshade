@@ -138,7 +138,6 @@ pub(crate) mod heartbeat;
 pub mod imaging;
 pub mod init;
 pub mod phd2;
-#[path = "../planetarium.rs"]
 pub mod planetarium;
 pub mod plate_solve;
 pub mod polar_alignment;

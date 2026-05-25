@@ -46,9 +46,6 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 // All public functions are exposed via flutter_rust_bridge.
 
 pub mod adaptive_polling;
-pub mod planetarium {
-    pub use crate::api::planetarium::*;
-}
 mod api;
 #[cfg(windows)]
 mod ascom_wrapper;
@@ -106,7 +103,13 @@ pub use device_manager::*;
 pub use error::*;
 pub use event::*;
 pub use imaging_ops::*;
-pub use nightshade_sequencer::scheduling::DefectMapCorrectionRecord;
+// WIP-PARKED: `nightshade_sequencer::scheduling` is not declared `pub mod` in
+// `sequencer/src/lib.rs` at HEAD, so this re-export does not resolve. The
+// `DefectMapCorrectionRecord` type was previously embedded in FRB-generated
+// FITS writer DTOs, but the current `frb_generated.rs` no longer references
+// it, so dropping the re-export is safe today. Restore once the sequencer
+// vendor-connectivity work lands a public `scheduling` module (see MEMORY:
+// "deferred stash housekeeping").
 pub use real_device_ops::*;
 pub use sequencer_api::*;
 pub use sequencer_ops::*;
