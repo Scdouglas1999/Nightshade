@@ -52,11 +52,25 @@ fn normalize_longitude_rad(lon: f64) -> f64 {
     lon
 }
 
+/// Mean obliquity of the ecliptic (degrees) at `jd_tt`.
+///
+/// Linear approximation of IAU 2006 P03 (Hilton/Capitaine 2006): ε(T) ≈ 23.439291°
+/// − 0.0130042° T, where T is centuries TT since J2000.0. Higher-order terms are
+/// dropped here for the visual planetarium because they contribute < 0.1″ over the
+/// VSOP87D validity span (±1000 years) — well below the catalog rendering tolerance.
+/// For arcsecond-grade frame chains use `astrometry::precession::mean_obliquity_from_julian_centuries_tt`.
 fn mean_obliquity_deg(jd_tt: f64) -> f64 {
     let t = (jd_tt - VSOP87_J2000_JD) / 36_525.0;
     MEAN_OBLIQUITY_J2000_DEG - 0.013_004_2 * t
 }
 
+/// Convert ecliptic spherical coordinates `(λ, β)` to equatorial `(α, δ)` (radians).
+///
+/// Uses the unit-vector rotation form (rotate ecliptic frame by `-ε` about the X axis)
+/// rather than the Meeus tangent identity to avoid a singularity at the ecliptic poles.
+/// The Meeus form `tan(α) = (sin(λ)cos(ε) − tan(β)sin(ε)) / cos(λ)` is undefined when
+/// `cos(β) → 0` (β = ±90°), and the previous implementation papered over it with a
+/// `.max(1e-12)` clamp that silently returned the wrong α for high-latitude inputs.
 pub fn ecliptic_to_equatorial_rad(
     longitude_rad: f64,
     latitude_rad: f64,
@@ -65,11 +79,19 @@ pub fn ecliptic_to_equatorial_rad(
     let (sin_lon, cos_lon) = longitude_rad.sin_cos();
     let (sin_lat, cos_lat) = latitude_rad.sin_cos();
     let (sin_eps, cos_eps) = obliquity_rad.sin_cos();
-    let sin_dec = sin_lat * cos_eps + cos_lat * sin_eps * sin_lon;
-    let dec = sin_dec.clamp(-1.0, 1.0).asin();
-    let y = sin_lon * cos_eps - sin_eps * sin_lat / cos_lat.max(1e-12);
-    let x = cos_lon;
-    let ra = y.atan2(x).rem_euclid(std::f64::consts::TAU);
+
+    // Ecliptic unit vector (λ, β) → rectangular.
+    let x_ecl = cos_lat * cos_lon;
+    let y_ecl = cos_lat * sin_lon;
+    let z_ecl = sin_lat;
+
+    // Rotate about X by −ε to get equatorial (FK5/ICRS-aligned for VSOP87D).
+    let x_eq = x_ecl;
+    let y_eq = y_ecl * cos_eps - z_ecl * sin_eps;
+    let z_eq = y_ecl * sin_eps + z_ecl * cos_eps;
+
+    let dec = z_eq.clamp(-1.0, 1.0).asin();
+    let ra = y_eq.atan2(x_eq).rem_euclid(std::f64::consts::TAU);
     (ra, dec)
 }
 

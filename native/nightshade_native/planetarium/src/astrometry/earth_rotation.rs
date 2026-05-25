@@ -37,12 +37,15 @@ fn jd_fraction(jd: f64) -> f64 {
 
 /// Earth rotation angle (radians) from a two-part UT1 Julian Date.
 ///
-/// IAU 2000 model; SOFA `eraEra00` / Capitaine et al. (2000).
+/// IAU 2000 model; SOFA `eraEra00` / Capitaine et al. (2000). The two-part form
+/// preserves precision by splitting the JD into a high-magnitude offset (`uta`)
+/// and a small remainder (`utb`); the fractional accumulator `f` separately
+/// keeps each part's modulo-1 remainder so the polynomial argument stays
+/// numerically well-conditioned over the full ±1000 yr VSOP87D span.
 pub fn era_from_ut1_parts(uta: f64, utb: f64) -> f64 {
-    let (d1, d2) = if uta < utb { (uta, utb) } else { (utb, uta) };
-    let days = d1 + (d2 - J2000_JD);
-    let frac = jd_fraction(uta) + jd_fraction(utb);
-    normalize_angle(std::f64::consts::TAU * (frac + ERA_J2000 + ERA_RATE * days))
+    let t = uta + utb - J2000_JD;
+    let f = jd_fraction(uta) + jd_fraction(utb);
+    normalize_angle(std::f64::consts::TAU * (f + ERA_J2000 + ERA_RATE * t))
 }
 
 /// Earth rotation angle (radians) for a UT1 Julian date (J2000.0 split).

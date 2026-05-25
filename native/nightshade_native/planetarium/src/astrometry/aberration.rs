@@ -35,6 +35,11 @@ pub fn radec_from_direction(direction: DVec3) -> (f64, f64) {
     (ra, dec)
 }
 
+/// Mean obliquity of the ecliptic (radians) at `jd_tt`.
+///
+/// Linear IAU 2006 P03 approximation (Hilton/Capitaine 2006). See
+/// `vsop87::mean_obliquity_deg` for the trade-off rationale; the full polynomial lives
+/// in `astrometry::precession::mean_obliquity_from_julian_centuries_tt`.
 #[inline]
 fn mean_obliquity_rad(jd_tt: f64) -> f64 {
     let t = (jd_tt - VSOP87_J2000_JD) / 36_525.0;

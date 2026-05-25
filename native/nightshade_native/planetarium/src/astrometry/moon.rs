@@ -244,6 +244,10 @@ pub fn moon_ecliptic_j2000_from_jd_tt(jd_tt: f64) -> MoonEclipticJ2000 {
 }
 
 /// Mean equator J2000 (α, δ) from ecliptic (λ, β) in degrees at TT epoch `jd_tt`.
+///
+/// Uses the unit-vector rotation form to avoid a `tan(β)` singularity at the
+/// ecliptic poles. The previous tangent-identity formula divided by `cos(β)` and
+/// would silently return the wrong α for high ecliptic latitudes.
 pub fn ecliptic_to_equatorial_j2000_rad(
     longitude_deg: f64,
     latitude_deg: f64,
@@ -254,8 +258,19 @@ pub fn ecliptic_to_equatorial_j2000_rad(
     let (sin_lon, cos_lon) = longitude_deg.to_radians().sin_cos();
     let (sin_lat, cos_lat) = latitude_deg.to_radians().sin_cos();
     let (sin_eps, cos_eps) = eps.sin_cos();
-    let ra = (sin_lon * cos_eps - sin_lat.tan() * sin_eps).atan2(cos_lon);
-    let dec = (sin_lat * cos_eps + cos_lat * sin_eps * sin_lon).asin();
+
+    // Ecliptic unit vector → rectangular.
+    let x_ecl = cos_lat * cos_lon;
+    let y_ecl = cos_lat * sin_lon;
+    let z_ecl = sin_lat;
+
+    // Rotate by −ε about X to land on mean equator J2000.
+    let x_eq = x_ecl;
+    let y_eq = y_ecl * cos_eps - z_ecl * sin_eps;
+    let z_eq = y_ecl * sin_eps + z_ecl * cos_eps;
+
+    let ra = y_eq.atan2(x_eq);
+    let dec = z_eq.clamp(-1.0, 1.0).asin();
     (normalize_ra_rad(ra), dec)
 }
 

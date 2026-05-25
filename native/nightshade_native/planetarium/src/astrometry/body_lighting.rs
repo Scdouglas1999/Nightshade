@@ -102,6 +102,9 @@ pub fn body_lighting(body: LitBody, jd_tt: f64) -> BodyLighting {
 ///
 /// Uses the law of cosines on the Sun–body–Earth triangle: sides `r` (Sun–body),
 /// `δ` (body–Earth geocentric), and `R` (Sun–Earth).
+///
+/// Returns zero only when the body coincides with the Sun or with the observer;
+/// both are physically degenerate and a `debug_assert!` traps them in dev builds.
 #[inline]
 pub fn phase_angle_rad_from_heliocentric(body_au: [f64; 3], earth_au: [f64; 3]) -> f64 {
     let r = vector_norm(body_au);
@@ -112,6 +115,10 @@ pub fn phase_angle_rad_from_heliocentric(body_au: [f64; 3], earth_au: [f64; 3]) 
     ];
     let delta = vector_norm(geo);
     let r_earth = vector_norm(earth_au);
+    debug_assert!(
+        r > 0.0 && delta > 0.0,
+        "phase_angle: degenerate triangle (r={r}, delta={delta}) — Sun or observer at body position"
+    );
     if r <= 0.0 || delta <= 0.0 {
         return 0.0;
     }
@@ -169,9 +176,21 @@ fn vector_norm(v: [f64; 3]) -> f64 {
     (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()
 }
 
+/// Normalize a 3-vector to unit length.
+///
+/// Panics in debug builds if `v` has zero length, which would silently corrupt
+/// downstream lighting math (per CLAUDE.md: errors are a feature). All call
+/// sites in this module supply heliocentric body positions which are strictly
+/// non-zero unless an upstream ephemeris bug supplied the Sun's own coordinates;
+/// in release we still return zero rather than `NaN` from `0/0` because the only
+/// numerically-defined unit direction at the origin would itself be arbitrary.
 #[inline]
 fn normalize(v: [f64; 3]) -> [f64; 3] {
     let n = vector_norm(v);
+    debug_assert!(
+        n > 0.0,
+        "body_lighting::normalize called on zero vector — upstream ephemeris returned the Sun's own position"
+    );
     if n <= 0.0 {
         return [0.0, 0.0, 0.0];
     }

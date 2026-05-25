@@ -1,10 +1,11 @@
-//! Saemundsson atmospheric refraction (visual planetarium).
+//! Sæmundsson atmospheric refraction (visual planetarium).
 //!
-//! INTEGRATE: add `pub mod refraction;` to `astrometry/mod.rs`.
-//!
-//! Inverse Sæmundsson formula (geometric/true altitude → refraction), consistent with
-//! Bennett (1982) to ~0.1′ for altitudes above a few degrees (Wikipedia). Standard
-//! atmosphere: 1010 hPa, 10 °C; scaled for observer pressure and temperature.
+//! Sæmundsson (1986) formula: `R = 1.02 / tan(h + 10.3 / (h + 5.11))` arcmin where
+//! `h` is the **true (geometric) altitude** in degrees and `R` is the refraction
+//! such that `apparent = true + R`. This is the inverse problem to Bennett (1982),
+//! which uses apparent altitude as input. The two agree to ~0.1′ for altitudes
+//! above a few degrees. Standard atmosphere: 1010 hPa, 10 °C; refraction scales
+//! linearly with pressure and inversely with absolute temperature.
 //!
 //! See `docs/plans/2026-05-25-planetarium-v2-design.md` §7.6.
 
