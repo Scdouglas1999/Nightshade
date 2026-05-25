@@ -3,6 +3,7 @@
 //! Pass 0 clears to black; pass 3 draws instanced stars when present.
 
 use super::Scene;
+use crate::renderer::pipelines::lines::LinesPipeline;
 use crate::renderer::pipelines::stars::StarsPipeline;
 use crate::renderer::FRAME_CLEAR;
 
@@ -60,6 +61,7 @@ impl FrameGraph {
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
+        lines: &mut LinesPipeline,
         width: u32,
         height: u32,
     ) {
@@ -71,6 +73,7 @@ impl FrameGraph {
                 stars,
                 star_instance_buf,
                 star_instance_count,
+                lines,
                 width,
                 height,
                 *pass_id,
@@ -86,6 +89,7 @@ impl FrameGraph {
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
+        lines: &mut LinesPipeline,
         width: u32,
         height: u32,
         pass_id: RenderPassId,
@@ -122,6 +126,10 @@ impl FrameGraph {
                 width,
                 height,
             );
+        }
+
+        if pass_id == RenderPassId::Lines {
+            lines.prepare_and_draw(&mut pass, scene, width, height);
         }
 
         drop(pass);

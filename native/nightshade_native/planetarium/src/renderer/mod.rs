@@ -2,12 +2,17 @@
 //!
 //! [`Renderer`] owns the render target and drives [`graph::FrameGraph`] each frame.
 
+pub mod assets;
 mod graph;
 mod pipelines;
 
 use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
+pub use pipelines::lines::{
+    any_lines_visible, build_constellation_line_vertices, build_overlay_line_vertices,
+    constellation_line_vertex_count, LineVertex, LinesPipeline,
+};
 pub use pipelines::stars::{
     magnitude_to_tone, psf_radius_px, psf_zoom_factor_from_fov_rad, render_scene_rgba,
     render_three_stars_rgba, star_altitude_rad, three_star_instances, three_stars_scene,
@@ -67,6 +72,7 @@ pub struct Renderer {
     stars: StarsPipeline,
     star_instance_buf: wgpu::Buffer,
     star_instance_count: u32,
+    lines: LinesPipeline,
 }
 
 impl Renderer {
@@ -95,6 +101,7 @@ impl Renderer {
         let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
         let stars = StarsPipeline::new(device.clone(), queue.clone(), format);
+        let lines = LinesPipeline::new(device.clone(), queue.clone(), format);
         let star_instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("planetarium.stars.instances"),
             size: 4,
@@ -113,6 +120,7 @@ impl Renderer {
             stars,
             star_instance_buf,
             star_instance_count: 0,
+            lines,
         }
     }
 
@@ -155,6 +163,7 @@ impl Renderer {
             &self.stars,
             &self.star_instance_buf,
             self.star_instance_count,
+            &mut self.lines,
             self.width,
             self.height,
         );
