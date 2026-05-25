@@ -34,5 +34,4 @@ pub mod gesture;
 pub mod scene;
 pub mod renderer;
 pub mod surface;
-pub mod spike;
 pub mod types;
