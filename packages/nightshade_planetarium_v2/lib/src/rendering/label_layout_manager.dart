@@ -1,56 +1,36 @@
 import 'dart:ui';
 
-/// Tracks rendered label bounding boxes to avoid overlap.
+/// Tracks rendered label bounding boxes to avoid overlap within a frame.
 ///
-/// Caches its spatial grid across frames when the view hasn't moved
-/// significantly. Only rebuilds when view center moves >0.5 degrees
-/// or zoom changes >5%.
+/// The v1 [`LabelLayoutManager`] tried to cache the spatial grid across
+/// frames via `clearIfViewChanged`, but v1 painted into a single CustomPainter
+/// so the OLD frame's painted labels were already on screen — keeping the
+/// grid blocked re-registration in the SAME slot, which was correct for the
+/// "stable across micro-pan" use case.
 ///
-/// Ported from v1 [`LabelLayoutManager`] in `nightshade_planetarium`.
+/// **v2 differs**: overlays are real widgets that rebuild from scratch every
+/// frame. If the grid weren't cleared, every label would self-collide with
+/// its own prior-frame rect and `findPlacement` would drop everything except
+/// brand-new labels. So v2 clears unconditionally per build. The
+/// `clearIfViewChanged` API is kept for source compatibility with v1 call
+/// sites but now always clears.
 class LabelLayoutManager {
-  final List<Rect> _renderedLabels = [];
+  final List<Rect> _renderedLabels = <Rect>[];
   final Map<int, List<Rect>> _grid = <int, List<Rect>>{};
   static const double _cellSize = 96.0;
-
-  double _cachedCenterRA = double.nan;
-  double _cachedCenterDec = double.nan;
-  double _cachedFOV = double.nan;
-  bool _cacheValid = false;
 
   /// Clear the layout grid unconditionally.
   void clear() {
     _renderedLabels.clear();
     _grid.clear();
-    _cacheValid = false;
   }
 
-  /// Conditionally clear the layout grid based on view movement.
+  /// Resets the grid before a new layout pass.
   ///
-  /// [centerRA] is right ascension in hours (0–24).
-  /// [centerDec] is declination in degrees.
-  /// [fov] is field of view in degrees.
-  ///
-  /// Returns true if the cache was valid and reused, false if it was cleared.
+  /// View parameters are accepted for source-compatibility with v1 — they
+  /// are not used to skip clearing in v2 (see class doc).
   bool clearIfViewChanged(double centerRA, double centerDec, double fov) {
-    if (_cacheValid) {
-      final raDelta = (centerRA - _cachedCenterRA).abs();
-      final decDelta = (centerDec - _cachedCenterDec).abs();
-      final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
-
-      final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
-      final raDeg = raWrapped * 15.0;
-
-      if (raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05) {
-        return true;
-      }
-    }
-
-    _renderedLabels.clear();
-    _grid.clear();
-    _cachedCenterRA = centerRA;
-    _cachedCenterDec = centerDec;
-    _cachedFOV = fov;
-    _cacheValid = true;
+    clear();
     return false;
   }
 
