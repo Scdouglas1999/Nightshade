@@ -58,15 +58,25 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       case AppLifecycleState.hidden:
         ref.read(planetariumQuiescedProvider.notifier).state = true;
         driver.quiesce();
-      default:
-        break;
     }
   }
 
   @override
   void didChangeMetrics() {
-    _lastDevicePixelRatio = null;
-    _lastLayoutSize = null;
+    // System metrics (display added/removed, DPR changed, etc.) — invalidate
+    // the resize cache so the next LayoutBuilder build pushes the new size
+    // and DPR to Rust. The cache is widget-local, so we MUST trigger a
+    // rebuild ourselves; the LayoutBuilder won't fire on its own when only
+    // MediaQuery changes.
+    if (!mounted) {
+      return;
+    }
+    if (_lastLayoutSize != null || _lastDevicePixelRatio != null) {
+      setState(() {
+        _lastDevicePixelRatio = null;
+        _lastLayoutSize = null;
+      });
+    }
   }
 
   void _scheduleResize(
@@ -208,10 +218,14 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         },
         onTapUp: (details) =>
             _handleTap(driver, details.localPosition, layoutSize),
-        onDoubleTapDown: (details) => _pushGesture(
-          driver,
-          PlanetariumGestureEvents.doubleTap(details.localPosition, layoutSize),
-        ),
+        // NOTE: deliberately no `onDoubleTapDown`. Wiring both onTapUp and
+        // onDoubleTapDown forces the gesture arena to wait for the double-tap
+        // timeout (~300 ms) before firing tap — that produces a sluggish
+        // selection feel and leaves a pending timer in widget tests. Rust
+        // currently doesn't consume `DoubleTap` (see gesture/mod.rs line
+        // 187 — it's a no-op in the gesture machine). If double-tap is
+        // re-enabled later, place it in a sibling RawGestureDetector with
+        // its own arena so tap stays low-latency.
         child: Texture(textureId: textureId),
       ),
     );

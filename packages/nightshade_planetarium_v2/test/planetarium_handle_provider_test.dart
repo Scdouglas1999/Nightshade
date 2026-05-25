@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
-import 'package:nightshade_bridge/src/frb_generated.dart';
 import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart';
 
 final _nativeLibCandidates = [

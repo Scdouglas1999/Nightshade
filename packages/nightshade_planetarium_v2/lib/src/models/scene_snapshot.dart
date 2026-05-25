@@ -1,8 +1,9 @@
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 
-import 'constellation_art_placement.dart';
-
 /// Empty snapshot before the native renderer publishes its first frame.
+///
+/// Held as a single shared instance so identity-equality checks in overlay
+/// layers fast-path the "no native data yet" case without per-frame allocs.
 final SceneSnapshotDto kEmptySceneSnapshot = SceneSnapshotDto(
   frameId: BigInt.zero,
   viewPose: const ViewPoseDto(
@@ -13,15 +14,5 @@ final SceneSnapshotDto kEmptySceneSnapshot = SceneSnapshotDto(
     projection: SkyProjectionDto.stereographic,
   ),
   labels: const [],
+  constellationArt: const [],
 );
-
-/// Constellation art placements from a scene snapshot.
-///
-/// Returns an empty list until Task 74 adds `constellationArt` to
-/// [`SceneSnapshotDto`]; then wire this getter to that field.
-extension SceneSnapshotConstellationArt on SceneSnapshotDto {
-  List<ConstellationArtPlacementDto> get constellationArtPlacements {
-    // Task 74: return constellationArt mapped from FFI DTOs.
-    return const [];
-  }
-}

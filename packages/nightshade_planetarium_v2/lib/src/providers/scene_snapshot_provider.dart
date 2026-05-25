@@ -2,31 +2,42 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 
+import '../bridge/planetarium_driver.dart';
 import '../models/scene_snapshot.dart';
 import 'planetarium_handle_provider.dart';
 import 'planetarium_quiesced_provider.dart';
 
 /// Reads the native [`SceneSnapshotDto`] once per Flutter frame for overlays.
 ///
-/// Uses [SchedulerBinding.scheduleFrameCallback] plus a post-frame callback so
-/// label layers rebuild after Rust publishes the latest snapshot.
+/// Polling is **frame-skipped on `frameId`** — Rust publishes a new snapshot
+/// only when the render thread actually produced a frame, so most polls bail
+/// out before allocating a new state object. The poller is a single chained
+/// post-frame callback (not a vsync registration) so [WidgetTester.pumpAndSettle]
+/// can drain it and tests never hit "Timer still pending".
 class SceneSnapshotNotifier extends Notifier<SceneSnapshotDto> {
   bool _polling = false;
+  bool _disposed = false;
+  bool _frameScheduled = false;
+  BigInt _lastSeenFrameId = BigInt.from(-1);
 
   @override
   SceneSnapshotDto build() {
     ref.onCancel(_stopPolling);
     ref.onResume(_startPolling);
-    ref.onDispose(_stopPolling);
+    ref.onDispose(() {
+      _disposed = true;
+      _stopPolling();
+    });
 
-    ref.listen(planetariumHandleProvider, (_, next) {
-      next.whenData((driver) {
-        state = driver.snapshot();
+    ref.listen<AsyncValue<PlanetariumDriver>>(planetariumHandleProvider,
+        (_, next) {
+      next.whenData((_) {
+        _readSnapshot(force: true);
         _startPolling();
       });
     });
 
-    ref.listen(planetariumQuiescedProvider, (_, quiesced) {
+    ref.listen<bool>(planetariumQuiescedProvider, (_, quiesced) {
       if (quiesced) {
         _stopPolling();
       } else {
@@ -35,8 +46,9 @@ class SceneSnapshotNotifier extends Notifier<SceneSnapshotDto> {
     });
 
     final handle = ref.read(planetariumHandleProvider);
-    if (handle.hasValue) {
+    if (handle.hasValue && !ref.read(planetariumQuiescedProvider)) {
       final snapshot = handle.requireValue.snapshot();
+      _lastSeenFrameId = snapshot.frameId;
       _startPolling();
       return snapshot;
     }
@@ -45,41 +57,58 @@ class SceneSnapshotNotifier extends Notifier<SceneSnapshotDto> {
   }
 
   void _startPolling() {
-    if (_polling ||
+    if (_disposed ||
+        _polling ||
         ref.read(planetariumQuiescedProvider) ||
         !ref.read(planetariumHandleProvider).hasValue) {
       return;
     }
     _polling = true;
-    _scheduleFrame();
+    _scheduleNextRead();
   }
 
   void _stopPolling() {
     _polling = false;
   }
 
-  void _scheduleFrame() {
-    if (!_polling) {
+  /// Schedules a single post-frame poll. We DO NOT call `scheduleFrame()`
+  /// ourselves — that would peg the engine at vsync forever and make
+  /// `pumpAndSettle` hang in widget tests. Frames produced by gestures,
+  /// animations, or other providers (e.g. `tickerProvider`) drive polling
+  /// in production; idle UIs correctly stop polling.
+  void _scheduleNextRead() {
+    if (!_polling || _disposed || _frameScheduled) {
       return;
     }
-    SchedulerBinding.instance.scheduleFrameCallback((_) {
-      if (!_polling) {
+    _frameScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _frameScheduled = false;
+      if (!_polling || _disposed) {
         return;
       }
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (!_polling) {
-          return;
-        }
-        final driver = ref.read(planetariumHandleProvider).valueOrNull;
-        if (driver != null) {
-          final next = driver.snapshot();
-          if (next != state) {
-            state = next;
-          }
-        }
-        _scheduleFrame();
-      });
+      _readSnapshot();
+      _scheduleNextRead();
     });
+  }
+
+  void _readSnapshot({bool force = false}) {
+    if (_disposed) {
+      return;
+    }
+    final driver = ref.read(planetariumHandleProvider).valueOrNull;
+    if (driver == null) {
+      return;
+    }
+    final next = driver.snapshot();
+    // Frame-skip: Rust only bumps frameId when something actually rendered.
+    // Identical frame ids mean no overlay rebuild is needed. The handle-ready
+    // path forces a read so the first snapshot replaces `kEmptySceneSnapshot`
+    // even when Rust hasn't incremented the id yet.
+    if (!force && next.frameId == _lastSeenFrameId) {
+      return;
+    }
+    _lastSeenFrameId = next.frameId;
+    state = next;
   }
 }
 

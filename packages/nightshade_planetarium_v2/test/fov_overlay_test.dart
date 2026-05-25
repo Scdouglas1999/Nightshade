@@ -10,7 +10,6 @@ import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart';
 void main() {
   testWidgets('FovOverlay paints when equipment FOV is available',
       (tester) async {
-    const canvasSize = Size(640, 480);
     final snapshot = SceneSnapshotDto(
       frameId: BigInt.from(1),
       viewPose: ViewPoseDto(
@@ -21,6 +20,7 @@ void main() {
         projection: SkyProjectionDto.stereographic,
       ),
       labels: const [],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -62,6 +62,7 @@ void main() {
         projection: SkyProjectionDto.stereographic,
       ),
       labels: const [],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -96,8 +97,8 @@ class _FixedSceneSnapshot extends SceneSnapshotNotifier {
 }
 
 class _FixedEquipmentFov extends EquipmentFovNotifier {
-  _FixedEquipmentFov(Ref ref, EquipmentFovState initial)
-      : super(ref, bindSources: false) {
+  _FixedEquipmentFov(super.ref, EquipmentFovState initial)
+      : super(bindSources: false) {
     state = initial;
   }
 }

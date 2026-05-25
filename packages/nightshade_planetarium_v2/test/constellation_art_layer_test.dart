@@ -9,7 +9,6 @@ import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart';
 void main() {
   testWidgets('ConstellationArtLayer paints when placements are provided',
       (tester) async {
-    const canvasSize = Size(640, 480);
     final snapshot = SceneSnapshotDto(
       frameId: BigInt.from(1),
       viewPose: ViewPoseDto(
@@ -20,6 +19,7 @@ void main() {
         projection: SkyProjectionDto.stereographic,
       ),
       labels: const [],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -31,6 +31,8 @@ void main() {
               abbreviation: 'Ori',
               screenX: 320,
               screenY: 240,
+              scale: 1.0,
+              opacity: 0.2,
             ),
           ]),
           renderConfigProvider.overrideWith(
@@ -62,6 +64,7 @@ void main() {
         projection: SkyProjectionDto.stereographic,
       ),
       labels: const [],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -73,6 +76,8 @@ void main() {
               abbreviation: 'Ori',
               screenX: 200,
               screenY: 200,
+              scale: 1.0,
+              opacity: 0.2,
             ),
           ]),
         ],
@@ -101,6 +106,7 @@ void main() {
         projection: SkyProjectionDto.stereographic,
       ),
       labels: const [],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(

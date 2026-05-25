@@ -1,11 +1,7 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 import '../catalogs/constellation_art.dart';
-import '../models/celestial_coordinate.dart';
-import '../models/constellation_art_placement.dart';
 import 'sky_projection.dart';
 
 /// Paints procedural constellation art figures for visible placements.

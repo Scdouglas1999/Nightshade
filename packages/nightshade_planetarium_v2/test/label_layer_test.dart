@@ -26,6 +26,7 @@ void main() {
           category: LabelCategoryDto.star,
         ),
       ],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -76,6 +77,7 @@ void main() {
           category: LabelCategoryDto.star,
         ),
       ],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(
@@ -118,6 +120,7 @@ void main() {
           category: LabelCategoryDto.constellation,
         ),
       ],
+      constellationArt: const [],
     );
 
     await tester.pumpWidget(

@@ -95,17 +95,25 @@ class LabelLayoutManager {
     return true;
   }
 
-  /// Try to find placement; returns offset or null.
+  /// Try to find placement near [preferred]; returns offset or null.
+  ///
+  /// Fallback offsets stay within `_maxFallbackPixels` of the preferred
+  /// position so the label remains visually associated with its anchor.
+  /// When no in-bounds, non-overlapping slot fits inside that radius, the
+  /// label is dropped — this is how lower-priority labels yield to brighter
+  /// ones in crowded star fields rather than "floating" 20+ px away from
+  /// their actual source.
   Offset? findPlacement(Offset preferred, Size labelSize, Size canvasSize) {
-    final offsets = [
-      preferred,
-      preferred + const Offset(0, -12),
-      preferred + const Offset(12, 0),
-      preferred + const Offset(-12, 0),
-      preferred + const Offset(0, 12),
+    const offsets = <Offset>[
+      Offset.zero,
+      Offset(0, -_maxFallbackPixels),
+      Offset(0, _maxFallbackPixels),
+      Offset(_maxFallbackPixels, 0),
+      Offset(-_maxFallbackPixels, 0),
     ];
 
-    for (final offset in offsets) {
+    for (final delta in offsets) {
+      final offset = preferred + delta;
       final rect = Rect.fromLTWH(
         offset.dx,
         offset.dy,
@@ -119,6 +127,13 @@ class LabelLayoutManager {
     }
     return null;
   }
+
+  /// Maximum displacement (px) a label may move from its preferred anchor.
+  ///
+  /// Larger values pack more labels at the cost of weaker anchor association.
+  /// 6 px matches one Material caption-line of slack — enough to clear
+  /// `inflate(2)` padding plus a sibling glyph, not enough to "float."
+  static const double _maxFallbackPixels = 6.0;
 
   bool _isInBounds(Rect rect, Size canvasSize) {
     return rect.left >= 0 &&
