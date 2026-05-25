@@ -1,10 +1,12 @@
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 
+import 'planetarium_driver.dart';
+
 /// Typed Dart wrapper around the planetarium v2 FFI handle registry.
 ///
 /// Holds an opaque Rust handle id from [planetariumCreate]. Call [dispose] when
 /// the host widget is torn down so the render thread and surface are released.
-class Planetarium {
+class Planetarium implements PlanetariumDriver {
   Planetarium._(this._handle, {int textureId = 0}) : _textureId = textureId;
 
   final int _handle;
@@ -12,6 +14,7 @@ class Planetarium {
   bool _disposed = false;
 
   /// Opaque registry id forwarded to every `planetarium*` FFI call.
+  @override
   int get nativeHandle => _handle;
 
   /// Flutter [Texture] widget id after a successful [resize].
@@ -57,16 +60,19 @@ class Planetarium {
     return _textureId;
   }
 
+  @override
   void setPose(ViewPoseDto pose) {
     _ensureAlive();
     planetariumSetPose(handle: _handle, pose: pose);
   }
 
+  @override
   void setTime(AstroTimeDto time) {
     _ensureAlive();
     planetariumSetTime(handle: _handle, time: time);
   }
 
+  @override
   void setObserver(ObserverDto observer) {
     _ensureAlive();
     planetariumSetObserver(handle: _handle, observer: observer);

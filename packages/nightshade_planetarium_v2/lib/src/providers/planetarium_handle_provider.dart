@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../bridge/planetarium_driver.dart';
 import '../bridge/planetarium_handle.dart';
 
 /// Flutter texture-registry engine id passed to [planetariumCreate].
@@ -12,7 +13,7 @@ final planetariumEngineHandleProvider = Provider<int>((ref) => 0);
 ///
 /// After the first successful build, [Ref.keepAlive] retains the native handle
 /// until the root [ProviderContainer] is disposed (see [Ref.onDispose]).
-final planetariumHandleProvider = FutureProvider<Planetarium>((ref) async {
+final planetariumHandleProvider = FutureProvider<PlanetariumDriver>((ref) async {
   final engineHandle = ref.watch(planetariumEngineHandleProvider);
   final planetarium = Planetarium.create(engineHandle: engineHandle);
   ref.onDispose(planetarium.dispose);
