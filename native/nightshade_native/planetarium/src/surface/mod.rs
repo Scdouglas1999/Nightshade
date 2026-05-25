@@ -25,6 +25,9 @@ pub trait PlatformSurface: Send + Sync {
 }
 
 #[cfg(target_os = "windows")]
+pub mod d3d11_shared;
+
+#[cfg(target_os = "windows")]
 pub mod windows;
 
 #[cfg(not(any(target_os = "windows")))]

@@ -8,11 +8,11 @@ authors.workspace = true
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
-wgpu = "22"
+wgpu = { version = "22", features = ["dx12", "vulkan-portability"] }
 bytemuck = { version = "1.16", features = ["derive"] }
 pollster = "0.3"
 irondash_engine_context = "0.5"
-irondash_texture = "0.5"
+irondash_texture = { path = "vendor/irondash_texture" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.52", features = [
@@ -21,6 +21,8 @@ windows = { version = "0.52", features = [
     "Win32_Graphics_Dxgi_Common",
     "Win32_Foundation",
 ] }
+winapi = { version = "0.3", features = ["d3d12", "dxgi", "dxgitype", "winnt", "handleapi"] }
+d3d12 = { version = "22", features = ["libloading"] }
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
