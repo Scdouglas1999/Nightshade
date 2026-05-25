@@ -25,29 +25,33 @@ import '../screens/tutorial/first_night_wizard_route.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import 'page_transitions.dart';
 
-/// Builder for the phone-tailored dashboard route (audit §3.5).
+/// Builder for the legacy ops-only companion dashboard route.
 ///
-/// The mobile app injects this when it boots so the router can resolve
-/// `/mobile-dashboard` without `packages/nightshade_app` taking a hard
-/// dependency on `apps/mobile`. Defaults to a placeholder so the route
-/// always exists (helpful when the desktop GoRouter is exercised in
-/// tests), but the placeholder should never render in production.
+/// Default phones/tablets use `NightshadeApp(isMobile: true)` for full UI
+/// parity. When `NIGHTSHADE_COMPANION_UI=1`, `apps/mobile` can wire this
+/// builder so `/mobile-dashboard` resolves to the tabbed companion UI.
 WidgetBuilder mobileDashboardBuilder = (context) {
   return const Scaffold(
     body: Center(
       child: Text(
-        'Mobile dashboard is only available on phone builds.\n'
-        'apps/mobile.main wires the real builder.',
+        'Companion dashboard is disabled.\n'
+        'Set NIGHTSHADE_COMPANION_UI=1 on mobile builds to enable it.',
         textAlign: TextAlign.center,
       ),
     ),
   );
 };
 
+/// Optional top-level routes registered by an app entry point (e.g. desktop
+/// dev screens). Defaults to empty so mobile/web builds are unaffected.
+final extraTopLevelRoutesProvider = Provider<List<RouteBase>>((ref) => const []);
+
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final extraRoutes = ref.watch(extraTopLevelRoutesProvider);
   return GoRouter(
     initialLocation: '/dashboard',
     routes: [
+      ...extraRoutes,
       // Phone-tailored dashboard lives outside the shell because it
       // brings its own scaffold + bottom-nav and the desktop AppShell
       // would double-up the chrome and steal the bottom 78 px from the

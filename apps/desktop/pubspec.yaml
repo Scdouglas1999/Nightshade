@@ -45,8 +45,11 @@ dependencies:
   json_annotation: ^4.8.1
   path_provider: ^2.1.2
   path: ^1.8.3
+  package_info_plus: ^8.0.0
+  ffi: ^2.1.0
   intl: ^0.20.2
   collection: ^1.18.0
+  crypto: ^3.0.3
   equatable: ^2.0.5
   uuid: ^4.3.3
 
@@ -74,6 +77,9 @@ dependencies:
 
   # mDNS service registration
   multicast_dns: ^0.3.2
+  basic_utils: ^5.7.0
+  pointycastle: ^3.9.1
+  irondash_engine_context: 0.5.0
 
 dev_dependencies:
   flutter_test:
@@ -99,3 +105,10 @@ flutter:
     - web_dashboard/
     - web_dashboard/css/
     - web_dashboard/js/
+    # Wave 6 — phone/tablet Run-Watch SPA. Files are served from
+    # /run-watch on the headless API server. Includes the PWA manifest,
+    # service worker, and inlined SVG icons.
+    - web_run_watch/
+    - web_run_watch/css/
+    - web_run_watch/js/
+    - web_run_watch/icons/

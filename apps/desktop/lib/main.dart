@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
+import 'dev/planetarium_spike_screen.dart';
 import 'main_headless.dart' as headless;
 
 // Current app version - must match version.yaml
@@ -56,6 +58,25 @@ void main(List<String> args) async {
           buildNumber: appBuildNumber,
         ),
       ),
+      // Wave 6 Pack P — wire `pluginNodeDispatcherProvider` (defined
+      // in nightshade_core) to the real `PluginNodeExecutor` (defined
+      // in nightshade_plugins). Without this override the Rust executor
+      // would receive a structured "dispatcher not wired" failure for
+      // every PluginNode invocation.
+      pluginNodeDispatcherOverride(),
+      // Audit §11 — surface plugin-contributed sequence nodes in the
+      // sequencer palette. Without this override the palette never
+      // shows plugin nodes even when the dispatcher above is fully
+      // wired (the user could not author a sequence containing a
+      // plugin node from the GUI).
+      pluginNodePaletteBlueprintsOverride(),
+      extraTopLevelRoutesProvider.overrideWithValue([
+        GoRoute(
+          path: '/dev/planetarium-spike',
+          name: 'dev-planetarium-spike',
+          builder: (context, state) => const PlanetariumSpikeScreen(),
+        ),
+      ]),
     ],
   );
 
