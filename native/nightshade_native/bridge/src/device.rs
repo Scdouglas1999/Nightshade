@@ -99,7 +99,7 @@ impl DeviceInfo {
 }
 
 /// Type of driver/protocol
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DriverType {
     Ascom,
     Alpaca,
