@@ -267,6 +267,44 @@ fn hit_test_uses_render_thread_pose_not_published_snapshot() {
 }
 
 #[test]
+fn live_render_config_updates_through_render_thread() {
+    // Before the fix, SetConfig wrote both an FFI-thread Mutex<RenderConfig>
+    // mirror AND queued the command for the render thread. The two could
+    // diverge briefly because send() returned before the render thread had
+    // processed the command — and hit_test read the FFI-thread mirror. There
+    // is now exactly one source of truth: live_render_config, written by the
+    // render thread inside the SetConfig handler.
+    use nightshade_planetarium::types::RenderConfig;
+
+    let planetarium = Planetarium::new(0).expect("new");
+    let baseline = planetarium.live_render_config();
+    // RenderConfig::default applies before any command is processed.
+    assert!((baseline.magnitude_limit - RenderConfig::default().magnitude_limit).abs() < 1e-6);
+
+    planetarium
+        .send(PlanetariumCommand::SetConfig(RenderConfig {
+            magnitude_limit: 9.5,
+            ..RenderConfig::default()
+        }))
+        .expect("set_config");
+
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    loop {
+        let cfg = planetarium.live_render_config();
+        if (cfg.magnitude_limit - 9.5).abs() < 1e-6 {
+            return;
+        }
+        if Instant::now() >= deadline {
+            panic!(
+                "live_render_config did not catch up; magnitude_limit={}",
+                cfg.magnitude_limit,
+            );
+        }
+        thread::sleep(POLL);
+    }
+}
+
+#[test]
 fn live_pose_leads_snapshot_view_pose() {
     // The fix for "hit_test reads stale snapshot" requires hit_test to read a
     // pose slot that's updated faster than the published snapshot. Here we

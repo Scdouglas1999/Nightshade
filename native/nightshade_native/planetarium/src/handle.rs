@@ -54,12 +54,16 @@ struct PlanetariumInner {
     /// this instead of the published [`SceneSnapshot::view_pose`] which lags by
     /// up to one full render cycle.
     live_pose: Arc<ArcSwap<ViewPose>>,
+    /// Lock-free, render-thread-published render config. Single source of truth:
+    /// the previous FFI-thread mirror would drift from the render thread's copy
+    /// because [`Planetarium::send`] applied SetConfig synchronously before the
+    /// command was processed, while the render thread ignored that mirror.
+    live_render_config: Arc<ArcSwap<RenderConfig>>,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     /// Incremented at the start of each [`PlanetariumCommand::Resize`] (observable retry).
     resize_generation: Arc<AtomicU64>,
     catalog: Arc<Mutex<CatalogSet>>,
-    render_config: Mutex<RenderConfig>,
 }
 
 /// Renderer running on the dedicated loop thread; owns the platform surface.
@@ -69,6 +73,8 @@ struct PlanetariumRenderer {
     /// Mirror of [`PlanetariumInner::live_pose`] held by the render thread; the
     /// only writer of the inner ArcSwap. See [`Self::refresh_view_pose`].
     live_pose: Arc<ArcSwap<ViewPose>>,
+    /// Mirror of [`PlanetariumInner::live_render_config`]; the only writer.
+    live_render_config: Arc<ArcSwap<RenderConfig>>,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     resize_generation: Arc<AtomicU64>,
@@ -131,6 +137,7 @@ impl Planetarium {
         let surface = create_surface(engine_handle)?;
         let snapshot = new_snapshot_slot();
         let live_pose = Arc::new(ArcSwap::from_pointee(ViewPose::default()));
+        let live_render_config = Arc::new(ArcSwap::from_pointee(RenderConfig::default()));
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
         let surface_error = Arc::new(Mutex::new(None));
         let resize_generation = Arc::new(AtomicU64::new(0));
@@ -140,6 +147,7 @@ impl Planetarium {
             surface,
             snapshot: Arc::clone(&snapshot),
             live_pose: Arc::clone(&live_pose),
+            live_render_config: Arc::clone(&live_render_config),
             texture_id: Arc::clone(&texture_id),
             surface_error: Arc::clone(&surface_error),
             resize_generation: Arc::clone(&resize_generation),
@@ -165,11 +173,11 @@ impl Planetarium {
                 cmd_tx,
                 snapshot,
                 live_pose,
+                live_render_config,
                 texture_id,
                 surface_error,
                 resize_generation,
                 catalog,
-                render_config: Mutex::new(RenderConfig::default()),
             }),
             _render_loop: render_loop,
         })
@@ -195,15 +203,19 @@ impl Planetarium {
     /// immediately after a `SetPose` / mount tracking update.
     pub fn hit_test(&self, x: f32, y: f32) -> Result<Option<SelectedObject>, HitTestError> {
         let pose = self.live_pose();
-        let mag_limit = self.inner.render_config.lock().magnitude_limit;
+        let mag_limit = self.live_render_config().magnitude_limit;
         hit_test_screen(&self.inner.catalog.lock(), x, y, pose, mag_limit)
     }
 
     /// Enqueues a command for the render thread.
+    ///
+    /// All state mutation is deferred to the render thread; `send` is
+    /// fire-and-forget aside from the channel-closed error. Previous versions
+    /// also wrote a local-cache mirror of [`PlanetariumCommand::SetConfig`] —
+    /// removed in favor of [`Self::live_render_config`] published by the
+    /// render thread, so FFI readers can never see a state that no rendered
+    /// frame ever saw.
     pub fn send(&self, cmd: PlanetariumCommand) -> Result<(), PlanetariumError> {
-        if let PlanetariumCommand::SetConfig(cfg) = &cmd {
-            *self.inner.render_config.lock() = *cfg;
-        }
         self.inner
             .cmd_tx
             .send(cmd)
@@ -244,6 +256,12 @@ impl Planetarium {
     /// to one full render cycle. Used by [`Self::hit_test`].
     pub fn live_pose(&self) -> ViewPose {
         **self.inner.live_pose.load()
+    }
+
+    /// Render-thread-published render config, single source of truth. Updated
+    /// inside the [`PlanetariumCommand::SetConfig`] handler. Reads are lock-free.
+    pub fn live_render_config(&self) -> RenderConfig {
+        **self.inner.live_render_config.load()
     }
 }
 
@@ -319,6 +337,7 @@ impl FrameRenderer for PlanetariumRenderer {
             }
             PlanetariumCommand::SetConfig(cfg) => {
                 self.render_config = *cfg;
+                self.live_render_config.store(Arc::new(*cfg));
                 *dirty |= DirtyFlags::CONFIG;
             }
             PlanetariumCommand::SetSelection(sel) => {
