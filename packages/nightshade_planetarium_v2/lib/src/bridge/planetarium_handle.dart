@@ -20,6 +20,7 @@ class Planetarium implements PlanetariumDriver {
   /// Flutter [Texture] widget id after a successful [resize].
   ///
   /// Remains `0` until [resize] completes on a live engine texture registry.
+  @override
   int get textureId => _textureId;
 
   /// Creates a planetarium bound to [engineHandle].
@@ -38,6 +39,7 @@ class Planetarium implements PlanetariumDriver {
   }
 
   /// Resizes the render target and stores the allocated Flutter texture id.
+  @override
   int resize({
     required int width,
     required int height,
@@ -78,6 +80,7 @@ class Planetarium implements PlanetariumDriver {
     planetariumSetObserver(handle: _handle, observer: observer);
   }
 
+  @override
   void setConfig(RenderConfigDto config) {
     _ensureAlive();
     planetariumSetConfig(handle: _handle, config: config);
