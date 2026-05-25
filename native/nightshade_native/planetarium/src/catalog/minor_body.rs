@@ -420,7 +420,13 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedMinorBodyCatalog<'_>, MinorBo
 
     let st_off = header.string_table_offset as usize;
     let st_len = header.string_table_len as usize;
-    if st_off + st_len != bytes.len() {
+    // The string table must immediately follow the record array with no gap or
+    // overlap. A maliciously-crafted blob with `st_off < records_end` could
+    // otherwise alias bytes that belong to a record, and one with `st_off >
+    // records_end` would leave a gap that hides garbage. Fail-loud per CLAUDE.md.
+    if st_off != records_end
+        || st_off.checked_add(st_len) != Some(bytes.len())
+    {
         return Err(MinorBodyParseError::StringTableRange {
             offset: header.string_table_offset,
             len: header.string_table_len,
@@ -681,7 +687,9 @@ fn string_at<'a>(
     len: u16,
 ) -> Result<&'a str, MinorBodyParseError> {
     let start = offset as usize;
-    let end = start + len as usize;
+    let end = start
+        .checked_add(len as usize)
+        .ok_or(MinorBodyParseError::StringRefOutOfRange)?;
     if end > table.len() {
         return Err(MinorBodyParseError::StringRefOutOfRange);
     }
