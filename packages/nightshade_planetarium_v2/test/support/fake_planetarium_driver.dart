@@ -1,5 +1,6 @@
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 import 'package:nightshade_planetarium_v2/src/bridge/planetarium_driver.dart';
+import 'package:nightshade_planetarium_v2/src/models/scene_snapshot.dart';
 
 /// In-memory [PlanetariumDriver] for widget/provider tests without Rust.
 class FakePlanetariumDriver implements PlanetariumDriver {
@@ -21,6 +22,9 @@ class FakePlanetariumDriver implements PlanetariumDriver {
   ViewPoseDto? lastPose;
   AstroTimeDto? lastTime;
   ObserverDto? lastObserver;
+  RenderConfigDto? lastConfig;
+  SceneSnapshotDto snapshotResult = kEmptySceneSnapshot;
+  int snapshotCallCount = 0;
 
   @override
   int resize({
@@ -42,4 +46,13 @@ class FakePlanetariumDriver implements PlanetariumDriver {
 
   @override
   void setObserver(ObserverDto observer) => lastObserver = observer;
+
+  @override
+  void setConfig(RenderConfigDto config) => lastConfig = config;
+
+  @override
+  SceneSnapshotDto snapshot() {
+    snapshotCallCount++;
+    return snapshotResult;
+  }
 }

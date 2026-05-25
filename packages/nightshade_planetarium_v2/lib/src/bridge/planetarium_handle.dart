@@ -80,6 +80,7 @@ class Planetarium implements PlanetariumDriver {
     planetariumSetObserver(handle: _handle, observer: observer);
   }
 
+  @override
   void setConfig(RenderConfigDto config) {
     _ensureAlive();
     planetariumSetConfig(handle: _handle, config: config);
@@ -100,6 +101,7 @@ class Planetarium implements PlanetariumDriver {
     planetariumSetSelection(handle: _handle, selected: selected);
   }
 
+  @override
   SceneSnapshotDto snapshot() {
     _ensureAlive();
     return planetariumSnapshot(handle: _handle);
