@@ -31,6 +31,38 @@ fn create_drop_tight_loop_without_panic() {
 }
 
 #[test]
+fn drop_joins_render_thread_within_bounded_time() {
+    // The Planetarium handle's Drop impl shuts down and joins the render
+    // thread. If `render_loop` were declared in the wrong field order, or
+    // if the render thread blocked on a long operation, Drop could hang
+    // indefinitely. Bound at 500 ms to detect regressions even on slow CI.
+    let planetarium = Planetarium::new(0).expect("new");
+    // Drive some work so the render thread is actually running, not idle.
+    planetarium
+        .send(PlanetariumCommand::SetPose(ViewPose {
+            ra_rad: 1.0,
+            ..ViewPose::default()
+        }))
+        .expect("set_pose");
+    // Wait for at least one frame so we know the thread is past startup.
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    while planetarium.snapshot().frame_id == 0 {
+        if Instant::now() >= deadline {
+            panic!("render thread didn't produce first frame");
+        }
+        thread::sleep(POLL);
+    }
+
+    let start = Instant::now();
+    drop(planetarium);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_millis(500),
+        "Planetarium::Drop took {elapsed:?}; expected <500ms",
+    );
+}
+
+#[test]
 fn send_pose_publishes_snapshot_without_surface_allocate() {
     let planetarium = Planetarium::new(0).expect("new");
     assert_eq!(planetarium.texture_id(), Err(PlanetariumError::NotAllocated));
