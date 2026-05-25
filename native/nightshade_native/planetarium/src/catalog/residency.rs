@@ -4,11 +4,41 @@
 //! visibility update, tiles intersecting the field of view are touched and loaded
 //! eagerly; tiles in the surrounding warmup ring are retained when possible so
 //! small pans do not reload from disk.
+//!
+//! ## Eviction complexity
+//!
+//! With `R` residents, `F` FOV pixels, `W` warmup pixels and `K` evictions
+//! required per sync, [`TileResidency::sync_pixel_sets`] runs in
+//! O(R + F + W + R log R + K) — it builds membership `HashSet`s for the FOV
+//! and warmup rings once, computes the eviction order once (sorted by
+//! priority + LRU), then pops `K` victims from the back. The previous
+//! implementation used `Vec::contains` for tier membership *and* re-scanned
+//! every resident on every eviction, costing O(K · R · (F + W)) — quadratic
+//! in the realistic 10k-tile + 10k-pixel case. See
+//! `tests/catalog_residency_eviction.rs::eviction_is_not_quadratic_at_ten_thousand_tiles`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::catalog::healpix::{bounding_pixels_for_fov, HealpixError};
 use crate::types::ViewPose;
+
+/// Eviction priority: lowest tier evicts first.
+///
+/// The numeric ordering is the eviction *protection level*: stale tiles have
+/// the lowest priority and are dropped first; FOV-resident tiles have the
+/// highest and are dropped only when the residency is over capacity and
+/// nothing else is left. Encoded as an explicit enum so the policy is
+/// readable and so the comparison in [`TileResidency::build_eviction_order`]
+/// cannot accidentally swap a tier for an unrelated integer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum EvictionTier {
+    /// Resident tile outside both the FOV and the warmup ring — evict first.
+    Stale = 0,
+    /// Tile inside the warmup ring but outside the FOV.
+    Warmup = 1,
+    /// Tile inside the current FOV — evict only as a last resort.
+    Fov = 2,
+}
 
 /// HEALPix nested pixel id (opaque `u64`, matches [`super::tile::TileHeader::healpix_id`]).
 pub type HealpixId = u64;
@@ -126,6 +156,8 @@ impl TileResidency {
     }
 
     /// Core sync when FOV and warmup pixel sets are already known.
+    ///
+    /// See the module-level complexity note for the guarantees this provides.
     pub fn sync_pixel_sets(
         &mut self,
         fov: &[HealpixId],
@@ -143,13 +175,22 @@ impl TileResidency {
             }
         }
 
-        while self.residents.len() > self.cap {
-            let Some(evict_id) = self.pick_eviction_candidate(fov, warmup_ring) else {
-                break;
-            };
-            self.residents.remove(&evict_id);
-            self.eviction_count += 1;
-            delta.evicted.push(evict_id);
+        if self.residents.len() > self.cap {
+            // Compute the full eviction ordering once, then drain the back of
+            // the vector for victims. O(R log R + K) total — see module doc.
+            let fov_set: HashSet<HealpixId> = fov.iter().copied().collect();
+            let warmup_set: HashSet<HealpixId> = warmup_ring.iter().copied().collect();
+            let mut order = self.build_eviction_order(&fov_set, &warmup_set);
+            let to_evict = self.residents.len() - self.cap;
+            for _ in 0..to_evict {
+                let Some((_, _, id)) = order.pop() else {
+                    break;
+                };
+                if self.residents.remove(&id).is_some() {
+                    self.eviction_count += 1;
+                    delta.evicted.push(id);
+                }
+            }
         }
 
         delta.loaded.sort_unstable();
@@ -180,35 +221,41 @@ impl TileResidency {
         self.residents.insert(healpix_id, tile);
     }
 
-    /// Eviction priority: stale (outside warmup) → warmup-only → FOV (last resort).
-    fn pick_eviction_candidate(
+    /// Build the eviction order over the current residency.
+    ///
+    /// Returns a vector sorted **descending** by `(tier, touch_seq)` so the
+    /// back of the vector is the next victim — `pop()` is O(1).
+    ///
+    /// Tier ordering (ascending = evict-first): [`EvictionTier::Stale`] <
+    /// [`EvictionTier::Warmup`] < [`EvictionTier::Fov`]. Within a tier, the
+    /// least-recently-touched tile (lowest `touch_seq`) is evicted first. The
+    /// HEALPix id is the final tiebreak (only matters when two tiles share a
+    /// touch_seq, which only happens for the very first load on a brand-new
+    /// residency).
+    ///
+    /// `fov` and `warmup_ring` are membership sets — typically built once in
+    /// the caller from the slice arguments to [`Self::sync_pixel_sets`].
+    fn build_eviction_order(
         &self,
-        fov: &[HealpixId],
-        warmup_ring: &[HealpixId],
-    ) -> Option<HealpixId> {
-        let in_fov = |id: HealpixId| fov.contains(&id);
-        let in_warmup = |id: HealpixId| warmup_ring.contains(&id);
-
-        let mut best: Option<(u8, u64, HealpixId)> = None;
+        fov: &HashSet<HealpixId>,
+        warmup_ring: &HashSet<HealpixId>,
+    ) -> Vec<(EvictionTier, u64, HealpixId)> {
+        let mut order: Vec<(EvictionTier, u64, HealpixId)> =
+            Vec::with_capacity(self.residents.len());
         for (&id, tile) in &self.residents {
-            let tier = if in_fov(id) {
-                2u8
-            } else if in_warmup(id) {
-                1
+            let tier = if fov.contains(&id) {
+                EvictionTier::Fov
+            } else if warmup_ring.contains(&id) {
+                EvictionTier::Warmup
             } else {
-                0
+                EvictionTier::Stale
             };
-            let replace = match best {
-                None => true,
-                Some((best_tier, best_seq, _)) => {
-                    tier < best_tier || (tier == best_tier && tile.touch_seq < best_seq)
-                }
-            };
-            if replace {
-                best = Some((tier, tile.touch_seq, id));
-            }
+            order.push((tier, tile.touch_seq, id));
         }
-        best.map(|(_, _, id)| id)
+        // Sort descending so pop() yields (lowest tier, lowest seq) — the
+        // next tile to evict. `b.cmp(a)` flips the natural ordering.
+        order.sort_unstable_by(|a, b| b.cmp(a));
+        order
     }
 }
 
@@ -241,9 +288,7 @@ mod tests {
             roll_rad: 0.0,
             projection: SkyProjection::Stereographic,
         };
-        let delta_a = res
-            .sync_visibility(pose_a, 8, 1.5, |_| 10)
-            .expect("sync a");
+        let delta_a = res.sync_visibility(pose_a, 8, 1.5, |_| 10).expect("sync a");
         assert!(!delta_a.loaded.is_empty());
 
         let fov_b = [pose_a.ra_rad + 0.08, pose_a.dec_rad];
@@ -254,8 +299,9 @@ mod tests {
             roll_rad: 0.0,
             projection: SkyProjection::Stereographic,
         };
-        let fov_pixels = crate::catalog::healpix::bounding_pixels_for_fov(pose_b, pose_b.fov_rad, 8)
-            .expect("fov b");
+        let fov_pixels =
+            crate::catalog::healpix::bounding_pixels_for_fov(pose_b, pose_b.fov_rad, 8)
+                .expect("fov b");
         let ring_pixels =
             crate::catalog::healpix::bounding_pixels_for_fov(pose_b, pose_b.fov_rad * 1.5, 8)
                 .expect("ring b");
