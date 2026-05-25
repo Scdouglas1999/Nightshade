@@ -13,6 +13,15 @@ bytemuck = { version = "1.16", features = ["derive"] }
 pollster = "0.3"
 irondash_engine_context = "0.5"
 irondash_texture = { path = "vendor/irondash_texture" }
+glam = { version = "0.27", features = ["bytemuck"] }
+crossbeam-channel = "0.5"
+arc-swap = "1.7"
+parking_lot = "0.12"
+zerocopy = { version = "0.7", features = ["derive"] }
+memmap2 = "0.9"
+cdshealpix = "0.7"
+sgp4 = "2"
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "fs", "macros"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.52", features = [
