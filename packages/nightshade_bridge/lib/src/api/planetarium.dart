@@ -67,6 +67,12 @@ Future<void> planetariumRegisterStarPack(
     RustLib.instance.api.crateApiPlanetariumPlanetariumRegisterStarPack(
         handle: handle, pack: pack);
 
+/// Load a verified catalog pack from disk, register star tiles, and mark catalog dirty.
+void planetariumLoadPack(
+        {required PlatformInt64 handle, required String path}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumLoadPack(handle: handle, path: path);
+
 /// Set or clear the selected object (reprojects screen position each frame).
 void planetariumSetSelection(
         {required PlatformInt64 handle, SelectedObjectDto? selected}) =>

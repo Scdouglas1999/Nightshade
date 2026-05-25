@@ -6,6 +6,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
+use std::borrow::Cow;
+
 use nightshade_planetarium::catalog::{pixel_for_direction, StarPack, StarRecord};
 use nightshade_planetarium::gesture::HitTestError;
 use nightshade_planetarium::scene::projection::project_icrs;
@@ -70,8 +72,10 @@ impl StarPack for FakePack {
         self.nside
     }
 
-    fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
-        self.tiles.get(&healpix_id).map(Vec::as_slice)
+    fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
+        self.tiles
+            .get(&healpix_id)
+            .map(|t| Cow::Borrowed(t.as_slice()))
     }
 
     fn build_hit_index(&self) -> nightshade_planetarium::catalog::HitIndex {

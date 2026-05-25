@@ -11,13 +11,15 @@ use parking_lot::Mutex;
 
 use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
-use crate::catalog::{CatalogSet, StarPack};
-use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
 use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
+use std::path::Path;
+
+use crate::catalog::{open_star_tile_pack, CatalogSet, StarPack};
+use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
 use crate::scene::{
-    load, new_snapshot_slot, publish_snapshot, SceneSnapshot, SelectedObject, SnapshotInputs,
-    SnapshotSlot,
+    build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs,
+    SceneSnapshot, SelectedObject, SnapshotInputs, SnapshotSlot,
 };
 use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use crate::surface::{create_surface, PlatformSurface};
@@ -49,7 +51,7 @@ struct PlanetariumInner {
     surface_error: Arc<Mutex<Option<String>>>,
     /// Incremented at the start of each [`PlanetariumCommand::Resize`] (observable retry).
     resize_generation: Arc<AtomicU64>,
-    catalog: Mutex<CatalogSet>,
+    catalog: Arc<Mutex<CatalogSet>>,
     render_config: Mutex<RenderConfig>,
 }
 
@@ -60,6 +62,7 @@ struct PlanetariumRenderer {
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     resize_generation: Arc<AtomicU64>,
+    catalog: Arc<Mutex<CatalogSet>>,
     frame_id: u64,
     view_pose: ViewPose,
     astro_time: AstroTime,
@@ -82,6 +85,7 @@ impl Planetarium {
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
         let surface_error = Arc::new(Mutex::new(None));
         let resize_generation = Arc::new(AtomicU64::new(0));
+        let catalog = Arc::new(Mutex::new(CatalogSet::new()));
 
         let renderer = PlanetariumRenderer {
             surface,
@@ -89,6 +93,7 @@ impl Planetarium {
             texture_id: Arc::clone(&texture_id),
             surface_error: Arc::clone(&surface_error),
             resize_generation: Arc::clone(&resize_generation),
+            catalog: Arc::clone(&catalog),
             frame_id: 0,
             view_pose: ViewPose::default(),
             astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
@@ -109,7 +114,7 @@ impl Planetarium {
                 texture_id,
                 surface_error,
                 resize_generation,
-                catalog: Mutex::new(CatalogSet::new()),
+                catalog,
                 render_config: Mutex::new(RenderConfig::default()),
             }),
             _render_loop: render_loop,
@@ -119,6 +124,13 @@ impl Planetarium {
     /// Registers a star catalog pack for rendering queries and screen hit testing.
     pub fn register_pack(&self, pack: Box<dyn StarPack>) {
         self.inner.catalog.lock().register(pack);
+    }
+
+    /// Load a verified star-tile pack from disk and register it on this handle.
+    pub fn load_pack(&self, pack_dir: &Path) -> Result<(), PlanetariumError> {
+        let pack = open_star_tile_pack(pack_dir).map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
+        self.register_pack(pack);
+        Ok(())
     }
 
     /// Screen pick at normalized coordinates using registered catalog hit indexes.
@@ -225,9 +237,39 @@ impl FrameRenderer for PlanetariumRenderer {
 
     fn render_frame(&mut self, _dirty: DirtyFlags, anim: &AnimationState) {
         self.last_anim = *anim;
+        let build_inputs = BuildSceneInputs {
+            view_pose: self.view_pose,
+            render_config: self.render_config,
+            observer: self.observer,
+            astro_time: self.astro_time,
+        };
+
+        let catalog = self.catalog.lock();
+        let scene = match build_render_scene(&catalog, build_inputs, anim) {
+            Ok(scene) => scene,
+            Err(err) => {
+                tracing::error!("build_render_scene failed: {err}");
+                self.frame_id = self.frame_id.saturating_add(1);
+                publish_snapshot(
+                    &self.snapshot,
+                    &catalog,
+                    SnapshotInputs {
+                        frame_id: self.frame_id,
+                        view_pose: self.view_pose,
+                        astro_time: self.astro_time,
+                        observer: self.observer,
+                        render_config: self.render_config,
+                        selected: self.selected.clone(),
+                    },
+                );
+                return;
+            }
+        };
+        drop(catalog);
+
         if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
-            if let Err(err) = self.surface.tick() {
-                tracing::error!("surface tick failed: {err}");
+            if let Err(err) = self.surface.render(&scene) {
+                tracing::error!("surface render failed: {err}");
             }
             if let Err(err) = self.surface.mark_frame_available() {
                 tracing::error!("mark_frame_available failed: {err}");
@@ -235,8 +277,10 @@ impl FrameRenderer for PlanetariumRenderer {
         }
 
         self.frame_id = self.frame_id.saturating_add(1);
+        let catalog = self.catalog.lock();
         publish_snapshot(
             &self.snapshot,
+            &catalog,
             SnapshotInputs {
                 frame_id: self.frame_id,
                 view_pose: self.view_pose,

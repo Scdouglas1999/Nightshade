@@ -1,6 +1,9 @@
 //! Active catalog packs and pose + magnitude star queries.
 
+use std::borrow::Cow;
+
 use crate::catalog::healpix::{bounding_pixels_for_fov, HealpixError};
+use crate::catalog::tile::LodEntry;
 use crate::catalog::{HitIndex, StarRecord};
 use crate::scene::projection::project_icrs;
 use crate::types::ViewPose;
@@ -11,7 +14,7 @@ pub struct CatalogHit<'a> {
     /// Pack that supplied this star ([`StarPack::pack_id`]).
     pub pack_id: &'a str,
     /// Tile star record (ICRS direction, magnitude, HIP id, …).
-    pub star: &'a StarRecord,
+    pub star: StarRecord,
 }
 
 /// HEALPix-tiled star catalog pack (HYG, Tycho-2, Gaia, …).
@@ -20,8 +23,12 @@ pub trait StarPack: Send + Sync {
     fn pack_id(&self) -> &str;
     /// HEALPix `nside` for this pack's tiles ([`TileHeader::nside`](super::tile::TileHeader::nside)).
     fn nside(&self) -> u32;
-    /// Stars in the tile for `healpix_id`, if that tile is loaded.
-    fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]>;
+    /// Stars in the tile for `healpix_id`, if that tile is available.
+    fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>>;
+    /// Per-tile LOD table when the pack uses magnitude bands (empty by default).
+    fn lod_entries_for_pixel(&self, _healpix_id: u64) -> Option<Cow<'_, [LodEntry]>> {
+        None
+    }
     /// Direction-based pick index for all stars in this pack (built at registration).
     fn build_hit_index(&self) -> HitIndex {
         HitIndex::new(self.nside())
@@ -72,6 +79,11 @@ impl CatalogSet {
         self.packs.iter().map(|p| p.pack.pack_id())
     }
 
+    /// Registered star packs (for render scene assembly).
+    pub fn packs(&self) -> impl Iterator<Item = &dyn StarPack> + '_ {
+        self.packs.iter().map(|p| p.pack.as_ref())
+    }
+
     /// Nearest visible star to an ICRS direction across all pack hit indexes.
     pub fn pick_at_icrs(
         &self,
@@ -105,7 +117,7 @@ impl CatalogSet {
                 best = Some((
                     CatalogHit {
                         pack_id: entry.pack.pack_id(),
-                        star: pick.star,
+                        star: *pick.star,
                     },
                     pick.separation_rad,
                 ));
@@ -132,7 +144,7 @@ impl CatalogSet {
                 let Some(stars) = pack.stars_in_pixel(pixel) else {
                     continue;
                 };
-                for star in stars {
+                for star in stars.iter() {
                     if star.mag > mag_limit {
                         continue;
                     }
@@ -140,7 +152,7 @@ impl CatalogSet {
                     if project_icrs(ra_rad, dec_rad, pose).is_some() {
                         hits.push(CatalogHit {
                             pack_id: pack.pack_id(),
-                            star,
+                            star: *star,
                         });
                     }
                 }

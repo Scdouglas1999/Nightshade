@@ -99,7 +99,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 263433831;
+  int get rustContentHash => 348587757;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1181,6 +1181,9 @@ abstract class RustLibApi extends BaseApi {
 
   SelectedObjectDto? crateApiPlanetariumPlanetariumHitTest(
       {required PlatformInt64 handle, required double x, required double y});
+
+  void crateApiPlanetariumPlanetariumLoadPack(
+      {required PlatformInt64 handle, required String path});
 
   void crateApiPlanetariumPlanetariumPushGesture(
       {required PlatformInt64 handle, required GestureEventDto evt});
@@ -9751,6 +9754,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "planetarium_hit_test",
         argNames: ["handle", "x", "y"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumLoadPack(
+      {required PlatformInt64 handle, required String path}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_String(path);
+        return wire.wire__crate__api__planetarium__planetarium_load_pack(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumLoadPackConstMeta,
+      argValues: [handle, path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumLoadPackConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_load_pack",
+        argNames: ["handle", "path"],
       );
 
   @override

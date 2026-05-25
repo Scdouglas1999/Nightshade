@@ -6,6 +6,7 @@
 //! Gesture input and dev-catalog hit-testing cross the FFI here.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -591,6 +592,16 @@ pub fn planetarium_register_star_pack(
     })
 }
 
+/// Load a verified catalog pack from disk, register star tiles, and mark catalog dirty.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_load_pack(handle: i64, path: String) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .load_pack(Path::new(&path))
+            .map_err(|e| e.to_string())
+    })
+}
+
 /// Set or clear the selected object (reprojects screen position each frame).
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_set_selection(
@@ -834,6 +845,7 @@ mod tests {
 
     #[test]
     fn hit_test_tap_on_vega_selects_hip_91262() {
+        use std::borrow::Cow;
         use std::collections::HashMap;
 
         use nightshade_planetarium::catalog::{
@@ -879,8 +891,10 @@ mod tests {
                 self.nside
             }
 
-            fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
-                self.tiles.get(&healpix_id).map(Vec::as_slice)
+            fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
+                self.tiles
+                    .get(&healpix_id)
+                    .map(|t| Cow::Borrowed(t.as_slice()))
             }
 
             fn build_hit_index(&self) -> nightshade_planetarium::catalog::HitIndex {

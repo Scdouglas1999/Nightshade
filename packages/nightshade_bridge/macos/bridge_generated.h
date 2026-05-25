@@ -2931,6 +2931,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
                                                                                                   float x,
                                                                                                   float y);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_load_pack(int64_t handle,
+                                                                                                   struct wire_cst_list_prim_u_8_strict *path);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_push_gesture(int64_t handle,
                                                                                                       struct wire_cst_gesture_event_dto *evt);
 
@@ -3486,6 +3489,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_create);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_dispose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_hit_test);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_load_pack);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_push_gesture);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_register_star_pack);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_resize);

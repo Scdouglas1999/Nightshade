@@ -22,6 +22,8 @@ pub enum PlanetariumCommand {
         height: u32,
         dpr: f32,
     },
+    /// Star/DSO catalog registration changed on the handle; renderer should refresh catalog layers.
+    CatalogChanged,
     Shutdown,
 }
 
@@ -36,6 +38,7 @@ impl PlanetariumCommand {
             Self::SetSelection(_) => *d |= DirtyFlags::SELECTION,
             Self::PushGesture(_) => *d |= DirtyFlags::POSE,
             Self::Resize { .. } => *d |= DirtyFlags::RESIZE,
+            Self::CatalogChanged => *d |= DirtyFlags::CATALOG,
             Self::Shutdown => {}
         }
     }

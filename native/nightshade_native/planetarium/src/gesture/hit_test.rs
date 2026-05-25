@@ -91,6 +91,7 @@ fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
     use std::collections::HashMap;
 
     use crate::catalog::{pixel_for_direction, CatalogSet, StarPack, StarRecord};
@@ -129,8 +130,10 @@ mod tests {
             self.nside
         }
 
-        fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
-            self.tiles.get(&healpix_id).map(Vec::as_slice)
+        fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
+            self.tiles
+                .get(&healpix_id)
+                .map(|t| Cow::Borrowed(t.as_slice()))
         }
 
         fn build_hit_index(&self) -> crate::catalog::HitIndex {

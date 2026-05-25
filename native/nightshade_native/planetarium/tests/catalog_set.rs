@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use std::borrow::Cow;
+
 use nightshade_planetarium::catalog::{
     pixel_for_direction, CatalogHit, CatalogSet, StarPack, StarRecord,
 };
@@ -40,8 +42,10 @@ impl StarPack for FakePack {
         self.nside
     }
 
-    fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
-        self.tiles.get(&healpix_id).map(Vec::as_slice)
+    fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
+        self.tiles
+            .get(&healpix_id)
+            .map(|t| Cow::Borrowed(t.as_slice()))
     }
 
     fn build_hit_index(&self) -> nightshade_planetarium::catalog::HitIndex {

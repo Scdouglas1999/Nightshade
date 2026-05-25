@@ -13,6 +13,8 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+use super::tile::TileParseError;
+
 /// Filename of the pack manifest inside a pack directory.
 pub const PACK_MANIFEST_NAME: &str = "pack.json";
 
@@ -57,6 +59,38 @@ pub enum PackError {
         expected: String,
         /// Computed SHA-256 hex.
         actual: String,
+    },
+    /// Manifest lists no `tiles/*.bin` HEALPix star tiles.
+    #[error("pack has no HEALPix star tiles (expected tiles/*.bin in manifest)")]
+    NoStarTiles,
+    /// A star tile blob failed parse/validation.
+    #[error("tile {path}: {source}")]
+    InvalidTile {
+        /// Manifest-relative path.
+        path: String,
+        /// Parse error.
+        #[source]
+        source: TileParseError,
+    },
+    /// Tile filename healpix id does not match the tile header.
+    #[error("tile {path}: filename id {filename_id} != header {header_id}")]
+    HealpixIdMismatch {
+        /// Manifest-relative path.
+        path: String,
+        /// Id parsed from `tiles/{id:012x}.bin`.
+        filename_id: u64,
+        /// [`super::tile::TileHeader::healpix_id`].
+        header_id: u64,
+    },
+    /// Tiles in one pack disagree on HEALPix `nside`.
+    #[error("tile {path}: nside {nside} != pack nside {expected}")]
+    NsideMismatch {
+        /// Manifest-relative path.
+        path: String,
+        /// `nside` in the offending tile header.
+        nside: u32,
+        /// `nside` established by the first tile.
+        expected: u32,
     },
 }
 

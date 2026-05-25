@@ -32,3 +32,10 @@ fn selection_command_marks_selection_dirty() {
     cmd.apply_dirty(&mut d);
     assert!(d.contains(DirtyFlags::SELECTION));
 }
+
+#[test]
+fn catalog_changed_sets_catalog_dirty() {
+    let mut d = DirtyFlags::empty();
+    PlanetariumCommand::CatalogChanged.apply_dirty(&mut d);
+    assert!(d.contains(DirtyFlags::CATALOG));
+}
