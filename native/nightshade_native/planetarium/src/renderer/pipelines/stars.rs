@@ -396,17 +396,26 @@ fn offset_radec_deg(
     (ra, dec)
 }
 
+fn stars_only_render_config(twinkle: bool, atmosphere: bool) -> RenderConfig {
+    RenderConfig {
+        show_stars: true,
+        show_constellations: false,
+        show_ecliptic: false,
+        show_milky_way: false,
+        show_horizon: false,
+        show_atmosphere: atmosphere,
+        magnitude_limit: 10.0,
+        twinkle,
+        ..Default::default()
+    }
+}
+
 /// Scene for the three-star golden image.
 #[must_use]
 pub fn three_stars_scene() -> Scene {
     Scene {
         view_pose: three_stars_view_pose(),
-        config: RenderConfig {
-            show_stars: true,
-            magnitude_limit: 10.0,
-            twinkle: false,
-            ..Default::default()
-        },
+        config: stars_only_render_config(false, false),
         stars: three_star_instances().to_vec(),
         ..Scene::default()
     }
@@ -417,13 +426,7 @@ pub fn three_stars_scene() -> Scene {
 pub fn three_stars_twinkle_scene(phase_rad: f32) -> Scene {
     Scene {
         view_pose: three_stars_view_pose(),
-        config: RenderConfig {
-            show_stars: true,
-            show_atmosphere: true,
-            magnitude_limit: 10.0,
-            twinkle: true,
-            ..Default::default()
-        },
+        config: stars_only_render_config(true, true),
         stars: three_star_instances().to_vec(),
         twinkle_phase: phase_rad,
         ..Scene::default()

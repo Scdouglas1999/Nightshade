@@ -4,7 +4,8 @@
 //! shared handle, which `irondash_texture` registers with the Flutter engine so the
 //! Dart-side `Texture(textureId: ...)` widget can display it.
 
-use crate::spike::Spike;
+use crate::renderer::Renderer;
+use crate::renderer::Scene;
 use crate::surface::d3d11_shared::{allocate_shared, SharedTexture};
 use crate::{surface::PlatformSurface, PlanetariumError};
 
@@ -19,7 +20,7 @@ pub struct WindowsSurface {
     engine_handle: i64,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    spike: Spike,
+    renderer: Option<Renderer>,
     current: Option<Allocated>,
 }
 
@@ -95,17 +96,12 @@ impl WindowsSurface {
 
         let device = Arc::new(device);
         let queue = Arc::new(queue);
-        let spike = Spike::new(
-            device.clone(),
-            queue.clone(),
-            wgpu::TextureFormat::Bgra8Unorm,
-        );
 
         Ok(Self {
             engine_handle,
             device,
             queue,
-            spike,
+            renderer: None,
             current: None,
         })
     }
@@ -141,6 +137,14 @@ impl PlatformSurface for WindowsSurface {
         let texture_id = texture.id();
         let flutter_texture = texture.into_sendable_texture();
 
+        self.renderer = Some(Renderer::new(
+            self.device.clone(),
+            self.queue.clone(),
+            wgpu::TextureFormat::Bgra8Unorm,
+            width,
+            height,
+        ));
+
         self.current = Some(Allocated {
             width,
             height,
@@ -161,17 +165,22 @@ impl PlatformSurface for WindowsSurface {
         self.allocate(width, height)
     }
 
-    fn tick(&self) -> Result<(), PlanetariumError> {
+    fn render(&mut self, scene: &Scene) -> Result<(), PlanetariumError> {
         let Some(a) = &self.current else {
             return Err(PlanetariumError::UnsupportedPlatform(
-                "tick called before allocate/resize",
+                "render called before allocate/resize",
+            ));
+        };
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Err(PlanetariumError::UnsupportedPlatform(
+                "renderer not initialized after allocate",
             ));
         };
         let view = a
             .shared
             .wgpu
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.spike.tick(&view);
+        renderer.render_into(&view, scene);
         Ok(())
     }
 
@@ -189,6 +198,7 @@ impl PlatformSurface for WindowsSurface {
         if let Some(a) = self.current.take() {
             drop(a);
         }
+        self.renderer = None;
         Ok(())
     }
 }

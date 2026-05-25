@@ -4,6 +4,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
+use nightshade_planetarium::catalog::CatalogSet;
 use nightshade_planetarium::scene::{build_snapshot, project_icrs, SnapshotInputs};
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use nightshade_planetarium::Planetarium;
@@ -41,7 +42,8 @@ fn wait_for_frame_after(planetarium: &Planetarium, after: u64) -> u64 {
 
 #[test]
 fn build_snapshot_includes_visible_dev_stars_at_pole_view() {
-    let snap = build_snapshot(SnapshotInputs {
+    let catalog = CatalogSet::new();
+    let snap = build_snapshot(&catalog, SnapshotInputs {
         frame_id: 1,
         view_pose: ViewPose::default(),
         astro_time: AstroTime::from_jd_utc(2_451_545.0),

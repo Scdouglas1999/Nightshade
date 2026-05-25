@@ -27,7 +27,10 @@ impl PlatformSurface for StubSurface {
         Err(PlanetariumError::UnsupportedPlatform(MSG))
     }
 
-    fn tick(&self) -> Result<(), PlanetariumError> {
+    fn render(
+        &mut self,
+        _scene: &crate::renderer::Scene,
+    ) -> Result<(), PlanetariumError> {
         Err(PlanetariumError::UnsupportedPlatform(MSG))
     }
 

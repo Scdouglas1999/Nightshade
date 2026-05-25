@@ -17,8 +17,8 @@ pub trait PlatformSurface: Send + Sync {
     /// Re-allocate at a new size. Texture id may or may not stay the same.
     fn resize(&mut self, width: u32, height: u32) -> Result<i64, PlanetariumError>;
 
-    /// Render one frame into the allocated target (rotation spike in Phase 1).
-    fn tick(&self) -> Result<(), PlanetariumError>;
+    /// Render one frame into the allocated target.
+    fn render(&mut self, scene: &crate::renderer::Scene) -> Result<(), PlanetariumError>;
 
     /// Signal Flutter that a new frame is available for the current texture id.
     fn mark_frame_available(&self) -> Result<(), PlanetariumError>;

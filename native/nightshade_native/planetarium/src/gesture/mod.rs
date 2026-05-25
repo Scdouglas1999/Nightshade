@@ -89,7 +89,7 @@ pub enum GestureEvent {
 
 /// Active gesture phase for the state machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ActiveGesture {
+pub enum ActiveGesture {
     Pan,
     Zoom,
     Rotate,

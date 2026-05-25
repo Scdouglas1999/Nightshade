@@ -285,7 +285,18 @@ pub fn render_empty_scene_rgba(width: u32, height: u32) -> Vec<u8> {
             width,
             height,
         );
-        renderer.render(&Scene::default());
+        renderer.render(&Scene {
+            config: RenderConfig {
+                show_stars: false,
+                show_constellations: false,
+                show_ecliptic: false,
+                show_milky_way: false,
+                show_horizon: false,
+                show_atmosphere: false,
+                ..RenderConfig::default()
+            },
+            ..Scene::default()
+        });
         renderer.readback_rgba()
     })
 }

@@ -19,20 +19,26 @@ use crate::types::{SkyProjection, ViewPose};
 /// std140 uniform block for [`LineUniforms`].
 const LINE_UNIFORM_SIZE: u64 = 80;
 
+/// Pack 8-bit RGBA into a `LineVertex::color` word (ABGR: A in high byte, R in LSB).
+#[must_use]
+pub const fn pack_line_rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
+    (a as u32) << 24 | (b as u32) << 16 | (g as u32) << 8 | r as u32
+}
+
 /// Constellation stick figures (v1 `constellationLineColor` 0x40FFFFFF).
-pub const COLOR_CONSTELLATION: u32 = pack_rgba(255, 255, 255, 0x40);
+pub const COLOR_CONSTELLATION: u32 = 0x40FFFFFF;
 
 /// Equatorial grid (`gridColor` 0x33FFFFFF).
-pub const COLOR_GRID: u32 = pack_rgba(255, 255, 255, 0x33);
+pub const COLOR_GRID: u32 = 0x33FFFFFF;
 
 /// Alt-az grid (same hue, lower alpha; dashed in shader).
-pub const COLOR_ALT_AZ_GRID: u32 = pack_rgba(255, 255, 255, 0x4D);
+pub const COLOR_ALT_AZ_GRID: u32 = 0x4DFFFFFF;
 
 /// Ecliptic (`eclipticColor` 0x40FFEB3B).
-pub const COLOR_ECLIPTIC: u32 = pack_rgba(255, 235, 59, 0x40);
+pub const COLOR_ECLIPTIC: u32 = 0x40FFEB3B;
 
 /// Galactic equator (`galacticPlaneColor` 0x4000BCD4).
-pub const COLOR_GALACTIC: u32 = pack_rgba(0, 188, 212, 0x40);
+pub const COLOR_GALACTIC: u32 = 0x4000BCD4;
 
 /// Solid grid lines.
 pub const STYLE_GRID_SOLID: u32 = 1;
@@ -256,12 +262,6 @@ impl LinesPipeline {
             .write_buffer(&self.dynamic_vbuf, 0, bytemuck::cast_slice(vertices));
         self.dynamic_vertex_count = count as u32;
     }
-}
-
-/// Pack 8-bit RGBA into a `LineVertex::color` word (little-endian R in LSB).
-#[must_use]
-pub const fn pack_rgba(r: u8, g: u8, b: u8, a: u8) -> u32 {
-    (a as u32) << 24 | (b as u32) << 16 | (g as u32) << 8 | r as u32
 }
 
 /// Build GPU vertices for all constellation segments (count = [`LINE_VERTEX_COUNT`]).
@@ -503,7 +503,7 @@ fn galactic_to_equatorial_deg(lon_deg: f32, lat_deg: f32) -> (f32, f32) {
 
     let y = b.cos() * (l - l_o).cos();
     let x = b.sin() * d_gp.cos() - b.cos() * d_gp.sin() * (l - l_o).sin();
-    let mut ra = x.atan2(y).to_degrees() + ALPHA_GP;
+    let mut ra = y.atan2(x).to_degrees() + ALPHA_GP;
     ra = ra.rem_euclid(360.0);
     (ra, dec.to_degrees())
 }
@@ -629,6 +629,11 @@ mod tests {
     fn pack_rgba_matches_v1_constellation_color() {
         assert_eq!(COLOR_CONSTELLATION, 0x40FFFFFF);
         assert_eq!(COLOR_ECLIPTIC, 0x40FFEB3B);
+        assert_eq!(COLOR_GRID, 0x33FFFFFF);
+        assert_eq!(
+            pack_line_rgba(255, 255, 255, 0x40),
+            COLOR_CONSTELLATION
+        );
     }
 
     #[test]

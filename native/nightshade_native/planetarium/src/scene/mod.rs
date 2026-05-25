@@ -1,5 +1,6 @@
 //! Scene state and per-frame snapshots for Dart overlays.
 
+pub mod build;
 pub mod dev_catalog;
 pub mod lod;
 pub mod pose;
@@ -8,6 +9,7 @@ pub mod publish;
 pub mod snapshot;
 pub mod visibility;
 
+pub use build::{build_render_scene, collect_star_instances, star_instance_from_record, BuildSceneInputs};
 pub use lod::{
     fov_zoom_mag_boost, frame_star_mag_limit, select_lod, tile_star_mag_limit, LodSelection,
     MagLimitConfig, QualityConfig, FOV_MAG_BOOST_CAP, REF_FOV_DEG, STAR_MAG_CEILING, STAR_MAG_FLOOR,
