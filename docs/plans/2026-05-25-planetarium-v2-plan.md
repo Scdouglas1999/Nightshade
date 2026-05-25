@@ -2447,53 +2447,127 @@ Which approach?
 
 ## Implementation progress (coordinator log)
 
-> **Last updated:** 2026-05-25 (coordinator handoff, batch 3). **Branch:** `main` (57 commits ahead of `origin/main`). **Planetarium code HEAD:** `84a4561` (star pipeline). **Prior docs log:** `e4d202ce`. Verify: `git log --oneline --grep="planetarium-v2" -60`.
+> **Last updated:** 2026-05-25 · **HEAD:** `b3860c2d` · **122 tasks:** **76 done** · **5 partial** · **41 not started** · **Branch:** `main` (~85 commits ahead of `origin/main`). Verify: `git log --oneline --grep="planetarium-v2" -120`.
 
-### Completed task numbers (committed)
+### Summary by phase
+
+| Phase | Done | Partial | Not started |
+|-------|------|---------|-------------|
+| 1 (1–8) | 8 | — | — |
+| 2 (9–18) | 10 | — | — |
+| 3 (19–32) | 14 | — | — |
+| 4 (33–46) | 14 | — | — |
+| 5 (47–66) | 6 | 3 (55, 63, 66) | 11 |
+| 6 (67–74) | 6 | 2 (73, 74) | — |
+| 7 (75–88) | 14 | — | — |
+| 8 (89–98) | 2 | — | 8 |
+| 9 (99–104) | 1 | — | 5 |
+| 10 (105–116) | — | — | 12 |
+| 11 (117–122) | 1 | — | 5 |
+
+### Master task table (1–122)
+
+| Task | Status | Commit | Notes |
+|------|--------|--------|-------|
+| 1–8 | **done** | `9f27abc` … `e50371d` | Phase 1 spike; dev route removed in `587b3cb` |
+| 9–18 | **done** | `079d1a2` … `d614483` | Full FFI; spike removed `587b3cb` |
+| 19–32 | **done** | `93c5d03` … `77d3affd` | Integrators `d15cd52`, `a711e322` |
+| 33 | **done** | `b7023ba` | Tile format |
+| 34 | **done** | `5cefaf3` | HEALPix helpers |
+| 35 | **done** | `dd6aa39b` | `build_hyg_tiles` |
+| 36 | **done** | `723b576` | OpenNGC binary + `build_opengnc` |
+| 37 | **done** | `7d455af` | Constellation lines |
+| 38 | **done** | `ac259282` | `CatalogSet` |
+| 39 | **done** | `abdfbce9` | Pack manifest |
+| 40 | **done** | `42a07a02` | Tile residency |
+| 41 | **done** | `454c8b78` | Hit-test index |
+| 42 | **done** | `2c22eb36` | Variable-star metadata |
+| 43 | **done** | `af1ba371` | Minor-body catalog |
+| 44 | **done** | `b6a4bd42` | Satellite TLE pack |
+| 45 | **done** | `ff2ee1c6` | Milky Way raster asset + loader |
+| 46 | **done** | `9cff373f` | `core` + `stars-hyg` Flutter assets |
+| 47 | **done** | `1ca67415` | Frame graph skeleton |
+| 48 | **done** | `84a4561a` | Star pipeline + golden |
+| 49 | **done** | `36dd1d49` | Star PSF + tone mapping |
+| 50 | **done** | `c2303b8c` | Twinkle animation |
+| 51 | **not started** | — | Bruneton LUT precompute |
+| 52 | **not started** | — | Bundle Bruneton LUTs |
+| 53 | **not started** | — | Atmosphere pipeline |
+| 54 | **not started** | — | Sun disc in atmosphere |
+| 55 | **partial** | `ff2ee1c6` | Asset/load helpers only; MW **GPU pass** not wired |
+| 56 | **done** | `4fbfcd4e` | Line pipeline + `lines.wgsl` |
+| 57–62 | **not started** | — | DSO, bodies, horizon, satellites, minor bodies, selection FX |
+| 63 | **partial** | `1ca67415` | `RenderPassId::ORDER`; only Clear / Stars / Lines execute |
+| 64 | **done** | `73464e5b` | Animation set in render loop |
+| 65 | **not started** | — | Dedicated tone-map / sRGB pass |
+| 66 | **partial** | `36dd1d49` | `renderer_stars_perf.rs` smoke only; no CI perf gate |
+| 67 | **done** | `494c55f5` | Visibility cull |
+| 68 | **done** | `a2b7dab8` | LOD selector |
+| 69 | **done** | `0593b908` | Pose controller |
+| 70 | **done** | `dc3fd98a` | Gestures → Rust; state machine from Task 18 (`d614483`) |
+| 71 | **done** | `d4593bd6` | Pan momentum |
+| 72 | **done** | `643e18b7`, `2d197099` | Hit test + tap selection round-trip |
+| 73 | **partial** | `0593b908` | `PoseLock` / `TrackingTarget` types; mount/target FFI wire TBD |
+| 74 | **partial** | `f6560b5c` | Labels from catalog or `dev_catalog`; not full scene population |
+| 75–88 | **done** | `41efa5e` … `2d197099` | Includes `83` `c9ab88e0`, resize/lifecycle/gestures |
+| 89 | **done** | `ab1c2978` | `LabelLayer` |
+| 90 | **done** | `2124fad1` | `ConstellationArtLayer` |
+| 91–98 | **not started** | — | FOV, mosaic, HUD, panels, search overlays |
+| 99 | **not started** | — | `CatalogPack` model (v1 manager only) |
+| 100 | **done** | `b3860c2d` | `planetariumLoadPack` FFI |
+| 101–104 | **not started** | — | Catalog UI, Tycho-2, CDN, onboarding |
+| 105–116 | **not started** | — | Platform surfaces; `447f71e5` CI **stub** only (non-Windows) |
+| 117 | **done** | `65802fc7` | `renderingPlatformProvider` toggle |
+| 118–122 | **not started** | — | Screen wire, parity, perf gate, default flip, remove v1 |
+
+### Completed task numbers (rollup)
 
 | Phase | Tasks done |
 |-------|------------|
 | 1 | **1–8** |
 | 2 | **9–18** |
-| 3 | **19–32** (integrator + frames/body_lighting in `a711e322`; benchmarks in `77d3affd`) |
-| 4 | **33–35**, **37–41** |
-| 5 | **47–48** |
-| 7 | **75–82**, **84** |
+| 3 | **19–32** |
+| 4 | **33–46** |
+| 5 | **47–50**, **56**, **64** (+ partial **55**, **63**, **66**) |
+| 6 | **67–72**, **70** (+ partial **73**, **74**) |
+| 7 | **75–88** |
+| 8 | **89–90** |
+| 9 | **100** |
+| 11 | **117** |
 
-**Not started (no planetarium-v2 commit yet):** 36, 42–46, 49+, 83, 85–88, Phases 6, 8–11.
+**Not started:** **51–54**, **57–62**, **65**, **91–98**, **99**, **101–104**, **105–116**, **118–122**.
 
-### Code review — P0 fixes: **landed**
+### Code review — P0 / P1 fixes
 
 | Item | Status | Commit |
 |------|--------|--------|
-| P0-1 `SetTime` / `SetObserver` applied in snapshots | **done** | `6cbf12aa` |
+| P0-1 `SetTime` / `SetObserver` in renderer | **done** | `6cbf12aa` |
 | P0-2 Non-Windows `surface` stub (CI) | **done** | `447f71e5` |
-| P1 Resize polling + surface error propagation | **done** | `052fc273` |
+| P1 Resize polling + surface errors | **done** | `052fc273`, `f7e56555` |
+| P1 DPR → physical texture size | **done** | `4221da09` |
+| FRB regen (pack-load + gestures) | **done** | `9ebd7fda` |
+| **P0 Renderer live integration** | **partial** | WIP uncommitted: `handle.rs` calls `build_render_scene` but `scene/build.rs` missing at HEAD — `cargo check -p nightshade_planetarium` fails on clean tree. No `a34807f3` commit. |
 
-### Coordinator batch 3 — landed since `e4d202ce`
+### Coordinator batch 4 — landed since prior log (`73f69c7c`)
 
 | Task / area | Commit | Subject |
 |-------------|--------|---------|
-| P0 + P1 | `6cbf12aa`, `447f71e5`, `052fc273` | Handle time/observer, cross-platform surface, resize errors |
-| Integrator 3 | `a711e322` | `aberration`, `frames`, `body_lighting` exports + tests |
-| 26 | `47eae877` | `FrameChain` ICRS→horizontal |
-| 31 | `181648d0` | Body phase angles |
-| 32 | `77d3affd` | Astrometry benchmarks + budget gating |
-| 35 | `dd6aa39b` | HYG → tile converter (`build_hyg_tiles`) |
-| 38 | `ac259282` | `CatalogSet` |
-| 39 | `abdfbce9` | Pack manifest + integrity |
-| 40 | `42a07a02` | Tile residency LRU |
-| 41 | `454c8b78` | Hit-test index |
-| 47 | `1ca67415` | Renderer entry + frame graph |
-| 48 | `84a4561a` | Star pipeline + WGSL golden |
-| 78 | `44bc2cf0` | `viewPoseProvider` |
-| 79 | `740fe853` | `observationTimeProvider` |
-| 80 | `d3835327` | `observerProvider` |
-| 81 | `13d3b597` | `renderConfigProvider` |
-| 82 | `d1a48add` | `sceneSnapshotProvider` |
-| 84 | `981a0b37` | `InteractiveSkyView` shell |
+| 36 | `723b576` | OpenNGC binary catalog |
+| 42 | `2c22eb36` | Variable-star metadata |
+| 43 | `af1ba371` | Minor-body catalog + MPC loader |
+| 44 | `b6a4bd42` | Satellite TLE pack |
+| 45 | `ff2ee1c6` | Milky Way raster asset |
+| 46 | `9cff373f` | Bundle `core` + `stars-hyg` packs |
+| 49–50 | `36dd1d49`, `c2303b8c` | Star PSF/tone mapping, twinkle |
+| 56 | `4fbfcd4e` | Line pipeline |
+| 67–72 | `494c55f5` … `2d197099` | Cull, LOD, pose, gestures, momentum, hit-test |
+| 83–88 | `c9ab88e0` … `2d197099` | Selection, gestures, resize, lifecycle, tap→hit-test |
+| 89–90 | `ab1c2978`, `2124fad1` | Label + constellation art layers |
+| 100 | `b3860c2d` | Pack-load FFI |
+| 117 | `65802fc7` | Rendering platform toggle |
+| Fix | `4d97d933` | Restore planetarium test build |
 
-**Next parallel batch (not started):** 36 (OpenNGC), 42–46 (catalog wrap-up), 49+ (render pipelines), 83 / 85–88 (selection + gestures + lifecycle + hit-test round-trip).
+**Next parallel batches:** **P0 commit** renderer live (`scene/build.rs` + surface `render(Scene)`), then **51–54** (Bruneton/atmosphere), **55** MW GPU pass, **57–62** + **63** pass wiring, **73–74** tracking + snapshot population, **91+** overlays, **105+** platforms, **118+** cutover.
 
 ### Work completed (by phase/task)
 
@@ -2548,70 +2622,127 @@ Which approach?
 
 **Integrator history:** `d15cd52` (nutation, vsop87, moon, kepler, …); **`a711e322`** (aberration export, frames, body_lighting tests).
 
-#### Phase 4 — Tasks 33–46 (catalog): **partial** (36, 42–46 remain)
+#### Phase 4 — Tasks 33–46 (catalog): **done**
 
 | Task | Subject | Status | Commit / notes |
 |------|---------|--------|----------------|
-| 33 | HEALPix tile binary format | **done** | `b7023ba` — `catalog/tile.rs` |
-| 34 | HEALPix helpers (`cdshealpix`) | **done** | `5cefaf3` — `catalog/healpix.rs` |
-| 35 | HYG → tile converter | **done** | `dd6aa39b` — `bin/build_hyg_tiles.rs`, `catalog/hyg_build.rs` |
-| 36 | OpenNGC port | **not started** | — |
-| 37 | Constellation lines + boundaries | **done** | `7d455af` — `catalog/constellation_lines.rs` |
-| 38 | `CatalogSet` | **done** | `ac259282` — `catalog/set.rs` |
-| 39 | Pack manifest + integrity | **done** | `abdfbce9` — `catalog/pack.rs` |
-| 40 | Tile residency LRU | **done** | `42a07a02` — `catalog/residency.rs` |
-| 41 | Hit-test index | **done** | `454c8b78` — `catalog/hit_index.rs` |
-| 42–46 | variable stars, minor bodies, TLE, Milky Way, bundle packs | **not started** | — |
+| 33 | HEALPix tile binary format | **done** | `b7023ba` |
+| 34 | HEALPix helpers | **done** | `5cefaf3` |
+| 35 | HYG → tile converter | **done** | `dd6aa39b` |
+| 36 | OpenNGC port | **done** | `723b576` — `opengnc_build.rs`, `build_opengnc` |
+| 37 | Constellation lines + boundaries | **done** | `7d455af` |
+| 38 | `CatalogSet` | **done** | `ac259282` |
+| 39 | Pack manifest + integrity | **done** | `abdfbce9` |
+| 40 | Tile residency LRU | **done** | `42a07a02` |
+| 41 | Hit-test index | **done** | `454c8b78` |
+| 42 | Variable-star metadata | **done** | `2c22eb36` |
+| 43 | Minor-body catalog | **done** | `af1ba371` |
+| 44 | Satellite TLE pack | **done** | `b6a4bd42` |
+| 45 | Milky Way raster asset | **done** | `ff2ee1c6` — `catalog/milky_way.rs`, `build_milky_way` |
+| 46 | Bundle core + stars-hyg packs | **done** | `9cff373f` — `apps/desktop/assets/planetarium/catalogs/` |
 
-#### Phase 5 — Tasks 47–48 (render pipelines): **started**
+#### Phase 5 — Tasks 47–66 (render pipelines): **partial**
 
 | Task | Subject | Status | Commit / notes |
 |------|---------|--------|----------------|
-| 47 | Renderer entry + frame graph | **done** | `1ca67415` — `renderer/graph.rs`, empty-scene golden |
-| 48 | Star pipeline + WGSL | **done** | `84a4561a` — `renderer/pipelines/stars.rs`, `shaders/stars.wgsl`, `tests/golden/stars_three.png` |
-| 49+ | PSF tone mapping, twinkle, Bruneton, atmosphere, … | **not started** | — |
+| 47 | Renderer entry + frame graph | **done** | `1ca67415` |
+| 48 | Star pipeline + WGSL | **done** | `84a4561a` |
+| 49 | Star PSF + tone mapping | **done** | `36dd1d49` |
+| 50 | Twinkle animation | **done** | `c2303b8c` |
+| 51–54 | Bruneton / atmosphere / sun | **not started** | — |
+| 55 | Milky Way pipeline | **partial** | Asset `ff2ee1c6`; `renderer/assets/mw.rs`; pass stub in `graph.rs` |
+| 56 | Line pipeline | **done** | `4fbfcd4e` — `pipelines/lines.rs`, `shaders/lines.wgsl` |
+| 57–62 | DSO, bodies, horizon, satellites, minor, selection FX | **not started** | — |
+| 63 | Pass ordering integration | **partial** | Enum + loop in `graph.rs`; only Stars + Lines draw |
+| 64 | Animation + frame timing | **done** | `73464e5b` (Task 16) in loop |
+| 65 | Tone mapping / sRGB pass | **not started** | — |
+| 66 | Render perf benchmark gate | **partial** | `tests/renderer_stars_perf.rs` (no CI gate) |
 
-Phase 6 is **not started**.
+#### Phase 6 — Tasks 67–74 (scene + input): **partial**
 
-#### Phase 7 — Tasks 75–88 (Dart / providers): **partial** (83, 85–88 remain)
+| Task | Subject | Status | Commit / notes |
+|------|---------|--------|----------------|
+| 67 | Visibility cull | **done** | `494c55f5` — `scene/visibility.rs` |
+| 68 | LOD selector | **done** | `a2b7dab8` — `scene/lod.rs` |
+| 69 | Pose controller | **done** | `0593b908` — `scene/pose.rs` |
+| 70 | Gesture state machine | **done** | `dc3fd98a` + Task 18 `d614483` |
+| 71 | Pan momentum | **done** | `d4593bd6` — `gesture/momentum.rs` |
+| 72 | Hit testing wiring | **done** | `643e18b7`, `2d197099` |
+| 73 | Tracking (mount + target) | **partial** | Pose lock types; no end-to-end mount sync |
+| 74 | Scene snapshot population | **partial** | `publish.rs` labels; catalog-backed labels when pack loaded |
+
+#### Phase 7 — Tasks 75–88 (Dart shell): **done**
 
 | Task | Status | Commit |
 |------|--------|--------|
 | 75 New package skeleton | **done** | `41efa5e` |
-| 76 Bridge `Planetarium` Dart handle | **done** | `639de37` — `lib/src/bridge/planetarium_handle.dart` |
+| 76 Bridge `Planetarium` Dart handle | **done** | `639de37` |
 | 77 `planetariumHandleProvider` | **done** | `df7bd31` |
 | 78 `viewPoseProvider` | **done** | `44bc2cf0` |
 | 79 `observationTimeProvider` | **done** | `740fe853` |
 | 80 `observerProvider` | **done** | `d3835327` |
 | 81 `renderConfigProvider` | **done** | `13d3b597` |
 | 82 `sceneSnapshotProvider` | **done** | `d1a48add` |
-| 83 `selectionProvider` | **not started** | — |
-| 84 `InteractiveSkyView` shell | **done** | `981a0b37` — `widgets/interactive_sky_view.dart` |
-| 85–88 Gestures, resize, lifecycle, tap→hit-test | **not started** | — |
+| 83 `selectionProvider` | **done** | `c9ab88e0` |
+| 84 `InteractiveSkyView` shell | **done** | `981a0b37` |
+| 85 Gestures → Rust | **done** | `dc3fd98a` |
+| 86 Resize observer | **done** | `3d4b71fe` |
+| 87 Lifecycle quiesce | **done** | `9ea79b08` |
+| 88 Tap → hit-test → selection | **done** | `2d197099` |
+
+#### Phase 8 — Tasks 89–98 (overlays): **partial** (91–98 remain)
+
+| Task | Status | Commit |
+|------|--------|--------|
+| 89 `LabelLayer` | **done** | `ab1c2978` |
+| 90 `ConstellationArtLayer` | **done** | `2124fad1` |
+| 91–98 FOV, mosaic, HUD, panels, search | **not started** | — |
+
+#### Phase 9 — Tasks 99–104: **partial**
+
+| Task | Status | Commit |
+|------|--------|--------|
+| 99 `CatalogPack` model + repository | **not started** | — |
+| 100 Pack-load FFI | **done** | `b3860c2d` |
+| 101–104 Catalog UI, Tycho-2, CDN, onboarding | **not started** | — |
+
+#### Phase 10 — Tasks 105–116: **not started**
+
+Non-Windows CI stub only (`447f71e5`). Cross-cutting DPR/resize/lifecycle partially covered in Phase 7 (`4221da09`, `3d4b71fe`, `9ea79b08`) but platform surfaces (macOS Metal, iOS, Android, Linux GL) are not.
+
+#### Phase 11 — Tasks 117–122: **partial**
+
+| Task | Status | Commit |
+|------|--------|--------|
+| 117 `renderingPlatformProvider` toggle | **done** | `65802fc7` |
+| 118 Wire toggle into screens | **not started** | — |
+| 119 Parity suite | **not started** | — |
+| 120 Performance gate | **not started** | — |
+| 121 Flip default to v2 | **not started** | — |
+| 122 Remove v1 | **not started** | — |
 
 ---
 
 ### Files touched (grouped)
 
-All paths below are from `git log --grep="planetarium-v2" --name-only` on `main` unless noted as **WIP (uncommitted)**.
+All paths below are from `git log --grep="planetarium-v2" --name-only` on `main` at `b3860c2d`, plus **WIP (uncommitted)** under `planetarium/` where noted.
 
 #### `native/nightshade_native/planetarium/**`
 
 | Area | Files / modules |
 |------|-----------------|
-| Crate root | `Cargo.toml`, `src/lib.rs`, `shaders/spike.wgsl`, `src/spike.rs` (offscreen/golden tests) |
-| **surface/** | `mod.rs`, `windows.rs`, `d3d11_shared.rs`, `stub.rs` (non-Windows CI) |
+| Crate root | `Cargo.toml`, `src/lib.rs`, `shaders/spike.wgsl`, `src/spike.rs`, `src/handle.rs`, `src/types.rs` |
+| **surface/** | `mod.rs`, `windows.rs`, `d3d11_shared.rs`, `stub.rs` |
 | **bus/** | `mod.rs`, `dirty.rs`, `loop_thread.rs` |
-| **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `projection.rs`, `dev_catalog.rs` |
-| **gesture/** | `mod.rs`, `hit_test.rs` |
+| **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `projection.rs`, `dev_catalog.rs`, `visibility.rs`, `lod.rs`, `pose.rs`; **WIP:** `build.rs` |
+| **gesture/** | `mod.rs`, `hit_test.rs`, `momentum.rs` |
 | **animation/** | `mod.rs` |
-| **astrometry/** | `mod.rs`, `time.rs`, `earth_rotation.rs`, `precession.rs`, `nutation.rs`, `aberration.rs`, `extinction.rs`, `refraction.rs`, `sgp4_prop.rs`, `vsop87.rs`, `moon.rs`, `kepler.rs`, `frames.rs`, `body_lighting.rs` |
-| **catalog/** | `mod.rs`, `tile.rs`, `healpix.rs`, `constellation_lines.rs`, `set.rs`, `pack.rs`, `residency.rs`, `hit_index.rs`, `hyg_build.rs`; `src/bin/build_hyg_tiles.rs` |
-| **renderer/** | `mod.rs`, `graph.rs`, `pipelines/mod.rs`, `pipelines/stars.rs`; `shaders/stars.wgsl` |
+| **astrometry/** | Full module tree (`time`, `frames`, `vsop87`, `moon`, `kepler`, `sgp4_prop`, …) |
+| **catalog/** | `tile`, `healpix`, `constellation_lines`, `set`, `pack`, `residency`, `hit_index`, `hyg_build`, `opengnc_build`, `dso`, `variable_stars`, `minor_body`, `satellite`, `milky_way`, `star_tile_pack`; bins `build_hyg_tiles`, `build_opengnc`, `build_milky_way`; `scripts/gen_variable_stars.py` |
+| **renderer/** | `mod.rs`, `graph.rs`, `assets/mod.rs`, `assets/mw.rs`, `pipelines/stars.rs`, `pipelines/lines.rs`; `shaders/stars.wgsl`, `shaders/lines.wgsl` |
 | **benches/** | `astrometry_bench.rs` |
-| **handle** | `src/handle.rs`, `src/types.rs` |
-| **vendor/** | `vendor/irondash_texture/**` (vendored for Windows texture handoff) |
-| **tests/** | `smoke.rs`, `spike_render.rs`, `types.rs`, `bus_dirty.rs`, `loop_thread.rs`, `handle_lifecycle.rs`, `snapshot.rs`, `snapshot_publish.rs`, `animation.rs`, `astrometry_*.rs`, `catalog_*.rs` (tile, healpix, constellation_lines, set, pack, residency, hit_index, hyg_tiles), `renderer_empty_scene.rs`, `renderer_stars_golden.rs`; `tests/golden/stars_three.png`, `tests/fixtures/hyg_*.csv` |
+| **vendor/** | `vendor/irondash_texture/**` |
+| **tests/** | All `astrometry_*`, `catalog_*` (incl. opengnc, milky_way, variable_stars, minor_body, satellite), `gesture_*`, `scene_*`, `renderer_*` (empty, stars golden/twinkle/perf, lines vertex count), `load_pack.rs`, `handle_lifecycle.rs`, …; **WIP:** `live_render_stars.rs` |
 
 #### `native/nightshade_native/bridge/**`
 
@@ -2640,13 +2771,22 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 
 #### `packages/nightshade_planetarium_v2/**`
 
-- Skeleton: `41efa5e`
-- Bridge: `planetarium_handle.dart`, `planetarium_driver.dart` — `639de37`, extended in 78–84 commits
-- Providers: `planetarium_handle_provider.dart`, `view_pose_provider.dart`, `observation_time_provider.dart`, `observer_provider.dart`, `render_config_provider.dart`, `scene_snapshot_provider.dart`, `planetarium_sync.dart`, `core_observation_time_provider.dart`
-- Models: `view_pose_state.dart`, `planetarium_astro_time.dart`, `render_config_state.dart`, `scene_snapshot.dart`
-- Widgets: `interactive_sky_view.dart` — `981a0b37`
-- Tests: matching `*_provider_test.dart`, `interactive_sky_view_test.dart`, `support/fake_planetarium_driver.dart`
-- **Not started:** `selection_provider.dart`, gesture/resize/lifecycle wiring (Tasks 85–88)
+- Bridge: `planetarium_handle.dart`, `planetarium_driver.dart`, `gesture_events.dart`
+- Providers: handle, view pose, observation time, observer, render config, scene snapshot, **selection**, planetarium quiesced, planetarium sync, constellation art placements
+- Models: view pose, astro time, render config, scene snapshot, celestial coordinate, constellation art placement
+- Rendering: `label_layer.dart`, `label_layout_manager.dart`, `label_style.dart`, `sky_projection.dart`, `constellation_art_layer.dart`, `constellation_art_painter.dart`
+- Widgets: `interactive_sky_view.dart`
+- Catalogs: `constellation_art.dart`
+- Tests: all provider tests + `interactive_sky_view_{gestures,resize,lifecycle,selection}_test.dart`, `label_layer_test.dart`, `constellation_art_layer_test.dart`
+
+#### `packages/nightshade_core/**` (toggle only)
+
+- `models/settings/rendering_platform.dart`, `providers/rendering_platform_provider.dart` — `65802fc7`
+
+#### `apps/desktop/assets/planetarium/**`
+
+- `catalogs/core/pack.json`, `catalogs/stars-hyg-v1/pack.json`, README — `9cff373f`
+- `mw-intensity-v1.bin` (Milky Way) — `ff2ee1c6` (may be gitignored locally; see `catalogs/.gitignore`)
 
 #### `planetarium/vendor/**`
 
@@ -2683,7 +2823,7 @@ flutter_rust_bridge_codegen generate
 # Then melos run dev (or copy DLLs) before flutter run — see CLAUDE.md
 ```
 
-Last full regen bundled in `587b3cb` (`planetarium.dart`, `frb_generated.*`, platform `bridge_generated.h`). Pure-Rust astrometry-only changes do **not** require FRB regen.
+Last FRB regen: `9ebd7fda` (after pack-load + gesture APIs). Earlier baseline: `587b3cb`. Pure-Rust-only changes do **not** require FRB regen.
 
 #### Verification commands (each task / integrator pass)
 
@@ -2701,19 +2841,19 @@ melos run dev       # after any Rust bridge or DLL-affecting change
 
 #### Open blockers (from plan + observed)
 
-1. **wgpu DX12 HAL shared-handle extraction** (plan Task 5) — Windows path works via `d3d11_shared.rs` + vendored irondash.
-2. **irondash_texture API variant** — pinned via vendor copy; confirm for macOS/iOS tasks (105, 107, 109).
-3. **Bundled Bruneton LUTs vs runtime precompute** — Task 52 (not started).
-4. **OpenNGC port** — Task 36 (not started); HYG converter done (`dd6aa39b`).
-5. **Linux GL FBO** — Task 111 (not started).
-6. **Phase 7 gesture/selection gap** — Tasks **83**, **85–88** (selection, gestures, resize observer, lifecycle, tap→hit-test).
+1. **P0 Renderer live integration (committed)** — `handle.rs` references `build_render_scene` but `scene/build.rs` is missing at HEAD; **commit WIP** or revert handle until landed. Blocks real star catalog in live texture.
+2. **HEAD compile** — `cargo check -p nightshade_planetarium` fails on clean tree until (1) is resolved (`4d97d933` restored tests but integrator gap remains).
+3. **Pass graph** — Tasks **55**, **63**: MW/atmosphere/DSO/body passes are enum-only; only Stars + Lines draw.
+4. **irondash_texture on Apple/Android/Linux** — Tasks **105–111**; vendor copy pinned on Windows.
+5. **Bruneton LUTs** — Tasks **51–52** (not started).
+6. **v1 still default** — Task **117** toggle exists; **118–121** not wired; production remains `packages/nightshade_planetarium/`.
 
 #### Next recommended batches
 
-1. **Phase 7 finish:** Task **83** (`selectionProvider`), then **85–88** (gestures through tap→hit-test) — unblocks interactive sky.
-2. **Phase 4 wrap:** Task **36** (OpenNGC), **42–46** (catalog metadata + asset bundles).
-3. **Phase 5 continue:** Task **49** (star PSF tone mapping), then atmosphere pipeline (53+).
-4. **Catalog integration:** wire `CatalogSet` + residency + hit-index into renderer snapshot (may span Tasks 46 + 48 follow-ups).
-5. **Second review pass** on renderer + provider sync paths before macOS surface (105).
+1. **Land P0 renderer live:** commit `scene/build.rs`, fix `publish_snapshot` arity if needed, `tests/live_render_stars.rs`, verify `melos run dev` shows catalog stars.
+2. **Phase 5 atmosphere block:** Tasks **51–54**, then wire **55** MW pass + **63** remaining passes.
+3. **Phase 6 finish:** Tasks **73–74** (mount tracking + full snapshot labels from loaded packs).
+4. **Phase 8 overlays:** Tasks **91–98** (port v1 widgets to v2 snapshot/providers).
+5. **Phase 10 macOS spike:** Task **105** before broad platform matrix.
 
-To refresh this log: `git log --oneline --grep="planetarium-v2" -60` and `git status` under `native/nightshade_native/planetarium/`.
+To refresh this log: `git log --oneline --grep="planetarium-v2" -120` and `git status native/nightshade_native/planetarium/`.
