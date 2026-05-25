@@ -28,7 +28,17 @@ abstract class PlanetariumDriver {
 
   void setConfig(RenderConfigDto config);
 
+  void pushGesture(GestureEventDto event);
+
+  SelectedObjectDto? hitTest({required double x, required double y});
+
   void setSelection(SelectedObjectDto? selected);
+
+  /// Stops in-flight gestures when the app backgrounds (GPU quiesce is Phase 10).
+  void quiesce();
+
+  /// Resumes after [quiesce].
+  void restore();
 
   SceneSnapshotDto snapshot();
 }

@@ -23,9 +23,18 @@ class FakePlanetariumDriver implements PlanetariumDriver {
   AstroTimeDto? lastTime;
   ObserverDto? lastObserver;
   RenderConfigDto? lastConfig;
+  final List<GestureEventDto> pushedGestures = [];
+  SelectedObjectDto? lastHitTestResult;
+  double? lastHitTestX;
+  double? lastHitTestY;
   SelectedObjectDto? lastSelection;
+  int quiesceCallCount = 0;
+  int restoreCallCount = 0;
   SceneSnapshotDto snapshotResult = kEmptySceneSnapshot;
   int snapshotCallCount = 0;
+
+  /// When set, [hitTest] returns this value.
+  SelectedObjectDto? hitTestStub;
 
   @override
   int resize({
@@ -52,7 +61,38 @@ class FakePlanetariumDriver implements PlanetariumDriver {
   void setConfig(RenderConfigDto config) => lastConfig = config;
 
   @override
+  void pushGesture(GestureEventDto event) => pushedGestures.add(event);
+
+  @override
+  SelectedObjectDto? hitTest({required double x, required double y}) {
+    lastHitTestX = x;
+    lastHitTestY = y;
+    return hitTestStub ?? lastHitTestResult;
+  }
+
+  @override
   void setSelection(SelectedObjectDto? selected) => lastSelection = selected;
+
+  @override
+  void quiesce() {
+    quiesceCallCount++;
+    pushGesture(
+      const GestureEventDto(
+        kind: GestureKindDto.cancel,
+        x: 0,
+        y: 0,
+        dx: 0,
+        dy: 0,
+        vx: 0,
+        vy: 0,
+        factor: 1,
+        radians: 0,
+      ),
+    );
+  }
+
+  @override
+  void restore() => restoreCallCount++;
 
   @override
   SceneSnapshotDto snapshot() {

@@ -86,11 +86,13 @@ class Planetarium implements PlanetariumDriver {
     planetariumSetConfig(handle: _handle, config: config);
   }
 
+  @override
   void pushGesture(GestureEventDto event) {
     _ensureAlive();
     planetariumPushGesture(handle: _handle, evt: event);
   }
 
+  @override
   SelectedObjectDto? hitTest({required double x, required double y}) {
     _ensureAlive();
     return planetariumHitTest(handle: _handle, x: x, y: y);
@@ -101,6 +103,26 @@ class Planetarium implements PlanetariumDriver {
     _ensureAlive();
     planetariumSetSelection(handle: _handle, selected: selected);
   }
+
+  @override
+  void quiesce() {
+    pushGesture(
+      const GestureEventDto(
+        kind: GestureKindDto.cancel,
+        x: 0,
+        y: 0,
+        dx: 0,
+        dy: 0,
+        vx: 0,
+        vy: 0,
+        factor: 1,
+        radians: 0,
+      ),
+    );
+  }
+
+  @override
+  void restore() {}
 
   @override
   SceneSnapshotDto snapshot() {
