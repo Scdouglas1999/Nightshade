@@ -28,5 +28,7 @@ abstract class PlanetariumDriver {
 
   void setConfig(RenderConfigDto config);
 
+  void setSelection(SelectedObjectDto? selected);
+
   SceneSnapshotDto snapshot();
 }

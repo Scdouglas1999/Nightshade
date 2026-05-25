@@ -23,6 +23,7 @@ class FakePlanetariumDriver implements PlanetariumDriver {
   AstroTimeDto? lastTime;
   ObserverDto? lastObserver;
   RenderConfigDto? lastConfig;
+  SelectedObjectDto? lastSelection;
   SceneSnapshotDto snapshotResult = kEmptySceneSnapshot;
   int snapshotCallCount = 0;
 
@@ -49,6 +50,9 @@ class FakePlanetariumDriver implements PlanetariumDriver {
 
   @override
   void setConfig(RenderConfigDto config) => lastConfig = config;
+
+  @override
+  void setSelection(SelectedObjectDto? selected) => lastSelection = selected;
 
   @override
   SceneSnapshotDto snapshot() {

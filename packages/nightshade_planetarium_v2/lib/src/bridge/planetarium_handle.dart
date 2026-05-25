@@ -96,6 +96,7 @@ class Planetarium implements PlanetariumDriver {
     return planetariumHitTest(handle: _handle, x: x, y: y);
   }
 
+  @override
   void setSelection(SelectedObjectDto? selected) {
     _ensureAlive();
     planetariumSetSelection(handle: _handle, selected: selected);
