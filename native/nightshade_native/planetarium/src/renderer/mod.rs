@@ -274,7 +274,7 @@ impl Renderer {
             self.star_instance_count = 0;
             return;
         }
-        let byte_len = (count * std::mem::size_of::<StarInstance>()) as u64;
+        let byte_len = std::mem::size_of_val(scene.stars.as_slice()) as u64;
         if self.star_instance_buf.size() < byte_len {
             self.star_instance_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("planetarium.stars.instances"),
@@ -294,7 +294,7 @@ impl Renderer {
             self.dso_instance_count = 0;
             return;
         }
-        let byte_len = (count * std::mem::size_of::<DsoInstance>()) as u64;
+        let byte_len = std::mem::size_of_val(scene.dsos.as_slice()) as u64;
         if self.dso_instance_buf.size() < byte_len {
             self.dso_instance_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("planetarium.dsos.instances"),

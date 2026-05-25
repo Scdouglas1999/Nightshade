@@ -252,7 +252,7 @@ impl LinesPipeline {
             self.dynamic_vertex_count = 0;
             return;
         }
-        let byte_len = (count * std::mem::size_of::<LineVertex>()) as u64;
+        let byte_len = std::mem::size_of_val(vertices) as u64;
         if self.dynamic_vbuf.size() < byte_len {
             self.dynamic_vbuf = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("lines.dynamic_vbuf"),
@@ -564,7 +564,7 @@ fn create_buffer_init<T: Pod>(
 ) -> wgpu::Buffer {
     let buf = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(label),
-        size: (data.len() * std::mem::size_of::<T>()) as u64,
+        size: std::mem::size_of_val(data) as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });

@@ -560,7 +560,7 @@ fn create_buffer_init<T: Pod>(
 ) -> wgpu::Buffer {
     let buf = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some(label),
-        size: (data.len() * std::mem::size_of::<T>()) as u64,
+        size: std::mem::size_of_val(data) as u64,
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
