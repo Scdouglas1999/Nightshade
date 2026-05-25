@@ -2,6 +2,8 @@
 //!
 //! See `docs/plans/2026-05-25-planetarium-v2-design.md` §7.
 
+pub mod aberration;
+pub mod body_lighting;
 pub mod earth_rotation;
 pub mod extinction;
 pub mod frames;

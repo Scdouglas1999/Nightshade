@@ -4,11 +4,10 @@
 //! VSOP87D Earth heliocentric series (same coefficients as `vsop87`). Diurnal
 //! aberration is omitted (visual planetarium scope).
 //!
-//! INTEGRATE: add `pub mod aberration;` to `astrometry/mod.rs`.
 
 use glam::DVec3;
 
-use super::vsop87::{
+use crate::astrometry::vsop87::{
     heliocentric_ecliptic, julian_millennia_tt, VsopBody, DAYS_PER_JULIAN_MILLENNIUM,
     MEAN_OBLIQUITY_J2000_DEG, VSOP87_J2000_JD,
 };

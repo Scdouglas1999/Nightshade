@@ -1,15 +1,6 @@
 //! Annual aberration — Polaris at Earth perihelion vs JPL/DE405 (ERFA `epv00`) reference.
-//!
-//! `aberration` is path-included until the integrator adds `pub mod aberration` to `astrometry/mod.rs`.
-//! `vsop87` is recompiled here so `aberration` can use `super::vsop87` (same layout as in `astrometry`).
 
-#[path = "../src/astrometry/vsop87.rs"]
-mod vsop87;
-
-#[path = "../src/astrometry/aberration.rs"]
-mod aberration;
-
-use aberration::{
+use nightshade_planetarium::astrometry::aberration::{
     annual_aberration_offset_arcsec, earth_heliocentric_velocity_equatorial_au_per_day,
     SPEED_OF_LIGHT_AU_PER_DAY,
 };
