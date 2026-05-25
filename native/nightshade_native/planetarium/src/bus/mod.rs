@@ -1,6 +1,7 @@
 //! Command channel and dirty-flag bus for the render loop.
 
 pub mod dirty;
+pub mod loop_thread;
 
 use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use dirty::DirtyFlags;
