@@ -5,6 +5,8 @@
 
 pub mod hit_test;
 
+pub use hit_test::{hit_test_screen, pick_cone_rad, HitTestError};
+
 use crate::types::ViewPose;
 
 /// Normalized gesture events from Flutter (design §11.1).

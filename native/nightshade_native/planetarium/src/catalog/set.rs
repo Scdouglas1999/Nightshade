@@ -1,7 +1,7 @@
 //! Active catalog packs and pose + magnitude star queries.
 
 use crate::catalog::healpix::{bounding_pixels_for_fov, HealpixError};
-use crate::catalog::StarRecord;
+use crate::catalog::{HitIndex, StarRecord};
 use crate::scene::projection::project_icrs;
 use crate::types::ViewPose;
 
@@ -22,12 +22,21 @@ pub trait StarPack: Send + Sync {
     fn nside(&self) -> u32;
     /// Stars in the tile for `healpix_id`, if that tile is loaded.
     fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]>;
+    /// Direction-based pick index for all stars in this pack (built at registration).
+    fn build_hit_index(&self) -> HitIndex {
+        HitIndex::new(self.nside())
+    }
+}
+
+struct ActivePack {
+    pack: Box<dyn StarPack>,
+    hit: HitIndex,
 }
 
 /// Owns the currently active star packs and answers visibility queries.
 #[derive(Default)]
 pub struct CatalogSet {
-    packs: Vec<Box<dyn StarPack>>,
+    packs: Vec<ActivePack>,
 }
 
 impl CatalogSet {
@@ -40,20 +49,70 @@ impl CatalogSet {
     /// Registers a pack; replaces any existing pack with the same [`StarPack::pack_id`].
     pub fn register(&mut self, pack: Box<dyn StarPack>) {
         let id = pack.pack_id().to_owned();
-        self.packs.retain(|p| p.pack_id() != id);
-        self.packs.push(pack);
+        let hit = pack.build_hit_index();
+        self.packs.retain(|p| p.pack.pack_id() != id);
+        self.packs.push(ActivePack { pack, hit });
     }
 
     /// Removes a pack by id. Returns `true` if a pack was removed.
     pub fn unregister(&mut self, pack_id: &str) -> bool {
         let before = self.packs.len();
-        self.packs.retain(|p| p.pack_id() != pack_id);
+        self.packs.retain(|p| p.pack.pack_id() != pack_id);
         self.packs.len() < before
+    }
+
+    /// Whether any star packs are registered (required for screen hit testing).
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.packs.is_empty()
     }
 
     /// Ids of currently registered packs (registration order).
     pub fn active_pack_ids(&self) -> impl Iterator<Item = &str> + '_ {
-        self.packs.iter().map(|p| p.pack_id())
+        self.packs.iter().map(|p| p.pack.pack_id())
+    }
+
+    /// Nearest visible star to an ICRS direction across all pack hit indexes.
+    pub fn pick_at_icrs(
+        &self,
+        ra_rad: f64,
+        dec_rad: f64,
+        cone_rad: f64,
+        mag_limit: f32,
+    ) -> Result<Option<CatalogHit<'_>>, HealpixError> {
+        let mut best: Option<(CatalogHit<'_>, f64)> = None;
+
+        for entry in &self.packs {
+            let Some(pick) = entry
+                .hit
+                .pick_near(ra_rad, dec_rad, cone_rad, mag_limit)?
+            else {
+                continue;
+            };
+            let replace = match &best {
+                None => true,
+                Some((_, best_sep)) if pick.separation_rad < *best_sep - f64::EPSILON => true,
+                Some((prev, best_sep))
+                    if (pick.separation_rad - *best_sep).abs() <= f64::EPSILON =>
+                {
+                    pick.star.mag < prev.star.mag
+                        || (pick.star.mag == prev.star.mag
+                            && pick.star.hip_id < prev.star.hip_id)
+                }
+                _ => false,
+            };
+            if replace {
+                best = Some((
+                    CatalogHit {
+                        pack_id: entry.pack.pack_id(),
+                        star: pick.star,
+                    },
+                    pick.separation_rad,
+                ));
+            }
+        }
+
+        Ok(best.map(|(hit, _)| hit))
     }
 
     /// Stars from all active packs intersecting `pose` and `mag_limit`.
@@ -66,7 +125,8 @@ impl CatalogSet {
         mag_limit: f32,
     ) -> Result<impl Iterator<Item = CatalogHit<'_>> + '_, HealpixError> {
         let mut hits = Vec::new();
-        for pack in &self.packs {
+        for entry in &self.packs {
+            let pack = entry.pack.as_ref();
             let pixels = bounding_pixels_for_fov(pose, pose.fov_rad, pack.nside())?;
             for &pixel in &pixels {
                 let Some(stars) = pack.stars_in_pixel(pixel) else {

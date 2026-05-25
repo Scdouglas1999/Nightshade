@@ -11,7 +11,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
-use nightshade_planetarium::gesture::{hit_test::hit_test_dev_catalog, GestureEvent};
+use nightshade_planetarium::catalog::StarPack;
+use nightshade_planetarium::gesture::GestureEvent;
 use nightshade_planetarium::scene::{
     LabelCategory, LabelHint, SceneSnapshot, SelectedObject,
 };
@@ -564,7 +565,7 @@ pub fn planetarium_push_gesture(
     })
 }
 
-/// Screen pick against the dev star table (catalog hit index in Task 72).
+/// Screen pick via projection inverse and registered catalog hit indexes.
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_hit_test(
     handle: i64,
@@ -572,8 +573,21 @@ pub fn planetarium_hit_test(
     y: f32,
 ) -> Result<Option<SelectedObjectDto>, String> {
     with_planetarium(handle, |planetarium| {
-        let pose = planetarium.snapshot().view_pose;
-        Ok(hit_test_dev_catalog(x, y, pose).map(Into::into))
+        planetarium
+            .hit_test(x, y)
+            .map(|opt| opt.map(Into::into))
+            .map_err(|e| e.to_string())
+    })
+}
+
+/// Register a star pack for catalog queries and hit testing (tests / pack-load path).
+pub fn planetarium_register_star_pack(
+    handle: i64,
+    pack: Box<dyn StarPack>,
+) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium.register_pack(pack);
+        Ok(())
     })
 }
 
@@ -805,5 +819,117 @@ mod tests {
     fn dispose_unknown_handle_fails_loud() {
         let err = planetarium_dispose(9_999_999).unwrap_err();
         assert!(err.contains("not found"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn hit_test_without_catalog_fails_loud() {
+        let handle = planetarium_create(0).expect("create");
+        let err = planetarium_hit_test(handle, 0.5, 0.5).unwrap_err();
+        assert!(
+            err.contains("no catalog packs registered"),
+            "unexpected error: {err}"
+        );
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn hit_test_tap_on_vega_selects_hip_91262() {
+        use std::collections::HashMap;
+
+        use nightshade_planetarium::catalog::{
+            pixel_for_direction, StarPack, StarRecord,
+        };
+        use nightshade_planetarium::scene::projection::project_icrs;
+
+        struct FakePack {
+            id: &'static str,
+            nside: u32,
+            tiles: HashMap<u64, Vec<StarRecord>>,
+        }
+
+        impl FakePack {
+            fn with_stars(stars: &[(&str, f64, f64, f32, u32)]) -> Self {
+                let nside = 64;
+                let mut tiles: HashMap<u64, Vec<StarRecord>> = HashMap::new();
+                for &(name, ra, dec, mag, hip) in stars {
+                    let pixel = pixel_for_direction(ra, dec, nside).expect(name);
+                    tiles.entry(pixel).or_default().push(StarRecord::from_radec(
+                        hip,
+                        ra as f32,
+                        dec as f32,
+                        mag,
+                        f32::NAN,
+                        0,
+                    ));
+                }
+                Self {
+                    id: "fake-stars",
+                    nside,
+                    tiles,
+                }
+            }
+        }
+
+        impl StarPack for FakePack {
+            fn pack_id(&self) -> &str {
+                self.id
+            }
+
+            fn nside(&self) -> u32 {
+                self.nside
+            }
+
+            fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
+                self.tiles.get(&healpix_id).map(Vec::as_slice)
+            }
+
+            fn build_hit_index(&self) -> nightshade_planetarium::catalog::HitIndex {
+                let mut idx = nightshade_planetarium::catalog::HitIndex::new(self.nside);
+                for stars in self.tiles.values() {
+                    for &star in stars {
+                        idx.insert_star(star).expect("insert");
+                    }
+                }
+                idx
+            }
+        }
+
+        let vega = (4.872_013, 0.676_757, 0.03_f32, 91262_u32);
+        let polaris = (0.662_062, 1.557_896, 1.98_f32, 11767_u32);
+
+        let handle = planetarium_create(0).expect("create");
+        planetarium_set_pose(
+            handle,
+            ViewPoseDto {
+                ra_rad: vega.0,
+                dec_rad: vega.1,
+                fov_rad: 0.35,
+                roll_rad: 0.0,
+                projection: SkyProjectionDto::Stereographic,
+            },
+        )
+        .expect("set_pose");
+        let _ = wait_snapshot_with_ra(handle, vega.0);
+
+        planetarium_register_star_pack(
+            handle,
+            Box::new(FakePack::with_stars(&[
+                ("vega", vega.0, vega.1, vega.2, vega.3),
+                ("polaris", polaris.0, polaris.1, polaris.2, polaris.3),
+            ])),
+        )
+        .expect("register");
+
+        let snap = wait_snapshot_with_ra(handle, vega.0);
+        let view_pose: ViewPose = snap.view_pose.into();
+        let (sx, sy) = project_icrs(vega.0, vega.1, view_pose).expect("vega on screen");
+
+        let selected = planetarium_hit_test(handle, sx, sy)
+            .expect("hit_test")
+            .expect("selection");
+        assert_eq!(selected.object_id, 91262);
+        assert_eq!(selected.display_name, "Vega");
+
+        planetarium_dispose(handle).expect("dispose");
     }
 }

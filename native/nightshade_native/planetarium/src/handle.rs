@@ -3,7 +3,7 @@
 //! Dart/FFI holds this type (via Task 15 registry). Dropping the handle shuts down
 //! the render thread and platform surface cleanly.
 
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crossbeam_channel::SendError;
@@ -11,7 +11,8 @@ use parking_lot::Mutex;
 
 use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
-use crate::gesture::GestureStateMachine;
+use crate::catalog::{CatalogSet, StarPack};
+use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
 use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
 use crate::scene::{
@@ -46,6 +47,10 @@ struct PlanetariumInner {
     snapshot: SnapshotSlot,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
+    /// Incremented at the start of each [`PlanetariumCommand::Resize`] (observable retry).
+    resize_generation: Arc<AtomicU64>,
+    catalog: Mutex<CatalogSet>,
+    render_config: Mutex<RenderConfig>,
 }
 
 /// Renderer running on the dedicated loop thread; owns the platform surface.
@@ -54,6 +59,7 @@ struct PlanetariumRenderer {
     snapshot: SnapshotSlot,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
+    resize_generation: Arc<AtomicU64>,
     frame_id: u64,
     view_pose: ViewPose,
     astro_time: AstroTime,
@@ -75,12 +81,14 @@ impl Planetarium {
         let snapshot = new_snapshot_slot();
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
         let surface_error = Arc::new(Mutex::new(None));
+        let resize_generation = Arc::new(AtomicU64::new(0));
 
         let renderer = PlanetariumRenderer {
             surface,
             snapshot: Arc::clone(&snapshot),
             texture_id: Arc::clone(&texture_id),
             surface_error: Arc::clone(&surface_error),
+            resize_generation: Arc::clone(&resize_generation),
             frame_id: 0,
             view_pose: ViewPose::default(),
             astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
@@ -100,13 +108,31 @@ impl Planetarium {
                 snapshot,
                 texture_id,
                 surface_error,
+                resize_generation,
+                catalog: Mutex::new(CatalogSet::new()),
+                render_config: Mutex::new(RenderConfig::default()),
             }),
             _render_loop: render_loop,
         })
     }
 
+    /// Registers a star catalog pack for rendering queries and screen hit testing.
+    pub fn register_pack(&self, pack: Box<dyn StarPack>) {
+        self.inner.catalog.lock().register(pack);
+    }
+
+    /// Screen pick at normalized coordinates using registered catalog hit indexes.
+    pub fn hit_test(&self, x: f32, y: f32) -> Result<Option<SelectedObject>, HitTestError> {
+        let pose = self.snapshot().view_pose;
+        let mag_limit = self.inner.render_config.lock().magnitude_limit;
+        hit_test_screen(&self.inner.catalog.lock(), x, y, pose, mag_limit)
+    }
+
     /// Enqueues a command for the render thread.
     pub fn send(&self, cmd: PlanetariumCommand) -> Result<(), PlanetariumError> {
+        if let PlanetariumCommand::SetConfig(cfg) = &cmd {
+            *self.inner.render_config.lock() = *cfg;
+        }
         self.inner
             .cmd_tx
             .send(cmd)
@@ -135,6 +161,11 @@ impl Planetarium {
     pub fn last_surface_error(&self) -> Option<String> {
         self.inner.surface_error.lock().clone()
     }
+
+    /// Number of [`PlanetariumCommand::Resize`] commands processed on the render thread.
+    pub fn resize_generation(&self) -> u64 {
+        self.inner.resize_generation.load(Ordering::Acquire)
+    }
 }
 
 impl FrameRenderer for PlanetariumRenderer {
@@ -146,6 +177,7 @@ impl FrameRenderer for PlanetariumRenderer {
                 dpr,
             } => {
                 *dirty |= DirtyFlags::RESIZE;
+                self.resize_generation.fetch_add(1, Ordering::Release);
                 *self.surface_error.lock() = None;
                 let (width, height) = physical_texture_dimensions(*width, *height, *dpr);
                 match self.surface.resize(width, height) {

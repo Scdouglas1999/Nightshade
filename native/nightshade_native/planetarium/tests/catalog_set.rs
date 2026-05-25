@@ -43,6 +43,16 @@ impl StarPack for FakePack {
     fn stars_in_pixel(&self, healpix_id: u64) -> Option<&[StarRecord]> {
         self.tiles.get(&healpix_id).map(Vec::as_slice)
     }
+
+    fn build_hit_index(&self) -> nightshade_planetarium::catalog::HitIndex {
+        let mut idx = nightshade_planetarium::catalog::HitIndex::new(self.nside);
+        for stars in self.tiles.values() {
+            for &star in stars {
+                idx.insert_star(star).expect("insert star");
+            }
+        }
+        idx
+    }
 }
 
 fn vega_pose() -> ViewPose {
@@ -93,6 +103,22 @@ fn magnitude_limit_filters_faint_stars() {
     let hips: Vec<u32> = hits.iter().map(|h| h.star.hip_id).collect();
     assert!(hips.contains(&91262));
     assert!(!hips.contains(&1), "mag 4.5 star must be culled by mag limit 1.5");
+}
+
+#[test]
+fn pick_at_icrs_returns_nearest_star() {
+    let vega = ("vega", 4.872_013, 0.676_757, 0.03_f32, 91262_u32);
+    let faint = ("faint", 4.88, 0.68, 4.5_f32, 1_u32);
+    let pack = FakePack::with_stars("fake-stars", 64, &[vega, faint]);
+
+    let mut set = CatalogSet::new();
+    set.register(Box::new(pack));
+
+    let hit = set
+        .pick_at_icrs(vega.1, vega.2, 0.05, 6.0)
+        .expect("pick")
+        .expect("vega");
+    assert_eq!(hit.star.hip_id, 91262);
 }
 
 #[test]
