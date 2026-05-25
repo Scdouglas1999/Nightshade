@@ -94,3 +94,51 @@ fn set_time_and_observer_appear_in_published_snapshot() {
         thread::sleep(POLL);
     }
 }
+
+#[test]
+fn resize_clears_surface_error_before_retry() {
+    let planetarium = Planetarium::new(0).expect("new");
+    let resize = |w, h| {
+        planetarium
+            .send(PlanetariumCommand::Resize {
+                width: w,
+                height: h,
+                dpr: 1.0,
+            })
+            .expect("send Resize")
+    };
+
+    resize(64, 64);
+    let deadline = std::time::Instant::now() + WAKE_TIMEOUT;
+    loop {
+        if planetarium.last_surface_error().is_some() {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            panic!("timed out waiting for first resize failure");
+        }
+        thread::sleep(POLL);
+    }
+
+    resize(128, 128);
+    let mut saw_clear = false;
+    let deadline = std::time::Instant::now() + WAKE_TIMEOUT;
+    loop {
+        if planetarium.last_surface_error().is_none() {
+            saw_clear = true;
+        }
+        if saw_clear && planetarium.last_surface_error().is_some() {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            panic!(
+                "timed out waiting for surface_error clear on retry; saw_clear={saw_clear}"
+            );
+        }
+        thread::sleep(POLL);
+    }
+    assert!(
+        saw_clear,
+        "second resize should clear surface_error before surface.resize runs"
+    );
+}

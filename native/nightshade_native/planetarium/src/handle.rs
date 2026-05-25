@@ -138,6 +138,7 @@ impl FrameRenderer for PlanetariumRenderer {
                 dpr: _,
             } => {
                 *dirty |= DirtyFlags::RESIZE;
+                *self.surface_error.lock() = None;
                 match self.surface.resize(*width, *height) {
                     Ok(id) => {
                         *self.surface_error.lock() = None;

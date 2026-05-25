@@ -61,9 +61,6 @@ where
 fn wait_texture_id(planetarium: &Planetarium) -> Result<i64, String> {
     let deadline = Instant::now() + TEXTURE_TIMEOUT;
     loop {
-        if let Some(err) = planetarium.last_surface_error() {
-            return Err(err);
-        }
         match planetarium.texture_id() {
             Ok(id) => return Ok(id),
             Err(PlanetariumError::NotAllocated) => {
@@ -786,6 +783,20 @@ mod tests {
                 || err.contains("platform surface unsupported")
                 || err.contains("irondash_texture"),
             "unexpected error: {err}"
+        );
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn resize_retry_waits_after_prior_failure_not_stale_error() {
+        let handle = planetarium_create(0).expect("create");
+        planetarium_resize(handle, 64, 64, 1.0).unwrap_err();
+
+        let start = Instant::now();
+        planetarium_resize(handle, 128, 128, 1.0).unwrap_err();
+        assert!(
+            start.elapsed() >= Duration::from_millis(50),
+            "second resize should poll for allocation, not return a stale surface_error immediately"
         );
         planetarium_dispose(handle).expect("dispose");
     }
