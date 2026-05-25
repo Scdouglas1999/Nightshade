@@ -14,6 +14,7 @@ pub enum PlanetariumError {
 }
 
 pub mod bus;
+pub mod scene;
 pub mod surface;
 pub mod spike;
 pub mod types;
