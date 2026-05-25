@@ -29,6 +29,9 @@ struct Allocated {
     height: u32,
     texture_id: i64,
     shared: Arc<SharedTexture>,
+    /// Cached color attachment view of the shared D3D12 texture; recreating it per
+    /// frame is wasteful and creates a labelled garbage object every present.
+    shared_view: wgpu::TextureView,
     flutter_texture: Arc<SendableTexture<BoxedTextureDescriptor<DxgiSharedHandle>>>,
 }
 
@@ -130,6 +133,12 @@ impl PlatformSurface for WindowsSurface {
             ));
         }
         let shared = Arc::new(allocate_shared(&self.device, width, height)?);
+        let shared_view = shared
+            .wgpu
+            .create_view(&wgpu::TextureViewDescriptor {
+                label: Some("planetarium.windows.shared_view"),
+                ..Default::default()
+            });
         let provider: Arc<dyn PayloadProvider<BoxedTextureDescriptor<DxgiSharedHandle>>> =
             Arc::new(SharedHandleProvider::new(shared.clone()));
         let texture =
@@ -150,6 +159,7 @@ impl PlatformSurface for WindowsSurface {
             height,
             texture_id,
             shared,
+            shared_view,
             flutter_texture,
         });
         Ok(texture_id)
@@ -176,11 +186,10 @@ impl PlatformSurface for WindowsSurface {
                 "renderer not initialized after allocate",
             ));
         };
-        let view = a
-            .shared
-            .wgpu
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        renderer.render_into(&view, scene);
+        // Non-blocking submit: Flutter present + vsync pace the loop. Using
+        // `render_into` would stall on `Maintain::Wait` every frame and cap us
+        // at GPU-roundtrip latency.
+        renderer.submit_into(&a.shared_view, scene);
         Ok(())
     }
 
