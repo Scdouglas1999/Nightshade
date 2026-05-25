@@ -8,41 +8,50 @@ import '../rendering/constellation_art_painter.dart';
 
 /// Screen-space constellation art overlays from the native scene snapshot.
 ///
-/// Consumes [constellationArtPlacementsProvider] (empty until Task 74 populates
-/// the snapshot) and draws curated procedural figures when
-/// [RenderConfigState.showConstellationArt] is enabled.
+/// Rebuilds **only** when the art toggle, placement list, or view pose
+/// changes — uses [`Provider.select`](Ref.watch) on each input so toggling
+/// unrelated render-config flags (stars, grids, ...) or pure label-list
+/// frame ticks don't repaint the constellation figures.
 class ConstellationArtLayer extends ConsumerWidget {
   const ConstellationArtLayer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(renderConfigProvider).showConstellationArt) {
+    final showArt = ref.watch(
+      renderConfigProvider.select((c) => c.showConstellationArt),
+    );
+    if (!showArt) {
       return const SizedBox.shrink();
     }
 
-    final snapshot = ref.watch(sceneSnapshotProvider);
     final placements = ref.watch(constellationArtPlacementsProvider);
     if (placements.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = Size(constraints.maxWidth, constraints.maxHeight);
-          if (size.width <= 0 || size.height <= 0) {
-            return const SizedBox.shrink();
-          }
+    final viewPose = ref.watch(
+      sceneSnapshotProvider.select((s) => s.viewPose),
+    );
 
-          return CustomPaint(
-            key: const Key('constellation_art_layer_paint'),
-            size: size,
-            painter: ConstellationArtPainter(
-              viewPose: snapshot.viewPose,
-              placements: placements,
-            ),
-          );
-        },
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = Size(constraints.maxWidth, constraints.maxHeight);
+            if (size.width <= 0 || size.height <= 0) {
+              return const SizedBox.shrink();
+            }
+
+            return CustomPaint(
+              key: const Key('constellation_art_layer_paint'),
+              size: size,
+              painter: ConstellationArtPainter(
+                viewPose: viewPose,
+                placements: placements,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
