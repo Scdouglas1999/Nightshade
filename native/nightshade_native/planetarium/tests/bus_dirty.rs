@@ -10,3 +10,11 @@ fn pose_command_marks_pose_dirty() {
     assert!(d.contains(DirtyFlags::POSE));
     assert!(!d.contains(DirtyFlags::TIME));
 }
+
+#[test]
+fn selection_command_marks_selection_dirty() {
+    let mut d = DirtyFlags::empty();
+    let cmd = PlanetariumCommand::SetSelection(None);
+    cmd.apply_dirty(&mut d);
+    assert!(d.contains(DirtyFlags::SELECTION));
+}

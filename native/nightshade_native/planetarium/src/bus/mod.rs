@@ -3,6 +3,7 @@
 pub mod dirty;
 pub mod loop_thread;
 
+use crate::scene::SelectedObject;
 use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use dirty::DirtyFlags;
 
@@ -13,6 +14,7 @@ pub enum PlanetariumCommand {
     SetTime(AstroTime),
     SetObserver(Observer),
     SetConfig(RenderConfig),
+    SetSelection(Option<SelectedObject>),
     Resize {
         width: u32,
         height: u32,
@@ -29,6 +31,7 @@ impl PlanetariumCommand {
             Self::SetTime(_) => *d |= DirtyFlags::TIME,
             Self::SetObserver(_) => *d |= DirtyFlags::OBSERVER,
             Self::SetConfig(_) => *d |= DirtyFlags::CONFIG,
+            Self::SetSelection(_) => *d |= DirtyFlags::SELECTION,
             Self::Resize { .. } => *d |= DirtyFlags::RESIZE,
             Self::Shutdown => {}
         }

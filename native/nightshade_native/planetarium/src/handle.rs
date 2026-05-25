@@ -8,12 +8,15 @@ use std::sync::Arc;
 
 use crossbeam_channel::SendError;
 
+use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
 use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
-use crate::scene::{load, new_snapshot_slot, publish, SceneSnapshot, SnapshotSlot};
+use crate::scene::{
+    load, new_snapshot_slot, publish, SceneSnapshot, SelectedObject, SnapshotSlot,
+};
 use crate::surface::{create_surface, PlatformSurface};
-use crate::types::ViewPose;
+use crate::types::{RenderConfig, ViewPose};
 use crate::PlanetariumError;
 
 /// Sentinel: no Flutter texture registered yet. Never returned from [`Planetarium::texture_id`].
@@ -39,6 +42,9 @@ struct PlanetariumRenderer {
     texture_id: Arc<AtomicI64>,
     frame_id: u64,
     view_pose: ViewPose,
+    render_config: RenderConfig,
+    selected: Option<SelectedObject>,
+    last_anim: AnimationState,
 }
 
 impl Planetarium {
@@ -58,6 +64,9 @@ impl Planetarium {
             texture_id: Arc::clone(&texture_id),
             frame_id: 0,
             view_pose: ViewPose::default(),
+            render_config: RenderConfig::default(),
+            selected: None,
+            last_anim: AnimationState::INACTIVE,
         };
 
         let render_loop = RenderLoop::spawn(renderer);
@@ -123,11 +132,20 @@ impl FrameRenderer for PlanetariumRenderer {
                 self.view_pose = *pose;
                 *dirty |= DirtyFlags::POSE;
             }
+            PlanetariumCommand::SetConfig(cfg) => {
+                self.render_config = *cfg;
+                *dirty |= DirtyFlags::CONFIG;
+            }
+            PlanetariumCommand::SetSelection(sel) => {
+                self.selected = sel.clone();
+                *dirty |= DirtyFlags::SELECTION;
+            }
             other => other.apply_dirty(dirty),
         }
     }
 
-    fn render_frame(&mut self, _dirty: DirtyFlags) {
+    fn render_frame(&mut self, _dirty: DirtyFlags, anim: &AnimationState) {
+        self.last_anim = *anim;
         if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
             if let Err(err) = self.surface.tick() {
                 tracing::error!("surface tick failed: {err}");
@@ -145,7 +163,7 @@ impl FrameRenderer for PlanetariumRenderer {
                 frame_id: self.frame_id,
                 view_pose: self.view_pose,
                 labels: Vec::new(),
-                selected: None,
+                selected: self.selected.clone(),
             },
         );
     }

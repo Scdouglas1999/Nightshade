@@ -23,6 +23,7 @@ mod handle;
 
 pub use handle::Planetarium;
 
+pub mod animation;
 pub mod bus;
 pub mod scene;
 pub mod surface;

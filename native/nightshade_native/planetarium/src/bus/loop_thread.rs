@@ -1,19 +1,24 @@
 //! Event-driven render loop running on a dedicated thread.
 //!
-//! The loop blocks on the command channel when nothing is dirty (zero frame work).
-//! Incoming commands set [`DirtyFlags`]; when any flag is set, one frame is rendered
-//! and flags are cleared. [`PlanetariumCommand::Shutdown`] ends the thread cleanly.
+//! The loop blocks on the command channel when nothing is dirty and no animation
+//! needs periodic wakeups (zero frame work). Incoming commands set [`DirtyFlags`];
+//! continuous animations (twinkle) and timed effects (selection pulse, pop-in)
+//! wake the loop via [`recv_timeout`](crossbeam_channel::Receiver::recv_timeout) even
+//! without new commands. [`PlanetariumCommand::Shutdown`] ends the thread cleanly.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, RecvError, SendError, Sender};
+use crossbeam_channel::{Receiver, RecvError, RecvTimeoutError, SendError, Sender};
+
+use crate::animation::{AnimationSet, AnimationState};
 
 use super::dirty::DirtyFlags;
 use super::PlanetariumCommand;
 
-/// Renders one frame when the loop has pending dirty state.
+/// Renders one frame when the loop has pending dirty state or animation tick.
 pub trait FrameRenderer: Send {
     /// Apply side effects for an incoming command and update dirty flags.
     ///
@@ -23,8 +28,8 @@ pub trait FrameRenderer: Send {
         cmd.apply_dirty(dirty);
     }
 
-    /// Draw (or simulate drawing) for the given dirty subsystem flags.
-    fn render_frame(&mut self, dirty: DirtyFlags);
+    /// Draw (or simulate drawing) for the given dirty subsystem flags and animation sample.
+    fn render_frame(&mut self, dirty: DirtyFlags, anim: &AnimationState);
 }
 
 /// Test double that increments a shared frame counter.
@@ -59,7 +64,7 @@ impl Default for CountingRenderer {
 }
 
 impl FrameRenderer for CountingRenderer {
-    fn render_frame(&mut self, _dirty: DirtyFlags) {
+    fn render_frame(&mut self, _dirty: DirtyFlags, _anim: &AnimationState) {
         self.frames.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -71,10 +76,18 @@ pub struct RenderLoop {
 }
 
 impl RenderLoop {
-    /// Spawns the render loop on a dedicated thread with the given renderer.
+    /// Spawns the render loop with default [`AnimationSet`] (twinkle on per [`RenderConfig::default`]).
     pub fn spawn<R: FrameRenderer + 'static>(renderer: R) -> Self {
+        Self::spawn_with_animations(renderer, AnimationSet::default())
+    }
+
+    /// Spawns the render loop with a custom animation configuration (used in tests).
+    pub fn spawn_with_animations<R: FrameRenderer + 'static>(
+        renderer: R,
+        animations: AnimationSet,
+    ) -> Self {
         let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
-        let thread = thread::spawn(move || run(cmd_rx, renderer));
+        let thread = thread::spawn(move || run(cmd_rx, renderer, animations));
         Self {
             cmd_tx,
             thread: Some(thread),
@@ -119,28 +132,61 @@ pub enum LoopJoinError {
     Panicked,
 }
 
-fn run<R: FrameRenderer>(cmd_rx: Receiver<PlanetariumCommand>, mut renderer: R) {
+fn run<R: FrameRenderer>(
+    cmd_rx: Receiver<PlanetariumCommand>,
+    mut renderer: R,
+    mut animations: AnimationSet,
+) {
     let mut dirty = DirtyFlags::empty();
 
     loop {
-        while !dirty.any() {
+        if dirty.any() || animations.needs_wake() {
+            // Dirty work renders immediately; animation-only waits use `next_wakeup`.
+            let timeout = if dirty.any() {
+                Duration::ZERO
+            } else {
+                animations.next_wakeup()
+            };
+            match cmd_rx.recv_timeout(timeout) {
+                Ok(PlanetariumCommand::Shutdown) => return,
+                Ok(cmd) => apply_command(&mut renderer, &mut dirty, &mut animations, cmd),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return,
+            }
+
+            while let Ok(cmd) = cmd_rx.try_recv() {
+                match cmd {
+                    PlanetariumCommand::Shutdown => return,
+                    other => apply_command(&mut renderer, &mut dirty, &mut animations, other),
+                }
+            }
+
+            let now = Instant::now();
+            let anim_tick = animations.advance(now);
+            if dirty.any() || anim_tick {
+                let state = animations.state(now);
+                renderer.render_frame(dirty, &state);
+                dirty = DirtyFlags::empty();
+            }
+        } else {
             match cmd_rx.recv() {
                 Ok(PlanetariumCommand::Shutdown) => return,
-                Ok(cmd) => renderer.on_command(&cmd, &mut dirty),
+                Ok(cmd) => apply_command(&mut renderer, &mut dirty, &mut animations, cmd),
                 Err(RecvError) => return,
             }
         }
-
-        while let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                PlanetariumCommand::Shutdown => return,
-                other => renderer.on_command(&other, &mut dirty),
-            }
-        }
-
-        renderer.render_frame(dirty);
-        dirty = DirtyFlags::empty();
     }
+}
+
+fn apply_command<R: FrameRenderer>(
+    renderer: &mut R,
+    dirty: &mut DirtyFlags,
+    animations: &mut AnimationSet,
+    cmd: PlanetariumCommand,
+) {
+    let now = Instant::now();
+    animations.on_command(&cmd, now);
+    renderer.on_command(&cmd, dirty);
 }
 
 trait DirtyExt {
