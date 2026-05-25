@@ -141,6 +141,32 @@ class AppearanceSettings extends ConsumerWidget {
               ),
             ],
           ),
+          SettingsSection(
+            title: 'Experimental',
+            colors: colors,
+            isMobile: isMobile,
+            children: [
+              SettingRow(
+                icon: LucideIcons.sparkles,
+                title: 'Planetarium v2 (alpha)',
+                subtitle:
+                    'Rust + wgpu renderer. Faster, smoother, event-driven. '
+                    'Toggle off and switch screens if anything looks wrong.',
+                trailing: SettingsSwitch(
+                  value: settings.renderingPlatform.isV2,
+                  onChanged: (value) {
+                    ref.read(appSettingsProvider.notifier).setRenderingPlatform(
+                          value ? RenderingPlatform.v2 : RenderingPlatform.v1,
+                        );
+                  },
+                  colors: colors,
+                ),
+                isLast: true,
+                colors: colors,
+                isMobile: isMobile,
+              ),
+            ],
+          ),
         ],
       ),
     );
