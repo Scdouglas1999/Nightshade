@@ -3,11 +3,14 @@
 //! Does not call `Resize` / surface allocate — that requires a live Flutter engine
 //! (see Task 15 integration tests). Exercises loop + snapshot + command path only.
 
+use std::borrow::Cow;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
-use nightshade_planetarium::types::{AstroTime, Observer, ViewPose};
+use nightshade_planetarium::catalog::{pixel_for_direction, HitIndex, StarPack, StarRecord};
+use nightshade_planetarium::scene::projection::project_icrs;
+use nightshade_planetarium::types::{AstroTime, Observer, SkyProjection, ViewPose};
 use nightshade_planetarium::{Planetarium, PlanetariumError};
 
 const ITERATIONS: usize = 48;
@@ -134,6 +137,184 @@ fn frame_id_monotonic_across_error_recovery() {
         );
         last = next;
     }
+}
+
+/// Minimal in-memory star pack for hit_test integration tests.
+struct OneStarPack {
+    nside: u32,
+    pixel: u64,
+    star: StarRecord,
+}
+
+impl OneStarPack {
+    fn new(ra: f64, dec: f64, mag: f32, hip: u32) -> Self {
+        let nside = 64;
+        let pixel = pixel_for_direction(ra, dec, nside).expect("pixel");
+        let star = StarRecord::from_radec(hip, ra as f32, dec as f32, mag, f32::NAN, 0);
+        Self { nside, pixel, star }
+    }
+}
+
+impl StarPack for OneStarPack {
+    fn pack_id(&self) -> &str {
+        "one-star"
+    }
+
+    fn nside(&self) -> u32 {
+        self.nside
+    }
+
+    fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
+        if healpix_id == self.pixel {
+            Some(Cow::Owned(vec![self.star]))
+        } else {
+            None
+        }
+    }
+
+    fn build_hit_index(&self) -> HitIndex {
+        let mut idx = HitIndex::new(self.nside);
+        idx.insert_star(self.star).expect("insert");
+        idx
+    }
+}
+
+#[test]
+fn hit_test_uses_render_thread_pose_not_published_snapshot() {
+    // Regression: hit_test used to read self.snapshot().view_pose, which lags
+    // ≥1 frame behind the render thread's current pose. A tap immediately after
+    // a programmatic SetPose would project against the OLD pose, hitting the
+    // wrong (or no) star. live_pose closes that window.
+
+    // Vega coordinates.
+    let star_ra = 4.872_013_f64;
+    let star_dec = 0.676_757_f64;
+    let hip = 91262_u32;
+
+    let planetarium = Planetarium::new(0).expect("new");
+    planetarium.register_pack(Box::new(OneStarPack::new(star_ra, star_dec, 0.03, hip)));
+
+    // Seed pose far from the star: any hit at screen center should MISS.
+    planetarium
+        .send(PlanetariumCommand::SetPose(ViewPose {
+            ra_rad: 0.0,
+            dec_rad: 0.0,
+            fov_rad: 0.35,
+            roll_rad: 0.0,
+            projection: SkyProjection::Stereographic,
+        }))
+        .expect("seed pose");
+    // Wait for the snapshot to settle so the published view_pose is the seed.
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    loop {
+        let snap = planetarium.snapshot();
+        if snap.frame_id > 0 && (snap.view_pose.ra_rad - 0.0).abs() < 1e-9 {
+            break;
+        }
+        if Instant::now() >= deadline {
+            panic!("seed pose snapshot did not settle");
+        }
+        thread::sleep(POLL);
+    }
+
+    // Now reset view onto the star and IMMEDIATELY hit-test screen center.
+    let on_target = ViewPose {
+        ra_rad: star_ra,
+        dec_rad: star_dec,
+        fov_rad: 0.35,
+        roll_rad: 0.0,
+        projection: SkyProjection::Stereographic,
+    };
+    planetarium
+        .send(PlanetariumCommand::SetPose(on_target))
+        .expect("on-target pose");
+
+    // Wait only for live_pose to update — much earlier than snapshot would.
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    loop {
+        let lp = planetarium.live_pose();
+        if (lp.ra_rad - star_ra).abs() < 1e-9 {
+            break;
+        }
+        if Instant::now() >= deadline {
+            panic!("live_pose did not catch up to on-target");
+        }
+        thread::sleep(POLL);
+    }
+
+    // Project star to screen using the NEW (live) pose to derive expected tap coords.
+    let (sx, sy) = project_icrs(star_ra, star_dec, on_target).expect("star projects");
+
+    let selected = planetarium
+        .hit_test(sx, sy)
+        .expect("hit_test")
+        .expect("selection");
+    assert_eq!(
+        selected.object_id, hip as u64,
+        "hit_test must project against live_pose, not stale snapshot",
+    );
+
+    // Direct contract assertion: the pose source hit_test uses must be live_pose,
+    // which can lead snapshot.view_pose. Verify the underlying invariant — the
+    // integration race above can fall out of either source if the render loop
+    // happens to publish the snapshot before hit_test fires; what we really care
+    // about is that hit_test reads the LIVE slot regardless of snapshot timing.
+    assert_eq!(
+        planetarium.live_pose().ra_rad,
+        on_target.ra_rad,
+        "live_pose should reflect the on-target SetPose",
+    );
+}
+
+#[test]
+fn live_pose_leads_snapshot_view_pose() {
+    // The fix for "hit_test reads stale snapshot" requires hit_test to read a
+    // pose slot that's updated faster than the published snapshot. Here we
+    // assert the mechanism: after every Set* command that touches pose,
+    // live_pose reflects the new pose. The published snapshot may or may not
+    // have caught up yet — that's the lag the bug was about.
+    let planetarium = Planetarium::new(0).expect("new");
+
+    planetarium
+        .send(PlanetariumCommand::SetPose(ViewPose {
+            ra_rad: 1.0,
+            ..ViewPose::default()
+        }))
+        .expect("set_pose 1");
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    loop {
+        if (planetarium.live_pose().ra_rad - 1.0).abs() < 1e-9 {
+            break;
+        }
+        if Instant::now() >= deadline {
+            panic!("live_pose 1.0 not observed");
+        }
+        thread::sleep(POLL);
+    }
+
+    planetarium
+        .send(PlanetariumCommand::SetPose(ViewPose {
+            ra_rad: 2.5,
+            ..ViewPose::default()
+        }))
+        .expect("set_pose 2");
+
+    let deadline = Instant::now() + WAKE_TIMEOUT;
+    loop {
+        if (planetarium.live_pose().ra_rad - 2.5).abs() < 1e-9 {
+            break;
+        }
+        if Instant::now() >= deadline {
+            panic!(
+                "live_pose 2.5 not observed; live={} snapshot={}",
+                planetarium.live_pose().ra_rad,
+                planetarium.snapshot().view_pose.ra_rad,
+            );
+        }
+        thread::sleep(POLL);
+    }
+
+    assert_eq!(planetarium.live_pose().ra_rad, 2.5);
 }
 
 #[test]

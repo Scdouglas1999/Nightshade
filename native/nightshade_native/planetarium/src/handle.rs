@@ -6,6 +6,7 @@
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use crossbeam_channel::SendError;
 use parking_lot::Mutex;
 
@@ -48,6 +49,11 @@ pub struct Planetarium {
 struct PlanetariumInner {
     cmd_tx: crossbeam_channel::Sender<PlanetariumCommand>,
     snapshot: SnapshotSlot,
+    /// Lock-free, render-thread-published view pose, refreshed on every command
+    /// that mutates pose (not just on render). [`Planetarium::hit_test`] reads
+    /// this instead of the published [`SceneSnapshot::view_pose`] which lags by
+    /// up to one full render cycle.
+    live_pose: Arc<ArcSwap<ViewPose>>,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     /// Incremented at the start of each [`PlanetariumCommand::Resize`] (observable retry).
@@ -60,6 +66,9 @@ struct PlanetariumInner {
 struct PlanetariumRenderer {
     surface: Box<dyn PlatformSurface>,
     snapshot: SnapshotSlot,
+    /// Mirror of [`PlanetariumInner::live_pose`] held by the render thread; the
+    /// only writer of the inner ArcSwap. See [`Self::refresh_view_pose`].
+    live_pose: Arc<ArcSwap<ViewPose>>,
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     resize_generation: Arc<AtomicU64>,
@@ -89,7 +98,13 @@ impl PlanetariumRenderer {
     fn refresh_view_pose(&mut self) {
         let inputs = self.pose_inputs();
         match self.pose_ctrl.derived_pose(&inputs) {
-            Ok(pose) => self.view_pose = pose,
+            Ok(pose) => {
+                self.view_pose = pose;
+                // Publish to the lock-free slot so cross-thread readers (FFI
+                // `hit_test`, etc.) see the pose as soon as the render thread
+                // observes it, not on the next frame boundary.
+                self.live_pose.store(Arc::new(pose));
+            }
             Err(err) => tracing::error!("derived view pose failed: {err}"),
         }
     }
@@ -115,6 +130,7 @@ impl Planetarium {
     pub fn new(engine_handle: i64) -> Result<Self, PlanetariumError> {
         let surface = create_surface(engine_handle)?;
         let snapshot = new_snapshot_slot();
+        let live_pose = Arc::new(ArcSwap::from_pointee(ViewPose::default()));
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
         let surface_error = Arc::new(Mutex::new(None));
         let resize_generation = Arc::new(AtomicU64::new(0));
@@ -123,6 +139,7 @@ impl Planetarium {
         let renderer = PlanetariumRenderer {
             surface,
             snapshot: Arc::clone(&snapshot),
+            live_pose: Arc::clone(&live_pose),
             texture_id: Arc::clone(&texture_id),
             surface_error: Arc::clone(&surface_error),
             resize_generation: Arc::clone(&resize_generation),
@@ -147,6 +164,7 @@ impl Planetarium {
             inner: Arc::new(PlanetariumInner {
                 cmd_tx,
                 snapshot,
+                live_pose,
                 texture_id,
                 surface_error,
                 resize_generation,
@@ -170,8 +188,13 @@ impl Planetarium {
     }
 
     /// Screen pick at normalized coordinates using registered catalog hit indexes.
+    ///
+    /// Uses the render-thread's most recently derived pose
+    /// ([`PlanetariumInner::live_pose`]) rather than the published snapshot,
+    /// which lags by up to a full render cycle. Critical for hit tests issued
+    /// immediately after a `SetPose` / mount tracking update.
     pub fn hit_test(&self, x: f32, y: f32) -> Result<Option<SelectedObject>, HitTestError> {
-        let pose = self.snapshot().view_pose;
+        let pose = self.live_pose();
         let mag_limit = self.inner.render_config.lock().magnitude_limit;
         hit_test_screen(&self.inner.catalog.lock(), x, y, pose, mag_limit)
     }
@@ -213,6 +236,14 @@ impl Planetarium {
     /// Number of [`PlanetariumCommand::Resize`] commands processed on the render thread.
     pub fn resize_generation(&self) -> u64 {
         self.inner.resize_generation.load(Ordering::Acquire)
+    }
+
+    /// Render-thread-published current pose, updated by every command that
+    /// changes the derived pose. Refreshed at command-processing time — not
+    /// at frame-render time — so it leads [`Self::snapshot`]`.view_pose` by up
+    /// to one full render cycle. Used by [`Self::hit_test`].
+    pub fn live_pose(&self) -> ViewPose {
+        **self.inner.live_pose.load()
     }
 }
 
